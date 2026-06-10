@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simengine"
+version = "2.0.0"
+authors = [
+  { name="Example Author", email="author@example.com" },
+]
+description = "A powerful and flexible simulation engine."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "json-repair",
+    "jsonschema>=4.0.0",
+    "networkx",
+    "pydantic",
+    "chromadb",
+    "ollama",
+    "openai",
+    "PyYAML",
+    "jmespath",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
