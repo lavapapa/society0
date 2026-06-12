@@ -1,0 +1,7 @@
+interface:
+  display_name: "Society0"
+  short_description: "Design env-first Society0 simulations."
+  default_prompt: "Use $society0 to turn my social science observation into an env-first runnable Society0 experiment."
+
+policy:
+  allow_implicit_invocation: true

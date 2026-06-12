@@ -1,198 +1,102 @@
-# Society0 Simulation Engine
+# Society0
 
-A data-driven, LLM-empowered social simulation framework implementing the Society0 design philosophy.
+Society0 is the simulation engine core for [ICLabSZ/Society_Zero_Universe](https://github.com/ICLabSZ/Society_Zero_Universe), designed to be used as a standalone engine for creating, running, and analyzing social simulation experiments.
 
-## Overview
+The intended workflow is agent-assisted: researchers can use their own coding agents, such as Codex, Claude Code, Gemini, CodeWhale, or similar tools, to create experiments, configure models, run simulations, inspect outputs, and draft analysis. The engine provides a general abstraction for agents, environments, memory, model providers, run state, and outputs, so different kinds of social simulation can be built on the same core.
 
-The Society0 simulation engine provides a complete framework for creating complex social simulations with LLM-driven agents. It features a dual-capability agent model, environment-mediated interactions, and comprehensive state management with checkpoint/recovery capabilities.
+## For Agent
 
-## Key Features
+You can copy this into your coding agent:
 
-- **Data-Driven Configuration**: Define simulations through YAML config files and function decorators
-- **Mixed Agent Types**: Support for both LLM-driven and rule-based agents
-- **Four-Phase DAG Execution**: Input → Select → Operate → Convert pipeline for each step
-- **Environment Empowerment**: Agents gain capabilities through environment interaction
-- **Complete State Management**: Checkpoint creation, restoration, and parallel world branching
-- **AgentBubu Integration**: ReAct capabilities for LLM agents
-- **Spatial Awareness**: Built-in spatial environment with position-based interactions
+```text
+Open https://github.com/lavapapa/society0/blob/main/README.md, install the Society0 skill, configure the environment, and help me create, run, inspect, and analyze a small Society0 simulation experiment.
+```
+
+Agents reading this repository directly should start from [skill/SKILL.md](skill/SKILL.md).
+
+## Requirements
+
+- Python `>=3.12`.
+- A coding agent that can read and edit a local repository, such as Codex, Claude Code, Gemini, CodeWhale, or another capable coding assistant.
+- An LLM provider, such as OpenAI, Ollama, Grok, Qwen, Claude-compatible routes, OpenRouter, SiliconFlow, or another OpenAI-compatible endpoint.
+- An embedding model. The engine does not require a specific model size.
 
 ## Quick Start
 
+```bash
+cd society0core
+pip install -e .
+```
+
 ```python
 import asyncio
-from libs.simengine import Experiment
+from society0 import Society0
 
-# Create experiment with config
-exp = Experiment(config="./config.yaml", save_dir="./my_experiment")
-register = exp.register
+config = {
+    "agent_types": [{"id": "reader", "archetype": "rule"}],
+    "agents": [
+        {"id": "alice", "type": "reader", "state": {"trust": 0.45}},
+        {"id": "bob", "type": "reader", "state": {"trust": 0.70}},
+    ],
+    "environment": {"type": "plain", "state": {"topic": "misinformation"}},
+}
 
-# Register environment field of view
-@register.env.fov(desc="See nearby agents")
-async def see_nearby(env, agent):
-    return ["You see other agents nearby..."]
+engine = Society0(save_dir="runs/quickstart", base_config=config)
 
-# Register agent rules
-@register.agent.rule(desc="Daily routine")
-async def daily_routine(agent, context):
-    agent.apply_patch('energy', 'add', -10)
 
-# Register schedule operations
-@register.sched.operator(desc="Social interaction")
-async def social_interact(agents, env, input_params):
-    # Implementation here
-    return {"interaction_results": "..."}
+@engine.step(name="measure_trust")
+async def measure_trust(ctx):
+    ids = ctx.agents.where(type="reader").ids()
+    rows = [
+        {"agent_id": agent_id, "trust": ctx.world.agents_data[agent_id]["state"]["trust"]}
+        for agent_id in ids
+    ]
+    return ctx.result(
+        metrics={"avg_trust": sum(row["trust"] for row in rows) / len(rows)},
+        tables={"trust": rows},
+    )
 
-# Run simulation
-await exp.run(steps=10)
+
+asyncio.run(engine.run(steps=3))
 ```
 
-## Configuration Structure
+Outputs are written under the run directory:
 
-```yaml
-experiment:
-  name: "my_simulation"
-
-environment:
-  type: "spatial"
-  state:
-    time_of_day: "morning"
-  rules: ["advance_time"]
-  fovs: ["see_nearby_agents"]
-  empower_actions:
-    move: "spatial_move"
-
-agents:
-  - id: "alice"
-    type: "llm"
-    persona: "A curious researcher"
-    state: {mood: "curious"}
-
-  - id: "bob"
-    type: "rule"
-    state: {energy: 100}
-    rules: ["daily_routine"]
-
-schedule:
-  nodes:
-    - id: "morning_setup"
-      selector: {type: "all_agents"}
-      operators: [{type: "rule", rule_name: "morning_prep"}]
-      converter: {type: "summary"}
+```text
+steps.jsonl
+metrics.jsonl
+events.jsonl
+summary.json
+checkpoints/
+chroma_store/
 ```
 
-## Architecture Components
+## LLM Agents
 
-### Core Classes
-
-- **`Experiment`**: Main user interface for simulation setup and execution
-- **`StepNode`**: Four-phase execution unit (Input→Select→Operate→Convert)
-- **`BaseAgent`**: Agent base class with state management
-- **`BaseEnvironment`**: Environment with FoV, rules, and empowerment
-- **`StateManager`**: Checkpoint creation and restoration
-
-### Agent Types
-
-- **`LLMAgent`**: AgentBubu-powered agents with ReAct capabilities
-- **`RuleAgent`**: Deterministic/stochastic rule-driven agents
-
-### Execution Components
-
-- **Selectors**: Choose which agents to operate on
-- **Operators**: Execute actions on selected agents
-- **Converters**: Transform results for downstream consumption
-
-## Function Registration
-
-The engine uses a decorator-based registration system:
+LLM-agent experiments require both an LLM provider and an embedding provider:
 
 ```python
-# Environment functions
-@register.env.fov(desc="Field of view function")
-async def see_agents(env, agent): pass
+from society0 import EmbedModel, LLMModel, Society0
 
-@register.env.rule(desc="Environment rule")
-async def update_weather(env, context): pass
+llm = LLMModel.openai_compatible(
+    model="your-chat-model",
+    base_url="https://your-provider/v1",
+    api_key="...",
+    concurrency=5,
+)
 
-@register.env.empower(desc="Action empowerment")
-async def enable_movement(env, agent, action, **params): pass
+embed = EmbedModel.ollama(
+    model="nomic-embed-text",
+    base_url="http://localhost:11434",
+    concurrency=5,
+)
 
-# Agent functions
-@register.agent.rule(desc="Agent rule")
-async def agent_routine(agent, context): pass
-
-@register.agent.action(desc="Agent action")
-async def perform_task(agent, env, **params): pass
-
-# Schedule functions
-@register.sched.selector(desc="Agent selector")
-async def select_by_mood(env, agents, input_params): pass
-
-@register.sched.operator(desc="Operation on agents")
-async def instruct_agents(agents, env, input_params): pass
-
-@register.sched.converter(desc="Result converter")
-async def summarize_results(operator_results, input_params): pass
+engine = Society0(save_dir="runs/demo", base_config=config, llm=llm, embed=embed)
 ```
 
-## State Management
+Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-style measurement.
+If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
 
-The engine provides comprehensive state management:
+## Contributing
 
-```python
-# Run simulation with automatic checkpointing
-await exp.run(steps=10)
-
-# Resume from checkpoint
-await exp.resume(from_step=5)
-
-# Create parallel world for experimentation
-parallel_exp = await exp.create_parallel_world(from_step=3, branch_name="experiment_a")
-await parallel_exp.run(steps=5)
-```
-
-## Integration with Existing Libraries
-
-- **dag_engine**: Used for DAG execution and dependency resolution
-- **AgentBubu**: Powers LLM agents with ReAct capabilities and tool integration
-- **PocketFlow**: Available for micro-orchestration within operators
-
-## Example Applications
-
-The engine supports various simulation scenarios:
-
-- Economic modeling with markets and traders
-- Social network dynamics and information spread
-- Urban planning with spatial agent interactions
-- Political opinion formation and polarization
-- Organizational behavior and decision-making
-
-## File Structure
-
-```
-libs/simengine/
-├── core/
-│   ├── experiment.py        # Main Experiment class
-│   ├── step_node.py         # Four-phase execution
-│   └── registry.py          # Function registration
-├── components/
-│   ├── agent.py             # Agent implementations
-│   ├── environment.py       # Environment implementations
-│   └── state_manager.py     # State persistence
-├── execution/
-│   ├── selectors.py         # Agent selection logic
-│   ├── operators.py         # Operation implementations
-│   └── converters.py        # Result transformation
-└── integration/
-    ├── dag_integration.py   # DAG engine integration
-    └── bubu_integration.py  # AgentBubu integration
-```
-
-## Design Principles
-
-1. **Data-Driven**: Everything configurable through files and decorators
-2. **State Isolation**: Components manage their own state via apply_patch()
-3. **Complete Persistence**: Any step can be checkpointed and restored
-4. **Environment Mediation**: All agent capabilities flow through environment
-5. **Parallel Execution**: DAG-based execution with dependency resolution
-
-This engine implements the complete Society0 design philosophy while remaining practical and extensible for real-world simulation needs.
+Society0 welcomes contributions from social science researchers. If you or your agent creates a useful environment, finds a bug, or has an experiment-driven feature request, ask your coding agent to help open an issue or prepare a focused pull request.

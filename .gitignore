@@ -10,7 +10,7 @@ htmlcov/
 
 .venv/
 venv/
-env/
+/env/
 
 build/
 dist/
@@ -18,18 +18,29 @@ dist/
 
 .DS_Store
 ._.DS_Store
-.refs/
-edit_history/
+/.refs/
+/edit_history/
 
-output/
-events.jsonl
-logs/
-checkpoints/
-chroma_store/
-chroma_backups/
-metadata/
-diffs/
-interviews/
+/output/
+/runs/
+/tmp/
+/artifacts/
+/reports/
+/examples/friend_endorsement_experiment.py
+/events.jsonl
+/logs/
+/checkpoints/
+/chroma_store/
+/chroma_backups/
+/metadata/
+/diffs/
+/interviews/
+
+*.log
+*.jsonl
+*.sqlite
+*.sqlite3
+*.db
 
 .env
 .env.*

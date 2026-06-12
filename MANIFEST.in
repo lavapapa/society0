@@ -1,0 +1,25 @@
+include README.md
+include LICENSE
+include pyproject.toml
+include pytest.ini
+graft src
+graft docs
+graft examples
+graft skill
+prune tests
+prune runs
+prune output
+prune tmp
+prune artifacts
+prune reports
+prune logs
+prune checkpoints
+prune chroma_store
+prune chroma_backups
+prune metadata
+prune diffs
+prune interviews
+prune edit_history
+prune .refs
+global-exclude __pycache__ *.py[cod] *.egg-info
+global-exclude .env .env.* *.jsonl *.log *.sqlite *.sqlite3 *.db
