@@ -9,7 +9,7 @@ The intended workflow is agent-assisted: researchers can use their own coding ag
 You can copy this into your coding agent:
 
 ```text
-Open https://github.com/lavapapa/society0/blob/main/README.md, install the Society0 skill, configure the environment, and help me create, run, inspect, and analyze a small Society0 simulation experiment.
+Open https://github.com/lavapapa/society0/blob/main/README.md, install the Society0 skill, configure the environment, and guide me in stages to understand Society0, design my own simulation experiment, run it, and interpret the outputs.
 ```
 
 Agents reading this repository directly should start from [skill/SKILL.md](skill/SKILL.md).
