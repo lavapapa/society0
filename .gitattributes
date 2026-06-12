@@ -1,0 +1,26 @@
+# Keep local run artifacts and machine state out of exported source archives.
+/.refs/ export-ignore
+/edit_history/ export-ignore
+/runs/ export-ignore
+/output/ export-ignore
+/tmp/ export-ignore
+/artifacts/ export-ignore
+/reports/ export-ignore
+/logs/ export-ignore
+/checkpoints/ export-ignore
+/chroma_store/ export-ignore
+/chroma_backups/ export-ignore
+/metadata/ export-ignore
+/diffs/ export-ignore
+/interviews/ export-ignore
+/events.jsonl export-ignore
+*.jsonl export-ignore
+*.log export-ignore
+*.sqlite export-ignore
+*.sqlite3 export-ignore
+*.db export-ignore
+.env export-ignore
+.env.* export-ignore
+__pycache__/ export-ignore
+.pytest_cache/ export-ignore
+*.egg-info/ export-ignore

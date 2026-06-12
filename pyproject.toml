@@ -3,17 +3,17 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "simengine"
+name = "society0"
 version = "2.0.0"
 authors = [
-  { name="Example Author", email="author@example.com" },
+  { name="Society0 contributors" },
 ]
-description = "A powerful and flexible simulation engine."
+description = "Code-driven social simulation core for researchers."
 readme = "README.md"
+license = "MIT"
 requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
@@ -26,6 +26,13 @@ dependencies = [
     "openai",
     "PyYAML",
     "jmespath",
+    "tenacity",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
 ]
 
 [tool.setuptools.packages.find]
