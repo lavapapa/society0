@@ -93,6 +93,7 @@ Parameters:
 - `terminal_actions`: optional action names that end the agent loop immediately after a successful call because that action is the natural endpoint of the current task.
 - `completion_action_tags`: optional action tags that end the agent loop after a successful matching action. Use this when a category of actions completes the round, while other read or lookup tools may still be intermediate.
 - `required_actions`: optional action names that must be successfully called by each selected agent for that agent record to count as success. Use this when the experiment design requires a concrete behavior, not just a valid LLM response.
+- `required_action_tags`: optional action tags that must be successfully called by each selected agent for that agent record to count as success. Use this when the exact action may vary but the behavior category is required.
 
 During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. Use `actions=["memory"]` only when the study explicitly wants agents to call memory tools themselves; `memory=True` already performs framework-managed retrieval and saving.
 
@@ -118,10 +119,11 @@ result = await users.instruct(
     "Browse the feed. You may inspect trending posts, then make one real interaction if useful.",
     fovs=["recommended_feed"],
     actions=["get_trending_posts", "comment", "like_post", "repost"],
-    memory=False,
+    memory_top_k=5,
     max_turns=3,
     completion_action_tags=["social_write"],
     action_call_limits={"comment": 1, "like_post": 1, "repost": 1},
+    required_action_tags=["social_write"],
     name="feed_interaction",
 )
 ```
