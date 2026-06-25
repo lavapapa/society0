@@ -1779,45 +1779,78 @@ class Society0:
                                 "agent_count_total": 0,
                                 "duration_sec_total": 0.0,
                                 "param_keys": event_data.get("param_keys") or [],
+                                "by_tick": {},
+                                "error_samples": [],
+                            },
+                        )
+                        tick_execution = execution["by_tick"].setdefault(
+                            tick,
+                            {
+                                "latest_event": name,
+                                "step": tick,
+                                "step_name": event_data.get("step_name"),
+                                "started_count": 0,
+                                "completed_count": 0,
+                                "failed_count": 0,
+                                "success_count": 0,
+                                "error_count": 0,
+                                "agent_count_total": 0,
+                                "duration_sec_total": 0.0,
+                                "param_keys": event_data.get("param_keys") or [],
                                 "error_samples": [],
                             },
                         )
                         execution["latest_event"] = name
+                        tick_execution["latest_event"] = name
                         if name == "logic_execution_started":
                             execution["started_count"] += 1
+                            tick_execution["started_count"] += 1
                         elif name == "logic_execution_completed":
                             execution["completed_count"] += 1
+                            tick_execution["completed_count"] += 1
                         elif name == "logic_execution_failed":
                             execution["failed_count"] += 1
+                            tick_execution["failed_count"] += 1
                         for key in ("success_count", "error_count"):
                             value = event_data.get(key)
                             if isinstance(value, int):
                                 execution[key] += value
+                                tick_execution[key] += value
                         agent_count = event_data.get("agent_count")
                         if isinstance(agent_count, int) and name != "logic_execution_started":
                             execution["agent_count_total"] += agent_count
+                            tick_execution["agent_count_total"] += agent_count
                         duration = event_data.get("duration_sec")
                         if isinstance(duration, (int, float)):
                             execution["duration_sec_total"] = round(
                                 float(execution["duration_sec_total"]) + float(duration),
                                 6,
                             )
+                            tick_execution["duration_sec_total"] = round(
+                                float(tick_execution["duration_sec_total"]) + float(duration),
+                                6,
+                            )
                         if event_data.get("concurrency") is not None:
                             execution["concurrency"] = event_data.get("concurrency")
+                            tick_execution["concurrency"] = event_data.get("concurrency")
                         if event_data.get("target_ids_sample") is not None:
                             execution["target_ids_sample"] = event_data.get("target_ids_sample")
+                            tick_execution["target_ids_sample"] = event_data.get("target_ids_sample")
                         event_error_samples = event_data.get("error_samples")
                         if isinstance(event_error_samples, list):
                             for sample in event_error_samples:
                                 if isinstance(sample, dict) and len(execution["error_samples"]) < 5:
                                     execution["error_samples"].append(sample)
+                                if isinstance(sample, dict) and len(tick_execution["error_samples"]) < 5:
+                                    tick_execution["error_samples"].append(sample)
                         if event_data.get("error") and len(execution["error_samples"]) < 5:
-                            execution["error_samples"].append(
-                                {
-                                    "error": event_data.get("error"),
-                                    "error_type": event_data.get("error_type"),
-                                }
-                            )
+                            sample = {
+                                "error": event_data.get("error"),
+                                "error_type": event_data.get("error_type"),
+                            }
+                            execution["error_samples"].append(sample)
+                            if len(tick_execution["error_samples"]) < 5:
+                                tick_execution["error_samples"].append(sample)
                     if event_data.get("error") and len(error_samples) < 5:
                         error_samples.append(
                             {
@@ -1862,6 +1895,12 @@ class Society0:
             for execution in logic_executions.values():
                 if not execution.get("error_samples"):
                     execution.pop("error_samples", None)
+                by_tick_executions = execution.get("by_tick")
+                if isinstance(by_tick_executions, dict):
+                    for tick_execution in by_tick_executions.values():
+                        if isinstance(tick_execution, dict) and not tick_execution.get("error_samples"):
+                            tick_execution.pop("error_samples", None)
+                    execution["by_tick"] = dict(sorted(by_tick_executions.items(), key=lambda item: item[0]))
             result["logic_executions"] = dict(sorted(logic_executions.items()))
         if env_hooks:
             for hook in env_hooks.values():

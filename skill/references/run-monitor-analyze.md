@@ -178,6 +178,8 @@ For most users, do not tune per-call concurrency. Adjust the model declaration i
 
 For completed runs, inspect `summary.json -> events.agent_batches` for each `instruct` or `interview`. The batch entry includes configured `concurrency`, cumulative `action_counts`, successful cumulative `action_tag_counts`, `batch_started_count`, `batch_completed_count`, `success_count_total`, `error_count_total`, `completed_count_total`, `duration_sec_total`, and progress diagnostics such as `progress_event_count`, `heartbeat_event_count`, `max_in_flight_count`, `max_pending_count`, and `max_started_count`. The plain `success_count`, `error_count`, `completed_count`, and `duration_sec` fields describe the latest batch event for that interaction name; use the `*_total` fields when a named interaction repeats across ticks. For tick-level explanation, use `summary.json -> events.agent_batches.<interaction>.by_tick`, which has the same counters split by simulation tick. Use these fields to explain whether the run actually had agents in flight and whether required behavior categories occurred; do not infer runtime behavior from provider settings alone.
 
+For deterministic logic, inspect `summary.json -> events.logic_executions`. Repeated rules or behaviors also include `by_tick`, so use that split when explaining policy updates, environment maintenance, rule baselines, or behavior failures over time.
+
 ## Quantitative Analysis
 
 Typical checks:
@@ -187,6 +189,7 @@ Typical checks:
 - persona or group differences.
 - missing/failed agent calls.
 - `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, error count, action counts, and successful action tag counts. After the run, prefer `summary.json -> events.agent_batches` for the compact roll-up, especially the cumulative fields when the same interaction name repeats over many ticks.
+- `logic_execution_started` / `logic_execution_completed` / `logic_execution_failed` events for `ctx.rule(...)` and deterministic `behavior(...)`: started/completed/failed counts, success/error counts, agent totals, duration totals, and `by_tick`.
 - variance across repeated runs.
 - for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 
