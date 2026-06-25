@@ -144,7 +144,7 @@ await users.instruct(
 )
 ```
 
-`actions=[...]` only controls which tools are available. It does not prove that the agent actually used a tool. When the scientific design requires an action such as publishing, voting, commenting, or submitting a decision, use `required_actions=[...]` and inspect `result.action_counts()` or `summary.json -> events.agent_batches`.
+`actions=[...]` only controls which tools are available. It does not prove that the agent actually used a tool. When the scientific design requires an action such as publishing, voting, commenting, or submitting a decision, use `required_actions=[...]` and inspect `result.action_counts()` or `summary.json -> events.agent_batches`. The event batch summary is the fallback diagnostic even if the step did not write an action table.
 
 Use `result.action_tag_counts()` when the exact action may vary but the behavior category matters. For example, a social interaction round may count successful `social_write` actions across `comment`, `like_post`, and `repost`. Failed action rows are not counted as successful tags.
 

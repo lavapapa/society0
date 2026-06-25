@@ -871,12 +871,17 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
         "extract": True,
         "top_k": 10,
     }
+    assert publish_batch["action_counts"].get("publish_post", 0) >= 1
+    assert publish_batch["action_tag_counts"].get("social_write", 0) >= 1
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": True,
         "extract": True,
         "top_k": 10,
     }
+    assert browse_batch["action_counts"].get("comment", 0) >= 1
+    assert browse_batch["action_tag_counts"].get("social_read", 0) >= 1
+    assert browse_batch["action_tag_counts"].get("social_write", 0) >= 1
     assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
         "memory_extraction"
     ]["call_count"] >= agent_count

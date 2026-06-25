@@ -1653,6 +1653,10 @@ class Society0:
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
                                 batch[key] = value
+                        for key in ("action_counts", "action_tag_counts"):
+                            value = event_data.get(key)
+                            if isinstance(value, dict):
+                                batch[key] = dict(sorted(value.items()))
                         for source_key, target_key in (
                             ("in_flight_count", "max_in_flight_count"),
                             ("pending_count", "max_pending_count"),
