@@ -147,6 +147,14 @@ class AgentBatchResult:
             counts[str(name)] = counts.get(str(name), 0) + 1
         return counts
 
+    def successful_action_counts(self) -> Dict[str, int]:
+        """Count successful action calls by action name."""
+        return _action_counts_by_status(self.actions(), success=True)
+
+    def failed_action_counts(self) -> Dict[str, int]:
+        """Count failed action calls by action name."""
+        return _action_counts_by_status(self.actions(), success=False)
+
     def action_tag_counts(self) -> Dict[str, int]:
         """Count successful action trace tags across all agent records."""
         counts: Dict[str, int] = {}
@@ -196,6 +204,8 @@ class AgentBatchResult:
             "success_count": self.success_count,
             "error_count": self.error_count,
             "action_counts": self.action_counts(),
+            "successful_action_counts": self.successful_action_counts(),
+            "failed_action_counts": self.failed_action_counts(),
             "action_tag_counts": self.action_tag_counts(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
@@ -565,6 +575,8 @@ class AgentGroup:
             in_flight_count=0,
             pending_count=0,
             action_counts=batch_result.action_counts(),
+            successful_action_counts=batch_result.successful_action_counts(),
+            failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -745,6 +757,8 @@ class AgentGroup:
             in_flight_count=0,
             pending_count=0,
             action_counts=batch_result.action_counts(),
+            successful_action_counts=batch_result.successful_action_counts(),
+            failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -1364,6 +1378,8 @@ def _record_agent_batch_event(
     latest_agent_id: Optional[str] = None,
     latest_status: Optional[str] = None,
     action_counts: Optional[Dict[str, int]] = None,
+    successful_action_counts: Optional[Dict[str, int]] = None,
+    failed_action_counts: Optional[Dict[str, int]] = None,
     action_tag_counts: Optional[Dict[str, int]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
@@ -1427,6 +1443,10 @@ def _record_agent_batch_event(
             event_data["latest_status"] = latest_status
         if action_counts is not None:
             event_data["action_counts"] = _jsonable(action_counts)
+        if successful_action_counts is not None:
+            event_data["successful_action_counts"] = _jsonable(successful_action_counts)
+        if failed_action_counts is not None:
+            event_data["failed_action_counts"] = _jsonable(failed_action_counts)
         if action_tag_counts is not None:
             event_data["action_tag_counts"] = _jsonable(action_tag_counts)
         if error_samples:
@@ -1535,6 +1555,20 @@ def _extract_actions_from_record(record: AgentCallRecord) -> List[Dict[str, Any]
                 row["result_truncated"] = True
         normalized.append(row)
     return normalized
+
+
+def _action_counts_by_status(actions: List[Dict[str, Any]], *, success: bool) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for action in actions:
+        name = action.get("action_name")
+        if not name:
+            continue
+        is_success = str(action.get("status") or "success").lower() == "success"
+        if is_success != success:
+            continue
+        action_key = str(name)
+        counts[action_key] = counts.get(action_key, 0) + 1
+    return counts
 
 
 def _missing_required_actions(result: Dict[str, Any], required_actions: Optional[List[str]]) -> List[str]:

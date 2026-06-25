@@ -546,6 +546,8 @@ class Society0:
                     "turns_count": 0,
                     "turns_max": 0,
                     "action_counts": {},
+                    "successful_action_counts": {},
+                    "failed_action_counts": {},
                     "action_tag_counts": {},
                     "action_error_count": 0,
                     "by_tick": {},
@@ -573,6 +575,8 @@ class Society0:
                     "turns_count": 0,
                     "turns_max": 0,
                     "action_counts": {},
+                    "successful_action_counts": {},
+                    "failed_action_counts": {},
                     "action_tag_counts": {},
                     "action_error_count": 0,
                 },
@@ -609,13 +613,19 @@ class Society0:
             seen.add(dedupe_key)
             action_counts = bucket["action_counts"]
             action_counts[action_key] = action_counts.get(action_key, 0) + 1
-            if str(action.get("status") or "success").lower() == "success":
+            is_success = str(action.get("status") or "success").lower() == "success"
+            if is_success:
+                successful_action_counts = bucket["successful_action_counts"]
+                successful_action_counts[action_key] = successful_action_counts.get(action_key, 0) + 1
                 action_tag_counts = bucket["action_tag_counts"]
                 for tag in action.get("tags") or []:
                     tag_key = str(tag)
                     if not tag_key:
                         continue
                     action_tag_counts[tag_key] = action_tag_counts.get(tag_key, 0) + 1
+            else:
+                failed_action_counts = bucket["failed_action_counts"]
+                failed_action_counts[action_key] = failed_action_counts.get(action_key, 0) + 1
             if action.get("status") and action.get("status") != "success":
                 bucket["action_error_count"] += 1
                 error_samples = bucket["_error_samples"]
@@ -633,13 +643,18 @@ class Society0:
                 tick_bucket = tick_bucket_for(bucket, tick)
                 tick_actions = tick_bucket["action_counts"]
                 tick_actions[action_key] = tick_actions.get(action_key, 0) + 1
-                if str(action.get("status") or "success").lower() == "success":
+                if is_success:
+                    tick_successful_actions = tick_bucket["successful_action_counts"]
+                    tick_successful_actions[action_key] = tick_successful_actions.get(action_key, 0) + 1
                     tick_action_tags = tick_bucket["action_tag_counts"]
                     for tag in action.get("tags") or []:
                         tag_key = str(tag)
                         if not tag_key:
                             continue
                         tick_action_tags[tag_key] = tick_action_tags.get(tag_key, 0) + 1
+                else:
+                    tick_failed_actions = tick_bucket["failed_action_counts"]
+                    tick_failed_actions[action_key] = tick_failed_actions.get(action_key, 0) + 1
                 if action.get("status") and action.get("status") != "success":
                     tick_bucket["action_error_count"] += 1
 
@@ -738,6 +753,8 @@ class Society0:
             else:
                 bucket["turns_avg"] = 0.0
             bucket["action_counts"] = dict(sorted(bucket["action_counts"].items()))
+            bucket["successful_action_counts"] = dict(sorted(bucket["successful_action_counts"].items()))
+            bucket["failed_action_counts"] = dict(sorted(bucket["failed_action_counts"].items()))
             bucket["action_tag_counts"] = dict(sorted(bucket["action_tag_counts"].items()))
             bucket["slowest_agents_by_turns"] = slowest_agents
             if error_samples:
@@ -752,6 +769,10 @@ class Society0:
                     else 0.0
                 )
                 tick_bucket["action_counts"] = dict(sorted(tick_bucket["action_counts"].items()))
+                tick_bucket["successful_action_counts"] = dict(
+                    sorted(tick_bucket["successful_action_counts"].items())
+                )
+                tick_bucket["failed_action_counts"] = dict(sorted(tick_bucket["failed_action_counts"].items()))
                 tick_bucket["action_tag_counts"] = dict(sorted(tick_bucket["action_tag_counts"].items()))
             bucket["by_tick"] = dict(sorted(by_tick.items(), key=lambda item: item[0]))
             finalized[step_name] = bucket
@@ -1707,6 +1728,8 @@ class Society0:
                                 "duration_sec": 0.0,
                                 "duration_sec_total": 0.0,
                                 "action_counts": {},
+                                "successful_action_counts": {},
+                                "failed_action_counts": {},
                                 "action_tag_counts": {},
                                 "by_tick": {},
                                 "error_samples": [],
@@ -1736,6 +1759,8 @@ class Society0:
                                 "duration_sec": 0.0,
                                 "duration_sec_total": 0.0,
                                 "action_counts": {},
+                                "successful_action_counts": {},
+                                "failed_action_counts": {},
                                 "action_tag_counts": {},
                                 "error_samples": [],
                             },
@@ -1763,13 +1788,19 @@ class Society0:
                             _merge_agent_batch_action_semantics(
                                 batch_semantics,
                                 execution_options,
-                                action_counts=event_data.get("action_counts"),
+                                action_counts=(
+                                    event_data.get("successful_action_counts")
+                                    or event_data.get("action_counts")
+                                ),
                                 action_tag_counts=event_data.get("action_tag_counts"),
                             )
                             _merge_agent_batch_action_semantics(
                                 tick_semantics,
                                 execution_options,
-                                action_counts=event_data.get("action_counts"),
+                                action_counts=(
+                                    event_data.get("successful_action_counts")
+                                    or event_data.get("action_counts")
+                                ),
                                 action_tag_counts=event_data.get("action_tag_counts"),
                             )
                             if not batch_semantics:
@@ -1801,7 +1832,12 @@ class Society0:
                                     float(tick_batch["duration_sec_total"]) + float(duration),
                                     6,
                                 )
-                            for key in ("action_counts", "action_tag_counts"):
+                            for key in (
+                                "action_counts",
+                                "successful_action_counts",
+                                "failed_action_counts",
+                                "action_tag_counts",
+                            ):
                                 value = event_data.get(key)
                                 if isinstance(value, dict):
                                     counts = batch[key]
