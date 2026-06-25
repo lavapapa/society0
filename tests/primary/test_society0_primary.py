@@ -379,6 +379,8 @@ def test_agent_batch_result_exposes_action_summaries():
     )
 
     assert result.action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1, "comment": 1}
+    assert result.successful_action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1}
+    assert result.failed_action_counts() == {"comment": 1}
     assert result.action_tag_counts() == {
         "get_trending_posts": 3,
         "social_read": 3,
@@ -408,6 +410,8 @@ def test_agent_batch_result_exposes_action_summaries():
         }
     ]
     assert result.to_dict()["action_counts"] == result.action_counts()
+    assert result.to_dict()["successful_action_counts"] == result.successful_action_counts()
+    assert result.to_dict()["failed_action_counts"] == result.failed_action_counts()
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
     assert result.to_dict()["error_samples"] == result.error_samples()
 
@@ -534,6 +538,8 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
         {"agent_id": "alice", "total_turns": 2, "status": "success"},
     ]
     assert summary["browse_round"]["action_counts"] == {"get_trending_posts": 1, "comment": 2}
+    assert summary["browse_round"]["successful_action_counts"] == {"comment": 1, "get_trending_posts": 1}
+    assert summary["browse_round"]["failed_action_counts"] == {"comment": 1}
     assert summary["browse_round"]["action_tag_counts"] == {
         "comment": 1,
         "get_trending_posts": 1,
@@ -549,6 +555,11 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
         "comment": 2,
         "get_trending_posts": 1,
     }
+    assert summary["browse_round"]["by_tick"]["0"]["successful_action_counts"] == {
+        "comment": 1,
+        "get_trending_posts": 1,
+    }
+    assert summary["browse_round"]["by_tick"]["0"]["failed_action_counts"] == {"comment": 1}
     assert summary["browse_round"]["by_tick"]["0"]["action_tag_counts"] == {
         "comment": 1,
         "get_trending_posts": 1,
@@ -629,6 +640,8 @@ def test_society0_summary_counts_nested_agent_actions_without_double_counting(tm
     assert summary["unique_agent_count"] == 1
     assert summary["success_count"] == 1
     assert summary["action_counts"] == {"publish_post": 1}
+    assert summary["successful_action_counts"] == {"publish_post": 1}
+    assert summary["failed_action_counts"] == {}
     assert summary["action_error_count"] == 0
 
 
@@ -690,12 +703,18 @@ def test_society0_summary_counts_repeated_agent_operations_across_ticks(tmp_path
     assert summary["turns_avg"] == 1.75
     assert summary["turns_max"] == 3
     assert summary["action_counts"] == {"comment": 1, "like_post": 2, "repost": 1}
+    assert summary["successful_action_counts"] == {"comment": 1, "like_post": 1, "repost": 1}
+    assert summary["failed_action_counts"] == {"like_post": 1}
     assert summary["action_error_count"] == 1
     assert summary["by_tick"]["0"]["agent_count"] == 2
     assert summary["by_tick"]["0"]["action_counts"] == {"comment": 1, "like_post": 1}
+    assert summary["by_tick"]["0"]["successful_action_counts"] == {"comment": 1, "like_post": 1}
+    assert summary["by_tick"]["0"]["failed_action_counts"] == {}
     assert summary["by_tick"]["1"]["agent_count"] == 2
     assert summary["by_tick"]["1"]["error_count"] == 1
     assert summary["by_tick"]["1"]["action_counts"] == {"like_post": 1, "repost": 1}
+    assert summary["by_tick"]["1"]["successful_action_counts"] == {"repost": 1}
+    assert summary["by_tick"]["1"]["failed_action_counts"] == {"like_post": 1}
 
 
 @pytest.mark.asyncio
@@ -827,6 +846,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                             "completed_count": 2,
                             "duration_sec": 1.5,
                             "action_counts": {"publish_post": 2},
+                            "successful_action_counts": {"publish_post": 2},
+                            "failed_action_counts": {},
                             "action_tag_counts": {"publish_post": 2, "social_write": 2},
                             "execution_options": {
                                 "max_turns": 4,
@@ -855,6 +876,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
                                 "completion_action_tags": ["social_write"],
+                                "required_actions": ["comment"],
                             },
                         },
                     }
@@ -873,12 +895,15 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                             "error_count": 1,
                             "completed_count": 2,
                             "duration_sec": 2.5,
-                            "action_counts": {"comment": 1},
+                            "action_counts": {"comment": 2},
+                            "successful_action_counts": {"comment": 1},
+                            "failed_action_counts": {"comment": 1},
                             "action_tag_counts": {"comment": 1, "social_write": 1},
                             "execution_options": {
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
                                 "completion_action_tags": ["social_write"],
+                                "required_actions": ["comment"],
                             },
                         },
                     }
@@ -930,7 +955,9 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["error_count_total"] == 1
     assert instruct["completed_count"] == 2
     assert instruct["completed_count_total"] == 4
-    assert instruct["action_counts"] == {"comment": 1, "publish_post": 2}
+    assert instruct["action_counts"] == {"comment": 2, "publish_post": 2}
+    assert instruct["successful_action_counts"] == {"comment": 1, "publish_post": 2}
+    assert instruct["failed_action_counts"] == {"comment": 1}
     assert instruct["action_tag_counts"] == {"comment": 1, "publish_post": 2, "social_write": 3}
     assert instruct["duration_sec"] == 2.5
     assert instruct["duration_sec_total"] == 4.0
@@ -948,7 +975,9 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["by_tick"]["1"]["error_count_total"] == 1
     assert instruct["by_tick"]["1"]["completed_count_total"] == 2
     assert instruct["by_tick"]["1"]["duration_sec_total"] == 2.5
-    assert instruct["by_tick"]["1"]["action_counts"] == {"comment": 1}
+    assert instruct["by_tick"]["1"]["action_counts"] == {"comment": 2}
+    assert instruct["by_tick"]["1"]["successful_action_counts"] == {"comment": 1}
+    assert instruct["by_tick"]["1"]["failed_action_counts"] == {"comment": 1}
     assert instruct["by_tick"]["1"]["action_tag_counts"] == {"comment": 1, "social_write": 1}
     assert instruct["progress_event_count"] == 1
     assert instruct["heartbeat_event_count"] == 1
@@ -967,8 +996,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
             "observed_counts": {"social_write": 2},
         },
         "required_actions": {
-            "configured": ["publish_post"],
-            "observed_counts": {"publish_post": 2},
+            "configured": ["publish_post", "comment"],
+            "observed_counts": {"comment": 1, "publish_post": 2},
         },
     }
     assert instruct["by_tick"]["0"]["action_semantics"] == {
@@ -989,7 +1018,11 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
         "completion_action_tags": {
             "configured": ["social_write"],
             "observed_counts": {"social_write": 1},
-        }
+        },
+        "required_actions": {
+            "configured": ["comment"],
+            "observed_counts": {"comment": 1},
+        },
     }
     assert interview["interaction_type"] == "interview"
     assert interview["concurrency"] == 1

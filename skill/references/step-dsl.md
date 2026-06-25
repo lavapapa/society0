@@ -237,11 +237,13 @@ result.by_agent("alice")
 result.success_count
 result.error_count
 result.action_counts()
+result.successful_action_counts()
+result.failed_action_counts()
 result.action_tag_counts()
 result.error_samples(limit=5)
 ```
 
-Write row-oriented tables so researchers can load them with pandas.
+`action_counts()` counts all attempts. Use `successful_action_counts()` when explaining completed behavior, and use `failed_action_counts()` when diagnosing tool mistakes or ambiguous instructions. Write row-oriented tables so researchers can load them with pandas.
 
 ## Step Results
 
