@@ -535,6 +535,7 @@ class AgentGroup:
             started_count=len(self.agent_ids),
             in_flight_count=0,
             pending_count=0,
+            error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
 
@@ -712,6 +713,7 @@ class AgentGroup:
             started_count=len(self.agent_ids),
             in_flight_count=0,
             pending_count=0,
+            error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
 
@@ -1328,6 +1330,7 @@ def _record_agent_batch_event(
     running_agent_ids_sample: Optional[List[str]] = None,
     latest_agent_id: Optional[str] = None,
     latest_status: Optional[str] = None,
+    error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     event_logger = getattr(world, "event_logger", None)
     if event_logger is None:
@@ -1387,6 +1390,8 @@ def _record_agent_batch_event(
             event_data["latest_agent_id"] = latest_agent_id
         if latest_status is not None:
             event_data["latest_status"] = latest_status
+        if error_samples:
+            event_data["error_samples"] = _jsonable(error_samples)
 
         event_logger.write_event(AgentBatchEvent(context_stack=context_stack))
     except Exception:
