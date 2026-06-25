@@ -32,6 +32,35 @@ def _env_tick_hook_is_overridden(env: Any, hook_name: str) -> bool:
     return env_hook is not None and env_hook is not base_hook
 
 
+def _merge_agent_batch_action_semantics(
+    target: Dict[str, Any],
+    execution_options: Dict[str, Any],
+    *,
+    action_counts: Optional[Dict[str, Any]] = None,
+    action_tag_counts: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Accumulate configured action semantics with observed successful counts."""
+    specs = (
+        ("required_actions", "required_actions", action_counts or {}),
+        ("required_action_tags", "required_action_tags", action_tag_counts or {}),
+        ("completion_action_tags", "completion_action_tags", action_tag_counts or {}),
+    )
+    for output_key, option_key, counts_source in specs:
+        configured = [str(item) for item in execution_options.get(option_key) or [] if str(item)]
+        if not configured:
+            continue
+        entry = target.setdefault(output_key, {"configured": [], "observed_counts": {}})
+        for item in configured:
+            if item not in entry["configured"]:
+                entry["configured"].append(item)
+            count_value = counts_source.get(item, 0) if isinstance(counts_source, dict) else 0
+            if isinstance(count_value, (int, float)):
+                entry["observed_counts"][item] = int(entry["observed_counts"].get(item, 0)) + int(count_value)
+            else:
+                entry["observed_counts"].setdefault(item, 0)
+        entry["observed_counts"] = dict(sorted(entry["observed_counts"].items()))
+
+
 class Society0:
     """Code-driven simulation engine for social simulation experiments."""
 
@@ -1729,6 +1758,24 @@ class Society0:
                         if isinstance(execution_options, dict):
                             batch["execution_options"] = execution_options
                             tick_batch["execution_options"] = execution_options
+                            batch_semantics = batch.setdefault("action_semantics", {})
+                            tick_semantics = tick_batch.setdefault("action_semantics", {})
+                            _merge_agent_batch_action_semantics(
+                                batch_semantics,
+                                execution_options,
+                                action_counts=event_data.get("action_counts"),
+                                action_tag_counts=event_data.get("action_tag_counts"),
+                            )
+                            _merge_agent_batch_action_semantics(
+                                tick_semantics,
+                                execution_options,
+                                action_counts=event_data.get("action_counts"),
+                                action_tag_counts=event_data.get("action_tag_counts"),
+                            )
+                            if not batch_semantics:
+                                batch.pop("action_semantics", None)
+                            if not tick_semantics:
+                                tick_batch.pop("action_semantics", None)
                         for key in ("success_count", "error_count", "completed_count", "duration_sec"):
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):

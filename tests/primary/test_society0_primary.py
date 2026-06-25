@@ -769,6 +769,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
                                 "completion_action_tags": ["social_write"],
+                                "required_actions": ["publish_post"],
+                                "required_action_tags": ["social_write"],
                             },
                         },
                     }
@@ -830,6 +832,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
                                 "completion_action_tags": ["social_write"],
+                                "required_actions": ["publish_post"],
+                                "required_action_tags": ["social_write"],
                             },
                         },
                     }
@@ -953,6 +957,40 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["max_started_count"] == 2
     assert instruct["execution_options"]["memory"]["extract"] is True
     assert instruct["execution_options"]["completion_action_tags"] == ["social_write"]
+    assert instruct["action_semantics"] == {
+        "completion_action_tags": {
+            "configured": ["social_write"],
+            "observed_counts": {"social_write": 3},
+        },
+        "required_action_tags": {
+            "configured": ["social_write"],
+            "observed_counts": {"social_write": 2},
+        },
+        "required_actions": {
+            "configured": ["publish_post"],
+            "observed_counts": {"publish_post": 2},
+        },
+    }
+    assert instruct["by_tick"]["0"]["action_semantics"] == {
+        "completion_action_tags": {
+            "configured": ["social_write"],
+            "observed_counts": {"social_write": 2},
+        },
+        "required_action_tags": {
+            "configured": ["social_write"],
+            "observed_counts": {"social_write": 2},
+        },
+        "required_actions": {
+            "configured": ["publish_post"],
+            "observed_counts": {"publish_post": 2},
+        },
+    }
+    assert instruct["by_tick"]["1"]["action_semantics"] == {
+        "completion_action_tags": {
+            "configured": ["social_write"],
+            "observed_counts": {"social_write": 1},
+        }
+    }
     assert interview["interaction_type"] == "interview"
     assert interview["concurrency"] == 1
     assert interview["fovs"] == ["recent_posts"]
