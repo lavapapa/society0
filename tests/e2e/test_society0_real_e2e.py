@@ -745,6 +745,8 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
         "top_k": 10,
     }
     assert publish_batch["execution_options"]["required_actions"] == ["publish_post"]
+    assert publish_batch["action_semantics"]["required_actions"]["configured"] == ["publish_post"]
+    assert publish_batch["action_semantics"]["required_actions"]["observed_counts"]["publish_post"] == agent_count
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
     publish_llm_traces = [item for item in llm_traces if item.get("interaction_type") == "instruct"]
@@ -923,6 +925,8 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_batch["action_counts"].get("comment", 0) >= 1
     assert browse_batch["action_tag_counts"].get("social_read", 0) >= 1
     assert browse_batch["action_tag_counts"].get("social_write", 0) >= 1
+    assert browse_batch["action_semantics"]["completion_action_tags"]["configured"] == ["social_write"]
+    assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
     assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
         "memory_extraction"
     ]["call_count"] >= agent_count
@@ -1078,6 +1082,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert browse_batch["actions"] == ["comment"]
     assert browse_batch["execution_options"]["completion_action_tags"] == ["social_write"]
     assert browse_batch["execution_options"]["action_call_limits"] == {"comment": 1}
+    assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
 
     assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) == agent_count
     assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) <= agent_count * 2
