@@ -824,6 +824,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                             "error_count": 0,
                             "completed_count": 2,
                             "duration_sec": 1.5,
+                            "action_counts": {"publish_post": 2},
+                            "action_tag_counts": {"publish_post": 2, "social_write": 2},
                             "execution_options": {
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
@@ -873,6 +875,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["actions"] == ["publish_post"]
     assert instruct["success_count"] == 2
     assert instruct["completed_count"] == 2
+    assert instruct["action_counts"] == {"publish_post": 2}
+    assert instruct["action_tag_counts"] == {"publish_post": 2, "social_write": 2}
     assert instruct["duration_sec"] == 1.5
     assert instruct["progress_event_count"] == 1
     assert instruct["heartbeat_event_count"] == 1
@@ -1265,7 +1269,20 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
     assert result.by_agent("bob").status == "error"
     assert result.by_agent("bob").error == "missing required action tag(s): social_write"
     assert result.action_counts() == {"comment": 1, "get_trending_posts": 1}
+    assert result.action_tag_counts() == {
+        "comment": 1,
+        "engagement": 1,
+        "get_trending_posts": 1,
+        "lookup": 1,
+        "social_read": 1,
+        "social_write": 1,
+    }
     assert started["event_data"]["execution_options"]["required_action_tags"] == ["social_write"]
+    completed = next(event for event in events if event.get("event_type") == "agent_batch_completed")
+    assert completed["event_data"]["action_counts"] == {"comment": 1, "get_trending_posts": 1}
+    assert completed["event_data"]["action_tag_counts"] == result.action_tag_counts()
+    assert batch["action_counts"] == {"comment": 1, "get_trending_posts": 1}
+    assert batch["action_tag_counts"] == result.action_tag_counts()
     assert batch["error_samples"] == [
         {
             "agent_id": "bob",
