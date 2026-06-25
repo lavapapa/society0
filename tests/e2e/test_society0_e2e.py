@@ -657,6 +657,19 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     assert browse_actions[0]["error"] == "Post user_0 not found"
     assert summary["agent_operations"]["browse_round"]["action_error_count"] == 1
     assert summary["agent_operations"]["browse_round"]["turns_max"] == 2
+    batch = summary["events"]["agent_batches"]["instruct / browse_round"]
+    assert "error_samples" not in batch
+    assert batch["failed_action_counts"] == {"comment": 1}
+    assert batch["successful_action_counts"] == {"comment": 1}
+    assert batch["action_error_samples"] == [
+        {
+            "agent_id": "user_0",
+            "action_name": "comment",
+            "status": "error",
+            "error": "Post user_0 not found",
+            "arguments": {"content": "I used the author id by mistake.", "post_id": "user_0"},
+        }
+    ]
     assert len(final_checkpoint["environment_data"]["state"]["posts"]["post_1"]["replies"]) == 1
 
 

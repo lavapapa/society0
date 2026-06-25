@@ -393,6 +393,15 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1, "comment": 1}
     assert result.successful_action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1}
     assert result.failed_action_counts() == {"comment": 1}
+    assert result.action_error_samples() == [
+        {
+            "agent_id": "alice",
+            "action_name": "comment",
+            "status": "error",
+            "error": "Post not found",
+            "arguments": {"post_id": "missing"},
+        }
+    ]
     assert result.action_tag_counts() == {
         "get_trending_posts": 3,
         "social_read": 3,
@@ -434,6 +443,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["action_counts"] == result.action_counts()
     assert result.to_dict()["successful_action_counts"] == result.successful_action_counts()
     assert result.to_dict()["failed_action_counts"] == result.failed_action_counts()
+    assert result.to_dict()["action_error_samples"] == result.action_error_samples()
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
     assert result.to_dict()["memory_summary"] == result.memory_summary()
     assert result.to_dict()["error_samples"] == result.error_samples()

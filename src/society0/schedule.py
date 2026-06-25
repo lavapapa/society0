@@ -166,6 +166,10 @@ class AgentBatchResult:
         """Count failed action calls by action name."""
         return _action_counts_by_status(self.actions(), success=False)
 
+    def action_error_samples(self, *, limit: int = 5) -> List[Dict[str, Any]]:
+        """Return compact failed-action samples without treating the agent as failed."""
+        return _action_error_samples(self.actions(), limit=limit)
+
     def action_tag_counts(self) -> Dict[str, int]:
         """Count successful action trace tags across all agent records."""
         counts: Dict[str, int] = {}
@@ -224,6 +228,7 @@ class AgentBatchResult:
             "successful_action_counts": self.successful_action_counts(),
             "failed_action_counts": self.failed_action_counts(),
             "action_tag_counts": self.action_tag_counts(),
+            "action_error_samples": self.action_error_samples(),
             "memory_summary": self.memory_summary(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
@@ -600,6 +605,7 @@ class AgentGroup:
             successful_action_counts=batch_result.successful_action_counts(),
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
+            action_error_samples=batch_result.action_error_samples(),
             memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -787,6 +793,7 @@ class AgentGroup:
             successful_action_counts=batch_result.successful_action_counts(),
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
+            action_error_samples=batch_result.action_error_samples(),
             memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -1427,6 +1434,7 @@ def _record_agent_batch_event(
     successful_action_counts: Optional[Dict[str, int]] = None,
     failed_action_counts: Optional[Dict[str, int]] = None,
     action_tag_counts: Optional[Dict[str, int]] = None,
+    action_error_samples: Optional[List[Dict[str, Any]]] = None,
     memory_summary: Optional[Dict[str, Any]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
@@ -1497,6 +1505,8 @@ def _record_agent_batch_event(
             event_data["failed_action_counts"] = _jsonable(failed_action_counts)
         if action_tag_counts is not None:
             event_data["action_tag_counts"] = _jsonable(action_tag_counts)
+        if action_error_samples:
+            event_data["action_error_samples"] = _jsonable(action_error_samples)
         if memory_summary:
             event_data["memory_summary"] = _jsonable(memory_summary)
         if error_samples:
@@ -1629,6 +1639,26 @@ def _action_counts_by_status(actions: List[Dict[str, Any]], *, success: bool) ->
         action_key = str(name)
         counts[action_key] = counts.get(action_key, 0) + 1
     return counts
+
+
+def _action_error_samples(actions: List[Dict[str, Any]], *, limit: int = 5) -> List[Dict[str, Any]]:
+    samples: List[Dict[str, Any]] = []
+    for action in actions:
+        if str(action.get("status") or "success").lower() == "success":
+            continue
+        if len(samples) >= limit:
+            break
+        sample = {
+            "agent_id": action.get("agent_id"),
+            "action_name": action.get("action_name"),
+            "status": action.get("status"),
+            "error": action.get("error") or action.get("result"),
+        }
+        arguments = action.get("arguments")
+        if isinstance(arguments, dict):
+            sample["arguments"] = _compact_action_mapping(arguments)
+        samples.append({key: _jsonable(value) for key, value in sample.items() if value is not None})
+    return samples
 
 
 def _memory_payload_from_record(record: AgentCallRecord) -> Dict[str, Any]:
