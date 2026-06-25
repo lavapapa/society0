@@ -3167,6 +3167,78 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_behavior_error_samples_are_summarized_without_failing_run(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+
+    @engine.registry.sched.behavior(name="maybe_fail")
+    async def maybe_fail(agent, env):
+        if agent.id == "bob":
+            raise RuntimeError("bob rejected the deterministic behavior")
+        agent.state["checked"] = True
+        return {"checked": True}
+
+    @engine.step(name="behavior_errors")
+    async def behavior_errors(ctx):
+        result = await ctx.agents.where(type="social_user").behavior("maybe_fail", concurrency=2)
+        return ctx.result(
+            metrics={"success": result.success_count, "errors": result.error_count},
+            tables={"behavior": result.table()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    assert metrics == {"success": 1, "errors": 1}
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    execution = summary["events"]["logic_executions"]["behavior / maybe_fail"]
+    assert execution["completed_count"] == 1
+    assert execution["failed_count"] == 0
+    assert execution["success_count"] == 1
+    assert execution["error_count"] == 1
+    assert execution["agent_count_total"] == 2
+    assert execution["error_samples"] == [
+        {
+            "agent_id": "bob",
+            "status": "error",
+            "error": "bob rejected the deterministic behavior",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_rule_failure_is_summarized_with_logic_error_sample(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+
+    @engine.registry.env.rule(name="explode_rule")
+    async def explode_rule(env, severity: str):
+        raise RuntimeError(f"rule failed at {severity}")
+
+    @engine.step(name="failing_rule")
+    async def failing_rule(ctx):
+        await ctx.rule("explode_rule", severity="high")
+        return ctx.result()
+
+    with pytest.raises(RuntimeError, match="rule failed at high"):
+        await engine.run(steps=1)
+
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["failed"] is True
+    execution = summary["events"]["logic_executions"]["rule / explode_rule"]
+    assert execution["started_count"] == 1
+    assert execution["completed_count"] == 0
+    assert execution["failed_count"] == 1
+    assert execution["param_keys"] == ["severity"]
+    assert execution["error_samples"] == [
+        {
+            "error": "rule failed at high",
+            "error_type": "RuntimeError",
+        }
+    ]
+    assert summary["events"]["error_samples"][0]["logic_kind"] == "rule"
+    assert summary["events"]["error_samples"][0]["logic_name"] == "explode_rule"
+
+
+@pytest.mark.asyncio
 async def test_capability_catalog_and_missing_logic_errors(tmp_path):
     engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
 

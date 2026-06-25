@@ -326,6 +326,7 @@ class AgentGroup:
             duration_sec=time.time() - started,
             success_count=batch_result.success_count,
             error_count=batch_result.error_count,
+            error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
 
@@ -1165,6 +1166,23 @@ def _agent_batch_execution_options(
     return options
 
 
+def _logic_error_samples(records: List[AgentCallRecord], *, limit: int = 5) -> List[Dict[str, Any]]:
+    samples: List[Dict[str, Any]] = []
+    for record in records:
+        if record.status == "success":
+            continue
+        samples.append(
+            {
+                "agent_id": record.agent_id,
+                "status": record.status,
+                "error": record.error,
+            }
+        )
+        if len(samples) >= limit:
+            break
+    return samples
+
+
 def _record_logic_event(
     world: Any,
     event_type: str,
@@ -1179,6 +1197,7 @@ def _record_logic_event(
     target_ids_sample: Optional[List[str]] = None,
     success_count: Optional[int] = None,
     error_count: Optional[int] = None,
+    error_samples: Optional[List[Dict[str, Any]]] = None,
     error: Optional[str] = None,
     error_type: Optional[str] = None,
 ) -> None:
@@ -1226,6 +1245,8 @@ def _record_logic_event(
             event_data["success_count"] = success_count
         if error_count is not None:
             event_data["error_count"] = error_count
+        if error_samples:
+            event_data["error_samples"] = _jsonable(error_samples)
         if error is not None:
             event_data["error"] = error
         if error_type is not None:

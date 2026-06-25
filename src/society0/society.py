@@ -1514,6 +1514,7 @@ class Society0:
                                 "agent_count_total": 0,
                                 "duration_sec_total": 0.0,
                                 "param_keys": event_data.get("param_keys") or [],
+                                "error_samples": [],
                             },
                         )
                         execution["latest_event"] = name
@@ -1540,14 +1541,29 @@ class Society0:
                             execution["concurrency"] = event_data.get("concurrency")
                         if event_data.get("target_ids_sample") is not None:
                             execution["target_ids_sample"] = event_data.get("target_ids_sample")
+                        event_error_samples = event_data.get("error_samples")
+                        if isinstance(event_error_samples, list):
+                            for sample in event_error_samples:
+                                if isinstance(sample, dict) and len(execution["error_samples"]) < 5:
+                                    execution["error_samples"].append(sample)
+                        if event_data.get("error") and len(execution["error_samples"]) < 5:
+                            execution["error_samples"].append(
+                                {
+                                    "error": event_data.get("error"),
+                                    "error_type": event_data.get("error_type"),
+                                }
+                            )
                     if event_data.get("error") and len(error_samples) < 5:
                         error_samples.append(
                             {
                                 "event": name,
                                 "tick": tick,
                                 "error": event_data.get("error"),
+                                "error_type": event_data.get("error_type"),
                                 "agent_id": event_data.get("agent_id"),
                                 "action": event_data.get("action") or event_data.get("action_name"),
+                                "logic_kind": event_data.get("logic_kind"),
+                                "logic_name": event_data.get("logic_name"),
                             }
                         )
 
@@ -1569,6 +1585,9 @@ class Society0:
         if agent_batches:
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
+            for execution in logic_executions.values():
+                if not execution.get("error_samples"):
+                    execution.pop("error_samples", None)
             result["logic_executions"] = dict(sorted(logic_executions.items()))
         if action_counts:
             result["actions"] = dict(sorted(action_counts.items()))
