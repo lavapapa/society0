@@ -279,8 +279,16 @@ class CapabilityCatalog:
     def names(self, kind: str, *, source: Optional[str] = None) -> List[str]:
         return [entry["name"] for entry in self.by_kind(kind) if source is None or entry.get("source") == source]
 
+    def get(self, kind: str, name: str, *, source: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        for entry in self.by_kind(kind):
+            if source is not None and entry.get("source") != source:
+                continue
+            if _capability_entry_matches(entry, name):
+                return entry
+        return None
+
     def has(self, kind: str, name: str, *, source: Optional[str] = None) -> bool:
-        return name in self.names(kind, source=source)
+        return self.get(kind, name, source=source) is not None
 
     def by_source(self, source: str, *, kind: Optional[str] = None) -> Any:
         if kind is not None:
@@ -1852,9 +1860,31 @@ def _capability_entries(table: Dict[str, Dict[str, Any]], kind: str) -> List[Dic
         canonical_id = entry.get("canonical_id") or key
         display_name = entry.get("display_name") or key.rsplit(".", maxsplit=1)[-1]
         meta = entry.get("meta")
+        func_name = entry.get("func_name")
+        parameters = entry.get("parameters", {})
+        return_value_schema = entry.get("return_value_schema", {})
+        state_access = entry.get("state_access_declaration")
+        cache_on_step = None
+        cache_on_agent = None
         if meta is not None:
             display_name = getattr(meta, "name", display_name) or display_name
-            canonical_id = getattr(entry.get("meta"), "canonical_id", None) or canonical_id
+            canonical_id = getattr(meta, "canonical_id", None) or canonical_id
+            func_name = func_name or getattr(meta, "func_name", None)
+            parameters = entry.get("parameters") or getattr(meta, "parameters_schema", {}) or {}
+            return_value_schema = (
+                entry.get("return_value_schema")
+                or getattr(meta, "return_value_schema", {})
+                or {}
+            )
+            state_access = state_access or getattr(meta, "state_access_declaration", None)
+            cache_on_step = getattr(meta, "cache_on_step", None)
+            cache_on_agent = getattr(meta, "cache_on_agent", None)
+        aliases = _capability_aliases(
+            canonical_id=canonical_id,
+            display_name=display_name,
+            key=key,
+            func_name=func_name,
+        )
         entries.append(
             {
                 "id": canonical_id,
@@ -1863,26 +1893,75 @@ def _capability_entries(table: Dict[str, Dict[str, Any]], kind: str) -> List[Dic
                 "source": entry.get("source") or "unknown",
                 "description": entry.get("description", ""),
                 "tags": list(entry.get("tags", []) or []),
-                "parameters": _jsonable(entry.get("parameters", {})),
+                "parameters": _jsonable(parameters),
+                "return_value_schema": _jsonable(return_value_schema),
+                "state_access": _jsonable(state_access),
                 "key": key,
+                "func_name": func_name,
+                "aliases": aliases,
                 "environment_type": entry.get("environment_type"),
+                "cache_on_step": cache_on_step,
+                "cache_on_agent": cache_on_agent,
             }
         )
     return _dedupe_capability_entries(entries)
 
 
+def _capability_aliases(
+    *,
+    canonical_id: Any,
+    display_name: Any,
+    key: Any,
+    func_name: Any,
+) -> List[str]:
+    aliases: List[str] = []
+    for value in (canonical_id, display_name, key, func_name):
+        if value is None:
+            continue
+        text = str(value)
+        if not text:
+            continue
+        aliases.append(text)
+        if "." in text:
+            aliases.append(text.rsplit(".", maxsplit=1)[-1])
+    return list(dict.fromkeys(aliases))
+
+
+def _capability_entry_matches(entry: Dict[str, Any], name: str) -> bool:
+    target = str(name)
+    aliases = {str(alias) for alias in entry.get("aliases", []) if alias is not None}
+    aliases.update(
+        str(value)
+        for value in (
+            entry.get("id"),
+            entry.get("name"),
+            entry.get("key"),
+            entry.get("func_name"),
+        )
+        if value is not None
+    )
+    if target in aliases:
+        return True
+    lowered = target.lower()
+    return lowered in {alias.lower() for alias in aliases}
+
+
 def _dedupe_capability_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     deduped: List[Dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
+    by_identity: Dict[tuple[str, str, str], Dict[str, Any]] = {}
     for entry in entries:
         identity = (
             str(entry.get("kind")),
             str(entry.get("id") or entry.get("key")),
             str(entry.get("name")),
         )
-        if identity in seen:
+        existing = by_identity.get(identity)
+        if existing is not None:
+            existing["aliases"] = list(
+                dict.fromkeys([*(existing.get("aliases") or []), *(entry.get("aliases") or [])])
+            )
             continue
-        seen.add(identity)
+        by_identity[identity] = entry
         deduped.append(entry)
     return sorted(deduped, key=lambda item: (str(item.get("kind")), str(item.get("name"))))
 

@@ -4226,6 +4226,15 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
         assert ctx.capabilities.has("rule", "set_pressure", source="experiment")
         assert not ctx.capabilities.has("rule", "set_pressure", source="environment")
         assert ctx.capabilities.has("behavior", "adjust_trust")
+        rule_entry = ctx.capabilities.get("rule", "set_pressure")
+        behavior_entry = ctx.capabilities.get("behavior", "adjust_trust")
+        assert rule_entry is not None
+        assert rule_entry["source"] == "experiment"
+        assert "amount" in rule_entry["parameters"]["properties"]
+        assert "set_pressure" in rule_entry["aliases"]
+        assert behavior_entry is not None
+        assert behavior_entry["source"] == "experiment"
+        assert "delta" in behavior_entry["parameters"]["properties"]
         assert "set_pressure" in ctx.capabilities.names("rule")
         assert ctx.capabilities.names("rule", source="experiment") == ["set_pressure"]
         assert ctx.capabilities.names("rule", source="environment") == []
