@@ -180,6 +180,8 @@ For completed runs, inspect `summary.json -> events.agent_batches` for each `ins
 
 For deterministic logic, inspect `summary.json -> events.logic_executions`. Repeated rules or behaviors also include `by_tick`, so use that split when explaining policy updates, environment maintenance, rule baselines, or behavior failures over time.
 
+For environment lifecycle maintenance, inspect `summary.json -> events.env_hooks`. Repeated `before_tick` and `after_tick` hooks include `by_tick`, so use that split when explaining cache rebuilds, index refreshes, delayed counter flushes, or hook failures over time. Do not confuse hook duration with LLM-agent thinking time; LLM and embedding calls appear under `resources` and agent batches.
+
 ## Quantitative Analysis
 
 Typical checks:
@@ -190,6 +192,7 @@ Typical checks:
 - missing/failed agent calls.
 - `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, error count, action counts, and successful action tag counts. After the run, prefer `summary.json -> events.agent_batches` for the compact roll-up, especially the cumulative fields when the same interaction name repeats over many ticks.
 - `logic_execution_started` / `logic_execution_completed` / `logic_execution_failed` events for `ctx.rule(...)` and deterministic `behavior(...)`: started/completed/failed counts, success/error counts, agent totals, duration totals, and `by_tick`.
+- `env_hook_started` / `env_hook_completed` / `env_hook_failed` events for `Environment.before_tick(...)` and `Environment.after_tick(...)`: started/completed/failed counts, duration totals, error samples, and `by_tick`.
 - variance across repeated runs.
 - for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 

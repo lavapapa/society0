@@ -88,6 +88,8 @@ Use hooks for environment maintenance that should not be hidden inside user-faci
 - batch-write delayed counters after all agents have acted.
 - flush pending observations that should only commit on a successful tick.
 
+Monitor hook behavior through `summary.json -> events.env_hooks`. For repeated runs, use each hook's `by_tick` split to identify which simulation tick spent time on cache maintenance, delayed writes, or hook failures.
+
 Do not use hooks to hide the main experimental mechanism. A researcher-facing rule, intervention, or measurement should usually stay explicit in `step(ctx)`.
 
 ## Built-In Environments
