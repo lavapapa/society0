@@ -2725,6 +2725,61 @@ async def test_structured_interview_direct_json_fast_path_uses_one_llm_call_when
 
 
 @pytest.mark.asyncio
+async def test_world_interview_defaults_to_submit_result_loop_not_direct_json(tmp_path):
+    captured = []
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    world.agents_data = {
+        "alice": {
+            "id": "alice",
+            "type": "participant",
+            "archetype": "llm",
+            "persona": "Answer directly.",
+            "state": {},
+            "properties": {},
+            "reminders": [],
+        }
+    }
+
+    class FakeAgent:
+        async def interview(self, question, **kwargs):
+            captured.append(kwargs)
+            return {
+                "structured_output": {"trust_score": 4.0},
+                "total_turns": 1,
+                "llm_calls": 1,
+                "actions": [],
+            }
+
+    world.get_agent = lambda agent_id: FakeAgent()  # type: ignore[method-assign]
+
+    await world.interview_agent(
+        "alice",
+        "Return a trust score.",
+        output_schema={
+            "type": "object",
+            "properties": {"trust_score": {"type": "number"}},
+            "required": ["trust_score"],
+            "additionalProperties": False,
+        },
+    )
+    await world.interview_agent(
+        "alice",
+        "Return a trust score quickly.",
+        output_schema={
+            "type": "object",
+            "properties": {"trust_score": {"type": "number"}},
+            "required": ["trust_score"],
+            "additionalProperties": False,
+        },
+        prefer_direct_json_output=True,
+    )
+    world.event_logger.close()
+
+    assert captured[0]["prefer_direct_json_output"] is False
+    assert captured[1]["prefer_direct_json_output"] is True
+
+
+@pytest.mark.asyncio
 async def test_llm_agent_instruct_uses_configured_memory_top_k():
     retrieve_calls = []
 
