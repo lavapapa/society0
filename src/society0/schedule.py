@@ -244,7 +244,7 @@ class AgentGroup:
     ) -> AgentBatchResult:
         resolved = _resolve_logic_entry(self.world, behavior_name, "behavior")
         if resolved is None:
-            raise ValueError(f"Behavior '{behavior_name}' not found")
+            raise ValueError(_format_missing_logic_error(self.world, behavior_name, "behavior"))
 
         resolved_name, behavior_info = resolved
         behavior_func = behavior_info["function"]
@@ -742,7 +742,7 @@ class StepContext:
     async def rule(self, rule_name: str, *, name: Optional[str] = None, **params: Any) -> Any:
         resolved = _resolve_logic_entry(self.world, rule_name, "rule")
         if resolved is None:
-            raise ValueError(f"Rule '{rule_name}' not found")
+            raise ValueError(_format_missing_logic_error(self.world, rule_name, "rule"))
 
         resolved_name, rule_info = resolved
         rule_func = rule_info["function"]
@@ -1552,6 +1552,33 @@ def _resolve_logic_entry(world: Any, name: str, kind: str) -> Optional[tuple[str
         if entry.get("display_name") == name or entry.get("func_name") == name:
             return key, entry
     return None
+
+
+def _format_missing_logic_error(world: Any, name: str, kind: str) -> str:
+    label = "Behavior" if kind == "behavior" else "Rule"
+    parts = [f"{label} '{name}' not found."]
+    try:
+        catalog = CapabilityCatalog(world)
+        same_kind = catalog.names(kind)
+        if same_kind:
+            plural = "behaviors" if kind == "behavior" else "rules"
+            parts.append(f"Available {plural}: {', '.join(same_kind[:12])}.")
+        matching_other_kinds = [
+            other_kind
+            for other_kind in ("fov", "action", "rule", "behavior")
+            if other_kind != kind and name in catalog.names(other_kind)
+        ]
+        if matching_other_kinds:
+            parts.append(
+                f"'{name}' is registered as {', '.join(matching_other_kinds)}, not {kind}."
+            )
+            parts.append(
+                "Use FoVs with fovs=[...], actions with instruct(..., actions=[...]), "
+                "rules with ctx.rule(...), and behaviors with ctx.behavior(...) or AgentGroup.behavior(...)."
+            )
+    except Exception:
+        pass
+    return " ".join(parts)
 
 
 def _map_registered_call_kwargs(
