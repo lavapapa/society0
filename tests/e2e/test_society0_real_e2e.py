@@ -491,6 +491,24 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert _count_events(tmp_path, "embedding", "embedding_request_completed") >= 1
     assert summary["resources"]["llm"]["call_count"] == llm_completed
     assert summary["resources"]["llm"]["error_count"] == 0
+    assert summary["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= concurrency
+    assert summary["resources"]["llm"]["by_interaction_type"]["interview"]["call_count"] >= concurrency
+    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= concurrency
+    assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency * 2
+    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= concurrency
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    assert (
+        summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
+            "memory_extraction"
+        ]["call_count"]
+        >= concurrency
+    )
+    assert (
+        summary["agent_operations"]["recall_memory_under_load"]["resources"]["embedding"]["fidelity"][
+            "memory_io"
+        ]["call_count"]
+        >= 1
+    )
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     embedding_traces = [item for item in resource_calls if item.get("resource_type") == "embedding"]
     traced_step_names = {
@@ -861,6 +879,28 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["agent_operations"]["publish_first_tick"]["resources"]["embedding"]["call_count"] >= 1
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["call_count"] <= agent_count * 2
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["embedding"]["call_count"] >= 1
+    assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= agent_count * 2
+    assert summary["resources"]["embedding"]["fidelity"]["environment"]["call_count"] >= 2
+    assert (
+        summary["resources"]["embedding"]["by_interaction_type"]["env_post_embedding"]["call_count"]
+        >= 1
+    )
+    assert (
+        summary["resources"]["embedding"]["by_interaction_type"]["semantic_recommendation"]["call_count"]
+        >= 1
+    )
+    assert (
+        summary["agent_operations"]["publish_first_tick"]["resources"]["embedding"]["fidelity"][
+            "environment"
+        ]["call_count"]
+        >= 1
+    )
+    assert (
+        summary["agent_operations"]["browse_second_tick"]["resources"]["embedding"]["fidelity"][
+            "environment"
+        ]["call_count"]
+        >= 1
+    )
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["messages_count_max"] <= 4
     assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["tools_characters"] > 0
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["payload_characters"] >= (
