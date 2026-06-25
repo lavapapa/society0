@@ -801,11 +801,14 @@ class LLMAgent(Agent):
                 request_payload = dict(payload)
                 for key, value in safe_llm_request_options.items():
                     request_payload.setdefault(key, value)
-                metadata = dict(request_payload.get("metadata") or {})
-                metadata.setdefault("agent_id", self.id)
-                metadata.setdefault("step", current_step)
+                payload_metadata = dict(request_payload.get("metadata") or {})
+                metadata = {
+                    "agent_id": self.id,
+                    "step": current_step,
+                }
                 if trace:
                     metadata.update({k: v for k, v in trace.items() if v is not None})
+                metadata.update({k: v for k, v in payload_metadata.items() if v is not None})
                 request_payload["metadata"] = metadata
                 return await effective_llm_call(request_payload)
 

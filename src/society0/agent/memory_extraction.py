@@ -123,6 +123,10 @@ async def perform_memory_extraction(
         "messages": base_messages + [{"role": "user", "content": prompt}],
         "tools": [actionset],
         "tool_choice": "auto",
+        "metadata": {
+            "interaction_type": "memory_extract",
+            "interaction_name": "memory_extract",
+        },
     }
 
     # First attempt
@@ -149,6 +153,10 @@ async def perform_memory_extraction(
         ],
         "tools": [actionset],
         "tool_choice": {"type": "function", "function": {"name": "extract_memories"}},
+        "metadata": {
+            "interaction_type": "memory_extract",
+            "interaction_name": "memory_extract_retry",
+        },
     }
 
     try:
