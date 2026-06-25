@@ -1017,6 +1017,9 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     )
     capabilities = summary["capabilities"]
     assert capabilities["environment_type"] == "social_network"
+    assert capabilities["by_source"]["environment"]["fovs"] >= 1
+    assert capabilities["by_source"]["environment"]["actions"] >= 1
+    assert capabilities["by_source"]["environment"]["rules"] >= 1
     fov_names = {entry["name"] for entry in capabilities["by_kind"]["fovs"]}
     action_names = {entry["name"] for entry in capabilities["by_kind"]["actions"]}
     assert "recommended_feed" in fov_names

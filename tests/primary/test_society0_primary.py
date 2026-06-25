@@ -3663,6 +3663,8 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
     assert capabilities["environment_type"] == "plain"
     assert capabilities["counts"]["rules"] >= 1
     assert capabilities["counts"]["behaviors"] >= 1
+    assert capabilities["by_source"]["experiment"]["rules"] >= 1
+    assert capabilities["by_source"]["experiment"]["behaviors"] >= 1
     rule_names = {entry["name"] for entry in capabilities["by_kind"]["rules"]}
     behavior_names = {entry["name"] for entry in capabilities["by_kind"]["behaviors"]}
     assert "set_pressure" in rule_names

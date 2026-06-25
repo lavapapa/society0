@@ -164,6 +164,9 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert capabilities["counts"]["fovs"] >= 3
     assert capabilities["counts"]["actions"] >= 9
     assert capabilities["counts"]["rules"] >= 1
+    assert capabilities["by_source"]["environment"]["fovs"] >= 3
+    assert capabilities["by_source"]["environment"]["actions"] >= 9
+    assert capabilities["by_source"]["environment"]["rules"] >= 1
     fov_names = {entry["name"] for entry in capabilities["by_kind"]["fovs"]}
     action_names = {entry["name"] for entry in capabilities["by_kind"]["actions"]}
     rule_names = {entry["name"] for entry in capabilities["by_kind"]["rules"]}
