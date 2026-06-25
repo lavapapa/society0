@@ -62,7 +62,11 @@ result = await users.instruct(
     actions=["environment", "memory"],
     output=ActionSchema,
     memory=True,
+    memory_top_k=5,
+    extract_memory=False,
     model=None,
+    max_tokens=120,
+    temperature=0,
     max_turns=3,
     name="feed_interaction",
     reasoning_stages=[{"name": "判断", "desc": "先判断信息可信度，再决定行动。"}],
@@ -73,20 +77,77 @@ Parameters:
 
 - `instruction`: task text.
 - `fovs`: environment views to include.
-- `actions`: action tag filter; use `None` for defaults.
+- `actions`: action tag filter; use `None` for default non-memory actions.
 - `output`: Pydantic model, dict schema, or `None`.
 - `memory`: retrieve and save memory when true.
+- `memory_top_k`: maximum memories retrieved per agent when memory is enabled. Default is `10`; use a smaller value such as `3` or `5` for pilots, surveys, or large agent batches.
+- `extract_memory`: optional high-cost LLM memory extraction. Default is `False`; Society0 writes a lightweight fallback memory without an extra LLM call. Set `True` only when the study needs structured episodic memories from the interaction.
 - `model`: optional model id.
+- `max_tokens`: optional cap for each LLM response in this operation. For action-only rounds, set a small value such as `80` or `120`; tool-call capable models otherwise may spend seconds generating unnecessary text.
+- `temperature`, `top_p`, `timeout`: optional per-operation LLM request controls.
+- `llm_options`: optional dict for provider-compatible request parameters. Do not use it to override `messages`, `tools`, `tool_choice`, `metadata`, `agent_id`, or `model`; Society0 owns those fields.
 - `max_turns`: agentic loop limit.
 - `concurrency`: optional per-call override for how many LLM agents run at once.
 - `name`: trace name.
 - `reasoning_stages`: optional cognitive stages for studies that compare decision procedures.
+- `terminal_actions`: optional action names that end the agent loop immediately after a successful call because that action is the natural endpoint of the current task.
+- `completion_action_tags`: optional action tags that end the agent loop after a successful matching action. Use this when a category of actions completes the round, while other read or lookup tools may still be intermediate.
 
-During prototypes, use `actions=None` to expose available actions. Narrow later with `actions=["environment"]`, `actions=["memory"]`, or exact action names after checking the env source or run logs.
+During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. Use `actions=["memory"]` only when the study explicitly wants agents to call memory tools themselves; `memory=True` already performs framework-managed retrieval and saving.
+
+Use terminal actions for explicit endpoints, not for performance shortcuts. Good examples are actions such as `submit_final_decision`, `cast_vote`, `leave_round`, or `submit_survey_response` when the experiment defines those as final acts in the current instruction.
+
+```python
+decisions = await users.instruct(
+    "Review the proposal, then submit your final decision for this round.",
+    actions=["submit_final_decision"],
+    output=None,
+    memory=False,
+    terminal_actions=["submit_final_decision"],
+    max_turns=3,
+)
+```
+
+Do not mark ordinary intermediate social actions as terminal just because they are expensive. `publish_post`, `like_post`, `comment`, `repost`, and `follow` usually do not end an agent's social behavior round; after publishing, the agent may still inspect results, remember context, or take another action. If the study needs only one post per agent, encode that in the instruction, action set, or step logic, not by pretending publication is terminal.
+
+For social browsing rounds, a common completion boundary is: read tools may happen first, but one real interaction ends the round. Express that with action tags:
+
+```python
+result = await users.instruct(
+    "Browse the feed. You may inspect trending posts, then make one real interaction if useful.",
+    fovs=["recommended_feed"],
+    actions=["get_trending_posts", "comment", "like_post", "repost"],
+    memory=False,
+    max_turns=3,
+    completion_action_tags=["social_write"],
+    action_call_limits={"comment": 1, "like_post": 1, "repost": 1},
+    name="feed_interaction",
+)
+```
+
+This does not make read actions terminal. It only stops after a successful action tagged `social_write`, such as `comment`, `like_post`, `repost`, `publish_post`, `follow`, or `unfollow` in the built-in `social_network` env.
+
+If a write action returns a clear semantic failure such as "post not found", Society0 records that action row as `status="error"` and does not treat it as a completed `social_write` action. The agent may use the next turn to correct the ID if `max_turns` allows it. In social-network experiments, tell the agent to use the explicit `post_id` shown in the feed or read-action output, not the author/user ID.
+
+Use `action_call_limits` for bounded social tasks. When every available non-system action has exhausted its explicit limit, Society0 stops the loop without spending another LLM call just to discover that all remaining actions are blocked.
+
+```python
+await users.instruct(
+    "Publish at most one short post for this round.",
+    actions=["publish_post"],
+    memory=False,
+    action_call_limits={"publish_post": 1},
+    max_turns=3,
+)
+```
+
+Do not combine a terminal domain action with a required `output` schema unless the experiment really needs both. Structured output adds a `submit_result` tool, which can require extra LLM calls after the domain action.
 
 ## Interview
 
 Use `interview` for measurement, survey, or elicitation.
+
+For social-network recommendation studies, use `fovs=["recommended_feed_preview"]` in interviews when the measurement should not itself count as feed exposure. Use `recommended_feed` for actual browsing behavior where impressions should be recorded.
 
 ```python
 survey = await users.interview(
@@ -94,14 +155,19 @@ survey = await users.interview(
     fovs=["recent_posts"],
     output=TrustSurvey,
     retrieve_memory=True,
+    memory_top_k=3,
     save_memory=False,
+    max_tokens=80,
+    temperature=0,
     max_turns=2,
     name="trust_survey",
     reasoning_stages=[{"name": "回忆", "desc": "先回忆相关经历。"}, {"name": "回答", "desc": "再给出结构化回答。"}],
 )
 ```
 
-`interview` intentionally does not expose ordinary actions. It defaults to reading memory but not writing memory, which preserves a measurement-oriented meaning.
+`interview` intentionally does not expose ordinary actions. It defaults to reading memory but not writing memory, which preserves a measurement-oriented meaning. For large surveys, lower `memory_top_k` first before increasing model concurrency; unnecessary memory snippets increase prompt size for every selected agent.
+
+For surveys and other bounded measurements, set `max_tokens` deliberately. A short structured answer rarely needs a large generation budget, and lower caps make real provider latency easier to control.
 
 ## Concurrency
 

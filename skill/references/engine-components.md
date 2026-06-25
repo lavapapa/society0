@@ -53,6 +53,7 @@ For details on persona, state, properties, model routing, memory, and reasoning 
 - environment-provided actions through capability decorators.
 - optional embedding/vector handles injected by the engine.
 - snapshots for persistence.
+- tick lifecycle hooks: `before_tick(ctx)` and `after_tick(ctx)`.
 
 Built-in environments currently include:
 
@@ -62,6 +63,17 @@ Built-in environments currently include:
 
 For experiment design, treat the environment as the first-class research object. It defines visibility, affordances, records, and constraints. For built-in env details and extension patterns, read `environment-design.md`.
 
+Lifecycle order in the code-driven runtime:
+
+```text
+before_tick
+all registered code steps
+after_tick
+advance_step
+```
+
+Hooks are for environment maintenance such as cache cleanup, index refresh, or delayed counter flushes. They are not a replacement for explicit experiment steps.
+
 ## FoV
 
 FoV means Field of View: the part of the world an agent sees for an interaction. FoVs are environment capabilities and can be passed to `instruct` or `interview`.
@@ -69,6 +81,8 @@ FoV means Field of View: the part of the world an agent sees for an interaction.
 In the current code, FoV functions are registered in the function registry and resolved by `World.instruct_agent(...)` / `World.interview_agent(...)`. FoV results are formatted into the agent prompt.
 
 Treat FoV as a research object: recommender exposure, social visibility, feed ordering, local context, and institutional constraints can all be encoded as FoV logic.
+
+For `social_network`, recommended-feed FoV uses a runtime recommendation cache derived from `state["posts"]`. That cache is not checkpointed. The checkpoint remains the source for research data: posts, replies, repost references, likes, view counts, events, and metrics. Feed impressions are batched and written in `after_tick`.
 
 ## Actions And Capabilities
 
@@ -80,7 +94,7 @@ In normal code-driven experiments, users usually call:
 await group.instruct(..., actions=["environment"])
 ```
 
-This filters what the agent may do. For early prototypes, `actions=None` exposes available actions; narrow later with `actions=["environment"]`, `actions=["memory"]`, or exact action names. `interview(...)` does not expose ordinary actions and should be used for measurement.
+This filters what the agent may do. For early prototypes, `actions=None` exposes available non-memory actions; narrow later with `actions=["environment"]` or exact action names. Use `actions=["memory"]` only when autonomous memory-tool use is part of the study. `interview(...)` does not expose ordinary actions and should be used for measurement.
 
 ## Logic: Rule And Behavior
 
@@ -130,11 +144,13 @@ The runtime writes:
 
 - `steps.jsonl`: step results, tables, notes, observations.
 - `metrics.jsonl`: per-step metrics.
-- `events.jsonl`: run lifecycle and errors.
+- `events.jsonl`: compact monitoring events for lifecycle, errors, action traces, recommendation traces, and long-running agent-batch progress.
 - `summary.json`: final run summary.
 - `checkpoints/`: initial, periodic, and final world state.
 - `chroma_store/`: memory persistence.
 - `logs/`: structured resource and simulation logs.
+
+For `social_network` posts, checkpoints store full post state plus lightweight embedding metadata such as `embedding_ref`, embedding model, dimensions, and indexing status. The vector itself lives in Chroma. The default `events.jsonl` does not include raw `STATE_CHANGE` rows; use checkpoints rather than events when the full state is needed for analysis. Debug runs can opt in with `Society0(..., log_state_changes=True)`, which writes compact state-change summaries rather than full large values. Embedding calls, including memory retrieval/write embeddings, are traced in `resource_calls.jsonl` with step, interaction, and agent/post identifiers when available. Batched embedding records may use plural fields such as `agent_ids` or `interaction_types`.
 
 The current default code path avoids the old studio-heavy node diff and streaming snapshot workflow.
 

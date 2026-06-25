@@ -87,11 +87,23 @@ class RecommendationConfig(BaseModel):
     use_embedding_similarity: bool = Field(True, description="是否使用嵌入向量进行相似度计算。")
     like_score: float = Field(1.0, description="单次点赞的分值。")
     reply_score: float = Field(1.5, description="单次回复的分值。")
+    repost_score: float = Field(2.0, description="单次转发的分值。")
     time_decay_hours: float = Field(12.0, description="内容热度的半衰期（小时）。")
     post_count: int = Field(5, description="在信息流中返回的帖子数量。", ge=1)
-    candidate_count: int = Field(15, description="候选帖子数量上限。", ge=1)
+    candidate_count: int = Field(15, description="旧版候选数量参数；默认推荐池不再受它限制。", ge=1)
+    full_scan_until: int = Field(5000, description="活跃池帖子数不超过该值时默认全量评分。", ge=1)
+    recent_keep_count: int = Field(1000, description="超过全量阈值后保留的最新帖子数量。", ge=1)
+    top_engagement_keep_count: int = Field(500, description="超过全量阈值后保留的高互动帖子数量。", ge=1)
+    min_lifetime_ticks: int = Field(50, description="帖子进入推荐池后的最小生命周期 tick 数。", ge=0)
     include_recent_posts_in_query: bool = Field(
         True, description="构建召回查询时是否包含近期帖子与互动。"
+    )
+    include_following_in_query: bool = Field(
+        False,
+        description=(
+            "构建语义召回查询时是否包含关注列表。默认关闭；网络邻近度已由 "
+            "network_weight/follow_bonus 单独评分，关闭可避免大规模仿真中按 agent 重复 embedding。"
+        ),
     )
     recent_post_limit: int = Field(3, description="纳入召回文本的近期帖子数量。", ge=0)
     interaction_limit: int = Field(3, description="纳入召回文本的近期互动数量。", ge=0)
@@ -99,6 +111,16 @@ class RecommendationConfig(BaseModel):
         2.0, description="向量召回数量与候选数量的倍数。", ge=1.0
     )
     follow_bonus: float = Field(0.2, description="关注作者时的额外得分。", ge=0)
+    feed_content_preview_chars: int = Field(
+        160,
+        description="推荐流中单条帖子正文展示的最大字符数，避免 FoV prompt 过大。",
+        ge=40,
+    )
+    feed_max_chars: int = Field(
+        3000,
+        description="推荐流 FoV 文本最大字符数，超过时截断并提示。",
+        ge=500,
+    )
 
 class TrendingConfig(BaseModel):
     """热门帖子功能的配置。"""
@@ -165,4 +187,8 @@ class Post(BaseModel):
     replies: List[Reply] = Field(default_factory=list)
     votes: List[Vote] = Field(default_factory=list)
     embedding: Optional[List[float]] = None
+    embedding_ref: Optional[str] = Field(None, description="向量库中的帖子 embedding 引用")
+    embedding_model: Optional[str] = Field(None, description="生成帖子 embedding 的模型")
+    embedding_dimensions: Optional[int] = Field(None, description="帖子 embedding 维度")
+    embedding_indexed: bool = Field(False, description="帖子 embedding 是否已写入向量库")
     reply_to: Optional[str] = Field(None, description="被回复/转发的帖子ID")

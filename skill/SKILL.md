@@ -9,25 +9,32 @@ Use this skill to help a non-engineer researcher turn a social phenomenon into a
 
 ## Operating Loop
 
-1. Translate the user's observation into: research question, constructs, environment, agents, interaction loop, intervention/control, and measurements.
-2. Design the **environment first**: the social setting, visibility rules, possible actions, interaction records, and institution/platform constraints. Agents only become meaningful inside that environment.
-3. Choose a built-in environment or propose a new one:
+1. Start and maintain a visible todo list for the experiment. Use researcher-facing phases such as clarify phenomenon, design environment, define agents, write steps, run pilot, inspect outputs, analyze results, and refine.
+2. Translate the user's observation into: research question, constructs, environment, agents, interaction loop, intervention/control, and measurements.
+3. Design the **environment first**: the social setting, visibility rules, possible actions, interaction records, and institution/platform constraints. Agents only become meaningful inside that environment.
+   For recommendation experiments, explicitly state the recommendation pool, scoring weights, pruning thresholds, and displayed post count; these are experimental conditions, not neutral plumbing.
+4. Choose a built-in environment or propose a new one:
    - Start with `plain` for first surveys, simple state transitions, and rule baselines.
    - Use `social_network` for feeds, posts, endorsements, replies, recommendations, and diffusion.
    - Use `round_robin_conversation` for paired or rotating conversations.
-4. Choose agent style:
+5. Choose agent style:
    - Prefer **LLM-based agents** for interpretation, language, memory, persuasion, trust, identity, interviews, and social meaning.
    - Use **rule-based agents** for baselines, deterministic mechanisms, controls, parameter sweeps, fixtures, or non-linguistic updates.
-5. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
-6. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden.
-7. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
-8. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
-9. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims.
-10. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
+6. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
+7. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden.
+8. For LLM action rounds and surveys, set a bounded `max_tokens` when the expected response is short, and inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
+9. Treat memory extraction as a cost choice. `memory=True` saves lightweight memory by default; use `extract_memory=True` only when the research design needs LLM-extracted episodic memories and the extra calls are acceptable.
+10. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
+11. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
+12. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
+13. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
+14. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
 
 ## Researcher-Friendly Collaboration
 
 Treat the researcher as the domain expert and the agent as the technical assistant. Ask for the observed phenomenon, social setting, actors, information flow, possible actions, and intended measurements; translate those into env, agents, steps, and outputs without forcing the user to learn framework internals. Before each run, summarize the experiment in everyday research language, including provider readiness and concurrency: "This run will let up to N LLM agents think at the same time." After each run, explain both quantitative metrics and qualitative traces, and clearly separate simulation output from empirical evidence.
+
+Keep the todo list visible and update it as work progresses. The todo list should help the researcher see where they are in the experimental workflow, not expose incidental coding chores.
 
 ## Minimal Entrypoints
 

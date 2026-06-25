@@ -16,7 +16,7 @@ import logging
 
 import networkx as nx
 
-from ...environment import Environment
+from ...environment import Environment, EnvironmentTickContext
 from ...decorators import env_type, action, fov, rule
 from ...core_data import ExecutionContext
 from ...agent.core import Agent
@@ -37,6 +37,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _mapping_like(value: Any) -> bool:
+    return hasattr(value, "get") and hasattr(value, "items")
+
+
 def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None, flush: bool = False) -> None:
     """Route legacy debug prints through logging without writing to stdout."""
     if file is not None:
@@ -52,6 +56,8 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 
 
 print = _debug_print
+
+_RECOMMENDATION_TRACE_SCORE_LIMIT = 20
 
 # --- 社交网络环境 ---
 
@@ -130,14 +136,22 @@ SOCIAL_NETWORK_CONFIG_SCHEMA = {
                         "use_embedding_similarity": {"type": "boolean"},
                         "like_score": {"type": "number"},
                         "reply_score": {"type": "number"},
+                        "repost_score": {"type": "number"},
                         "time_decay_hours": {"type": "number"},
                         "post_count": {"type": "integer"},
                         "candidate_count": {"type": "integer", "minimum": 1},
+                        "full_scan_until": {"type": "integer", "minimum": 1},
+                        "recent_keep_count": {"type": "integer", "minimum": 1},
+                        "top_engagement_keep_count": {"type": "integer", "minimum": 1},
+                        "min_lifetime_ticks": {"type": "integer", "minimum": 0},
                         "include_recent_posts_in_query": {"type": "boolean"},
+                        "include_following_in_query": {"type": "boolean"},
                         "recent_post_limit": {"type": "integer", "minimum": 0},
                         "interaction_limit": {"type": "integer", "minimum": 0},
                         "recall_multiplier": {"type": "number", "minimum": 1},
                         "follow_bonus": {"type": "number", "minimum": 0},
+                        "feed_content_preview_chars": {"type": "integer", "minimum": 40},
+                        "feed_max_chars": {"type": "integer", "minimum": 500},
                     },
                     "additionalProperties": False,
                 },
@@ -260,8 +274,15 @@ class SocialNetworkEnv(Environment):
         self._embed_call = None
         self._vector_client = None
         self._post_collection = None
-        # 临时缓存：帖子静态元数据，不写入 state
-        self._post_meta_cache: Dict[str, Dict[str, Any]] = {}
+        # Runtime-only recommendation caches. They are derived from state and never checkpointed.
+        self._recommendation_cache_key: Optional[tuple] = None
+        self._recommendation_cache: Dict[str, Any] = {}
+        self._recommendation_cache_rebuild_count = 0
+        self._semantic_score_cache: Dict[tuple, Dict[str, float]] = {}
+        self._pending_impressions: Dict[str, int] = {}
+        self._pending_recommended_posts: Dict[str, List[str]] = {}
+        self._recommended_posts_by_agent: Dict[str, List[str]] = {}
+        self._pending_post_embeddings: Dict[str, Dict[str, Any]] = {}
 
         logger.debug(f"SocialNetworkEnv配置已验证: {self._config.distribution.type}")
 
@@ -272,6 +293,127 @@ class SocialNetworkEnv(Environment):
         # collection 缓存在 vector_client 变更时失效
         self._post_collection = None
         self._notifications_cap = None  # 保留以便后续需要全局句柄时使用
+
+    def before_tick(self, ctx: EnvironmentTickContext) -> None:
+        """Clear per-tick transient recommendation state."""
+        self._semantic_score_cache.clear()
+        self._pending_impressions.clear()
+        self._pending_recommended_posts.clear()
+
+    async def after_tick(self, ctx: EnvironmentTickContext) -> None:
+        """Flush deferred recommendation side effects after all code steps succeed."""
+        await self._flush_pending_post_embeddings()
+        if not self._pending_impressions and not self._pending_recommended_posts:
+            return
+        raw_state = self._world.environment_data.setdefault("state", {})
+        raw_posts = raw_state.get("posts", {})
+        if not _mapping_like(raw_posts):
+            self._pending_impressions.clear()
+            self._pending_recommended_posts.clear()
+            return
+        applied_impressions: Dict[str, int] = {}
+        for post_id, delta in list(self._pending_impressions.items()):
+            if delta <= 0 or post_id not in raw_posts:
+                continue
+            post_state = raw_posts[post_id]
+            post_state["view_count"] = int(post_state.get("view_count", 0) or 0) + delta
+            applied_impressions[post_id] = delta
+        recommended_updates = {
+            agent_id: list(post_ids)
+            for agent_id, post_ids in self._pending_recommended_posts.items()
+        }
+        if applied_impressions or recommended_updates:
+            state_patches: List[Dict[str, Any]] = []
+            if recommended_updates:
+                recommended_state = raw_state.setdefault("recommended_posts", {})
+                for agent_id, post_ids in recommended_updates.items():
+                    recommended_state[agent_id] = list(post_ids)
+                    state_patches.append(
+                        {
+                            "target_type": "environment",
+                            "operation": "set",
+                            "path": ["recommended_posts", agent_id],
+                            "value": list(post_ids),
+                        }
+                    )
+            for post_id, delta in applied_impressions.items():
+                state_patches.append(
+                    {
+                        "target_type": "environment",
+                        "operation": "increment",
+                        "path": ["posts", post_id, "view_count"],
+                        "value": delta,
+                    }
+                )
+            if hasattr(self._world, "_bump_state_version"):
+                self._world._bump_state_version()
+            event_logger = getattr(self._world, "event_logger", None)
+            if event_logger is not None:
+                event_logger.log(
+                    "social_recommendation_state_flushed",
+                    source="environment",
+                    data={
+                        "step": getattr(self._world, "step", None),
+                        "impression_deltas": applied_impressions,
+                        "recommended_posts": recommended_updates,
+                        "state_patches": state_patches,
+                    },
+                )
+        self._pending_impressions.clear()
+        self._pending_recommended_posts.clear()
+        self._invalidate_recommendation_cache()
+
+    def _log_recommendation_trace(self, **data: Any) -> None:
+        """Record a compact recommendation trace into the main event log."""
+        event_logger = getattr(self._world, "event_logger", None)
+        if event_logger is None:
+            return
+        try:
+            event_logger.log(
+                "social_recommendation_trace",
+                source="environment",
+                data={
+                    "step": getattr(self._world, "step", None),
+                    "step_name": getattr(self._world, "_current_code_step_name", None),
+                    **data,
+                },
+            )
+        except Exception:
+            logger.debug("Failed to write social recommendation trace", exc_info=True)
+
+    def _derive_post_counter(self) -> int:
+        """Derive the numeric post counter from existing post ids."""
+        posts = self.state.get("posts", {})
+        max_counter = 0
+        if not _mapping_like(posts):
+            return max_counter
+        for post_id in posts.keys():
+            text = str(post_id)
+            if not text.startswith("post_"):
+                continue
+            suffix = text.rsplit("_", maxsplit=1)[-1]
+            if suffix.isdigit():
+                max_counter = max(max_counter, int(suffix))
+        return max_counter
+
+    def _rebuild_author_post_index_if_empty(self) -> None:
+        """Build author_to_post_ids from preloaded posts when no index is present."""
+        author_index = self.state.get("author_to_post_ids", {})
+        if _mapping_like(author_index) and len(author_index) > 0:
+            return
+        posts = self.state.get("posts", {})
+        if not _mapping_like(posts):
+            return
+        rebuilt: Dict[str, List[str]] = {}
+        for post_id, post in posts.items():
+            if not _mapping_like(post):
+                continue
+            author_id = post.get("author_id")
+            if not author_id:
+                continue
+            rebuilt.setdefault(str(author_id), []).append(str(post.get("post_id", post_id)))
+        for author_id, post_ids in rebuilt.items():
+            self.state["author_to_post_ids"][author_id] = post_ids
 
     # --- 1. 初始化 (由框架调用) ---
 
@@ -290,12 +432,15 @@ class SocialNetworkEnv(Environment):
 
         # 2. 初始化社交媒体状态（如果启用）
         if self._config.social_media.enabled:
-            self.state["posts"] = {}
-            self.state["author_to_post_ids"] = {}
-            self.state["post_counter"] = 0
-            # 通知中心：按用户存储通知队列与计数器
-            self.state["notifications"] = {"user_notifications": {}}
-            self.state["recommended_posts"] = {}
+            if "posts" not in self.state or not _mapping_like(self.state.get("posts")):
+                self.state["posts"] = {}
+            if "author_to_post_ids" not in self.state or not _mapping_like(self.state.get("author_to_post_ids")):
+                self.state["author_to_post_ids"] = {}
+            self._rebuild_author_post_index_if_empty()
+            if "post_counter" not in self.state:
+                self.state["post_counter"] = self._derive_post_counter()
+            self._ensure_notifications_state()
+            self._ensure_recommended_posts_state()
 
         logger.info(f"社交网络已初始化: {self.graph.number_of_nodes()} 个节点, "
                    f"{self.graph.number_of_edges()} 条边, "
@@ -370,7 +515,10 @@ class SocialNetworkEnv(Environment):
 
     # --- 2. Agent 工具 (Agent可用的能力) ---
 
-    @action(description="在社交网络上发布新帖子，支持标签和转发/回复功能。当视野没有帖子时应优先使用本动作。")
+    @action(
+        description="在社交网络上发布新帖子，支持标签和转发/回复功能。当视野没有帖子时应优先使用本动作。",
+        tags=["social", "social_write", "publish"],
+    )
     async def publish_post(self, context: ExecutionContext, content: str, tags: List[str] = None,
                      reply_to: Optional[str] = None) -> str:
         """
@@ -459,20 +607,21 @@ class SocialNetworkEnv(Environment):
                 action_result=f"post_created:{new_post_id}",
             )
 
-        # 🔧 DEBUG: Posts system monitoring
-        print(f"📝 [POSTS] Agent {agent.id}: Published new post")
-        print(f"   Post ID: {new_post_id}")
-        print(f"   Content: {content[:50]}..." if len(content) > 50 else f"   Content: {content}")
-        print(f"   Tags: {tags}")
-        print(f"   Total posts: {post_counter + 1}")
+        logger.debug(
+            "Agent %s published post %s (tags=%s, total_posts=%s)",
+            agent.id,
+            new_post_id,
+            tags,
+            post_counter + 1,
+        )
 
-        # 尝试为帖子生成向量并写入向量库
-        await self._embed_and_store_post(
+        self._queue_post_embedding(
             post_id=new_post_id,
             content=content,
             tags=tags,
             created_tick=context.world.step,
             author_id=agent.id,
+            step_name=getattr(context.world, "_current_code_step_name", None),
         )
 
         return f"Successfully published post {new_post_id}"
@@ -505,21 +654,180 @@ class SocialNetworkEnv(Environment):
         tags_text = " ".join(f"#{t}" for t in tags)
         return f"{content}\nTags: {tags_text}"
 
+    async def _request_embedding(
+        self,
+        texts: List[str],
+        *,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Call the injected embedding function with optional trace metadata."""
+        if not self._embed_call:
+            return {}
+        try:
+            return await self._embed_call(texts, metadata=metadata)
+        except TypeError as exc:
+            # Tests and third-party envs may inject simple callables that do not
+            # yet accept trace metadata.
+            if "metadata" not in str(exc):
+                raise
+            return await self._embed_call(texts)
+
+    def _invalidate_recommendation_cache(self) -> None:
+        """Invalidate runtime-only recommendation cache."""
+        self._recommendation_cache_key = None
+        self._recommendation_cache = {}
+        self._semantic_score_cache.clear()
+
+    def _recommendation_cache_signature(self) -> tuple:
+        """Build a cache key from post-derived recommendation inputs."""
+        posts = self.state.get("posts", {})
+        post_parts = []
+        for post_id, post in posts.items():
+            if not _mapping_like(post):
+                continue
+            post_parts.append(
+                (
+                    post_id,
+                    post.get("post_id", post_id),
+                    post.get("author_id"),
+                    post.get("created_tick", 0),
+                    post.get("reply_to"),
+                    post.get("content", ""),
+                    tuple(post.get("tags", []) or []),
+                    len(post.get("likes", []) or []),
+                    len(post.get("replies", []) or []),
+                    post.get("embedding_ref") or post.get("embedding_indexed") or (post.get("embedding") is not None),
+                )
+            )
+        cfg = self._config.social_media.recommendation
+        return (
+            getattr(self._world, "step", 0),
+            tuple(sorted(post_parts)),
+            str(cfg.model_dump()),
+        )
+
+    def _get_recommendation_cache(self) -> Dict[str, Any]:
+        """Return post features and active pool derived from current state."""
+        cache_key = self._recommendation_cache_signature()
+        if self._recommendation_cache_key == cache_key and self._recommendation_cache:
+            return self._recommendation_cache
+
+        cfg = self._config.social_media.recommendation
+        current_tick = int(getattr(self._world, "step", 0))
+        state_posts = self.state.get("posts", {})
+        posts_by_id: Dict[str, Dict[str, Any]] = {}
+        for fallback_id, post in state_posts.items():
+            if not _mapping_like(post):
+                continue
+            post_copy = dict(post)
+            post_id = str(post_copy.get("post_id") or fallback_id)
+            post_copy["post_id"] = post_id
+            posts_by_id[post_id] = post_copy
+
+        repost_counts = self._build_repost_counts(posts_by_id)
+        decay_constant = cfg.time_decay_hours if cfg.time_decay_hours > 0 else 1.0
+        post_features: Dict[str, Dict[str, Any]] = {}
+        for post_id, post in posts_by_id.items():
+            created_tick = int(post.get("created_tick", 0) or 0)
+            age = max(current_tick - created_tick, 0)
+            time_score = math.exp(-age / decay_constant)
+            likes = len(post.get("likes", []) or [])
+            replies = len(post.get("replies", []) or [])
+            reposts = repost_counts.get(post_id, 0)
+            engagement_score = self._post_engagement_score(post, repost_counts)
+            post_features[post_id] = {
+                "created_tick": created_tick,
+                "likes": likes,
+                "replies": replies,
+                "reposts": reposts,
+                "views": int(post.get("view_count", 0) or 0),
+                "time_score": time_score,
+                "engagement_score": engagement_score,
+                "base_score": (
+                    cfg.chronological_weight * time_score
+                    + cfg.engagement_weight * engagement_score
+                ),
+            }
+
+        active_pool_ids = self._build_active_pool_ids(posts_by_id, post_features, current_tick)
+        self._recommendation_cache_key = cache_key
+        self._recommendation_cache = {
+            "posts": posts_by_id,
+            "post_features": post_features,
+            "active_pool_ids": active_pool_ids,
+            "repost_counts": repost_counts,
+        }
+        self._recommendation_cache_rebuild_count += 1
+        return self._recommendation_cache
+
+    def _build_active_pool_ids(
+        self,
+        posts_by_id: Dict[str, Dict[str, Any]],
+        post_features: Dict[str, Dict[str, Any]],
+        current_tick: int,
+    ) -> List[str]:
+        """Build the recommendation active pool without deleting source posts."""
+        cfg = self._config.social_media.recommendation
+        all_ids = list(posts_by_id.keys())
+        if len(all_ids) <= cfg.full_scan_until:
+            active_ids = set(all_ids)
+        else:
+            recent_ids = sorted(
+                all_ids,
+                key=lambda pid: (post_features[pid]["created_tick"], pid),
+                reverse=True,
+            )[: cfg.recent_keep_count]
+            top_engagement_ids = sorted(
+                all_ids,
+                key=lambda pid: (
+                    post_features[pid]["engagement_score"],
+                    post_features[pid]["created_tick"],
+                    pid,
+                ),
+                reverse=True,
+            )[: cfg.top_engagement_keep_count]
+            young_ids = [
+                pid
+                for pid in all_ids
+                if current_tick - post_features[pid]["created_tick"] < cfg.min_lifetime_ticks
+            ]
+            active_ids = set(recent_ids) | set(top_engagement_ids) | set(young_ids)
+
+        return sorted(
+            active_ids,
+            key=lambda pid: (
+                post_features[pid]["created_tick"],
+                post_features[pid]["engagement_score"],
+                pid,
+            ),
+            reverse=True,
+        )
+
     # --- 通知与摘要工具 ---
 
     def _ensure_notifications_state(self) -> None:
         """确保通知状态结构存在"""
-        if "notifications" not in self.state or not isinstance(self.state.get("notifications"), dict):
+        notifications = self.state.get("notifications")
+        if "notifications" not in self.state or not _mapping_like(notifications):
             self.state["notifications"] = {"user_notifications": {}}
-        if "user_notifications" not in self.state["notifications"]:
+            notifications = self.state["notifications"]
+        if "user_notifications" not in notifications or not _mapping_like(notifications.get("user_notifications")):
             self.state["notifications"]["user_notifications"] = {}
+
+    def _ensure_recommended_posts_state(self) -> None:
+        """Ensure per-agent recommendation trace state exists without resetting proxies."""
+        recommended = self.state.get("recommended_posts")
+        if "recommended_posts" not in self.state or not _mapping_like(recommended):
+            self.state["recommended_posts"] = {}
 
     def _push_notification(self, target_agent_id: str, notification_type: str, data: Dict[str, Any], created_tick: int) -> None:
         """向指定用户推送一条通知（不做去重，消费时聚合）"""
         self._ensure_notifications_state()
         user_notifs = self.state["notifications"]["user_notifications"]
-        if target_agent_id not in user_notifs:
+        if target_agent_id not in user_notifs or not _mapping_like(user_notifs.get(target_agent_id)):
             user_notifs[target_agent_id] = {"notifications": []}
+        if "notifications" not in user_notifs[target_agent_id]:
+            user_notifs[target_agent_id]["notifications"] = []
 
         notification = {
             "id": f"notif_{len(user_notifs[target_agent_id]['notifications']) + 1}",
@@ -564,49 +872,153 @@ class SocialNetworkEnv(Environment):
         recent.sort(key=lambda x: x.get("created_tick", 0), reverse=True)
         return recent[:limit]
 
+    def _post_needs_embedding(self, post_id: str) -> bool:
+        """Return whether a post still needs vector indexing."""
+        try:
+            existing = self.state.get("posts", {}).get(post_id, {})
+            if not _mapping_like(existing):
+                return False
+            return not (
+                existing.get("embedding_indexed")
+                or existing.get("embedding_ref")
+            )
+        except Exception:
+            return True
+
+    def _queue_post_embedding(
+        self,
+        *,
+        post_id: str,
+        content: str,
+        tags: List[str],
+        created_tick: int,
+        author_id: str,
+        step_name: Optional[str] = None,
+    ) -> None:
+        """Defer post embedding so many posts in one tick become one request."""
+        if not post_id or not self._post_needs_embedding(post_id):
+            return
+        self._pending_post_embeddings[post_id] = {
+            "post_id": post_id,
+            "content": content,
+            "tags": list(tags or []),
+            "created_tick": created_tick,
+            "author_id": author_id,
+            "step_name": step_name,
+        }
+
+    async def _flush_pending_post_embeddings(self) -> None:
+        """Flush queued post embeddings in one batch request."""
+        if not self._pending_post_embeddings:
+            return
+        entries = list(self._pending_post_embeddings.values())
+        self._pending_post_embeddings.clear()
+        await self._embed_and_store_posts_batch(entries)
+
     async def _embed_and_store_post(self, post_id: str, content: str, tags: List[str],
                                     created_tick: int, author_id: str) -> None:
         """为帖子生成 embedding 并写入向量库"""
+        await self._embed_and_store_posts_batch(
+            [
+                {
+                    "post_id": post_id,
+                    "content": content,
+                    "tags": list(tags or []),
+                    "created_tick": created_tick,
+                    "author_id": author_id,
+                    "step_name": getattr(self._world, "_current_code_step_name", None),
+                }
+            ]
+        )
+
+    async def _embed_and_store_posts_batch(self, entries: List[Dict[str, Any]]) -> None:
+        """Generate embeddings for multiple posts and upsert them together."""
+        entries = [
+            dict(entry)
+            for entry in entries
+            if entry.get("post_id") and self._post_needs_embedding(str(entry.get("post_id")))
+        ]
+        if not entries:
+            return
         if not self._embed_call:
             return
-        text = self._build_post_text(content, tags)
+        texts = [
+            self._build_post_text(str(entry.get("content") or ""), list(entry.get("tags") or []))
+            for entry in entries
+        ]
+        post_ids = [str(entry["post_id"]) for entry in entries]
+        author_ids = [str(entry.get("author_id") or "") for entry in entries]
+        step_names = [
+            str(entry.get("step_name"))
+            for entry in entries
+            if entry.get("step_name") is not None
+        ]
+        metadata: Dict[str, Any] = {
+            "step": getattr(self._world, "step", None),
+            "interaction_type": "env_post_embedding",
+            "interaction_name": "publish_post",
+        }
+        unique_step_names = list(dict.fromkeys(step_names))
+        if len(unique_step_names) == 1:
+            metadata["step_name"] = unique_step_names[0]
+        elif unique_step_names:
+            metadata["step_names"] = unique_step_names
+        if len(entries) == 1:
+            metadata["agent_id"] = author_ids[0]
+            metadata["post_id"] = post_ids[0]
+        else:
+            metadata["agent_ids"] = author_ids
+            metadata["post_ids"] = post_ids
         try:
-            result = await self._embed_call([text])
+            result = await self._request_embedding(
+                texts,
+                metadata=metadata,
+            )
             embeddings = result.get("result") if result else None
-            if not embeddings:
+            if not embeddings or len(embeddings) < len(entries):
                 return
-            embedding = embeddings[0]
         except Exception as exc:
-            logger.warning(f"Embedding generation failed for post {post_id}: {exc}")
+            logger.warning(f"Embedding generation failed for posts {post_ids}: {exc}")
             return
 
-        # 写回帖子结构
-        try:
-            if "posts" in self.state and post_id in self.state["posts"]:
-                self.state["posts"][post_id]["embedding"] = embedding
-        except Exception as exc:
-            logger.warning(f"Failed to store embedding in state for post {post_id}: {exc}")
+        # 写回轻量索引元数据；大向量只放在 Chroma，避免 checkpoint 膨胀。
+        for entry, embedding in zip(entries, embeddings):
+            post_id = str(entry["post_id"])
+            try:
+                if "posts" in self.state and post_id in self.state["posts"]:
+                    post_state = self.state["posts"][post_id]
+                    if "embedding" in post_state:
+                        del post_state["embedding"]
+                    post_state["embedding_ref"] = post_id
+                    post_state["embedding_model"] = result.get("model")
+                    post_state["embedding_dimensions"] = result.get("dimensions") or len(embedding)
+                    post_state["embedding_indexed"] = True
+            except Exception as exc:
+                logger.warning(f"Failed to store embedding metadata in state for post {post_id}: {exc}")
 
         # 向量库 upsert
         collection = self._ensure_post_collection()
-        if not collection:
+        if collection is None:
             return
         try:
-            tags_text = ", ".join(tags) if tags else ""
             collection.upsert(
-                ids=[post_id],
-                embeddings=[embedding],
-                metadatas=[{
-                    "author_id": author_id,
-                    "tags": tags_text,
-                    "created_tick": created_tick,
-                    "env": "social_network"
-                }],
-                documents=[text],
+                ids=post_ids,
+                embeddings=embeddings,
+                metadatas=[
+                    {
+                        "author_id": str(entry.get("author_id") or ""),
+                        "tags": ", ".join(list(entry.get("tags") or [])),
+                        "created_tick": int(entry.get("created_tick", 0) or 0),
+                        "env": "social_network",
+                    }
+                    for entry in entries
+                ],
+                documents=texts,
             )
-            logger.debug(f"Upserted post {post_id} into vector store")
+            logger.debug("Upserted %s posts into vector store", len(entries))
         except Exception as exc:
-            logger.warning(f"Failed to upsert post {post_id} into vector store: {exc}")
+            logger.warning(f"Failed to upsert posts {post_ids} into vector store: {exc}")
+        self._invalidate_recommendation_cache()
 
     async def _rank_posts_with_similarity(self, agent: Agent, posts_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """召回候选帖子并根据多重信号排序"""
@@ -614,50 +1026,75 @@ class SocialNetworkEnv(Environment):
         if not posts_data:
             return []
 
-        similarity_scores: Dict[str, float] = {}
-        if cfg.use_embedding_similarity and self._embed_call:
-            collection = self._ensure_post_collection()
-            if collection:
-                preference_text = self._build_agent_preference_text(agent)
-                try:
-                    result = await self._embed_call([preference_text])
-                    q_embeddings = result.get("result") if result else None
-                    if q_embeddings:
-                        q_emb = q_embeddings[0]
-                        n_results = max(
-                            int(cfg.candidate_count * cfg.recall_multiplier),
-                            len(posts_data),
-                            cfg.post_count,
-                        )
-                        query_res = collection.query(
-                            query_embeddings=[q_emb],
-                            n_results=n_results,
-                            include=["distances"],
-                        )
-                        ids_list = query_res.get("ids") or []
-                        distances = query_res.get("distances") or []
-                        ordered_ids = ids_list[0] if ids_list else []
-                        ordered_distances = distances[0] if distances else []
-
-                        # 将向量结果加入候选，并保存相似度分数
-                        state_posts = self.state.get("posts", {})
-                        post_map = {p.get("post_id"): p for p in posts_data if p.get("post_id")}
-                        for idx, pid in enumerate(ordered_ids):
-                            if pid not in post_map and pid in state_posts:
-                                post_copy = dict(state_posts[pid])
-                                posts_data.append(post_copy)
-                                post_map[pid] = post_copy
-
-                            if pid:
-                                distance = ordered_distances[idx] if idx < len(ordered_distances) else None
-                                similarity = 1 - distance if distance is not None else 0.0
-                                similarity_scores[pid] = max(similarity, 0.0)
-                except Exception as exc:
-                    logger.warning(f"Similarity query failed for agent {agent.id}: {exc}")
-
+        similarity_scores = await self._semantic_similarity_scores(agent, posts_data)
         ranked = self._score_posts(agent, posts_data, similarity_scores)
         limit = cfg.post_count if cfg.post_count > 0 else len(ranked)
         return ranked[:limit]
+
+    async def _semantic_similarity_scores(
+        self,
+        agent: Agent,
+        posts_data: List[Dict[str, Any]],
+    ) -> Dict[str, float]:
+        """Compute semantic scores against the active pool, not a latest-post sample."""
+        cfg = self._config.social_media.recommendation
+        active_post_ids = {post.get("post_id") for post in posts_data if post.get("post_id")}
+        if not active_post_ids or not cfg.use_embedding_similarity or not self._embed_call:
+            return {}
+
+        preference_text = self._build_agent_preference_text(agent)
+        cache_key = (preference_text, self._recommendation_cache_key, tuple(sorted(active_post_ids)))
+        if cache_key in self._semantic_score_cache:
+            return dict(self._semantic_score_cache[cache_key])
+
+        await self._flush_pending_post_embeddings()
+        collection = self._ensure_post_collection()
+        if not collection:
+            return {}
+
+        try:
+            result = await self._request_embedding(
+                [preference_text],
+                metadata={
+                    "step": getattr(self._world, "step", None),
+                    "step_name": getattr(self._world, "_current_code_step_name", None),
+                    "interaction_type": "semantic_recommendation",
+                    "interaction_name": "recommended_feed",
+                    "agent_id": agent.id,
+                },
+            )
+            q_embeddings = result.get("result") if result else None
+            if not q_embeddings:
+                return {}
+            q_emb = q_embeddings[0]
+            active_size = len(active_post_ids)
+            if active_size <= cfg.full_scan_until:
+                n_results = max(active_size, cfg.post_count)
+            else:
+                n_results = max(int(cfg.candidate_count * cfg.recall_multiplier), cfg.post_count)
+            query_res = collection.query(
+                query_embeddings=[q_emb],
+                n_results=n_results,
+                include=["distances"],
+            )
+        except Exception as exc:
+            logger.warning(f"Similarity query failed for agent {agent.id}: {exc}")
+            return {}
+
+        ids_list = query_res.get("ids") or []
+        distances = query_res.get("distances") or []
+        ordered_ids = ids_list[0] if ids_list else []
+        ordered_distances = distances[0] if distances else []
+        similarity_scores: Dict[str, float] = {}
+        for idx, pid in enumerate(ordered_ids):
+            if pid not in active_post_ids:
+                continue
+            distance = ordered_distances[idx] if idx < len(ordered_distances) else None
+            similarity = 1 - distance if distance is not None else 0.0
+            similarity_scores[pid] = max(similarity, 0.0)
+
+        self._semantic_score_cache[cache_key] = dict(similarity_scores)
+        return similarity_scores
 
     def _score_posts(
         self,
@@ -667,35 +1104,58 @@ class SocialNetworkEnv(Environment):
     ) -> List[Dict[str, Any]]:
         """按照多重信号为帖子打分"""
         cfg = self._config.social_media.recommendation
-        current_tick = getattr(self._world, "step", 0)
-        decay_constant = cfg.time_decay_hours if cfg.time_decay_hours > 0 else 1.0
+        cache = self._get_recommendation_cache()
+        features_by_id = cache.get("post_features", {})
 
         scored_posts = []
         for post in posts_data:
             pid = post.get("post_id")
             if not pid:
                 continue
-            age = max(current_tick - post.get("created_tick", 0), 0)
-            time_score = math.exp(-age / decay_constant)
-            engagement_score = (
-                cfg.like_score * len(post.get("likes", []))
-                + cfg.reply_score * len(post.get("replies", []))
-            )
+            features = features_by_id.get(pid)
+            if features is None:
+                repost_counts = cache.get("repost_counts", {})
+                engagement_score = self._post_engagement_score(post, repost_counts)
+                created_tick = int(post.get("created_tick", 0) or 0)
+                features = {
+                    "time_score": 0.0,
+                    "engagement_score": engagement_score,
+                    "base_score": cfg.engagement_weight * engagement_score,
+                    "created_tick": created_tick,
+                }
             network_score = 0.0
             if self.graph and post.get("author_id") and self.graph.has_edge(agent.id, post["author_id"]):
                 network_score = cfg.follow_bonus
             similarity_score = similarity_scores.get(pid, 0.0)
+            time_score = float(features.get("time_score", 0.0) or 0.0)
+            engagement_score = float(features.get("engagement_score", 0.0) or 0.0)
+            time_contribution = cfg.chronological_weight * time_score
+            engagement_contribution = cfg.engagement_weight * engagement_score
+            network_contribution = cfg.network_weight * network_score
+            semantic_contribution = cfg.similarity_weight * similarity_score
 
             total_score = (
-                cfg.chronological_weight * time_score
-                + cfg.engagement_weight * engagement_score
-                + cfg.network_weight * network_score
-                + cfg.similarity_weight * similarity_score
+                time_contribution
+                + engagement_contribution
+                + network_contribution
+                + semantic_contribution
             )
+            scored_post = dict(post)
+            scored_post["_recommendation_score"] = {
+                "time_score": round(float(time_score), 6),
+                "time_contribution": round(float(time_contribution), 6),
+                "engagement_score": round(float(engagement_score), 6),
+                "engagement_contribution": round(float(engagement_contribution), 6),
+                "network_score": round(float(network_score), 6),
+                "network_contribution": round(float(network_contribution), 6),
+                "semantic_score": round(float(similarity_score), 6),
+                "semantic_contribution": round(float(semantic_contribution), 6),
+                "total_score": round(float(total_score), 6),
+            }
 
             scored_posts.append(
                 {
-                    "post": post,
+                    "post": scored_post,
                     "score": total_score,
                     "created_tick": post.get("created_tick", 0),
                 }
@@ -703,6 +1163,24 @@ class SocialNetworkEnv(Environment):
 
         scored_posts.sort(key=lambda item: (item["score"], item["created_tick"]), reverse=True)
         return [item["post"] for item in scored_posts]
+
+    @staticmethod
+    def _recommendation_score_trace(posts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Build compact score diagnostics for returned feed items."""
+        traces: List[Dict[str, Any]] = []
+        for rank, post in enumerate(posts[:_RECOMMENDATION_TRACE_SCORE_LIMIT], start=1):
+            score = post.get("_recommendation_score")
+            if not isinstance(score, dict):
+                continue
+            traces.append(
+                {
+                    "rank": rank,
+                    "post_id": post.get("post_id"),
+                    "author_id": post.get("author_id"),
+                    **score,
+                }
+            )
+        return traces
 
     def _collect_recent_posts_for_agent(self, agent: Agent, limit: int) -> List[Dict[str, Any]]:
         """获取Agent最近发布的帖子"""
@@ -784,7 +1262,7 @@ class SocialNetworkEnv(Environment):
                     )
                 sections.append("Recent interactions:\n" + "\n".join(interaction_lines))
 
-        if self.graph and agent.id in self.graph:
+        if cfg.include_following_in_query and self.graph and agent.id in self.graph:
             follows = list(self.graph.successors(agent.id))
             if follows:
                 limit = cfg.recent_post_limit or 3
@@ -936,21 +1414,17 @@ class SocialNetworkEnv(Environment):
         """消费未读通知并返回聚合摘要"""
         return self._format_notifications(agent)
 
-    @action(description="点赞指定的帖子（post_id 必须来自 FoV 或系统明确提示）")
+    @action(
+        description="点赞指定的帖子（post_id 必须来自 FoV 或系统明确提示）",
+        tags=["social", "social_write", "engagement"],
+    )
     def like_post(self, context: ExecutionContext, post_id: str) -> str:
         """点赞帖子Action（适配新架构）"""
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
 
-        # 🔧 DEBUG: 添加调试信息
-        print(f"🔍 [DEBUG] like_post: agent={agent.id}, post_id={post_id}")
-        print(f"🔍 [DEBUG] state type: {type(self.state)}")
-
         posts = self.state.get("posts", {})
-        print(f"🔍 [DEBUG] posts type: {type(posts)}, count: {len(posts)}")
-
         post = posts.get(post_id)
-        print(f"🔍 [DEBUG] post found: {post is not None}")
 
         if not post:
             logger.warning(f"Agent {agent.id} 尝试点赞不存在的帖子 {post_id}")
@@ -989,16 +1463,13 @@ class SocialNetworkEnv(Environment):
 
         context.log_event("like_post", source=agent.id, data={"post_id": post_id})
 
-        # 🔧 修复：使用正确的状态访问方式
-        print(f"🔍 [DEBUG] 准备修改帖子 {post_id} 的likes")
-
         # 确保posts字典存在
         if "posts" not in self.state:
             self.state["posts"] = {}
 
         # 确保特定帖子存在
         if post_id not in self.state["posts"]:
-            print(f"🔍 [DEBUG] 帖子 {post_id} 在state中不存在!")
+            logger.debug("Post %s disappeared before like mutation", post_id)
             return f"Post {post_id} not found in state"
 
         # 确保likes字段存在
@@ -1012,10 +1483,8 @@ class SocialNetworkEnv(Environment):
         like_event = LikeEvent(agent_id=agent.id, created_tick=context.world.step)
         self.state["posts"][post_id]["like_events"].append(like_event.model_dump())
 
-        # 🔧 DEBUG: Posts interaction monitoring
         current_likes = len(self.state["posts"][post_id]["likes"])
-        print(f"👍 [POSTS] Agent {agent.id}: Liked post {post_id}")
-        print(f"   Total likes now: {current_likes}")
+        logger.debug("Agent %s liked post %s (total_likes=%s)", agent.id, post_id, current_likes)
 
         if log_ctx:
             log_ctx.log_env(
@@ -1048,7 +1517,10 @@ class SocialNetworkEnv(Environment):
 
         return f"Successfully liked post {post_id}"
 
-    @action(description="评论指定的帖子")
+    @action(
+        description="评论指定的帖子",
+        tags=["social", "social_write", "engagement"],
+    )
     async def comment(self, context: ExecutionContext, post_id: str, content: str) -> str:
         """发表评论的Action"""
         is_valid, msg = self._validate_content_length(content, "comment", context.caller.id)
@@ -1111,7 +1583,10 @@ class SocialNetworkEnv(Environment):
 
         return f"Successfully commented on post {post_id}"
 
-    @action(description="转发指定的帖子并添加评论")
+    @action(
+        description="转发指定的帖子并添加评论",
+        tags=["social", "social_write", "engagement", "publish"],
+    )
     async def repost(self, context: ExecutionContext, post_id: str, commentary: str = "") -> str:
         """转发帖子Action"""
         posts = self.state.get("posts", {})
@@ -1169,7 +1644,10 @@ class SocialNetworkEnv(Environment):
 
         return f"Reposted {post_id}: {result}"
 
-    @action(description="关注另一个Agent，建立社交连接")
+    @action(
+        description="关注另一个Agent，建立社交连接",
+        tags=["social", "social_write", "follow"],
+    )
     def follow(self, context: ExecutionContext, target_agent_id: str) -> str:
         """关注其他Agent的Action（适配新架构）"""
         agent = context.caller
@@ -1304,7 +1782,10 @@ class SocialNetworkEnv(Environment):
 
         return f"Successfully followed {target_agent_id}"
 
-    @action(description="取消关注指定的Agent")
+    @action(
+        description="取消关注指定的Agent",
+        tags=["social", "social_write", "follow"],
+    )
     def unfollow(self, context: ExecutionContext, target_agent_id: str) -> str:
         """取消关注Action"""
         agent = context.caller
@@ -1374,26 +1855,59 @@ class SocialNetworkEnv(Environment):
 
     # --- 3. 视野 (FoV) 函数 (Agent如何感知世界) ---
 
-    @fov(description="获取个性化推荐动态，包含推荐帖子和可关注用户信息")
+    @fov(name="recommended_feed", description="获取个性化推荐动态，包含推荐帖子和可关注用户信息")
     async def get_recommended_feed(self, agent: Agent, env) -> str:
         """
-        获取推荐动态并格式化为人类可读的字符串
+        获取推荐动态并格式化为人类可读的字符串，同时记录曝光。
 
         Returns:
             str: 格式化的推荐动态字符串，便于LLM理解
         """
+        return await self._render_recommended_feed(
+            agent,
+            env,
+            record_impression=True,
+            record_recommended_state=True,
+            title="个性化推荐动态",
+        )
+
+    @fov(name="recommended_feed_preview", description="预览个性化推荐动态，不记录曝光或更新推荐状态，适合访谈测量")
+    async def preview_recommended_feed(self, agent: Agent, env) -> str:
+        """返回不产生曝光副作用的推荐动态预览。"""
+        return await self._render_recommended_feed(
+            agent,
+            env,
+            record_impression=False,
+            record_recommended_state=False,
+            title="个性化推荐动态预览",
+        )
+
+    async def _render_recommended_feed(
+        self,
+        agent: Agent,
+        env,
+        *,
+        record_impression: bool,
+        record_recommended_state: bool,
+        title: str,
+    ) -> str:
+        """Render a recommended feed, optionally committing exposure side effects."""
+        started = time.perf_counter()
+        rebuild_count_before = self._recommendation_cache_rebuild_count
         # 获取推荐帖子数据
         posts_data = self._get_real_posts_only(agent)
+        raw_candidate_count = len(posts_data)
 
-        # 🔍 DEBUG: 添加FoV调试信息
-        print(f"🔍 [FoV DEBUG] Agent {agent.id} - posts_data count: {len(posts_data)}")
-        for i, post in enumerate(posts_data):
-            post_id = post.get('post_id', 'N/A')
-            author_id = post.get('author_id', 'Unknown')
-            print(f"🔍 [FoV DEBUG] Post {i+1}: ID={post_id}, Author={author_id}")
+        logger.debug(
+            "Rendering recommended feed for agent %s with %s raw candidate posts",
+            agent.id,
+            len(posts_data),
+        )
 
         # 可选：基于向量的相似度重排
+        rank_started = time.perf_counter()
         posts_data = await self._rank_posts_with_similarity(agent, posts_data)
+        rank_duration = time.perf_counter() - rank_started
 
         if not posts_data:
             # 如果没有帖子，至少显示网络中的其他Agent供关注
@@ -1405,25 +1919,37 @@ class SocialNetworkEnv(Environment):
                 if len(other_agents) > 5:
                     agents_list += '...'
 
-                return f"📭 暂无推荐内容,你可以等待，或者发表你的帖子 "
+                feed_text = f"📭 暂无推荐内容,你可以等待，或者发表你的帖子 "
             else:
-                return "📭 暂无推荐内容"
+                feed_text = "📭 暂无推荐内容"
+            self._log_recommendation_trace(
+                agent_id=agent.id,
+                raw_candidate_count=raw_candidate_count,
+                returned_count=0,
+                active_pool_count=0,
+                record_impression=record_impression,
+                record_recommended_state=record_recommended_state,
+                rank_duration_sec=rank_duration,
+                duration_sec=time.perf_counter() - started,
+                output_characters=len(feed_text),
+                cache_rebuilds_delta=self._recommendation_cache_rebuild_count - rebuild_count_before,
+                score_breakdown=[],
+            )
+            return feed_text
 
         # 格式化为人类可读的字符串
         feed_sections = []
-        feed_sections.append("📱 个性化推荐动态")
+        recommendation_cfg = self._config.social_media.recommendation
         current_tick = int(getattr(self._world, "step", 0))
-        feed_sections.append(f"⏰ 当前仿真第 {current_tick} 步")
-        feed_sections.append("")  # 空行分隔
+        feed_sections.append(f"{title} | tick={current_tick}")
 
         for i, post in enumerate(posts_data, 1):
-            # 🔧 增加view_count统计 - 每次查看时增加计数
             post_id = post.get('post_id', 'N/A')
-            self._increment_view_count(post_id)
 
             author = post.get("author_id", "Unknown")
             created_tick = post.get("created_tick", 0)
             content = post.get("content", "")
+            content = self._short_content(content, recommendation_cfg.feed_content_preview_chars)
             special_tags = post.get("special_tags", [])
             if special_tags:
                 content += f"\n[系统标记: {', '.join(special_tags)}]"
@@ -1433,7 +1959,6 @@ class SocialNetworkEnv(Environment):
 
             likes_count = len(post.get("likes", []))
             replies_count = len(post.get("replies", []))
-            # view_count 以 state 中的最新值为准（上面已自增）
             try:
                 view_count = self.state["posts"][post_id].get("view_count", 0)
             except Exception:
@@ -1445,36 +1970,52 @@ class SocialNetworkEnv(Environment):
             time_text = f"第{created_tick}步 (本步发布)" if time_diff == 0 else f"第{created_tick}步 ({time_diff}步前)"
 
             block_lines = [
-                f"{i}. 帖子 {post_id}",
-                f"作者: {author}",
-                f"发布: {time_text}",
+                f"{i}. 帖子 ID: {post_id} | 作者用户 ID: {author} | 发布: {time_text}",
                 f"内容: {content}",
-                f"标签: {tags_text}",
-                f"互动: 👍{likes_count} 💬{replies_count} 🔁{repost_count} 👁️{view_count}",
+                f"标签: {tags_text} | 互动: 👍{likes_count} 💬{replies_count} 🔁{repost_count} 👁️{view_count}",
             ]
             if reply_to:
-                block_lines.append(f"引用/回复: {reply_to}")
+                block_lines[-1] += f" | 引用/回复: {reply_to}"
 
             feed_sections.append("\n".join(block_lines))
+            if record_impression:
+                self._record_impression(post_id)
 
-        feed_sections.append("\n提示: 可以使用 like_post、comment、repost、follow 等动作与帖子互动")
-        feed_sections.append("注意: 引用帖子或用户时请使用视野中呈现的真实 ID")
+        feed_sections.append("提示: 互动请使用帖子 ID；不要把作者用户 ID 当作 post_id。")
 
-        # 记录本次推荐的帖子ID（覆盖式存储）
-        if "recommended_posts" not in self.state or not isinstance(self.state.get("recommended_posts"), dict):
-            self.state["recommended_posts"] = {}
-        self.state["recommended_posts"][agent.id] = [p.get("post_id") for p in posts_data if p.get("post_id")]
+        # 记录本次推荐的帖子ID（按 agent 隔离，不重置代理状态）
+        recommended_ids = [p.get("post_id") for p in posts_data if p.get("post_id")]
+        if record_recommended_state:
+            self._recommended_posts_by_agent[agent.id] = list(recommended_ids)
+            self._pending_recommended_posts[agent.id] = list(recommended_ids)
 
         formatted_feed = "\n".join(feed_sections)
+        if len(formatted_feed) > recommendation_cfg.feed_max_chars:
+            formatted_feed = (
+                formatted_feed[: recommendation_cfg.feed_max_chars].rstrip()
+                + "\n... 推荐流已按 feed_max_chars 截断，请调高配置以展示更多内容。"
+            )
 
-        # 监控输出
-        print(f"📱 Agent {agent.id} FoV - Recommended Feed:")
-        print(f"   Generated {len(posts_data)} posts in feed")
-        print(f"   Feed length: {len(formatted_feed)} characters")
-
-        # 🔍 DEBUG: 显示完整的FoV内容
-        print(f"🔍 [FoV FULL] Agent {agent.id} sees:")
-        print(formatted_feed[:500] + "..." if len(formatted_feed) > 500 else formatted_feed)
+        logger.debug(
+            "Recommended feed rendered for agent %s (posts=%s, chars=%s)",
+            agent.id,
+            len(posts_data),
+            len(formatted_feed),
+        )
+        cache = self._get_recommendation_cache()
+        self._log_recommendation_trace(
+            agent_id=agent.id,
+            raw_candidate_count=raw_candidate_count,
+            returned_count=len(posts_data),
+            active_pool_count=len(cache.get("active_pool_ids", []) or []),
+            record_impression=record_impression,
+            record_recommended_state=record_recommended_state,
+            rank_duration_sec=rank_duration,
+            duration_sec=time.perf_counter() - started,
+            output_characters=len(formatted_feed),
+            cache_rebuilds_delta=self._recommendation_cache_rebuild_count - rebuild_count_before,
+            score_breakdown=self._recommendation_score_trace(posts_data),
+        )
 
         return formatted_feed
 
@@ -1485,7 +2026,7 @@ class SocialNetworkEnv(Environment):
         if not trending_cfg.enabled:
             return "🔥 热门视图已关闭"
 
-        posts_data = self._get_real_posts_only(None)
+        posts_data = self._get_top_engagement_posts(None, limit=2)
         if not posts_data:
             return "🔥 暂无热门内容"
 
@@ -1519,18 +2060,14 @@ class SocialNetworkEnv(Environment):
 
         return "\n".join(trending_sections)
 
+    def _record_impression(self, post_id: str) -> None:
+        """Record a view for after_tick batch flush."""
+        if post_id and "posts" in self.state and post_id in self.state["posts"]:
+            self._pending_impressions[post_id] = self._pending_impressions.get(post_id, 0) + 1
+
     def _increment_view_count(self, post_id: str) -> None:
-        """增加帖子的查看计数"""
-        if "posts" in self.state and post_id in self.state["posts"]:
-            # 确保view_count字段存在（向后兼容）
-            if "view_count" not in self.state["posts"][post_id]:
-                self.state["posts"][post_id]["view_count"] = 0
-
-            self.state["posts"][post_id]["view_count"] += 1
-
-            # 🔧 DEBUG: View count monitoring
-            current_count = self.state["posts"][post_id]["view_count"]
-            print(f"👁️ [VIEW COUNT] Post {post_id}: view_count increased to {current_count}")
+        """Backward-compatible private helper; now defers to after_tick."""
+        self._record_impression(post_id)
 
     def _validate_content_length(self, content: str, content_type: str, agent_id: str) -> tuple[bool, str]:
         """
@@ -1557,7 +2094,11 @@ class SocialNetworkEnv(Environment):
 
     def _get_real_posts_only(self, agent: Agent|None = None) -> List[Dict[str, Any]]:
         """
-        获取真实帖子数据（不生成任何示例数据）
+        获取 active pool 中的真实帖子候选（不生成任何示例数据）。
+
+        默认推荐池不再受 candidate_count 限制。帖子数不超过
+        full_scan_until 时全量进入 active pool；超过阈值后才按近期、
+        高互动和最小生命周期规则剪枝。
 
         Args:
             agent: 当前Agent，用于过滤自己的帖子，为None时不过滤
@@ -1565,25 +2106,86 @@ class SocialNetworkEnv(Environment):
         Returns:
             List[Dict]: 真实帖子数据列表，如果没有则返回空列表
         """
-        real_posts = self.state.get("posts", {})
-        if real_posts:
-            cfg = self._config.social_media.recommendation
-            candidate_limit = max(cfg.candidate_count, cfg.post_count)
-            filtered_posts: List[Dict[str, Any]] = []
-            for post_id, post_data in real_posts.items():
-                author_id = post_data.get("author_id", "")
-                if agent and author_id == agent.id:
-                    continue
-                filtered_posts.append(dict(post_data))
+        cache = self._get_recommendation_cache()
+        posts_by_id = cache.get("posts", {})
+        active_pool_ids = cache.get("active_pool_ids", [])
+        filtered_posts: List[Dict[str, Any]] = []
+        for post_id in active_pool_ids:
+            post_data = posts_by_id.get(post_id)
+            if not post_data:
+                continue
+            author_id = post_data.get("author_id", "")
+            if agent and author_id == agent.id:
+                continue
+            filtered_posts.append(dict(post_data))
+        return filtered_posts
 
-            if not filtered_posts:
-                return []
+    @staticmethod
+    def _dedupe_posts(posts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """按 post_id 去重，同时保留召回通道顺序。"""
+        seen = set()
+        deduped: List[Dict[str, Any]] = []
+        for post in posts:
+            pid = post.get("post_id")
+            if not pid or pid in seen:
+                continue
+            seen.add(pid)
+            deduped.append(post)
+        return deduped
 
-            sorted_posts = sorted(filtered_posts, key=lambda x: x.get("created_tick", 0), reverse=True)
-            return sorted_posts[:candidate_limit]
+    @staticmethod
+    def _build_repost_counts(posts: Dict[str, Dict[str, Any]]) -> Dict[str, int]:
+        """一次性统计每个帖子被转发的次数，避免推荐阶段反复全量扫描。"""
+        counts: Dict[str, int] = {}
+        for post in posts.values():
+            parent_id = post.get("reply_to")
+            if parent_id:
+                counts[parent_id] = counts.get(parent_id, 0) + 1
+        return counts
 
-        # 如果没有真实帖子，返回空列表
-        return []
+    def _post_engagement_score(
+        self,
+        post: Dict[str, Any],
+        repost_counts: Optional[Dict[str, int]] = None,
+    ) -> float:
+        """计算帖子互动分，供候选召回、推荐排序和热门计算复用。"""
+        cfg = self._config.social_media.recommendation
+        post_id = post.get("post_id")
+        if not post_id:
+            repost_count = 0
+        elif repost_counts is not None:
+            repost_count = repost_counts.get(post_id, 0)
+        else:
+            repost_count = self._count_reposts(post_id)
+        return (
+            cfg.like_score * len(post.get("likes", []))
+            + cfg.reply_score * len(post.get("replies", []))
+            + cfg.repost_score * repost_count
+        )
+
+    def _get_top_engagement_posts(self, agent: Agent | None = None, limit: int = 2) -> List[Dict[str, Any]]:
+        """获取互动分最高的真实帖子。"""
+        if limit <= 0:
+            return []
+        cache = self._get_recommendation_cache()
+        posts_by_id = cache.get("posts", {})
+        features_by_id = cache.get("post_features", {})
+        posts = []
+        for post_id, post_data in posts_by_id.items():
+            author_id = post_data.get("author_id", "")
+            if agent and author_id == agent.id:
+                continue
+            posts.append(dict(post_data))
+        ranked = sorted(
+            posts,
+            key=lambda x: (
+                features_by_id.get(x.get("post_id"), {}).get("engagement_score", 0.0),
+                x.get("created_tick", 0),
+                x.get("post_id", ""),
+            ),
+            reverse=True,
+        )
+        return ranked[:limit]
 
     def _get_other_agents_in_network(self, current_agent: Agent) -> List[str]:
         """
@@ -1609,7 +2211,10 @@ class SocialNetworkEnv(Environment):
 
         return other_agents
 
-    @fov(description="获取当前网络上热门帖子的动态信息")
+    @action(
+        description="获取当前网络上热门帖子的动态信息，并记录这些热门帖子的一次曝光",
+        tags=["social_read", "lookup", "trending"],
+    )
     async def get_trending_posts(self) -> str:
         """
         返回当前网络上热门帖子的格式化字符串
@@ -1618,15 +2223,15 @@ class SocialNetworkEnv(Environment):
             str: 格式化的热门帖子字符串
         """
         # 获取真实的热门帖子
-        posts_data = self._get_real_posts_only(None)
+        posts_data = self._get_top_engagement_posts(None, limit=2)
 
         if not posts_data:
             return "🔥 暂无热门内容"
 
         # 格式化热门帖子
+        recommendation_cfg = self._config.social_media.recommendation
         trending_sections = []
-        trending_sections.append("🔥 **热门动态**")
-        trending_sections.append("=" * 30)
+        trending_sections.append("热门动态（本动作会记录曝光）")
 
         # 只显示前2条作为热门
         for i, post in enumerate(posts_data[:2], 1):
@@ -1639,31 +2244,34 @@ class SocialNetworkEnv(Environment):
             view_count = post.get("view_count", 0)
 
             # 🔧 处理special_tags - 如果有干预标签，追加到内容后面
-            content = post.get('content', '')[:60]
+            content = self._short_content(
+                post.get('content', ''),
+                min(recommendation_cfg.feed_content_preview_chars, 120),
+            )
             special_tags = post.get("special_tags", [])
             if special_tags:
                 content += f" [系统标记: {', '.join(special_tags)}]"
 
             post_info = [
-                f"**🔥 热门 {i}**",
-                f"👤 {post.get('author_id', 'Unknown')}",
-                f"💬 {content}...",
-                f"📊 {likes_count}👍 {replies_count}💬 {view_count}👁️"
+                f"{i}. 帖子 ID: {post_id} | 作者用户 ID: {post.get('author_id', 'Unknown')}",
+                f"内容: {content}",
+                f"互动: 👍{likes_count} 💬{replies_count} 👁️{view_count}",
             ]
 
             trending_sections.append("\n".join(post_info))
 
-            if i < 2:
-                trending_sections.append("-" * 20)
+        trending_sections.append("提示: 评论、点赞或转发时使用帖子 ID；不要使用作者用户 ID。")
 
         formatted_trending = "\n".join(trending_sections)
 
-        # 监控输出
-        print(f"🔥 FoV - Trending Posts: Generated trending feed")
+        logger.debug("Generated trending posts view")
 
         return formatted_trending
 
-    @action(description="查看指定帖子的详细信息（内容、点赞、评论、转发）")
+    @action(
+        description="查看指定帖子的详细信息（内容、点赞、评论、转发）",
+        tags=["social_read", "lookup", "post_detail"],
+    )
     async def get_post_details(self, agent, post_id: str) -> str:
         """返回帖子的完整详情（无权限限制，聚合显示）"""
         posts = self.state.get("posts", {})
@@ -1730,7 +2338,10 @@ class SocialNetworkEnv(Environment):
 
         return "\n".join(lines)
 
-    @fov(description="获取指定Agent的个人资料和社交统计信息")
+    @action(
+        description="获取指定Agent的个人资料和社交统计信息",
+        tags=["social_read", "lookup", "profile"],
+    )
     async def get_agent_profile(self, agent_id: str) -> str:
         """
         返回特定agent的格式化个人资料
@@ -1797,8 +2408,7 @@ class SocialNetworkEnv(Environment):
 
         formatted_profile = "\n".join(profile_sections)
 
-        # 监控输出
-        print(f"👤 FoV - Agent Profile: Generated profile for {agent_id}")
+        logger.debug("Generated agent profile for %s", agent_id)
 
         return formatted_profile
 
@@ -1921,9 +2531,18 @@ class SocialNetworkEnv(Environment):
             context.log_event("update_trending_topics", source="environment", data={"trending_ids": []})
             return "No real posts available for trending calculation"
 
-        # 简单实现：按点赞数排序获取热门帖子
+        # 简单实现：按统一互动分排序获取热门帖子
+        repost_counts = self._build_repost_counts(posts)
         post_items = list(posts.items())
-        sorted_posts = sorted(post_items, key=lambda x: len(x[1].get("likes", [])), reverse=True)
+        sorted_posts = sorted(
+            post_items,
+            key=lambda x: (
+                self._post_engagement_score(x[1], repost_counts),
+                x[1].get("created_tick", 0),
+                x[0],
+            ),
+            reverse=True,
+        )
         trending_post_ids = [post_id for post_id, _ in sorted_posts[:3]]  # 取前3个
 
         self.state["trending_post_ids"] = trending_post_ids
@@ -2114,7 +2733,7 @@ class SocialNetworkEnv(Environment):
     @rule(description="简单的测试规则 - 测试基本功能和默认参数")
     async def test_simple_rule(self, world, message: str = "Hello from rule!") -> dict:
         """简单的测试规则 - 测试基本功能和默认参数"""
-        print(f"🔧 [RULE TEST] Simple rule executed with message: {message}")
+        logger.debug("Simple rule executed with message: %s", message)
 
         # 获取当前状态信息
         posts_count = len(self.state.get("posts", {}))
@@ -2128,7 +2747,7 @@ class SocialNetworkEnv(Environment):
             "timestamp": world.step
         }
 
-        print(f"🔧 [RULE TEST] Simple rule result: {result}")
+        logger.debug("Simple rule result: %s", result)
         return result
 
     @rule(description="复杂的测试规则 - 测试智能参数映射和内容干预功能")
@@ -2137,7 +2756,12 @@ class SocialNetworkEnv(Environment):
                                    intervention_rate: float = 0.5,
                                    tag_to_apply: str = "flagged") -> dict:
         """复杂的测试规则 - 测试智能参数映射和实际干预"""
-        print(f"🔧 [RULE TEST] Intervention rule: hashtag={target_hashtag}, rate={intervention_rate}, tag={tag_to_apply}")
+        logger.debug(
+            "Intervention rule: hashtag=%s, rate=%s, tag=%s",
+            target_hashtag,
+            intervention_rate,
+            tag_to_apply,
+        )
 
         posts_to_flag = []
         total_posts = 0
@@ -2152,16 +2776,13 @@ class SocialNetworkEnv(Environment):
                 # 根据干预率决定是否标记
                 import random
                 if random.random() < intervention_rate:
-                    # 🔧 修复：使用正确的状态访问方式
-                    print(f"🔧 [RULE DEBUG] 准备标记帖子 {post_id}")
-
                     # 确保posts字典存在
                     if "posts" not in self.state:
                         self.state["posts"] = {}
 
                     # 确保特定帖子存在
                     if post_id not in self.state["posts"]:
-                        print(f"🔧 [RULE DEBUG] 帖子 {post_id} 在state中不存在!")
+                        logger.debug("Post %s disappeared before intervention mutation", post_id)
                         continue
 
                     # 确保special_tags字段存在
@@ -2172,7 +2793,7 @@ class SocialNetworkEnv(Environment):
                     if tag_to_apply not in self.state["posts"][post_id]["special_tags"]:
                         self.state["posts"][post_id]["special_tags"].append(tag_to_apply)
                         posts_to_flag.append(post_id)
-                        print(f"🔧 [RULE TEST] Tagged post {post_id} with special tag '{tag_to_apply}'")
+                        logger.debug("Tagged post %s with special tag %s", post_id, tag_to_apply)
 
         result = {
             "rule_type": "intervention",
@@ -2185,13 +2806,17 @@ class SocialNetworkEnv(Environment):
             "timestamp": world.step
         }
 
-        print(f"🔧 [RULE TEST] Intervention result: {result}")
+        logger.debug("Intervention result: %s", result)
         return result
 
     @rule(description="测试必需参数验证的规则")
     async def test_required_params_rule(self, world, required_param: str, optional_param: str = "default") -> dict:
         """测试必需参数验证的规则"""
-        print(f"🔧 [RULE TEST] Required params rule: required={required_param}, optional={optional_param}")
+        logger.debug(
+            "Required params rule: required=%s, optional=%s",
+            required_param,
+            optional_param,
+        )
 
         result = {
             "rule_type": "required_params_test",
@@ -2200,5 +2825,5 @@ class SocialNetworkEnv(Environment):
             "validation": "success"
         }
 
-        print(f"🔧 [RULE TEST] Required params result: {result}")
+        logger.debug("Required params result: %s", result)
         return result

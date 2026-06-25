@@ -11,6 +11,7 @@ This module defines the fundamental data structures:
 
 from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Callable, Set, Tuple
 import importlib
+import contextvars
 from dataclasses import dataclass, field
 import copy
 import logging
@@ -255,8 +256,14 @@ class World:
         self.event_logger = event_logger or EventLogger(event_log_path)
         self.transaction_manager = transaction_manager or TransactionManager(self.event_logger)
 
-        # Current context stack (will be set by Schedule)
+        # Current context stack (will be set by Schedule). The context var is
+        # task-local, preventing concurrent agent actions from inheriting each
+        # other's action frames while preserving a synchronous fallback stack.
         self._current_context_stack: Optional[ContextStack] = None
+        self._context_stack_var: contextvars.ContextVar[Optional[ContextStack]] = contextvars.ContextVar(
+            f"society0_context_stack_{id(self)}",
+            default=None,
+        )
         self._log_context: Optional['ExperimentLogContext'] = None
 
         # Dependency injection - these will be set by SimEngine
@@ -278,10 +285,11 @@ class World:
     def set_context_stack(self, context_stack: ContextStack):
         """Set the current context stack (called by Schedule/StepFlow)"""
         self._current_context_stack = context_stack
+        self._context_stack_var.set(context_stack)
 
     def get_context_stack(self) -> ContextStack:
         """Get the current context stack"""
-        return self._current_context_stack or ContextStack()
+        return self._context_stack_var.get() or self._current_context_stack or ContextStack()
 
     def _create_event_recorder(self):
         """Create event recorder callback for proxies"""
@@ -558,10 +566,6 @@ class World:
         structured_output = result.get("structured_output")
         if structured_output is not None:
             payload[LogField.STRUCTURED_OUTPUT.value] = structured_output
-
-        raw_output = result.get("raw_output")
-        if raw_output is not None:
-            payload[LogField.RAW_OUTPUT.value] = raw_output
 
         self._log_agent(agent_id, "INFO", AgentEvent.AGENT_DECISION.value, **payload)
 
@@ -978,6 +982,170 @@ class World:
 
         return None
 
+    def _fov_not_found_message(self, name: str) -> str:
+        """Build a researcher-friendly error when a requested FoV is unavailable."""
+        base_message = f"FoV function '{name}' not found"
+        registry = getattr(self, "_function_registry", None)
+        if registry is None:
+            return base_message
+
+        action_registry = getattr(registry, "env_agent_tools", {}) or {}
+        candidate_names = [name]
+        if isinstance(name, str) and name:
+            short_name = name.rsplit(".", maxsplit=1)[-1]
+            if short_name not in candidate_names:
+                candidate_names.append(short_name)
+
+        for candidate in candidate_names:
+            if candidate in action_registry:
+                return (
+                    f"'{name}' is an environment action, not a FoV. "
+                    f"Use actions=['{candidate}'] in instruct(...), or let the agent call it as a tool; "
+                    "do not put it in fovs=[...]."
+                )
+
+        available_fovs = sorted(
+            key
+            for key in getattr(registry, "env_fovs", {}).keys()
+            if isinstance(key, str) and not key.startswith("environments.")
+        )
+        if available_fovs:
+            return f"{base_message}. Available FoVs include: {', '.join(available_fovs[:10])}"
+        return base_message
+
+    def _build_fov_cache_key(self, fov_name: str, params: Dict[str, Any]) -> str:
+        """Build a cache key for a FoV invocation, excluding injected context."""
+        if not params:
+            return fov_name
+        try:
+            filtered = {key: value for key, value in params.items() if key != "context"}
+            return f"{fov_name}|{sorted(filtered.items(), key=lambda item: item[0])}"
+        except Exception:
+            return fov_name
+
+    async def _collect_fov_results(
+        self,
+        *,
+        agent_id: str,
+        agent: Any,
+        fovs: Optional[List[str]],
+        step_number: int,
+    ) -> Dict[str, Any]:
+        """Execute FoVs for an agent and record consistent success/failure logs."""
+        if not fovs:
+            return {}
+
+        import asyncio
+
+        environment = self.get_environment()
+
+        async def _run_fov(fov_name: str):
+            try:
+                if not (hasattr(self, "_function_registry") and self._function_registry):
+                    raise RuntimeError("Function registry not available")
+
+                fov_func = self._resolve_fov_entry(fov_name)
+                if not fov_func:
+                    raise RuntimeError(self._fov_not_found_message(fov_name))
+
+                call_kwargs: Dict[str, Any] = {}
+                meta = fov_func.get("meta")
+                if meta and getattr(meta, "context_parameter_name", None):
+                    call_kwargs.setdefault(
+                        meta.context_parameter_name,
+                        self._build_execution_context(caller=agent),
+                    )
+
+                cache_key = self._build_fov_cache_key(fov_name, call_kwargs)
+                if meta and getattr(meta, "cache_on_step", False):
+                    if cache_key in self._fov_cache_step:
+                        return fov_name, self._fov_cache_step[cache_key], True
+                if meta and getattr(meta, "cache_on_agent", False):
+                    agent_key = (agent_id, cache_key)
+                    if agent_key in self._fov_cache_agent:
+                        return fov_name, self._fov_cache_agent[agent_key], True
+
+                state_version_before = self.get_state_version()
+                fov_result = await invoke_maybe_async(
+                    fov_func["function"],
+                    agent,
+                    environment,
+                    **call_kwargs,
+                )
+                state_version_after = self.get_state_version()
+
+                if (
+                    meta
+                    and (
+                        getattr(meta, "cache_on_step", False)
+                        or getattr(meta, "cache_on_agent", False)
+                    )
+                    and state_version_after != state_version_before
+                ):
+                    logger.warning(
+                        "[FoV CACHE WARNING] FoV '%s' for agent %s has cache enabled "
+                        "but mutated state (state_version %s -> %s). "
+                        "Consider disabling FoV cache or removing side effects.",
+                        fov_name,
+                        agent_id,
+                        state_version_before,
+                        state_version_after,
+                    )
+
+                if meta and getattr(meta, "cache_on_step", False):
+                    self._fov_cache_step[cache_key] = fov_result
+                if meta and getattr(meta, "cache_on_agent", False):
+                    self._fov_cache_agent[(agent_id, cache_key)] = fov_result
+
+                return fov_name, fov_result, False
+
+            except Exception as exc:
+                error_message = str(exc)
+                logger.error("Error executing FoV '%s' for agent %s: %s", fov_name, agent_id, exc)
+                return fov_name, {"error": error_message}, False
+
+        fov_results: Dict[str, Any] = {}
+        fov_pairs = await asyncio.gather(*[_run_fov(fov_name) for fov_name in fovs])
+        for fov_name, fov_result, from_cache in fov_pairs:
+            fov_results[fov_name] = fov_result
+            if isinstance(fov_result, dict) and "error" in fov_result:
+                self._log_agent(
+                    agent_id,
+                    "ERROR",
+                    "fov_failed",
+                    step=step_number,
+                    fov_name=fov_name,
+                    error=fov_result["error"],
+                )
+                continue
+
+            serialized = ""
+            if fov_result is not None:
+                serialized = fov_result if isinstance(fov_result, str) else str(fov_result)
+            preview = serialized[:200] + ("..." if len(serialized) > 200 else "")
+            self._log_agent(
+                agent_id,
+                "INFO",
+                "fov_executed",
+                step=step_number,
+                fov_name=fov_name,
+                fov_result_preview=preview,
+                fov_result_length=len(serialized),
+                from_cache=from_cache,
+            )
+            if serialized and getattr(self, "_log_full_fov_results", False):
+                self._log_agent(
+                    agent_id,
+                    "DEBUG",
+                    "fov_full_result",
+                    step=step_number,
+                    fov_name=fov_name,
+                    fov_result=serialized,
+                    from_cache=from_cache,
+                )
+
+        return fov_results
+
     # Agent instruction delegation
 
     async def instruct_agent(self,
@@ -1011,129 +1179,14 @@ class World:
         """
         # Get agent instance
         agent = self.get_agent(agent_id)
-        environment = self.get_environment()
         step_number = current_step if current_step is not None else self.step
 
-        # Execute FoV functions if specified
-        fov_results: Dict[str, Any] = {}
-        if fovs:
-            import asyncio
-
-            def _build_cache_key(fov_name: str, params: Dict[str, Any]) -> str:
-                # 仅使用非上下文参数参与缓存 key（当前 FoV 无额外参数，预留扩展）
-                if not params:
-                    return fov_name
-                try:
-                    filtered = {k: v for k, v in params.items() if k != "context"}
-                    return f"{fov_name}|{sorted(filtered.items(), key=lambda x: x[0])}"
-                except Exception:
-                    return fov_name
-
-            async def _run_fov(fov_name: str):
-                try:
-                    if not (hasattr(self, "_function_registry") and self._function_registry):
-                        raise RuntimeError("Function registry not available")
-
-                    fov_func = self._resolve_fov_entry(fov_name)
-                    if not fov_func:
-                        raise RuntimeError(f"FoV function '{fov_name}' not found")
-
-                    call_kwargs: Dict[str, Any] = {}
-                    meta = fov_func.get("meta")
-                    if meta and getattr(meta, "context_parameter_name", None):
-                        call_kwargs.setdefault(
-                            meta.context_parameter_name,
-                            self._build_execution_context(caller=agent),
-                        )
-
-                    cache_key = _build_cache_key(fov_name, call_kwargs)
-                    if meta and getattr(meta, "cache_on_step", False):
-                        if cache_key in self._fov_cache_step:
-                            return fov_name, self._fov_cache_step[cache_key], True
-                    if meta and getattr(meta, "cache_on_agent", False):
-                        agent_key = (agent_id, cache_key)
-                        if agent_key in self._fov_cache_agent:
-                            return fov_name, self._fov_cache_agent[agent_key], True
-
-                    state_version_before = self.get_state_version()
-                    fov_result = await invoke_maybe_async(
-                        fov_func["function"],
-                        agent,
-                        environment,
-                        **call_kwargs,
-                    )
-                    state_version_after = self.get_state_version()
-
-                    # 防御性告警：
-                    # cache_on_step/cache_on_agent 适用于纯函数 FoV。
-                    # 如果 FoV 在执行中修改了 state，会导致缓存与副作用语义冲突。
-                    if (
-                        meta
-                        and (
-                            getattr(meta, "cache_on_step", False)
-                            or getattr(meta, "cache_on_agent", False)
-                        )
-                        and state_version_after != state_version_before
-                    ):
-                        warning_msg = (
-                            f"[FoV CACHE WARNING] FoV '{fov_name}' for agent {agent_id} "
-                            f"has cache enabled but mutated state "
-                            f"(state_version {state_version_before} -> {state_version_after}). "
-                            "Consider disabling FoV cache or removing side effects."
-                        )
-                        logger.warning(warning_msg)
-                        print(warning_msg)
-
-                    if meta and getattr(meta, "cache_on_step", False):
-                        self._fov_cache_step[cache_key] = fov_result
-                    if meta and getattr(meta, "cache_on_agent", False):
-                        self._fov_cache_agent[(agent_id, cache_key)] = fov_result
-
-                    return fov_name, fov_result, False
-
-                except Exception as e:
-                    error_message = str(e)
-                    logger.error("Error executing FoV '%s' for agent %s: %s", fov_name, agent_id, e)
-                    return fov_name, {"error": error_message}, False
-
-            fov_pairs = await asyncio.gather(*[_run_fov(fov_name) for fov_name in fovs])
-            for fov_name, fov_result, from_cache in fov_pairs:
-                fov_results[fov_name] = fov_result
-                if isinstance(fov_result, dict) and "error" in fov_result:
-                    self._log_agent(
-                        agent_id,
-                        "ERROR",
-                        "fov_failed",
-                        step=step_number,
-                        fov_name=fov_name,
-                        error=fov_result["error"],
-                    )
-                    continue
-
-                serialized = ""
-                if fov_result is not None:
-                    serialized = fov_result if isinstance(fov_result, str) else str(fov_result)
-                preview = serialized[:200] + ("..." if len(serialized) > 200 else "")
-                self._log_agent(
-                    agent_id,
-                    "INFO",
-                    "fov_executed",
-                    step=step_number,
-                    fov_name=fov_name,
-                    fov_result_preview=preview,
-                    fov_result_length=len(serialized),
-                    from_cache=from_cache,
-                )
-                if serialized:
-                    self._log_agent(
-                        agent_id,
-                        "DEBUG",
-                        "fov_full_result",
-                        step=step_number,
-                        fov_name=fov_name,
-                        fov_result=serialized,
-                        from_cache=from_cache,
-                    )
+        fov_results = await self._collect_fov_results(
+            agent_id=agent_id,
+            agent=agent,
+            fovs=fovs,
+            step_number=step_number,
+        )
 
         # Prepare context for agent instruction
         context = {"fov_results": fov_results} if fov_results else {}
@@ -1173,6 +1226,12 @@ class World:
             action_tags=action_tags,
             reasoning_stages=reasoning_stages,
             llm_call_override=llm_override_call,
+            trace={
+                "step": step_number,
+                "step_name": getattr(self, "_current_code_step_name", None),
+                "interaction_type": interaction_type,
+                "interaction_name": call_name or "instruction",
+            },
             **{k: v for k, v in kwargs.items() if k not in {"context", "name"}}
         )
         execution_duration = time.time() - execution_start
@@ -1236,110 +1295,14 @@ class World:
         """
         # Get agent instance
         agent = self.get_agent(agent_id)
-        environment = self.get_environment()
         step_number = current_step if current_step is not None else self.step
 
-        # Execute FoV functions if specified (和instruct_agent完全相同)
-        fov_results = {}
-        if fovs:
-            import asyncio
-
-            def _build_cache_key(fov_name: str, params: Dict[str, Any]) -> str:
-                if not params:
-                    return fov_name
-                try:
-                    filtered = {k: v for k, v in params.items() if k != "context"}
-                    return f"{fov_name}|{sorted(filtered.items(), key=lambda x: x[0])}"
-                except Exception:
-                    return fov_name
-
-            async def _run_fov(fov_name: str):
-                try:
-                    if not (hasattr(self, "_function_registry") and self._function_registry):
-                        raise RuntimeError("Function registry not available")
-
-                    fov_func = self._resolve_fov_entry(fov_name)
-                    if not fov_func:
-                        raise RuntimeError(f"FoV function '{fov_name}' not found")
-
-                    call_kwargs: Dict[str, Any] = {}
-                    meta = fov_func.get("meta")
-                    if meta and getattr(meta, "context_parameter_name", None):
-                        call_kwargs.setdefault(
-                            meta.context_parameter_name,
-                            self._build_execution_context(caller=agent),
-                        )
-
-                    cache_key = _build_cache_key(fov_name, call_kwargs)
-                    if meta and getattr(meta, "cache_on_step", False):
-                        if cache_key in self._fov_cache_step:
-                            return fov_name, self._fov_cache_step[cache_key], True
-                    if meta and getattr(meta, "cache_on_agent", False):
-                        agent_key = (agent_id, cache_key)
-                        if agent_key in self._fov_cache_agent:
-                            return fov_name, self._fov_cache_agent[agent_key], True
-
-                    state_version_before = self.get_state_version()
-                    fov_result = await invoke_maybe_async(
-                        fov_func["function"],
-                        agent,
-                        environment,
-                        **call_kwargs,
-                    )
-                    state_version_after = self.get_state_version()
-
-                    # 防御性告警：
-                    # cache_on_step/cache_on_agent 适用于纯函数 FoV。
-                    # 如果 FoV 在执行中修改了 state，会导致缓存与副作用语义冲突。
-                    if (
-                        meta
-                        and (
-                            getattr(meta, "cache_on_step", False)
-                            or getattr(meta, "cache_on_agent", False)
-                        )
-                        and state_version_after != state_version_before
-                    ):
-                        warning_msg = (
-                            f"[FoV CACHE WARNING] FoV '{fov_name}' for agent {agent_id} "
-                            f"has cache enabled but mutated state "
-                            f"(state_version {state_version_before} -> {state_version_after}). "
-                            "Consider disabling FoV cache or removing side effects."
-                        )
-                        logger.warning(warning_msg)
-                        print(warning_msg)
-
-                    if meta and getattr(meta, "cache_on_step", False):
-                        self._fov_cache_step[cache_key] = fov_result
-                    if meta and getattr(meta, "cache_on_agent", False):
-                        self._fov_cache_agent[(agent_id, cache_key)] = fov_result
-
-                    return fov_name, fov_result, False
-
-                except Exception as e:
-                    error_message = str(e)
-                    logger.error("Error executing FoV '%s' for agent %s: %s", fov_name, agent_id, e)
-                    return fov_name, {"error": error_message}, False
-
-            fov_pairs = await asyncio.gather(*[_run_fov(fov_name) for fov_name in fovs])
-            for fov_name, fov_result, from_cache in fov_pairs:
-                fov_results[fov_name] = fov_result
-                if isinstance(fov_result, dict) and "error" in fov_result:
-                    continue
-
-                serialized = ""
-                if fov_result is not None:
-                    serialized = fov_result if isinstance(fov_result, str) else str(fov_result)
-                preview = serialized[:200] + ("..." if len(serialized) > 200 else "")
-                self._log_agent(
-                    agent_id,
-                    "INFO",
-                    "fov_executed",
-                    step=step_number,
-                    fov_name=fov_name,
-                    fov_result_preview=preview,
-                    fov_result_length=len(serialized),
-                    from_cache=from_cache,
-                )
+        fov_results = await self._collect_fov_results(
+            agent_id=agent_id,
+            agent=agent,
+            fovs=fovs,
+            step_number=step_number,
+        )
 
         # Prepare context for agent interview
         context = {"fov_results": fov_results} if fov_results else {}
@@ -1378,7 +1341,19 @@ class World:
             current_step=current_step or self.step,
             output_schema=kwargs.get("output_schema"),
             reasoning_stages=reasoning_stages,
-            llm_call_override=llm_override_call
+            llm_call_override=llm_override_call,
+            trace={
+                "step": step_number,
+                "step_name": getattr(self, "_current_code_step_name", None),
+                "interaction_type": interaction_type,
+                "interaction_name": call_name or "interview",
+            },
+            retrieve_memory=kwargs.get("retrieve_memory", True),
+            save_memory=kwargs.get("save_memory", False),
+            memory_top_k=kwargs.get("memory_top_k", 10),
+            prefer_direct_json_output=kwargs.get("prefer_direct_json_output", True),
+            max_turns=kwargs.get("max_turns", 2),
+            llm_request_options=kwargs.get("llm_request_options"),
         )
         execution_duration = time.time() - execution_start
         if resolved_model_id is not None:
@@ -1880,7 +1855,10 @@ class World:
                                        llm_call: Callable = None,
                                        memory_uri: str = "./chroma_store",
                                        model_provider: Optional[Any] = None,
-                                       embedding_dim: Optional[int] = None):
+                                       embedding_dim: Optional[int] = None,
+                                       *,
+                                       strict: bool = False,
+                                       require_memory: bool = False):
         """
         🔧 PERSONA 重构: Initialize cognitive systems for all LLMAgents
 
@@ -1894,6 +1872,8 @@ class World:
             memory_uri: 旧版内存存储路径（保留参数）
             model_provider: 模型提供者，用于动态解析模型选择
             embedding_dim: 记忆向量维度，默认来自注入的 EmbeddingManager
+            strict: True 时任何 LLM agent 初始化失败都直接抛错
+            require_memory: True 时每个 LLM agent 必须成功初始化 memory
         """
         logger.info("Initializing cognitive systems for all LLM agents")
         if embedding_dim is not None:
@@ -1921,7 +1901,10 @@ class World:
                 logger.warning("Failed to acquire default model from provider: %s", exc)
 
         if not effective_llm_call:
-            logger.warning("No LLM call function available - agents will not function properly")
+            message = "No LLM call function available - agents cannot run"
+            if strict:
+                raise RuntimeError(message)
+            logger.warning("%s", message)
 
         # Initialize each LLM agent
         for agent_id in llm_agent_ids:
@@ -1930,7 +1913,13 @@ class World:
                 llm_agent = self.get_agent(agent_id)
 
                 # Initialize Memory system with injected dependencies FIRST
-                memory = self._create_memory_for_agent(agent_id, memory_uri)
+                memory = self._create_memory_for_agent(
+                    agent_id,
+                    memory_uri,
+                    strict=strict or require_memory,
+                )
+                if require_memory and memory is None:
+                    raise RuntimeError(f"Memory initialization failed for LLM agent '{agent_id}'")
 
                 # 🔧 PERSONA 重构: 获取类型级 persona 与实例级 persona
                 type_persona, persona = self._get_persona_for_agent(agent_id)
@@ -1958,17 +1947,22 @@ class World:
 
             except Exception as e:
                 logger.error(f"Failed to initialize cognitive system for agent {agent_id}: {e}")
-                # Continue with other agents instead of raising
+                if strict:
+                    raise RuntimeError(f"Failed to initialize LLM agent '{agent_id}'") from e
                 logger.warning(f"Continuing with other agents despite failure for {agent_id}")
                 continue
 
         logger.info("Completed cognitive system initialization for all LLM agents")
 
-    def _create_memory_for_agent(self, agent_id: str, memory_uri: str):
+    def _create_memory_for_agent(self, agent_id: str, memory_uri: str, *, strict: bool = False):
         """Create Memory instance for a specific agent"""
         try:
             # Skip memory creation if URI indicates no memory wanted
             if memory_uri == ":memory:" or memory_uri == "none":
+                if strict:
+                    raise RuntimeError(
+                        f"Memory is required for LLM agent '{agent_id}', but memory_uri={memory_uri!r}"
+                    )
                 logger.debug(f"Skipping memory creation for agent {agent_id} (memory_uri: {memory_uri})")
                 return None
 
@@ -1982,11 +1976,17 @@ class World:
                 except Exception as exc:
                     logger.error("Failed to obtain Chroma client from persistence manager: %s", exc)
             else:
-                logger.warning(f"No PersistenceManager available for agent {agent_id} memory creation")
+                message = f"No PersistenceManager available for agent {agent_id} memory creation"
+                if strict:
+                    raise RuntimeError(message)
+                logger.warning(message)
                 return None
 
             if vector_client is None:
-                logger.warning(f"No Chroma client available; skipping memory creation for agent {agent_id}")
+                message = f"No Chroma client available for agent {agent_id} memory creation"
+                if strict:
+                    raise RuntimeError(message)
+                logger.warning("%s; skipping memory creation", message)
                 return None
 
             # Create memory with agent-specific configuration and injected client
@@ -2004,7 +2004,8 @@ class World:
 
         except Exception as e:
             logger.error(f"Failed to create memory for agent {agent_id}: {e}")
-            # Return None instead of raising to allow tests to continue
+            if strict:
+                raise RuntimeError(f"Failed to create memory for LLM agent '{agent_id}'") from e
             logger.warning(f"Continuing without memory for agent {agent_id}")
             return None
 
