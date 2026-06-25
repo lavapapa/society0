@@ -111,6 +111,37 @@ async def test_env_tick_hooks_support_async_and_sync(tmp_path, hook_envs):
 
 
 @pytest.mark.asyncio
+async def test_env_tick_hook_summary_splits_repeated_hooks_by_tick(tmp_path, hook_envs):
+    engine = Society0(save_dir=str(tmp_path), base_config=_hook_config("hook_order"))
+
+    @engine.step(name="record_step")
+    async def record_step(ctx):
+        ctx.env.state["events"].append(f"step:{ctx.step}")
+        return None
+
+    await engine.run(steps=3)
+
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    before_hook = summary["events"]["env_hooks"]["before_tick"]
+    after_hook = summary["events"]["env_hooks"]["after_tick"]
+
+    assert before_hook["started_count"] == 3
+    assert before_hook["completed_count"] == 3
+    assert before_hook["failed_count"] == 0
+    assert set(before_hook["by_tick"]) == {"0", "1", "2"}
+    assert before_hook["by_tick"]["0"]["started_count"] == 1
+    assert before_hook["by_tick"]["1"]["completed_count"] == 1
+    assert before_hook["by_tick"]["2"]["failed_count"] == 0
+
+    assert after_hook["started_count"] == 3
+    assert after_hook["completed_count"] == 3
+    assert set(after_hook["by_tick"]) == {"0", "1", "2"}
+    assert after_hook["by_tick"]["2"]["completed_count"] == 1
+    assert "error_samples" not in before_hook["by_tick"]["0"]
+    assert "error_samples" not in after_hook["by_tick"]["2"]
+
+
+@pytest.mark.asyncio
 async def test_after_tick_not_called_when_step_fails(tmp_path, hook_envs):
     engine = Society0(save_dir=str(tmp_path), base_config=_hook_config("hook_order"))
 
@@ -159,6 +190,9 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
     assert before_hook["started_count"] == 1
     assert before_hook["completed_count"] == 0
     assert before_hook["failed_count"] == 1
+    assert before_hook["by_tick"]["0"]["started_count"] == 1
+    assert before_hook["by_tick"]["0"]["completed_count"] == 0
+    assert before_hook["by_tick"]["0"]["failed_count"] == 1
     assert before_hook["error_samples"] == [
         {
             "step": 0,
@@ -166,3 +200,4 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
             "error_type": "RuntimeError",
         }
     ]
+    assert before_hook["by_tick"]["0"]["error_samples"] == before_hook["error_samples"]

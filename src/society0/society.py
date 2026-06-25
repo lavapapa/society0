@@ -1592,30 +1592,53 @@ class Society0:
                             "completed_count": 0,
                             "failed_count": 0,
                             "duration_sec_total": 0.0,
+                            "by_tick": {},
+                            "error_samples": [],
+                        },
+                    )
+                    tick_hook = hook["by_tick"].setdefault(
+                        tick,
+                        {
+                            "latest_event": name,
+                            "step": tick,
+                            "environment_type": record.get("environment_type"),
+                            "started_count": 0,
+                            "completed_count": 0,
+                            "failed_count": 0,
+                            "duration_sec_total": 0.0,
                             "error_samples": [],
                         },
                     )
                     hook["latest_event"] = name
+                    tick_hook["latest_event"] = name
                     if name == "env_hook_started":
                         hook["started_count"] += 1
+                        tick_hook["started_count"] += 1
                     elif name == "env_hook_completed":
                         hook["completed_count"] += 1
+                        tick_hook["completed_count"] += 1
                     elif name == "env_hook_failed":
                         hook["failed_count"] += 1
+                        tick_hook["failed_count"] += 1
                     duration = record.get("duration_sec")
                     if isinstance(duration, (int, float)):
                         hook["duration_sec_total"] = round(
                             float(hook["duration_sec_total"]) + float(duration),
                             6,
                         )
-                    if record.get("error") and len(hook["error_samples"]) < 5:
-                        hook["error_samples"].append(
-                            {
-                                "step": record.get("step"),
-                                "error": record.get("error"),
-                                "error_type": record.get("error_type"),
-                            }
+                        tick_hook["duration_sec_total"] = round(
+                            float(tick_hook["duration_sec_total"]) + float(duration),
+                            6,
                         )
+                    if record.get("error") and len(hook["error_samples"]) < 5:
+                        sample = {
+                            "step": record.get("step"),
+                            "error": record.get("error"),
+                            "error_type": record.get("error_type"),
+                        }
+                        hook["error_samples"].append(sample)
+                        if len(tick_hook["error_samples"]) < 5:
+                            tick_hook["error_samples"].append(sample)
 
                 event_data = record.get("event_data")
                 if isinstance(event_data, dict):
@@ -1906,6 +1929,12 @@ class Society0:
             for hook in env_hooks.values():
                 if not hook.get("error_samples"):
                     hook.pop("error_samples", None)
+                by_tick_hooks = hook.get("by_tick")
+                if isinstance(by_tick_hooks, dict):
+                    for tick_hook in by_tick_hooks.values():
+                        if isinstance(tick_hook, dict) and not tick_hook.get("error_samples"):
+                            tick_hook.pop("error_samples", None)
+                    hook["by_tick"] = dict(sorted(by_tick_hooks.items(), key=lambda item: item[0]))
             result["env_hooks"] = dict(sorted(env_hooks.items()))
         if action_counts:
             result["actions"] = dict(sorted(action_counts.items()))
