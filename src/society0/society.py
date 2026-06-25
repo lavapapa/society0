@@ -665,7 +665,7 @@ class Society0:
                 self._finalize_operation_resource_map(tick_bucket.get("resources"))
 
     @staticmethod
-    def _new_operation_resource_bucket() -> Dict[str, Any]:
+    def _new_resource_metric_bucket() -> Dict[str, Any]:
         return {
             "call_count": 0,
             "error_count": 0,
@@ -687,6 +687,13 @@ class Society0:
         }
 
     @staticmethod
+    def _new_operation_resource_bucket() -> Dict[str, Any]:
+        bucket = Society0._new_resource_metric_bucket()
+        bucket["_by_interaction_type"] = {}
+        bucket["_fidelity_phases"] = {}
+        return bucket
+
+    @staticmethod
     def _resource_record_step_names(record: Dict[str, Any]) -> list[str]:
         values: list[str] = []
         step_name = record.get("step_name")
@@ -697,7 +704,72 @@ class Society0:
             values.extend(str(item) for item in step_names if item is not None)
         return list(dict.fromkeys(values))
 
+    @staticmethod
+    def _resource_record_interaction_types(record: Dict[str, Any]) -> list[str]:
+        values: list[str] = []
+        interaction_type = record.get("interaction_type")
+        if interaction_type is not None:
+            values.append(str(interaction_type))
+        interaction_types = record.get("interaction_types")
+        if isinstance(interaction_types, list):
+            values.extend(str(item) for item in interaction_types if item is not None)
+        return list(dict.fromkeys(values)) or ["unknown"]
+
+    @staticmethod
+    def _resource_fidelity_phase(resource_type: str, interaction_type: str) -> str:
+        normalized_type = interaction_type.lower()
+        normalized_resource = resource_type.lower()
+        if normalized_resource == "llm":
+            if normalized_type in {"instruct", "interview"}:
+                return "agent_loop"
+            if normalized_type in {"memory_extract", "memory_extract_retry"}:
+                return "memory_extraction"
+            if normalized_type.startswith("memory_"):
+                return "memory_other"
+            if normalized_type.startswith("env_") or normalized_type.startswith("semantic_"):
+                return "environment"
+            return "other"
+        if normalized_resource == "embedding":
+            if normalized_type in {"memory_write", "memory_retrieve"}:
+                return "memory_io"
+            if (
+                normalized_type.startswith("env_")
+                or "recommendation" in normalized_type
+                or "semantic" in normalized_type
+                or "post_embedding" in normalized_type
+            ):
+                return "environment"
+            if normalized_type.startswith("memory_"):
+                return "memory_other"
+            return "other"
+        return "other"
+
+    @classmethod
+    def _resource_record_fidelity_phases(cls, record: Dict[str, Any]) -> list[str]:
+        resource_type = str(record.get("resource_type") or "unknown")
+        phases = [
+            cls._resource_fidelity_phase(resource_type, interaction_type)
+            for interaction_type in cls._resource_record_interaction_types(record)
+        ]
+        return list(dict.fromkeys(phases)) or ["other"]
+
     def _accumulate_operation_resource(self, bucket: Dict[str, Any], record: Dict[str, Any]) -> None:
+        self._accumulate_resource_metric_bucket(bucket, record)
+
+        by_interaction_type = bucket.setdefault("_by_interaction_type", {})
+        for interaction_type in self._resource_record_interaction_types(record):
+            interaction_bucket = by_interaction_type.setdefault(
+                interaction_type,
+                self._new_resource_metric_bucket(),
+            )
+            self._accumulate_resource_metric_bucket(interaction_bucket, record)
+
+        fidelity_phases = bucket.setdefault("_fidelity_phases", {})
+        for phase in self._resource_record_fidelity_phases(record):
+            phase_bucket = fidelity_phases.setdefault(phase, self._new_resource_metric_bucket())
+            self._accumulate_resource_metric_bucket(phase_bucket, record)
+
+    def _accumulate_resource_metric_bucket(self, bucket: Dict[str, Any], record: Dict[str, Any]) -> None:
         bucket["call_count"] += 1
         if record.get("status") and record.get("status") != "success":
             bucket["error_count"] += 1
@@ -759,6 +831,8 @@ class Society0:
         if not resource_map:
             return
         for bucket in resource_map.values():
+            by_interaction_type = bucket.pop("_by_interaction_type", {})
+            fidelity_phases = bucket.pop("_fidelity_phases", {})
             call_count = bucket.get("call_count", 0)
             for key in ("duration_sec_total", "provider_duration_sec_total", "queue_duration_sec_total"):
                 bucket[key] = round(float(bucket.get(key, 0.0)), 6)
@@ -800,6 +874,24 @@ class Society0:
                 }
                 for item in bucket.get("slowest_calls", [])
             ]
+            Society0._finalize_operation_resource_map(by_interaction_type)
+            Society0._finalize_operation_resource_map(fidelity_phases)
+            if by_interaction_type:
+                bucket["by_interaction_type"] = dict(
+                    sorted(
+                        by_interaction_type.items(),
+                        key=lambda item: item[1].get("duration_sec_total", 0),
+                        reverse=True,
+                    )
+                )
+            if fidelity_phases:
+                bucket["fidelity"] = dict(
+                    sorted(
+                        fidelity_phases.items(),
+                        key=lambda item: item[1].get("duration_sec_total", 0),
+                        reverse=True,
+                    )
+                )
 
     def _summarize_resource_calls(self) -> Dict[str, Dict[str, Any]]:
         """Aggregate resource call traces for the run summary."""
@@ -906,15 +998,17 @@ class Society0:
                         "completion_tokens": 0,
                         "total_tokens": 0,
                         "texts_count": 0,
-                "_durations": [],
-                "_slowest_calls": [],
-                "_error_samples": [],
-                "_by_interaction": {},
-                "_by_tick": {},
-                "_started_request_ids": set(),
-                "_terminal_request_ids": set(),
-            },
-        )
+                        "_durations": [],
+                        "_slowest_calls": [],
+                        "_error_samples": [],
+                        "_by_interaction": {},
+                        "_by_interaction_type": {},
+                        "_fidelity_phases": {},
+                        "_by_tick": {},
+                        "_started_request_ids": set(),
+                        "_terminal_request_ids": set(),
+                    },
+                )
                 request_id = record.get("request_id")
                 if record.get("status") == "started":
                     bucket["started_count"] += 1
@@ -1097,11 +1191,26 @@ class Society0:
                         tools_count,
                     )
 
+                by_interaction_type = bucket["_by_interaction_type"]
+                for interaction_type in self._resource_record_interaction_types(record):
+                    interaction_type_bucket = by_interaction_type.setdefault(
+                        interaction_type,
+                        self._new_resource_metric_bucket(),
+                    )
+                    self._accumulate_resource_metric_bucket(interaction_type_bucket, record)
+
+                fidelity_phases = bucket["_fidelity_phases"]
+                for phase in self._resource_record_fidelity_phases(record):
+                    phase_bucket = fidelity_phases.setdefault(phase, self._new_resource_metric_bucket())
+                    self._accumulate_resource_metric_bucket(phase_bucket, record)
+
         for bucket in summary.values():
             durations = bucket.pop("_durations", [])
             slowest_calls = bucket.pop("_slowest_calls", [])
             error_samples = bucket.pop("_error_samples", [])
             by_interaction = bucket.pop("_by_interaction", {})
+            by_interaction_type = bucket.pop("_by_interaction_type", {})
+            fidelity_phases = bucket.pop("_fidelity_phases", {})
             by_tick = bucket.pop("_by_tick", {})
             started_request_ids = bucket.pop("_started_request_ids", set())
             terminal_request_ids = bucket.pop("_terminal_request_ids", set())
@@ -1230,6 +1339,24 @@ class Society0:
                     reverse=True,
                 )
             )
+            self._finalize_operation_resource_map(by_interaction_type)
+            self._finalize_operation_resource_map(fidelity_phases)
+            if by_interaction_type:
+                bucket["by_interaction_type"] = dict(
+                    sorted(
+                        by_interaction_type.items(),
+                        key=lambda item: item[1].get("duration_sec_total", 0),
+                        reverse=True,
+                    )
+                )
+            if fidelity_phases:
+                bucket["fidelity"] = dict(
+                    sorted(
+                        fidelity_phases.items(),
+                        key=lambda item: item[1].get("duration_sec_total", 0),
+                        reverse=True,
+                    )
+                )
         return summary
 
     def _summarize_output_files(self) -> Dict[str, Any]:
