@@ -9,6 +9,7 @@ This repository contains the standalone `society0` core simulation library. Futu
 - The recommended runtime path is `Society0 + CodeSchedule + step(ctx)`.
 - Legacy YAML workflow code may remain importable, but new runtime features should not depend on legacy schedule compatibility unless requested.
 - Do not add campus-network, private-server, or platform-specific endpoint assumptions to product code or public docs. Optional real e2e tests may read endpoints from the local environment, but the open-source core must stay provider-neutral.
+- Real e2e tests should prefer provider-neutral env vars such as `SOCIETY0_REAL_E2E_LLM_BASE_URL`, `SOCIETY0_REAL_E2E_LLM_MODEL`, `SOCIETY0_REAL_E2E_EMBED_BASE_URL`, and `SOCIETY0_REAL_E2E_EMBED_MODEL`. `SOCIETY0_PLATFORM_ROOT` is only a local maintainer fallback, not the public path.
 
 ## LLM Agent Integrity
 
