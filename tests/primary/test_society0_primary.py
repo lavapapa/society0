@@ -668,6 +668,7 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert summary["outputs"]["files"]["events.jsonl"]["line_count"] >= 1
     assert summary["outputs"]["files"]["steps.jsonl"]["line_count"] == 3
     assert summary["outputs"]["checkpoints"]["count"] == 2
+    assert "env_hooks" not in summary["events"]
     assert summary["outputs"]["checkpoints"]["files"]["checkpoint_final.json"]["bytes"] > 0
     checkpoints = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
     assert checkpoints == ["checkpoint_000000.json", "checkpoint_final.json"]

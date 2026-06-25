@@ -14,7 +14,7 @@ import yaml
 from .async_utils import invoke_maybe_async
 from .context_stack import ContextStack
 from .core_data import World
-from .environment import EnvironmentTickContext
+from .environment import Environment, EnvironmentTickContext
 from .function_registry import FunctionRegistry, register_environment_capabilities
 from .logging import ExperimentLogContext
 from .models import EmbedModel, LLMModel
@@ -24,6 +24,12 @@ from .schedule import CapabilityCatalog, CodeSchedule, StepFunction
 from .transaction import EventLogger
 
 logger = logging.getLogger(__name__)
+
+
+def _env_tick_hook_is_overridden(env: Any, hook_name: str) -> bool:
+    env_hook = getattr(env.__class__, hook_name, None)
+    base_hook = getattr(Environment, hook_name, None)
+    return env_hook is not None and env_hook is not base_hook
 
 
 class Society0:
@@ -125,14 +131,14 @@ class Society0:
                 self.event_logger.set_context(step=world.step)
                 tick_started = time.time()
                 hook_ctx = EnvironmentTickContext(step=world.step, world=world, log=self.log_context)
-                await invoke_maybe_async(env.before_tick, hook_ctx)
+                await self._run_env_tick_hook(env, "before_tick", hook_ctx)
                 step_entries = await self.schedule.execute_tick(
                     tick=world.step,
                     world=world,
                     log=self.log_context,
                     on_step_event=lambda payload: self._write_jsonl(self.save_dir / "events.jsonl", payload),
                 )
-                await invoke_maybe_async(env.after_tick, hook_ctx)
+                await self._run_env_tick_hook(env, "after_tick", hook_ctx)
                 tick_duration = time.time() - tick_started
 
                 for entry in step_entries:
@@ -203,6 +209,51 @@ class Society0:
             self.event_logger.close()
             self.persistence_manager.close()
             await self._close_model_managers()
+
+    async def _run_env_tick_hook(self, env: Any, hook_name: str, hook_ctx: EnvironmentTickContext) -> None:
+        if not _env_tick_hook_is_overridden(env, hook_name):
+            await invoke_maybe_async(getattr(env, hook_name), hook_ctx)
+            return
+        started = time.time()
+        env_type = getattr(env, "type", None) or env.__class__.__name__
+        self._write_jsonl(
+            self.save_dir / "events.jsonl",
+            {
+                "event": "env_hook_started",
+                "hook_name": hook_name,
+                "environment_type": env_type,
+                "step": hook_ctx.step,
+                "at": started,
+            },
+        )
+        try:
+            await invoke_maybe_async(getattr(env, hook_name), hook_ctx)
+        except Exception as exc:
+            self._write_jsonl(
+                self.save_dir / "events.jsonl",
+                {
+                    "event": "env_hook_failed",
+                    "hook_name": hook_name,
+                    "environment_type": env_type,
+                    "step": hook_ctx.step,
+                    "duration_sec": time.time() - started,
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "at": time.time(),
+                },
+            )
+            raise
+        self._write_jsonl(
+            self.save_dir / "events.jsonl",
+            {
+                "event": "env_hook_completed",
+                "hook_name": hook_name,
+                "environment_type": env_type,
+                "step": hook_ctx.step,
+                "duration_sec": time.time() - started,
+                "at": time.time(),
+            },
+        )
 
     async def _initialize(self) -> None:
         if self.is_initialized:
@@ -1468,6 +1519,7 @@ class Society0:
         by_tick: Dict[str, Dict[str, int]] = {}
         agent_batches: Dict[str, Dict[str, Any]] = {}
         logic_executions: Dict[str, Dict[str, Any]] = {}
+        env_hooks: Dict[str, Dict[str, Any]] = {}
         action_counts: Dict[str, int] = {}
         error_samples: list[Dict[str, Any]] = []
 
@@ -1499,6 +1551,43 @@ class Society0:
                 tick = record_tick(record)
                 tick_events = by_tick.setdefault(tick, {})
                 tick_events[name] = tick_events.get(name, 0) + 1
+
+                if name.startswith("env_hook_"):
+                    hook_name = str(record.get("hook_name") or "unknown_hook")
+                    hook = env_hooks.setdefault(
+                        hook_name,
+                        {
+                            "latest_event": name,
+                            "hook_name": hook_name,
+                            "environment_type": record.get("environment_type"),
+                            "started_count": 0,
+                            "completed_count": 0,
+                            "failed_count": 0,
+                            "duration_sec_total": 0.0,
+                            "error_samples": [],
+                        },
+                    )
+                    hook["latest_event"] = name
+                    if name == "env_hook_started":
+                        hook["started_count"] += 1
+                    elif name == "env_hook_completed":
+                        hook["completed_count"] += 1
+                    elif name == "env_hook_failed":
+                        hook["failed_count"] += 1
+                    duration = record.get("duration_sec")
+                    if isinstance(duration, (int, float)):
+                        hook["duration_sec_total"] = round(
+                            float(hook["duration_sec_total"]) + float(duration),
+                            6,
+                        )
+                    if record.get("error") and len(hook["error_samples"]) < 5:
+                        hook["error_samples"].append(
+                            {
+                                "step": record.get("step"),
+                                "error": record.get("error"),
+                                "error_type": record.get("error_type"),
+                            }
+                        )
 
                 event_data = record.get("event_data")
                 if isinstance(event_data, dict):
@@ -1631,6 +1720,11 @@ class Society0:
                 if not execution.get("error_samples"):
                     execution.pop("error_samples", None)
             result["logic_executions"] = dict(sorted(logic_executions.items()))
+        if env_hooks:
+            for hook in env_hooks.values():
+                if not hook.get("error_samples"):
+                    hook.pop("error_samples", None)
+            result["env_hooks"] = dict(sorted(env_hooks.items()))
         if action_counts:
             result["actions"] = dict(sorted(action_counts.items()))
         if error_samples:
