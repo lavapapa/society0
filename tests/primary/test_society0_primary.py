@@ -709,6 +709,43 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                 ),
                 json.dumps(
                     {
+                        "event_type": "agent_batch_heartbeat",
+                        "event_data": {
+                            "step": 0,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "success_count": 1,
+                            "error_count": 0,
+                            "completed_count": 1,
+                            "started_count": 2,
+                            "in_flight_count": 1,
+                            "pending_count": 0,
+                            "duration_sec": 0.75,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_progress",
+                        "event_data": {
+                            "step": 0,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "success_count": 2,
+                            "error_count": 0,
+                            "completed_count": 2,
+                            "duration_sec": 1.2,
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
                         "event_type": "agent_batch_completed",
                         "event_data": {
                             "step": 0,
@@ -771,6 +808,11 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["success_count"] == 2
     assert instruct["completed_count"] == 2
     assert instruct["duration_sec"] == 1.5
+    assert instruct["progress_event_count"] == 1
+    assert instruct["heartbeat_event_count"] == 1
+    assert instruct["max_in_flight_count"] == 1
+    assert instruct["max_pending_count"] == 0
+    assert instruct["max_started_count"] == 2
     assert instruct["execution_options"]["memory"]["extract"] is True
     assert instruct["execution_options"]["completion_action_tags"] == ["social_write"]
     assert interview["interaction_type"] == "interview"

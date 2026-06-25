@@ -1614,10 +1614,19 @@ class Society0:
                                 "success_count": 0,
                                 "error_count": 0,
                                 "completed_count": 0,
+                                "progress_event_count": 0,
+                                "heartbeat_event_count": 0,
+                                "max_in_flight_count": 0,
+                                "max_pending_count": 0,
+                                "max_started_count": 0,
                                 "duration_sec": 0.0,
                             },
                         )
                         batch["latest_event"] = name
+                        if name == "agent_batch_progress":
+                            batch["progress_event_count"] += 1
+                        elif name == "agent_batch_heartbeat":
+                            batch["heartbeat_event_count"] += 1
                         execution_options = event_data.get("execution_options")
                         if isinstance(execution_options, dict):
                             batch["execution_options"] = execution_options
@@ -1625,6 +1634,14 @@ class Society0:
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
                                 batch[key] = value
+                        for source_key, target_key in (
+                            ("in_flight_count", "max_in_flight_count"),
+                            ("pending_count", "max_pending_count"),
+                            ("started_count", "max_started_count"),
+                        ):
+                            value = event_data.get(source_key)
+                            if isinstance(value, int):
+                                batch[target_key] = max(int(batch[target_key]), value)
                     if name.startswith("logic_execution_"):
                         logic_kind = str(event_data.get("logic_kind") or "unknown_kind")
                         logic_name = str(event_data.get("logic_name") or "unknown_name")
