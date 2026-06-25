@@ -3583,7 +3583,7 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
             tables={"behavior": behavior_result.table(), "ctx_behavior": via_ctx.table()},
         )
 
-    await engine.run(steps=1)
+    await engine.run(steps=2)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     assert metrics[0]["metrics"] == {
@@ -3591,13 +3591,15 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
         "behavior_success": 2,
         "ctx_behavior_success": 1,
     }
+    assert metrics[1]["step"] == 1
+    assert metrics[1]["metrics"] == metrics[0]["metrics"]
     final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
-    assert final_checkpoint["agents_data"]["alice"]["state"]["trust"] == 0.5
-    assert final_checkpoint["agents_data"]["bob"]["state"]["trust"] == 0.9
-    assert final_checkpoint["agents_data"]["carol"]["state"]["trust"] == 0.8
+    assert final_checkpoint["agents_data"]["alice"]["state"]["trust"] == 0.6
+    assert final_checkpoint["agents_data"]["bob"]["state"]["trust"] == 1.0
+    assert final_checkpoint["agents_data"]["carol"]["state"]["trust"] == 0.6
     events = _read_jsonl(tmp_path / "events.jsonl")
     logic_events = [event for event in events if event.get("event_type", "").startswith("logic_execution_")]
-    assert [event["event_type"] for event in logic_events] == [
+    assert [event["event_type"] for event in logic_events[:6]] == [
         "logic_execution_started",
         "logic_execution_completed",
         "logic_execution_started",
@@ -3605,6 +3607,7 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
         "logic_execution_started",
         "logic_execution_completed",
     ]
+    assert len(logic_events) == 12
     assert logic_events[0]["event_data"]["logic_kind"] == "rule"
     assert logic_events[0]["event_data"]["logic_name"] == "set_pressure"
     assert logic_events[0]["event_data"]["param_keys"] == ["amount"]
@@ -3615,15 +3618,28 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     assert logic_events[2]["event_data"]["param_keys"] == ["delta"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     logic_summary = summary["events"]["logic_executions"]
-    assert logic_summary["rule / set_pressure"]["completed_count"] == 1
-    assert logic_summary["rule / set_pressure"]["success_count"] == 1
+    assert logic_summary["rule / set_pressure"]["started_count"] == 2
+    assert logic_summary["rule / set_pressure"]["completed_count"] == 2
+    assert logic_summary["rule / set_pressure"]["success_count"] == 2
     assert logic_summary["rule / set_pressure"]["param_keys"] == ["amount"]
-    assert logic_summary["behavior / adjust_trust"]["started_count"] == 2
-    assert logic_summary["behavior / adjust_trust"]["completed_count"] == 2
-    assert logic_summary["behavior / adjust_trust"]["success_count"] == 3
+    assert logic_summary["rule / set_pressure"]["by_tick"]["0"]["completed_count"] == 1
+    assert logic_summary["rule / set_pressure"]["by_tick"]["0"]["success_count"] == 1
+    assert logic_summary["rule / set_pressure"]["by_tick"]["1"]["completed_count"] == 1
+    assert logic_summary["rule / set_pressure"]["by_tick"]["1"]["success_count"] == 1
+    assert logic_summary["behavior / adjust_trust"]["started_count"] == 4
+    assert logic_summary["behavior / adjust_trust"]["completed_count"] == 4
+    assert logic_summary["behavior / adjust_trust"]["success_count"] == 6
     assert logic_summary["behavior / adjust_trust"]["error_count"] == 0
-    assert logic_summary["behavior / adjust_trust"]["agent_count_total"] == 3
+    assert logic_summary["behavior / adjust_trust"]["agent_count_total"] == 6
     assert logic_summary["behavior / adjust_trust"]["param_keys"] == ["delta"]
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["0"]["started_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["0"]["completed_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["0"]["success_count"] == 3
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["0"]["agent_count_total"] == 3
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["started_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["completed_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["success_count"] == 3
+    assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["agent_count_total"] == 3
 
 
 @pytest.mark.asyncio
