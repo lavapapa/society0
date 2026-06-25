@@ -1762,6 +1762,8 @@ class Society0:
                                 "step_name": event_data.get("step_name"),
                                 "agent_count": event_data.get("agent_count"),
                                 "concurrency": event_data.get("concurrency"),
+                                "concurrency_source": event_data.get("concurrency_source"),
+                                "concurrency_source_counts": {},
                                 "model_id": event_data.get("model_id"),
                                 "fovs": event_data.get("fovs") or [],
                                 "actions": event_data.get("actions") or [],
@@ -1797,6 +1799,8 @@ class Society0:
                                 "step_name": event_data.get("step_name"),
                                 "agent_count": event_data.get("agent_count"),
                                 "concurrency": event_data.get("concurrency"),
+                                "concurrency_source": event_data.get("concurrency_source"),
+                                "concurrency_source_counts": {},
                                 "success_count": 0,
                                 "error_count": 0,
                                 "completed_count": 0,
@@ -1822,6 +1826,10 @@ class Society0:
                         )
                         batch["latest_event"] = name
                         tick_batch["latest_event"] = name
+                        if event_data.get("concurrency_source") is not None:
+                            source = str(event_data.get("concurrency_source"))
+                            batch["concurrency_source"] = source
+                            tick_batch["concurrency_source"] = source
                         if name == "agent_batch_progress":
                             batch["progress_event_count"] += 1
                             tick_batch["progress_event_count"] += 1
@@ -1831,6 +1839,13 @@ class Society0:
                         elif name == "agent_batch_started":
                             batch["batch_started_count"] += 1
                             tick_batch["batch_started_count"] += 1
+                            source = event_data.get("concurrency_source")
+                            if source is not None:
+                                source_key = str(source)
+                                source_counts = batch["concurrency_source_counts"]
+                                tick_source_counts = tick_batch["concurrency_source_counts"]
+                                source_counts[source_key] = source_counts.get(source_key, 0) + 1
+                                tick_source_counts[source_key] = tick_source_counts.get(source_key, 0) + 1
                         elif name == "agent_batch_completed":
                             batch["batch_completed_count"] += 1
                             tick_batch["batch_completed_count"] += 1
@@ -2049,6 +2064,8 @@ class Society0:
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)
+                if not batch.get("concurrency_source_counts"):
+                    batch.pop("concurrency_source_counts", None)
                 memory_summary = _finalize_memory_summary(batch.get("memory_summary") or {})
                 if memory_summary:
                     batch["memory_summary"] = memory_summary
@@ -2059,6 +2076,8 @@ class Society0:
                     for tick_batch in by_tick_batches.values():
                         if isinstance(tick_batch, dict) and not tick_batch.get("error_samples"):
                             tick_batch.pop("error_samples", None)
+                        if isinstance(tick_batch, dict) and not tick_batch.get("concurrency_source_counts"):
+                            tick_batch.pop("concurrency_source_counts", None)
                         tick_memory_summary = _finalize_memory_summary(
                             tick_batch.get("memory_summary") or {}
                         )

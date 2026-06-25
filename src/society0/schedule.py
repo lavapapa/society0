@@ -487,7 +487,7 @@ class AgentGroup:
             except Exception as exc:
                 return AgentCallRecord(agent_id, "error", error=str(exc))
 
-        effective_concurrency = _resolve_agent_call_concurrency(
+        effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
             explicit_concurrency=concurrency,
             model_id=model,
@@ -500,6 +500,7 @@ class AgentGroup:
             interaction_name=name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
             model_id=model,
             fovs=fovs or [],
             actions=actions,
@@ -518,6 +519,7 @@ class AgentGroup:
                 interaction_name=name,
                 agent_count=len(self.agent_ids),
                 concurrency=effective_concurrency,
+                concurrency_source=concurrency_source,
                 model_id=model,
                 fovs=fovs or [],
                 actions=actions,
@@ -547,6 +549,7 @@ class AgentGroup:
                 interaction_name=name,
                 agent_count=len(self.agent_ids),
                 concurrency=effective_concurrency,
+                concurrency_source=concurrency_source,
                 model_id=model,
                 fovs=fovs or [],
                 actions=actions,
@@ -580,6 +583,7 @@ class AgentGroup:
             interaction_name=name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
             model_id=model,
             fovs=fovs or [],
             actions=actions,
@@ -670,7 +674,7 @@ class AgentGroup:
             except Exception as exc:
                 return AgentCallRecord(agent_id, "error", error=str(exc))
 
-        effective_concurrency = _resolve_agent_call_concurrency(
+        effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
             explicit_concurrency=concurrency,
             model_id=model,
@@ -683,6 +687,7 @@ class AgentGroup:
             interaction_name=name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
             model_id=model,
             fovs=fovs or [],
             actions=[],
@@ -701,6 +706,7 @@ class AgentGroup:
                 interaction_name=name,
                 agent_count=len(self.agent_ids),
                 concurrency=effective_concurrency,
+                concurrency_source=concurrency_source,
                 model_id=model,
                 fovs=fovs or [],
                 actions=[],
@@ -730,6 +736,7 @@ class AgentGroup:
                 interaction_name=name,
                 agent_count=len(self.agent_ids),
                 concurrency=effective_concurrency,
+                concurrency_source=concurrency_source,
                 model_id=model,
                 fovs=fovs or [],
                 actions=[],
@@ -763,6 +770,7 @@ class AgentGroup:
             interaction_name=name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
             model_id=model,
             fovs=fovs or [],
             actions=[],
@@ -1151,12 +1159,29 @@ def _resolve_agent_call_concurrency(
     explicit_concurrency: Optional[int],
     model_id: Optional[str],
 ) -> int:
+    return _resolve_agent_call_concurrency_info(
+        world,
+        explicit_concurrency=explicit_concurrency,
+        model_id=model_id,
+    )[0]
+
+
+def _resolve_agent_call_concurrency_info(
+    world: Any,
+    *,
+    explicit_concurrency: Optional[int],
+    model_id: Optional[str],
+) -> tuple[int, str]:
     if explicit_concurrency is not None:
-        return _validate_positive_concurrency(explicit_concurrency, "concurrency")
+        return _validate_positive_concurrency(explicit_concurrency, "concurrency"), "explicit"
 
     default_concurrency = getattr(world, "_default_agent_concurrency", None)
     if default_concurrency is not None:
-        return _validate_positive_concurrency(default_concurrency, "world._default_agent_concurrency")
+        source = getattr(world, "_default_agent_concurrency_source", None) or "world_default"
+        return (
+            _validate_positive_concurrency(default_concurrency, "world._default_agent_concurrency"),
+            str(source),
+        )
 
     provider = getattr(world, "_model_provider", None)
     if provider is not None:
@@ -1169,11 +1194,11 @@ def _resolve_agent_call_concurrency(
             if runtime_config is not None:
                 model_concurrency = getattr(runtime_config, "concurrency", None)
                 if model_concurrency is not None:
-                    return _validate_positive_concurrency(model_concurrency, "model concurrency")
+                    return _validate_positive_concurrency(model_concurrency, "model concurrency"), "model_provider"
         except Exception:
             pass
 
-    return 5
+    return 5, "default"
 
 
 def _build_llm_request_options(
@@ -1382,6 +1407,7 @@ def _record_agent_batch_event(
     interaction_name: Optional[str],
     agent_count: int,
     concurrency: int,
+    concurrency_source: str,
     model_id: Optional[str],
     fovs: List[str],
     actions: Optional[List[str]],
@@ -1435,6 +1461,7 @@ def _record_agent_batch_event(
             "interaction_name": interaction_name,
             "agent_count": agent_count,
             "concurrency": concurrency,
+            "concurrency_source": concurrency_source,
             "model_id": model_id,
             "fovs": list(fovs or []),
             "actions": list(actions or []),

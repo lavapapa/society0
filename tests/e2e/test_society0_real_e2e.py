@@ -512,6 +512,8 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     recall_batch = summary["events"]["agent_batches"]["interview / saturation_recall"]
     assert seed_batch["agent_count"] == concurrency
     assert seed_batch["concurrency"] == concurrency
+    assert seed_batch["concurrency_source"] == "llm_model"
+    assert seed_batch["concurrency_source_counts"] == {"llm_model": 1}
     assert seed_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": True,
@@ -528,6 +530,8 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert seed_batch["execution_options"]["output_schema"] is True
     assert recall_batch["agent_count"] == concurrency
     assert recall_batch["concurrency"] == concurrency
+    assert recall_batch["concurrency_source"] == "llm_model"
+    assert recall_batch["concurrency_source_counts"] == {"llm_model": 1}
     assert recall_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": False,
