@@ -1642,12 +1642,20 @@ class Society0:
                                 "success_count": 0,
                                 "error_count": 0,
                                 "completed_count": 0,
+                                "batch_started_count": 0,
+                                "batch_completed_count": 0,
+                                "success_count_total": 0,
+                                "error_count_total": 0,
+                                "completed_count_total": 0,
                                 "progress_event_count": 0,
                                 "heartbeat_event_count": 0,
                                 "max_in_flight_count": 0,
                                 "max_pending_count": 0,
                                 "max_started_count": 0,
                                 "duration_sec": 0.0,
+                                "duration_sec_total": 0.0,
+                                "action_counts": {},
+                                "action_tag_counts": {},
                                 "error_samples": [],
                             },
                         )
@@ -1656,6 +1664,10 @@ class Society0:
                             batch["progress_event_count"] += 1
                         elif name == "agent_batch_heartbeat":
                             batch["heartbeat_event_count"] += 1
+                        elif name == "agent_batch_started":
+                            batch["batch_started_count"] += 1
+                        elif name == "agent_batch_completed":
+                            batch["batch_completed_count"] += 1
                         execution_options = event_data.get("execution_options")
                         if isinstance(execution_options, dict):
                             batch["execution_options"] = execution_options
@@ -1663,10 +1675,29 @@ class Society0:
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
                                 batch[key] = value
-                        for key in ("action_counts", "action_tag_counts"):
-                            value = event_data.get(key)
-                            if isinstance(value, dict):
-                                batch[key] = dict(sorted(value.items()))
+                        if name == "agent_batch_completed":
+                            for source_key, target_key in (
+                                ("success_count", "success_count_total"),
+                                ("error_count", "error_count_total"),
+                                ("completed_count", "completed_count_total"),
+                            ):
+                                value = event_data.get(source_key)
+                                if isinstance(value, int):
+                                    batch[target_key] += value
+                            duration = event_data.get("duration_sec")
+                            if isinstance(duration, (int, float)):
+                                batch["duration_sec_total"] = round(
+                                    float(batch["duration_sec_total"]) + float(duration),
+                                    6,
+                                )
+                            for key in ("action_counts", "action_tag_counts"):
+                                value = event_data.get(key)
+                                if isinstance(value, dict):
+                                    counts = batch[key]
+                                    for count_key, count_value in value.items():
+                                        if isinstance(count_value, int):
+                                            counts[str(count_key)] = counts.get(str(count_key), 0) + count_value
+                                    batch[key] = dict(sorted(counts.items()))
                         for source_key, target_key in (
                             ("in_flight_count", "max_in_flight_count"),
                             ("pending_count", "max_pending_count"),

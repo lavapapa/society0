@@ -176,7 +176,7 @@ Interpretation:
 
 For most users, do not tune per-call concurrency. Adjust the model declaration if the provider limit is known.
 
-For completed runs, inspect `summary.json -> events.agent_batches` for each `instruct` or `interview`. The batch entry includes configured `concurrency`, `action_counts`, successful `action_tag_counts`, and progress diagnostics such as `progress_event_count`, `heartbeat_event_count`, `max_in_flight_count`, `max_pending_count`, and `max_started_count`. Use these fields to explain whether the run actually had agents in flight and whether required behavior categories occurred; do not infer runtime behavior from provider settings alone.
+For completed runs, inspect `summary.json -> events.agent_batches` for each `instruct` or `interview`. The batch entry includes configured `concurrency`, cumulative `action_counts`, successful cumulative `action_tag_counts`, `batch_started_count`, `batch_completed_count`, `success_count_total`, `error_count_total`, `completed_count_total`, `duration_sec_total`, and progress diagnostics such as `progress_event_count`, `heartbeat_event_count`, `max_in_flight_count`, `max_pending_count`, and `max_started_count`. The plain `success_count`, `error_count`, `completed_count`, and `duration_sec` fields describe the latest batch event for that interaction name; use the `*_total` fields when a named interaction repeats across ticks. Use these fields to explain whether the run actually had agents in flight and whether required behavior categories occurred; do not infer runtime behavior from provider settings alone.
 
 ## Quantitative Analysis
 
@@ -186,7 +186,7 @@ Typical checks:
 - treatment/control differences.
 - persona or group differences.
 - missing/failed agent calls.
-- `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, error count, action counts, and successful action tag counts. After the run, prefer `summary.json -> events.agent_batches` for the compact roll-up.
+- `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, error count, action counts, and successful action tag counts. After the run, prefer `summary.json -> events.agent_batches` for the compact roll-up, especially the cumulative fields when the same interaction name repeats over many ticks.
 - variance across repeated runs.
 - for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 
