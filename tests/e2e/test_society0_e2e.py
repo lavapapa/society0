@@ -277,9 +277,31 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
     @engine.step(name="round_robin_logic")
     async def round_robin_logic(ctx):
         assert ctx.capabilities.has("rule", "advance_round_robin_with_pairing")
+        assert ctx.capabilities.has("rule", "env.advance_round_robin_with_pairing")
         assert ctx.capabilities.has("behavior", "mark_conversation_participant")
+        assert ctx.capabilities.has("behavior", "env.mark_conversation_participant")
         assert ctx.capabilities.has("fov", "get_conversation_fov")
+        assert ctx.capabilities.has(
+            "fov",
+            "environments.round_robin_conversation.fovs.get_conversation_fov",
+        )
         assert ctx.capabilities.has("action", "send_message_to_partner")
+        assert ctx.capabilities.has("action", "env.send_message_to_partner")
+        rule_entry = ctx.capabilities.get("rule", "env.advance_round_robin_with_pairing")
+        behavior_entry = ctx.capabilities.get("behavior", "mark_conversation_participant")
+        action_entry = ctx.capabilities.get("action", "env.send_message_to_partner")
+        assert rule_entry is not None
+        assert rule_entry["source"] == "environment"
+        assert rule_entry["kind"] == "rule"
+        assert rule_entry["func_name"] == "advance_round_robin_with_pairing"
+        assert "env.advance_round_robin_with_pairing" in rule_entry["aliases"]
+        assert "round_number" in rule_entry["parameters"]["properties"]
+        assert behavior_entry is not None
+        assert behavior_entry["source"] == "environment"
+        assert "marker" in behavior_entry["parameters"]["properties"]
+        assert action_entry is not None
+        assert action_entry["source"] == "environment"
+        assert "content" in action_entry["parameters"]["properties"]
         with pytest.raises(ValueError) as wrong_kind:
             await ctx.agents.all().behavior("send_message_to_partner")
         wrong_kind_message = str(wrong_kind.value)
@@ -313,6 +335,16 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
     assert final_checkpoint["agents_data"]["participant_0"]["state"]["conversation_marker"] == "baseline-ready"
     assert final_checkpoint["environment_data"]["state"]["pairing_status"]["current_round"] == 1
     assert len(final_checkpoint["environment_data"]["state"]["pairing_status"]["completed_pairs"]) == 2
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    rule_entries = summary["capabilities"]["by_kind"]["rules"]
+    action_entries = summary["capabilities"]["by_kind"]["actions"]
+    round_rule = next(entry for entry in rule_entries if entry["name"] == "advance_round_robin_with_pairing")
+    send_action = next(entry for entry in action_entries if entry["name"] == "send_message_to_partner")
+    assert "env.advance_round_robin_with_pairing" in round_rule["aliases"]
+    assert round_rule["func_name"] == "advance_round_robin_with_pairing"
+    assert "round_number" in round_rule["parameters"]["properties"]
+    assert "env.send_message_to_partner" in send_action["aliases"]
+    assert "content" in send_action["parameters"]["properties"]
 
 
 @pytest.mark.asyncio

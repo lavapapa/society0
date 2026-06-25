@@ -40,9 +40,12 @@ ctx.capabilities.has("rule", "advance_round_robin_with_pairing")
 ctx.capabilities.has("behavior", "custom_baseline", source="experiment")
 ctx.capabilities.by_source("environment")
 ctx.capabilities.by_source("experiment", kind="rule")
+ctx.capabilities.get("rule", "env.advance_round_robin_with_pairing")
 ```
 
-During a step, use `ctx.capabilities.by_source(...)` to distinguish env-provided capabilities from experiment-specific rules and behaviors. After a run, inspect `summary.json -> capabilities.by_source` for the same distinction in the final report. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
+During a step, use `ctx.capabilities.by_source(...)` to distinguish env-provided capabilities from experiment-specific rules and behaviors. `ctx.capabilities.has(...)` and `ctx.capabilities.get(...)` accept display names, canonical IDs, registry keys, function names, and aliases, so an agent can safely resolve names copied from source code, `summary.json`, or docs. After a run, inspect `summary.json -> capabilities.by_source` for the same distinction in the final report. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
+
+Capability entries include `aliases`, `parameters`, `return_value_schema`, `func_name`, `tags`, `source`, and `environment_type` when available. Before calling `ctx.rule(...)`, `ctx.behavior(...)`, or exposing `actions=[...]`, inspect those fields instead of guessing argument names.
 
 ## Agent Selection
 

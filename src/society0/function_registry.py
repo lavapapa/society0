@@ -19,6 +19,49 @@ from .async_utils import invoke_maybe_async
 logger = logging.getLogger(__name__)
 
 
+def _json_type_for_annotation(annotation: Any) -> str:
+    if annotation in {str, "str"}:
+        return "string"
+    if annotation in {int, "int"}:
+        return "integer"
+    if annotation in {float, "float"}:
+        return "number"
+    if annotation in {bool, "bool"}:
+        return "boolean"
+    if annotation in {list, List, "list"}:
+        return "array"
+    if annotation in {dict, Dict, "dict"}:
+        return "object"
+    return "string"
+
+
+def _parameters_schema_from_signature(
+    signature: inspect.Signature,
+    *,
+    injected_names: Set[str],
+) -> Dict[str, Any]:
+    properties: Dict[str, Any] = {}
+    required: List[str] = []
+    for param_name, param in signature.parameters.items():
+        if param_name in injected_names or param_name in {"self", "cls"}:
+            continue
+        if param.kind in {
+            inspect.Parameter.VAR_POSITIONAL,
+            inspect.Parameter.VAR_KEYWORD,
+        }:
+            continue
+        schema: Dict[str, Any] = {"type": _json_type_for_annotation(param.annotation)}
+        if param.default is not inspect.Parameter.empty:
+            schema["default"] = param.default
+        else:
+            required.append(param_name)
+        properties[param_name] = schema
+    result: Dict[str, Any] = {"type": "object", "properties": properties}
+    if required:
+        result["required"] = required
+    return result
+
+
 class FunctionRegistry:
     """
     Clean function registry without dependency injection chaos.
@@ -94,7 +137,14 @@ class EnvironmentRegistry:
                 'logical_name': func_name,
                 'canonical_id': func_name,
                 'environment_type': None,
-                'signature': sig
+                'signature': sig,
+                'source': 'experiment',
+                'kind': 'fov',
+                'func_name': func_name,
+                'parameters': _parameters_schema_from_signature(
+                    sig,
+                    injected_names={"agent", "env", "environment", "world", "context", "params"},
+                ),
             }
             self._registry.env_fovs[func_name] = entry
             self._registry.env_fovs[f"env.{func_name}"] = entry
@@ -122,6 +172,10 @@ class EnvironmentRegistry:
                 'display_name': func_name,
                 'func_name': func_name,
             }
+            entry['parameters'] = _parameters_schema_from_signature(
+                entry['signature'],
+                injected_names={"env", "environment", "world", "context", "params"},
+            )
             self._registry.env_rules[canonical_id] = entry
             self._registry.env_rules[func_name] = entry  # 兼容早期依赖
             # 规则需要被 schedule 调度器看到，因此也写入统一 rules 字典
@@ -185,6 +239,10 @@ class AgentRegistry:
                 'canonical_id': func_name,
                 'display_name': func_name,
                 'func_name': func_name,
+                'parameters': _parameters_schema_from_signature(
+                    inspect.signature(func),
+                    injected_names={"agent", "agents", "agent_ids", "env", "environment", "world", "context", "params"},
+                ),
             }
             
             logger.debug(f"Registered agent action function: {func_name}")
@@ -206,6 +264,10 @@ class AgentRegistry:
                 'display_name': func_name,
                 'func_name': func_name,
             }
+            entry['parameters'] = _parameters_schema_from_signature(
+                entry['signature'],
+                injected_names={"agent", "agents", "agent_ids", "env", "environment", "world", "context", "params"},
+            )
             self._registry.agent_rules[func_name] = entry
             self._registry.rules[func_name] = entry
 
@@ -354,6 +416,10 @@ class ScheduleRegistry:
                 'canonical_id': func_name,
                 'display_name': func_name,
                 'func_name': func_name,
+                'parameters': _parameters_schema_from_signature(
+                    sig,
+                    injected_names={"agent", "env", "environment", "world", "context", "params"},
+                ),
             }
 
             logger.debug(f"Registered behavior function: {func_name}")

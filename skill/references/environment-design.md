@@ -68,9 +68,12 @@ ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
 ctx.capabilities.names("rule", source="environment")
 ctx.capabilities.by_source("experiment", kind="behavior")
+ctx.capabilities.get("action", "env.publish_post")
 ```
 
 Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
+
+Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. This matters when an agent reads both docs and source code: `recommended_feed`, `env.get_recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
 
 ## Env Tick Lifecycle Hooks
 
