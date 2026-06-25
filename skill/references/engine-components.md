@@ -96,6 +96,8 @@ await group.instruct(..., actions=["environment"])
 
 This filters what the agent may do. For early prototypes, `actions=None` exposes available non-memory actions; narrow later with `actions=["environment"]` or exact action names. Use `actions=["memory"]` only when autonomous memory-tool use is part of the study. `interview(...)` does not expose ordinary actions and should be used for measurement.
 
+Environment actions are tagged with `environment` in capability metadata, so `actions=["environment"]` is a stable prototype path across envs. Use exact action names or narrower tags such as `social_read` / `social_write` once the study design is clear.
+
 ## Logic: Rule And Behavior
 
 In Society0 skill guidance, "logic" means deterministic Python logic that is not an LLM free-form response:

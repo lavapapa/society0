@@ -671,12 +671,13 @@ def register_environment_capabilities(registry: FunctionRegistry, env_meta, env_
         # 根据 kind 注册到不同的字典
         if cap_meta.kind == 'action':
             canonical_id = f"env.{cap_meta.func_name}"
+            action_tags = list(dict.fromkeys([*(cap_meta.tags or []), cap_meta.name, "environment"]))
             entry = {
                 'function': bound_method,
                 'description': cap_meta.description,
                 'parameters': cap_meta.parameters_schema,
                 'signature': inspect.signature(bound_method),
-                'tags': cap_meta.tags,
+                'tags': action_tags,
                 'meta': cap_meta,
                 'source': 'environment',
                 'kind': 'action',
