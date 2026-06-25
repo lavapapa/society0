@@ -1867,6 +1867,7 @@ class Society0:
                                 "action_tag_counts": {},
                                 "memory_summary": {},
                                 "by_tick": {},
+                                "action_error_samples": [],
                                 "error_samples": [],
                             },
                         )
@@ -1900,6 +1901,7 @@ class Society0:
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
                                 "memory_summary": {},
+                                "action_error_samples": [],
                                 "error_samples": [],
                             },
                         )
@@ -2002,6 +2004,13 @@ class Society0:
                             if isinstance(memory_summary, dict):
                                 _merge_memory_summary(batch["memory_summary"], memory_summary)
                                 _merge_memory_summary(tick_batch["memory_summary"], memory_summary)
+                            event_action_error_samples = event_data.get("action_error_samples")
+                            if isinstance(event_action_error_samples, list):
+                                for sample in event_action_error_samples:
+                                    if isinstance(sample, dict) and len(batch["action_error_samples"]) < 5:
+                                        batch["action_error_samples"].append(sample)
+                                    if isinstance(sample, dict) and len(tick_batch["action_error_samples"]) < 5:
+                                        tick_batch["action_error_samples"].append(sample)
                         for source_key, target_key in (
                             ("in_flight_count", "max_in_flight_count"),
                             ("pending_count", "max_pending_count"),
@@ -2144,6 +2153,8 @@ class Society0:
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)
+                if not batch.get("action_error_samples"):
+                    batch.pop("action_error_samples", None)
                 if not batch.get("concurrency_source_counts"):
                     batch.pop("concurrency_source_counts", None)
                 memory_summary = _finalize_memory_summary(batch.get("memory_summary") or {})
@@ -2156,6 +2167,8 @@ class Society0:
                     for tick_batch in by_tick_batches.values():
                         if isinstance(tick_batch, dict) and not tick_batch.get("error_samples"):
                             tick_batch.pop("error_samples", None)
+                        if isinstance(tick_batch, dict) and not tick_batch.get("action_error_samples"):
+                            tick_batch.pop("action_error_samples", None)
                         if isinstance(tick_batch, dict) and not tick_batch.get("concurrency_source_counts"):
                             tick_batch.pop("concurrency_source_counts", None)
                         tick_memory_summary = _finalize_memory_summary(

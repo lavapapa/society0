@@ -927,7 +927,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     @engine.step(name="publish_once")
     async def publish_once(ctx):
         result = await ctx.agents.all().instruct(
-            "Call publish_post once. Publish a short original post about campus life, "
+            "You must call publish_post exactly once. Publish a short original post about campus life, "
             "then finish the round without calling more tools.",
             actions=["publish_post"],
             output=None,
@@ -935,6 +935,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             max_tokens=80,
             temperature=0,
             action_call_limits={"publish_post": 1},
+            required_actions=["publish_post"],
             name="publish_round",
         )
         return ctx.result(
@@ -964,6 +965,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             temperature=0,
             action_call_limits={"get_trending_posts": 1, "comment": 1},
             completion_action_tags=["social_write"],
+            required_action_tags=["social_write"],
             name="browse_round",
         )
         rows = result.table()
