@@ -97,6 +97,15 @@ class AgentCallRecord:
         }
 
 
+@dataclass(slots=True)
+class BatchProgressState:
+    started_count: int
+    completed_count: int
+    in_flight_count: int
+    pending_count: int
+    active_agent_ids: List[str]
+
+
 class AgentBatchResult:
     def __init__(self, records: Iterable[AgentCallRecord]):
         self.records = list(records)
@@ -461,7 +470,7 @@ class AgentGroup:
                 running_agent_ids_sample=active_agent_ids[:5],
             )
 
-        def record_progress(record: AgentCallRecord) -> None:
+        def record_progress(record: AgentCallRecord, state: BatchProgressState) -> None:
             nonlocal completed_count, success_count, error_count
             completed_count += 1
             if record.status == "success":
@@ -484,6 +493,10 @@ class AgentGroup:
                 success_count=success_count,
                 error_count=error_count,
                 completed_count=completed_count,
+                started_count=state.started_count,
+                in_flight_count=state.in_flight_count,
+                pending_count=state.pending_count,
+                running_agent_ids_sample=state.active_agent_ids[:5],
                 latest_agent_id=record.agent_id,
                 latest_status=record.status,
             )
@@ -512,6 +525,10 @@ class AgentGroup:
             duration_sec=time.time() - batch_started,
             success_count=batch_result.success_count,
             error_count=batch_result.error_count,
+            completed_count=len(self.agent_ids),
+            started_count=len(self.agent_ids),
+            in_flight_count=0,
+            pending_count=0,
         )
         return batch_result
 
@@ -630,7 +647,7 @@ class AgentGroup:
                 running_agent_ids_sample=active_agent_ids[:5],
             )
 
-        def record_progress(record: AgentCallRecord) -> None:
+        def record_progress(record: AgentCallRecord, state: BatchProgressState) -> None:
             nonlocal completed_count, success_count, error_count
             completed_count += 1
             if record.status == "success":
@@ -653,6 +670,10 @@ class AgentGroup:
                 success_count=success_count,
                 error_count=error_count,
                 completed_count=completed_count,
+                started_count=state.started_count,
+                in_flight_count=state.in_flight_count,
+                pending_count=state.pending_count,
+                running_agent_ids_sample=state.active_agent_ids[:5],
                 latest_agent_id=record.agent_id,
                 latest_status=record.status,
             )
@@ -681,6 +702,10 @@ class AgentGroup:
             duration_sec=time.time() - batch_started,
             success_count=batch_result.success_count,
             error_count=batch_result.error_count,
+            completed_count=len(self.agent_ids),
+            started_count=len(self.agent_ids),
+            in_flight_count=0,
+            pending_count=0,
         )
         return batch_result
 
@@ -959,7 +984,7 @@ async def _run_limited(
     call: Callable[[str], Awaitable[AgentCallRecord]],
     concurrency: Optional[int],
     *,
-    on_item_done: Optional[Callable[[AgentCallRecord], None]] = None,
+    on_item_done: Optional[Callable[[AgentCallRecord, BatchProgressState], None]] = None,
     on_heartbeat: Optional[Callable[[List[str], int], None]] = None,
     heartbeat_interval_sec: Optional[float] = None,
 ) -> List[AgentCallRecord]:
@@ -1000,10 +1025,20 @@ async def _run_limited(
             except Exception as exc:
                 record = AgentCallRecord(item, "error", error=str(exc))
             async with state_lock:
+                active_ids_before_completion = list(active.keys())
+                current_started_count = started_count
                 active.pop(item, None)
                 completed_count += 1
+                current_completed_count = completed_count
+                progress_state = BatchProgressState(
+                    started_count=current_started_count,
+                    completed_count=current_completed_count,
+                    in_flight_count=len(active_ids_before_completion),
+                    pending_count=max(len(item_list) - current_started_count, 0),
+                    active_agent_ids=active_ids_before_completion,
+                )
             if on_item_done is not None:
-                on_item_done(record)
+                on_item_done(record, progress_state)
             return record
 
     heartbeat_task = asyncio.create_task(heartbeat_loop())
