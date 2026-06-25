@@ -125,6 +125,7 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         observed["registry_actions"] = set(registry.env_agent_tools.keys())
         observed["social_actions"] = set(actionset.filter_by_tags(["social"]).actions.keys())
         observed["social_read_actions"] = set(actionset.filter_by_tags(["social_read"]).actions.keys())
+        observed["environment_actions"] = set(actionset.filter_by_tags(["environment"]).actions.keys())
         ctx.env.state["posts"]["post_hot"] = _post(
             "post_hot",
             author_id="author_old",
@@ -154,6 +155,10 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert "get_trending_posts" in observed["env_action_names"]
     assert "update_trending_topics" in observed["env_rule_names"]
     assert "get_agent_profile" in {entry["name"] for entry in observed["env_capabilities"]["actions"]}
+    profile_capability = next(
+        entry for entry in observed["env_capabilities"]["actions"] if entry["name"] == "get_agent_profile"
+    )
+    assert "environment" in profile_capability["tags"]
     assert "recommended_feed" in {entry["name"] for entry in observed["env_capabilities"]["fovs"]}
     assert "get_agent_profile" in observed["registry_actions"]
     assert "get_trending_posts" in observed["registry_actions"]
@@ -165,6 +170,9 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert "get_agent_profile" not in observed["social_actions"]
     assert {"get_agent_profile", "get_trending_posts", "get_post_details"}.issubset(
         observed["social_read_actions"]
+    )
+    assert {"publish_post", "get_agent_profile", "get_trending_posts"}.issubset(
+        observed["environment_actions"]
     )
     assert "用户资料: viewer" in observed["profile"]
     assert "热门" in observed["trending"]
