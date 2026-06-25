@@ -478,6 +478,17 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert events[0]["agent_concurrency_source"] == "llm_model"
     assert summary["runtime"]["agent_concurrency"] == concurrency
     assert summary["runtime"]["agent_concurrency_source"] == "llm_model"
+    assert summary["models"]["llm"]["id"] == llm_model.id
+    assert summary["models"]["llm"]["model"] == llm_model.model
+    assert summary["models"]["llm"]["concurrency"] == concurrency
+    assert "base_url" not in summary["models"]["llm"]
+    assert "api_key" not in summary["models"]["llm"]
+    assert summary["models"]["embedding"]["id"] == embed_model.id
+    assert summary["models"]["embedding"]["model"] == embed_model.model
+    assert summary["models"]["embedding"]["concurrency"] == concurrency
+    assert summary["models"]["embedding"]["dimensions"] == embed_model.dimensions
+    assert "base_url" not in summary["models"]["embedding"]
+    assert "api_key" not in summary["models"]["embedding"]
 
     assert seed_metrics["seed_errors"] == 0
     assert seed_metrics["max_instruct_in_flight"] == concurrency

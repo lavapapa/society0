@@ -368,6 +368,7 @@ class Society0:
                 "llm_concurrency": self.llm_model.concurrency if self.llm_model else None,
                 "embed_concurrency": self.embed_model.concurrency if self.embed_model else None,
             },
+            "models": self._summarize_models(),
             "agent_operations": self._summarize_agent_operations(),
             "resources": self._summarize_resource_calls(),
             "events": self._summarize_events(),
@@ -381,6 +382,47 @@ class Society0:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, ensure_ascii=False, indent=2, default=str)
             handle.write("\n")
+
+    def _summarize_models(self) -> Dict[str, Any]:
+        """Summarize declared models without exposing endpoints or credentials."""
+
+        def llm_summary(model: Optional[LLMModel]) -> Optional[Dict[str, Any]]:
+            if model is None:
+                return None
+            result: Dict[str, Any] = {
+                "id": model.id,
+                "model": model.model,
+                "provider_type": model.provider_type,
+                "concurrency": model.concurrency,
+                "timeout": model.timeout,
+            }
+            if model.api_version:
+                result["api_version"] = model.api_version
+            if model.deployment_name:
+                result["deployment_name"] = model.deployment_name
+            if model.metadata:
+                result["metadata_keys"] = sorted(str(key) for key in model.metadata)
+            return result
+
+        def embed_summary(model: Optional[EmbedModel]) -> Optional[Dict[str, Any]]:
+            if model is None:
+                return None
+            result: Dict[str, Any] = {
+                "id": model.id,
+                "model": model.model,
+                "provider_type": model.provider_type,
+                "concurrency": model.concurrency,
+                "timeout": model.timeout,
+                "dimensions": model.dimensions,
+            }
+            if model.metadata:
+                result["metadata_keys"] = sorted(str(key) for key in model.metadata)
+            return result
+
+        return {
+            "llm": llm_summary(self.llm_model),
+            "embedding": embed_summary(self.embed_model),
+        }
 
     def _summarize_capabilities(self) -> Dict[str, Any]:
         """Summarize runtime-discoverable env and experiment capabilities."""
