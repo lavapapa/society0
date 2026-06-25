@@ -429,9 +429,25 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
                                     {"agent_id": "bob", "status": "error", "total_turns": 3, "error": "bad action"},
                                 ],
                                 "browse_actions": [
-                                    {"agent_id": "alice", "status": "success", "action_name": "get_trending_posts"},
-                                    {"agent_id": "alice", "status": "success", "action_name": "comment"},
-                                    {"agent_id": "bob", "status": "error", "action_name": "comment", "error": "bad action"},
+                                    {
+                                        "agent_id": "alice",
+                                        "status": "success",
+                                        "action_name": "get_trending_posts",
+                                        "tags": ["get_trending_posts", "social_read"],
+                                    },
+                                    {
+                                        "agent_id": "alice",
+                                        "status": "success",
+                                        "action_name": "comment",
+                                        "tags": ["comment", "social_write"],
+                                    },
+                                    {
+                                        "agent_id": "bob",
+                                        "status": "error",
+                                        "action_name": "comment",
+                                        "tags": ["comment", "social_write"],
+                                        "error": "bad action",
+                                    },
                                 ],
                             },
                         },
@@ -518,6 +534,12 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
         {"agent_id": "alice", "total_turns": 2, "status": "success"},
     ]
     assert summary["browse_round"]["action_counts"] == {"get_trending_posts": 1, "comment": 2}
+    assert summary["browse_round"]["action_tag_counts"] == {
+        "comment": 1,
+        "get_trending_posts": 1,
+        "social_read": 1,
+        "social_write": 1,
+    }
     assert summary["browse_round"]["action_error_count"] == 1
     assert summary["browse_round"]["error_samples"][0]["agent_id"] == "bob"
     assert summary["browse_round"]["by_tick"]["0"]["agent_count"] == 2
@@ -526,6 +548,12 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
     assert summary["browse_round"]["by_tick"]["0"]["action_counts"] == {
         "comment": 2,
         "get_trending_posts": 1,
+    }
+    assert summary["browse_round"]["by_tick"]["0"]["action_tag_counts"] == {
+        "comment": 1,
+        "get_trending_posts": 1,
+        "social_read": 1,
+        "social_write": 1,
     }
     assert summary["browse_round"]["by_tick"]["0"]["turns_avg"] == 2.5
     assert summary["browse_round"]["resources"]["llm"]["call_count"] == 1

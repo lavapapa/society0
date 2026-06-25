@@ -507,6 +507,7 @@ class Society0:
                     "turns_count": 0,
                     "turns_max": 0,
                     "action_counts": {},
+                    "action_tag_counts": {},
                     "action_error_count": 0,
                     "by_tick": {},
                     "_seen_action_keys": set(),
@@ -533,6 +534,7 @@ class Society0:
                     "turns_count": 0,
                     "turns_max": 0,
                     "action_counts": {},
+                    "action_tag_counts": {},
                     "action_error_count": 0,
                 },
             )
@@ -568,6 +570,13 @@ class Society0:
             seen.add(dedupe_key)
             action_counts = bucket["action_counts"]
             action_counts[action_key] = action_counts.get(action_key, 0) + 1
+            if str(action.get("status") or "success").lower() == "success":
+                action_tag_counts = bucket["action_tag_counts"]
+                for tag in action.get("tags") or []:
+                    tag_key = str(tag)
+                    if not tag_key:
+                        continue
+                    action_tag_counts[tag_key] = action_tag_counts.get(tag_key, 0) + 1
             if action.get("status") and action.get("status") != "success":
                 bucket["action_error_count"] += 1
                 error_samples = bucket["_error_samples"]
@@ -585,6 +594,13 @@ class Society0:
                 tick_bucket = tick_bucket_for(bucket, tick)
                 tick_actions = tick_bucket["action_counts"]
                 tick_actions[action_key] = tick_actions.get(action_key, 0) + 1
+                if str(action.get("status") or "success").lower() == "success":
+                    tick_action_tags = tick_bucket["action_tag_counts"]
+                    for tag in action.get("tags") or []:
+                        tag_key = str(tag)
+                        if not tag_key:
+                            continue
+                        tick_action_tags[tag_key] = tick_action_tags.get(tag_key, 0) + 1
                 if action.get("status") and action.get("status") != "success":
                     tick_bucket["action_error_count"] += 1
 
@@ -683,6 +699,7 @@ class Society0:
             else:
                 bucket["turns_avg"] = 0.0
             bucket["action_counts"] = dict(sorted(bucket["action_counts"].items()))
+            bucket["action_tag_counts"] = dict(sorted(bucket["action_tag_counts"].items()))
             bucket["slowest_agents_by_turns"] = slowest_agents
             if error_samples:
                 bucket["error_samples"] = error_samples
@@ -696,6 +713,7 @@ class Society0:
                     else 0.0
                 )
                 tick_bucket["action_counts"] = dict(sorted(tick_bucket["action_counts"].items()))
+                tick_bucket["action_tag_counts"] = dict(sorted(tick_bucket["action_tag_counts"].items()))
             bucket["by_tick"] = dict(sorted(by_tick.items(), key=lambda item: item[0]))
             finalized[step_name] = bucket
         self._attach_resource_calls_to_agent_operations(finalized)
