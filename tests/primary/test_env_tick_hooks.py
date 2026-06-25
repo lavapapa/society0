@@ -75,6 +75,20 @@ async def test_env_tick_hooks_order(tmp_path, hook_envs):
     checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
     assert checkpoint["environment_data"]["state"]["events"] == ["before:0", "step:0", "after:0"]
     assert checkpoint["step"] == 1
+    events = _jsonl(tmp_path / "events.jsonl")
+    hook_events = [event for event in events if event.get("event", "").startswith("env_hook_")]
+    assert [(event["event"], event["hook_name"]) for event in hook_events] == [
+        ("env_hook_started", "before_tick"),
+        ("env_hook_completed", "before_tick"),
+        ("env_hook_started", "after_tick"),
+        ("env_hook_completed", "after_tick"),
+    ]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["events"]["env_hooks"]["before_tick"]["started_count"] == 1
+    assert summary["events"]["env_hooks"]["before_tick"]["completed_count"] == 1
+    assert summary["events"]["env_hooks"]["before_tick"]["failed_count"] == 0
+    assert summary["events"]["env_hooks"]["after_tick"]["started_count"] == 1
+    assert summary["events"]["env_hooks"]["after_tick"]["completed_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -135,3 +149,20 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
     events = _jsonl(tmp_path / "events.jsonl")
     assert events[-1]["event"] == "run_failed"
     assert events[-1]["error_type"] == "RuntimeError"
+    hook_events = [event for event in events if event.get("event", "").startswith("env_hook_")]
+    assert [(event["event"], event["hook_name"]) for event in hook_events] == [
+        ("env_hook_started", "before_tick"),
+        ("env_hook_failed", "before_tick"),
+    ]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    before_hook = summary["events"]["env_hooks"]["before_tick"]
+    assert before_hook["started_count"] == 1
+    assert before_hook["completed_count"] == 0
+    assert before_hook["failed_count"] == 1
+    assert before_hook["error_samples"] == [
+        {
+            "step": 0,
+            "error": "before hook failed",
+            "error_type": "RuntimeError",
+        }
+    ]
