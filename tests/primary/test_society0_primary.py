@@ -1152,10 +1152,21 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["resources"]["llm"]["total_payload_characters"] == 3200
     assert instruct["resources"]["llm"]["messages_count_max"] == 4
     assert instruct["resources"]["llm"]["tools_count_max"] == 3
+    assert instruct["resources"]["llm"]["timing_breakdown"] == {
+        "provider_duration_sec": 2.9,
+        "queue_duration_sec": 0.25,
+        "runtime_overhead_sec": 0.15,
+        "provider_share": 0.878788,
+        "queue_share": 0.075758,
+        "runtime_overhead_share": 0.045455,
+        "bottleneck": "provider",
+    }
     assert instruct["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] == 2
+    assert instruct["resources"]["llm"]["fidelity"]["agent_loop"]["timing_breakdown"]["bottleneck"] == "provider"
     assert "memory_extraction" not in instruct["resources"]["llm"]["fidelity"]
     assert instruct["by_tick"]["0"]["resources"]["llm"]["call_count"] == 1
     assert instruct["by_tick"]["0"]["resources"]["llm"]["total_payload_characters"] == 1500
+    assert instruct["by_tick"]["0"]["resources"]["llm"]["timing_breakdown"]["runtime_overhead_sec"] == 0.1
     assert instruct["by_tick"]["1"]["resources"]["llm"]["call_count"] == 1
     assert instruct["by_tick"]["1"]["resources"]["llm"]["total_duration_sec"] == 2.2
     assert instruct["execution_options"]["memory"]["extract"] is True
@@ -4598,6 +4609,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "total_duration_sec",
         "total_provider_duration_sec",
         "total_queue_duration_sec",
+        "timing_breakdown",
         "slowest_calls",
         "by_interaction",
         "by_interaction_type",
@@ -4670,6 +4682,15 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "total_provider_duration_sec": 2.4,
         "total_queue_duration_sec": 0.7,
     }
+    assert summary["llm"]["timing_breakdown"] == {
+        "provider_duration_sec": 2.4,
+        "queue_duration_sec": 0.7,
+        "runtime_overhead_sec": 0.15,
+        "provider_share": 0.738462,
+        "queue_share": 0.215385,
+        "runtime_overhead_share": 0.046154,
+        "bottleneck": "provider",
+    }
     assert summary["llm"]["slowest_calls"][0]["agent_id"] == "bob"
     assert summary["llm"]["slowest_calls"][0]["error_type"] == "TimeoutError"
     assert summary["llm"]["error_samples"][0]["agent_id"] == "bob"
@@ -4679,6 +4700,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["llm"]["by_tick"]["0"]["input_characters"] == 700
     assert summary["llm"]["by_tick"]["0"]["messages_count_avg"] == 2.0
     assert summary["llm"]["by_tick"]["0"]["total_input_characters"] == 700
+    assert summary["llm"]["by_tick"]["0"]["timing_breakdown"]["bottleneck"] == "provider"
     assert summary["llm"]["by_tick"]["1"]["call_count"] == 1
     assert summary["llm"]["by_tick"]["1"]["error_count"] == 1
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["call_count"] == 2
@@ -4688,12 +4710,17 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["input_characters"] == 1600
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["messages_count_max"] == 4
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["total_duration_sec"] == 3.25
+    assert summary["llm"]["by_interaction"]["survey / interview / trust"]["timing_breakdown"][
+        "runtime_overhead_sec"
+    ] == 0.15
     assert summary["llm"]["by_interaction_type"]["interview"]["call_count"] == 2
     assert summary["llm"]["by_interaction_type"]["interview"]["error_count"] == 1
     assert summary["llm"]["by_interaction_type"]["interview"]["total_tokens"] == 14
+    assert summary["llm"]["by_interaction_type"]["interview"]["timing_breakdown"]["bottleneck"] == "provider"
     assert summary["llm"]["fidelity"]["agent_loop"]["call_count"] == 2
     assert summary["llm"]["fidelity"]["agent_loop"]["error_count"] == 1
     assert summary["llm"]["fidelity"]["agent_loop"]["duration_sec_total"] == 3.25
+    assert summary["llm"]["fidelity"]["agent_loop"]["timing_breakdown"]["provider_share"] == 0.738462
     assert summary["embedding"]["call_count"] == 1
     assert summary["embedding"]["started_count"] == 0
     assert summary["embedding"]["terminal_count"] == 1
@@ -4703,6 +4730,15 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["embedding"]["total_input_characters"] == 1200
     assert summary["embedding"]["queue_duration_sec_total"] == 0.1
     assert summary["embedding"]["provider_duration_sec_total"] == 0.35
+    assert summary["embedding"]["timing_breakdown"] == {
+        "provider_duration_sec": 0.35,
+        "queue_duration_sec": 0.1,
+        "runtime_overhead_sec": 0.05,
+        "provider_share": 0.7,
+        "queue_share": 0.2,
+        "runtime_overhead_share": 0.1,
+        "bottleneck": "provider",
+    }
     assert summary["embedding"]["by_tick"]["0"]["texts_count"] == 6
     embedding_key = "seed,recall / memory_write,memory_retrieve / seed_round,recall_round"
     assert summary["embedding"]["by_interaction"][embedding_key]["texts_count"] == 6
