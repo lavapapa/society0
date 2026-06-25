@@ -358,6 +358,7 @@ class AgentGroup:
         completion_action_tags: Optional[List[str]] = None,
         max_action_calls: Optional[int] = None,
         action_call_limits: Optional[Dict[str, int]] = None,
+        required_actions: Optional[List[str]] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
@@ -387,6 +388,7 @@ class AgentGroup:
             completion_action_tags=completion_action_tags,
             max_action_calls=max_action_calls,
             action_call_limits=action_call_limits,
+            required_actions=required_actions,
             llm_request_options=llm_request_options,
         )
 
@@ -417,6 +419,7 @@ class AgentGroup:
                     agent_id,
                     result,
                     require_structured_output=output_schema is not None,
+                    required_actions=required_actions,
                 )
                 if failure_record is not None:
                     return failure_record
@@ -1181,6 +1184,7 @@ def _agent_batch_execution_options(
     completion_action_tags: Optional[List[str]] = None,
     max_action_calls: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
+    required_actions: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """Summarize fidelity-relevant runtime options without recording prompts."""
     options: Dict[str, Any] = {
@@ -1199,6 +1203,8 @@ def _agent_batch_execution_options(
         options["max_action_calls"] = int(max_action_calls)
     if action_call_limits is not None:
         options["action_call_limits"] = {str(key): int(value) for key, value in action_call_limits.items()}
+    if required_actions is not None:
+        options["required_actions"] = [str(action) for action in required_actions]
     return options
 
 
@@ -1481,11 +1487,29 @@ def _extract_actions_from_record(record: AgentCallRecord) -> List[Dict[str, Any]
     return normalized
 
 
+def _missing_required_actions(result: Dict[str, Any], required_actions: Optional[List[str]]) -> List[str]:
+    required = [str(action) for action in (required_actions or [])]
+    if not required:
+        return []
+    successful_actions = set()
+    for item in result.get("actions") or []:
+        if not isinstance(item, dict):
+            continue
+        action_name = item.get("action_name") or item.get("name") or item.get("action")
+        if action_name is None:
+            continue
+        if str(item.get("status") or "success").lower() == "error":
+            continue
+        successful_actions.add(str(action_name))
+    return [action for action in required if action not in successful_actions]
+
+
 def _agent_failure_record(
     agent_id: str,
     result: Any,
     *,
     require_structured_output: bool = False,
+    required_actions: Optional[List[str]] = None,
 ) -> Optional[AgentCallRecord]:
     if not isinstance(result, dict):
         return None
@@ -1497,6 +1521,15 @@ def _agent_failure_record(
                 status="error",
                 value=_extract_call_value(result),
                 error="missing structured_output",
+                raw=result,
+            )
+        missing_actions = _missing_required_actions(result, required_actions)
+        if missing_actions:
+            return AgentCallRecord(
+                agent_id=agent_id,
+                status="error",
+                value=_extract_call_value(result),
+                error=f"missing required action(s): {', '.join(missing_actions)}",
                 raw=result,
             )
         return None

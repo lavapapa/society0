@@ -628,7 +628,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
 
 @pytest.mark.asyncio
 async def test_real_society0_social_publish_action_e2e(tmp_path):
-    agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_ACTION_AGENT_COUNT"), default=5)
+    agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_ACTION_AGENT_COUNT"), default=2)
     agent_count = max(2, min(agent_count, 20))
     llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=agent_count)
     engine = Society0(
@@ -642,15 +642,15 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     async def publish_once(ctx):
         started = time.perf_counter()
         result = await ctx.agents.all().instruct(
-            "Call publish_post once. Publish a short original post about campus life, "
-            "then finish the round without calling more tools.",
+            "You must call the publish_post tool exactly once. Publish a short original post "
+            "about campus life, then finish the round without calling more tools.",
             actions=["publish_post"],
-            memory=False,
             output=None,
             max_turns=3,
-            max_tokens=80,
+            max_tokens=160,
             temperature=0,
             action_call_limits={"publish_post": 1},
+            required_actions=["publish_post"],
             name="publish_round",
         )
         duration = time.perf_counter() - started
@@ -658,6 +658,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
             metrics={
                 "publish_errors": result.error_count,
                 "publish_success": result.success_count,
+                "publish_action_count": result.action_counts().get("publish_post", 0),
                 "duration_sec": duration,
             },
             tables={"published": result.table()},
@@ -671,13 +672,15 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     llm_request_count = _count_events(tmp_path, "llm", "llm_request_completed")
     events = _read_jsonl(tmp_path / "events.jsonl")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
 
     assert metrics["publish_errors"] == 0
     assert metrics["publish_success"] == agent_count
+    assert metrics["publish_action_count"] == agent_count
     author_ids = {post.get("author_id") for post in posts.values()}
     assert len(posts) == agent_count
     assert {f"user_{idx}" for idx in range(agent_count)}.issubset(author_ids)
-    assert llm_request_count == agent_count
+    assert llm_request_count >= agent_count * 2
     assert not any("embedding" in post for post in posts.values())
     assert any(event.get("event") == "code_step_started" and event.get("step_name") == "publish_once" for event in events)
     assert sum(1 for event in events if event.get("event_type") == "agent_action") >= agent_count
@@ -693,8 +696,24 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     assert lifecycle_events[1]["event_data"]["success_count"] == agent_count
     assert [event["event_data"]["completed_count"] for event in progress_events] == list(range(1, agent_count + 1))
     assert progress_events[-1]["event_data"]["success_count"] == agent_count
+    publish_batch = summary["events"]["agent_batches"]["instruct / publish_round"]
+    assert publish_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert publish_batch["execution_options"]["required_actions"] == ["publish_post"]
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
+    publish_llm_traces = [item for item in llm_traces if item.get("interaction_type") == "instruct"]
+    memory_extract_traces = [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
+    env_embedding_traces = [
+        item for item in embedding_traces if item.get("interaction_type") == "env_post_embedding"
+    ]
+    memory_embedding_traces = [
+        item for item in embedding_traces if item.get("interaction_type") == "memory_write"
+    ]
     llm_started = [
         item
         for item in resource_calls
@@ -708,7 +727,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     assert llm_traces
     _assert_resource_timing(llm_traces)
     _assert_resource_timing(embedding_traces)
-    assert len(llm_started) == agent_count
+    assert len(llm_started) >= agent_count * 2
     assert embedding_started
     embedded_agent_ids = {
         agent_id
@@ -720,14 +739,20 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
         for item in embedding_traces
         for post_id in (item.get("post_ids") or ([item.get("post_id")] if item.get("post_id") else []))
     }
+    assert len(publish_llm_traces) >= agent_count
+    assert len(memory_extract_traces) >= agent_count
     assert all(item.get("step_name") == "publish_once" for item in llm_traces)
-    assert all(item.get("interaction_name") == "publish_round" for item in llm_traces)
-    assert all(item.get("max_tokens") == 80 for item in llm_traces)
+    assert all(item.get("interaction_name") == "publish_round" for item in publish_llm_traces)
+    assert all(item.get("max_tokens") == 160 for item in llm_traces)
     assert all(item.get("tools_characters", 0) > 0 for item in llm_traces)
     assert all(item.get("payload_characters", 0) >= item.get("tools_characters", 0) for item in llm_traces)
-    assert 1 <= sum(item.get("texts_count") or 0 for item in embedding_traces) <= agent_count
+    assert 1 <= sum(item.get("texts_count") or 0 for item in env_embedding_traces) <= agent_count
+    assert sum(item.get("texts_count") or 0 for item in memory_embedding_traces) >= agent_count
     assert all(item.get("step_name") == "publish_once" for item in embedding_traces)
-    assert all(item.get("interaction_type") == "env_post_embedding" for item in embedding_traces)
+    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= agent_count
+    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    assert summary["resources"]["embedding"]["fidelity"]["environment"]["call_count"] >= 1
     assert embedded_agent_ids == author_ids
     assert embedded_post_ids == set(posts.keys())
 

@@ -1059,6 +1059,66 @@ async def test_agent_group_instruct_defaults_to_extractive_memory_write():
 
 
 @pytest.mark.asyncio
+async def test_agent_group_instruct_required_actions_turn_missing_action_into_error(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class FakeWorld:
+        step = 1
+        _current_code_step_name = "publish_check"
+        _default_agent_concurrency = 2
+        _model_provider = None
+        agents_data = {
+            "alice": {"id": "alice", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+            "bob": {"id": "bob", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+        }
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            if agent_id == "alice":
+                return {
+                    "actions": [
+                        {
+                            "type": "action_call",
+                            "action_name": "publish_post",
+                            "status": "success",
+                            "result": "published",
+                        }
+                    ],
+                    "total_turns": 1,
+                    "llm_calls": 1,
+                }
+            return {"actions": [], "total_turns": 1, "llm_calls": 1}
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_1")
+
+        def get_agent(self, agent_id):
+            return type("Agent", (), {"id": agent_id})()
+
+    result = await AgentSelector(FakeWorld(event_logger)).all().instruct(
+        "publish once",
+        actions=["publish_post"],
+        memory=False,
+        name="publish_round",
+        required_actions=["publish_post"],
+    )
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    started = next(event for event in events if event.get("event_type") == "agent_batch_started")
+
+    assert result.success_count == 1
+    assert result.error_count == 1
+    assert result.by_agent("alice").status == "success"
+    assert result.by_agent("bob").status == "error"
+    assert result.by_agent("bob").error == "missing required action(s): publish_post"
+    assert result.action_counts() == {"publish_post": 1}
+    assert started["event_data"]["execution_options"]["required_actions"] == ["publish_post"]
+
+
+@pytest.mark.asyncio
 async def test_terminal_action_stops_agent_loop_after_tool_call():
     action_set = ActionSet()
     called_actions = []
