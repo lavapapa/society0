@@ -22,6 +22,9 @@ from .logging import ExperimentLogContext, LogField, SystemEvent
 logger = logging.getLogger(__name__)
 
 
+_STATE_CHANGE_SUMMARY_KEY_SAMPLE_SIZE = 12
+
+
 class EventLogger:
     """
     事件日志记录器
@@ -33,7 +36,12 @@ class EventLogger:
     def __init__(
         self,
         log_file_path: str,
-        listeners: Optional[Iterable[EventBatchListener]] = None
+        listeners: Optional[Iterable[EventBatchListener]] = None,
+        *,
+        compact_state_changes: bool = True,
+        compact_context_stack: bool = True,
+        state_change_value_char_limit: int = 240,
+        write_state_changes: bool = True,
     ):
         """
         初始化事件日志记录器
@@ -46,6 +54,10 @@ class EventLogger:
         self._lock = threading.Lock()
         self._file_handle: Optional[TextIO] = None
         self._listeners: List[EventBatchListener] = list(listeners or [])
+        self.compact_state_changes = compact_state_changes
+        self.compact_context_stack = compact_context_stack
+        self.state_change_value_char_limit = max(0, int(state_change_value_char_limit))
+        self.write_state_changes = bool(write_state_changes)
         
     def open(self):
         """打开日志文件"""
@@ -105,12 +117,16 @@ class EventLogger:
                 if self._file_handle is None:
                     self.open()
 
+                batch_start_offset = self._file_handle.tell()
                 batch_offsets: List[int] = []
 
                 # 写入每个事件为一行 JSON
                 for event in events:
+                    if not self._should_write_event(event):
+                        batch_offsets.append(-1)
+                        continue
                     batch_offsets.append(self._file_handle.tell())
-                    event_dict = event.to_dict()
+                    event_dict = self._event_to_log_dict(event)
                     json_line = json.dumps(event_dict, ensure_ascii=False, default=str)
                     self._file_handle.write(json_line + '\n')
 
@@ -122,7 +138,7 @@ class EventLogger:
                     events=tuple(events),
                     step_id=step_id,
                     node_id=node_id,
-                    start_offset=batch_offsets[0],
+                    start_offset=batch_start_offset,
                     end_offset=self._file_handle.tell(),
                     event_offsets=tuple(batch_offsets),
                 )
@@ -135,6 +151,11 @@ class EventLogger:
 
         if batch is not None:
             self._notify_listeners(batch)
+
+    def _should_write_event(self, event: BaseEvent) -> bool:
+        if not self.write_state_changes and isinstance(event, StateChangeEvent):
+            return False
+        return True
 
     def log(self, event_type: str, source: str, data: Dict[str, Any]) -> None:
         """
@@ -207,6 +228,103 @@ class EventLogger:
                     break
 
         return resolved_step, resolved_node
+
+    def _event_to_log_dict(self, event: BaseEvent) -> Dict[str, Any]:
+        event_dict = event.to_dict()
+        # CodeSchedule writes lightweight lifecycle events with an `event` key,
+        # while transaction-backed events historically used only `event_type`.
+        # Keep both fields so monitoring code can aggregate events uniformly
+        # without breaking replay code that still keys off `event_type`.
+        event_type = event_dict.get("event_type")
+        if event_type is not None and "event" not in event_dict:
+            event_dict["event"] = event_type
+        if self.compact_state_changes and isinstance(event, StateChangeEvent):
+            event_dict = self._compact_state_change_dict(event_dict)
+        if self.compact_context_stack:
+            event_dict = self._compact_context_stack_dict(event_dict)
+        return event_dict
+
+    def _compact_state_change_dict(self, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        compacted = dict(event_dict)
+        for field_name in ("value", "old_value"):
+            if field_name not in compacted:
+                continue
+            value = compacted[field_name]
+            if field_name == "old_value" and value is None:
+                compacted.pop(field_name, None)
+                continue
+            if self._should_omit_state_change_value(value):
+                compacted[f"{field_name}_summary"] = self._summarize_state_change_value(value)
+                compacted[f"{field_name}_omitted"] = True
+                compacted.pop(field_name, None)
+        return compacted
+
+    def _should_omit_state_change_value(self, value: Any) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, (dict, list, tuple, set)):
+            return True
+        return self._serialized_size(value) > self.state_change_value_char_limit
+
+    def _summarize_state_change_value(self, value: Any) -> Dict[str, Any]:
+        summary: Dict[str, Any] = {
+            "type": type(value).__name__,
+            "size_chars": self._serialized_size(value),
+        }
+        if isinstance(value, dict):
+            keys = [str(key) for key in list(value.keys())[:_STATE_CHANGE_SUMMARY_KEY_SAMPLE_SIZE]]
+            summary.update({
+                "length": len(value),
+                "keys_sample": keys,
+            })
+        elif isinstance(value, (list, tuple, set)):
+            summary["length"] = len(value)
+            sample = list(value)[:_STATE_CHANGE_SUMMARY_KEY_SAMPLE_SIZE]
+            summary["item_types_sample"] = [type(item).__name__ for item in sample]
+        else:
+            summary["preview"] = str(value)[: self.state_change_value_char_limit]
+        return summary
+
+    @staticmethod
+    def _compact_context_stack_dict(event_dict: Dict[str, Any]) -> Dict[str, Any]:
+        context_stack = event_dict.get("context_stack")
+        if not context_stack:
+            if "context_stack" in event_dict:
+                compacted = dict(event_dict)
+                compacted.pop("context_stack", None)
+                return compacted
+            return event_dict
+
+        compacted = dict(event_dict)
+        step_id = None
+        node_id = None
+        operator_id = None
+        for frame in context_stack:
+            if not isinstance(frame, dict):
+                continue
+            frame_type = frame.get("type")
+            if frame_type == "step":
+                step_id = frame.get("id")
+            elif frame_type == "node":
+                node_id = frame.get("id")
+            elif frame_type == "operator":
+                operator_id = frame.get("id")
+
+        compacted.pop("context_stack", None)
+        compacted["context"] = {
+            "step_id": step_id,
+            "node_id": node_id,
+            "operator_id": operator_id,
+            "depth": len(context_stack),
+        }
+        return compacted
+
+    @staticmethod
+    def _serialized_size(value: Any) -> int:
+        try:
+            return len(json.dumps(value, ensure_ascii=False, default=str))
+        except Exception:
+            return len(str(value))
     
     def __enter__(self):
         """支持 with 语句"""

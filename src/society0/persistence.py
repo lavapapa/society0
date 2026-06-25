@@ -938,6 +938,12 @@ class PersistenceManager:
             # 记忆事件暂不重放（向量存储在快照与备份中恢复）
             logger.debug("Skipping MEMORY_CHANGE replay (handled via Chroma restore)")
 
+        payload = event_data.get("event_data") or {}
+        state_patches = payload.get("state_patches")
+        if isinstance(state_patches, list):
+            self._apply_state_patches(world, state_patches)
+            logger.debug("Applied %s generic state patch(es)", len(state_patches))
+
     def _apply_state_change_event(
         self,
         world: 'World',
@@ -973,6 +979,96 @@ class PersistenceManager:
         for segment in segments[:-1]:
             current = current.setdefault(segment, {})
         current[segments[-1]] = value
+
+    def _apply_state_patches(self, world: 'World', patches: Iterable[Dict[str, Any]]) -> None:
+        """Apply generic state patches carried by an event payload."""
+        for patch in patches:
+            if not isinstance(patch, dict):
+                continue
+            target_type = patch.get("target_type")
+            target_id = patch.get("target_id")
+            operation = str(patch.get("operation") or "set").lower()
+            path = patch.get("path") or []
+            value = patch.get("value")
+
+            if operation == "set":
+                self._apply_state_change_event(world, target_type, target_id, path, value)
+            elif operation == "increment":
+                self._apply_increment_patch(world, target_type, target_id, path, value)
+            elif operation == "merge":
+                self._apply_merge_patch(world, target_type, target_id, path, value)
+            else:
+                logger.debug("Skipping unsupported state patch operation: %s", operation)
+
+    def _get_patch_root(
+        self,
+        world: 'World',
+        target_type: Optional[str],
+        target_id: Optional[str],
+    ) -> Optional[Dict[str, Any]]:
+        if target_type == "agent":
+            if not target_id or target_id not in world.agents_data:
+                return None
+            return world.agents_data[target_id].setdefault("state", {})
+        if target_type == "environment":
+            return world.environment_data.setdefault("state", {})
+        return None
+
+    def _get_patch_parent(
+        self,
+        world: 'World',
+        target_type: Optional[str],
+        target_id: Optional[str],
+        path: Iterable[str],
+    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        root = self._get_patch_root(world, target_type, target_id)
+        if root is None:
+            return None, None
+        segments = [segment for segment in path if segment is not None]
+        if not segments:
+            return None, None
+        parent = root
+        for segment in segments[:-1]:
+            current = parent.setdefault(segment, {})
+            if not isinstance(current, dict):
+                current = {}
+                parent[segment] = current
+            parent = current
+        return parent, segments[-1]
+
+    def _apply_increment_patch(
+        self,
+        world: 'World',
+        target_type: Optional[str],
+        target_id: Optional[str],
+        path: Iterable[str],
+        value: Any,
+    ) -> None:
+        parent, key = self._get_patch_parent(world, target_type, target_id, path)
+        if parent is None or key is None:
+            return
+        try:
+            delta = int(value)
+        except (TypeError, ValueError):
+            return
+        parent[key] = int(parent.get(key, 0) or 0) + delta
+
+    def _apply_merge_patch(
+        self,
+        world: 'World',
+        target_type: Optional[str],
+        target_id: Optional[str],
+        path: Iterable[str],
+        value: Any,
+    ) -> None:
+        if not isinstance(value, dict):
+            return
+        parent, key = self._get_patch_parent(world, target_type, target_id, path)
+        if parent is None or key is None:
+            return
+        target = parent.setdefault(key, {})
+        if isinstance(target, dict):
+            target.update(value)
     
     @staticmethod
     def _serialize_agent_entry(agent_info: Dict[str, Any]) -> Dict[str, Any]:

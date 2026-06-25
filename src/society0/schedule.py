@@ -14,6 +14,7 @@ from .async_utils import invoke_maybe_async
 from .core_data import BaseOperatorResult, ExecutionContext
 
 StepFunction = Callable[["StepContext"], Awaitable[Optional["StepResult"]]]
+ACTION_TEXT_PREVIEW_CHARS = 240
 
 
 def _jsonable(value: Any) -> Any:
@@ -30,6 +31,34 @@ def _jsonable(value: Any) -> Any:
     if hasattr(value, "__dict__"):
         return _jsonable(vars(value))
     return str(value)
+
+
+def _compact_action_text(text: str, *, limit: int = ACTION_TEXT_PREVIEW_CHARS) -> Dict[str, Any]:
+    if len(text) <= limit:
+        return {"value": text, "length": len(text), "truncated": False}
+    return {
+        "value": text[:limit].rstrip() + "...",
+        "length": len(text),
+        "truncated": True,
+    }
+
+
+def _compact_action_mapping(mapping: Dict[str, Any]) -> Dict[str, Any]:
+    compact: Dict[str, Any] = {}
+    for key, value in mapping.items():
+        if isinstance(value, str):
+            text_summary = _compact_action_text(value)
+            compact[key] = text_summary["value"]
+            if text_summary["truncated"]:
+                compact[f"{key}_length"] = text_summary["length"]
+                compact[f"{key}_truncated"] = True
+        elif isinstance(value, dict):
+            compact[key] = _compact_action_mapping(value)
+        elif isinstance(value, (list, tuple, set)):
+            compact[key] = [_jsonable(item) for item in value]
+        else:
+            compact[key] = _jsonable(value)
+    return compact
 
 
 @dataclass(slots=True)
@@ -84,6 +113,31 @@ class AgentBatchResult:
     def by_agent(self, agent_id: str) -> Optional[AgentCallRecord]:
         return self._by_agent.get(agent_id)
 
+    def actions(self) -> List[Dict[str, Any]]:
+        """Return normalized action calls across all agent records."""
+        action_rows: List[Dict[str, Any]] = []
+        for record in self.records:
+            for action in _extract_actions_from_record(record):
+                action_rows.append(action)
+        return action_rows
+
+    def actions_by_agent(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Return normalized action calls for one agent."""
+        record = self.by_agent(agent_id)
+        if record is None:
+            return []
+        return _extract_actions_from_record(record)
+
+    def action_counts(self) -> Dict[str, int]:
+        """Count action calls by action name."""
+        counts: Dict[str, int] = {}
+        for action in self.actions():
+            name = action.get("action_name")
+            if not name:
+                continue
+            counts[str(name)] = counts.get(str(name), 0) + 1
+        return counts
+
     def table(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for record in self.records:
@@ -115,6 +169,7 @@ class AgentBatchResult:
         return {
             "success_count": self.success_count,
             "error_count": self.error_count,
+            "action_counts": self.action_counts(),
             "records": [record.to_dict() for record in self.records],
         }
 
@@ -232,13 +287,31 @@ class AgentGroup:
         actions: List[str] | None = None,
         output: Any = None,
         memory: bool = True,
+        extract_memory: bool = False,
         model: Optional[str] = None,
         max_turns: int = 3,
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
         reasoning_stages: Optional[List[Dict[str, Any]]] = None,
+        memory_top_k: int = 10,
+        terminal_actions: Optional[List[str]] = None,
+        completion_action_tags: Optional[List[str]] = None,
+        max_action_calls: Optional[int] = None,
+        action_call_limits: Optional[Dict[str, int]] = None,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        timeout: Optional[float] = None,
+        llm_options: Optional[Dict[str, Any]] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
+        llm_request_options = _build_llm_request_options(
+            llm_options,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            timeout=timeout,
+        )
 
         async def call(agent_id: str) -> AgentCallRecord:
             try:
@@ -253,8 +326,15 @@ class AgentGroup:
                     max_turns=max_turns,
                     retrieve_memory=memory,
                     save_memory=memory,
+                    extract_memory=extract_memory,
+                    memory_top_k=memory_top_k,
                     name=name,
                     reasoning_stages=reasoning_stages,
+                    terminal_action_names=terminal_actions,
+                    completion_action_tags=completion_action_tags,
+                    max_action_calls=max_action_calls,
+                    action_call_limits=action_call_limits,
+                    llm_request_options=llm_request_options,
                 )
                 failure_record = _agent_failure_record(
                     agent_id,
@@ -272,7 +352,96 @@ class AgentGroup:
             explicit_concurrency=concurrency,
             model_id=model,
         )
-        return AgentBatchResult(await _run_limited(self.agent_ids, call, effective_concurrency))
+        batch_started = time.time()
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_started",
+            interaction_type="instruct",
+            interaction_name=name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            model_id=model,
+            fovs=fovs or [],
+            actions=actions,
+            target_ids_sample=self.agent_ids[:5],
+        )
+        completed_count = 0
+        success_count = 0
+        error_count = 0
+
+        def record_heartbeat(active_agent_ids: List[str], started_count: int) -> None:
+            _record_agent_batch_event(
+                self.world,
+                "agent_batch_heartbeat",
+                interaction_type="instruct",
+                interaction_name=name,
+                agent_count=len(self.agent_ids),
+                concurrency=effective_concurrency,
+                model_id=model,
+                fovs=fovs or [],
+                actions=actions,
+                target_ids_sample=self.agent_ids[:5],
+                duration_sec=time.time() - batch_started,
+                success_count=success_count,
+                error_count=error_count,
+                completed_count=completed_count,
+                started_count=started_count,
+                in_flight_count=len(active_agent_ids),
+                pending_count=max(len(self.agent_ids) - started_count, 0),
+                running_agent_ids_sample=active_agent_ids[:5],
+            )
+
+        def record_progress(record: AgentCallRecord) -> None:
+            nonlocal completed_count, success_count, error_count
+            completed_count += 1
+            if record.status == "success":
+                success_count += 1
+            else:
+                error_count += 1
+            _record_agent_batch_event(
+                self.world,
+                "agent_batch_progress",
+                interaction_type="instruct",
+                interaction_name=name,
+                agent_count=len(self.agent_ids),
+                concurrency=effective_concurrency,
+                model_id=model,
+                fovs=fovs or [],
+                actions=actions,
+                target_ids_sample=self.agent_ids[:5],
+                duration_sec=time.time() - batch_started,
+                success_count=success_count,
+                error_count=error_count,
+                completed_count=completed_count,
+                latest_agent_id=record.agent_id,
+                latest_status=record.status,
+            )
+
+        records = await _run_limited(
+            self.agent_ids,
+            call,
+            effective_concurrency,
+            on_item_done=record_progress,
+            on_heartbeat=record_heartbeat,
+            heartbeat_interval_sec=_resolve_agent_batch_heartbeat_interval(self.world),
+        )
+        batch_result = AgentBatchResult(records)
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_completed",
+            interaction_type="instruct",
+            interaction_name=name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            model_id=model,
+            fovs=fovs or [],
+            actions=actions,
+            target_ids_sample=self.agent_ids[:5],
+            duration_sec=time.time() - batch_started,
+            success_count=batch_result.success_count,
+            error_count=batch_result.error_count,
+        )
+        return batch_result
 
     async def interview(
         self,
@@ -287,8 +456,21 @@ class AgentGroup:
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
         reasoning_stages: Optional[List[Dict[str, Any]]] = None,
+        memory_top_k: int = 10,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        timeout: Optional[float] = None,
+        llm_options: Optional[Dict[str, Any]] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
+        llm_request_options = _build_llm_request_options(
+            llm_options,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            timeout=timeout,
+        )
 
         async def call(agent_id: str) -> AgentCallRecord:
             try:
@@ -301,9 +483,11 @@ class AgentGroup:
                     output_schema=output_schema,
                     retrieve_memory=retrieve_memory,
                     save_memory=save_memory,
+                    memory_top_k=memory_top_k,
                     max_turns=max_turns,
                     name=name,
                     reasoning_stages=reasoning_stages,
+                    llm_request_options=llm_request_options,
                 )
                 failure_record = _agent_failure_record(
                     agent_id,
@@ -321,7 +505,96 @@ class AgentGroup:
             explicit_concurrency=concurrency,
             model_id=model,
         )
-        return AgentBatchResult(await _run_limited(self.agent_ids, call, effective_concurrency))
+        batch_started = time.time()
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_started",
+            interaction_type="interview",
+            interaction_name=name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            model_id=model,
+            fovs=fovs or [],
+            actions=[],
+            target_ids_sample=self.agent_ids[:5],
+        )
+        completed_count = 0
+        success_count = 0
+        error_count = 0
+
+        def record_heartbeat(active_agent_ids: List[str], started_count: int) -> None:
+            _record_agent_batch_event(
+                self.world,
+                "agent_batch_heartbeat",
+                interaction_type="interview",
+                interaction_name=name,
+                agent_count=len(self.agent_ids),
+                concurrency=effective_concurrency,
+                model_id=model,
+                fovs=fovs or [],
+                actions=[],
+                target_ids_sample=self.agent_ids[:5],
+                duration_sec=time.time() - batch_started,
+                success_count=success_count,
+                error_count=error_count,
+                completed_count=completed_count,
+                started_count=started_count,
+                in_flight_count=len(active_agent_ids),
+                pending_count=max(len(self.agent_ids) - started_count, 0),
+                running_agent_ids_sample=active_agent_ids[:5],
+            )
+
+        def record_progress(record: AgentCallRecord) -> None:
+            nonlocal completed_count, success_count, error_count
+            completed_count += 1
+            if record.status == "success":
+                success_count += 1
+            else:
+                error_count += 1
+            _record_agent_batch_event(
+                self.world,
+                "agent_batch_progress",
+                interaction_type="interview",
+                interaction_name=name,
+                agent_count=len(self.agent_ids),
+                concurrency=effective_concurrency,
+                model_id=model,
+                fovs=fovs or [],
+                actions=[],
+                target_ids_sample=self.agent_ids[:5],
+                duration_sec=time.time() - batch_started,
+                success_count=success_count,
+                error_count=error_count,
+                completed_count=completed_count,
+                latest_agent_id=record.agent_id,
+                latest_status=record.status,
+            )
+
+        records = await _run_limited(
+            self.agent_ids,
+            call,
+            effective_concurrency,
+            on_item_done=record_progress,
+            on_heartbeat=record_heartbeat,
+            heartbeat_interval_sec=_resolve_agent_batch_heartbeat_interval(self.world),
+        )
+        batch_result = AgentBatchResult(records)
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_completed",
+            interaction_type="interview",
+            interaction_name=name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            model_id=model,
+            fovs=fovs or [],
+            actions=[],
+            target_ids_sample=self.agent_ids[:5],
+            duration_sec=time.time() - batch_started,
+            success_count=batch_result.success_count,
+            error_count=batch_result.error_count,
+        )
+        return batch_result
 
 
 class AgentSelector:
@@ -483,13 +756,31 @@ class CodeSchedule:
 
         return decorator
 
-    async def execute_tick(self, *, tick: int, world: Any, log: Any = None) -> List[Dict[str, Any]]:
+    async def execute_tick(
+        self,
+        *,
+        tick: int,
+        world: Any,
+        log: Any = None,
+        on_step_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> List[Dict[str, Any]]:
         if not self.steps:
             raise RuntimeError("No code steps registered")
         results = []
         env = world.get_environment()
         for code_step in self.steps:
             started = time.time()
+            previous_step_name = getattr(world, "_current_code_step_name", None)
+            world._current_code_step_name = code_step.name
+            if on_step_event is not None:
+                on_step_event(
+                    {
+                        "event": "code_step_started",
+                        "step": tick,
+                        "step_name": code_step.name,
+                        "at": started,
+                    }
+                )
             ctx = StepContext(
                 step=tick,
                 step_name=code_step.name,
@@ -498,19 +789,45 @@ class CodeSchedule:
                 params=dict(code_step.params),
                 log=log,
             )
-            result = await code_step.fn(ctx)
-            if result is None:
-                result = StepResult()
-            if not isinstance(result, StepResult):
-                raise TypeError(f"Step '{code_step.name}' returned {type(result).__name__}, expected StepResult or None")
-            results.append(
-                {
+            try:
+                result = await code_step.fn(ctx)
+                if result is None:
+                    result = StepResult()
+                if not isinstance(result, StepResult):
+                    raise TypeError(f"Step '{code_step.name}' returned {type(result).__name__}, expected StepResult or None")
+                entry = {
                     "step": tick,
                     "step_name": code_step.name,
                     "duration_sec": time.time() - started,
                     "result": result.to_dict(),
                 }
-            )
+                results.append(entry)
+                if on_step_event is not None:
+                    on_step_event(
+                        {
+                            "event": "code_step_completed",
+                            "step": tick,
+                            "step_name": code_step.name,
+                            "duration_sec": entry["duration_sec"],
+                            "at": time.time(),
+                        }
+                    )
+            except Exception as exc:
+                if on_step_event is not None:
+                    on_step_event(
+                        {
+                            "event": "code_step_failed",
+                            "step": tick,
+                            "step_name": code_step.name,
+                            "duration_sec": time.time() - started,
+                            "error": str(exc),
+                            "error_type": type(exc).__name__,
+                            "at": time.time(),
+                        }
+                    )
+                raise
+            finally:
+                world._current_code_step_name = previous_step_name
         return results
 
 
@@ -518,17 +835,69 @@ async def _run_limited(
     items: Iterable[str],
     call: Callable[[str], Awaitable[AgentCallRecord]],
     concurrency: Optional[int],
+    *,
+    on_item_done: Optional[Callable[[AgentCallRecord], None]] = None,
+    on_heartbeat: Optional[Callable[[List[str], int], None]] = None,
+    heartbeat_interval_sec: Optional[float] = None,
 ) -> List[AgentCallRecord]:
     item_list = list(items)
     if concurrency is None or concurrency <= 0:
-        return list(await asyncio.gather(*(call(item) for item in item_list)))
+        concurrency = max(1, len(item_list))
     semaphore = asyncio.Semaphore(concurrency)
+    active: Dict[str, float] = {}
+    started_count = 0
+    completed_count = 0
+    state_lock = asyncio.Lock()
+    done_event = asyncio.Event()
+
+    async def heartbeat_loop() -> None:
+        if on_heartbeat is None or heartbeat_interval_sec is None or heartbeat_interval_sec <= 0:
+            return
+        while not done_event.is_set():
+            try:
+                await asyncio.wait_for(done_event.wait(), timeout=heartbeat_interval_sec)
+                break
+            except asyncio.TimeoutError:
+                pass
+            async with state_lock:
+                active_ids = list(active.keys())
+                current_started_count = started_count
+                current_completed_count = completed_count
+            if current_completed_count < len(item_list):
+                on_heartbeat(active_ids, current_started_count)
 
     async def guarded(item: str) -> AgentCallRecord:
+        nonlocal started_count, completed_count
         async with semaphore:
-            return await call(item)
+            async with state_lock:
+                active[item] = time.time()
+                started_count += 1
+            try:
+                record = await call(item)
+            except Exception as exc:
+                record = AgentCallRecord(item, "error", error=str(exc))
+            async with state_lock:
+                active.pop(item, None)
+                completed_count += 1
+            if on_item_done is not None:
+                on_item_done(record)
+            return record
 
-    return list(await asyncio.gather(*(guarded(item) for item in item_list)))
+    heartbeat_task = asyncio.create_task(heartbeat_loop())
+    try:
+        return list(await asyncio.gather(*(guarded(item) for item in item_list)))
+    finally:
+        done_event.set()
+        await heartbeat_task
+
+
+def _resolve_agent_batch_heartbeat_interval(world: Any) -> float:
+    raw_value = getattr(world, "_agent_batch_heartbeat_interval_sec", 10.0)
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return 10.0
+    return value
 
 
 def _resolve_agent_call_concurrency(
@@ -562,6 +931,130 @@ def _resolve_agent_call_concurrency(
     return 5
 
 
+def _build_llm_request_options(
+    base_options: Optional[Dict[str, Any]],
+    *,
+    max_tokens: Optional[int] = None,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
+    timeout: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Build safe per-call LLM request options for the agent runtime."""
+    forbidden = {"messages", "tools", "tool_choice", "metadata", "agent_id", "model"}
+    options = {
+        key: value
+        for key, value in dict(base_options or {}).items()
+        if key not in forbidden and value is not None
+    }
+
+    def set_positive_int(name: str, value: Optional[int]) -> None:
+        if value is None:
+            return
+        normalized = int(value)
+        if normalized <= 0:
+            raise ValueError(f"{name} must be a positive integer")
+        options[name] = normalized
+
+    def set_number(name: str, value: Optional[float], *, minimum: Optional[float] = None) -> None:
+        if value is None:
+            return
+        normalized = float(value)
+        if minimum is not None and normalized < minimum:
+            raise ValueError(f"{name} must be >= {minimum}")
+        options[name] = normalized
+
+    set_positive_int("max_tokens", max_tokens)
+    set_number("temperature", temperature, minimum=0.0)
+    set_number("top_p", top_p, minimum=0.0)
+    set_number("timeout", timeout, minimum=0.0)
+    return options
+
+
+def _record_agent_batch_event(
+    world: Any,
+    event_type: str,
+    *,
+    interaction_type: str,
+    interaction_name: Optional[str],
+    agent_count: int,
+    concurrency: int,
+    model_id: Optional[str],
+    fovs: List[str],
+    actions: Optional[List[str]],
+    target_ids_sample: List[str],
+    duration_sec: Optional[float] = None,
+    success_count: Optional[int] = None,
+    error_count: Optional[int] = None,
+    completed_count: Optional[int] = None,
+    started_count: Optional[int] = None,
+    in_flight_count: Optional[int] = None,
+    pending_count: Optional[int] = None,
+    running_agent_ids_sample: Optional[List[str]] = None,
+    latest_agent_id: Optional[str] = None,
+    latest_status: Optional[str] = None,
+) -> None:
+    event_logger = getattr(world, "event_logger", None)
+    if event_logger is None:
+        return
+    try:
+        from .events import BaseEvent
+
+        class AgentBatchEvent(BaseEvent):
+            def __init__(self, *, context_stack: List[Dict[str, Any]]):
+                super().__init__(event_type=event_type, context_stack=context_stack)
+                self.source = "code_schedule"
+                self.event_data = event_data
+
+            def to_dict(self) -> Dict[str, Any]:
+                payload = super().to_dict()
+                payload.update({"source": self.source, "event_data": self.event_data})
+                return payload
+
+        context_stack = []
+        if hasattr(world, "get_context_stack"):
+            try:
+                context_stack = world.get_context_stack().to_list()
+            except Exception:
+                context_stack = []
+
+        event_data: Dict[str, Any] = {
+            "step": getattr(world, "step", None),
+            "step_name": getattr(world, "_current_code_step_name", None),
+            "interaction_type": interaction_type,
+            "interaction_name": interaction_name,
+            "agent_count": agent_count,
+            "concurrency": concurrency,
+            "model_id": model_id,
+            "fovs": list(fovs or []),
+            "actions": list(actions or []),
+            "target_ids_sample": list(target_ids_sample or []),
+        }
+        if duration_sec is not None:
+            event_data["duration_sec"] = duration_sec
+        if success_count is not None:
+            event_data["success_count"] = success_count
+        if error_count is not None:
+            event_data["error_count"] = error_count
+        if completed_count is not None:
+            event_data["completed_count"] = completed_count
+        if started_count is not None:
+            event_data["started_count"] = started_count
+        if in_flight_count is not None:
+            event_data["in_flight_count"] = in_flight_count
+        if pending_count is not None:
+            event_data["pending_count"] = pending_count
+        if running_agent_ids_sample is not None:
+            event_data["running_agent_ids_sample"] = list(running_agent_ids_sample or [])
+        if latest_agent_id is not None:
+            event_data["latest_agent_id"] = latest_agent_id
+        if latest_status is not None:
+            event_data["latest_status"] = latest_status
+
+        event_logger.write_event(AgentBatchEvent(context_stack=context_stack))
+    except Exception:
+        pass
+
+
 def _validate_positive_concurrency(value: Any, label: str) -> int:
     try:
         parsed = int(value)
@@ -590,12 +1083,76 @@ def _extract_call_value(result: Any) -> Any:
     if isinstance(result, dict):
         structured = result.get("structured_output")
         if structured is not None:
+            if isinstance(structured, dict):
+                compact = dict(structured)
+                for key in (
+                    "total_turns",
+                    "llm_calls",
+                    "finish_instruction_called",
+                    "actions_available",
+                    "model_id",
+                ):
+                    if key in result and key not in compact:
+                        compact[key] = result[key]
+                return compact
             return structured
         value = result.get("value")
         if value is not None:
             return value
-        return result
+        compact: Dict[str, Any] = {}
+        for key in (
+            "performative_output",
+            "total_turns",
+            "finish_instruction_called",
+            "actions_available",
+            "model_id",
+        ):
+            if key in result:
+                compact[key] = result[key]
+        actions = result.get("actions")
+        if actions is not None:
+            compact["actions"] = actions
+        if result.get("error"):
+            compact["error"] = result["error"]
+        return compact or result
     return result
+
+
+def _extract_actions_from_record(record: AgentCallRecord) -> List[Dict[str, Any]]:
+    """Normalize action call rows from the public record value or raw agent result."""
+    source_actions = None
+    if isinstance(record.value, dict) and isinstance(record.value.get("actions"), list):
+        source_actions = record.value.get("actions")
+    elif isinstance(record.raw, dict) and isinstance(record.raw.get("actions"), list):
+        source_actions = record.raw.get("actions")
+
+    if not source_actions:
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    for item in source_actions:
+        if not isinstance(item, dict):
+            continue
+        action_name = item.get("action_name") or item.get("name") or item.get("action")
+        row = {
+            "agent_id": record.agent_id,
+            "status": record.status,
+            **{str(key): _jsonable(value) for key, value in item.items()},
+        }
+        if action_name is not None:
+            row["action_name"] = str(action_name)
+        arguments = row.get("arguments")
+        if isinstance(arguments, dict):
+            row["arguments"] = _compact_action_mapping(arguments)
+        result = row.get("result")
+        if isinstance(result, str):
+            text_summary = _compact_action_text(result)
+            row["result"] = text_summary["value"]
+            if text_summary["truncated"]:
+                row["result_length"] = text_summary["length"]
+                row["result_truncated"] = True
+        normalized.append(row)
+    return normalized
 
 
 def _agent_failure_record(

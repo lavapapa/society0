@@ -190,16 +190,72 @@ def _saturation_agent_config(agent_count: int) -> dict:
     }
 
 
+def _social_publish_agent_config(agent_count: int) -> dict:
+    return {
+        "agent_types": [{"id": "social_user", "archetype": "llm"}],
+        "agents": [
+            {
+                "id": f"user_{idx}",
+                "type": "social_user",
+                "persona": (
+                    "A concise social media user in a simulation test. "
+                    "When asked to publish, call publish_post once before finishing the round."
+                ),
+                "state": {"interest": "campus life"},
+            }
+            for idx in range(agent_count)
+        ],
+        "environment": {
+            "type": "social_network",
+            "config": {"social_media": {"content_length_limit": 280}},
+            "state": {},
+        },
+    }
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _successful_resource_calls(records: list[dict], resource_type: str) -> list[dict]:
+    return [
+        record
+        for record in records
+        if record.get("resource_type") == resource_type and record.get("status") == "success"
+    ]
+
+
+def _assert_resource_timing(records: list[dict]) -> None:
+    assert records
+    for record in records:
+        assert isinstance(record.get("duration_sec"), (int, float))
+        assert isinstance(record.get("queue_duration_sec"), (int, float))
+        assert isinstance(record.get("provider_duration_sec"), (int, float))
+        assert record["duration_sec"] >= record["provider_duration_sec"] >= 0
+        assert record["queue_duration_sec"] >= 0
 
 
 def _resource_events(run_dir: Path, resource: str) -> list[dict]:
     return _read_jsonl(run_dir / "logs" / "resources" / f"{resource}.jsonl")
 
 
+def _agent_events(run_dir: Path, agent_id: str) -> list[dict]:
+    return _read_jsonl(run_dir / "logs" / "agents" / f"{agent_id}.jsonl")
+
+
 def _count_events(run_dir: Path, resource: str, event_name: str) -> int:
     return sum(1 for event in _resource_events(run_dir, resource) if event.get("event") == event_name)
+
+
+def _trace_values(record: dict, singular_key: str, plural_key: str) -> set:
+    values = set()
+    singular = record.get(singular_key)
+    if singular is not None:
+        values.add(singular)
+    plural = record.get(plural_key)
+    if isinstance(plural, list):
+        values.update(item for item in plural if item is not None)
+    return values
 
 
 @pytest.mark.asyncio
@@ -317,7 +373,10 @@ async def test_real_society0_interview_e2e_writes_artifacts(tmp_path):
     assert (tmp_path / "summary.json").is_file()
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
     assert any(event["event"] == "llm_request_completed" for event in _resource_events(tmp_path, "llm"))
-    assert any(event["event"] == "embedding_request_completed" for event in _resource_events(tmp_path, "embedding"))
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    _assert_resource_timing(_successful_resource_calls(resource_calls, "llm"))
+    assert _successful_resource_calls(resource_calls, "embedding") == []
+    assert not (tmp_path / "logs" / "resources" / "embedding.jsonl").exists()
 
 
 @pytest.mark.saturation
@@ -427,8 +486,36 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert recall_metrics["remembered_count"] >= max(1, concurrency - 1)
 
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
-    assert _count_events(tmp_path, "llm", "llm_request_completed") >= concurrency * 2
+    llm_completed = _count_events(tmp_path, "llm", "llm_request_completed")
+    assert llm_completed == concurrency * 2
     assert _count_events(tmp_path, "embedding", "embedding_request_completed") >= 1
+    assert summary["resources"]["llm"]["call_count"] == llm_completed
+    assert summary["resources"]["llm"]["error_count"] == 0
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    embedding_traces = [item for item in resource_calls if item.get("resource_type") == "embedding"]
+    traced_step_names = {
+        step_name
+        for item in embedding_traces
+        for step_name in _trace_values(item, "step_name", "step_names")
+    }
+    traced_interaction_types = {
+        interaction_type
+        for item in embedding_traces
+        for interaction_type in _trace_values(item, "interaction_type", "interaction_types")
+    }
+    assert {"seed_memory_under_load", "recall_memory_under_load"}.issubset(traced_step_names)
+    assert {"memory_retrieve", "memory_write"}.issubset(traced_interaction_types)
+
+    # Embedding calls may be cached or microbatched when agents write identical
+    # memory text. Per-agent memory behavior is verified from agent logs.
+    for idx in range(concurrency):
+        agent_id = f"participant_{idx}"
+        agent_events = _agent_events(tmp_path, agent_id)
+        assert any(event.get("event") == "memory_written" for event in agent_events)
+        assert any(
+            event.get("event") == "memory_read" and int(event.get("memory_results_count") or 0) >= 1
+            for event in agent_events
+        )
 
 
 @pytest.mark.asyncio
@@ -452,6 +539,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
             "Return remembered=true if you can answer.",
             output=MemoryCheck,
             retrieve_memory=True,
+            memory_top_k=1,
             save_memory=False,
             concurrency=1,
             max_turns=3,
@@ -472,5 +560,315 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert metrics[0]["metrics"]["recall_errors"] == 0
     assert metrics[0]["metrics"]["remembered_count"] >= 1
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
-    assert any(event["event"] == "llm_request_completed" for event in _resource_events(tmp_path, "llm"))
+    assert _count_events(tmp_path, "llm", "llm_request_completed") == 2
     assert any(event["event"] == "embedding_request_completed" for event in _resource_events(tmp_path, "embedding"))
+    embedding_traces = [
+        item
+        for item in _read_jsonl(tmp_path / "resource_calls.jsonl")
+        if item.get("resource_type") == "embedding"
+    ]
+    assert all(_trace_values(item, "agent_id", "agent_ids") == {"alice"} for item in embedding_traces)
+    assert all(_trace_values(item, "step_name", "step_names") == {"seed_and_recall"} for item in embedding_traces)
+    interaction_types = {
+        interaction_type
+        for item in embedding_traces
+        for interaction_type in _trace_values(item, "interaction_type", "interaction_types")
+    }
+    assert {"memory_retrieve", "memory_write"}.issubset(interaction_types)
+
+
+@pytest.mark.asyncio
+async def test_real_society0_social_publish_action_e2e(tmp_path):
+    agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_ACTION_AGENT_COUNT"), default=5)
+    agent_count = max(2, min(agent_count, 20))
+    llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=agent_count)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_publish_agent_config(agent_count),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="publish_once")
+    async def publish_once(ctx):
+        started = time.perf_counter()
+        result = await ctx.agents.all().instruct(
+            "Call publish_post once. Publish a short original post about campus life, "
+            "then finish the round without calling more tools.",
+            actions=["publish_post"],
+            memory=False,
+            output=None,
+            max_turns=3,
+            max_tokens=80,
+            temperature=0,
+            action_call_limits={"publish_post": 1},
+            name="publish_round",
+        )
+        duration = time.perf_counter() - started
+        return ctx.result(
+            metrics={
+                "publish_errors": result.error_count,
+                "publish_success": result.success_count,
+                "duration_sec": duration,
+            },
+            tables={"published": result.table()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    posts = checkpoint["environment_data"]["state"].get("posts", {})
+    llm_request_count = _count_events(tmp_path, "llm", "llm_request_completed")
+    events = _read_jsonl(tmp_path / "events.jsonl")
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+
+    assert metrics["publish_errors"] == 0
+    assert metrics["publish_success"] == agent_count
+    author_ids = {post.get("author_id") for post in posts.values()}
+    assert len(posts) == agent_count
+    assert {f"user_{idx}" for idx in range(agent_count)}.issubset(author_ids)
+    assert llm_request_count == agent_count
+    assert not any("embedding" in post for post in posts.values())
+    assert any(event.get("event") == "code_step_started" and event.get("step_name") == "publish_once" for event in events)
+    assert sum(1 for event in events if event.get("event_type") == "agent_action") >= agent_count
+    batch_events = [event for event in events if event.get("event_type", "").startswith("agent_batch_")]
+    lifecycle_events = [
+        event
+        for event in batch_events
+        if event.get("event_type") in {"agent_batch_started", "agent_batch_completed"}
+    ]
+    progress_events = [event for event in batch_events if event.get("event_type") == "agent_batch_progress"]
+    assert [event["event_type"] for event in lifecycle_events] == ["agent_batch_started", "agent_batch_completed"]
+    assert lifecycle_events[0]["event_data"]["concurrency"] == agent_count
+    assert lifecycle_events[1]["event_data"]["success_count"] == agent_count
+    assert [event["event_data"]["completed_count"] for event in progress_events] == list(range(1, agent_count + 1))
+    assert progress_events[-1]["event_data"]["success_count"] == agent_count
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    embedding_traces = _successful_resource_calls(resource_calls, "embedding")
+    llm_started = [
+        item
+        for item in resource_calls
+        if item.get("resource_type") == "llm" and item.get("status") == "started"
+    ]
+    embedding_started = [
+        item
+        for item in resource_calls
+        if item.get("resource_type") == "embedding" and item.get("status") == "started"
+    ]
+    assert llm_traces
+    _assert_resource_timing(llm_traces)
+    _assert_resource_timing(embedding_traces)
+    assert len(llm_started) == agent_count
+    assert embedding_started
+    embedded_agent_ids = {
+        agent_id
+        for item in embedding_traces
+        for agent_id in (item.get("agent_ids") or ([item.get("agent_id")] if item.get("agent_id") else []))
+    }
+    embedded_post_ids = {
+        post_id
+        for item in embedding_traces
+        for post_id in (item.get("post_ids") or ([item.get("post_id")] if item.get("post_id") else []))
+    }
+    assert all(item.get("step_name") == "publish_once" for item in llm_traces)
+    assert all(item.get("interaction_name") == "publish_round" for item in llm_traces)
+    assert all(item.get("max_tokens") == 80 for item in llm_traces)
+    assert all(item.get("tools_characters", 0) > 0 for item in llm_traces)
+    assert all(item.get("payload_characters", 0) >= item.get("tools_characters", 0) for item in llm_traces)
+    assert 1 <= sum(item.get("texts_count") or 0 for item in embedding_traces) <= agent_count
+    assert all(item.get("step_name") == "publish_once" for item in embedding_traces)
+    assert all(item.get("interaction_type") == "env_post_embedding" for item in embedding_traces)
+    assert embedded_agent_ids == author_ids
+    assert embedded_post_ids == set(posts.keys())
+
+
+@pytest.mark.asyncio
+async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
+    agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_BROWSE_AGENT_COUNT"), default=2)
+    agent_count = max(2, min(agent_count, 6))
+    llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=10)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_publish_agent_config(agent_count),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="publish_once")
+    async def publish_once(ctx):
+        result = await ctx.agents.all().instruct(
+            "Call publish_post once. Publish a short original post about campus life, "
+            "then finish the round without calling more tools.",
+            actions=["publish_post"],
+            memory=False,
+            output=None,
+            max_turns=3,
+            max_tokens=80,
+            temperature=0,
+            action_call_limits={"publish_post": 1},
+            name="publish_round",
+        )
+        return ctx.result(metrics={"publish_errors": result.error_count})
+
+    @engine.step(name="browse_once")
+    async def browse_once(ctx):
+        result = await ctx.agents.all().instruct(
+            "Browse your recommended feed. Call get_trending_posts at most once if useful. "
+            "Then make one real interaction by commenting on post_1 if it exists. "
+            "After the comment, stop the round.",
+            fovs=["recommended_feed"],
+            actions=["get_trending_posts", "comment"],
+            memory=False,
+            output=None,
+            max_turns=3,
+            max_tokens=120,
+            temperature=0,
+            action_call_limits={"get_trending_posts": 1, "comment": 1},
+            completion_action_tags=["social_write"],
+            name="browse_round",
+        )
+        rows = result.table()
+        return ctx.result(
+            metrics={
+                "browse_errors": result.error_count,
+                "browse_success": result.success_count,
+                "max_browse_turns": max(row.get("total_turns", 0) for row in rows),
+                "comment_count": result.action_counts().get("comment", 0),
+            },
+            tables={"browse": rows, "browse_actions": result.actions()},
+            observations={"action_counts": result.action_counts()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")
+    publish_metrics = metrics[0]["metrics"]
+    browse_metrics = metrics[1]["metrics"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    browse_llm_traces = [item for item in llm_traces if item.get("step_name") == "browse_once"]
+
+    assert publish_metrics["publish_errors"] == 0
+    assert browse_metrics["browse_errors"] == 0
+    assert browse_metrics["browse_success"] == agent_count
+    assert browse_metrics["max_browse_turns"] <= 2
+    assert browse_metrics["comment_count"] >= 1
+    assert summary["agent_operations"]["browse_once"]["turns_max"] <= 2
+    assert summary["agent_operations"]["browse_once"]["action_counts"].get("comment", 0) >= 1
+    assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["payload_characters"] >= (
+        summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_characters"]
+    )
+    assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_count_max"] >= 1
+    assert len(browse_llm_traces) <= agent_count * 2
+    assert all(item.get("max_tokens") == 120 for item in browse_llm_traces)
+    _assert_resource_timing(browse_llm_traces)
+
+
+@pytest.mark.asyncio
+async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
+    agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_MULTI_TICK_AGENT_COUNT"), default=2)
+    agent_count = max(2, min(agent_count, 4))
+    llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=10)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_publish_agent_config(agent_count),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="publish_first_tick")
+    async def publish_first_tick(ctx):
+        if ctx.step != 0:
+            return ctx.result(metrics={"published_this_tick": 0})
+        result = await ctx.agents.all().instruct(
+            "Call publish_post once with a concise original campus-life post, then stop.",
+            actions=["publish_post"],
+            memory=False,
+            output=None,
+            max_turns=3,
+            max_tokens=80,
+            temperature=0,
+            action_call_limits={"publish_post": 1},
+            name="multi_tick_publish",
+        )
+        return ctx.result(
+            metrics={"published_this_tick": result.success_count, "publish_errors": result.error_count},
+            tables={"published": result.table()},
+        )
+
+    @engine.step(name="browse_second_tick")
+    async def browse_second_tick(ctx):
+        if ctx.step != 1:
+            return ctx.result(metrics={"browsed_this_tick": 0})
+        result = await ctx.agents.all().instruct(
+            "Browse the recommended feed. Comment once on post_1 if it is visible, then stop.",
+            fovs=["recommended_feed"],
+            actions=["comment"],
+            memory=False,
+            output=None,
+            max_turns=3,
+            max_tokens=120,
+            temperature=0,
+            action_call_limits={"comment": 1},
+            completion_action_tags=["social_write"],
+            name="multi_tick_browse",
+        )
+        rows = result.table()
+        return ctx.result(
+            metrics={
+                "browsed_this_tick": result.success_count,
+                "browse_errors": result.error_count,
+                "max_browse_turns": max(row.get("total_turns", 0) for row in rows),
+                "comment_count": result.action_counts().get("comment", 0),
+            },
+            tables={"browse": rows, "browse_actions": result.actions()},
+            observations={"action_counts": result.action_counts()},
+        )
+
+    await engine.run(steps=2)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    events = _read_jsonl(tmp_path / "events.jsonl")
+
+    posts = checkpoint["environment_data"]["state"].get("posts", {})
+    recommended_posts = checkpoint["environment_data"]["state"].get("recommended_posts", {})
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    embedding_traces = _successful_resource_calls(resource_calls, "embedding")
+
+    assert summary["steps_requested"] == 2
+    assert summary["steps_completed"] == 2
+    assert summary["final_step"] == 2
+    assert len(posts) == agent_count
+    assert any(int(post.get("view_count") or 0) >= 1 for post in posts.values())
+    assert recommended_posts
+    assert metrics[0]["step"] == 0 and metrics[0]["metrics"]["published_this_tick"] == agent_count
+    assert metrics[1]["step"] == 0 and metrics[1]["metrics"]["browsed_this_tick"] == 0
+    assert metrics[2]["step"] == 1 and metrics[2]["metrics"]["published_this_tick"] == 0
+    assert metrics[3]["step"] == 1 and metrics[3]["metrics"]["browsed_this_tick"] == agent_count
+    assert metrics[3]["metrics"]["max_browse_turns"] <= 2
+    assert metrics[3]["metrics"]["comment_count"] >= 1
+
+    assert summary["agent_operations"]["publish_first_tick"]["agent_count"] == agent_count
+    assert summary["agent_operations"]["publish_first_tick"]["action_counts"].get("publish_post") == agent_count
+    assert summary["agent_operations"]["browse_second_tick"]["agent_count"] == agent_count
+    assert summary["agent_operations"]["browse_second_tick"]["action_counts"].get("comment", 0) >= 1
+    assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["call_count"] == agent_count
+    assert summary["agent_operations"]["publish_first_tick"]["resources"]["embedding"]["call_count"] >= 1
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["call_count"] <= agent_count * 2
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["embedding"]["call_count"] >= 1
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["messages_count_max"] <= 4
+    assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["tools_characters"] > 0
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["payload_characters"] >= (
+        summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["tools_characters"]
+    )
+
+    assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) == agent_count
+    assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) <= agent_count * 2
+    assert any(item.get("interaction_type") == "env_post_embedding" for item in embedding_traces)
+    assert any(item.get("interaction_type") == "semantic_recommendation" for item in embedding_traces)
+    assert any(event.get("event_type") == "social_recommendation_state_flushed" for event in events)

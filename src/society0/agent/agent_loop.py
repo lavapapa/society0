@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import re
 import logging
 import json_repair
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -37,17 +38,15 @@ DEFAULT_REASONING_STAGES = [
     {"name": "回答", "desc": "给出回答或执行行动"}
 ]
 
-# Default act prompt template
-DEFAULT_AGENT_ACT_PROMPT = """你的决策过程必须遵循一个由"阶段标记"驱动的线性流程。阶段标记的格式为 `-> STAGE_BEGIN: StageName`。
-
-本次任务的阶段顺序是:
+# Default act prompt template. Keep this concise: it is sent to every LLM agent
+# interaction that exposes ordinary actions.
+DEFAULT_AGENT_ACT_PROMPT = """按任务需要简要思考并行动。可参考阶段：
 {stages}
 
-- 你的回应必须从第一个阶段开始。在每个阶段标记下，完成该阶段的任务。
-- 你可以自行决定何时从一个阶段切换到下一个阶段。
-- 你的整个回应应该是一个包含这些标记的、连贯的文本块。
-- 你不能重复、跳跃或返回到之前的阶段，必须完全依据给定的阶段顺序。
-- 阶段顺序不能被工具调用打断而重置。工具调用属于一个阶段的输出的一部分。"""
+- 如果需要使用工具，直接调用工具，不要只描述工具调用。
+- 任务完成后停止；不要重复调用已经完成的工具。"""
+
+SUBMIT_RESULT_ONLY_PROMPT = "直接调用 submit_result 工具提交最终结构化结果；不要输出阶段标记、解释或额外文本。"
 
 
 def normalize_reasoning_stages(
@@ -117,6 +116,43 @@ class ActionCall:
     action_name: str
     arguments: Dict[str, Any]
     result: Any = None
+    status: str = "success"
+    error: Optional[str] = None
+
+
+def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
+    """Classify an action result into execution status for loop control.
+
+    Environment actions often return user-facing strings instead of raising.
+    Treat clear failure strings as action errors so completion tags do not end
+    the round after a failed write such as "Post post_x not found".
+    """
+    if isinstance(result, dict):
+        explicit_ok = result.get("ok")
+        if explicit_ok is False:
+            return "error", str(result.get("error") or result.get("message") or "action failed")
+        explicit_status = str(result.get("status") or "").strip().lower()
+        if explicit_status in {"error", "failed", "failure", "blocked"}:
+            return "error", str(result.get("error") or result.get("message") or explicit_status)
+        return "success", None
+
+    text = str(result or "").strip()
+    lowered = text.lower()
+    failure_markers = (
+        "error:",
+        "错误",
+        "失败",
+        "不存在",
+        "not found",
+        "does not exist",
+        "cannot ",
+        "can't ",
+        "invalid ",
+        "未找到",
+    )
+    if lowered.startswith("❌") or any(marker in lowered for marker in failure_markers):
+        return "error", text
+    return "success", None
 
 @dataclass
 class ActionSet:
@@ -169,7 +205,9 @@ class ActionSet:
 
             # If context_provider is available, use context management
             if context_provider:
-                current_stack, update_context = context_provider()
+                provided = context_provider()
+                current_stack, update_context = provided[0], provided[1]
+                record_action = provided[2] if len(provided) > 2 else None
 
                 # Import context management utilities
                 from ..context_stack import action_context
@@ -180,16 +218,23 @@ class ActionSet:
                     update_context(new_stack)
 
                     try:
-                        # Execute the action function
-                        result = action_func(**kwargs)
+                        try:
+                            # Execute the action function
+                            result = action_func(**kwargs)
 
-                        # Handle async functions properly
-                        import asyncio
-                        if asyncio.iscoroutine(result):
-                            result = await result
+                            # Handle async functions properly
+                            import asyncio
+                            if asyncio.iscoroutine(result):
+                                result = await result
 
-                        return result
-
+                            if record_action is not None:
+                                status, _ = _semantic_action_status(result)
+                                record_action(action_name, kwargs, result, status)
+                            return result
+                        except Exception as exc:
+                            if record_action is not None:
+                                record_action(action_name, kwargs, str(exc), "error")
+                            raise
                     finally:
                         # Always restore the original context stack after action execution
                         update_context(current_stack)
@@ -224,6 +269,11 @@ class ActionSet:
             New ActionSet with filtered actions
         """
         filtered_actionset = ActionSet()
+        action_name_aliases = set()
+        for registered_name in self.actions:
+            action_name_aliases.add(registered_name)
+            if "." in registered_name:
+                action_name_aliases.add(registered_name.split(".")[-1])
 
         for action_name, action_info in self.actions.items():
             action_action_tags = action_info.get("tags", [])
@@ -238,12 +288,20 @@ class ActionSet:
                 if any(tag in merged_tags for tag in exclude_tags):
                     continue  # Skip this action
 
-            # Check inclusion
-            if action_tags:
-                # If action_tags is provided, only include actions that have at least one matching tag
-                if not any(tag in merged_tags for tag in action_tags):
+            # Check inclusion. None means "no filtering"; an explicit empty
+            # list means "expose no ordinary actions" and is used by interview.
+            if action_tags is not None:
+                matched = False
+                for tag in action_tags:
+                    if tag in action_name_aliases:
+                        if tag in implicit_tags:
+                            matched = True
+                            break
+                    elif tag in merged_tags:
+                        matched = True
+                        break
+                if not matched:
                     continue  # Skip this action
-            # If action_tags is None or empty, include all actions (that aren't excluded)
 
             # Add action to filtered set
             filtered_actionset.actions[action_name] = action_info.copy()  # Make a copy to avoid reference issues
@@ -417,8 +475,12 @@ async def execute_action_loop(
     context_provider: Optional[Callable] = None,
     *,
     terminal_action_names: Optional[List[str]] = None,
+    completion_action_tags: Optional[List[str]] = None,
     turn_remain_hint: bool = True,
-    hint_on_remain_turn: int = 1
+    hint_on_remain_turn: int = 1,
+    max_action_calls: Optional[int] = None,
+    action_call_limits: Optional[Dict[str, int]] = None,
+    llm_request_options: Optional[Dict[str, Any]] = None,
 ) -> LoopResult:
     """
     Execute a configurable multi-stage action loop.
@@ -434,6 +496,9 @@ async def execute_action_loop(
         default_stage_name: Name for content that appears before any stage markers
         context_provider: Function that returns (current_context_stack, update_function) for action context tracking
         terminal_action_names: Action names that should terminate loop once called
+        completion_action_tags: Action tags that mark a successful action as
+            completing this instruction. This is useful for workflows such as
+            "read tools may continue, but a social_write action ends the round".
 
     Returns:
         LoopResult containing parsed stages, action call results, and execution history
@@ -441,15 +506,26 @@ async def execute_action_loop(
 
     # Normalize stages to unified dict format
     normalized_stages = normalize_reasoning_stages(stages)
+    safe_llm_request_options = {
+        str(key): value
+        for key, value in dict(llm_request_options or {}).items()
+        if key not in {"messages", "tools", "tool_choice", "metadata", "agent_id", "model"}
+        and value is not None
+    }
 
     # Extract stage names for parsing
     stage_names = [stage["name"] for stage in normalized_stages]
 
-    # Format stages for prompt injection
-    stages_text = format_stages_for_prompt(normalized_stages)
+    # Get actions schema for OpenAI format
+    actions_schema = action_set.get_openai_actions_schema() if action_set.actions else []
+    submit_result_only = list(action_set.actions.keys()) == ["submit_result"]
 
     # Initialize conversation history
-    flow_section = f"[输出流程]\n{act_prompt.format(stages=stages_text)}"
+    if submit_result_only:
+        flow_section = f"[输出流程]\n{SUBMIT_RESULT_ONLY_PROMPT}"
+    else:
+        stages_text = format_stages_for_prompt(normalized_stages)
+        flow_section = f"[输出流程]\n{act_prompt.format(stages=stages_text)}"
     system_message = f"{system_prompt}\n\n{flow_section}"
     messages = [
         {
@@ -479,25 +555,100 @@ async def execute_action_loop(
         model_type=None
     )
 
-    # Get actions schema for OpenAI format
-    actions_schema = action_set.get_openai_actions_schema() if action_set.actions else []
     terminal_action_name_set = {
         str(name).strip().lower()
         for name in (terminal_action_names or [])
         if str(name).strip()
     }
+    completion_action_tag_set = {
+        str(tag).strip().lower()
+        for tag in (completion_action_tags or [])
+        if str(tag).strip()
+    }
+    if submit_result_only:
+        terminal_action_name_set.add("submit_result")
+    if max_action_calls is not None:
+        max_action_calls = int(max_action_calls)
+        if max_action_calls < 0:
+            raise ValueError("max_action_calls must be non-negative")
+    normalized_action_limits = {
+        str(name).strip().lower(): int(limit)
+        for name, limit in (action_call_limits or {}).items()
+        if str(name).strip()
+    }
+    for action_name, limit in normalized_action_limits.items():
+        if limit < 0:
+            raise ValueError(f"action_call_limits[{action_name}] must be non-negative")
+    action_call_counts: Counter[str] = Counter()
+
+    def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
+        tags = {str(tag).lower() for tag in (action_info.get("tags", []) or [])}
+        return action_name == "submit_result" or "system" in tags
+
+    def _action_aliases(action_name: str) -> set[str]:
+        aliases = {str(action_name).lower()}
+        if "." in action_name:
+            aliases.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
+        return aliases
+
+    def _action_limit_for(action_name: str) -> Optional[int]:
+        for alias in _action_aliases(action_name):
+            if alias in normalized_action_limits:
+                return normalized_action_limits[alias]
+        return None
+
+    def _default_tool_choice() -> Any:
+        if not actions_schema:
+            return None
+        if list(action_set.actions.keys()) == ["submit_result"]:
+            return {"type": "function", "function": {"name": "submit_result"}}
+
+        return "auto"
+
+    def _all_available_action_budgets_exhausted() -> bool:
+        """Return true when another LLM turn cannot execute any non-system action."""
+        if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+            return True
+
+        limited_action_seen = False
+        for action_name, action_info in action_set.actions.items():
+            if _is_system_action(action_name, action_info):
+                continue
+
+            action_key = action_name.lower()
+            limit = _action_limit_for(action_name)
+            if limit is None:
+                return False
+
+            limited_action_seen = True
+            if action_call_counts[action_key] < limit:
+                return False
+
+        return limited_action_seen
+
+    def _action_matches_completion_tags(action_name: str) -> bool:
+        if not completion_action_tag_set:
+            return False
+        action_info = action_set.actions.get(action_name) or {}
+        explicit_tags = action_info.get("tags", []) or []
+        merged_tags = {str(action_name).lower()}
+        if "." in action_name:
+            merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
+        merged_tags.update(str(tag).lower() for tag in explicit_tags)
+        return any(tag in merged_tags for tag in completion_action_tag_set)
 
 
     for turn in range(max_turns):
         total_turns = turn + 1
-        print(f"Action loop turn {total_turns}/{max_turns}")
+        logger.debug("Action loop turn %s/%s", total_turns, max_turns)
 
         # Call LLM with current message history and actions
         llm_payload = {
             "messages": messages,
             "tools": actions_schema if actions_schema else None,
-            "tool_choice": "auto" if actions_schema else None  # 确保设置了 tool_choice
+            "tool_choice": _default_tool_choice()
         }
+        llm_payload.update(safe_llm_request_options)
 
         # --- 调试点：注释掉旧的调试信息 ---
         # print(f"--- [DEBUG] LLM Payload for Turn {turn + 1} ---")
@@ -536,7 +687,11 @@ async def execute_action_loop(
                 loop_result.model_type = response_metadata["model_type"]
 
             # 推理模型监控输出
-            print(f"🧠 Reasoning Content (Turn {total_turns}): {reasoning_content[:100]}...")
+            logger.debug(
+                "Reasoning content captured for turn %s: %s",
+                total_turns,
+                reasoning_content[:100],
+            )
         else:
             # 即使没有推理内容，也要设置模型类型（确保所有响应都有类型）
             if loop_result.model_type is None:
@@ -572,10 +727,54 @@ async def execute_action_loop(
 
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
-            print(f"🔧 Executing Action: {action_call.action_name}")
+            logger.debug("Executing action: %s", action_call.action_name)
             if action_call.arguments:
-                print(f"   Parameters: {action_call.arguments}")
+                logger.debug("Action parameters: %s", action_call.arguments)
             is_last_action_in_turn = idx == len(action_calls) - 1
+            action_key = action_call.action_name.lower()
+            action_succeeded = False
+            limit_error: Optional[str] = None
+            if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+                limit_error = f"Action budget exhausted: max_action_calls={max_action_calls}"
+            per_action_limit = _action_limit_for(action_call.action_name)
+            if limit_error is None and per_action_limit is not None and action_call_counts[action_key] >= per_action_limit:
+                limit_error = (
+                    f"Action budget exhausted for {action_call.action_name}: "
+                    f"limit={per_action_limit}"
+                )
+
+            if limit_error is not None:
+                base_content = f"Error: {limit_error}. The action was not executed."
+                display_content = base_content
+                if should_hint and is_last_action_in_turn:
+                    display_content = (
+                        base_content
+                        + "\n\n⚠️ 提示：这是你最后一次行动机会，请在本轮完成必要的工具调用或提交结果。"
+                    )
+                tool_message = {
+                    "role": "tool",
+                    "content": display_content,
+                    "tool_call_id": action_call.call_id
+                }
+                messages.append(tool_message)
+                turn_tool_messages.append({
+                    "role": "tool",
+                    "content": base_content,
+                    "tool_call_id": action_call.call_id
+                })
+                action_call.result = limit_error
+                action_call.status = "blocked"
+                action_call.error = limit_error
+                executed_action_calls.append(action_call)
+                if context_provider is not None:
+                    try:
+                        provided = context_provider()
+                        record_action = provided[2] if len(provided) > 2 else None
+                        if record_action is not None:
+                            record_action(action_call.action_name, action_call.arguments, limit_error, "blocked")
+                    except Exception:
+                        logger.debug("Failed to record blocked action %s", action_call.action_name, exc_info=True)
+                continue
 
             try:
                 # Execute the action call with context management
@@ -605,13 +804,17 @@ async def execute_action_loop(
                     "tool_call_id": action_call.call_id
                 })
                 action_call.result = action_result
+                action_call.status, action_call.error = _semantic_action_status(action_result)
                 executed_action_calls.append(action_call)
+                if action_call.status == "success":
+                    action_call_counts[action_key] += 1
+                    action_succeeded = True
 
-                print(f"✅ Action Result: {str(action_result)[:100]}")
+                logger.debug("Action result: %s", str(action_result)[:100])
 
             except Exception as e:
                 error_msg = f"Error executing action {action_call.action_name}: {str(e)}"
-                print(f"❌ Action Error: {error_msg}")
+                logger.debug("Action error: %s", error_msg)
 
                 base_content = f"Error: {error_msg}"
                 display_content = base_content
@@ -632,11 +835,23 @@ async def execute_action_loop(
                     "tool_call_id": action_call.call_id
                 })
                 action_call.result = error_msg
+                action_call.status = "error"
+                action_call.error = error_msg
                 executed_action_calls.append(action_call)
 
             if action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
-                print(f"🛑 Terminal Action Hit: {action_call.action_name}, ending loop early")
+                logger.debug(
+                    "Terminal action hit: %s, ending loop early",
+                    action_call.action_name,
+                )
+                break
+            if action_succeeded and _action_matches_completion_tags(action_call.action_name):
+                terminate_loop = True
+                logger.debug(
+                    "Completion action tag hit: %s, ending loop early",
+                    action_call.action_name,
+                )
                 break
 
         all_action_calls.extend(executed_action_calls)
@@ -650,11 +865,13 @@ async def execute_action_loop(
                     "action_name": ac.action_name,
                     "arguments": ac.arguments,
                     "result": ac.result,
+                    "status": ac.status,
+                    **({"error": ac.error} if ac.error else {}),
                 }
                 for ac in executed_action_calls
             ]
 
-        if terminate_loop:
+        if terminate_loop or _all_available_action_budgets_exhausted():
             break
         continue
 
@@ -670,6 +887,8 @@ async def execute_action_loop(
             "arguments": action_call.arguments,
             "call_id": action_call.call_id,
             "result": action_call.result,
+            "status": action_call.status,
+            **({"error": action_call.error} if action_call.error else {}),
         }
         for action_call in all_action_calls
     ]

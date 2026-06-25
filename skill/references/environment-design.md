@@ -33,6 +33,7 @@ The current runtime connects env and agents this way:
 - FoV results are inserted into the user prompt for `instruct(...)` or `interview(...)`.
 - Actions are exposed as callable tools during `instruct(...)`.
 - Agent `state` appears in the LLM prompt. Do not put hidden treatment labels or ground-truth answers there.
+- `before_tick(ctx)` and `after_tick(ctx)` let an env maintain derived caches, indexes, and delayed writes around each simulation tick.
 
 Design implication: use env state and FoVs for social context; use agent state for what the agent should know about itself; use agent properties or run tables for researcher-only labels.
 
@@ -66,6 +67,28 @@ Discover first:
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
 ```
+
+## Env Tick Lifecycle Hooks
+
+Every code-driven simulation tick has this order:
+
+```text
+Environment.before_tick(ctx)
+registered code steps in order
+Environment.after_tick(ctx)
+world.advance_step()
+```
+
+`EnvironmentTickContext` contains `step`, `world`, and `log`. Hooks can be sync or async. If `before_tick` or `after_tick` raises, the run fails and Society0 still writes the final checkpoint through the normal failure path. If a code step raises, `after_tick` is not called.
+
+Use hooks for environment maintenance that should not be hidden inside user-facing experiment logic:
+
+- rebuild or clear derived runtime caches.
+- refresh indexes from env state.
+- batch-write delayed counters after all agents have acted.
+- flush pending observations that should only commit on a successful tick.
+
+Do not use hooks to hide the main experimental mechanism. A researcher-facing rule, intervention, or measurement should usually stay explicit in `step(ctx)`.
 
 ## Built-In Environments
 
@@ -104,16 +127,19 @@ Important config areas:
 - `distribution.type`: `random`, `small_world`, `scale_free`, `complete`, or `cv_targeted`.
 - `is_directed`: whether relationships behave like directed follows.
 - `social_media.recommendation`: weights for chronology, engagement, similarity, and network proximity.
+- `social_media.recommendation.full_scan_until`: active pool size threshold for full-pool scoring. Default is 5000.
+- `social_media.recommendation.recent_keep_count`, `top_engagement_keep_count`, and `min_lifetime_ticks`: pruning controls used only after the active pool exceeds the full-scan threshold.
+- `social_media.recommendation.feed_content_preview_chars`: maximum characters shown from each post in `recommended_feed`.
+- `social_media.recommendation.feed_max_chars`: maximum total characters returned by `recommended_feed`.
 - `social_media.trending`: whether trending content is calculated and injected.
 - `social_media.content_length_limit`: content length guard.
 
 Useful FoVs include:
 
-- `get_recommended_feed` / `recommended_feed`: personalized feed and follow suggestions.
+- `recommended_feed`: personalized feed and follow suggestions. The Python method is currently `get_recommended_feed(...)`, but use `recommended_feed` in `fovs=[...]`.
+- `recommended_feed_preview`: same recommendation view without recording impressions or updating `recommended_posts`; use it for interviews, measurement, debugging, and pre-run inspection.
 - `get_trending_feed` / `trending_feed`: trending feed when enabled.
-- `get_trending_posts` / `trending_posts`: current trending posts.
 - `get_notifications` / `notifications`: interactions involving the current agent.
-- `get_agent_profile` / `agent_profile`: profile and social statistics.
 
 Useful actions include:
 
@@ -124,8 +150,30 @@ Useful actions include:
 - `follow`
 - `unfollow`
 - `get_post_details`
+- `get_trending_posts`
+- `get_agent_profile`
 
-For prototypes, call `instruct(..., actions=None)` or `actions=["environment"]`. Narrow later by action name or short tag. Use `actions=["memory"]` only for memory actions.
+Read actions such as `get_trending_posts`, `get_post_details`, and `get_agent_profile` are active tools, not FoVs. Their output can include both user IDs and post IDs. When a later write action needs a post reference, use the explicit `post_id` / `帖子 ID` field. Do not pass an author/user ID as `post_id`.
+
+`get_trending_posts` represents actively opening the trending panel, so it records exposure for the returned posts. The exposure is batched and flushed after the tick, just like `recommended_feed`. Use the trending FoV/preview-style inspection path only when the researcher wants to inspect ranking without creating an exposure event.
+
+For prototypes, call `instruct(..., actions=None)` or `actions=["environment"]`. `actions=None` exposes default non-memory actions. Narrow later by action name or short tag. Use `actions=["memory"]` only when the experiment explicitly needs agents to call memory tools; ordinary `memory=True` already handles retrieval and saving.
+
+Recommendation behavior:
+
+- The recommended feed scores the full active pool by default; it no longer takes only the latest `candidate_count` posts before ranking.
+- `candidate_count` remains for legacy/semantic recall compatibility and should not be described as the default recommendation pool size.
+- Under `full_scan_until`, all posts remain eligible for recommendation unless filtered by the current viewer.
+- Above `full_scan_until`, the active pool keeps recent posts, high-engagement posts, and posts that have not reached `min_lifetime_ticks`.
+- Pruning only removes posts from the recommendation pool. It does not delete posts, logs, checkpoints, analysis data, or detail lookup ability.
+- Engagement score uses the same feature layer for recommendations and trending: likes, replies, and reposts.
+- View counts are recorded as impressions and flushed after the tick when agents read `recommended_feed`. Reading a feed during a code step should not immediately mutate the post's `view_count`.
+- Use `recommended_feed_preview` when the researcher wants to measure perceptions or inspect recommendations without creating an exposure event. Do not use preview for actual browsing behavior.
+- Post embeddings are generated once when possible. Semantic recommendation queries the active collection, not a latest-post sample; under the full-scan threshold the semantic query should cover the whole active pool.
+- The feed FoV and trending output are prompt-budgeted: long post bodies and very long feeds are truncated or rendered compactly for the LLM prompt. This does not delete or truncate the underlying post state, logs, checkpoint data, or analysis records.
+- `social_recommendation_trace` events include a compact `score_breakdown` for returned posts: rank, post ID, author ID, chronology, engagement, network, semantic contributions, and total score. Use it to explain why a post was exposed without treating it as the full research data source.
+
+When helping a researcher, explain the recommendation mechanism as part of the experimental condition: active pool rule, weights, pruning thresholds, semantic similarity setting, and final `post_count`. For communication research, these settings can be the treatment.
 
 ### `round_robin_conversation`
 

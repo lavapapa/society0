@@ -46,6 +46,43 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 print = _debug_print
 
 
+def _summarize_action_arguments(arguments: Dict[str, Any], *, text_limit: int = 120, sample_limit: int = 10) -> Dict[str, Any]:
+    """Return monitor-friendly action arguments without storing large payloads."""
+    compact: Dict[str, Any] = {}
+    for key, value in (arguments or {}).items():
+        if isinstance(value, str):
+            summary = summarize_text(value, limit=text_limit)
+            compact[key] = summary["preview"]
+            compact[f"{key}_length"] = summary["length"]
+            compact[f"{key}_truncated"] = summary["truncated"]
+        elif isinstance(value, (list, tuple, set)):
+            values = list(value)
+            compact[key] = values[:sample_limit]
+            compact[f"{key}_count"] = len(values)
+            compact[f"{key}_sampled"] = len(values) > sample_limit
+        elif isinstance(value, dict):
+            compact[key] = {
+                "type": "dict",
+                "length": len(value),
+                "keys_sample": [str(item_key) for item_key in list(value.keys())[:sample_limit]],
+            }
+        else:
+            compact[key] = copy.deepcopy(value)
+    return compact
+
+
+def _sanitize_llm_request_options(options: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Keep user-facing generation options from overriding runtime-owned fields."""
+    if not options:
+        return {}
+    forbidden = {"messages", "tools", "tool_choice", "metadata", "agent_id", "model"}
+    return {
+        str(key): value
+        for key, value in dict(options).items()
+        if key not in forbidden and value is not None
+    }
+
+
 def _parse_structured_json_from_model_text(content: str, *, assume_prefilled_object: bool = False) -> Any:
     """Parse JSON from model text, including continuations after a prefilled ``{``."""
     import json_repair
@@ -89,6 +126,18 @@ def _parse_structured_json_from_model_text(content: str, *, assume_prefilled_obj
         if parsed is not None:
             return parsed
     return None
+
+
+def _validate_structured_output_against_schema(data: Any, schema: Dict[str, Any]) -> bool:
+    """Validate structured model output against a JSON Schema."""
+    try:
+        from jsonschema import Draft202012Validator, validate
+
+        Draft202012Validator.check_schema(schema)
+        validate(instance=data, schema=schema)
+        return True
+    except Exception:
+        return False
 
 
 class Agent:
@@ -502,10 +551,17 @@ class LLMAgent(Agent):
                       *,
                       override_actionset: Optional[Any] = None,
                       max_turns: int = 3,
+                      memory_top_k: int = 10,
                       extract_memory: bool = True,
                       turn_remain_hint: bool = True,
                       hint_on_remain_turn: int = 1,
-                      terminal_action_names: Optional[List[str]] = None) -> Dict[str, Any]:
+                      terminal_action_names: Optional[List[str]] = None,
+                      completion_action_tags: Optional[List[str]] = None,
+                      max_action_calls: Optional[int] = None,
+                      action_call_limits: Optional[Dict[str, int]] = None,
+                      prefer_direct_json_output: bool = False,
+                      llm_request_options: Optional[Dict[str, Any]] = None,
+                      trace: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         完整的指令执行方法 - LLMAgent的"大脑中枢"
 
@@ -527,6 +583,7 @@ class LLMAgent(Agent):
             output_schema: 强制结构化输出的schema
             reasoning_stages: 覆盖默认的推理阶段配置
             terminal_action_names: 命中后立即结束本次 agent loop 的动作名列表
+            completion_action_tags: 命中这些标签的动作成功执行后结束本次 agent loop
 
         Returns:
             指令执行结果
@@ -534,9 +591,26 @@ class LLMAgent(Agent):
         effective_llm_call = llm_call_override or self._llm_call
         if not effective_llm_call:
             raise RuntimeError(f"LLM call function not initialized for Agent '{self.id}'")
+        safe_llm_request_options = _sanitize_llm_request_options(llm_request_options)
 
         context = context or {}
         current_step = current_step or 0
+        try:
+            effective_memory_top_k = int(memory_top_k)
+        except (TypeError, ValueError):
+            raise ValueError("memory_top_k must be a positive integer")
+        if effective_memory_top_k <= 0:
+            raise ValueError("memory_top_k must be a positive integer")
+
+        def build_memory_trace(operation: str) -> Dict[str, Any]:
+            metadata = {key: value for key, value in dict(trace or {}).items() if value is not None}
+            if metadata.get("interaction_type") is not None:
+                metadata.setdefault("parent_interaction_type", metadata.get("interaction_type"))
+            metadata["interaction_type"] = operation
+            metadata.setdefault("interaction_name", operation)
+            metadata.setdefault("agent_id", self.id)
+            metadata.setdefault("step", current_step)
+            return metadata
 
         # 1. 处理提醒 - 检查并清空提醒列表
         reminders_text = ""
@@ -552,18 +626,18 @@ class LLMAgent(Agent):
             try:
                 memory_results = await self._memory.retrieve(
                     query=instruction,
-                    top_k=10,
-                    current_step=current_step
+                    top_k=effective_memory_top_k,
+                    current_step=current_step,
+                    trace=build_memory_trace("memory_retrieve"),
                 ) or []
                 if memory_results:
                     memory_text = "\n".join([f"- {mem}" for mem in memory_results])
-                    # 记忆系统监控
-                    print(f"🧠 Agent {self.id} Memory Retrieval:")
-                    print(f"   Query: {instruction[:50]}...")
-                    print(f"   Retrieved {len(memory_results)} memories")
-                    for i, mem in enumerate(memory_results[:3], 1):  # 显示前3条
-                        print(f"   {i}. {mem[:80]}...")
-                    logger.debug(f"Agent {self.id} retrieved {len(memory_results)} memories")
+                    logger.debug(
+                        "Agent %s retrieved %s memories for instruction prefix=%r",
+                        self.id,
+                        len(memory_results),
+                        instruction[:50],
+                    )
 
                 summary = summarize_text(memory_text)
                 self._log(
@@ -632,7 +706,7 @@ class LLMAgent(Agent):
         available_actionset = None
         if override_actionset is not None:
             available_actionset = override_actionset
-        elif self._actionset and action_tags:
+        elif self._actionset and action_tags is not None:
             # 注释掉详细的调试信息
             # print(f"--- [DEBUG] Filtering ActionSet. Full list: {list(self._actionset.actions.keys())}")
             # print(f"Filtering with tags: {action_tags}")
@@ -646,7 +720,11 @@ class LLMAgent(Agent):
 
             logger.debug(f"Agent {self.id} filtered actions: {len(available_actionset.actions)} available")
         elif self._actionset:
-            available_actionset = self._actionset
+            # By default expose ordinary environment actions, but keep memory
+            # tools opt-in. `memory=True` already performs framework-managed
+            # retrieval and save; exposing recall/remember by default causes
+            # redundant LLM turns in structured tasks.
+            available_actionset = self._actionset.filter_by_tags(exclude_tags=["memory"])
             # print(f"--- [DEBUG] No action_tags provided, using full ActionSet: {list(available_actionset.actions.keys())}")
 
         # 注释掉详细的调试信息
@@ -659,7 +737,7 @@ class LLMAgent(Agent):
 
         # 5. 调用推理引擎 (execute_action_loop)
         try:
-            from .agent_loop import execute_action_loop, ActionSet, DEFAULT_REASONING_STAGES
+            from .agent_loop import execute_action_loop, ActionSet, DEFAULT_REASONING_STAGES, LoopResult
 
             # 决定使用哪个推理阶段配置：优先级：参数传入 > Agent默认配置 > 全局默认
             active_stages = reasoning_stages or self._default_reasoning_stages or DEFAULT_REASONING_STAGES
@@ -671,6 +749,7 @@ class LLMAgent(Agent):
             # 5.1. 实现结构化输出机制：动态创建 submit_result Action（对外保持 finish_instruction 语义字段）
             finish_instruction_added = False
             original_system_prompt = system_prompt
+            enhanced_inner_schema = None
 
             if output_schema:
                 # 增强 output_schema（内层）：补齐顶层 required，默认严格 additionalProperties=false
@@ -716,28 +795,134 @@ class LLMAgent(Agent):
                 """Provides current context stack and update function for action execution."""
                 current_stack = self._world.get_context_stack()
                 update_func = self._world.set_context_stack
-                return current_stack, update_func
+                return current_stack, update_func, self._record_action_trace
+
+            async def traced_llm_call(payload: Dict[str, Any]) -> Dict[str, Any]:
+                request_payload = dict(payload)
+                for key, value in safe_llm_request_options.items():
+                    request_payload.setdefault(key, value)
+                metadata = dict(request_payload.get("metadata") or {})
+                metadata.setdefault("agent_id", self.id)
+                metadata.setdefault("step", current_step)
+                if trace:
+                    metadata.update({k: v for k, v in trace.items() if v is not None})
+                request_payload["metadata"] = metadata
+                return await effective_llm_call(request_payload)
+
+            def _has_ordinary_actions() -> bool:
+                for action_name, action_info in available_actionset.actions.items():
+                    tags = {str(tag).lower() for tag in (action_info.get("tags", []) or [])}
+                    if action_name == "submit_result" or "system" in tags:
+                        continue
+                    return True
+                return False
+
+            direct_structured_output = None
+            direct_loop_result = None
+            preloop_llm_calls = 0
+            if (
+                prefer_direct_json_output
+                and output_schema
+                and isinstance(enhanced_inner_schema, dict)
+                and not _has_ordinary_actions()
+            ):
+                try:
+                    schema_text = json.dumps(enhanced_inner_schema, ensure_ascii=False, separators=(",", ":"))
+                    direct_messages = [
+                        {
+                            "role": "system",
+                            "content": (
+                                system_prompt
+                                + "\n\n[输出流程]\n"
+                                "只输出一个符合 JSON Schema 的 JSON 对象。不要使用 Markdown，不要解释，不要调用工具。"
+                            ),
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                user_prompt
+                                + "\n\n请直接输出 JSON 对象；如果前文提到 submit_result，本轮以此处要求为准，不调用工具。\n"
+                                f"JSON Schema:\n{schema_text}"
+                            ),
+                        },
+                    ]
+                    direct_request = {
+                        "messages": direct_messages,
+                        "tools": None,
+                        "tool_choice": None,
+                    }
+                    direct_response = await traced_llm_call(direct_request)
+                    preloop_llm_calls = 1
+                    candidate = _parse_structured_json_from_model_text(direct_response.get("content") or "")
+                    if candidate is not None and _validate_structured_output_against_schema(candidate, enhanced_inner_schema):
+                        direct_structured_output = candidate
+                        direct_loop_result = LoopResult(
+                            status="success",
+                            phases={"default": direct_response.get("content") or ""},
+                            phases_unknown={},
+                            full_history=[
+                                {
+                                    "turn": 1,
+                                    "request": direct_request,
+                                    "response": direct_response,
+                                }
+                            ],
+                            parsing_errors=[],
+                            total_turns=1,
+                            default_stage_name="default",
+                            action_calls=[],
+                            model_type="standard",
+                        )
+                        preloop_llm_calls = 0
+                except Exception:
+                    logger.debug("Direct JSON structured output path failed for agent %s", self.id, exc_info=True)
 
             # 首次执行action loop
-            loop_result = await execute_action_loop(
-                instruction=user_prompt,
-                action_set=available_actionset,
-                system_prompt=system_prompt,
-                stages=active_stages,
-                llm_call=effective_llm_call,
-                # 将 instruct 的最大回合数从4降为3（可通过参数覆盖）
-                max_turns=max_turns,
-                context_provider=context_provider,
-                terminal_action_names=terminal_action_names,
-                turn_remain_hint=turn_remain_hint,
-                hint_on_remain_turn=hint_on_remain_turn
-            )
+            effective_terminal_action_names = list(terminal_action_names or [])
+            if finish_instruction_added and not any(
+                str(name).strip().lower() == "submit_result"
+                for name in effective_terminal_action_names
+            ):
+                effective_terminal_action_names.append("submit_result")
+
+            previous_action_trace = getattr(self, "_current_action_trace", None)
+            self._current_action_trace = dict(trace or {})
+            try:
+                if direct_loop_result is not None:
+                    loop_result = direct_loop_result
+                else:
+                    loop_result = await execute_action_loop(
+                        instruction=user_prompt,
+                        action_set=available_actionset,
+                        system_prompt=system_prompt,
+                        stages=active_stages,
+                        llm_call=traced_llm_call,
+                        # 将 instruct 的最大回合数从4降为3（可通过参数覆盖）
+                        max_turns=max_turns,
+                        context_provider=context_provider,
+                        terminal_action_names=effective_terminal_action_names,
+                        completion_action_tags=completion_action_tags,
+                        turn_remain_hint=turn_remain_hint,
+                        hint_on_remain_turn=hint_on_remain_turn,
+                        max_action_calls=max_action_calls,
+                        action_call_limits=action_call_limits,
+                        llm_request_options=safe_llm_request_options,
+                    )
+            finally:
+                if previous_action_trace is None:
+                    try:
+                        delattr(self, "_current_action_trace")
+                    except AttributeError:
+                        pass
+                else:
+                    self._current_action_trace = previous_action_trace
 
             # 5.2. 结构化输出验证和强制执行轮次
             finish_instruction_called = False  # 保持对外语义：是否调用过提交工具
-            structured_output = None
+            structured_output = direct_structured_output
+            extra_llm_calls = preloop_llm_calls
 
-            if finish_instruction_added:
+            if finish_instruction_added and structured_output is None:
                 # 检查是否调用了 submit_result（对外仍呈现 finish_instruction_called 语义）
                 # 优先从 loop_result.action_calls 提取；回退到 phases 中的 action_call 列表。
                 action_items: List[Dict[str, Any]] = []
@@ -788,11 +973,12 @@ class LLMAgent(Agent):
 
                         # 最后一次LLM调用（使用 strict 重试机制）
                         try:
-                            final_response = await self._call_with_strict_retry(effective_llm_call, {
+                            final_response = await self._call_with_strict_retry(traced_llm_call, {
                                 "messages": messages,
                                 "tools": available_actionset.get_openai_actions_schema(),
                                 "tool_choice": {"type": "function", "function": {"name": "submit_result"}},
                             })
+                            extra_llm_calls += 1
 
                             # 解析强制调用的结果
                             if final_response.get("tool_calls"):
@@ -811,13 +997,7 @@ class LLMAgent(Agent):
                 # 5.3. 结构化输出后校验与单次纠错（基于内层schema）
                 def _validate_against_schema(data: Any, schema: Dict[str, Any]) -> bool:
                     """对结构化输出进行JSON Schema校验（严格模式）。"""
-                    try:
-                        from jsonschema import validate, Draft202012Validator
-                        Draft202012Validator.check_schema(schema)
-                        validate(instance=data, schema=schema)
-                        return True
-                    except Exception:
-                        return False
+                    return _validate_structured_output_against_schema(data, schema)
 
                 if output_schema and structured_output is not None:
                     inner_schema = enhanced_inner_schema  # 与提交时保持一致
@@ -838,13 +1018,14 @@ class LLMAgent(Agent):
                             })
 
                             retry_response = await self._call_with_strict_retry(
-                                effective_llm_call,
+                                traced_llm_call,
                                 {
                                     "messages": messages,
                                     "tools": available_actionset.get_openai_actions_schema(),
                                     "tool_choice": {"type": "function", "function": {"name": "submit_result"}},
                                 },
                             )
+                            extra_llm_calls += 1
                             if retry_response.get("tool_calls"):
                                 for tool_call in retry_response["tool_calls"]:
                                     if tool_call["function"]["name"] == "submit_result":
@@ -885,11 +1066,12 @@ class LLMAgent(Agent):
                             "content": "```json\n{",
                         })
 
-                        fallback_response = await effective_llm_call({
+                        fallback_response = await traced_llm_call({
                             "messages": base_messages,
                             "tools": None,
                             "tool_choice": None,
                         })
+                        extra_llm_calls += 1
 
                         # 从响应中提取 JSON。这里要兼容 assistant 已预填 "{" 后，
                         # 模型只返回 '"field": value}' 这种对象续写的情况。
@@ -932,7 +1114,7 @@ class LLMAgent(Agent):
 
                     extraction_result = {"success": False, "memories": [], "error": None}
                     if extract_memory and has_output:
-                        extraction_result = await perform_memory_extraction(loop_result, effective_llm_call)
+                        extraction_result = await perform_memory_extraction(loop_result, traced_llm_call)
                         loop_result.memory_extraction_enabled = True
                         loop_result.memory_extraction_success = extraction_result.get("success", False)
                         loop_result.extracted_memories = extraction_result.get("memories", [])
@@ -957,7 +1139,11 @@ class LLMAgent(Agent):
                                 }
                             )
 
-                        memory_ids = await self._memory.add_memories_batch(mem_entries, fire_and_forget=True)
+                        memory_ids = await self._memory.add_memories_batch(
+                            mem_entries,
+                            fire_and_forget=False,
+                            trace=build_memory_trace("memory_write"),
+                        )
 
                         for mem_id, mem in zip(memory_ids, mem_entries):
                             memory_summary = summarize_text(mem.get("content", ""))
@@ -1001,7 +1187,11 @@ class LLMAgent(Agent):
                             }
                         ]
 
-                        memory_ids = await self._memory.add_memories_batch(mem_entries, fire_and_forget=True)
+                        memory_ids = await self._memory.add_memories_batch(
+                            mem_entries,
+                            fire_and_forget=False,
+                            trace=build_memory_trace("memory_write"),
+                        )
 
                         memory_summary = summarize_text(fallback_content)
                         if memory_ids:
@@ -1035,6 +1225,8 @@ class LLMAgent(Agent):
             # 情绪模型更新（可选实现）
             # TODO: 将performative_output传递给情绪模型，更新self.state['emotion']
 
+            total_llm_calls = loop_result.total_turns + extra_llm_calls
+
             return {
                 "status": "success",
                 "agent_id": self.id,
@@ -1042,10 +1234,13 @@ class LLMAgent(Agent):
                 "performative_output": performative_output,
                 "structured_output": structured_output,
                 "raw_output": raw_loop_output,
-                "total_turns": loop_result.total_turns,
+                "total_turns": total_llm_calls,
+                "actions": loop_result.action_calls,
+                "llm_calls": total_llm_calls,
                 "finish_instruction_called": finish_instruction_called,  # 现在正确实现了
                 "stages_executed": list(loop_result.phases.keys()),
                 "memory_retrieved": retrieve_memory,
+                "memory_top_k": effective_memory_top_k if retrieve_memory else 0,
                 "memory_saved": save_memory,
                 "actions_available": len(available_actionset.actions) if available_actionset else 0,
                 "has_structured_output": bool(structured_output),
@@ -1089,7 +1284,15 @@ class LLMAgent(Agent):
                        current_step: Optional[int] = None,
                        output_schema: Optional[Dict[str, Any]] = None,
                        reasoning_stages: Optional[List[Dict[str, Any]]] = None,
-                       llm_call_override: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None) -> Dict[str, Any]:
+                       llm_call_override: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
+                       trace: Optional[Dict[str, Any]] = None,
+                       *,
+                       retrieve_memory: bool = True,
+                       save_memory: bool = False,
+                       prefer_direct_json_output: bool = False,
+                       memory_top_k: int = 10,
+                       llm_request_options: Optional[Dict[str, Any]] = None,
+                       max_turns: int = 2) -> Dict[str, Any]:
         """
         专用的访谈方法 - 用于获取Agent信息而不污染其记忆或行为
 
@@ -1114,12 +1317,17 @@ class LLMAgent(Agent):
             context=context,
             current_step=current_step,
             action_tags=[],  # 禁止所有动作（除了finish_instruction）
-            retrieve_memory=True,  # 允许读取记忆
-            save_memory=False,     # 禁止写入记忆
+            retrieve_memory=retrieve_memory,
+            save_memory=save_memory,
+            memory_top_k=memory_top_k,
             output_schema=output_schema,
             reasoning_stages=reasoning_stages,
             terminal_action_names=["submit_result"],
-            llm_call_override=llm_call_override
+            max_turns=max_turns,
+            llm_call_override=llm_call_override,
+            trace=trace,
+            prefer_direct_json_output=prefer_direct_json_output,
+            llm_request_options=llm_request_options,
         )
 
     def _build_system_prompt(self) -> str:
@@ -1181,23 +1389,19 @@ class LLMAgent(Agent):
 
         if output_schema:
             try:
-                schema_text = json.dumps(output_schema, ensure_ascii=False, indent=2)
+                schema_text = json.dumps(output_schema, ensure_ascii=False, separators=(",", ":"))
             except Exception:
                 schema_text = str(output_schema)
             requirements.append(
                 "- 结构化输出：调用 finish_instruction/submit_result，并遵循以下 Schema：\n"
                 f"{schema_text}"
             )
-        else:
-            requirements.append("- 结构化输出：可使用自然语言给出完整答案。")
 
         if save_memory:
             if extract_memory:
                 requirements.append("- 记忆策略：系统会从你的回答中提取记忆，请使用第一人称，描述具体行为与感受。")
             else:
                 requirements.append("- 记忆策略：回答将直接写入记忆，请使用第一人称并提供可回溯的细节。")
-        else:
-            requirements.append("- 记忆策略：本次回答不会写入记忆。")
 
         return "\n".join(requirements)
 
@@ -1208,6 +1412,63 @@ class LLMAgent(Agent):
             return ""
         clean_title = title.strip() if title and title.strip() else "信息"
         return f"[{clean_title}]\n{clean_content}"
+
+    def _record_action_trace(self, action_name: str, arguments: Dict[str, Any], result: Any, status: str) -> None:
+        """Record every agent action, including read-only actions, to the event stream."""
+        event_logger = getattr(self._world, "event_logger", None)
+        if event_logger is None:
+            return
+        try:
+            from ..events import BaseEvent
+
+            class AgentActionEvent(BaseEvent):
+                def __init__(self, *, context_stack: List[Dict[str, Any]]):
+                    super().__init__(event_type="agent_action", context_stack=context_stack)
+                    self.source = self_agent_id
+                    self.event_data = event_data
+
+                def to_dict(self) -> Dict[str, Any]:
+                    payload = super().to_dict()
+                    payload.update({"source": self.source, "event_data": self.event_data})
+                    return payload
+
+            self_agent_id = self.id
+            result_summary = summarize_text(str(result), limit=200)
+            context_stack = self._world.get_context_stack()
+            step_frame = context_stack.find_frame_by_type("step")
+            operator_frame = context_stack.find_frame_by_type("operator")
+            action_frame = context_stack.find_frame_by_type("action")
+            operator_metadata = dict(operator_frame.metadata) if operator_frame else {}
+            action_trace = dict(getattr(self, "_current_action_trace", None) or {})
+            event_data = {
+                "agent_id": self.id,
+                "action": action_name,
+                "status": status,
+                "arguments": _summarize_action_arguments(arguments),
+                "result_preview": result_summary["preview"],
+                "result_length": result_summary["length"],
+            }
+            if step_frame is not None:
+                event_data["step_id"] = step_frame.frame_id
+            if operator_frame is not None:
+                event_data["interaction_name"] = operator_frame.frame_id
+            if action_frame is not None:
+                event_data["action_context_name"] = action_frame.frame_id
+            for key in ("step_name", "interaction_type", "interaction_name"):
+                value = operator_metadata.get(key)
+                if value is not None:
+                    event_data[key] = value
+            for key in ("step", "step_name", "interaction_type", "interaction_name"):
+                value = action_trace.get(key)
+                if value is not None:
+                    event_data[key] = value
+            current_code_step_name = getattr(self._world, "_current_code_step_name", None)
+            if current_code_step_name is not None:
+                event_data.setdefault("step_name", current_code_step_name)
+            event = AgentActionEvent(context_stack=context_stack.to_list())
+            event_logger.write_event(event)
+        except Exception:
+            logger.debug("Failed to record action trace for %s", action_name, exc_info=True)
 
     def _log(self, level: str, event: AgentEvent, **payload: Any) -> None:
         """统一的 Agent 日志入口。"""

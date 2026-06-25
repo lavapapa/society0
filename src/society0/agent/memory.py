@@ -146,7 +146,7 @@ class Memory:
         agent_id: str,
         vector_client,  # 注入的向量存储客户端实例（Chroma PersistentClient）
         branch_id: str = "main",
-        embed_call: Optional[Callable[[List[str], int], Awaitable[Dict[str, Any]]]] = None,
+        embed_call: Optional[Callable[..., Awaitable[Dict[str, Any]]]] = None,
         llm_call: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
         decay_rate: float = 0.1,
         embedding_dim: int = 512
@@ -253,6 +253,32 @@ class Memory:
             ]
         }
 
+    async def _has_retrievable_memories(self) -> bool:
+        """Return False when a cheap collection check proves recall would be empty."""
+        async with self._io_lock:
+            collection = self._get_collection()
+            count = getattr(collection, "count", None)
+            if callable(count):
+                try:
+                    if count() == 0:
+                        logger.debug("Collection %s empty, skip recall", self.collection_name)
+                        return False
+                except Exception as exc:
+                    logger.debug("Memory collection count check unavailable for agent %s: %s", self.agent_id, exc)
+
+            get = getattr(collection, "get", None)
+            if callable(get):
+                try:
+                    existing = get(where=self._memory_where_filter(), limit=1)
+                    ids = existing.get("ids") if isinstance(existing, dict) else getattr(existing, "ids", None)
+                    if ids is not None:
+                        return bool(ids)
+                except Exception as exc:
+                    logger.debug("Memory existence check unavailable for agent %s: %s", self.agent_id, exc)
+
+        # If the vector store cannot answer cheaply, preserve prior behavior.
+        return True
+
     def _normalize_memory_id(self, raw_id: str) -> str:
         """
         将 memory_id 规范为带 agent 前缀，避免共享 collection 下 ID 冲突。
@@ -297,11 +323,22 @@ class Memory:
             self._ensure_collection()
         return self._collection
 
-    async def _generate_embeddings(self, texts: List[str]) -> List[List[float]]:
+    async def _generate_embeddings(
+        self,
+        texts: List[str],
+        *,
+        trace: Optional[Dict[str, Any]] = None,
+    ) -> List[List[float]]:
         """生成向量；禁用默认回退，主通路失败将抛出异常。"""
         if self.embed_call:
             try:
-                result = await self.embed_call(texts, self.embedding_dim)
+                metadata = self._embedding_trace_metadata(trace)
+                try:
+                    result = await self.embed_call(texts, self.embedding_dim, metadata=metadata)
+                except TypeError as exc:
+                    if "metadata" not in str(exc):
+                        raise
+                    result = await self.embed_call(texts, self.embedding_dim)
                 embeddings = result.get("result") if result else None
                 if embeddings:
                     self._update_embedding_dim(embeddings[0])
@@ -312,6 +349,11 @@ class Memory:
 
         # 如果没有可用的 embed_call，则直接抛错（禁用默认回退）
         raise RuntimeError("Embedding generation unavailable: no primary embed_call")
+
+    def _embedding_trace_metadata(self, trace: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        metadata = {key: value for key, value in dict(trace or {}).items() if value is not None}
+        metadata.setdefault("agent_id", self.agent_id)
+        return metadata
 
     def _generate_embeddings_via_fallback(self, texts: List[str]) -> List[List[float]]:
         """使用 Chroma 默认 ONNX 模型生成嵌入。"""
@@ -409,7 +451,8 @@ class Memory:
         content: str,
         timestamp: int,
         importance: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         添加情景记忆
@@ -423,14 +466,15 @@ class Memory:
         Returns:
             记忆条目的ID
         """
-        return await self._add_memory("episodic", content, timestamp, importance, metadata)
+        return await self._add_memory("episodic", content, timestamp, importance, metadata, trace=trace)
         
     async def add_semantic_memory(
         self,
         content: str,
         timestamp: int,
         importance: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         添加语义记忆
@@ -444,7 +488,7 @@ class Memory:
         Returns:
             记忆条目的ID
         """
-        return await self._add_memory("semantic", content, timestamp, importance, metadata)
+        return await self._add_memory("semantic", content, timestamp, importance, metadata, trace=trace)
 
     async def _add_memory(
         self,
@@ -452,7 +496,8 @@ class Memory:
         content: str,
         timestamp: int,
         importance: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> str:
         """内部方法：添加记忆（单条封装到批量通道）"""
         ids = await self.add_memories_batch(
@@ -466,6 +511,7 @@ class Memory:
                 }
             ],
             fire_and_forget=False,
+            trace=trace,
         )
         return ids[0] if ids else ""
 
@@ -475,6 +521,7 @@ class Memory:
         *,
         fire_and_forget: bool = False,
         return_task: bool = False,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> Union[List[str], Tuple[List[str], asyncio.Task]]:
         """
         批量添加记忆，支持 fire-and-forget 模式以减少主流程等待。
@@ -492,7 +539,7 @@ class Memory:
         async def _persist_batch():
             try:
                 texts = [item.get("content", "") for item in entries]
-                embeddings = await self._generate_embeddings(texts)
+                embeddings = await self._generate_embeddings(texts, trace=trace)
                 if not embeddings or len(embeddings) < len(entries):
                     raise RuntimeError("Failed to generate embeddings for memories batch")
 
@@ -525,14 +572,12 @@ class Memory:
                         metadatas=metadatas,
                     )
 
-                # 调试输出
-                for mem_id, item in zip(memory_ids, entries):
-                    content = item.get("content", "")
-                    print(f"💾 [MEMORY] Agent {self.agent_id}: Added {item.get('memory_type','episodic')} memory")
-                    print(f"   Memory ID: {mem_id}")
-                    print(f"   Content: {content[:60]}..." if len(content) > 60 else f"   Content: {content}")
-                    print(f"   Importance: {item.get('_importance', 0):.2f}")
-                    print(f"   Timestamp: {item.get('timestamp', 0)}")
+                logger.debug(
+                    "Agent %s added %s memories to %s",
+                    self.agent_id,
+                    len(memory_ids),
+                    self.collection_name,
+                )
 
             except Exception as exc:
                 logger.error("Failed to add memories batch for agent %s: %s", self.agent_id, exc)
@@ -625,7 +670,8 @@ class Memory:
         self,
         query: str,
         top_k: int = 10,
-        current_step: Optional[int] = None
+        current_step: Optional[int] = None,
+        trace: Optional[Dict[str, Any]] = None,
     ) -> List[str]:
         """
         记忆召回 - 核心检索功能
@@ -641,8 +687,11 @@ class Memory:
         try:
             await self._await_pending_writes_before_retrieve()
 
+            if not await self._has_retrievable_memories():
+                return []
+
             # 生成查询向量
-            query_embeddings = await self._generate_embeddings([query])
+            query_embeddings = await self._generate_embeddings([query], trace=trace)
             if not query_embeddings:
                 return []
             query_embedding = query_embeddings[0]
@@ -689,13 +738,12 @@ class Memory:
             sorted_candidates = sorted(candidates.values(), key=lambda x: x["score"], reverse=True)
             results = [item["content"] for item in sorted_candidates[:top_k]]
 
-            # 🔧 DEBUG: Memory retrieval monitoring
-            print(f"🧠 [MEMORY] Agent {self.agent_id}: Retrieved memories")
-            print(f"   Query: {query[:50]}..." if len(query) > 50 else f"   Query: {query}")
-            print(f"   Found: {len(results)} memories")
-            for i, content in enumerate(results[:3], 1):
-                content_preview = content[:40] + "..." if len(content) > 40 else content
-                print(f"   {i}. {content_preview}")
+            logger.debug(
+                "Agent %s retrieved %s memories from %s",
+                self.agent_id,
+                len(results),
+                self.collection_name,
+            )
 
             return results
 

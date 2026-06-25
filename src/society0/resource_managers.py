@@ -10,6 +10,7 @@ SimEngine V2: Resource Managers - LLM和Embedding的统一管理器
 """
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -35,6 +36,36 @@ from .logging import ExperimentLogContext, LogField, ResourceEvent, summarize_te
 logger = logging.getLogger(__name__)
 
 
+def _safe_json_size(value: Any) -> int:
+    """Return JSON character size for monitor-only payload accounting."""
+    try:
+        return len(json.dumps(value, ensure_ascii=False, default=str, separators=(",", ":")))
+    except Exception:
+        return len(str(value))
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class EndpointConfig:
     """端点配置数据结构"""
@@ -58,6 +89,7 @@ class _EmbeddingBatchItem:
     model: str
     dimensions: int
     enqueued_at: float
+    metadata: Dict[str, Any]
 
 
 class LLMLogExtras(BaseModel):
@@ -67,10 +99,18 @@ class LLMLogExtras(BaseModel):
     agent_id: Optional[str] = None
     messages_count: Optional[int] = None
     input_characters: Optional[int] = None
+    tools_count: Optional[int] = None
+    tools_characters: Optional[int] = None
+    payload_characters: Optional[int] = None
+    max_tokens: Optional[int] = None
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
     node_id: Optional[str] = None
     retry_count: int = 0
     cache_hit: bool = False
     duration_sec: Optional[float] = None
+    queue_duration_sec: Optional[float] = None
+    provider_duration_sec: Optional[float] = None
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
@@ -87,6 +127,8 @@ class EmbeddingLogExtras(BaseModel):
     dimensions: int
     input_characters: int
     duration_sec: Optional[float] = None
+    queue_duration_sec: Optional[float] = None
+    provider_duration_sec: Optional[float] = None
     vectors_returned: Optional[int] = None
     retry_count: int = 0
     cache_hit: bool = False
@@ -264,14 +306,26 @@ class LLMManager:
         start_time = time.time()
         request_id = f"llm_{uuid.uuid4().hex[:8]}"
         agent_id: Optional[str] = None
+        trace_fields: Dict[str, Any] = {}
         messages_count: Optional[int] = None
         input_characters: Optional[int] = None
+        tools_count: Optional[int] = None
+        tools_characters: Optional[int] = None
+        payload_characters: Optional[int] = None
+        max_tokens: Optional[int] = None
+        temperature: Optional[float] = None
+        top_p: Optional[float] = None
         cache_hit = False
         if isinstance(payload, dict):
             metadata = payload.get("metadata")
             if isinstance(metadata, dict):
                 agent_id = metadata.get("agent_id") or agent_id
                 cache_hit = bool(metadata.get("cache_hit", cache_hit))
+                trace_fields = {
+                    key: metadata.get(key)
+                    for key in ("step", "step_name", "interaction_type", "interaction_name")
+                    if metadata.get(key) is not None
+                }
             agent_id = agent_id or payload.get("agent_id")
             maybe_messages = payload.get("messages")
             if isinstance(maybe_messages, list):
@@ -302,6 +356,23 @@ class LLMManager:
                         continue
                     if content is not None:
                         input_characters += len(str(content))
+            maybe_tools = payload.get("tools")
+            if isinstance(maybe_tools, list):
+                tools_count = len(maybe_tools)
+                tools_characters = _safe_json_size(maybe_tools)
+            elif maybe_tools is not None:
+                tools_count = 1
+                tools_characters = _safe_json_size(maybe_tools)
+
+            payload_for_size = {
+                key: value
+                for key, value in payload.items()
+                if key not in {"metadata", "agent_id"}
+            }
+            payload_characters = _safe_json_size(payload_for_size)
+            max_tokens = _optional_int(payload.get("max_tokens"))
+            temperature = _optional_float(payload.get("temperature"))
+            top_p = _optional_float(payload.get("top_p"))
 
         if self._log_context:
             start_payload: Dict[str, Any] = {
@@ -315,8 +386,21 @@ class LLMManager:
                 start_payload[LogField.MESSAGES_COUNT.value] = messages_count
             if input_characters is not None:
                 start_payload[LogField.INPUT_CHARACTERS.value] = input_characters
+            if tools_count is not None:
+                start_payload["tools_count"] = tools_count
+            if tools_characters is not None:
+                start_payload["tools_characters"] = tools_characters
+            if payload_characters is not None:
+                start_payload["payload_characters"] = payload_characters
+            if max_tokens is not None:
+                start_payload["max_tokens"] = max_tokens
+            if temperature is not None:
+                start_payload["temperature"] = temperature
+            if top_p is not None:
+                start_payload["top_p"] = top_p
             if cache_hit:
                 start_payload[LogField.CACHE_HIT.value] = cache_hit
+            start_payload.update(trace_fields)
             self._log_context.log_resource(
                 "llm",
                 "INFO",
@@ -332,6 +416,12 @@ class LLMManager:
             agent_id=agent_id,
             messages_count=messages_count,
             input_characters=input_characters,
+            tools_count=tools_count,
+            tools_characters=tools_characters,
+            payload_characters=payload_characters,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
             cache_hit=cache_hit,
         )
 
@@ -343,6 +433,8 @@ class LLMManager:
                     await asyncio.sleep(random.uniform(0.005, 0.05))
                 except Exception:
                     pass
+                acquired_time = time.time()
+                extras.queue_duration_sec = acquired_time - start_time
 
                 stats_entry = self.endpoint_stats[endpoint.id]
 
@@ -356,6 +448,7 @@ class LLMManager:
                 try:
                     async for attempt in retrying:
                         attempt_number = attempt.retry_state.attempt_number
+                        provider_start_time: Optional[float] = None
                         try:
                             extras.error = None
                             extras.error_type = None
@@ -365,6 +458,8 @@ class LLMManager:
 
                             client = self.clients[endpoint.id]
                             request_params = payload.copy()
+                            request_params.pop("metadata", None)
+                            request_params.pop("agent_id", None)
 
                             # Azure使用deployment_name，其他使用model
                             if endpoint.provider_type == "azure" and endpoint.deployment_name:
@@ -372,11 +467,30 @@ class LLMManager:
                             else:
                                 request_params["model"] = endpoint.model
 
-                            response = await client.chat.completions.create(**request_params)
+                            request_timeout = request_params.get("timeout", endpoint.timeout)
+                            effective_timeout: Optional[float]
+                            if isinstance(request_timeout, (int, float)) and request_timeout > 0:
+                                effective_timeout = float(request_timeout)
+                            elif isinstance(endpoint.timeout, (int, float)) and endpoint.timeout > 0:
+                                effective_timeout = float(endpoint.timeout)
+                            else:
+                                effective_timeout = None
+
+                            provider_start_time = time.time()
+                            request_coro = client.chat.completions.create(**request_params)
+                            if effective_timeout is None:
+                                response = await request_coro
+                            else:
+                                response = await asyncio.wait_for(
+                                    request_coro,
+                                    timeout=effective_timeout,
+                                )
+                            provider_duration = time.time() - provider_start_time
                             result = self._convert_response(response)
 
                             execution_time = time.time() - start_time
                             extras.duration_sec = execution_time
+                            extras.provider_duration_sec = provider_duration
 
                             usage = getattr(response, "usage", None)
 
@@ -394,11 +508,13 @@ class LLMManager:
                             extras.total_tokens = _extract_usage_value(usage, "total_tokens")
 
                             if self._log_context:
+                                completed_payload = extras.model_dump(exclude_none=True)
+                                completed_payload.update(trace_fields)
                                 self._log_context.log_resource(
                                     "llm",
                                     "INFO",
                                     ResourceEvent.LLM_REQUEST_COMPLETED.value,
-                                    **extras.model_dump(exclude_none=True),
+                                    **completed_payload,
                                 )
 
                             stats_entry["successes"] += 1
@@ -414,8 +530,10 @@ class LLMManager:
 
                         except Exception as exc:
                             extras.error_type = type(exc).__name__
-                            extras.error = str(exc)
+                            extras.error = str(exc) or repr(exc)
                             extras.duration_sec = time.time() - start_time
+                            if provider_start_time is not None:
+                                extras.provider_duration_sec = time.time() - provider_start_time
                             stats_entry["errors"] += 1
 
                             level = (
@@ -424,11 +542,13 @@ class LLMManager:
                                 else "ERROR"
                             )
                             if self._log_context:
+                                failed_payload = extras.model_dump(exclude_none=True)
+                                failed_payload.update(trace_fields)
                                 self._log_context.log_resource(
                                     "llm",
                                     level,
                                     ResourceEvent.LLM_REQUEST_FAILED.value,
-                                    **extras.model_dump(exclude_none=True),
+                                    **failed_payload,
                                 )
 
                             if level == "WARNING":
@@ -560,7 +680,7 @@ class EmbeddingManager:
         self._microbatch_queues: Dict[str, List[_EmbeddingBatchItem]] = {}
         self._microbatch_queue_chars: Dict[str, int] = {}
         self._microbatch_timers: Dict[str, asyncio.Task] = {}
-        self._microbatch_flushing_buckets: Set[str] = set()
+        self._microbatch_flush_worker_counts: Dict[str, int] = {}
         self._microbatch_flush_tasks: Set[asyncio.Task] = set()
         self._microbatch_stats: Dict[str, float] = {
             "batches": 0.0,
@@ -651,23 +771,45 @@ class EmbeddingManager:
         while len(self._embedding_cache) > self._cache_max_items:
             self._embedding_cache.popitem(last=False)
 
-    def _register_flush_task_unlocked(self, bucket_key: str) -> None:
-        if bucket_key in self._microbatch_flushing_buckets:
-            return
-        self._microbatch_flushing_buckets.add(bucket_key)
-        task = asyncio.create_task(self._flush_microbatch_bucket(bucket_key))
-        self._microbatch_flush_tasks.add(task)
-
-        def _cleanup(done_task: asyncio.Task) -> None:
-            self._microbatch_flush_tasks.discard(done_task)
+    def _microbatch_parallel_flush_limit(self) -> int:
+        """Return the bounded number of physical batch flushes allowed per bucket."""
+        total_concurrency = max(1, self.get_total_concurrency())
+        raw = (os.getenv("EMBEDDING_MICROBATCH_MAX_PARALLEL_FLUSHES") or "").strip()
+        if raw:
             try:
-                done_task.result()
-            except asyncio.CancelledError:
-                return
-            except Exception:
-                logger.exception("Embedding microbatch flush task crashed for bucket %s", bucket_key)
+                requested = int(raw)
+            except (TypeError, ValueError):
+                requested = total_concurrency
+        else:
+            requested = total_concurrency
+        return max(1, min(requested, total_concurrency))
 
-        task.add_done_callback(_cleanup)
+    def _register_flush_task_unlocked(self, bucket_key: str) -> None:
+        queue = self._microbatch_queues.get(bucket_key) or []
+        if not queue:
+            return
+
+        max_items = max(1, self._microbatch_max_batch_texts)
+        queued_batches = max(1, (len(queue) + max_items - 1) // max_items)
+        desired_workers = min(self._microbatch_parallel_flush_limit(), queued_batches)
+        active_workers = self._microbatch_flush_worker_counts.get(bucket_key, 0)
+
+        while active_workers < desired_workers:
+            active_workers += 1
+            self._microbatch_flush_worker_counts[bucket_key] = active_workers
+            task = asyncio.create_task(self._flush_microbatch_bucket(bucket_key))
+            self._microbatch_flush_tasks.add(task)
+
+            def _cleanup(done_task: asyncio.Task) -> None:
+                self._microbatch_flush_tasks.discard(done_task)
+                try:
+                    done_task.result()
+                except asyncio.CancelledError:
+                    return
+                except Exception:
+                    logger.exception("Embedding microbatch flush task crashed for bucket %s", bucket_key)
+
+            task.add_done_callback(_cleanup)
 
     async def _enqueue_microbatch_item(self, bucket_key: str, item: _EmbeddingBatchItem) -> None:
         async with self._microbatch_lock:
@@ -800,7 +942,12 @@ class EmbeddingManager:
 
         texts = [item.text for item in batch]
         try:
-            result = await self._execute_request(endpoint, texts, dimensions)
+            result = await self._execute_request(
+                endpoint,
+                texts,
+                dimensions,
+                metadata=self._combine_embedding_metadata(batch),
+            )
             embeddings = result.get("result") or []
             if len(embeddings) != len(batch):
                 raise RuntimeError(f"Microbatch result mismatch: expected {len(batch)}, got {len(embeddings)}")
@@ -835,8 +982,12 @@ class EmbeddingManager:
                 await self._execute_microbatch_with_split(bucket_key, batch)
         finally:
             async with self._microbatch_lock:
-                self._microbatch_flushing_buckets.discard(bucket_key)
-                # flush 期间可能有新任务入队；若有残留，继续拉起下一轮 flush。
+                active_workers = self._microbatch_flush_worker_counts.get(bucket_key, 0)
+                if active_workers <= 1:
+                    self._microbatch_flush_worker_counts.pop(bucket_key, None)
+                else:
+                    self._microbatch_flush_worker_counts[bucket_key] = active_workers - 1
+                # flush 期间可能有新任务入队；若有残留，继续按并发上限补足 worker。
                 if self._microbatch_queues.get(bucket_key):
                     self._register_flush_task_unlocked(bucket_key)
 
@@ -905,13 +1056,19 @@ class EmbeddingManager:
             logger.error(f"Failed to create client for endpoint {config['id']}: {e}")
             raise
 
-    async def request(self, texts: List[str], dimensions: Optional[int] = None) -> Dict[str, Any]:
+    async def request(
+        self,
+        texts: List[str],
+        dimensions: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """
         统一的Embedding请求接口
 
         Args:
             texts: 待向量化的文本列表
             dimensions: 向量维度
+            metadata: optional trace metadata shared by this embedding request
 
         Returns:
             {"result": List[List[float]], "model": str, "dimensions": int}
@@ -926,6 +1083,7 @@ class EmbeddingManager:
             return {"result": [], "model": endpoint.model, "dimensions": requested_dimensions}
 
         model = endpoint.model
+        trace_metadata = dict(metadata or {})
         bucket_key = self._make_microbatch_bucket_key(model, requested_dimensions)
         loop = asyncio.get_running_loop()
         results: List[Optional[List[float]]] = [None] * len(texts)
@@ -957,6 +1115,7 @@ class EmbeddingManager:
                             model=model,
                             dimensions=requested_dimensions,
                             enqueued_at=time.time(),
+                            metadata=dict(trace_metadata),
                         )
                     )
                 wait_futures[cache_key] = pending
@@ -980,6 +1139,60 @@ class EmbeddingManager:
             final_results.append(embedding)
 
         return {"result": final_results, "model": model, "dimensions": requested_dimensions}
+
+    @staticmethod
+    def _combine_embedding_metadata(batch: List[_EmbeddingBatchItem]) -> Dict[str, Any]:
+        """Merge per-item trace metadata for one physical embedding request."""
+        if not batch:
+            return {}
+
+        metadata_items = [item.metadata for item in batch if isinstance(item.metadata, dict)]
+        if not metadata_items:
+            return {}
+
+        combined: Dict[str, Any] = {}
+        scalar_keys = ("step",)
+        for key in scalar_keys:
+            values = [metadata.get(key) for metadata in metadata_items if metadata.get(key) is not None]
+            unique = list(dict.fromkeys(values))
+            if len(unique) == 1:
+                combined[key] = unique[0]
+
+        def _collect_list(source_key: str, target_key: str) -> None:
+            values: List[Any] = []
+            for metadata in metadata_items:
+                for value in (metadata.get(source_key), metadata.get(target_key)):
+                    if value is None:
+                        continue
+                    if isinstance(value, (list, tuple, set)):
+                        candidates = value
+                    else:
+                        candidates = [value]
+                    for candidate in candidates:
+                        if candidate is not None and candidate not in values:
+                            values.append(candidate)
+            unique = values
+            if not unique:
+                return
+            if len(unique) == 1:
+                combined[source_key] = unique[0]
+            combined[target_key] = unique
+
+        id_pairs = set()
+        for metadata in metadata_items:
+            for key in metadata.keys():
+                if not isinstance(key, str):
+                    continue
+                if key.endswith("_id"):
+                    id_pairs.add((key, f"{key}s"))
+                elif key.endswith("_ids") and len(key) > 4:
+                    id_pairs.add((key[:-1], key))
+        for source_key, target_key in sorted(id_pairs):
+            _collect_list(source_key, target_key)
+        _collect_list("step_name", "step_names")
+        _collect_list("interaction_type", "interaction_types")
+        _collect_list("interaction_name", "interaction_names")
+        return combined
 
     def _select_endpoint(self, model: Optional[str] = None) -> Optional[EndpointConfig]:
         """按当前负载选择端点（最小负载优先，轮询作为平局打散）。"""
@@ -1019,12 +1232,23 @@ class EmbeddingManager:
         self.current_endpoint_index = (best_idx + 1) % total
         return endpoint
 
-    async def _execute_request(self, endpoint: EndpointConfig, texts: List[str], dimensions: int) -> Dict[str, Any]:
+    async def _execute_request(
+        self,
+        endpoint: EndpointConfig,
+        texts: List[str],
+        dimensions: int,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """在指定端点上执行embedding请求"""
         start_time = time.time()
         request_id = f"emb_{uuid.uuid4().hex[:8]}"
         texts_count = len(texts)
         total_characters = sum(len(text) for text in texts)
+        trace_fields = {
+            key: value
+            for key, value in dict(metadata or {}).items()
+            if value is not None
+        }
         if self._log_context:
             start_payload = {
                 LogField.REQUEST_ID.value: request_id,
@@ -1034,6 +1258,7 @@ class EmbeddingManager:
                 LogField.DIMENSIONS.value: dimensions,
                 LogField.INPUT_CHARACTERS.value: total_characters,
             }
+            start_payload.update(trace_fields)
             self._log_context.log_resource(
                 "embedding",
                 "INFO",
@@ -1052,11 +1277,13 @@ class EmbeddingManager:
         )
 
         async with self.semaphores[endpoint.id]:
+            extras.queue_duration_sec = time.time() - start_time
             stats_entry = self.endpoint_stats[endpoint.id]
             timeout_schedule = self._embedding_timeout_schedule or [120.0]
             max_attempts = len(timeout_schedule)
 
             for attempt_number, request_deadline in enumerate(timeout_schedule, start=1):
+                provider_start_time: Optional[float] = None
                 try:
                     extras.error = None
                     extras.error_type = None
@@ -1066,6 +1293,7 @@ class EmbeddingManager:
                     client = self.clients[endpoint.id]
                     embeddings: List[List[float]] = []
 
+                    provider_start_time = time.time()
                     if endpoint.provider_type.lower() == "ollama":
                         # Ollama 支持批量 embed 调用
                         response = await asyncio.wait_for(
@@ -1094,6 +1322,7 @@ class EmbeddingManager:
                             )
                             for embedding_obj in response.data:
                                 embeddings.append(embedding_obj.embedding)
+                    provider_duration = time.time() - provider_start_time
 
                     if len(embeddings) != len(texts):
                         raise RuntimeError(
@@ -1102,6 +1331,7 @@ class EmbeddingManager:
 
                     execution_time = time.time() - start_time
                     extras.duration_sec = execution_time
+                    extras.provider_duration_sec = provider_duration
                     extras.vectors_returned = len(embeddings)
 
                     result = {
@@ -1111,11 +1341,13 @@ class EmbeddingManager:
                     }
 
                     if self._log_context:
+                        completed_payload = extras.model_dump(exclude_none=True)
+                        completed_payload.update(trace_fields)
                         self._log_context.log_resource(
                             "embedding",
                             "INFO",
                             ResourceEvent.EMBEDDING_REQUEST_COMPLETED.value,
-                            **extras.model_dump(exclude_none=True),
+                            **completed_payload,
                         )
 
                     stats_entry["successes"] += 1
@@ -1133,19 +1365,23 @@ class EmbeddingManager:
                     return result
 
                 except Exception as exc:
-                    extras.error = str(exc)
+                    extras.error = str(exc) or repr(exc)
                     extras.error_type = type(exc).__name__
                     extras.duration_sec = time.time() - start_time
+                    if provider_start_time is not None:
+                        extras.provider_duration_sec = time.time() - provider_start_time
                     stats_entry["errors"] += 1
 
                     is_last_attempt = attempt_number >= max_attempts
                     level = "ERROR" if is_last_attempt else "WARNING"
                     if self._log_context:
+                        failed_payload = extras.model_dump(exclude_none=True)
+                        failed_payload.update(trace_fields)
                         self._log_context.log_resource(
                             "embedding",
                             level,
                             ResourceEvent.EMBEDDING_REQUEST_FAILED.value,
-                            **extras.model_dump(exclude_none=True),
+                            **failed_payload,
                             )
 
                     retry_payload = {
@@ -1212,6 +1448,8 @@ class EmbeddingManager:
                 "max_batch_texts": self._microbatch_max_batch_texts,
                 "max_wait_ms": self._microbatch_max_wait_ms,
                 "max_batch_chars": self._microbatch_max_batch_chars,
+                "max_parallel_flushes": self._microbatch_parallel_flush_limit(),
+                "active_flush_workers": sum(self._microbatch_flush_worker_counts.values()),
                 "batches": total_batches,
                 "items": total_items,
                 "avg_batch_size": avg_batch_size,
@@ -1239,7 +1477,7 @@ class EmbeddingManager:
             self._pending_embeddings.clear()
             self._microbatch_queues.clear()
             self._microbatch_queue_chars.clear()
-            self._microbatch_flushing_buckets.clear()
+            self._microbatch_flush_worker_counts.clear()
 
         for task in timers + flush_tasks:
             task.cancel()

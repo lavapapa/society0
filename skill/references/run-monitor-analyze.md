@@ -25,7 +25,124 @@ logs/
 chroma_store/
 ```
 
-Use `events.jsonl` first for failures. Use `steps.jsonl` for tables, notes, and observations. Use `metrics.jsonl` for time-series analysis. Use `summary.json` for final state and run metadata.
+Use `events.jsonl` first for failures and live monitoring. Use `steps.jsonl` for tables, notes, and observations. Use `metrics.jsonl` for time-series analysis. Use `summary.json` for final state, run metadata, resource cost, artifact sizes, and agent-operation summaries.
+
+Checkpoints are complete machine-readable state snapshots and are written in compact JSON to keep long simulations smaller. Read them with `json.loads(...)` or pandas/json tooling rather than treating them as human-facing reports. For explanations to researchers, prefer `summary.json`, `metrics.jsonl`, and designed tables in `steps.jsonl`; use checkpoints when full world state is needed.
+
+Default `events.jsonl` records are monitor-friendly semantic events such as run lifecycle, code-step lifecycle, agent-batch progress, action traces, recommendation traces, and failures. Raw `STATE_CHANGE` rows are hidden by default to keep multi-agent runs readable. If a debugging task truly needs state-change summaries in `events.jsonl`, construct the engine with `Society0(..., log_state_changes=True)`. Do not treat `events.jsonl` or compacted action tables as the complete research data source. Use checkpoints for full world state, `steps.jsonl` and `metrics.jsonl` for designed outputs, `resource_calls.jsonl` for model-call attribution, and Chroma for memory/vector persistence.
+
+`summary.json` includes an `outputs` block that reports artifact size and line-count diagnostics:
+
+```json
+{
+  "outputs": {
+    "total_bytes": 182340,
+    "files": {
+      "events.jsonl": {"bytes": 6500, "line_count": 42},
+      "steps.jsonl": {"bytes": 21000, "line_count": 10},
+      "resource_calls.jsonl": {"bytes": 78000, "line_count": 60}
+    },
+    "checkpoints": {
+      "count": 3,
+      "total_bytes": 76840
+    }
+  }
+}
+```
+
+Use this block to decide whether a run is growing because of monitoring events, designed step outputs, model-call traces, or checkpoints.
+
+`summary.json` includes an `agent_operations` block when step outputs contain agent rows or action rows:
+
+```json
+{
+  "agent_operations": {
+    "browse_round": {
+      "agent_count": 20,
+      "success_count": 19,
+      "error_count": 1,
+      "turns_avg": 1.85,
+      "turns_max": 3,
+      "action_counts": {
+        "comment": 12,
+        "get_trending_posts": 20,
+        "like_post": 5
+      },
+      "action_error_count": 1,
+      "resources": {
+        "llm": {
+          "call_count": 40,
+          "total_duration_sec": 320.5,
+          "total_input_characters": 72000,
+          "total_tools_characters": 18000,
+          "total_payload_characters": 94000,
+          "messages_count_max": 4,
+          "tools_count_max": 8,
+          "total_tokens": 31600
+        },
+        "embedding": {
+          "call_count": 3,
+          "texts_count": 20,
+          "total_duration_sec": 0.42
+        }
+      },
+      "slowest_agents_by_turns": [
+        {"agent_id": "user_7", "total_turns": 3, "status": "success"}
+      ]
+    }
+  }
+}
+```
+
+Use this block first when explaining what agents did: how many agents succeeded, how many LLM turns were needed, which actions were used, and which agents need inspection. Agent-level `success_count` means the agent operation returned a usable result. `action_error_count` is separate and catches recoverable tool mistakes such as trying to comment on a non-existent post before correcting the ID. If `turns_avg` or `turns_max` is higher than expected, inspect the step's instruction, FoVs, exposed actions, `completion_action_tags`, `terminal_actions`, and `action_call_limits`.
+
+When `resources` appears inside an agent operation, use it to explain why that specific code step was slow or expensive. `llm.call_count`, `messages_count_max`, `total_input_characters`, `total_tools_characters`, `total_payload_characters`, `total_tokens`, and `total_duration_sec` usually reveal whether the cost came from too many agent turns, large FoVs, large tool schemas, structured-output repair, or a slow provider. `embedding.texts_count` and batched `slowest_calls` show whether memory, post embedding, or semantic recommendation was involved.
+
+`summary.json` also includes a `resources` block when LLM or embedding calls were made:
+
+```json
+{
+  "resources": {
+    "llm": {
+      "call_count": 30,
+      "error_count": 0,
+      "duration_sec_max": 220.35,
+      "duration_sec_p90": 180.20,
+      "total_duration_sec": 1800.0,
+      "total_input_characters": 480000,
+      "total_tools_characters": 90000,
+      "total_payload_characters": 600000,
+      "messages_count_max": 4,
+      "tools_count_max": 8,
+      "prompt_tokens": 26847,
+      "completion_tokens": 4571,
+      "slowest_calls": [
+        {
+          "duration_sec": 220.35,
+          "step_name": "browse_round",
+          "interaction_type": "instruct",
+          "interaction_name": "feed_interaction",
+          "agent_id": "user_17"
+        }
+      ]
+    },
+    "embedding": {
+      "call_count": 19,
+      "texts_count": 31
+    }
+  }
+}
+```
+
+Use this to explain runtime cost in plain language: how many LLM calls were made, whether failures occurred, which resource had the slowest call, and whether embedding calls were batched. A high `duration_sec_max` means one slow model request held back the run even if concurrency was configured correctly. Use `duration_sec_p50`, `duration_sec_p90`, `duration_sec_p99`, `slowest_calls`, and `by_interaction` to find whether slowness came from a specific step, interaction, agent, or provider.
+
+For prompt-size diagnosis, prefer `total_input_characters`, `total_tools_characters`, `total_payload_characters`, `messages_count_total`, `messages_count_max`, and per-interaction versions of those fields. `total_input_characters` is message content, `total_tools_characters` is the serialized action schema, and `total_payload_characters` approximates the full provider payload excluding internal metadata. Large prompts usually come from long FoVs, too many retrieved memories, too many exposed actions, or multi-turn tool loops. If memory is enabled, check the step code for `memory_top_k`; for pilots and survey-style interviews, values such as `3` or `5` are often enough. If `total_tools_characters` is high, narrow `actions=[...]` to the env tools needed for that step. A browse round with `messages_count_max=4` usually means the agent made at least one read action, received the tool result, and then spent a second LLM call deciding the next action. That can be correct, but it is a real cost.
+
+If `llm.call_count` is much higher than the number of selected agents, inspect whether the step used structured output repair, multiple action turns, or `extract_memory=True`. For pilots, prefer the default lightweight memory path; enable LLM memory extraction only when it is part of the study design. For action-only or survey-like operations, set `max_tokens` on `users.instruct(...)` or `users.interview(...)`; real tool-call endpoints can be much slower when the generation budget is unconstrained.
+
+For detailed attribution, inspect `resource_calls.jsonl`. LLM records should include `agent_id`, `step_name`, `interaction_type`, and `interaction_name`. Embedding records can be batched; when a batch covers multiple agents or memory operations, read plural fields such as `agent_ids`, `step_names`, `interaction_types`, and `interaction_names`.
+
+During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion, and `agent_batch_completed` closes the batch.
 
 ## Runtime Explanation
 
@@ -56,7 +173,9 @@ Typical checks:
 - treatment/control differences.
 - persona or group differences.
 - missing/failed agent calls.
+- `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, and error count.
 - variance across repeated runs.
+- for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 
 Minimal pandas pattern:
 
@@ -105,3 +224,5 @@ Recommended report:
 7. Limitations and next run.
 
 Always mention model/provider dependence, prompt sensitivity, and the distinction between simulation outputs and empirical observation.
+
+For `social_network` recommendation studies, explicitly report the recommendation condition: `full_scan_until`, pruning settings, chronological/engagement/similarity/network weights, whether embedding similarity was enabled, and `post_count`. These settings shape exposure and should be interpreted like experimental design choices.

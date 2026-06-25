@@ -4,6 +4,7 @@ Environment类定义
 实现了统一状态架构下的Environment类，支持代理机制。
 """
 
+from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import logging
 import inspect
@@ -16,6 +17,15 @@ if TYPE_CHECKING:
     from .core_data import World
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class EnvironmentTickContext:
+    """Context passed to environment lifecycle hooks around each simulation tick."""
+
+    step: int
+    world: "World"
+    log: Any = None
 
 
 class Environment:
@@ -53,6 +63,18 @@ class Environment:
         """
         self._embed_call = embed_call
         self._vector_client = vector_client
+
+    def initialize(self, agents: List[Any], world: "World") -> None:
+        """Initialize environment state. Subclasses can override."""
+        return None
+
+    def before_tick(self, ctx: EnvironmentTickContext) -> None:
+        """Hook called before all code steps in a simulation tick."""
+        return None
+
+    def after_tick(self, ctx: EnvironmentTickContext) -> None:
+        """Hook called after all code steps succeed, before the world advances."""
+        return None
 
     @property
     def agent_instruction(self) -> str:

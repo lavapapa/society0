@@ -86,8 +86,18 @@ If a FoV is missing:
 
 If an LLM agent cannot call an expected environment action:
 
-- start with `actions=None` or `actions=["environment"]` during a prototype.
+- start with `actions=None` or `actions=["environment"]` during a prototype; `actions=None` exposes default non-memory actions.
 - narrow later by action name or short action tag.
+
+## State Or Output Inspection
+
+Default `events.jsonl` is for readable monitoring and does not include raw state-change rows. When checking whether state changed, inspect `checkpoints/checkpoint_final.json` first. If you need state-change summaries for a focused debugging run, use a fresh run directory and create the engine with `Society0(..., log_state_changes=True)`.
+
+If a run is unexpectedly slow or produces very large files, open `summary.json` and inspect:
+
+- `resources.llm` and `agent_operations.*.resources.llm` for model latency, prompt size, tool-schema size, and turns.
+- `resources.embedding` for memory, post, or recommendation embedding calls.
+- `outputs.files` and `outputs.checkpoints` for artifact sizes and JSONL line counts.
 - read the env source to confirm the exact `@action` method name and parameters.
 - remember that `interview(...)` intentionally does not expose ordinary actions.
 
