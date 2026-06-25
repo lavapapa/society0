@@ -363,6 +363,7 @@ class AgentGroup:
             top_p=top_p,
             timeout=timeout,
         )
+        effective_extract_memory = bool(memory and extract_memory)
         execution_options = _agent_batch_execution_options(
             max_turns=max_turns,
             output_schema=output_schema,
@@ -370,7 +371,7 @@ class AgentGroup:
             memory={
                 "retrieve": memory,
                 "save": memory,
-                "extract": bool(memory and extract_memory),
+                "extract": effective_extract_memory,
                 "top_k": memory_top_k,
             },
             terminal_actions=terminal_actions,
@@ -393,7 +394,7 @@ class AgentGroup:
                     max_turns=max_turns,
                     retrieve_memory=memory,
                     save_memory=memory,
-                    extract_memory=extract_memory,
+                    extract_memory=effective_extract_memory,
                     memory_top_k=memory_top_k,
                     name=name,
                     reasoning_stages=reasoning_stages,

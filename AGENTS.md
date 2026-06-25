@@ -15,6 +15,7 @@ This repository contains the standalone `society0` core simulation library. Futu
 - A selected LLM agent must run the real agent loop through `World.instruct_agent()` or `World.interview_agent()`.
 - Default LLM simulations require both `LLMModel` and `EmbedModel`; memory must initialize successfully on the main `Society0` path.
 - `AgentGroup.instruct(..., memory=True)` must retrieve memory and save extractive memory by default. Do not downgrade to lightweight memory for speed unless a caller explicitly sets `extract_memory=False`.
+- Preserve the full tool/action loop, including action filters, terminal actions, completion action tags, action call limits, reasoning stages, and per-call concurrency. These are semantic modeling controls, not performance shortcuts to remove.
 - Unit tests may use fake managers or fake model responses, but product code must still exercise the same LLM, embedding, memory, FoV, and action plumbing.
 - Real endpoint e2e tests must call actual LLM and embedding endpoints when validating model/runtime changes.
 

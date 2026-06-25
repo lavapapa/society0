@@ -935,6 +935,7 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
     assert world.instruct_call[2]["action_tags"] == ["social"]
     assert world.instruct_call[2]["retrieve_memory"] is False
     assert world.instruct_call[2]["save_memory"] is False
+    assert world.instruct_call[2]["extract_memory"] is False
     assert world.instruct_call[2]["model_id"] == "fast"
     assert world.instruct_call[2]["name"] == "feed_interaction"
     assert world.instruct_call[2]["reasoning_stages"] == [{"name": "think", "desc": "think first"}]
@@ -1004,11 +1005,15 @@ async def test_agent_group_instruct_defaults_to_extractive_memory_write():
 
     await group.instruct("remember this", memory=True)
     await group.instruct("lightweight pilot", memory=True, extract_memory=False)
+    await group.instruct("no managed memory", memory=False)
 
     assert world.calls[0]["retrieve_memory"] is True
     assert world.calls[0]["save_memory"] is True
     assert world.calls[0]["extract_memory"] is True
     assert world.calls[1]["extract_memory"] is False
+    assert world.calls[2]["retrieve_memory"] is False
+    assert world.calls[2]["save_memory"] is False
+    assert world.calls[2]["extract_memory"] is False
 
 
 @pytest.mark.asyncio
