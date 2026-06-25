@@ -142,7 +142,7 @@ If `llm.call_count` is higher than the number of selected agents, inspect whethe
 
 For detailed attribution, inspect `resource_calls.jsonl`. LLM records should include `agent_id`, `step_name`, `interaction_type`, and `interaction_name`. Embedding records can be batched; when a batch covers multiple agents or memory operations, read plural fields such as `agent_ids`, `step_names`, `interaction_types`, and `interaction_names`.
 
-During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion, and `agent_batch_completed` closes the batch.
+During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion with the same concurrency state, so short batches without heartbeat events can still be diagnosed. `agent_batch_completed` closes the batch.
 
 ## Runtime Explanation
 
