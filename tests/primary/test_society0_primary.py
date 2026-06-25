@@ -3430,16 +3430,19 @@ async def test_society0_injects_model_concurrency_into_runtime(tmp_path):
         llm=LLMModel.openai_compatible(
             id="default",
             model="gpt-test",
-            base_url="http://localhost:9999/v1",
-            api_key="test",
+            base_url="https://private-llm.example.test/v1",
+            api_key="llm-secret-token",
             concurrency=7,
+            timeout=45,
         ),
         embed=EmbedModel.openai_compatible(
             id="embed",
             model="embed-test",
-            base_url="http://localhost:9999/v1",
-            api_key="test",
+            base_url="https://private-embed.example.test/v1",
+            api_key="embed-secret-token",
             concurrency=3,
+            dimensions=1024,
+            timeout=60,
         ),
     )
 
@@ -3459,6 +3462,26 @@ async def test_society0_injects_model_concurrency_into_runtime(tmp_path):
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     assert summary["runtime"]["agent_concurrency"] == 7
     assert summary["runtime"]["agent_concurrency_source"] == "llm_model"
+    assert summary["models"]["llm"] == {
+        "id": "default",
+        "model": "gpt-test",
+        "provider_type": "openai",
+        "concurrency": 7,
+        "timeout": 45,
+    }
+    assert summary["models"]["embedding"] == {
+        "id": "embed",
+        "model": "embed-test",
+        "provider_type": "openai",
+        "concurrency": 3,
+        "timeout": 60,
+        "dimensions": 1024,
+    }
+    summary_text = json.dumps(summary, ensure_ascii=False)
+    assert "private-llm.example.test" not in summary_text
+    assert "private-embed.example.test" not in summary_text
+    assert "llm-secret-token" not in summary_text
+    assert "embed-secret-token" not in summary_text
     run_started = _read_jsonl(tmp_path / "events.jsonl")[0]
     assert run_started["event"] == "run_started"
     assert run_started["agent_concurrency"] == 7
