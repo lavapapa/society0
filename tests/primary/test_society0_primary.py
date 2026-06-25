@@ -2000,6 +2000,59 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class SlowWorld:
+        step = 6
+        _current_code_step_name = "short_parallel"
+        _default_agent_concurrency = 2
+        _agent_batch_heartbeat_interval_sec = 999
+        _model_provider = None
+        agents_data = {
+            "alice": {"type": "participant"},
+            "bob": {"type": "participant"},
+            "carol": {"type": "participant"},
+            "dave": {"type": "participant"},
+        }
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            await asyncio.sleep(0.02)
+            return {"structured_output": {"ok": True, "agent_id": agent_id}}
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_6")
+
+    result = await AgentSelector(SlowWorld(event_logger)).all().instruct(
+        "answer briefly",
+        memory=False,
+        name="short_round",
+    )
+
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    progress_events = [event for event in events if event.get("event_type") == "agent_batch_progress"]
+    heartbeat_events = [event for event in events if event.get("event_type") == "agent_batch_heartbeat"]
+    summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
+    batch = summary["agent_batches"]["instruct / short_round"]
+
+    assert result.success_count == 4
+    assert not heartbeat_events
+    assert len(progress_events) == 4
+    assert max(event["event_data"]["in_flight_count"] for event in progress_events) == 2
+    assert max(event["event_data"]["started_count"] for event in progress_events) == 4
+    assert progress_events[-1]["event_data"]["pending_count"] == 0
+    assert batch["progress_event_count"] == 4
+    assert batch["heartbeat_event_count"] == 0
+    assert batch["max_in_flight_count"] == 2
+    assert batch["max_started_count"] == 4
+
+
+@pytest.mark.asyncio
 async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     events_path = tmp_path / "events.jsonl"
     event_logger = EventLogger(str(events_path))
