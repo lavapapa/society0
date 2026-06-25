@@ -193,6 +193,8 @@ For surveys and other bounded measurements, set `max_tokens` deliberately. A sho
 
 This is an agent-operation limit: at most N selected agents enter the LLM-facing operation at the same time. The model managers still enforce endpoint-level LLM and embedding semaphores underneath, so provider requests remain bounded even when memory retrieval or embedding calls occur.
 
+After the run, inspect `summary.json -> events.agent_batches.<interaction>.concurrency_source` and `concurrency_source_counts`. This confirms whether the batch used a per-call override, the global `Society0(...)` value, the `LLMModel(...)` concurrency, or the default of 5.
+
 Recommended researcher-facing wording before a run:
 
 ```text

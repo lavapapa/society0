@@ -2409,6 +2409,7 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
         "interaction_name": "measure_round",
         "agent_count": 3,
         "concurrency": 2,
+        "concurrency_source": "world_default",
         "model_id": None,
         "fovs": ["feed"],
         "actions": ["environment"],
@@ -2482,6 +2483,9 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
     assert batch["heartbeat_event_count"] == 0
     assert batch["max_in_flight_count"] == 2
     assert batch["max_started_count"] == 4
+    assert batch["concurrency_source"] == "world_default"
+    assert batch["concurrency_source_counts"] == {"world_default": 1}
+    assert batch["by_tick"]["6"]["concurrency_source"] == "world_default"
 
 
 @pytest.mark.asyncio
@@ -2663,6 +2667,7 @@ async def test_agent_group_instruct_writes_heartbeat_events_while_in_flight(tmp_
     assert first_heartbeat["interaction_name"] == "slow_round"
     assert first_heartbeat["agent_count"] == 3
     assert first_heartbeat["concurrency"] == 2
+    assert first_heartbeat["concurrency_source"] == "world_default"
     assert first_heartbeat["started_count"] == 2
     assert first_heartbeat["in_flight_count"] == 2
     assert first_heartbeat["pending_count"] == 1
@@ -2729,6 +2734,59 @@ async def test_explicit_concurrency_overrides_world_default():
     await AgentSelector(world).all().instruct("act", concurrency=3)
 
     assert world.max_in_flight == 3
+
+
+@pytest.mark.asyncio
+async def test_agent_batch_events_record_concurrency_source(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class FakeWorld:
+        step = 8
+        _current_code_step_name = "source_probe"
+        _default_agent_concurrency = 2
+        _default_agent_concurrency_source = "llm_model"
+        _model_provider = None
+        agents_data = {
+            "alice": {"id": "alice", "type": "social_user", "archetype": "llm", "state": {}, "properties": {}},
+            "bob": {"id": "bob", "type": "social_user", "archetype": "llm", "state": {}, "properties": {}},
+        }
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            return {"structured_output": {"trust_score": 1.0}}
+
+        async def interview_agent(self, agent_id, question, **kwargs):
+            return {"structured_output": {"trust_score": 1.0}}
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_8")
+
+    world = FakeWorld(event_logger)
+    group = AgentSelector(world).all()
+
+    await group.instruct("act", name="model_source")
+    await group.interview("rate", output=TrustOutput, name="explicit_source", concurrency=1)
+
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    completed_events = [event for event in events if event.get("event_type") == "agent_batch_completed"]
+    assert completed_events[0]["event_data"]["concurrency"] == 2
+    assert completed_events[0]["event_data"]["concurrency_source"] == "llm_model"
+    assert completed_events[1]["event_data"]["concurrency"] == 1
+    assert completed_events[1]["event_data"]["concurrency_source"] == "explicit"
+
+    summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
+    assert summary["agent_batches"]["instruct / model_source"]["concurrency_source"] == "llm_model"
+    assert summary["agent_batches"]["instruct / model_source"]["concurrency_source_counts"] == {
+        "llm_model": 1
+    }
+    assert summary["agent_batches"]["interview / explicit_source"]["concurrency_source"] == "explicit"
+    assert summary["agent_batches"]["interview / explicit_source"]["by_tick"]["8"][
+        "concurrency_source_counts"
+    ] == {"explicit": 1}
 
 
 @pytest.mark.asyncio
