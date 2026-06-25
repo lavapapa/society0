@@ -1108,6 +1108,8 @@ async def test_agent_group_instruct_required_actions_turn_missing_action_into_er
     event_logger.close()
     events = _read_jsonl(events_path)
     started = next(event for event in events if event.get("event_type") == "agent_batch_started")
+    summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
+    batch = summary["agent_batches"]["instruct / publish_round"]
 
     assert result.success_count == 1
     assert result.error_count == 1
@@ -1116,6 +1118,13 @@ async def test_agent_group_instruct_required_actions_turn_missing_action_into_er
     assert result.by_agent("bob").error == "missing required action(s): publish_post"
     assert result.action_counts() == {"publish_post": 1}
     assert started["event_data"]["execution_options"]["required_actions"] == ["publish_post"]
+    assert batch["error_samples"] == [
+        {
+            "agent_id": "bob",
+            "status": "error",
+            "error": "missing required action(s): publish_post",
+        }
+    ]
 
 
 @pytest.mark.asyncio
@@ -1181,6 +1190,8 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
     event_logger.close()
     events = _read_jsonl(events_path)
     started = next(event for event in events if event.get("event_type") == "agent_batch_started")
+    summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
+    batch = summary["agent_batches"]["instruct / social_round"]
 
     assert result.success_count == 1
     assert result.error_count == 1
@@ -1189,6 +1200,13 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
     assert result.by_agent("bob").error == "missing required action tag(s): social_write"
     assert result.action_counts() == {"comment": 1, "get_trending_posts": 1}
     assert started["event_data"]["execution_options"]["required_action_tags"] == ["social_write"]
+    assert batch["error_samples"] == [
+        {
+            "agent_id": "bob",
+            "status": "error",
+            "error": "missing required action tag(s): social_write",
+        }
+    ]
 
 
 @pytest.mark.asyncio

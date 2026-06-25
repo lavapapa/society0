@@ -1620,6 +1620,7 @@ class Society0:
                                 "max_pending_count": 0,
                                 "max_started_count": 0,
                                 "duration_sec": 0.0,
+                                "error_samples": [],
                             },
                         )
                         batch["latest_event"] = name
@@ -1642,6 +1643,11 @@ class Society0:
                             value = event_data.get(source_key)
                             if isinstance(value, int):
                                 batch[target_key] = max(int(batch[target_key]), value)
+                        event_error_samples = event_data.get("error_samples")
+                        if isinstance(event_error_samples, list):
+                            for sample in event_error_samples:
+                                if isinstance(sample, dict) and len(batch["error_samples"]) < 5:
+                                    batch["error_samples"].append(sample)
                     if name.startswith("logic_execution_"):
                         logic_kind = str(event_data.get("logic_kind") or "unknown_kind")
                         logic_name = str(event_data.get("logic_name") or "unknown_name")
@@ -1731,6 +1737,9 @@ class Society0:
             "by_tick": dict(sorted(by_tick.items(), key=lambda item: item[0])),
         }
         if agent_batches:
+            for batch in agent_batches.values():
+                if not batch.get("error_samples"):
+                    batch.pop("error_samples", None)
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
             for execution in logic_executions.values():
