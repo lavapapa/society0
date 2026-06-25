@@ -323,18 +323,32 @@ def test_agent_batch_result_exposes_action_summaries():
                             "action_name": "get_trending_posts",
                             "arguments": {},
                             "result": "hot posts",
+                            "status": "success",
+                            "tags": ["get_trending_posts", "social_read"],
                         },
                         {
                             "type": "action_call",
                             "action_name": "get_agent_profile",
                             "arguments": {"agent_id": "bob"},
                             "result": "profile",
+                            "status": "success",
+                            "tags": ["get_agent_profile", "profile_read"],
                         },
                         {
                             "type": "action_call",
                             "action_name": "get_trending_posts",
                             "arguments": {"query": "campus", "note": "n" * 300},
                             "result": long_result,
+                            "status": "success",
+                            "tags": ["get_trending_posts", "social_read"],
+                        },
+                        {
+                            "type": "action_call",
+                            "action_name": "comment",
+                            "arguments": {"post_id": "missing"},
+                            "result": "Post not found",
+                            "status": "error",
+                            "tags": ["comment", "social_write"],
                         },
                     ]
                 },
@@ -349,21 +363,36 @@ def test_agent_batch_result_exposes_action_summaries():
                             "action_name": "get_trending_posts",
                             "arguments": {},
                             "result": "hot posts",
+                            "status": "success",
+                            "tags": ["get_trending_posts", "social_read"],
                         }
                     ]
                 },
             ),
+            AgentCallRecord(
+                agent_id="carol",
+                status="error",
+                value={"reason": "required action missing"},
+                error="Missing required actions for carol: publish_post",
+            ),
         ]
     )
 
-    assert result.action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1}
+    assert result.action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1, "comment": 1}
+    assert result.action_tag_counts() == {
+        "get_trending_posts": 3,
+        "social_read": 3,
+        "get_agent_profile": 1,
+        "profile_read": 1,
+    }
     assert [action["action_name"] for action in result.actions_by_agent("alice")] == [
         "get_trending_posts",
         "get_agent_profile",
         "get_trending_posts",
+        "comment",
     ]
     assert result.actions_by_agent("missing") == []
-    compact_long = result.actions_by_agent("alice")[-1]
+    compact_long = result.actions_by_agent("alice")[-2]
     assert compact_long["result"].endswith("...")
     assert compact_long["result_length"] == len(long_result)
     assert compact_long["result_truncated"] is True
@@ -371,7 +400,16 @@ def test_agent_batch_result_exposes_action_summaries():
     assert compact_long["arguments"]["note_length"] == 300
     assert compact_long["arguments"]["note_truncated"] is True
     assert long_result not in json.dumps(result.actions(), ensure_ascii=False)
+    assert result.error_samples() == [
+        {
+            "agent_id": "carol",
+            "status": "error",
+            "error": "Missing required actions for carol: publish_post",
+        }
+    ]
     assert result.to_dict()["action_counts"] == result.action_counts()
+    assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
+    assert result.to_dict()["error_samples"] == result.error_samples()
 
 
 def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):

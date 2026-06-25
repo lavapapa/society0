@@ -68,7 +68,18 @@ Use this block to decide whether a run is growing because of monitoring events, 
         "get_trending_posts": 20,
         "like_post": 5
       },
+      "action_tag_counts": {
+        "social_read": 20,
+        "social_write": 17
+      },
       "action_error_count": 1,
+      "error_samples": [
+        {
+          "agent_id": "user_4",
+          "status": "error",
+          "error": "Missing required action tags for user_4: social_write"
+        }
+      ],
       "resources": {
         "llm": {
           "call_count": 40,
@@ -94,7 +105,7 @@ Use this block to decide whether a run is growing because of monitoring events, 
 }
 ```
 
-Use this block first when explaining what agents did: how many agents succeeded, how many LLM turns were needed, which actions were used, and which agents need inspection. Agent-level `success_count` means the agent operation returned a usable result. `action_error_count` is separate and catches recoverable tool mistakes such as trying to comment on a non-existent post before correcting the ID. If `turns_avg` or `turns_max` is higher than expected, inspect the step's instruction, FoVs, exposed actions, `completion_action_tags`, `terminal_actions`, and `action_call_limits`.
+Use this block first when explaining what agents did: how many agents succeeded, how many LLM turns were needed, which actions were used, which action tags were successfully completed, and which agents need inspection. Agent-level `success_count` means the agent operation returned a usable result. `action_tag_counts` counts successful action rows only, so a failed `comment` attempt should not be treated as a completed `social_write` behavior. `action_error_count` is separate and catches recoverable tool mistakes such as trying to comment on a non-existent post before correcting the ID. If `turns_avg` or `turns_max` is higher than expected, inspect the step's instruction, FoVs, exposed actions, `completion_action_tags`, `terminal_actions`, and `action_call_limits`.
 
 When `resources` appears inside an agent operation, use it to explain why that specific code step was slow or expensive. `llm.call_count`, `messages_count_max`, `total_input_characters`, `total_tools_characters`, `total_payload_characters`, `total_tokens`, and `total_duration_sec` usually reveal whether the cost came from too many agent turns, large FoVs, large tool schemas, structured-output repair, or a slow provider. `embedding.texts_count` and batched `slowest_calls` show whether memory, post embedding, or semantic recommendation was involved.
 

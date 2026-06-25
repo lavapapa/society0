@@ -147,6 +147,23 @@ class AgentBatchResult:
             counts[str(name)] = counts.get(str(name), 0) + 1
         return counts
 
+    def action_tag_counts(self) -> Dict[str, int]:
+        """Count successful action trace tags across all agent records."""
+        counts: Dict[str, int] = {}
+        for action in self.actions():
+            if str(action.get("status") or "success").lower() != "success":
+                continue
+            for tag in action.get("tags") or []:
+                tag_key = str(tag)
+                if not tag_key:
+                    continue
+                counts[tag_key] = counts.get(tag_key, 0) + 1
+        return counts
+
+    def error_samples(self, *, limit: int = 5) -> List[Dict[str, Any]]:
+        """Return compact failed-agent samples for step-level diagnostics."""
+        return _logic_error_samples(self.records, limit=limit)
+
     def table(self) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for record in self.records:
@@ -179,6 +196,8 @@ class AgentBatchResult:
             "success_count": self.success_count,
             "error_count": self.error_count,
             "action_counts": self.action_counts(),
+            "action_tag_counts": self.action_tag_counts(),
+            "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
         }
 
