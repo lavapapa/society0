@@ -1865,6 +1865,7 @@ class Society0:
                                 "successful_action_counts": {},
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
+                                "termination_reason_counts": {},
                                 "memory_summary": {},
                                 "by_tick": {},
                                 "action_error_samples": [],
@@ -1900,6 +1901,7 @@ class Society0:
                                 "successful_action_counts": {},
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
+                                "termination_reason_counts": {},
                                 "memory_summary": {},
                                 "action_error_samples": [],
                                 "error_samples": [],
@@ -1988,6 +1990,7 @@ class Society0:
                                 "successful_action_counts",
                                 "failed_action_counts",
                                 "action_tag_counts",
+                                "termination_reason_counts",
                             ):
                                 value = event_data.get(key)
                                 if isinstance(value, dict):
@@ -2157,6 +2160,8 @@ class Society0:
                     batch.pop("action_error_samples", None)
                 if not batch.get("concurrency_source_counts"):
                     batch.pop("concurrency_source_counts", None)
+                if not batch.get("termination_reason_counts"):
+                    batch.pop("termination_reason_counts", None)
                 memory_summary = _finalize_memory_summary(batch.get("memory_summary") or {})
                 if memory_summary:
                     batch["memory_summary"] = memory_summary
@@ -2171,6 +2176,8 @@ class Society0:
                             tick_batch.pop("action_error_samples", None)
                         if isinstance(tick_batch, dict) and not tick_batch.get("concurrency_source_counts"):
                             tick_batch.pop("concurrency_source_counts", None)
+                        if isinstance(tick_batch, dict) and not tick_batch.get("termination_reason_counts"):
+                            tick_batch.pop("termination_reason_counts", None)
                         tick_memory_summary = _finalize_memory_summary(
                             tick_batch.get("memory_summary") or {}
                         )

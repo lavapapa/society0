@@ -109,6 +109,10 @@ def format_stages_for_prompt(stages: List[Dict[str, Any]]) -> str:
             lines.append(f"- {name}")
     return "\n".join(lines)
 
+
+def _normalize_name_set(values: Optional[List[str]]) -> set[str]:
+    return {str(value).strip().lower() for value in (values or []) if str(value).strip()}
+
 @dataclass
 class ActionCall:
     """Represents an action call with its result."""
@@ -333,6 +337,8 @@ class LoopResult:
     total_turns: int = 0
     default_stage_name: str = "default"
     action_calls: List[Dict[str, Any]] = field(default_factory=list)
+    termination_reason: Optional[str] = None
+    termination_action: Optional[str] = None
 
     # 新增字段 - 支持OpenAI推理模型
     reasoning_content: Optional[str] = None  # 原始推理内容
@@ -476,6 +482,8 @@ async def execute_action_loop(
     *,
     terminal_action_names: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
+    required_action_names: Optional[List[str]] = None,
+    required_action_tags: Optional[List[str]] = None,
     turn_remain_hint: bool = True,
     hint_on_remain_turn: int = 1,
     max_action_calls: Optional[int] = None,
@@ -499,6 +507,11 @@ async def execute_action_loop(
         completion_action_tags: Action tags that mark a successful action as
             completing this instruction. This is useful for workflows such as
             "read tools may continue, but a social_write action ends the round".
+        required_action_names: Action names that must succeed before the loop
+            can be considered complete. If the model stops early and turns
+            remain, the loop asks it to correct the missing action.
+        required_action_tags: Action tags that must succeed before the loop
+            can be considered complete.
 
     Returns:
         LoopResult containing parsed stages, action call results, and execution history
@@ -552,19 +565,15 @@ async def execute_action_loop(
         reasoning_content=None,
         thinking_process=[],
         has_reasoning=False,
-        model_type=None
+        model_type=None,
+        termination_reason=None,
+        termination_action=None,
     )
 
-    terminal_action_name_set = {
-        str(name).strip().lower()
-        for name in (terminal_action_names or [])
-        if str(name).strip()
-    }
-    completion_action_tag_set = {
-        str(tag).strip().lower()
-        for tag in (completion_action_tags or [])
-        if str(tag).strip()
-    }
+    terminal_action_name_set = _normalize_name_set(terminal_action_names)
+    completion_action_tag_set = _normalize_name_set(completion_action_tags)
+    required_action_name_set = _normalize_name_set(required_action_names)
+    required_action_tag_set = _normalize_name_set(required_action_tags)
     if submit_result_only:
         terminal_action_name_set.add("submit_result")
     if max_action_calls is not None:
@@ -645,6 +654,33 @@ async def execute_action_loop(
             merged_tags.insert(1, action_name.rsplit(".", maxsplit=1)[-1])
         return list(dict.fromkeys(merged_tags))
 
+    def _successful_action_aliases_and_tags() -> tuple[set[str], set[str]]:
+        names: set[str] = set()
+        tags: set[str] = set()
+        for action_call in all_action_calls:
+            if getattr(action_call, "status", "success") != "success":
+                continue
+            aliases = _action_aliases(action_call.action_name)
+            names.update(aliases)
+            tags.update(aliases)
+            tags.update(str(tag).strip().lower() for tag in _action_trace_tags(action_call.action_name))
+        return names, {tag for tag in tags if tag}
+
+    def _missing_loop_requirements() -> tuple[List[str], List[str]]:
+        successful_names, successful_tags = _successful_action_aliases_and_tags()
+        missing_names = sorted(required_action_name_set - successful_names)
+        missing_tags = sorted(required_action_tag_set - successful_tags)
+        return missing_names, missing_tags
+
+    def _required_action_reminder(missing_names: List[str], missing_tags: List[str]) -> str:
+        parts = ["You have not completed the required action for this task."]
+        if missing_names:
+            parts.append(f"Required action name(s): {', '.join(missing_names)}.")
+        if missing_tags:
+            parts.append(f"Required action tag(s): {', '.join(missing_tags)}.")
+        parts.append("Call the required tool now if the environment state allows it; do not just describe the action.")
+        return " ".join(parts)
+
 
     for turn in range(max_turns):
         total_turns = turn + 1
@@ -717,6 +753,16 @@ async def execute_action_loop(
 
         # Execute action calls if present
         if not action_calls:
+            missing_names, missing_tags = _missing_loop_requirements()
+            if (missing_names or missing_tags) and turn + 1 < max_turns:
+                messages.append({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
+                continue
+            if missing_names:
+                loop_result.termination_reason = "missing_required_action"
+            elif missing_tags:
+                loop_result.termination_reason = "missing_required_action_tag"
+            else:
+                loop_result.termination_reason = "no_action_calls"
             break
 
         # print(f"[ActionCalls] {len(action_calls)} action calls")
@@ -847,8 +893,10 @@ async def execute_action_loop(
                 action_call.error = error_msg
                 executed_action_calls.append(action_call)
 
-            if action_call.action_name.lower() in terminal_action_name_set:
+            if action_succeeded and action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
+                loop_result.termination_reason = "terminal_action"
+                loop_result.termination_action = action_call.action_name
                 logger.debug(
                     "Terminal action hit: %s, ending loop early",
                     action_call.action_name,
@@ -856,6 +904,8 @@ async def execute_action_loop(
                 break
             if action_succeeded and _action_matches_completion_tags(action_call.action_name):
                 terminate_loop = True
+                loop_result.termination_reason = "completion_action_tag"
+                loop_result.termination_action = action_call.action_name
                 logger.debug(
                     "Completion action tag hit: %s, ending loop early",
                     action_call.action_name,
@@ -879,9 +929,21 @@ async def execute_action_loop(
                 for ac in executed_action_calls
             ]
 
-        if terminate_loop or _all_available_action_budgets_exhausted():
+        if terminate_loop:
+            break
+        if _all_available_action_budgets_exhausted():
+            loop_result.termination_reason = "action_budget_exhausted"
             break
         continue
+    else:
+        if loop_result.termination_reason is None:
+            missing_names, missing_tags = _missing_loop_requirements()
+            if missing_names:
+                loop_result.termination_reason = "missing_required_action"
+            elif missing_tags:
+                loop_result.termination_reason = "missing_required_action_tag"
+            else:
+                loop_result.termination_reason = "max_turns"
 
     # Parse the final response content into stages
     phases, phases_unknown, parsing_errors = _parse_stages(
@@ -939,6 +1001,8 @@ async def execute_action_loop(
         total_turns=total_turns,
         default_stage_name=default_stage_name,
         action_calls=action_call_entries,
+        termination_reason=loop_result.termination_reason,
+        termination_action=loop_result.termination_action,
         reasoning_content=loop_result.reasoning_content,
         thinking_process=loop_result.thinking_process,
         has_reasoning=loop_result.has_reasoning,

@@ -769,6 +769,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     assert publish_batch["execution_options"]["required_actions"] == ["publish_post"]
     assert publish_batch["successful_action_counts"].get("publish_post") == agent_count
     assert publish_batch["failed_action_counts"] == {}
+    assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
     assert publish_batch["action_semantics"]["required_actions"]["configured"] == ["publish_post"]
     assert publish_batch["action_semantics"]["required_actions"]["observed_counts"]["publish_post"] == agent_count
     llm_traces = _successful_resource_calls(resource_calls, "llm")
@@ -996,7 +997,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
 
     assert publish_metrics["publish_errors"] == 0
     assert publish_metrics["publish_success"] == agent_count
-    assert publish_metrics["publish_action_count"] >= 1
+    assert publish_metrics["publish_action_count"] == agent_count
     assert browse_metrics["browse_errors"] == 0
     assert browse_metrics["browse_success"] == agent_count
     assert browse_metrics["max_browse_turns"] <= 2
@@ -1032,6 +1033,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert publish_batch["successful_action_counts"].get("publish_post", 0) >= 1
     assert publish_batch["failed_action_counts"].get("publish_post", 0) == 0
     assert publish_batch["action_tag_counts"].get("social_write", 0) >= 1
+    assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": True,
@@ -1045,6 +1047,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_batch["action_tag_counts"].get("social_write", 0) >= 1
     assert browse_batch["action_semantics"]["completion_action_tags"]["configured"] == ["social_write"]
     assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
+    assert browse_batch["termination_reason_counts"] == {"completion_action_tag": agent_count}
     assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
         "memory_extraction"
     ]["call_count"] >= agent_count

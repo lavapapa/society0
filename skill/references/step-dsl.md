@@ -96,10 +96,10 @@ Parameters:
 - `concurrency`: optional per-call override for how many LLM agents run at once.
 - `name`: trace name.
 - `reasoning_stages`: optional cognitive stages for studies that compare decision procedures.
-- `terminal_actions`: optional action names that end the agent loop immediately after a successful call because that action is the natural endpoint of the current task.
+- `terminal_actions`: optional action names that end the agent loop immediately after a successful call because that action is the natural endpoint of the current task. A failed terminal action should not end the round; the model should receive the tool error and correct itself if turns remain.
 - `completion_action_tags`: optional action tags that end the agent loop after a successful matching action. Use this when a category of actions completes the round, while other read or lookup tools may still be intermediate.
-- `required_actions`: optional action names that must be successfully called by each selected agent for that agent record to count as success. Use this when the experiment design requires a concrete behavior, not just a valid LLM response.
-- `required_action_tags`: optional action tags that must be successfully called by each selected agent for that agent record to count as success. Use this when the exact action may vary but the behavior category is required.
+- `required_actions`: optional action names that must be successfully called by each selected agent for that agent record to count as success. Use this when the experiment design requires a concrete behavior, not just a valid LLM response. When turns remain, Society0 reminds the model to correct a missing required action instead of silently accepting a text-only answer.
+- `required_action_tags`: optional action tags that must be successfully called by each selected agent for that agent record to count as success. Use this when the exact action may vary but the behavior category is required. When turns remain, Society0 also reminds the model to satisfy a missing required tag.
 
 During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. Use `actions=["memory"]` only when the study explicitly wants agents to call memory tools themselves; `memory=True` already performs framework-managed retrieval and saving.
 
