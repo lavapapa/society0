@@ -1450,13 +1450,21 @@ class Society0:
                         action_key = str(action)
                         action_counts[action_key] = action_counts.get(action_key, 0) + 1
                     if name.startswith("agent_batch_"):
-                        interaction = str(event_data.get("interaction_name") or "unknown")
+                        interaction_type = str(event_data.get("interaction_type") or "unknown_type")
+                        interaction_name = str(event_data.get("interaction_name") or "unknown_name")
+                        interaction = f"{interaction_type} / {interaction_name}"
                         batch = agent_batches.setdefault(
                             interaction,
                             {
                                 "latest_event": name,
+                                "interaction_type": interaction_type,
+                                "interaction_name": interaction_name,
+                                "step_name": event_data.get("step_name"),
                                 "agent_count": event_data.get("agent_count"),
                                 "concurrency": event_data.get("concurrency"),
+                                "model_id": event_data.get("model_id"),
+                                "fovs": event_data.get("fovs") or [],
+                                "actions": event_data.get("actions") or [],
                                 "success_count": 0,
                                 "error_count": 0,
                                 "completed_count": 0,
@@ -1464,6 +1472,9 @@ class Society0:
                             },
                         )
                         batch["latest_event"] = name
+                        execution_options = event_data.get("execution_options")
+                        if isinstance(execution_options, dict):
+                            batch["execution_options"] = execution_options
                         for key in ("success_count", "error_count", "completed_count", "duration_sec"):
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
