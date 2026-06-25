@@ -115,8 +115,24 @@ If selection returns no agents:
 python -m pytest -q tests/primary
 python -m pytest -q tests/e2e
 SOCIETY0_RUN_REAL_E2E=1 python -m pytest -q tests/e2e/test_society0_real_e2e.py
-SOCIETY0_RUN_REAL_E2E=1 SOCIETY0_PLATFORM_ROOT=/path/to/Society0 SOCIETY0_REAL_E2E_SATURATION_CONCURRENCY=6 python -m pytest -q tests/e2e/test_society0_real_e2e.py -m saturation
+SOCIETY0_RUN_REAL_E2E=1 SOCIETY0_REAL_E2E_SATURATION_CONCURRENCY=6 python -m pytest -q tests/e2e/test_society0_real_e2e.py -m saturation
 python -m pytest -q
 ```
 
 Real E2E requires working LLM and embedding endpoints. Skipped real E2E does not prove provider integration works.
+
+Preferred real E2E endpoint variables:
+
+```bash
+export SOCIETY0_RUN_REAL_E2E=1
+export SOCIETY0_REAL_E2E_LLM_BASE_URL="https://your-llm-provider/v1"
+export SOCIETY0_REAL_E2E_LLM_MODEL="your-chat-model"
+export SOCIETY0_REAL_E2E_LLM_API_KEY="..."
+export SOCIETY0_REAL_E2E_EMBED_BASE_URL="https://your-embedding-provider/v1"
+export SOCIETY0_REAL_E2E_EMBED_MODEL="your-embedding-model"
+export SOCIETY0_REAL_E2E_EMBED_API_KEY="..."
+export SOCIETY0_REAL_E2E_EMBED_PROVIDER="openai_compatible"
+export SOCIETY0_REAL_E2E_EMBED_DIMENSIONS=768
+```
+
+For local Ollama embeddings, set `SOCIETY0_REAL_E2E_EMBED_PROVIDER=ollama`, `SOCIETY0_REAL_E2E_EMBED_BASE_URL=http://localhost:11434`, and omit the embedding API key. `SOCIETY0_PLATFORM_ROOT` is only a local maintainer fallback, not the public testing path.
