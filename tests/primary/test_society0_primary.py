@@ -2759,6 +2759,117 @@ async def test_structured_instruct_awaits_framework_memory_write():
     assert memory.write_calls[0]["trace"]["interaction_name"] == "seed_round"
 
 
+@pytest.mark.asyncio
+async def test_extractive_memory_llm_call_is_traced_as_memory_extract():
+    calls = []
+
+    class FakeMemory:
+        def __init__(self):
+            self.write_calls = []
+
+        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
+            self.write_calls.append({"entries": entries, "trace": trace})
+            return ["mem_1"]
+
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "Answer directly.",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_0")
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        tool_names = [tool["function"]["name"] for tool in payload.get("tools", [])]
+        if "extract_memories" in tool_names:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "extract_1",
+                        "type": "function",
+                        "function": {
+                            "name": "extract_memories",
+                            "arguments": '{"memories": [{"content": "我记住了 cobalt moon。", "importance": 4}]}',
+                        },
+                    }
+                ],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "submit_1",
+                    "type": "function",
+                    "function": {
+                        "name": "submit_result",
+                        "arguments": '{"result": {"trust_score": 4.0}}',
+                    },
+                }
+            ],
+        }
+
+    memory = FakeMemory()
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="Answer directly.",
+        memory=memory,
+        llm_call=fake_llm_call,
+        actionset=ActionSet(),
+    )
+
+    result = await agent.instruct(
+        "Remember cobalt moon and return a trust score.",
+        output_schema={
+            "type": "object",
+            "properties": {"trust_score": {"type": "number"}},
+            "required": ["trust_score"],
+            "additionalProperties": False,
+        },
+        retrieve_memory=False,
+        save_memory=True,
+        extract_memory=True,
+        max_turns=3,
+        trace={
+            "step": 0,
+            "step_name": "seed",
+            "interaction_type": "instruct",
+            "interaction_name": "seed_round",
+        },
+    )
+
+    assert result["memory_extraction_enabled"] is True
+    assert result["memory_extraction_success"] is True
+    assert len(calls) == 2
+    assert calls[0]["metadata"]["interaction_type"] == "instruct"
+    assert calls[0]["metadata"]["interaction_name"] == "seed_round"
+    assert calls[1]["metadata"]["interaction_type"] == "memory_extract"
+    assert calls[1]["metadata"]["interaction_name"] == "memory_extract"
+    assert memory.write_calls[0]["trace"]["interaction_type"] == "memory_write"
+    assert memory.write_calls[0]["entries"][0]["metadata"]["extraction_method"] == "structured_extract"
+
+
 def test_json_prefix_fallback_parses_prefilled_object_continuation():
     parsed = _parse_structured_json_from_model_text(
         '"trust_score": 3, "reason": "Plausible but underspecified."}\\n```',
