@@ -8,6 +8,7 @@ This repository contains the standalone `society0` core simulation library. Futu
 - The public package name is `society0`.
 - The recommended runtime path is `Society0 + CodeSchedule + step(ctx)`.
 - Legacy YAML workflow code may remain importable, but new runtime features should not depend on legacy schedule compatibility unless requested.
+- Do not add campus-network, private-server, or platform-specific endpoint assumptions to product code or public docs. Optional real e2e tests may read endpoints from the local environment, but the open-source core must stay provider-neutral.
 
 ## LLM Agent Integrity
 
