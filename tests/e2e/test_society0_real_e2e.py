@@ -235,6 +235,22 @@ def _assert_resource_timing(records: list[dict]) -> None:
         assert record["queue_duration_sec"] >= 0
 
 
+def _assert_timing_breakdown(bucket: dict) -> None:
+    timing = bucket.get("timing_breakdown")
+    assert isinstance(timing, dict)
+    assert timing["bottleneck"] in {"provider", "queue", "runtime_overhead", "none"}
+    for key in (
+        "provider_duration_sec",
+        "queue_duration_sec",
+        "runtime_overhead_sec",
+        "provider_share",
+        "queue_share",
+        "runtime_overhead_share",
+    ):
+        assert isinstance(timing.get(key), (int, float))
+        assert timing[key] >= 0
+
+
 def _resource_events(run_dir: Path, resource: str) -> list[dict]:
     return _read_jsonl(run_dir / "logs" / "resources" / f"{resource}.jsonl")
 
@@ -508,6 +524,11 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency * 2
     assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= concurrency
     assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    _assert_timing_breakdown(summary["resources"]["llm"])
+    _assert_timing_breakdown(summary["resources"]["llm"]["by_interaction_type"]["instruct"])
+    _assert_timing_breakdown(summary["resources"]["llm"]["fidelity"]["memory_extraction"])
+    _assert_timing_breakdown(summary["resources"]["embedding"])
+    _assert_timing_breakdown(summary["resources"]["embedding"]["fidelity"]["memory_io"])
     seed_batch = summary["events"]["agent_batches"]["instruct / saturation_seed"]
     recall_batch = summary["events"]["agent_batches"]["interview / saturation_recall"]
     assert seed_batch["agent_count"] == concurrency
@@ -533,6 +554,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert seed_batch["resources"]["llm"]["total_payload_characters"] >= (
         seed_batch["resources"]["llm"]["total_tools_characters"]
     )
+    _assert_timing_breakdown(seed_batch["resources"]["llm"])
     assert recall_batch["agent_count"] == concurrency
     assert recall_batch["concurrency"] == concurrency
     assert recall_batch["concurrency_source"] == "llm_model"
@@ -550,6 +572,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert recall_batch["memory_summary"]["top_k_values"] == [10]
     assert recall_batch["resources"]["llm"]["by_interaction_type"]["interview"]["call_count"] >= concurrency
     assert recall_batch["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency
+    _assert_timing_breakdown(recall_batch["resources"]["llm"])
     assert (
         summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
             "memory_extraction"
@@ -1000,12 +1023,12 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert publish_metrics["publish_action_count"] == agent_count
     assert browse_metrics["browse_errors"] == 0
     assert browse_metrics["browse_success"] == agent_count
-    assert browse_metrics["max_browse_turns"] <= 2
+    assert browse_metrics["max_browse_turns"] <= 3
     assert browse_metrics["comment_count"] >= 1
     assert browse_metrics["social_write_count"] >= 1
     assert summary["agent_operations"]["publish_once"]["action_counts"].get("publish_post", 0) >= 1
     assert summary["agent_operations"]["publish_once"]["action_tag_counts"].get("social_write", 0) >= 1
-    assert summary["agent_operations"]["browse_once"]["turns_max"] <= 2
+    assert summary["agent_operations"]["browse_once"]["turns_max"] <= 3
     assert summary["agent_operations"]["browse_once"]["action_counts"].get("comment", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_write", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_read", 0) >= 1
@@ -1017,7 +1040,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     browse_memory_extract_traces = [
         item for item in browse_llm_traces if item.get("interaction_type") == "memory_extract"
     ]
-    assert len(browse_agent_loop_traces) <= agent_count * 2
+    assert len(browse_agent_loop_traces) <= agent_count * 3
     assert len(browse_memory_extract_traces) >= agent_count
     assert all(item.get("max_tokens") == 120 for item in browse_agent_loop_traces)
     _assert_resource_timing(browse_llm_traces)

@@ -1144,6 +1144,33 @@ class Society0:
             del slowest[3:]
 
     @staticmethod
+    def _attach_timing_breakdown(bucket: Dict[str, Any]) -> None:
+        """Attach a plain-language timing attribution for resource diagnostics."""
+        duration = round(float(bucket.get("duration_sec_total", 0.0) or 0.0), 6)
+        provider = round(float(bucket.get("provider_duration_sec_total", 0.0) or 0.0), 6)
+        queue = round(float(bucket.get("queue_duration_sec_total", 0.0) or 0.0), 6)
+        runtime_overhead = round(max(duration - provider - queue, 0.0), 6)
+
+        def share(value: float) -> float:
+            return round(value / duration, 6) if duration > 0 else 0.0
+
+        components = {
+            "provider": provider,
+            "queue": queue,
+            "runtime_overhead": runtime_overhead,
+        }
+        bottleneck = "none" if duration <= 0 else max(components.items(), key=lambda item: item[1])[0]
+        bucket["timing_breakdown"] = {
+            "provider_duration_sec": provider,
+            "queue_duration_sec": queue,
+            "runtime_overhead_sec": runtime_overhead,
+            "provider_share": share(provider),
+            "queue_share": share(queue),
+            "runtime_overhead_share": share(runtime_overhead),
+            "bottleneck": bottleneck,
+        }
+
+    @staticmethod
     def _finalize_operation_resource_map(resource_map: Optional[Dict[str, Dict[str, Any]]]) -> None:
         if not resource_map:
             return
@@ -1184,6 +1211,7 @@ class Society0:
             bucket["total_input_characters"] = bucket["input_characters"]
             bucket["total_tools_characters"] = bucket["tools_characters"]
             bucket["total_payload_characters"] = bucket["payload_characters"]
+            Society0._attach_timing_breakdown(bucket)
             bucket["slowest_calls"] = [
                 {
                     **item,
@@ -1568,6 +1596,7 @@ class Society0:
             bucket["total_input_characters"] = bucket["input_characters"]
             bucket["total_tools_characters"] = bucket["tools_characters"]
             bucket["total_payload_characters"] = bucket["payload_characters"]
+            self._attach_timing_breakdown(bucket)
             bucket["slowest_calls"] = [
                 {
                     **item,
@@ -1611,6 +1640,7 @@ class Society0:
                 tick_bucket["total_input_characters"] = tick_bucket["input_characters"]
                 tick_bucket["total_tools_characters"] = tick_bucket["tools_characters"]
                 tick_bucket["total_payload_characters"] = tick_bucket["payload_characters"]
+                self._attach_timing_breakdown(tick_bucket)
             bucket["by_tick"] = dict(sorted(by_tick.items(), key=lambda item: item[0]))
             for interaction_bucket in by_interaction.values():
                 interaction_bucket["duration_sec_total"] = round(
@@ -1649,6 +1679,7 @@ class Society0:
                 interaction_bucket["total_input_characters"] = interaction_bucket["input_characters"]
                 interaction_bucket["total_tools_characters"] = interaction_bucket["tools_characters"]
                 interaction_bucket["total_payload_characters"] = interaction_bucket["payload_characters"]
+                self._attach_timing_breakdown(interaction_bucket)
             bucket["by_interaction"] = dict(
                 sorted(
                     by_interaction.items(),
