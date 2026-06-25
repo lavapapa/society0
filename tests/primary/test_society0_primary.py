@@ -496,9 +496,24 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
     assert summary["browse_round"]["resources"]["llm"]["messages_count_max"] == 4
     assert summary["browse_round"]["resources"]["llm"]["duration_sec_total"] == 4.0
     assert summary["browse_round"]["resources"]["llm"]["total_duration_sec"] == 4.0
+    assert summary["browse_round"]["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] == 1
+    assert summary["browse_round"]["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] == 1
     assert summary["browse_round"]["resources"]["embedding"]["call_count"] == 1
     assert summary["browse_round"]["resources"]["embedding"]["texts_count"] == 2
+    assert (
+        summary["browse_round"]["resources"]["embedding"]["by_interaction_type"]["semantic_recommendation"][
+            "call_count"
+        ]
+        == 1
+    )
+    assert summary["browse_round"]["resources"]["embedding"]["fidelity"]["environment"]["call_count"] == 1
     assert summary["browse_round"]["by_tick"]["0"]["resources"]["llm"]["call_count"] == 1
+    assert (
+        summary["browse_round"]["by_tick"]["0"]["resources"]["llm"]["by_interaction_type"]["instruct"][
+            "call_count"
+        ]
+        == 1
+    )
     assert summary["browse_round"]["by_tick"]["0"]["resources"]["embedding"]["input_characters"] == 350
     assert summary["measure"]["agent_count"] == 1
     assert summary["measure"]["unique_agent_count"] == 1
@@ -3284,6 +3299,8 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "total_queue_duration_sec",
         "slowest_calls",
         "by_interaction",
+        "by_interaction_type",
+        "fidelity",
         "by_tick",
         "error_samples",
     }
@@ -3370,6 +3387,12 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["input_characters"] == 1600
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["messages_count_max"] == 4
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["total_duration_sec"] == 3.25
+    assert summary["llm"]["by_interaction_type"]["interview"]["call_count"] == 2
+    assert summary["llm"]["by_interaction_type"]["interview"]["error_count"] == 1
+    assert summary["llm"]["by_interaction_type"]["interview"]["total_tokens"] == 14
+    assert summary["llm"]["fidelity"]["agent_loop"]["call_count"] == 2
+    assert summary["llm"]["fidelity"]["agent_loop"]["error_count"] == 1
+    assert summary["llm"]["fidelity"]["agent_loop"]["duration_sec_total"] == 3.25
     assert summary["embedding"]["call_count"] == 1
     assert summary["embedding"]["started_count"] == 0
     assert summary["embedding"]["terminal_count"] == 1
@@ -3382,6 +3405,99 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["embedding"]["by_tick"]["0"]["texts_count"] == 6
     embedding_key = "seed,recall / memory_write,memory_retrieve / seed_round,recall_round"
     assert summary["embedding"]["by_interaction"][embedding_key]["texts_count"] == 6
+    assert summary["embedding"]["by_interaction_type"]["memory_write"]["call_count"] == 1
+    assert summary["embedding"]["by_interaction_type"]["memory_retrieve"]["call_count"] == 1
+    assert summary["embedding"]["fidelity"]["memory_io"]["call_count"] == 1
+    assert summary["embedding"]["fidelity"]["memory_io"]["texts_count"] == 6
+
+
+def test_society0_resource_summary_exposes_fidelity_diagnostics(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    (tmp_path / "resource_calls.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "resource_type": "llm",
+                        "status": "success",
+                        "step": 0,
+                        "step_name": "browse",
+                        "interaction_type": "instruct",
+                        "interaction_name": "feed",
+                        "duration_sec": 3.0,
+                        "provider_duration_sec": 2.6,
+                        "queue_duration_sec": 0.2,
+                        "tools_count": 4,
+                        "tools_characters": 1200,
+                        "input_characters": 5000,
+                        "total_tokens": 900,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "llm",
+                        "status": "success",
+                        "step": 0,
+                        "step_name": "browse",
+                        "interaction_type": "memory_extract",
+                        "interaction_name": "memory_extract",
+                        "duration_sec": 1.1,
+                        "provider_duration_sec": 1.0,
+                        "queue_duration_sec": 0.05,
+                        "input_characters": 900,
+                        "total_tokens": 150,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "embedding",
+                        "status": "success",
+                        "step": 0,
+                        "step_name": "browse",
+                        "interaction_type": "memory_write",
+                        "interaction_name": "feed",
+                        "duration_sec": 0.4,
+                        "provider_duration_sec": 0.35,
+                        "queue_duration_sec": 0.02,
+                        "input_characters": 300,
+                        "texts_count": 1,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "embedding",
+                        "status": "success",
+                        "step": 0,
+                        "step_name": "browse",
+                        "interaction_type": "semantic_recommendation",
+                        "interaction_name": "recommended_feed",
+                        "duration_sec": 0.6,
+                        "provider_duration_sec": 0.55,
+                        "queue_duration_sec": 0.03,
+                        "input_characters": 600,
+                        "texts_count": 2,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = engine._summarize_resource_calls()
+
+    assert summary["llm"]["by_interaction_type"]["instruct"]["call_count"] == 1
+    assert summary["llm"]["by_interaction_type"]["memory_extract"]["call_count"] == 1
+    assert summary["llm"]["fidelity"]["agent_loop"]["call_count"] == 1
+    assert summary["llm"]["fidelity"]["agent_loop"]["tools_count_total"] == 4
+    assert summary["llm"]["fidelity"]["agent_loop"]["tools_characters"] == 1200
+    assert summary["llm"]["fidelity"]["agent_loop"]["total_tokens"] == 900
+    assert summary["llm"]["fidelity"]["memory_extraction"]["call_count"] == 1
+    assert summary["llm"]["fidelity"]["memory_extraction"]["total_tokens"] == 150
+    assert summary["embedding"]["fidelity"]["memory_io"]["call_count"] == 1
+    assert summary["embedding"]["fidelity"]["memory_io"]["texts_count"] == 1
+    assert summary["embedding"]["fidelity"]["environment"]["call_count"] == 1
+    assert summary["embedding"]["fidelity"]["environment"]["texts_count"] == 2
 
 
 @pytest.mark.asyncio
