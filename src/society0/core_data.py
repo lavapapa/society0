@@ -1351,7 +1351,7 @@ class World:
             retrieve_memory=kwargs.get("retrieve_memory", True),
             save_memory=kwargs.get("save_memory", False),
             memory_top_k=kwargs.get("memory_top_k", 10),
-            prefer_direct_json_output=kwargs.get("prefer_direct_json_output", True),
+            prefer_direct_json_output=kwargs.get("prefer_direct_json_output", False),
             max_turns=kwargs.get("max_turns", 2),
             llm_request_options=kwargs.get("llm_request_options"),
         )
