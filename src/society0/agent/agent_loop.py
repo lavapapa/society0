@@ -637,6 +637,14 @@ async def execute_action_loop(
         merged_tags.update(str(tag).lower() for tag in explicit_tags)
         return any(tag in merged_tags for tag in completion_action_tag_set)
 
+    def _action_trace_tags(action_name: str) -> List[str]:
+        action_info = action_set.actions.get(action_name) or {}
+        explicit_tags = [str(tag) for tag in (action_info.get("tags", []) or [])]
+        merged_tags = list(dict.fromkeys([str(action_name), *explicit_tags]))
+        if "." in action_name:
+            merged_tags.insert(1, action_name.rsplit(".", maxsplit=1)[-1])
+        return list(dict.fromkeys(merged_tags))
+
 
     for turn in range(max_turns):
         total_turns = turn + 1
@@ -888,6 +896,7 @@ async def execute_action_loop(
             "call_id": action_call.call_id,
             "result": action_call.result,
             "status": action_call.status,
+            "tags": _action_trace_tags(action_call.action_name),
             **({"error": action_call.error} if action_call.error else {}),
         }
         for action_call in all_action_calls

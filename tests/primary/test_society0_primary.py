@@ -1119,6 +1119,79 @@ async def test_agent_group_instruct_required_actions_turn_missing_action_into_er
 
 
 @pytest.mark.asyncio
+async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_error(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class FakeWorld:
+        step = 1
+        _current_code_step_name = "social_write_check"
+        _default_agent_concurrency = 2
+        _model_provider = None
+        agents_data = {
+            "alice": {"id": "alice", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+            "bob": {"id": "bob", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+        }
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            if agent_id == "alice":
+                return {
+                    "actions": [
+                        {
+                            "type": "action_call",
+                            "action_name": "comment",
+                            "tags": ["comment", "social_write", "engagement"],
+                            "status": "success",
+                            "result": "commented",
+                        }
+                    ],
+                    "total_turns": 1,
+                    "llm_calls": 1,
+                }
+            return {
+                "actions": [
+                    {
+                        "type": "action_call",
+                        "action_name": "get_trending_posts",
+                        "tags": ["get_trending_posts", "social_read", "lookup"],
+                        "status": "success",
+                        "result": "hot posts",
+                    }
+                ],
+                "total_turns": 1,
+                "llm_calls": 1,
+            }
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_1")
+
+        def get_agent(self, agent_id):
+            return type("Agent", (), {"id": agent_id})()
+
+    result = await AgentSelector(FakeWorld(event_logger)).all().instruct(
+        "make one real social interaction",
+        actions=["get_trending_posts", "comment"],
+        memory=False,
+        name="social_round",
+        required_action_tags=["social_write"],
+    )
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    started = next(event for event in events if event.get("event_type") == "agent_batch_started")
+
+    assert result.success_count == 1
+    assert result.error_count == 1
+    assert result.by_agent("alice").status == "success"
+    assert result.by_agent("bob").status == "error"
+    assert result.by_agent("bob").error == "missing required action tag(s): social_write"
+    assert result.action_counts() == {"comment": 1, "get_trending_posts": 1}
+    assert started["event_data"]["execution_options"]["required_action_tags"] == ["social_write"]
+
+
+@pytest.mark.asyncio
 async def test_terminal_action_stops_agent_loop_after_tool_call():
     action_set = ActionSet()
     called_actions = []
@@ -1259,6 +1332,8 @@ async def test_completion_action_tag_stops_after_successful_matching_action():
     assert len(llm_calls) == 2
     assert result.total_turns == 2
     assert [call["action_name"] for call in result.action_calls] == ["get_trending_posts", "comment"]
+    assert result.action_calls[0]["tags"] == ["get_trending_posts", "social_read", "lookup"]
+    assert result.action_calls[1]["tags"] == ["comment", "social_write", "engagement"]
 
 
 @pytest.mark.asyncio

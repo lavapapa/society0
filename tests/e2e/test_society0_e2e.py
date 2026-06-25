@@ -491,6 +491,7 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
             memory=False,
             max_turns=4,
             completion_action_tags=["social_write"],
+            required_action_tags=["social_write"],
             name="browse_round",
         )
         return ctx.result(
@@ -535,6 +536,9 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
         "comment": 3,
         "get_trending_posts": 3,
     }
+    assert summary["events"]["agent_batches"]["instruct / browse_round"]["execution_options"][
+        "required_action_tags"
+    ] == ["social_write"]
     assert len(posts["post_1"]["replies"]) == 3
 
 
@@ -636,6 +640,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
             memory=False,
             max_turns=3,
             completion_action_tags=["social_write"],
+            required_action_tags=["social_write"],
             name="browse_round",
         )
         return ctx.result(tables={"browse": result.table(), "browse_actions": result.actions()})
