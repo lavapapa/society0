@@ -838,6 +838,51 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                     {
                         "event_type": "agent_batch_started",
                         "event_data": {
+                            "step": 1,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "model_id": "default",
+                            "fovs": ["recommended_feed"],
+                            "actions": ["comment"],
+                            "execution_options": {
+                                "max_turns": 4,
+                                "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
+                                "completion_action_tags": ["social_write"],
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_completed",
+                        "event_data": {
+                            "step": 1,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "success_count": 1,
+                            "error_count": 1,
+                            "completed_count": 2,
+                            "duration_sec": 2.5,
+                            "action_counts": {"comment": 1},
+                            "action_tag_counts": {"comment": 1, "social_write": 1},
+                            "execution_options": {
+                                "max_turns": 4,
+                                "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
+                                "completion_action_tags": ["social_write"],
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_started",
+                        "event_data": {
                             "step": 0,
                             "step_name": "shared_step",
                             "interaction_type": "interview",
@@ -861,7 +906,8 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
 
     summary = engine._summarize_events()
 
-    assert summary["by_event"]["agent_batch_started"] == 2
+    assert summary["by_event"]["agent_batch_started"] == 3
+    assert summary["by_event"]["agent_batch_completed"] == 2
     assert set(summary["agent_batches"]) == {"instruct / shared", "interview / shared"}
     instruct = summary["agent_batches"]["instruct / shared"]
     interview = summary["agent_batches"]["interview / shared"]
@@ -873,11 +919,17 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["model_id"] == "default"
     assert instruct["fovs"] == ["recommended_feed"]
     assert instruct["actions"] == ["publish_post"]
-    assert instruct["success_count"] == 2
+    assert instruct["batch_started_count"] == 2
+    assert instruct["batch_completed_count"] == 2
+    assert instruct["success_count"] == 1
+    assert instruct["success_count_total"] == 3
+    assert instruct["error_count_total"] == 1
     assert instruct["completed_count"] == 2
-    assert instruct["action_counts"] == {"publish_post": 2}
-    assert instruct["action_tag_counts"] == {"publish_post": 2, "social_write": 2}
-    assert instruct["duration_sec"] == 1.5
+    assert instruct["completed_count_total"] == 4
+    assert instruct["action_counts"] == {"comment": 1, "publish_post": 2}
+    assert instruct["action_tag_counts"] == {"comment": 1, "publish_post": 2, "social_write": 3}
+    assert instruct["duration_sec"] == 2.5
+    assert instruct["duration_sec_total"] == 4.0
     assert instruct["progress_event_count"] == 1
     assert instruct["heartbeat_event_count"] == 1
     assert instruct["max_in_flight_count"] == 1
