@@ -825,6 +825,94 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_real_society0_environment_action_tag_e2e(tmp_path):
+    llm_model, embed_model = _build_models(llm_concurrency=1, embed_concurrency=1)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_publish_agent_config(2),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="inspect_environment_actions")
+    async def inspect_environment_actions(ctx):
+        ctx.env.state["posts"]["post_hot"] = {
+            "post_id": "post_hot",
+            "author_id": "user_1",
+            "content": "Campus cafe prices changed today and students are discussing the update.",
+            "created_tick": ctx.step,
+            "likes": ["user_0", "user_1"],
+            "replies": [],
+            "reply_to": None,
+            "view_count": 0,
+            "tags": ["campus"],
+        }
+        viewer = ctx.agents.ids(["user_0"])
+        result = await viewer.instruct(
+            "Use the environment tools to inspect the current hot posts. "
+            "Call get_trending_posts exactly once, then stop.",
+            actions=["environment"],
+            output=None,
+            max_turns=2,
+            max_tokens=100,
+            temperature=0,
+            max_action_calls=1,
+            action_call_limits={"get_trending_posts": 1},
+            required_actions=["get_trending_posts"],
+            name="environment_action_lookup",
+        )
+        return ctx.result(
+            metrics={
+                "lookup_errors": result.error_count,
+                "lookup_success": result.success_count,
+                "trending_calls": result.action_counts().get("get_trending_posts", 0),
+            },
+            tables={"lookup": result.table(), "lookup_actions": result.actions()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+
+    assert metrics["lookup_errors"] == 0
+    assert metrics["lookup_success"] == 1
+    assert metrics["trending_calls"] == 1
+    post_state = checkpoint["environment_data"]["state"]["posts"]["post_hot"]
+    assert int(post_state.get("view_count") or 0) >= 1
+
+    action_names = {entry["name"] for entry in summary["capabilities"]["by_kind"]["actions"]}
+    trending_capability = next(
+        entry
+        for entry in summary["capabilities"]["by_kind"]["actions"]
+        if entry["name"] == "get_trending_posts"
+    )
+    assert "get_trending_posts" in action_names
+    assert "environment" in trending_capability["tags"]
+
+    batch = summary["events"]["agent_batches"]["instruct / environment_action_lookup"]
+    assert batch["actions"] == ["environment"]
+    assert batch["concurrency"] == 1
+    assert batch["successful_action_counts"].get("get_trending_posts") == 1
+    assert batch["failed_action_counts"].get("get_trending_posts", 0) == 0
+    assert batch["action_semantics"]["required_actions"]["configured"] == ["get_trending_posts"]
+    assert batch["action_semantics"]["required_actions"]["observed_counts"]["get_trending_posts"] == 1
+    assert batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert batch["memory_summary"]["record_count"] == 1
+    assert batch["memory_summary"]["save_enabled_count"] == 1
+    assert batch["memory_summary"]["extraction_enabled_count"] == 1
+    assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 1
+    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+
+
+@pytest.mark.asyncio
 async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tmp_path):
     agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_BROWSE_AGENT_COUNT"), default=2)
     agent_count = max(2, min(agent_count, 6))
