@@ -680,6 +680,109 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert len(checkpoint_text) < len(pretty_checkpoint)
 
 
+def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    (tmp_path / "events.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_started",
+                        "event_data": {
+                            "step": 0,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "model_id": "default",
+                            "fovs": ["recommended_feed"],
+                            "actions": ["publish_post"],
+                            "execution_options": {
+                                "max_turns": 4,
+                                "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
+                                "completion_action_tags": ["social_write"],
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_completed",
+                        "event_data": {
+                            "step": 0,
+                            "step_name": "shared_step",
+                            "interaction_type": "instruct",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 2,
+                            "success_count": 2,
+                            "error_count": 0,
+                            "completed_count": 2,
+                            "duration_sec": 1.5,
+                            "execution_options": {
+                                "max_turns": 4,
+                                "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
+                                "completion_action_tags": ["social_write"],
+                            },
+                        },
+                    }
+                ),
+                json.dumps(
+                    {
+                        "event_type": "agent_batch_started",
+                        "event_data": {
+                            "step": 0,
+                            "step_name": "shared_step",
+                            "interaction_type": "interview",
+                            "interaction_name": "shared",
+                            "agent_count": 2,
+                            "concurrency": 1,
+                            "fovs": ["recent_posts"],
+                            "actions": [],
+                            "execution_options": {
+                                "max_turns": 2,
+                                "memory": {"retrieve": True, "save": False, "extract": False, "top_k": 5},
+                            },
+                        },
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    summary = engine._summarize_events()
+
+    assert summary["by_event"]["agent_batch_started"] == 2
+    assert set(summary["agent_batches"]) == {"instruct / shared", "interview / shared"}
+    instruct = summary["agent_batches"]["instruct / shared"]
+    interview = summary["agent_batches"]["interview / shared"]
+    assert instruct["latest_event"] == "agent_batch_completed"
+    assert instruct["interaction_type"] == "instruct"
+    assert instruct["step_name"] == "shared_step"
+    assert instruct["agent_count"] == 2
+    assert instruct["concurrency"] == 2
+    assert instruct["model_id"] == "default"
+    assert instruct["fovs"] == ["recommended_feed"]
+    assert instruct["actions"] == ["publish_post"]
+    assert instruct["success_count"] == 2
+    assert instruct["completed_count"] == 2
+    assert instruct["duration_sec"] == 1.5
+    assert instruct["execution_options"]["memory"]["extract"] is True
+    assert instruct["execution_options"]["completion_action_tags"] == ["social_write"]
+    assert interview["interaction_type"] == "interview"
+    assert interview["concurrency"] == 1
+    assert interview["fovs"] == ["recent_posts"]
+    assert interview["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": False,
+        "extract": False,
+        "top_k": 5,
+    }
+
+
 @pytest.mark.asyncio
 async def test_checkpoint_policy(tmp_path):
     engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
