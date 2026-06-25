@@ -863,7 +863,7 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
 
 
 @pytest.mark.asyncio
-async def test_agent_group_instruct_defaults_to_lightweight_memory_write():
+async def test_agent_group_instruct_defaults_to_extractive_memory_write():
     class FakeWorld:
         step = 1
         agents_data = {
@@ -884,12 +884,12 @@ async def test_agent_group_instruct_defaults_to_lightweight_memory_write():
     group = AgentSelector(world).all()
 
     await group.instruct("remember this", memory=True)
-    await group.instruct("extract this", memory=True, extract_memory=True)
+    await group.instruct("lightweight pilot", memory=True, extract_memory=False)
 
     assert world.calls[0]["retrieve_memory"] is True
     assert world.calls[0]["save_memory"] is True
-    assert world.calls[0]["extract_memory"] is False
-    assert world.calls[1]["extract_memory"] is True
+    assert world.calls[0]["extract_memory"] is True
+    assert world.calls[1]["extract_memory"] is False
 
 
 @pytest.mark.asyncio

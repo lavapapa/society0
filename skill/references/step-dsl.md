@@ -63,7 +63,7 @@ result = await users.instruct(
     output=ActionSchema,
     memory=True,
     memory_top_k=5,
-    extract_memory=False,
+    extract_memory=True,
     model=None,
     max_tokens=120,
     temperature=0,
@@ -81,7 +81,7 @@ Parameters:
 - `output`: Pydantic model, dict schema, or `None`.
 - `memory`: retrieve and save memory when true.
 - `memory_top_k`: maximum memories retrieved per agent when memory is enabled. Default is `10`; use a smaller value such as `3` or `5` for pilots, surveys, or large agent batches.
-- `extract_memory`: optional high-cost LLM memory extraction. Default is `False`; Society0 writes a lightweight fallback memory without an extra LLM call. Set `True` only when the study needs structured episodic memories from the interaction.
+- `extract_memory`: whether Society0 uses an additional LLM pass to save structured episodic memories. Default is `True` when `memory=True`; set `False` only for an explicitly lightweight pilot where the user accepts less faithful memory.
 - `model`: optional model id.
 - `max_tokens`: optional cap for each LLM response in this operation. For action-only rounds, set a small value such as `80` or `120`; tool-call capable models otherwise may spend seconds generating unnecessary text.
 - `temperature`, `top_p`, `timeout`: optional per-operation LLM request controls.

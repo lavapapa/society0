@@ -287,7 +287,7 @@ class AgentGroup:
         actions: List[str] | None = None,
         output: Any = None,
         memory: bool = True,
-        extract_memory: bool = False,
+        extract_memory: bool = True,
         model: Optional[str] = None,
         max_turns: int = 3,
         concurrency: Optional[int] = None,

@@ -95,6 +95,7 @@ engine = Society0(save_dir="runs/demo", base_config=config, llm=llm, embed=embed
 ```
 
 Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-style measurement.
+For LLM agents, `memory=True` retrieves memory and saves extractive memory by default.
 If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
 
 ## Contributing
