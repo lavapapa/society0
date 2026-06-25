@@ -158,6 +158,21 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert "作者用户 ID: author_old" in observed["trending"]
     assert "non-standard signature" not in caplog.text
 
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    capabilities = summary["capabilities"]
+    assert capabilities["environment_type"] == "social_network"
+    assert capabilities["counts"]["fovs"] >= 3
+    assert capabilities["counts"]["actions"] >= 9
+    assert capabilities["counts"]["rules"] >= 1
+    fov_names = {entry["name"] for entry in capabilities["by_kind"]["fovs"]}
+    action_names = {entry["name"] for entry in capabilities["by_kind"]["actions"]}
+    rule_names = {entry["name"] for entry in capabilities["by_kind"]["rules"]}
+    assert "recommended_feed" in fov_names
+    assert "recommended_feed_preview" in fov_names
+    assert "get_agent_profile" in action_names
+    assert "get_trending_posts" in action_names
+    assert "update_trending_topics" in rule_names
+
 
 @pytest.mark.asyncio
 async def test_social_network_recommended_feed_does_not_write_stdout(tmp_path, capsys):

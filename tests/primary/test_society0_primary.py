@@ -3165,6 +3165,16 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
 
     await engine.run(steps=1)
 
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    capabilities = summary["capabilities"]
+    assert capabilities["environment_type"] == "plain"
+    assert capabilities["counts"]["rules"] >= 1
+    assert capabilities["counts"]["behaviors"] >= 1
+    rule_names = {entry["name"] for entry in capabilities["by_kind"]["rules"]}
+    behavior_names = {entry["name"] for entry in capabilities["by_kind"]["behaviors"]}
+    assert "set_pressure" in rule_names
+    assert "adjust_trust" in behavior_names
+
 
 def test_model_declaration_builds_endpoint_configs():
     llm = LLMModel.openai_compatible(
