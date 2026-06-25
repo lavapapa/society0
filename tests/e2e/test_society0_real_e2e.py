@@ -758,7 +758,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
+async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tmp_path):
     agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_BROWSE_AGENT_COUNT"), default=2)
     agent_count = max(2, min(agent_count, 6))
     llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=10)
@@ -775,7 +775,6 @@ async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
             "Call publish_post once. Publish a short original post about campus life, "
             "then finish the round without calling more tools.",
             actions=["publish_post"],
-            memory=False,
             output=None,
             max_turns=3,
             max_tokens=80,
@@ -783,7 +782,18 @@ async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
             action_call_limits={"publish_post": 1},
             name="publish_round",
         )
-        return ctx.result(metrics={"publish_errors": result.error_count})
+        return ctx.result(
+            metrics={
+                "publish_errors": result.error_count,
+                "publish_success": result.success_count,
+                "publish_action_count": result.action_counts().get("publish_post", 0),
+            },
+            tables={"published": result.table(), "publish_actions": result.actions()},
+            observations={
+                "action_counts": result.action_counts(),
+                "action_tag_counts": result.action_tag_counts(),
+            },
+        )
 
     @engine.step(name="browse_once")
     async def browse_once(ctx):
@@ -793,7 +803,6 @@ async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
             "After the comment, stop the round.",
             fovs=["recommended_feed"],
             actions=["get_trending_posts", "comment"],
-            memory=False,
             output=None,
             max_turns=3,
             max_tokens=120,
@@ -809,9 +818,13 @@ async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
                 "browse_success": result.success_count,
                 "max_browse_turns": max(row.get("total_turns", 0) for row in rows),
                 "comment_count": result.action_counts().get("comment", 0),
+                "social_write_count": result.action_tag_counts().get("social_write", 0),
             },
             tables={"browse": rows, "browse_actions": result.actions()},
-            observations={"action_counts": result.action_counts()},
+            observations={
+                "action_counts": result.action_counts(),
+                "action_tag_counts": result.action_tag_counts(),
+            },
         )
 
     await engine.run(steps=1)
@@ -825,19 +838,54 @@ async def test_real_society0_social_browse_completion_tags_e2e(tmp_path):
     browse_llm_traces = [item for item in llm_traces if item.get("step_name") == "browse_once"]
 
     assert publish_metrics["publish_errors"] == 0
+    assert publish_metrics["publish_success"] == agent_count
+    assert publish_metrics["publish_action_count"] >= 1
     assert browse_metrics["browse_errors"] == 0
     assert browse_metrics["browse_success"] == agent_count
     assert browse_metrics["max_browse_turns"] <= 2
     assert browse_metrics["comment_count"] >= 1
+    assert browse_metrics["social_write_count"] >= 1
+    assert summary["agent_operations"]["publish_once"]["action_counts"].get("publish_post", 0) >= 1
+    assert summary["agent_operations"]["publish_once"]["action_tag_counts"].get("social_write", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["turns_max"] <= 2
     assert summary["agent_operations"]["browse_once"]["action_counts"].get("comment", 0) >= 1
+    assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_write", 0) >= 1
+    assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_read", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["payload_characters"] >= (
         summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_characters"]
     )
     assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_count_max"] >= 1
-    assert len(browse_llm_traces) <= agent_count * 2
-    assert all(item.get("max_tokens") == 120 for item in browse_llm_traces)
+    browse_agent_loop_traces = [item for item in browse_llm_traces if item.get("interaction_type") == "instruct"]
+    browse_memory_extract_traces = [
+        item for item in browse_llm_traces if item.get("interaction_type") == "memory_extract"
+    ]
+    assert len(browse_agent_loop_traces) <= agent_count * 2
+    assert len(browse_memory_extract_traces) >= agent_count
+    assert all(item.get("max_tokens") == 120 for item in browse_agent_loop_traces)
     _assert_resource_timing(browse_llm_traces)
+    publish_batch = summary["events"]["agent_batches"]["instruct / publish_round"]
+    browse_batch = summary["events"]["agent_batches"]["instruct / browse_round"]
+    assert publish_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert browse_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
+        "memory_extraction"
+    ]["call_count"] >= agent_count
+    assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["fidelity"][
+        "memory_extraction"
+    ]["call_count"] >= agent_count
+    assert summary["agent_operations"]["browse_once"]["resources"]["embedding"]["fidelity"][
+        "memory_io"
+    ]["call_count"] >= 1
 
 
 @pytest.mark.asyncio
