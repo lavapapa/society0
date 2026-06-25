@@ -572,9 +572,30 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     llm_model, embed_model = _build_models()
     engine = Society0(save_dir=str(tmp_path), base_config=_llm_agent_config(), llm=llm_model, embed=embed_model)
 
+    @engine.registry.env.rule(name="set_memory_protocol")
+    async def set_memory_protocol(env, phase: str):
+        env.state["memory_protocol_phase"] = phase
+        return {"phase": phase}
+
+    @engine.registry.sched.behavior(name="mark_memory_participant")
+    async def mark_memory_participant(agent, env, marker: str):
+        agent.state["logic_marker"] = marker
+        agent.state["protocol_phase_seen"] = env.state.get("memory_protocol_phase")
+        return {
+            "logic_marker": agent.state["logic_marker"],
+            "protocol_phase_seen": agent.state["protocol_phase_seen"],
+        }
+
     @engine.step(name="seed_and_recall")
     async def seed_and_recall(ctx):
         group = ctx.agents.all()
+        protocol = await ctx.rule("set_memory_protocol", phase="seed_then_recall")
+        marked = await ctx.behavior(
+            "mark_memory_participant",
+            agents=["alice"],
+            marker="logic-before-llm",
+            concurrency=1,
+        )
         seeded = await group.instruct(
             "Remember this private signal for the next question: cobalt moon. "
             "Return remembered=true and answer='cobalt moon'.",
@@ -595,19 +616,39 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
         )
         return ctx.result(
             metrics={
+                "logic_rule_phase": protocol["phase"],
+                "logic_behavior_errors": marked.error_count,
+                "logic_behavior_success": marked.success_count,
                 "seed_errors": seeded.error_count,
                 "recall_errors": recalled.error_count,
                 "remembered_count": sum(1 for value in recalled.values("remembered") if value is True),
             },
-            tables={"seeded": seeded.table(), "recalled": recalled.table()},
+            tables={"logic": marked.table(), "seeded": seeded.table(), "recalled": recalled.table()},
         )
 
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
+    assert metrics[0]["metrics"]["logic_rule_phase"] == "seed_then_recall"
+    assert metrics[0]["metrics"]["logic_behavior_errors"] == 0
+    assert metrics[0]["metrics"]["logic_behavior_success"] == 1
     assert metrics[0]["metrics"]["seed_errors"] == 0
     assert metrics[0]["metrics"]["recall_errors"] == 0
     assert metrics[0]["metrics"]["remembered_count"] >= 1
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    logic_executions = summary["events"]["logic_executions"]
+    assert logic_executions["rule / set_memory_protocol"]["completed_count"] == 1
+    assert logic_executions["rule / set_memory_protocol"]["success_count"] == 1
+    assert logic_executions["behavior / mark_memory_participant"]["completed_count"] == 1
+    assert logic_executions["behavior / mark_memory_participant"]["success_count"] == 1
+    assert logic_executions["behavior / mark_memory_participant"]["agent_count_total"] == 1
+    assert summary["capabilities"]["by_source"]["experiment"]["rules"] >= 1
+    assert summary["capabilities"]["by_source"]["experiment"]["behaviors"] >= 1
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert checkpoint["environment_data"]["state"]["memory_protocol_phase"] == "seed_then_recall"
+    alice_state = checkpoint["agents_data"]["alice"]["state"]
+    assert alice_state["logic_marker"] == "logic-before-llm"
+    assert alice_state["protocol_phase_seen"] == "seed_then_recall"
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
     assert _count_events(tmp_path, "llm", "llm_request_completed") >= 3
     assert any(event["event"] == "embedding_request_completed" for event in _resource_events(tmp_path, "embedding"))
