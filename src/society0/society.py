@@ -902,6 +902,74 @@ class Society0:
             for tick_bucket in operation.get("by_tick", {}).values():
                 self._finalize_operation_resource_map(tick_bucket.get("resources"))
 
+    def _attach_resource_calls_to_agent_batches(self, agent_batches: Dict[str, Dict[str, Any]]) -> None:
+        """Attach direct model-call cost attribution to agent-batch event summaries.
+
+        Agent batch events describe the selected agents and progress. Resource
+        traces describe the actual model calls. Joining exact
+        interaction_type/name matches keeps slow-run diagnosis local to the
+        `instruct` or `interview` batch without folding in separate fidelity
+        phases such as extractive memory.
+        """
+        if not agent_batches:
+            return
+
+        path = self.save_dir / "resource_calls.jsonl"
+        if not path.exists():
+            return
+
+        batch_index: Dict[tuple[str, str], Dict[str, Any]] = {}
+        for batch in agent_batches.values():
+            interaction_type = batch.get("interaction_type")
+            interaction_name = batch.get("interaction_name")
+            if interaction_type is None or interaction_name is None:
+                continue
+            batch_index[(str(interaction_type), str(interaction_name))] = batch
+        if not batch_index:
+            return
+
+        def batch_resource_bucket(batch: Dict[str, Any], resource_type: str) -> Dict[str, Any]:
+            resources = batch.setdefault("resources", {})
+            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
+
+        def tick_resource_bucket(batch: Dict[str, Any], tick: str, resource_type: str) -> Dict[str, Any]:
+            tick_batch = batch.setdefault("by_tick", {}).setdefault(tick, {"step": tick})
+            resources = tick_batch.setdefault("resources", {})
+            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
+
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if record.get("status") == "started":
+                    continue
+                resource_type = record.get("resource_type")
+                if not resource_type:
+                    continue
+                tick = str(record.get("step", "unknown"))
+                for interaction_type in self._resource_record_interaction_types(record):
+                    for interaction_name in self._resource_record_interaction_names(record):
+                        batch = batch_index.get((interaction_type, interaction_name))
+                        if batch is None:
+                            continue
+                        self._accumulate_operation_resource(
+                            batch_resource_bucket(batch, str(resource_type)),
+                            record,
+                        )
+                        self._accumulate_operation_resource(
+                            tick_resource_bucket(batch, tick, str(resource_type)),
+                            record,
+                        )
+
+        for batch in agent_batches.values():
+            self._finalize_operation_resource_map(batch.get("resources"))
+            for tick_batch in batch.get("by_tick", {}).values():
+                self._finalize_operation_resource_map(tick_batch.get("resources"))
+
     @staticmethod
     def _new_resource_metric_bucket() -> Dict[str, Any]:
         return {
@@ -951,6 +1019,17 @@ class Society0:
         interaction_types = record.get("interaction_types")
         if isinstance(interaction_types, list):
             values.extend(str(item) for item in interaction_types if item is not None)
+        return list(dict.fromkeys(values)) or ["unknown"]
+
+    @staticmethod
+    def _resource_record_interaction_names(record: Dict[str, Any]) -> list[str]:
+        values: list[str] = []
+        interaction_name = record.get("interaction_name")
+        if interaction_name is not None:
+            values.append(str(interaction_name))
+        interaction_names = record.get("interaction_names")
+        if isinstance(interaction_names, list):
+            values.extend(str(item) for item in interaction_names if item is not None)
         return list(dict.fromkeys(values)) or ["unknown"]
 
     @staticmethod
@@ -2061,6 +2140,7 @@ class Society0:
             "by_tick": dict(sorted(by_tick.items(), key=lambda item: item[0])),
         }
         if agent_batches:
+            self._attach_resource_calls_to_agent_batches(agent_batches)
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)

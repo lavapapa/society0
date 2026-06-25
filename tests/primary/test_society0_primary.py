@@ -989,6 +989,85 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
         + "\n",
         encoding="utf-8",
     )
+    (tmp_path / "resource_calls.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "resource_type": "llm",
+                        "status": "success",
+                        "step": 0,
+                        "step_name": "shared_step",
+                        "interaction_type": "instruct",
+                        "interaction_name": "shared",
+                        "agent_id": "alice",
+                        "duration_sec": 1.1,
+                        "provider_duration_sec": 0.9,
+                        "queue_duration_sec": 0.1,
+                        "input_characters": 1000,
+                        "tools_characters": 300,
+                        "payload_characters": 1500,
+                        "messages_count": 2,
+                        "tools_count": 3,
+                        "total_tokens": 120,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "llm",
+                        "status": "success",
+                        "step": 1,
+                        "step_name": "shared_step",
+                        "interaction_type": "instruct",
+                        "interaction_name": "shared",
+                        "agent_id": "bob",
+                        "duration_sec": 2.2,
+                        "provider_duration_sec": 2.0,
+                        "queue_duration_sec": 0.15,
+                        "input_characters": 1200,
+                        "tools_characters": 300,
+                        "payload_characters": 1700,
+                        "messages_count": 4,
+                        "tools_count": 3,
+                        "total_tokens": 180,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "llm",
+                        "status": "success",
+                        "step": 1,
+                        "step_name": "shared_step",
+                        "interaction_type": "memory_extract",
+                        "interaction_name": "memory_extract",
+                        "agent_id": "bob",
+                        "duration_sec": 3.0,
+                        "input_characters": 900,
+                        "tools_characters": 120,
+                        "payload_characters": 1100,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "resource_type": "embedding",
+                        "status": "success",
+                        "step": 0,
+                        "step_names": ["shared_step"],
+                        "interaction_types": ["interview"],
+                        "interaction_names": ["shared"],
+                        "agent_ids": ["alice", "bob"],
+                        "duration_sec": 0.4,
+                        "provider_duration_sec": 0.3,
+                        "queue_duration_sec": 0.05,
+                        "input_characters": 600,
+                        "texts_count": 2,
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
     summary = engine._summarize_events()
 
@@ -1041,6 +1120,19 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["max_in_flight_count"] == 1
     assert instruct["max_pending_count"] == 0
     assert instruct["max_started_count"] == 2
+    assert instruct["resources"]["llm"]["call_count"] == 2
+    assert instruct["resources"]["llm"]["duration_sec_total"] == 3.3
+    assert instruct["resources"]["llm"]["total_input_characters"] == 2200
+    assert instruct["resources"]["llm"]["total_tools_characters"] == 600
+    assert instruct["resources"]["llm"]["total_payload_characters"] == 3200
+    assert instruct["resources"]["llm"]["messages_count_max"] == 4
+    assert instruct["resources"]["llm"]["tools_count_max"] == 3
+    assert instruct["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] == 2
+    assert "memory_extraction" not in instruct["resources"]["llm"]["fidelity"]
+    assert instruct["by_tick"]["0"]["resources"]["llm"]["call_count"] == 1
+    assert instruct["by_tick"]["0"]["resources"]["llm"]["total_payload_characters"] == 1500
+    assert instruct["by_tick"]["1"]["resources"]["llm"]["call_count"] == 1
+    assert instruct["by_tick"]["1"]["resources"]["llm"]["total_duration_sec"] == 2.2
     assert instruct["execution_options"]["memory"]["extract"] is True
     assert instruct["execution_options"]["completion_action_tags"] == ["social_write"]
     assert instruct["action_semantics"] == {
@@ -1090,6 +1182,10 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
         "extract": False,
         "top_k": 5,
     }
+    assert interview["resources"]["embedding"]["call_count"] == 1
+    assert interview["resources"]["embedding"]["texts_count"] == 2
+    assert interview["resources"]["embedding"]["by_interaction_type"]["interview"]["call_count"] == 1
+    assert interview["resources"]["embedding"]["fidelity"]["other"]["call_count"] == 1
 
 
 @pytest.mark.asyncio

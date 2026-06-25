@@ -528,6 +528,11 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert seed_batch["memory_summary"]["top_k_values"] == [10]
     assert seed_batch["execution_options"]["max_turns"] == 3
     assert seed_batch["execution_options"]["output_schema"] is True
+    assert seed_batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= concurrency
+    assert seed_batch["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency
+    assert seed_batch["resources"]["llm"]["total_payload_characters"] >= (
+        seed_batch["resources"]["llm"]["total_tools_characters"]
+    )
     assert recall_batch["agent_count"] == concurrency
     assert recall_batch["concurrency"] == concurrency
     assert recall_batch["concurrency_source"] == "llm_model"
@@ -543,6 +548,8 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert recall_batch["memory_summary"]["save_enabled_count"] == 0
     assert recall_batch["memory_summary"]["extraction_enabled_count"] == 0
     assert recall_batch["memory_summary"]["top_k_values"] == [10]
+    assert recall_batch["resources"]["llm"]["by_interaction_type"]["interview"]["call_count"] >= concurrency
+    assert recall_batch["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency
     assert (
         summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
             "memory_extraction"
