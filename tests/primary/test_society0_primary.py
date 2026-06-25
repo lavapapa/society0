@@ -350,7 +350,13 @@ def test_agent_batch_result_exposes_action_summaries():
                             "status": "error",
                             "tags": ["comment", "social_write"],
                         },
-                    ]
+                    ],
+                    "memory_retrieved": True,
+                    "memory_top_k": 7,
+                    "memory_saved": True,
+                    "memory_extraction_enabled": True,
+                    "memory_extraction_success": True,
+                    "extracted_memories": [{"content": "Alice learned that the post was missing."}],
                 },
             ),
             AgentCallRecord(
@@ -366,7 +372,13 @@ def test_agent_batch_result_exposes_action_summaries():
                             "status": "success",
                             "tags": ["get_trending_posts", "social_read"],
                         }
-                    ]
+                    ],
+                    "memory_retrieved": True,
+                    "memory_top_k": 5,
+                    "memory_saved": False,
+                    "memory_extraction_enabled": False,
+                    "memory_extraction_success": False,
+                    "extracted_memories": [],
                 },
             ),
             AgentCallRecord(
@@ -386,6 +398,16 @@ def test_agent_batch_result_exposes_action_summaries():
         "social_read": 3,
         "get_agent_profile": 1,
         "profile_read": 1,
+    }
+    assert result.memory_summary() == {
+        "record_count": 2,
+        "retrieve_enabled_count": 2,
+        "save_enabled_count": 1,
+        "extraction_enabled_count": 1,
+        "extraction_success_count": 1,
+        "extraction_error_count": 0,
+        "extracted_memory_count": 1,
+        "top_k_values": [5, 7],
     }
     assert [action["action_name"] for action in result.actions_by_agent("alice")] == [
         "get_trending_posts",
@@ -413,6 +435,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["successful_action_counts"] == result.successful_action_counts()
     assert result.to_dict()["failed_action_counts"] == result.failed_action_counts()
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
+    assert result.to_dict()["memory_summary"] == result.memory_summary()
     assert result.to_dict()["error_samples"] == result.error_samples()
 
 
@@ -429,8 +452,30 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
                         "result": {
                             "tables": {
                                 "browse": [
-                                    {"agent_id": "alice", "status": "success", "total_turns": 2},
-                                    {"agent_id": "bob", "status": "error", "total_turns": 3, "error": "bad action"},
+                                    {
+                                        "agent_id": "alice",
+                                        "status": "success",
+                                        "total_turns": 2,
+                                        "memory_retrieved": True,
+                                        "memory_top_k": 3,
+                                        "memory_saved": True,
+                                        "memory_extraction_enabled": True,
+                                        "memory_extraction_success": True,
+                                        "extracted_memories": [{"content": "Alice commented."}],
+                                    },
+                                    {
+                                        "agent_id": "bob",
+                                        "status": "error",
+                                        "total_turns": 3,
+                                        "error": "bad action",
+                                        "memory_retrieved": True,
+                                        "memory_top_k": 3,
+                                        "memory_saved": True,
+                                        "memory_extraction_enabled": True,
+                                        "memory_extraction_success": False,
+                                        "memory_extraction_error": "bad action",
+                                        "extracted_memories": [],
+                                    },
                                 ],
                                 "browse_actions": [
                                     {
@@ -547,6 +592,17 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
         "social_write": 1,
     }
     assert summary["browse_round"]["action_error_count"] == 1
+    assert summary["browse_round"]["memory_summary"] == {
+        "record_count": 2,
+        "retrieve_enabled_count": 2,
+        "save_enabled_count": 2,
+        "extraction_enabled_count": 2,
+        "extraction_success_count": 1,
+        "extraction_error_count": 1,
+        "extracted_memory_count": 1,
+        "top_k_values": [3],
+        "error_samples": [{"agent_id": "bob", "error": "bad action"}],
+    }
     assert summary["browse_round"]["error_samples"][0]["agent_id"] == "bob"
     assert summary["browse_round"]["by_tick"]["0"]["agent_count"] == 2
     assert summary["browse_round"]["by_tick"]["0"]["success_count"] == 1
@@ -560,6 +616,7 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
         "get_trending_posts": 1,
     }
     assert summary["browse_round"]["by_tick"]["0"]["failed_action_counts"] == {"comment": 1}
+    assert summary["browse_round"]["by_tick"]["0"]["memory_summary"] == summary["browse_round"]["memory_summary"]
     assert summary["browse_round"]["by_tick"]["0"]["action_tag_counts"] == {
         "comment": 1,
         "get_trending_posts": 1,
@@ -2443,10 +2500,26 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
             self.event_logger = event_logger
 
         async def instruct_agent(self, agent_id, instruction, **kwargs):
-            return {"structured_output": {"ok": True, "agent_id": agent_id}}
+            return {
+                "structured_output": {"ok": True, "agent_id": agent_id},
+                "memory_retrieved": kwargs.get("retrieve_memory"),
+                "memory_top_k": kwargs.get("memory_top_k"),
+                "memory_saved": kwargs.get("save_memory"),
+                "memory_extraction_enabled": kwargs.get("extract_memory"),
+                "memory_extraction_success": True,
+                "extracted_memories": [{"content": "remembered action"}],
+            }
 
         async def interview_agent(self, agent_id, question, **kwargs):
-            return {"structured_output": {"trust_score": 4}}
+            return {
+                "structured_output": {"trust_score": 4},
+                "memory_retrieved": kwargs.get("retrieve_memory"),
+                "memory_top_k": kwargs.get("memory_top_k"),
+                "memory_saved": kwargs.get("save_memory"),
+                "memory_extraction_enabled": False,
+                "memory_extraction_success": False,
+                "extracted_memories": [],
+            }
 
         def get_context_stack(self):
             return ContextStack().push_step("step_5")
@@ -2487,6 +2560,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     event_logger.close()
     events = _read_jsonl(events_path)
     started_events = [event for event in events if event.get("event_type") == "agent_batch_started"]
+    completed_events = [event for event in events if event.get("event_type") == "agent_batch_completed"]
     instruct_options = started_events[0]["event_data"]["execution_options"]
     interview_options = started_events[1]["event_data"]["execution_options"]
 
@@ -2514,6 +2588,29 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     assert interview_options["reasoning_stages"][0]["name"] == "answer"
     assert interview_options["llm_request_options"] == {"top_p": 0.8}
     assert "terminal_actions" not in interview_options
+    assert completed_events[0]["event_data"]["memory_summary"] == {
+        "record_count": 1,
+        "retrieve_enabled_count": 1,
+        "save_enabled_count": 1,
+        "extraction_enabled_count": 1,
+        "extraction_success_count": 1,
+        "extraction_error_count": 0,
+        "extracted_memory_count": 1,
+        "top_k_values": [7],
+    }
+    assert completed_events[1]["event_data"]["memory_summary"] == {
+        "record_count": 1,
+        "retrieve_enabled_count": 1,
+        "save_enabled_count": 0,
+        "extraction_enabled_count": 0,
+        "extraction_success_count": 0,
+        "extraction_error_count": 0,
+        "extracted_memory_count": 0,
+        "top_k_values": [5],
+    }
+    summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
+    assert summary["agent_batches"]["instruct / tool_round"]["memory_summary"]["extraction_success_count"] == 1
+    assert summary["agent_batches"]["interview / survey_round"]["memory_summary"]["save_enabled_count"] == 0
 
 
 @pytest.mark.asyncio

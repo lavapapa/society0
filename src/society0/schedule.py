@@ -15,6 +15,17 @@ from .core_data import BaseOperatorResult, ExecutionContext
 
 StepFunction = Callable[["StepContext"], Awaitable[Optional["StepResult"]]]
 ACTION_TEXT_PREVIEW_CHARS = 240
+MEMORY_DIAGNOSTIC_KEYS = (
+    "memory_retrieved",
+    "memory_top_k",
+    "memory_saved",
+    "memory_extraction_enabled",
+    "memory_extraction_success",
+    "memory_extraction_error",
+    "extracted_memory_count",
+    "extracted_memories",
+)
+MEMORY_TABLE_KEYS = tuple(key for key in MEMORY_DIAGNOSTIC_KEYS if key != "extracted_memories")
 
 
 def _jsonable(value: Any) -> Any:
@@ -168,6 +179,12 @@ class AgentBatchResult:
                 counts[tag_key] = counts.get(tag_key, 0) + 1
         return counts
 
+    def memory_summary(self) -> Dict[str, Any]:
+        """Summarize actual memory diagnostics returned by agent calls."""
+        return _summarize_memory_diagnostics(
+            (record.agent_id, _memory_payload_from_record(record)) for record in self.records
+        )
+
     def error_samples(self, *, limit: int = 5) -> List[Dict[str, Any]]:
         """Return compact failed-agent samples for step-level diagnostics."""
         return _logic_error_samples(self.records, limit=limit)
@@ -207,6 +224,7 @@ class AgentBatchResult:
             "successful_action_counts": self.successful_action_counts(),
             "failed_action_counts": self.failed_action_counts(),
             "action_tag_counts": self.action_tag_counts(),
+            "memory_summary": self.memory_summary(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
         }
@@ -578,6 +596,7 @@ class AgentGroup:
             successful_action_counts=batch_result.successful_action_counts(),
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
+            memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -760,6 +779,7 @@ class AgentGroup:
             successful_action_counts=batch_result.successful_action_counts(),
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
+            memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -1381,6 +1401,7 @@ def _record_agent_batch_event(
     successful_action_counts: Optional[Dict[str, int]] = None,
     failed_action_counts: Optional[Dict[str, int]] = None,
     action_tag_counts: Optional[Dict[str, int]] = None,
+    memory_summary: Optional[Dict[str, Any]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     event_logger = getattr(world, "event_logger", None)
@@ -1449,6 +1470,8 @@ def _record_agent_batch_event(
             event_data["failed_action_counts"] = _jsonable(failed_action_counts)
         if action_tag_counts is not None:
             event_data["action_tag_counts"] = _jsonable(action_tag_counts)
+        if memory_summary:
+            event_data["memory_summary"] = _jsonable(memory_summary)
         if error_samples:
             event_data["error_samples"] = _jsonable(error_samples)
 
@@ -1493,9 +1516,14 @@ def _extract_call_value(result: Any) -> Any:
                     "finish_instruction_called",
                     "actions_available",
                     "model_id",
+                    *MEMORY_TABLE_KEYS,
                 ):
                     if key in result and key not in compact:
                         compact[key] = result[key]
+                if "extracted_memories" in result and "extracted_memory_count" not in compact:
+                    memories = result.get("extracted_memories")
+                    if isinstance(memories, list):
+                        compact["extracted_memory_count"] = len(memories)
                 return compact
             return structured
         value = result.get("value")
@@ -1508,9 +1536,14 @@ def _extract_call_value(result: Any) -> Any:
             "finish_instruction_called",
             "actions_available",
             "model_id",
+            *MEMORY_TABLE_KEYS,
         ):
             if key in result:
                 compact[key] = result[key]
+        if "extracted_memories" in result and "extracted_memory_count" not in compact:
+            memories = result.get("extracted_memories")
+            if isinstance(memories, list):
+                compact["extracted_memory_count"] = len(memories)
         actions = result.get("actions")
         if actions is not None:
             compact["actions"] = actions
@@ -1569,6 +1602,71 @@ def _action_counts_by_status(actions: List[Dict[str, Any]], *, success: bool) ->
         action_key = str(name)
         counts[action_key] = counts.get(action_key, 0) + 1
     return counts
+
+
+def _memory_payload_from_record(record: AgentCallRecord) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    if isinstance(record.raw, dict):
+        payload.update(record.raw)
+    if isinstance(record.value, dict):
+        payload.update(record.value)
+    return payload
+
+
+def _has_memory_diagnostics(payload: Dict[str, Any]) -> bool:
+    return any(key in payload for key in MEMORY_DIAGNOSTIC_KEYS)
+
+
+def _summarize_memory_diagnostics(rows: Iterable[tuple[Optional[str], Dict[str, Any]]]) -> Dict[str, Any]:
+    summary: Dict[str, Any] = {
+        "record_count": 0,
+        "retrieve_enabled_count": 0,
+        "save_enabled_count": 0,
+        "extraction_enabled_count": 0,
+        "extraction_success_count": 0,
+        "extraction_error_count": 0,
+        "extracted_memory_count": 0,
+        "top_k_values": set(),
+        "error_samples": [],
+    }
+    for agent_id, payload in rows:
+        if not isinstance(payload, dict) or not _has_memory_diagnostics(payload):
+            continue
+        summary["record_count"] += 1
+        if payload.get("memory_retrieved") is True:
+            summary["retrieve_enabled_count"] += 1
+        if payload.get("memory_saved") is True:
+            summary["save_enabled_count"] += 1
+        extraction_enabled = payload.get("memory_extraction_enabled") is True
+        if extraction_enabled:
+            summary["extraction_enabled_count"] += 1
+            if payload.get("memory_extraction_success") is True:
+                summary["extraction_success_count"] += 1
+            else:
+                summary["extraction_error_count"] += 1
+                error = payload.get("memory_extraction_error")
+                if error and len(summary["error_samples"]) < 5:
+                    sample: Dict[str, Any] = {"error": str(error)}
+                    if agent_id:
+                        sample["agent_id"] = str(agent_id)
+                    summary["error_samples"].append(sample)
+        top_k = payload.get("memory_top_k")
+        if isinstance(top_k, (int, float)) and int(top_k) > 0:
+            summary["top_k_values"].add(int(top_k))
+        extracted_count = payload.get("extracted_memory_count")
+        if isinstance(extracted_count, (int, float)):
+            summary["extracted_memory_count"] += int(extracted_count)
+        else:
+            extracted_memories = payload.get("extracted_memories")
+            if isinstance(extracted_memories, list):
+                summary["extracted_memory_count"] += len(extracted_memories)
+
+    if not summary["record_count"]:
+        return {}
+    summary["top_k_values"] = sorted(summary["top_k_values"])
+    if not summary["error_samples"]:
+        summary.pop("error_samples", None)
+    return summary
 
 
 def _missing_required_actions(result: Dict[str, Any], required_actions: Optional[List[str]]) -> List[str]:

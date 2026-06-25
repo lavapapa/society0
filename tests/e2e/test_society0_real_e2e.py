@@ -518,6 +518,12 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
         "extract": True,
         "top_k": 10,
     }
+    assert seed_batch["memory_summary"]["record_count"] == concurrency
+    assert seed_batch["memory_summary"]["retrieve_enabled_count"] == concurrency
+    assert seed_batch["memory_summary"]["save_enabled_count"] == concurrency
+    assert seed_batch["memory_summary"]["extraction_enabled_count"] == concurrency
+    assert seed_batch["memory_summary"]["extraction_success_count"] >= 1
+    assert seed_batch["memory_summary"]["top_k_values"] == [10]
     assert seed_batch["execution_options"]["max_turns"] == 3
     assert seed_batch["execution_options"]["output_schema"] is True
     assert recall_batch["agent_count"] == concurrency
@@ -528,6 +534,11 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
         "extract": False,
         "top_k": 10,
     }
+    assert recall_batch["memory_summary"]["record_count"] == concurrency
+    assert recall_batch["memory_summary"]["retrieve_enabled_count"] == concurrency
+    assert recall_batch["memory_summary"]["save_enabled_count"] == 0
+    assert recall_batch["memory_summary"]["extraction_enabled_count"] == 0
+    assert recall_batch["memory_summary"]["top_k_values"] == [10]
     assert (
         summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
             "memory_extraction"

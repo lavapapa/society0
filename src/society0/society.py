@@ -20,7 +20,7 @@ from .logging import ExperimentLogContext
 from .models import EmbedModel, LLMModel
 from .llm_model_types import ModelProvider
 from .persistence import PersistenceManager
-from .schedule import CapabilityCatalog, CodeSchedule, StepFunction
+from .schedule import CapabilityCatalog, CodeSchedule, StepFunction, _summarize_memory_diagnostics
 from .transaction import EventLogger
 
 logger = logging.getLogger(__name__)
@@ -59,6 +59,47 @@ def _merge_agent_batch_action_semantics(
             else:
                 entry["observed_counts"].setdefault(item, 0)
         entry["observed_counts"] = dict(sorted(entry["observed_counts"].items()))
+
+
+def _merge_memory_summary(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    for key in (
+        "record_count",
+        "retrieve_enabled_count",
+        "save_enabled_count",
+        "extraction_enabled_count",
+        "extraction_success_count",
+        "extraction_error_count",
+        "extracted_memory_count",
+    ):
+        value = source.get(key)
+        if isinstance(value, int):
+            target[key] = int(target.get(key, 0)) + value
+    top_k_values = target.setdefault("top_k_values", set())
+    for value in source.get("top_k_values") or []:
+        if isinstance(value, (int, float)) and int(value) > 0:
+            top_k_values.add(int(value))
+    if source.get("error_samples"):
+        samples = target.setdefault("error_samples", [])
+        for sample in source.get("error_samples") or []:
+            if isinstance(sample, dict) and len(samples) < 5:
+                samples.append(sample)
+
+
+def _finalize_memory_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    if not summary or not summary.get("record_count"):
+        return {}
+    top_k_values = summary.get("top_k_values")
+    if isinstance(top_k_values, set):
+        summary["top_k_values"] = sorted(top_k_values)
+    elif isinstance(top_k_values, list):
+        summary["top_k_values"] = sorted(
+            int(value) for value in top_k_values if isinstance(value, (int, float)) and int(value) > 0
+        )
+    else:
+        summary["top_k_values"] = []
+    if not summary.get("error_samples"):
+        summary.pop("error_samples", None)
+    return summary
 
 
 class Society0:
@@ -553,6 +594,7 @@ class Society0:
                     "by_tick": {},
                     "_seen_action_keys": set(),
                     "_unique_agents": set(),
+                    "_memory_rows": [],
                     "_slowest_agents_by_turns": [],
                     "_error_samples": [],
                 },
@@ -579,6 +621,7 @@ class Society0:
                     "failed_action_counts": {},
                     "action_tag_counts": {},
                     "action_error_count": 0,
+                    "_memory_rows": [],
                 },
             )
 
@@ -691,6 +734,8 @@ class Society0:
                             continue
                         agent_key = str(agent_id)
                         bucket["_unique_agents"].add(agent_key)
+                        bucket["_memory_rows"].append((agent_key, row))
+                        tick_bucket["_memory_rows"].append((agent_key, row))
                         bucket["agent_count"] += 1
                         tick_bucket["agent_count"] += 1
                         if row.get("status") == "success":
@@ -742,6 +787,7 @@ class Society0:
             turns_count = bucket.pop("turns_count", 0)
             turns_total = bucket.pop("turns_total", 0)
             unique_agents = bucket.pop("_unique_agents", set())
+            memory_rows = bucket.pop("_memory_rows", [])
             slowest_agents = bucket.pop("_slowest_agents_by_turns", [])
             error_samples = bucket.pop("_error_samples", [])
             bucket.pop("_seen_action_keys", None)
@@ -756,6 +802,9 @@ class Society0:
             bucket["successful_action_counts"] = dict(sorted(bucket["successful_action_counts"].items()))
             bucket["failed_action_counts"] = dict(sorted(bucket["failed_action_counts"].items()))
             bucket["action_tag_counts"] = dict(sorted(bucket["action_tag_counts"].items()))
+            memory_summary = _summarize_memory_diagnostics(memory_rows)
+            if memory_summary:
+                bucket["memory_summary"] = memory_summary
             bucket["slowest_agents_by_turns"] = slowest_agents
             if error_samples:
                 bucket["error_samples"] = error_samples
@@ -774,6 +823,10 @@ class Society0:
                 )
                 tick_bucket["failed_action_counts"] = dict(sorted(tick_bucket["failed_action_counts"].items()))
                 tick_bucket["action_tag_counts"] = dict(sorted(tick_bucket["action_tag_counts"].items()))
+                tick_memory_rows = tick_bucket.pop("_memory_rows", [])
+                tick_memory_summary = _summarize_memory_diagnostics(tick_memory_rows)
+                if tick_memory_summary:
+                    tick_bucket["memory_summary"] = tick_memory_summary
             bucket["by_tick"] = dict(sorted(by_tick.items(), key=lambda item: item[0]))
             finalized[step_name] = bucket
         self._attach_resource_calls_to_agent_operations(finalized)
@@ -1731,6 +1784,7 @@ class Society0:
                                 "successful_action_counts": {},
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
+                                "memory_summary": {},
                                 "by_tick": {},
                                 "error_samples": [],
                             },
@@ -1762,6 +1816,7 @@ class Society0:
                                 "successful_action_counts": {},
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
+                                "memory_summary": {},
                                 "error_samples": [],
                             },
                         )
@@ -1849,6 +1904,10 @@ class Society0:
                                             tick_counts[count_key] = tick_counts.get(count_key, 0) + count_value
                                     batch[key] = dict(sorted(counts.items()))
                                     tick_batch[key] = dict(sorted(tick_counts.items()))
+                            memory_summary = event_data.get("memory_summary")
+                            if isinstance(memory_summary, dict):
+                                _merge_memory_summary(batch["memory_summary"], memory_summary)
+                                _merge_memory_summary(tick_batch["memory_summary"], memory_summary)
                         for source_key, target_key in (
                             ("in_flight_count", "max_in_flight_count"),
                             ("pending_count", "max_pending_count"),
@@ -1990,11 +2049,23 @@ class Society0:
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)
+                memory_summary = _finalize_memory_summary(batch.get("memory_summary") or {})
+                if memory_summary:
+                    batch["memory_summary"] = memory_summary
+                else:
+                    batch.pop("memory_summary", None)
                 by_tick_batches = batch.get("by_tick")
                 if isinstance(by_tick_batches, dict):
                     for tick_batch in by_tick_batches.values():
                         if isinstance(tick_batch, dict) and not tick_batch.get("error_samples"):
                             tick_batch.pop("error_samples", None)
+                        tick_memory_summary = _finalize_memory_summary(
+                            tick_batch.get("memory_summary") or {}
+                        )
+                        if tick_memory_summary:
+                            tick_batch["memory_summary"] = tick_memory_summary
+                        else:
+                            tick_batch.pop("memory_summary", None)
                     batch["by_tick"] = dict(sorted(by_tick_batches.items(), key=lambda item: item[0]))
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
