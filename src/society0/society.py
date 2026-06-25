@@ -1425,6 +1425,7 @@ class Society0:
         by_event: Dict[str, int] = {}
         by_tick: Dict[str, Dict[str, int]] = {}
         agent_batches: Dict[str, Dict[str, Any]] = {}
+        logic_executions: Dict[str, Dict[str, Any]] = {}
         action_counts: Dict[str, int] = {}
         error_samples: list[Dict[str, Any]] = []
 
@@ -1493,6 +1494,52 @@ class Society0:
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
                                 batch[key] = value
+                    if name.startswith("logic_execution_"):
+                        logic_kind = str(event_data.get("logic_kind") or "unknown_kind")
+                        logic_name = str(event_data.get("logic_name") or "unknown_name")
+                        execution_key = f"{logic_kind} / {logic_name}"
+                        execution = logic_executions.setdefault(
+                            execution_key,
+                            {
+                                "latest_event": name,
+                                "logic_kind": logic_kind,
+                                "logic_name": logic_name,
+                                "resolved_name": event_data.get("resolved_name"),
+                                "step_name": event_data.get("step_name"),
+                                "started_count": 0,
+                                "completed_count": 0,
+                                "failed_count": 0,
+                                "success_count": 0,
+                                "error_count": 0,
+                                "agent_count_total": 0,
+                                "duration_sec_total": 0.0,
+                                "param_keys": event_data.get("param_keys") or [],
+                            },
+                        )
+                        execution["latest_event"] = name
+                        if name == "logic_execution_started":
+                            execution["started_count"] += 1
+                        elif name == "logic_execution_completed":
+                            execution["completed_count"] += 1
+                        elif name == "logic_execution_failed":
+                            execution["failed_count"] += 1
+                        for key in ("success_count", "error_count"):
+                            value = event_data.get(key)
+                            if isinstance(value, int):
+                                execution[key] += value
+                        agent_count = event_data.get("agent_count")
+                        if isinstance(agent_count, int) and name != "logic_execution_started":
+                            execution["agent_count_total"] += agent_count
+                        duration = event_data.get("duration_sec")
+                        if isinstance(duration, (int, float)):
+                            execution["duration_sec_total"] = round(
+                                float(execution["duration_sec_total"]) + float(duration),
+                                6,
+                            )
+                        if event_data.get("concurrency") is not None:
+                            execution["concurrency"] = event_data.get("concurrency")
+                        if event_data.get("target_ids_sample") is not None:
+                            execution["target_ids_sample"] = event_data.get("target_ids_sample")
                     if event_data.get("error") and len(error_samples) < 5:
                         error_samples.append(
                             {
@@ -1521,6 +1568,8 @@ class Society0:
         }
         if agent_batches:
             result["agent_batches"] = dict(sorted(agent_batches.items()))
+        if logic_executions:
+            result["logic_executions"] = dict(sorted(logic_executions.items()))
         if action_counts:
             result["actions"] = dict(sorted(action_counts.items()))
         if error_samples:

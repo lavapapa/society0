@@ -3135,6 +3135,35 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     assert final_checkpoint["agents_data"]["alice"]["state"]["trust"] == 0.5
     assert final_checkpoint["agents_data"]["bob"]["state"]["trust"] == 0.9
     assert final_checkpoint["agents_data"]["carol"]["state"]["trust"] == 0.8
+    events = _read_jsonl(tmp_path / "events.jsonl")
+    logic_events = [event for event in events if event.get("event_type", "").startswith("logic_execution_")]
+    assert [event["event_type"] for event in logic_events] == [
+        "logic_execution_started",
+        "logic_execution_completed",
+        "logic_execution_started",
+        "logic_execution_completed",
+        "logic_execution_started",
+        "logic_execution_completed",
+    ]
+    assert logic_events[0]["event_data"]["logic_kind"] == "rule"
+    assert logic_events[0]["event_data"]["logic_name"] == "set_pressure"
+    assert logic_events[0]["event_data"]["param_keys"] == ["amount"]
+    assert logic_events[2]["event_data"]["logic_kind"] == "behavior"
+    assert logic_events[2]["event_data"]["logic_name"] == "adjust_trust"
+    assert logic_events[2]["event_data"]["agent_count"] == 2
+    assert logic_events[2]["event_data"]["concurrency"] == 1
+    assert logic_events[2]["event_data"]["param_keys"] == ["delta"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    logic_summary = summary["events"]["logic_executions"]
+    assert logic_summary["rule / set_pressure"]["completed_count"] == 1
+    assert logic_summary["rule / set_pressure"]["success_count"] == 1
+    assert logic_summary["rule / set_pressure"]["param_keys"] == ["amount"]
+    assert logic_summary["behavior / adjust_trust"]["started_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["completed_count"] == 2
+    assert logic_summary["behavior / adjust_trust"]["success_count"] == 3
+    assert logic_summary["behavior / adjust_trust"]["error_count"] == 0
+    assert logic_summary["behavior / adjust_trust"]["agent_count_total"] == 3
+    assert logic_summary["behavior / adjust_trust"]["param_keys"] == ["delta"]
 
 
 @pytest.mark.asyncio

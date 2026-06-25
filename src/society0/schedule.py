@@ -249,6 +249,22 @@ class AgentGroup:
         resolved_name, behavior_info = resolved
         behavior_func = behavior_info["function"]
         behavior_sig = behavior_info.get("signature") or inspect.signature(behavior_func)
+        effective_concurrency = _resolve_non_llm_batch_concurrency(
+            len(self.agent_ids),
+            concurrency,
+        )
+        started = time.time()
+        _record_logic_event(
+            self.world,
+            "logic_execution_started",
+            logic_kind="behavior",
+            logic_name=name or resolved_name,
+            resolved_name=resolved_name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            target_ids_sample=self.agent_ids[:5],
+            param_keys=sorted(str(key) for key in params.keys()),
+        )
 
         async def call(agent_id: str) -> AgentCallRecord:
             try:
@@ -277,7 +293,41 @@ class AgentGroup:
             except Exception as exc:
                 return AgentCallRecord(agent_id, "error", error=str(exc))
 
-        return AgentBatchResult(await _run_limited(self.agent_ids, call, concurrency))
+        try:
+            batch_result = AgentBatchResult(
+                await _run_limited(self.agent_ids, call, effective_concurrency)
+            )
+        except Exception as exc:
+            _record_logic_event(
+                self.world,
+                "logic_execution_failed",
+                logic_kind="behavior",
+                logic_name=name or resolved_name,
+                resolved_name=resolved_name,
+                agent_count=len(self.agent_ids),
+                concurrency=effective_concurrency,
+                target_ids_sample=self.agent_ids[:5],
+                param_keys=sorted(str(key) for key in params.keys()),
+                duration_sec=time.time() - started,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise
+        _record_logic_event(
+            self.world,
+            "logic_execution_completed",
+            logic_kind="behavior",
+            logic_name=name or resolved_name,
+            resolved_name=resolved_name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            target_ids_sample=self.agent_ids[:5],
+            param_keys=sorted(str(key) for key in params.keys()),
+            duration_sec=time.time() - started,
+            success_count=batch_result.success_count,
+            error_count=batch_result.error_count,
+        )
+        return batch_result
 
     async def instruct(
         self,
@@ -696,6 +746,15 @@ class StepContext:
         rule_func = rule_info["function"]
         rule_sig = rule_info.get("signature") or inspect.signature(rule_func)
         env = self.world.get_environment()
+        started = time.time()
+        _record_logic_event(
+            self.world,
+            "logic_execution_started",
+            logic_kind="rule",
+            logic_name=name or resolved_name,
+            resolved_name=resolved_name,
+            param_keys=sorted(str(key) for key in params.keys()),
+        )
         context = _build_direct_execution_context(
             self.world,
             caller=env,
@@ -713,8 +772,34 @@ class StepContext:
             },
             callable_name=resolved_name,
         )
-        result = await invoke_maybe_async(rule_func, **call_kwargs)
-        return _extract_call_value(result)
+        try:
+            result = await invoke_maybe_async(rule_func, **call_kwargs)
+        except Exception as exc:
+            _record_logic_event(
+                self.world,
+                "logic_execution_failed",
+                logic_kind="rule",
+                logic_name=name or resolved_name,
+                resolved_name=resolved_name,
+                param_keys=sorted(str(key) for key in params.keys()),
+                duration_sec=time.time() - started,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise
+        value = _extract_call_value(result)
+        _record_logic_event(
+            self.world,
+            "logic_execution_completed",
+            logic_kind="rule",
+            logic_name=name or resolved_name,
+            resolved_name=resolved_name,
+            param_keys=sorted(str(key) for key in params.keys()),
+            duration_sec=time.time() - started,
+            success_count=1,
+            error_count=0,
+        )
+        return value
 
     async def behavior(
         self,
@@ -936,6 +1021,18 @@ def _resolve_agent_batch_heartbeat_interval(world: Any) -> float:
     return value
 
 
+def _resolve_non_llm_batch_concurrency(item_count: int, explicit_concurrency: Optional[int]) -> int:
+    if explicit_concurrency is None:
+        return max(1, item_count)
+    try:
+        parsed = int(explicit_concurrency)
+    except (TypeError, ValueError):
+        return max(1, item_count)
+    if parsed <= 0:
+        return max(1, item_count)
+    return parsed
+
+
 def _resolve_agent_call_concurrency(
     world: Any,
     *,
@@ -1066,6 +1163,77 @@ def _agent_batch_execution_options(
     if action_call_limits is not None:
         options["action_call_limits"] = {str(key): int(value) for key, value in action_call_limits.items()}
     return options
+
+
+def _record_logic_event(
+    world: Any,
+    event_type: str,
+    *,
+    logic_kind: str,
+    logic_name: str,
+    resolved_name: str,
+    param_keys: List[str],
+    duration_sec: Optional[float] = None,
+    agent_count: Optional[int] = None,
+    concurrency: Optional[int] = None,
+    target_ids_sample: Optional[List[str]] = None,
+    success_count: Optional[int] = None,
+    error_count: Optional[int] = None,
+    error: Optional[str] = None,
+    error_type: Optional[str] = None,
+) -> None:
+    event_logger = getattr(world, "event_logger", None)
+    if event_logger is None:
+        return
+    try:
+        from .events import BaseEvent
+
+        class LogicExecutionEvent(BaseEvent):
+            def __init__(self, *, context_stack: List[Dict[str, Any]]):
+                super().__init__(event_type=event_type, context_stack=context_stack)
+                self.source = "code_schedule"
+                self.event_data = event_data
+
+            def to_dict(self) -> Dict[str, Any]:
+                payload = super().to_dict()
+                payload.update({"source": self.source, "event_data": self.event_data})
+                return payload
+
+        context_stack = []
+        if hasattr(world, "get_context_stack"):
+            try:
+                context_stack = world.get_context_stack().to_list()
+            except Exception:
+                context_stack = []
+
+        event_data: Dict[str, Any] = {
+            "step": getattr(world, "step", None),
+            "step_name": getattr(world, "_current_code_step_name", None),
+            "logic_kind": logic_kind,
+            "logic_name": logic_name,
+            "resolved_name": resolved_name,
+            "param_keys": list(param_keys or []),
+        }
+        if duration_sec is not None:
+            event_data["duration_sec"] = duration_sec
+        if agent_count is not None:
+            event_data["agent_count"] = agent_count
+        if concurrency is not None:
+            event_data["concurrency"] = concurrency
+        if target_ids_sample is not None:
+            event_data["target_ids_sample"] = list(target_ids_sample or [])
+        if success_count is not None:
+            event_data["success_count"] = success_count
+        if error_count is not None:
+            event_data["error_count"] = error_count
+        if error is not None:
+            event_data["error"] = error
+        if error_type is not None:
+            event_data["error_type"] = error_type
+
+        event_logger.write_event(LogicExecutionEvent(context_stack=context_stack))
+    except Exception:
+        pass
 
 
 def _record_agent_batch_event(
