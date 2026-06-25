@@ -1656,25 +1656,61 @@ class Society0:
                                 "duration_sec_total": 0.0,
                                 "action_counts": {},
                                 "action_tag_counts": {},
+                                "by_tick": {},
+                                "error_samples": [],
+                            },
+                        )
+                        tick_batch = batch["by_tick"].setdefault(
+                            tick,
+                            {
+                                "latest_event": name,
+                                "step": tick,
+                                "step_name": event_data.get("step_name"),
+                                "agent_count": event_data.get("agent_count"),
+                                "concurrency": event_data.get("concurrency"),
+                                "success_count": 0,
+                                "error_count": 0,
+                                "completed_count": 0,
+                                "batch_started_count": 0,
+                                "batch_completed_count": 0,
+                                "success_count_total": 0,
+                                "error_count_total": 0,
+                                "completed_count_total": 0,
+                                "progress_event_count": 0,
+                                "heartbeat_event_count": 0,
+                                "max_in_flight_count": 0,
+                                "max_pending_count": 0,
+                                "max_started_count": 0,
+                                "duration_sec": 0.0,
+                                "duration_sec_total": 0.0,
+                                "action_counts": {},
+                                "action_tag_counts": {},
                                 "error_samples": [],
                             },
                         )
                         batch["latest_event"] = name
+                        tick_batch["latest_event"] = name
                         if name == "agent_batch_progress":
                             batch["progress_event_count"] += 1
+                            tick_batch["progress_event_count"] += 1
                         elif name == "agent_batch_heartbeat":
                             batch["heartbeat_event_count"] += 1
+                            tick_batch["heartbeat_event_count"] += 1
                         elif name == "agent_batch_started":
                             batch["batch_started_count"] += 1
+                            tick_batch["batch_started_count"] += 1
                         elif name == "agent_batch_completed":
                             batch["batch_completed_count"] += 1
+                            tick_batch["batch_completed_count"] += 1
                         execution_options = event_data.get("execution_options")
                         if isinstance(execution_options, dict):
                             batch["execution_options"] = execution_options
+                            tick_batch["execution_options"] = execution_options
                         for key in ("success_count", "error_count", "completed_count", "duration_sec"):
                             value = event_data.get(key)
                             if isinstance(value, (int, float)):
                                 batch[key] = value
+                                tick_batch[key] = value
                         if name == "agent_batch_completed":
                             for source_key, target_key in (
                                 ("success_count", "success_count_total"),
@@ -1684,20 +1720,29 @@ class Society0:
                                 value = event_data.get(source_key)
                                 if isinstance(value, int):
                                     batch[target_key] += value
+                                    tick_batch[target_key] += value
                             duration = event_data.get("duration_sec")
                             if isinstance(duration, (int, float)):
                                 batch["duration_sec_total"] = round(
                                     float(batch["duration_sec_total"]) + float(duration),
                                     6,
                                 )
+                                tick_batch["duration_sec_total"] = round(
+                                    float(tick_batch["duration_sec_total"]) + float(duration),
+                                    6,
+                                )
                             for key in ("action_counts", "action_tag_counts"):
                                 value = event_data.get(key)
                                 if isinstance(value, dict):
                                     counts = batch[key]
+                                    tick_counts = tick_batch[key]
                                     for count_key, count_value in value.items():
                                         if isinstance(count_value, int):
-                                            counts[str(count_key)] = counts.get(str(count_key), 0) + count_value
+                                            count_key = str(count_key)
+                                            counts[count_key] = counts.get(count_key, 0) + count_value
+                                            tick_counts[count_key] = tick_counts.get(count_key, 0) + count_value
                                     batch[key] = dict(sorted(counts.items()))
+                                    tick_batch[key] = dict(sorted(tick_counts.items()))
                         for source_key, target_key in (
                             ("in_flight_count", "max_in_flight_count"),
                             ("pending_count", "max_pending_count"),
@@ -1706,11 +1751,14 @@ class Society0:
                             value = event_data.get(source_key)
                             if isinstance(value, int):
                                 batch[target_key] = max(int(batch[target_key]), value)
+                                tick_batch[target_key] = max(int(tick_batch[target_key]), value)
                         event_error_samples = event_data.get("error_samples")
                         if isinstance(event_error_samples, list):
                             for sample in event_error_samples:
                                 if isinstance(sample, dict) and len(batch["error_samples"]) < 5:
                                     batch["error_samples"].append(sample)
+                                if isinstance(sample, dict) and len(tick_batch["error_samples"]) < 5:
+                                    tick_batch["error_samples"].append(sample)
                     if name.startswith("logic_execution_"):
                         logic_kind = str(event_data.get("logic_kind") or "unknown_kind")
                         logic_name = str(event_data.get("logic_name") or "unknown_name")
@@ -1803,6 +1851,12 @@ class Society0:
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)
+                by_tick_batches = batch.get("by_tick")
+                if isinstance(by_tick_batches, dict):
+                    for tick_batch in by_tick_batches.values():
+                        if isinstance(tick_batch, dict) and not tick_batch.get("error_samples"):
+                            tick_batch.pop("error_samples", None)
+                    batch["by_tick"] = dict(sorted(by_tick_batches.items(), key=lambda item: item[0]))
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
             for execution in logic_executions.values():
