@@ -312,6 +312,22 @@ class AgentGroup:
             top_p=top_p,
             timeout=timeout,
         )
+        execution_options = _agent_batch_execution_options(
+            max_turns=max_turns,
+            output_schema=output_schema,
+            reasoning_stages=reasoning_stages,
+            memory={
+                "retrieve": memory,
+                "save": memory,
+                "extract": bool(memory and extract_memory),
+                "top_k": memory_top_k,
+            },
+            terminal_actions=terminal_actions,
+            completion_action_tags=completion_action_tags,
+            max_action_calls=max_action_calls,
+            action_call_limits=action_call_limits,
+            llm_request_options=llm_request_options,
+        )
 
         async def call(agent_id: str) -> AgentCallRecord:
             try:
@@ -364,6 +380,7 @@ class AgentGroup:
             fovs=fovs or [],
             actions=actions,
             target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
         )
         completed_count = 0
         success_count = 0
@@ -381,6 +398,7 @@ class AgentGroup:
                 fovs=fovs or [],
                 actions=actions,
                 target_ids_sample=self.agent_ids[:5],
+                execution_options=execution_options,
                 duration_sec=time.time() - batch_started,
                 success_count=success_count,
                 error_count=error_count,
@@ -409,6 +427,7 @@ class AgentGroup:
                 fovs=fovs or [],
                 actions=actions,
                 target_ids_sample=self.agent_ids[:5],
+                execution_options=execution_options,
                 duration_sec=time.time() - batch_started,
                 success_count=success_count,
                 error_count=error_count,
@@ -437,6 +456,7 @@ class AgentGroup:
             fovs=fovs or [],
             actions=actions,
             target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
             duration_sec=time.time() - batch_started,
             success_count=batch_result.success_count,
             error_count=batch_result.error_count,
@@ -470,6 +490,18 @@ class AgentGroup:
             temperature=temperature,
             top_p=top_p,
             timeout=timeout,
+        )
+        execution_options = _agent_batch_execution_options(
+            max_turns=max_turns,
+            output_schema=output_schema,
+            reasoning_stages=reasoning_stages,
+            memory={
+                "retrieve": retrieve_memory,
+                "save": save_memory,
+                "extract": False,
+                "top_k": memory_top_k,
+            },
+            llm_request_options=llm_request_options,
         )
 
         async def call(agent_id: str) -> AgentCallRecord:
@@ -517,6 +549,7 @@ class AgentGroup:
             fovs=fovs or [],
             actions=[],
             target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
         )
         completed_count = 0
         success_count = 0
@@ -534,6 +567,7 @@ class AgentGroup:
                 fovs=fovs or [],
                 actions=[],
                 target_ids_sample=self.agent_ids[:5],
+                execution_options=execution_options,
                 duration_sec=time.time() - batch_started,
                 success_count=success_count,
                 error_count=error_count,
@@ -562,6 +596,7 @@ class AgentGroup:
                 fovs=fovs or [],
                 actions=[],
                 target_ids_sample=self.agent_ids[:5],
+                execution_options=execution_options,
                 duration_sec=time.time() - batch_started,
                 success_count=success_count,
                 error_count=error_count,
@@ -590,6 +625,7 @@ class AgentGroup:
             fovs=fovs or [],
             actions=[],
             target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
             duration_sec=time.time() - batch_started,
             success_count=batch_result.success_count,
             error_count=batch_result.error_count,
@@ -970,6 +1006,68 @@ def _build_llm_request_options(
     return options
 
 
+def _summarize_reasoning_stages(reasoning_stages: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    summarized = []
+    for index, stage in enumerate(reasoning_stages or []):
+        if not isinstance(stage, dict):
+            summarized.append({"index": index, "name": str(stage)})
+            continue
+        item: Dict[str, Any] = {"index": index}
+        name = stage.get("name")
+        if name is not None:
+            item["name"] = str(name)
+        description = stage.get("desc") or stage.get("description")
+        if description is not None:
+            item["description_length"] = len(str(description))
+        summarized.append(item)
+    return summarized
+
+
+def _summarize_llm_request_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    safe_value_keys = {"max_tokens", "temperature", "top_p", "timeout"}
+    summarized = {
+        key: _jsonable(value)
+        for key, value in options.items()
+        if key in safe_value_keys
+    }
+    custom_keys = sorted(str(key) for key in options if key not in safe_value_keys)
+    if custom_keys:
+        summarized["custom_option_keys"] = custom_keys
+    return summarized
+
+
+def _agent_batch_execution_options(
+    *,
+    max_turns: int,
+    output_schema: Any,
+    reasoning_stages: Optional[List[Dict[str, Any]]],
+    memory: Dict[str, Any],
+    llm_request_options: Dict[str, Any],
+    terminal_actions: Optional[List[str]] = None,
+    completion_action_tags: Optional[List[str]] = None,
+    max_action_calls: Optional[int] = None,
+    action_call_limits: Optional[Dict[str, int]] = None,
+) -> Dict[str, Any]:
+    """Summarize fidelity-relevant runtime options without recording prompts."""
+    options: Dict[str, Any] = {
+        "max_turns": int(max_turns),
+        "output_schema": output_schema is not None,
+        "reasoning_stage_count": len(reasoning_stages or []),
+        "reasoning_stages": _summarize_reasoning_stages(reasoning_stages),
+        "memory": _jsonable(memory),
+        "llm_request_options": _summarize_llm_request_options(llm_request_options),
+    }
+    if terminal_actions is not None:
+        options["terminal_actions"] = list(terminal_actions)
+    if completion_action_tags is not None:
+        options["completion_action_tags"] = list(completion_action_tags)
+    if max_action_calls is not None:
+        options["max_action_calls"] = int(max_action_calls)
+    if action_call_limits is not None:
+        options["action_call_limits"] = {str(key): int(value) for key, value in action_call_limits.items()}
+    return options
+
+
 def _record_agent_batch_event(
     world: Any,
     event_type: str,
@@ -982,6 +1080,7 @@ def _record_agent_batch_event(
     fovs: List[str],
     actions: Optional[List[str]],
     target_ids_sample: List[str],
+    execution_options: Optional[Dict[str, Any]] = None,
     duration_sec: Optional[float] = None,
     success_count: Optional[int] = None,
     error_count: Optional[int] = None,
@@ -1029,6 +1128,8 @@ def _record_agent_batch_event(
             "actions": list(actions or []),
             "target_ids_sample": list(target_ids_sample or []),
         }
+        if execution_options is not None:
+            event_data["execution_options"] = _jsonable(execution_options)
         if duration_sec is not None:
             event_data["duration_sec"] = duration_sec
         if success_count is not None:

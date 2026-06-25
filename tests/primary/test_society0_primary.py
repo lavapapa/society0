@@ -1830,6 +1830,14 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
         "fovs": ["feed"],
         "actions": ["environment"],
         "target_ids_sample": ["alice", "bob", "carol"],
+        "execution_options": {
+            "max_turns": 3,
+            "output_schema": False,
+            "reasoning_stage_count": 0,
+            "reasoning_stages": [],
+            "memory": {"retrieve": False, "save": False, "extract": False, "top_k": 10},
+            "llm_request_options": {},
+        },
     }
     assert [event["event_data"]["completed_count"] for event in progress_events] == [1, 2, 3]
     assert progress_events[-1]["event_data"]["success_count"] == 3
@@ -1838,6 +1846,95 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
     assert lifecycle_events[1]["event_data"]["success_count"] == 3
     assert lifecycle_events[1]["event_data"]["error_count"] == 0
     assert lifecycle_events[1]["event_data"]["duration_sec"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class FakeWorld:
+        step = 5
+        _current_code_step_name = "fidelity_round"
+        _default_agent_concurrency = 1
+        _model_provider = None
+        agents_data = {"alice": {"type": "participant"}}
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            return {"structured_output": {"ok": True, "agent_id": agent_id}}
+
+        async def interview_agent(self, agent_id, question, **kwargs):
+            return {"structured_output": {"trust_score": 4}}
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_5")
+
+    group = AgentSelector(FakeWorld(event_logger)).all()
+    await group.instruct(
+        "act with tools",
+        fovs=["recommended_feed"],
+        actions=["publish_post", "comment"],
+        output={"type": "object"},
+        memory=True,
+        extract_memory=True,
+        max_turns=4,
+        name="tool_round",
+        reasoning_stages=[{"name": "plan", "desc": "Plan before acting."}],
+        terminal_actions=["submit_final_decision"],
+        completion_action_tags=["social_write"],
+        max_action_calls=3,
+        action_call_limits={"publish_post": 1},
+        memory_top_k=7,
+        max_tokens=90,
+        temperature=0.1,
+        llm_options={"vendor_hint": "do-not-log-this-value"},
+    )
+    await group.interview(
+        "measure memory",
+        fovs=["recent_posts"],
+        output=TrustOutput,
+        retrieve_memory=True,
+        save_memory=False,
+        max_turns=2,
+        name="survey_round",
+        reasoning_stages=[{"name": "answer", "description": "Answer directly."}],
+        memory_top_k=5,
+        top_p=0.8,
+    )
+
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    started_events = [event for event in events if event.get("event_type") == "agent_batch_started"]
+    instruct_options = started_events[0]["event_data"]["execution_options"]
+    interview_options = started_events[1]["event_data"]["execution_options"]
+
+    assert instruct_options["max_turns"] == 4
+    assert instruct_options["output_schema"] is True
+    assert instruct_options["memory"] == {"retrieve": True, "save": True, "extract": True, "top_k": 7}
+    assert instruct_options["reasoning_stage_count"] == 1
+    assert instruct_options["reasoning_stages"][0]["name"] == "plan"
+    assert instruct_options["reasoning_stages"][0]["description_length"] == len("Plan before acting.")
+    assert instruct_options["terminal_actions"] == ["submit_final_decision"]
+    assert instruct_options["completion_action_tags"] == ["social_write"]
+    assert instruct_options["max_action_calls"] == 3
+    assert instruct_options["action_call_limits"] == {"publish_post": 1}
+    assert instruct_options["llm_request_options"] == {
+        "max_tokens": 90,
+        "temperature": 0.1,
+        "custom_option_keys": ["vendor_hint"],
+    }
+    assert "do-not-log-this-value" not in json.dumps(events, ensure_ascii=False)
+
+    assert interview_options["max_turns"] == 2
+    assert interview_options["output_schema"] is True
+    assert interview_options["memory"] == {"retrieve": True, "save": False, "extract": False, "top_k": 5}
+    assert interview_options["reasoning_stage_count"] == 1
+    assert interview_options["reasoning_stages"][0]["name"] == "answer"
+    assert interview_options["llm_request_options"] == {"top_p": 0.8}
+    assert "terminal_actions" not in interview_options
 
 
 @pytest.mark.asyncio
