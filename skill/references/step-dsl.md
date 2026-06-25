@@ -35,10 +35,14 @@ ctx.capabilities.names("fov")
 ctx.capabilities.names("action")
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
+ctx.capabilities.names("action", source="environment")
 ctx.capabilities.has("rule", "advance_round_robin_with_pairing")
+ctx.capabilities.has("behavior", "custom_baseline", source="experiment")
+ctx.capabilities.by_source("environment")
+ctx.capabilities.by_source("experiment", kind="rule")
 ```
 
-After a run, inspect `summary.json -> capabilities.by_source` to distinguish env-provided capabilities from experiment-specific rules and behaviors. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
+During a step, use `ctx.capabilities.by_source(...)` to distinguish env-provided capabilities from experiment-specific rules and behaviors. After a run, inspect `summary.json -> capabilities.by_source` for the same distinction in the final report. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
 
 ## Agent Selection
 
@@ -216,6 +220,8 @@ Logic has two sources:
 
 - env-provided logic: an environment can provide `@rule` and `@behavior` capabilities.
 - experiment-specific logic: register one-study logic with `engine.registry.env.rule(...)` or `engine.registry.sched.behavior(...)`.
+
+Use `ctx.capabilities.by_source("environment", kind="rule")` and `ctx.capabilities.by_source("experiment", kind="behavior")` when the distinction matters for the study design or final explanation.
 
 Missing rule/behavior names are configuration errors and should fail fast. If these helpers are unavailable in the installed version, use the lower-level source-backed APIs only after reading `src/society0/schedule.py`, `src/society0/function_registry.py`, `src/society0/agent/core.py`, and the target env source. Do not claim a workflow migration is complete until code steps can trigger FoVs, actions, interviews, rules, and behaviors.
 

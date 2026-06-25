@@ -107,6 +107,9 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         registry = ctx.world.get_logic_provider()
         fov_names = ctx.capabilities.names("fov")
         action_names = ctx.capabilities.names("action")
+        env_fov_names = ctx.capabilities.names("fov", source="environment")
+        env_action_names = ctx.capabilities.names("action", source="environment")
+        env_rule_names = ctx.capabilities.names("rule", source="environment")
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("viewer"))
 
         observed["recommended_feed_entry"] = ctx.world._resolve_fov_entry("recommended_feed")
@@ -114,6 +117,10 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         observed["legacy_method_entry"] = ctx.world._resolve_fov_entry("env.get_recommended_feed")
         observed["fov_names"] = fov_names
         observed["action_names"] = action_names
+        observed["env_fov_names"] = env_fov_names
+        observed["env_action_names"] = env_action_names
+        observed["env_rule_names"] = env_rule_names
+        observed["env_capabilities"] = ctx.capabilities.by_source("environment")
         observed["registry_fovs"] = set(registry.env_fovs.keys())
         observed["registry_actions"] = set(registry.env_agent_tools.keys())
         observed["social_actions"] = set(actionset.filter_by_tags(["social"]).actions.keys())
@@ -139,8 +146,15 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert "get_recommended_feed" not in observed["fov_names"]
     assert "get_agent_profile" not in observed["fov_names"]
     assert "get_trending_posts" not in observed["fov_names"]
+    assert "get_agent_profile" not in observed["env_fov_names"]
+    assert "get_trending_posts" not in observed["env_fov_names"]
     assert "get_agent_profile" in observed["action_names"]
     assert "get_trending_posts" in observed["action_names"]
+    assert "get_agent_profile" in observed["env_action_names"]
+    assert "get_trending_posts" in observed["env_action_names"]
+    assert "update_trending_topics" in observed["env_rule_names"]
+    assert "get_agent_profile" in {entry["name"] for entry in observed["env_capabilities"]["actions"]}
+    assert "recommended_feed" in {entry["name"] for entry in observed["env_capabilities"]["fovs"]}
     assert "get_agent_profile" in observed["registry_actions"]
     assert "get_trending_posts" in observed["registry_actions"]
     assert "get_agent_profile" not in observed["registry_fovs"]

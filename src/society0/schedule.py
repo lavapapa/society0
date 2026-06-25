@@ -226,11 +226,21 @@ class CapabilityCatalog:
     def behaviors(self) -> List[Dict[str, Any]]:
         return self.by_kind("behavior")
 
-    def names(self, kind: str) -> List[str]:
-        return [entry["name"] for entry in self.by_kind(kind)]
+    def names(self, kind: str, *, source: Optional[str] = None) -> List[str]:
+        return [entry["name"] for entry in self.by_kind(kind) if source is None or entry.get("source") == source]
 
-    def has(self, kind: str, name: str) -> bool:
-        return name in self.names(kind)
+    def has(self, kind: str, name: str, *, source: Optional[str] = None) -> bool:
+        return name in self.names(kind, source=source)
+
+    def by_source(self, source: str, *, kind: Optional[str] = None) -> Any:
+        if kind is not None:
+            return [entry for entry in self.by_kind(kind) if entry.get("source") == source]
+        return {
+            "fovs": self.by_source(source, kind="fov"),
+            "actions": self.by_source(source, kind="action"),
+            "rules": self.by_source(source, kind="rule"),
+            "behaviors": self.by_source(source, kind="behavior"),
+        }
 
     def by_kind(self, kind: str) -> List[Dict[str, Any]]:
         registry = self.world.get_logic_provider()

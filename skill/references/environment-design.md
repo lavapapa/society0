@@ -66,7 +66,11 @@ Discover first:
 ```python
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
+ctx.capabilities.names("rule", source="environment")
+ctx.capabilities.by_source("experiment", kind="behavior")
 ```
+
+Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
 
 ## Env Tick Lifecycle Hooks
 
