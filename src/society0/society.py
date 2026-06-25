@@ -482,9 +482,19 @@ class Society0:
         catalog = CapabilityCatalog(self.current_world_state)
         by_kind = catalog.all()
         counts = {kind: len(entries) for kind, entries in by_kind.items()}
+        by_source: Dict[str, Dict[str, int]] = {}
+        for kind, entries in by_kind.items():
+            for entry in entries:
+                source = str(entry.get("source") or "unknown")
+                bucket = by_source.setdefault(
+                    source,
+                    {name: 0 for name in ("fovs", "actions", "rules", "behaviors")},
+                )
+                bucket[kind] = bucket.get(kind, 0) + 1
         return {
             "environment_type": self.current_world_state.environment_data.get("type"),
             "counts": counts,
+            "by_source": dict(sorted(by_source.items())),
             "by_kind": by_kind,
         }
 

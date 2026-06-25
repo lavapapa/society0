@@ -108,7 +108,7 @@ Both can come from two sources:
 - env-provided logic: built into an environment as capabilities, such as round-robin pairing rules or environment-specific participant behaviors.
 - experiment-specific logic: written by the user or their coding agent for one study, then registered on the engine.
 
-Use `ctx.capabilities` to discover available FoVs, actions, rules, and behaviors in a code step. Use `ctx.rule(...)`, `ctx.agents.where(...).behavior(...)`, or `ctx.behavior(...)` to execute deterministic logic from CodeSchedule.
+Use `ctx.capabilities` to discover available FoVs, actions, rules, and behaviors in a code step. Use `summary.json -> capabilities.by_source` to explain whether capabilities came from the selected environment or from experiment-specific registrations. Use `ctx.rule(...)`, `ctx.agents.where(...).behavior(...)`, or `ctx.behavior(...)` to execute deterministic logic from CodeSchedule.
 
 ## Memory
 

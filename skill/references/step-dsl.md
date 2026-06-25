@@ -38,6 +38,8 @@ ctx.capabilities.names("behavior")
 ctx.capabilities.has("rule", "advance_round_robin_with_pairing")
 ```
 
+After a run, inspect `summary.json -> capabilities.by_source` to distinguish env-provided capabilities from experiment-specific rules and behaviors. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
+
 ## Agent Selection
 
 ```python
