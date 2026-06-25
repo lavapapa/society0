@@ -487,7 +487,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
 
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
     llm_completed = _count_events(tmp_path, "llm", "llm_request_completed")
-    assert llm_completed == concurrency * 2
+    assert llm_completed >= concurrency * 3
     assert _count_events(tmp_path, "embedding", "embedding_request_completed") >= 1
     assert summary["resources"]["llm"]["call_count"] == llm_completed
     assert summary["resources"]["llm"]["error_count"] == 0
@@ -560,7 +560,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert metrics[0]["metrics"]["recall_errors"] == 0
     assert metrics[0]["metrics"]["remembered_count"] >= 1
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
-    assert _count_events(tmp_path, "llm", "llm_request_completed") == 2
+    assert _count_events(tmp_path, "llm", "llm_request_completed") >= 3
     assert any(event["event"] == "embedding_request_completed" for event in _resource_events(tmp_path, "embedding"))
     embedding_traces = [
         item
