@@ -92,6 +92,7 @@ Parameters:
 - `reasoning_stages`: optional cognitive stages for studies that compare decision procedures.
 - `terminal_actions`: optional action names that end the agent loop immediately after a successful call because that action is the natural endpoint of the current task.
 - `completion_action_tags`: optional action tags that end the agent loop after a successful matching action. Use this when a category of actions completes the round, while other read or lookup tools may still be intermediate.
+- `required_actions`: optional action names that must be successfully called by each selected agent for that agent record to count as success. Use this when the experiment design requires a concrete behavior, not just a valid LLM response.
 
 During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. Use `actions=["memory"]` only when the study explicitly wants agents to call memory tools themselves; `memory=True` already performs framework-managed retrieval and saving.
 
@@ -133,13 +134,15 @@ Use `action_call_limits` for bounded social tasks. When every available non-syst
 
 ```python
 await users.instruct(
-    "Publish at most one short post for this round.",
+    "You must publish exactly one short post for this round.",
     actions=["publish_post"],
-    memory=False,
     action_call_limits={"publish_post": 1},
+    required_actions=["publish_post"],
     max_turns=3,
 )
 ```
+
+`actions=[...]` only controls which tools are available. It does not prove that the agent actually used a tool. When the scientific design requires an action such as publishing, voting, commenting, or submitting a decision, use `required_actions=[...]` and inspect `result.action_counts()` or `summary.json -> events.agent_batches`.
 
 Do not combine a terminal domain action with a required `output` schema unless the experiment really needs both. Structured output adds a `submit_result` tool, which can require extra LLM calls after the domain action.
 
