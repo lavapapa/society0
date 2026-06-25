@@ -930,6 +930,22 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["action_tag_counts"] == {"comment": 1, "publish_post": 2, "social_write": 3}
     assert instruct["duration_sec"] == 2.5
     assert instruct["duration_sec_total"] == 4.0
+    assert instruct["by_tick"]["0"]["batch_started_count"] == 1
+    assert instruct["by_tick"]["0"]["batch_completed_count"] == 1
+    assert instruct["by_tick"]["0"]["success_count_total"] == 2
+    assert instruct["by_tick"]["0"]["error_count_total"] == 0
+    assert instruct["by_tick"]["0"]["completed_count_total"] == 2
+    assert instruct["by_tick"]["0"]["duration_sec_total"] == 1.5
+    assert instruct["by_tick"]["0"]["action_counts"] == {"publish_post": 2}
+    assert instruct["by_tick"]["0"]["action_tag_counts"] == {"publish_post": 2, "social_write": 2}
+    assert instruct["by_tick"]["1"]["batch_started_count"] == 1
+    assert instruct["by_tick"]["1"]["batch_completed_count"] == 1
+    assert instruct["by_tick"]["1"]["success_count_total"] == 1
+    assert instruct["by_tick"]["1"]["error_count_total"] == 1
+    assert instruct["by_tick"]["1"]["completed_count_total"] == 2
+    assert instruct["by_tick"]["1"]["duration_sec_total"] == 2.5
+    assert instruct["by_tick"]["1"]["action_counts"] == {"comment": 1}
+    assert instruct["by_tick"]["1"]["action_tag_counts"] == {"comment": 1, "social_write": 1}
     assert instruct["progress_event_count"] == 1
     assert instruct["heartbeat_event_count"] == 1
     assert instruct["max_in_flight_count"] == 1
