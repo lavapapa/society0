@@ -497,6 +497,26 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency * 2
     assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= concurrency
     assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    seed_batch = summary["events"]["agent_batches"]["instruct / saturation_seed"]
+    recall_batch = summary["events"]["agent_batches"]["interview / saturation_recall"]
+    assert seed_batch["agent_count"] == concurrency
+    assert seed_batch["concurrency"] == concurrency
+    assert seed_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert seed_batch["execution_options"]["max_turns"] == 3
+    assert seed_batch["execution_options"]["output_schema"] is True
+    assert recall_batch["agent_count"] == concurrency
+    assert recall_batch["concurrency"] == concurrency
+    assert recall_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": False,
+        "extract": False,
+        "top_k": 10,
+    }
     assert (
         summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
             "memory_extraction"
@@ -906,6 +926,25 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["payload_characters"] >= (
         summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["tools_characters"]
     )
+    capabilities = summary["capabilities"]
+    assert capabilities["environment_type"] == "social_network"
+    fov_names = {entry["name"] for entry in capabilities["by_kind"]["fovs"]}
+    action_names = {entry["name"] for entry in capabilities["by_kind"]["actions"]}
+    assert "recommended_feed" in fov_names
+    assert {"publish_post", "comment", "get_trending_posts"}.issubset(action_names)
+    publish_batch = summary["events"]["agent_batches"]["instruct / multi_tick_publish"]
+    browse_batch = summary["events"]["agent_batches"]["instruct / multi_tick_browse"]
+    assert publish_batch["execution_options"]["memory"] == {
+        "retrieve": False,
+        "save": False,
+        "extract": False,
+        "top_k": 10,
+    }
+    assert publish_batch["execution_options"]["action_call_limits"] == {"publish_post": 1}
+    assert browse_batch["fovs"] == ["recommended_feed"]
+    assert browse_batch["actions"] == ["comment"]
+    assert browse_batch["execution_options"]["completion_action_tags"] == ["social_write"]
+    assert browse_batch["execution_options"]["action_call_limits"] == {"comment": 1}
 
     assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) == agent_count
     assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) <= agent_count * 2
