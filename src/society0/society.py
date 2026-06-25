@@ -20,7 +20,7 @@ from .logging import ExperimentLogContext
 from .models import EmbedModel, LLMModel
 from .llm_model_types import ModelProvider
 from .persistence import PersistenceManager
-from .schedule import CodeSchedule, StepFunction
+from .schedule import CapabilityCatalog, CodeSchedule, StepFunction
 from .transaction import EventLogger
 
 logger = logging.getLogger(__name__)
@@ -371,6 +371,7 @@ class Society0:
             "agent_operations": self._summarize_agent_operations(),
             "resources": self._summarize_resource_calls(),
             "events": self._summarize_events(),
+            "capabilities": self._summarize_capabilities(),
             "outputs": self._summarize_output_files(),
             "completed_at": time.time(),
         }
@@ -380,6 +381,19 @@ class Society0:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, ensure_ascii=False, indent=2, default=str)
             handle.write("\n")
+
+    def _summarize_capabilities(self) -> Dict[str, Any]:
+        """Summarize runtime-discoverable env and experiment capabilities."""
+        if self.current_world_state is None:
+            return {}
+        catalog = CapabilityCatalog(self.current_world_state)
+        by_kind = catalog.all()
+        counts = {kind: len(entries) for kind, entries in by_kind.items()}
+        return {
+            "environment_type": self.current_world_state.environment_data.get("type"),
+            "counts": counts,
+            "by_kind": by_kind,
+        }
 
     def _summarize_agent_operations(self) -> Dict[str, Dict[str, Any]]:
         """Aggregate agent-facing step outputs into a researcher-readable summary."""
