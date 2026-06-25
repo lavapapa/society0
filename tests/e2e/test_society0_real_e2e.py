@@ -1,14 +1,14 @@
 """Real LLM + embedding endpoint E2E tests.
 
 These tests are opt-in so normal local/CI runs do not depend on private
-infrastructure. They load model settings from a caller-provided platform root.
+infrastructure. They prefer provider-neutral environment variables and keep a
+local platform-root fallback for maintainers.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import importlib.util
 import time
 from pathlib import Path
 
@@ -17,6 +17,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0
+from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
 
 
 pytestmark = pytest.mark.skipif(
@@ -42,27 +43,10 @@ class SaturationAnswer(BaseModel):
 
 
 def _load_default_endpoint_env() -> tuple[dict[str, str], dict[str, str]]:
-    raw_platform_root = os.getenv("SOCIETY0_PLATFORM_ROOT")
-    if not raw_platform_root:
-        pytest.skip("Set SOCIETY0_PLATFORM_ROOT to run real endpoint e2e tests.")
-
-    platform_root = Path(raw_platform_root)
-    if not platform_root.exists():
-        pytest.skip(f"Society0 platform repo is not available at {platform_root}")
-
-    secrets_path = platform_root / "core" / "services" / "secrets_service.py"
     try:
-        spec = importlib.util.spec_from_file_location("society0_platform_secrets_service", secrets_path)
-        if spec is None or spec.loader is None:
-            pytest.skip(f"Cannot load Society0 SecretsService from {secrets_path}")
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        secrets_service = module.SecretsService
-    except Exception as exc:  # pragma: no cover - local infrastructure guard
-        pytest.skip(f"Cannot import Society0 SecretsService: {exc}")
-
-    secrets = secrets_service()
-    return secrets.get_llm_config(), secrets.get_embedding_config()
+        return load_endpoint_env()
+    except EndpointConfigError as exc:
+        pytest.skip(str(exc))
 
 
 def _build_models(
@@ -73,7 +57,11 @@ def _build_models(
     llm_env, embedding_env = _load_default_endpoint_env()
     endpoints_json = (embedding_env.get("EMBEDDING_ENDPOINTS_JSON") or "").strip()
     embedding_endpoint = _first_embedding_endpoint(endpoints_json) if endpoints_json else {}
-    provider_type = str(embedding_endpoint.get("provider_type") or "ollama").lower()
+    provider_type = str(
+        embedding_endpoint.get("provider_type")
+        or embedding_env.get("EMBEDDING_PROVIDER_TYPE")
+        or "ollama"
+    ).lower()
     embedding_base_url = embedding_endpoint.get("base_url") or embedding_env["EMBEDDING_BASE_URL"]
     embedding_model = embedding_endpoint.get("model") or embedding_env["EMBEDDING_MODEL"]
     embedding_api_key = (
