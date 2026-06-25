@@ -557,6 +557,8 @@ class LLMAgent(Agent):
                       hint_on_remain_turn: int = 1,
                       terminal_action_names: Optional[List[str]] = None,
                       completion_action_tags: Optional[List[str]] = None,
+                      required_action_names: Optional[List[str]] = None,
+                      required_action_tags: Optional[List[str]] = None,
                       max_action_calls: Optional[int] = None,
                       action_call_limits: Optional[Dict[str, int]] = None,
                       prefer_direct_json_output: bool = False,
@@ -874,6 +876,7 @@ class LLMAgent(Agent):
                             total_turns=1,
                             default_stage_name="default",
                             action_calls=[],
+                            termination_reason="direct_structured_output",
                             model_type="standard",
                         )
                         preloop_llm_calls = 0
@@ -905,6 +908,8 @@ class LLMAgent(Agent):
                         context_provider=context_provider,
                         terminal_action_names=effective_terminal_action_names,
                         completion_action_tags=completion_action_tags,
+                        required_action_names=required_action_names,
+                        required_action_tags=required_action_tags,
                         turn_remain_hint=turn_remain_hint,
                         hint_on_remain_turn=hint_on_remain_turn,
                         max_action_calls=max_action_calls,
@@ -1239,6 +1244,8 @@ class LLMAgent(Agent):
                 "raw_output": raw_loop_output,
                 "total_turns": total_llm_calls,
                 "actions": loop_result.action_calls,
+                "termination_reason": loop_result.termination_reason,
+                "termination_action": loop_result.termination_action,
                 "llm_calls": total_llm_calls,
                 "finish_instruction_called": finish_instruction_called,  # 现在正确实现了
                 "stages_executed": list(loop_result.phases.keys()),

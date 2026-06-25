@@ -357,6 +357,7 @@ def test_agent_batch_result_exposes_action_summaries():
                     "memory_extraction_enabled": True,
                     "memory_extraction_success": True,
                     "extracted_memories": [{"content": "Alice learned that the post was missing."}],
+                    "termination_reason": "completion_action_tag",
                 },
             ),
             AgentCallRecord(
@@ -379,6 +380,7 @@ def test_agent_batch_result_exposes_action_summaries():
                     "memory_extraction_enabled": False,
                     "memory_extraction_success": False,
                     "extracted_memories": [],
+                    "termination_reason": "no_action_calls",
                 },
             ),
             AgentCallRecord(
@@ -407,6 +409,10 @@ def test_agent_batch_result_exposes_action_summaries():
         "social_read": 3,
         "get_agent_profile": 1,
         "profile_read": 1,
+    }
+    assert result.termination_reason_counts() == {
+        "completion_action_tag": 1,
+        "no_action_calls": 1,
     }
     assert result.memory_summary() == {
         "record_count": 2,
@@ -445,6 +451,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["failed_action_counts"] == result.failed_action_counts()
     assert result.to_dict()["action_error_samples"] == result.action_error_samples()
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
+    assert result.to_dict()["termination_reason_counts"] == result.termination_reason_counts()
     assert result.to_dict()["memory_summary"] == result.memory_summary()
     assert result.to_dict()["error_samples"] == result.error_samples()
 
@@ -916,6 +923,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                             "successful_action_counts": {"publish_post": 2},
                             "failed_action_counts": {},
                             "action_tag_counts": {"publish_post": 2, "social_write": 2},
+                            "termination_reason_counts": {"terminal_action": 2},
                             "execution_options": {
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
@@ -966,6 +974,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                             "successful_action_counts": {"comment": 1},
                             "failed_action_counts": {"comment": 1},
                             "action_tag_counts": {"comment": 1, "social_write": 1},
+                            "termination_reason_counts": {"completion_action_tag": 1},
                             "execution_options": {
                                 "max_turns": 4,
                                 "memory": {"retrieve": True, "save": True, "extract": True, "top_k": 7},
@@ -1105,6 +1114,10 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["successful_action_counts"] == {"comment": 1, "publish_post": 2}
     assert instruct["failed_action_counts"] == {"comment": 1}
     assert instruct["action_tag_counts"] == {"comment": 1, "publish_post": 2, "social_write": 3}
+    assert instruct["termination_reason_counts"] == {
+        "completion_action_tag": 1,
+        "terminal_action": 2,
+    }
     assert instruct["duration_sec"] == 2.5
     assert instruct["duration_sec_total"] == 4.0
     assert instruct["by_tick"]["0"]["batch_started_count"] == 1
@@ -1115,6 +1128,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["by_tick"]["0"]["duration_sec_total"] == 1.5
     assert instruct["by_tick"]["0"]["action_counts"] == {"publish_post": 2}
     assert instruct["by_tick"]["0"]["action_tag_counts"] == {"publish_post": 2, "social_write": 2}
+    assert instruct["by_tick"]["0"]["termination_reason_counts"] == {"terminal_action": 2}
     assert instruct["by_tick"]["1"]["batch_started_count"] == 1
     assert instruct["by_tick"]["1"]["batch_completed_count"] == 1
     assert instruct["by_tick"]["1"]["success_count_total"] == 1
@@ -1125,6 +1139,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["by_tick"]["1"]["successful_action_counts"] == {"comment": 1}
     assert instruct["by_tick"]["1"]["failed_action_counts"] == {"comment": 1}
     assert instruct["by_tick"]["1"]["action_tag_counts"] == {"comment": 1, "social_write": 1}
+    assert instruct["by_tick"]["1"]["termination_reason_counts"] == {"completion_action_tag": 1}
     assert instruct["progress_event_count"] == 1
     assert instruct["heartbeat_event_count"] == 1
     assert instruct["max_in_flight_count"] == 1
@@ -1336,6 +1351,8 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
         completion_action_tags=["social_write"],
         max_action_calls=2,
         action_call_limits={"publish_post": 1},
+        required_actions=["publish_post"],
+        required_action_tags=["social_write"],
         memory_top_k=3,
         max_tokens=80,
         temperature=0.2,
@@ -1355,6 +1372,8 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
     assert world.instruct_call[2]["reasoning_stages"] == [{"name": "think", "desc": "think first"}]
     assert world.instruct_call[2]["terminal_action_names"] == ["submit_final_decision"]
     assert world.instruct_call[2]["completion_action_tags"] == ["social_write"]
+    assert world.instruct_call[2]["required_action_names"] == ["publish_post"]
+    assert world.instruct_call[2]["required_action_tags"] == ["social_write"]
     assert world.instruct_call[2]["max_action_calls"] == 2
     assert world.instruct_call[2]["action_call_limits"] == {"publish_post": 1}
     assert world.instruct_call[2]["memory_top_k"] == 3
@@ -1648,6 +1667,134 @@ async def test_terminal_action_stops_agent_loop_after_tool_call():
     assert llm_calls[0]["tool_choice"] == "auto"
     assert result.total_turns == 1
     assert [call["action_name"] for call in result.action_calls] == ["submit_final_decision"]
+    assert result.termination_reason == "terminal_action"
+    assert result.termination_action == "submit_final_decision"
+
+
+@pytest.mark.asyncio
+async def test_terminal_action_requires_success_before_ending_loop():
+    action_set = ActionSet()
+    called_actions = []
+    llm_calls = []
+
+    async def submit_final_decision(decision: str):
+        called_actions.append(decision)
+        if decision == "bad":
+            return {"ok": False, "error": "decision payload was invalid"}
+        return {"ok": True, "decision": decision}
+
+    action_set.add_action(
+        name="submit_final_decision",
+        func=submit_final_decision,
+        description="Submit the final decision and end this task",
+        parameters={
+            "type": "object",
+            "properties": {"decision": {"type": "string"}},
+            "required": ["decision"],
+        },
+        tags=["submit_final_decision", "environment"],
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        if len(llm_calls) == 1:
+            decision = "bad"
+            call_id = "call_bad"
+        else:
+            decision = "approve"
+            call_id = "call_good"
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": "submit_final_decision",
+                        "arguments": f'{{"decision": "{decision}"}}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Submit your final decision for this round.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        terminal_action_names=["submit_final_decision"],
+    )
+
+    assert called_actions == ["bad", "approve"]
+    assert len(llm_calls) == 2
+    assert result.total_turns == 2
+    assert [call["status"] for call in result.action_calls] == ["error", "success"]
+    assert result.termination_reason == "terminal_action"
+    assert result.termination_action == "submit_final_decision"
+
+
+@pytest.mark.asyncio
+async def test_required_action_gets_correction_turn_when_model_stops_early():
+    action_set = ActionSet()
+    called = []
+    llm_payloads = []
+
+    async def publish_post(content: str):
+        called.append(content)
+        return "Successfully published post post_1"
+
+    action_set.add_action(
+        name="publish_post",
+        func=publish_post,
+        description="Publish a post",
+        parameters={
+            "type": "object",
+            "properties": {"content": {"type": "string"}},
+            "required": ["content"],
+        },
+        tags=["publish_post", "social_write"],
+    )
+
+    async def fake_llm_call(payload):
+        llm_payloads.append(
+            {"messages": [dict(message) for message in payload["messages"]]}
+        )
+        if len(llm_payloads) == 1:
+            return {"role": "assistant", "content": "I will publish a post.", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_publish",
+                    "type": "function",
+                    "function": {
+                        "name": "publish_post",
+                        "arguments": '{"content": "Campus is lively today."}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Publish exactly one post.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        action_call_limits={"publish_post": 1},
+        required_action_names=["publish_post"],
+    )
+
+    assert called == ["Campus is lively today."]
+    assert len(llm_payloads) == 2
+    assert "Required action name(s): publish_post" in llm_payloads[1]["messages"][-1]["content"]
+    assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
+    assert result.termination_reason == "action_budget_exhausted"
 
 
 @pytest.mark.asyncio
@@ -1737,6 +1884,8 @@ async def test_completion_action_tag_stops_after_successful_matching_action():
     assert [call["action_name"] for call in result.action_calls] == ["get_trending_posts", "comment"]
     assert result.action_calls[0]["tags"] == ["get_trending_posts", "social_read", "lookup"]
     assert result.action_calls[1]["tags"] == ["comment", "social_write", "engagement"]
+    assert result.termination_reason == "completion_action_tag"
+    assert result.termination_action == "comment"
 
 
 @pytest.mark.asyncio

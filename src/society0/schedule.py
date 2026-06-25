@@ -183,6 +183,22 @@ class AgentBatchResult:
                 counts[tag_key] = counts.get(tag_key, 0) + 1
         return counts
 
+    def termination_reason_counts(self) -> Dict[str, int]:
+        """Count how successful agent loops terminated."""
+        counts: Dict[str, int] = {}
+        for record in self.records:
+            if record.status != "success":
+                continue
+            payload = record.raw if isinstance(record.raw, dict) else record.value
+            if not isinstance(payload, dict):
+                continue
+            reason = payload.get("termination_reason")
+            if not reason:
+                continue
+            key = str(reason)
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
     def memory_summary(self) -> Dict[str, Any]:
         """Summarize actual memory diagnostics returned by agent calls."""
         return _summarize_memory_diagnostics(
@@ -229,6 +245,7 @@ class AgentBatchResult:
             "failed_action_counts": self.failed_action_counts(),
             "action_tag_counts": self.action_tag_counts(),
             "action_error_samples": self.action_error_samples(),
+            "termination_reason_counts": self.termination_reason_counts(),
             "memory_summary": self.memory_summary(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
@@ -475,6 +492,8 @@ class AgentGroup:
                     reasoning_stages=reasoning_stages,
                     terminal_action_names=terminal_actions,
                     completion_action_tags=completion_action_tags,
+                    required_action_names=required_actions,
+                    required_action_tags=required_action_tags,
                     max_action_calls=max_action_calls,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
@@ -606,6 +625,7 @@ class AgentGroup:
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             action_error_samples=batch_result.action_error_samples(),
+            termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -794,6 +814,7 @@ class AgentGroup:
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             action_error_samples=batch_result.action_error_samples(),
+            termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
@@ -1435,6 +1456,7 @@ def _record_agent_batch_event(
     failed_action_counts: Optional[Dict[str, int]] = None,
     action_tag_counts: Optional[Dict[str, int]] = None,
     action_error_samples: Optional[List[Dict[str, Any]]] = None,
+    termination_reason_counts: Optional[Dict[str, int]] = None,
     memory_summary: Optional[Dict[str, Any]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
@@ -1507,6 +1529,8 @@ def _record_agent_batch_event(
             event_data["action_tag_counts"] = _jsonable(action_tag_counts)
         if action_error_samples:
             event_data["action_error_samples"] = _jsonable(action_error_samples)
+        if termination_reason_counts:
+            event_data["termination_reason_counts"] = _jsonable(termination_reason_counts)
         if memory_summary:
             event_data["memory_summary"] = _jsonable(memory_summary)
         if error_samples:
