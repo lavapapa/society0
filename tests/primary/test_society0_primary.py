@@ -3769,9 +3769,17 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
     @engine.step(name="inspect_capabilities")
     async def inspect_capabilities(ctx):
         assert ctx.capabilities.has("rule", "set_pressure")
+        assert ctx.capabilities.has("rule", "set_pressure", source="experiment")
+        assert not ctx.capabilities.has("rule", "set_pressure", source="environment")
         assert ctx.capabilities.has("behavior", "adjust_trust")
         assert "set_pressure" in ctx.capabilities.names("rule")
+        assert ctx.capabilities.names("rule", source="experiment") == ["set_pressure"]
+        assert ctx.capabilities.names("rule", source="environment") == []
         assert "adjust_trust" in ctx.capabilities.names("behavior")
+        experiment_capabilities = ctx.capabilities.by_source("experiment")
+        assert "set_pressure" in {entry["name"] for entry in experiment_capabilities["rules"]}
+        assert "adjust_trust" in {entry["name"] for entry in experiment_capabilities["behaviors"]}
+        assert ctx.capabilities.by_source("environment", kind="rule") == []
         with pytest.raises(ValueError, match="Rule 'missing_rule' not found"):
             await ctx.rule("missing_rule")
         with pytest.raises(ValueError, match="Behavior 'missing_behavior' not found"):
