@@ -165,7 +165,7 @@ survey = await users.interview(
 )
 ```
 
-`interview` intentionally does not expose ordinary actions. It defaults to reading memory but not writing memory, which preserves a measurement-oriented meaning. For large surveys, lower `memory_top_k` first before increasing model concurrency; unnecessary memory snippets increase prompt size for every selected agent.
+`interview` intentionally does not expose ordinary actions. It defaults to reading memory but not writing memory, which preserves a measurement-oriented meaning. Structured interview output still uses the agent's submit-result action loop by default; direct JSON output is a lower-fidelity optimization that should only be enabled explicitly in low-level code when the researcher accepts that tradeoff. For large surveys, lower `memory_top_k` first before increasing model concurrency; unnecessary memory snippets increase prompt size for every selected agent.
 
 For surveys and other bounded measurements, set `max_tokens` deliberately. A short structured answer rarely needs a large generation budget, and lower caps make real provider latency easier to control.
 
