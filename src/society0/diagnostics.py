@@ -30,6 +30,7 @@ def render_runtime_diagnostic_report(run_dir_or_summary: str | Path | Mapping[st
     lines.extend(_render_run_overview(summary))
     lines.extend(_render_environment_capabilities(summary.get("capabilities") or {}))
     lines.extend(_render_env_hooks(summary.get("events", {}).get("env_hooks") or {}))
+    lines.extend(_render_logic_executions(summary.get("events", {}).get("logic_executions") or {}))
     lines.extend(_render_resource_bottlenecks(summary.get("resources") or {}))
     lines.extend(_render_agent_batches(summary.get("events", {}).get("agent_batches") or {}))
     lines.extend(_render_diagnostic_notes(summary))
@@ -124,11 +125,51 @@ def _render_env_hooks(env_hooks: Mapping[str, Any]) -> List[str]:
         if isinstance(error_samples, list) and error_samples:
             sample = error_samples[0]
             if isinstance(sample, Mapping):
-                error_type = sample.get("error_type") or "Error"
-                error = sample.get("error") or "unknown"
                 step = sample.get("step")
                 suffix = f" at step {step}" if step is not None else ""
-                lines.append(f"- Error sample: {error_type}: {error}{suffix}.")
+                lines.append(f"- Error sample: {_format_error_sample(sample)}{suffix}.")
+        lines.append("")
+    return lines
+
+
+def _render_logic_executions(logic_executions: Mapping[str, Any]) -> List[str]:
+    if not logic_executions:
+        return []
+
+    lines = ["## Rules And Behaviors", ""]
+    for name, execution in sorted(logic_executions.items()):
+        if not isinstance(execution, Mapping):
+            continue
+        lines.append(f"### {name}")
+        lines.append("")
+        logic_kind = execution.get("logic_kind")
+        prefix = f"- Kind: `{logic_kind}`; " if logic_kind else "- "
+        line = (
+            prefix
+            + "started/completed/failed "
+            f"{execution.get('started_count', 0)}/{execution.get('completed_count', 0)}/{execution.get('failed_count', 0)}; "
+            f"success/error {execution.get('success_count', 0)}/{execution.get('error_count', 0)}"
+        )
+        agent_count = execution.get("agent_count_total")
+        if isinstance(agent_count, int) and agent_count:
+            line += f"; agents {agent_count}"
+        line += f"; total {_fmt_seconds(execution.get('duration_sec_total'))}."
+        lines.append(line)
+
+        param_keys = execution.get("param_keys")
+        if isinstance(param_keys, list) and param_keys:
+            lines.append(f"- Params: {', '.join(str(key) for key in param_keys)}.")
+
+        by_tick = execution.get("by_tick")
+        if isinstance(by_tick, Mapping) and by_tick:
+            ticks = ", ".join(str(tick) for tick in sorted(by_tick, key=str))
+            lines.append(f"- Tick coverage: {ticks}.")
+
+        error_samples = execution.get("error_samples")
+        if isinstance(error_samples, list) and error_samples:
+            sample = error_samples[0]
+            if isinstance(sample, Mapping):
+                lines.append(f"- Error sample: {_format_error_sample(sample)}.")
         lines.append("")
     return lines
 
@@ -369,6 +410,14 @@ def _format_counts(counts: Mapping[str, Any]) -> str:
 
 def _format_list(value: List[Any]) -> str:
     return "[" + ", ".join(str(item) for item in value) + "]"
+
+
+def _format_error_sample(sample: Mapping[str, Any]) -> str:
+    error_type = sample.get("error_type") or "Error"
+    error = sample.get("error") or "unknown"
+    agent_id = sample.get("agent_id")
+    suffix = f" (agent_id={agent_id})" if agent_id is not None else ""
+    return f"{error_type}: {error}{suffix}"
 
 
 def _capability_names(value: Any) -> List[str]:

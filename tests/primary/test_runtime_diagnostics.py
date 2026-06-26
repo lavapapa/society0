@@ -73,6 +73,40 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
                     ],
                 },
             },
+            "logic_executions": {
+                "rule / refresh_recommendation_cache": {
+                    "logic_kind": "rule",
+                    "logic_name": "refresh_recommendation_cache",
+                    "started_count": 3,
+                    "completed_count": 3,
+                    "failed_count": 0,
+                    "success_count": 3,
+                    "error_count": 0,
+                    "duration_sec_total": 0.18,
+                    "param_keys": ["pool_size"],
+                    "by_tick": {"0": {}, "1": {}, "2": {}},
+                },
+                "behavior / update_trust": {
+                    "logic_kind": "behavior",
+                    "logic_name": "update_trust",
+                    "started_count": 2,
+                    "completed_count": 2,
+                    "failed_count": 0,
+                    "success_count": 6,
+                    "error_count": 1,
+                    "agent_count_total": 7,
+                    "duration_sec_total": 0.24,
+                    "param_keys": ["delta"],
+                    "by_tick": {"0": {}, "1": {}},
+                    "error_samples": [
+                        {
+                            "agent_id": "bob",
+                            "status": "error",
+                            "error": "bob rejected deterministic behavior",
+                        }
+                    ],
+                },
+            },
             "agent_batches": {
                 "instruct / browse_round": {
                     "agent_count": 4,
@@ -156,6 +190,14 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
     assert "### after_tick" in report
     assert "started/completed/failed 3/2/1" in report
     assert "RuntimeError: cache flush failed" in report
+    assert "## Rules And Behaviors" in report
+    assert "### behavior / update_trust" in report
+    assert "success/error 6/1; agents 7" in report
+    assert "Params: delta." in report
+    assert "bob rejected deterministic behavior" in report
+    assert "### rule / refresh_recommendation_cache" in report
+    assert "success/error 3/0" in report
+    assert "Params: pool_size." in report
     assert "`llm`: 8 calls, 10.500s total, bottleneck `provider`." in report
     assert "Slowest call: 3.200s (step_name=browse_once" in report
     assert "### instruct / browse_round" in report
