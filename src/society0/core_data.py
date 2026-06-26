@@ -1181,12 +1181,14 @@ class World:
         agent = self.get_agent(agent_id)
         step_number = current_step if current_step is not None else self.step
 
+        fov_collection_started = time.time()
         fov_results = await self._collect_fov_results(
             agent_id=agent_id,
             agent=agent,
             fovs=fovs,
             step_number=step_number,
         )
+        fov_collection_duration = time.time() - fov_collection_started
 
         # Prepare context for agent instruction
         context = {"fov_results": fov_results} if fov_results else {}
@@ -1238,6 +1240,10 @@ class World:
 
         if resolved_model_id is not None:
             result.setdefault("model_id", resolved_model_id)
+        if fovs:
+            phase_timings = result.setdefault("phase_timings", {})
+            if isinstance(phase_timings, dict):
+                phase_timings["fov_collection"] = round(fov_collection_duration, 6)
 
         actions_count, llm_calls, total_tokens = self._extract_instruction_metrics(result)
         self._log_instruction_completion(
@@ -1297,12 +1303,14 @@ class World:
         agent = self.get_agent(agent_id)
         step_number = current_step if current_step is not None else self.step
 
+        fov_collection_started = time.time()
         fov_results = await self._collect_fov_results(
             agent_id=agent_id,
             agent=agent,
             fovs=fovs,
             step_number=step_number,
         )
+        fov_collection_duration = time.time() - fov_collection_started
 
         # Prepare context for agent interview
         context = {"fov_results": fov_results} if fov_results else {}
@@ -1358,6 +1366,10 @@ class World:
         execution_duration = time.time() - execution_start
         if resolved_model_id is not None:
             result.setdefault("model_id", resolved_model_id)
+        if fovs:
+            phase_timings = result.setdefault("phase_timings", {})
+            if isinstance(phase_timings, dict):
+                phase_timings["fov_collection"] = round(fov_collection_duration, 6)
 
         actions_count, llm_calls, total_tokens = self._extract_instruction_metrics(result)
         self._log_instruction_completion(

@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Callable, Aw
 import logging
 import copy
 import json
+import time
 
 # Import proxy system for state management
 from ..state_proxy import DictProxy, AccessContext
@@ -604,6 +605,16 @@ class LLMAgent(Agent):
         if effective_memory_top_k <= 0:
             raise ValueError("memory_top_k must be a positive integer")
 
+        instruct_started = time.perf_counter()
+        phase_timings: Dict[str, float] = {}
+
+        def record_phase(phase_name: str, started_at: float) -> None:
+            duration = max(time.perf_counter() - started_at, 0.0)
+            phase_timings[phase_name] = round(
+                phase_timings.get(phase_name, 0.0) + duration,
+                6,
+            )
+
         def build_memory_trace(operation: str) -> Dict[str, Any]:
             metadata = {key: value for key, value in dict(trace or {}).items() if value is not None}
             if metadata.get("interaction_type") is not None:
@@ -625,6 +636,7 @@ class LLMAgent(Agent):
         memory_text = ""
         memory_results: List[str] = []
         if retrieve_memory and self._memory:
+            memory_retrieve_started = time.perf_counter()
             try:
                 memory_results = await self._memory.retrieve(
                     query=instruction,
@@ -673,8 +685,11 @@ class LLMAgent(Agent):
                         LogField.ERROR.value: str(e),
                     },
                 )
+            finally:
+                record_phase("memory_retrieve", memory_retrieve_started)
 
         # 3. 组装提示词
+        prompt_build_started = time.perf_counter()
         # System Prompt: 基于persona和state
         system_prompt = self._build_system_prompt()
 
@@ -703,8 +718,10 @@ class LLMAgent(Agent):
         user_sections.append(self._format_prompt_section("任务", instruction))
 
         user_prompt = "\n\n".join(section for section in user_sections if section)
+        record_phase("prompt_build", prompt_build_started)
 
         # 4. 筛选ActionSet
+        actionset_build_started = time.perf_counter()
         available_actionset = None
         if override_actionset is not None:
             available_actionset = override_actionset
@@ -736,9 +753,12 @@ class LLMAgent(Agent):
         #     print(f"OpenAI Schema: {available_actionset.get_openai_actions_schema()}")
         # else:
         #     print("ActionSet is None!")
+        record_phase("actionset_build", actionset_build_started)
 
         # 5. 调用推理引擎 (execute_action_loop)
+        agent_loop_started: Optional[float] = None
         try:
+            agent_loop_started = time.perf_counter()
             from .agent_loop import execute_action_loop, ActionSet, DEFAULT_REASONING_STAGES, LoopResult
 
             # 决定使用哪个推理阶段配置：优先级：参数传入 > Agent默认配置 > 全局默认
@@ -1094,6 +1114,8 @@ class LLMAgent(Agent):
                     except Exception as e:
                         logger.error(f"Error in JSON-prefix fallback for agent {self.id}: {e}")
 
+            record_phase("agent_loop", agent_loop_started)
+
             # 6. 处理结果与写入记忆
             performative_output = loop_result.phases.get("Reflection", "")
             raw_loop_output = {
@@ -1118,11 +1140,16 @@ class LLMAgent(Agent):
 
             # 写入记忆（如果启用且可用）
             if save_memory and self._memory:
+                memory_save_started = time.perf_counter()
                 try:
 
                     extraction_result = {"success": False, "memories": [], "error": None}
                     if extract_memory and has_output:
-                        extraction_result = await perform_memory_extraction(loop_result, traced_llm_call)
+                        memory_extract_started = time.perf_counter()
+                        try:
+                            extraction_result = await perform_memory_extraction(loop_result, traced_llm_call)
+                        finally:
+                            record_phase("memory_extract", memory_extract_started)
                         loop_result.memory_extraction_enabled = True
                         loop_result.memory_extraction_success = extraction_result.get("success", False)
                         loop_result.extracted_memories = extraction_result.get("memories", [])
@@ -1147,11 +1174,15 @@ class LLMAgent(Agent):
                                 }
                             )
 
-                        memory_ids = await self._memory.add_memories_batch(
-                            mem_entries,
-                            fire_and_forget=False,
-                            trace=build_memory_trace("memory_write"),
-                        )
+                        memory_write_started = time.perf_counter()
+                        try:
+                            memory_ids = await self._memory.add_memories_batch(
+                                mem_entries,
+                                fire_and_forget=False,
+                                trace=build_memory_trace("memory_write"),
+                            )
+                        finally:
+                            record_phase("memory_write", memory_write_started)
 
                         for mem_id, mem in zip(memory_ids, mem_entries):
                             memory_summary = summarize_text(mem.get("content", ""))
@@ -1195,11 +1226,15 @@ class LLMAgent(Agent):
                             }
                         ]
 
-                        memory_ids = await self._memory.add_memories_batch(
-                            mem_entries,
-                            fire_and_forget=False,
-                            trace=build_memory_trace("memory_write"),
-                        )
+                        memory_write_started = time.perf_counter()
+                        try:
+                            memory_ids = await self._memory.add_memories_batch(
+                                mem_entries,
+                                fire_and_forget=False,
+                                trace=build_memory_trace("memory_write"),
+                            )
+                        finally:
+                            record_phase("memory_write", memory_write_started)
 
                         memory_summary = summarize_text(fallback_content)
                         if memory_ids:
@@ -1229,11 +1264,14 @@ class LLMAgent(Agent):
                             },
                         },
                     )
+                finally:
+                    record_phase("memory_save", memory_save_started)
 
             # 情绪模型更新（可选实现）
             # TODO: 将performative_output传递给情绪模型，更新self.state['emotion']
 
             total_llm_calls = loop_result.total_turns + extra_llm_calls
+            record_phase("total", instruct_started)
 
             return {
                 "status": "success",
@@ -1265,9 +1303,13 @@ class LLMAgent(Agent):
                 "memory_extraction_success": getattr(loop_result, "memory_extraction_success", False),
                 "extracted_memories": getattr(loop_result, "extracted_memories", []),
                 "memory_extraction_error": getattr(loop_result, "memory_extraction_error", None),
+                "phase_timings": dict(sorted(phase_timings.items())),
             }
 
         except Exception as e:
+            if agent_loop_started is not None and "agent_loop" not in phase_timings:
+                record_phase("agent_loop", agent_loop_started)
+            record_phase("total", instruct_started)
             logger.error(f"Error in instruction execution for agent {self.id}: {e}")
             return {
                 "status": "error",
@@ -1285,7 +1327,8 @@ class LLMAgent(Agent):
                 "reasoning_content": None,
                 "thinking_process": [],
                 "has_reasoning": False,
-                "model_type": None
+                "model_type": None,
+                "phase_timings": dict(sorted(phase_timings.items())),
             }
 
     async def interview(self,

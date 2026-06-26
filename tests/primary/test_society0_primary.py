@@ -360,6 +360,11 @@ def test_agent_batch_result_exposes_action_summaries():
                     "termination_reason": "completion_action_tag",
                     "total_turns": 3,
                     "llm_calls": 2,
+                    "phase_timings": {
+                        "fov_collection": 0.02,
+                        "agent_loop": 0.2,
+                        "memory_extract": 0.03,
+                    },
                 },
                 duration_sec=0.25,
             ),
@@ -386,6 +391,10 @@ def test_agent_batch_result_exposes_action_summaries():
                     "termination_reason": "no_action_calls",
                     "total_turns": 1,
                     "llm_calls": 1,
+                    "phase_timings": {
+                        "agent_loop": 0.08,
+                        "memory_retrieve": 0.01,
+                    },
                 },
                 duration_sec=0.1,
             ),
@@ -462,6 +471,36 @@ def test_agent_batch_result_exposes_action_summaries():
             },
         ],
     }
+    assert result.phase_timing_summary() == {
+        "record_count": 2,
+        "bottleneck": "agent_loop",
+        "phases": {
+            "agent_loop": {
+                "record_count": 2,
+                "total_sec": 0.28,
+                "mean_sec": 0.14,
+                "max_sec": 0.2,
+            },
+            "fov_collection": {
+                "record_count": 1,
+                "total_sec": 0.02,
+                "mean_sec": 0.02,
+                "max_sec": 0.02,
+            },
+            "memory_extract": {
+                "record_count": 1,
+                "total_sec": 0.03,
+                "mean_sec": 0.03,
+                "max_sec": 0.03,
+            },
+            "memory_retrieve": {
+                "record_count": 1,
+                "total_sec": 0.01,
+                "mean_sec": 0.01,
+                "max_sec": 0.01,
+            },
+        },
+    }
     assert result.table()[0]["duration_sec"] == 0.25
     assert [action["action_name"] for action in result.actions_by_agent("alice")] == [
         "get_trending_posts",
@@ -493,6 +532,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["termination_reason_counts"] == result.termination_reason_counts()
     assert result.to_dict()["memory_summary"] == result.memory_summary()
     assert result.to_dict()["duration_summary"] == result.duration_summary()
+    assert result.to_dict()["phase_timing_summary"] == result.phase_timing_summary()
     assert result.to_dict()["error_samples"] == result.error_samples()
 
 
@@ -2766,6 +2806,10 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
                 "total_turns": 1,
                 "llm_calls": 1,
                 "termination_reason": "no_action_calls",
+                "phase_timings": {
+                    "agent_loop": 0.02,
+                    "prompt_build": 0.001,
+                },
             }
 
         def get_context_stack(self):
@@ -2811,6 +2855,22 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
     assert {sample["total_turns"] for sample in duration_summary["slowest_agents"]} == {1}
     assert {sample["llm_calls"] for sample in duration_summary["slowest_agents"]} == {1}
     assert batch["by_tick"]["6"]["agent_duration_summary"]["record_count"] == 4
+    phase_timing_summary = batch["phase_timing_summary"]
+    assert phase_timing_summary["record_count"] == 4
+    assert phase_timing_summary["bottleneck"] == "agent_loop"
+    assert phase_timing_summary["phases"]["agent_loop"] == {
+        "record_count": 4,
+        "total_sec": 0.08,
+        "mean_sec": 0.02,
+        "max_sec": 0.02,
+    }
+    assert phase_timing_summary["phases"]["prompt_build"] == {
+        "record_count": 4,
+        "total_sec": 0.004,
+        "mean_sec": 0.001,
+        "max_sec": 0.001,
+    }
+    assert batch["by_tick"]["6"]["phase_timing_summary"]["bottleneck"] == "agent_loop"
 
 
 @pytest.mark.asyncio
@@ -4149,6 +4209,18 @@ async def test_extractive_memory_llm_call_is_traced_as_memory_extract():
 
     assert result["memory_extraction_enabled"] is True
     assert result["memory_extraction_success"] is True
+    phase_timings = result["phase_timings"]
+    for phase_name in (
+        "prompt_build",
+        "actionset_build",
+        "agent_loop",
+        "memory_extract",
+        "memory_write",
+        "memory_save",
+        "total",
+    ):
+        assert phase_name in phase_timings
+        assert phase_timings[phase_name] >= 0
     assert len(calls) == 2
     assert calls[0]["metadata"]["interaction_type"] == "instruct"
     assert calls[0]["metadata"]["interaction_name"] == "seed_round"

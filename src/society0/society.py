@@ -142,6 +142,63 @@ def _finalize_agent_duration_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     return summary
 
 
+def _merge_phase_timing_summary(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    record_count = source.get("record_count")
+    if isinstance(record_count, int):
+        target["record_count"] = int(target.get("record_count", 0)) + record_count
+
+    target_phases = target.setdefault("phases", {})
+    source_phases = source.get("phases")
+    if not isinstance(source_phases, dict):
+        return
+
+    for phase_name, phase_data in source_phases.items():
+        if not isinstance(phase_data, dict):
+            continue
+        phase = target_phases.setdefault(
+            str(phase_name),
+            {"record_count": 0, "total_sec": 0.0, "max_sec": 0.0},
+        )
+        phase_record_count = phase_data.get("record_count")
+        phase_total_sec = phase_data.get("total_sec")
+        phase_max_sec = phase_data.get("max_sec")
+        if isinstance(phase_record_count, int):
+            phase["record_count"] = int(phase.get("record_count", 0)) + phase_record_count
+        if isinstance(phase_total_sec, (int, float)):
+            phase["total_sec"] = round(float(phase.get("total_sec", 0.0)) + float(phase_total_sec), 6)
+        if isinstance(phase_max_sec, (int, float)):
+            phase["max_sec"] = round(max(float(phase.get("max_sec", 0.0)), float(phase_max_sec)), 6)
+
+
+def _finalize_phase_timing_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    phases = summary.get("phases")
+    if not isinstance(phases, dict) or not phases:
+        return {}
+
+    finalized: Dict[str, Dict[str, Any]] = {}
+    for phase_name, phase in sorted(phases.items()):
+        if not isinstance(phase, dict):
+            continue
+        count = phase.get("record_count")
+        total = phase.get("total_sec")
+        if not isinstance(count, int) or count <= 0 or not isinstance(total, (int, float)):
+            continue
+        finalized[str(phase_name)] = {
+            "record_count": count,
+            "total_sec": round(float(total), 6),
+            "mean_sec": round(float(total) / count, 6),
+            "max_sec": round(float(phase.get("max_sec") or 0.0), 6),
+        }
+
+    if not finalized:
+        return {}
+
+    summary["phases"] = finalized
+    summary["record_count"] = int(summary.get("record_count", 0))
+    summary["bottleneck"] = max(finalized.items(), key=lambda item: item[1]["total_sec"])[0]
+    return summary
+
+
 class Society0:
     """Code-driven simulation engine for social simulation experiments."""
 
@@ -1939,6 +1996,7 @@ class Society0:
                                 "termination_reason_counts": {},
                                 "memory_summary": {},
                                 "agent_duration_summary": {},
+                                "phase_timing_summary": {},
                                 "by_tick": {},
                                 "action_error_samples": [],
                                 "error_samples": [],
@@ -1976,6 +2034,7 @@ class Society0:
                                 "termination_reason_counts": {},
                                 "memory_summary": {},
                                 "agent_duration_summary": {},
+                                "phase_timing_summary": {},
                                 "action_error_samples": [],
                                 "error_samples": [],
                             },
@@ -2084,6 +2143,16 @@ class Society0:
                             if isinstance(duration_summary, dict):
                                 _merge_agent_duration_summary(batch["agent_duration_summary"], duration_summary)
                                 _merge_agent_duration_summary(tick_batch["agent_duration_summary"], duration_summary)
+                            phase_timing_summary = event_data.get("phase_timing_summary")
+                            if isinstance(phase_timing_summary, dict):
+                                _merge_phase_timing_summary(
+                                    batch["phase_timing_summary"],
+                                    phase_timing_summary,
+                                )
+                                _merge_phase_timing_summary(
+                                    tick_batch["phase_timing_summary"],
+                                    phase_timing_summary,
+                                )
                             event_action_error_samples = event_data.get("action_error_samples")
                             if isinstance(event_action_error_samples, list):
                                 for sample in event_action_error_samples:
@@ -2249,6 +2318,13 @@ class Society0:
                     batch["agent_duration_summary"] = duration_summary
                 else:
                     batch.pop("agent_duration_summary", None)
+                phase_timing_summary = _finalize_phase_timing_summary(
+                    batch.get("phase_timing_summary") or {}
+                )
+                if phase_timing_summary:
+                    batch["phase_timing_summary"] = phase_timing_summary
+                else:
+                    batch.pop("phase_timing_summary", None)
                 by_tick_batches = batch.get("by_tick")
                 if isinstance(by_tick_batches, dict):
                     for tick_batch in by_tick_batches.values():
@@ -2274,6 +2350,13 @@ class Society0:
                             tick_batch["agent_duration_summary"] = tick_duration_summary
                         else:
                             tick_batch.pop("agent_duration_summary", None)
+                        tick_phase_timing_summary = _finalize_phase_timing_summary(
+                            tick_batch.get("phase_timing_summary") or {}
+                        )
+                        if tick_phase_timing_summary:
+                            tick_batch["phase_timing_summary"] = tick_phase_timing_summary
+                        else:
+                            tick_batch.pop("phase_timing_summary", None)
                     batch["by_tick"] = dict(sorted(by_tick_batches.items(), key=lambda item: item[0]))
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
