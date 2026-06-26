@@ -113,8 +113,8 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
         )
         if batch.get("duration_sec_total") is not None:
             lines.append(f"- Batch runtime total: {_fmt_seconds(batch.get('duration_sec_total'))}.")
-        if batch.get("max_in_flight_count") is not None:
-            lines.append(f"- Max in-flight agents observed: {batch.get('max_in_flight_count')}.")
+        concurrency_lines = _render_batch_concurrency(batch)
+        lines.extend(concurrency_lines)
 
         phase = batch.get("phase_timing_summary") if isinstance(batch.get("phase_timing_summary"), dict) else {}
         if phase:
@@ -158,6 +158,46 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
                     f"{bucket.get('call_count', 0)} direct calls."
                 )
         lines.append("")
+    return lines
+
+
+def _render_batch_concurrency(batch: Mapping[str, Any]) -> List[str]:
+    lines: List[str] = []
+    concurrency = batch.get("concurrency")
+    max_in_flight = batch.get("max_in_flight_count")
+    max_started = batch.get("max_started_count")
+    max_pending = batch.get("max_pending_count")
+    progress_events = batch.get("progress_event_count")
+    heartbeat_events = batch.get("heartbeat_event_count")
+
+    if max_in_flight is not None:
+        line = f"- Max in-flight agents observed: {max_in_flight}"
+        if isinstance(concurrency, (int, float)) and isinstance(max_in_flight, (int, float)):
+            if float(max_in_flight) <= float(concurrency):
+                line += f" within configured concurrency {concurrency}."
+            else:
+                line += f" above configured concurrency {concurrency}; inspect for unexpected fan-out."
+        else:
+            line += "."
+        lines.append(line)
+
+    source_counts = batch.get("concurrency_source_counts")
+    if isinstance(source_counts, Mapping) and source_counts:
+        rendered = ", ".join(f"{key}={source_counts[key]}" for key in sorted(source_counts))
+        lines.append(f"- Concurrency source counts: {rendered}.")
+
+    progress_parts = []
+    if max_started is not None:
+        progress_parts.append(f"max started {max_started}")
+    if max_pending is not None:
+        progress_parts.append(f"max pending {max_pending}")
+    if progress_events is not None:
+        progress_parts.append(f"progress events {progress_events}")
+    if heartbeat_events is not None:
+        progress_parts.append(f"heartbeat events {heartbeat_events}")
+    if progress_parts:
+        lines.append(f"- Progress diagnostics: {', '.join(progress_parts)}.")
+
     return lines
 
 
