@@ -369,7 +369,7 @@ async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(
             post_id="post_1",
             commentary="Sharing for discussion.",
         )
-        feed = await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
+        feed = await ctx.env.recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         observed["recommended"] = list(ctx.env._pending_recommended_posts["viewer"])
         observed["state_recommended_during_step"] = dict(ctx.env.state.get("recommended_posts", {}))
         observed["view_count_during_step"] = ctx.env.state["posts"]["post_1"].get("view_count", 0)

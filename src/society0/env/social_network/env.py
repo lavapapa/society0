@@ -1856,7 +1856,7 @@ class SocialNetworkEnv(Environment):
     # --- 3. 视野 (FoV) 函数 (Agent如何感知世界) ---
 
     @fov(name="recommended_feed", description="获取个性化推荐动态，包含推荐帖子和可关注用户信息")
-    async def get_recommended_feed(self, agent: Agent, env) -> str:
+    async def recommended_feed(self, agent: Agent, env) -> str:
         """
         获取推荐动态并格式化为人类可读的字符串，同时记录曝光。
 
@@ -1870,6 +1870,10 @@ class SocialNetworkEnv(Environment):
             record_recommended_state=True,
             title="个性化推荐动态",
         )
+
+    async def get_recommended_feed(self, agent: Agent, env) -> str:
+        """Backward-compatible Python alias for the `recommended_feed` FoV."""
+        return await self.recommended_feed(agent, env)
 
     @fov(name="recommended_feed_preview", description="预览个性化推荐动态，不记录曝光或更新推荐状态，适合访谈测量")
     async def preview_recommended_feed(self, agent: Agent, env) -> str:

@@ -73,7 +73,7 @@ ctx.capabilities.get("action", "env.publish_post")
 
 Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
 
-Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. This matters when an agent reads both docs and source code: `recommended_feed`, `env.get_recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
+Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. This matters when an agent reads both docs and source code: `recommended_feed`, `env.recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
 
 ## Env Tick Lifecycle Hooks
 
@@ -145,7 +145,7 @@ Important config areas:
 
 Useful FoVs include:
 
-- `recommended_feed`: personalized feed and follow suggestions. The Python method is currently `get_recommended_feed(...)`, but use `recommended_feed` in `fovs=[...]`.
+- `recommended_feed`: personalized feed and follow suggestions. Use `recommended_feed` in `fovs=[...]`; the Python env method is also `recommended_feed(...)`.
 - `recommended_feed_preview`: same recommendation view without recording impressions or updating `recommended_posts`; use it for interviews, measurement, debugging, and pre-run inspection.
 - `get_trending_feed` / `trending_feed`: trending feed when enabled.
 - `get_notifications` / `notifications`: interactions involving the current agent.
