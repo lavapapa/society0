@@ -601,6 +601,97 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
 
 
 @pytest.mark.asyncio
+async def test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e(tmp_path):
+    agent_count = 2
+    llm_model, embed_model = _build_models(
+        llm_concurrency=agent_count,
+        embed_concurrency=agent_count,
+    )
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_saturation_agent_config(agent_count),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="explicit_concurrency_probe")
+    async def explicit_concurrency_probe(ctx):
+        original = ctx.world.instruct_agent
+        in_flight = 0
+        max_in_flight = 0
+
+        async def counted_instruct(agent_id, instruction, **kwargs):
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            try:
+                return await original(agent_id, instruction, **kwargs)
+            finally:
+                in_flight -= 1
+
+        ctx.world.instruct_agent = counted_instruct
+        result = await ctx.agents.all().instruct(
+            "Remember this private signal: silver river. "
+            "Return ok=true and answer='silver river'.",
+            output=SaturationAnswer,
+            memory=True,
+            max_turns=3,
+            concurrency=1,
+            name="explicit_concurrency_round",
+        )
+        return ctx.result(
+            metrics={
+                "errors": result.error_count,
+                "success": result.success_count,
+                "max_in_flight": max_in_flight,
+            },
+            tables={"answers": result.table()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+
+    assert metrics == {"errors": 0, "success": agent_count, "max_in_flight": 1}
+    assert summary["runtime"]["agent_concurrency"] == agent_count
+    assert summary["runtime"]["agent_concurrency_source"] == "llm_model"
+
+    batch = summary["events"]["agent_batches"]["instruct / explicit_concurrency_round"]
+    assert batch["agent_count"] == agent_count
+    assert batch["concurrency"] == 1
+    assert batch["concurrency_source"] == "explicit"
+    assert batch["concurrency_source_counts"] == {"explicit": 1}
+    assert batch["max_in_flight_count"] == 1
+    assert batch["max_started_count"] == agent_count
+    assert batch["success_count_total"] == agent_count
+    assert batch["error_count_total"] == 0
+    assert batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert batch["memory_summary"]["record_count"] == agent_count
+    assert batch["memory_summary"]["retrieve_enabled_count"] == agent_count
+    assert batch["memory_summary"]["save_enabled_count"] == agent_count
+    assert batch["memory_summary"]["extraction_enabled_count"] == agent_count
+    assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= agent_count
+    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= agent_count
+    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    _assert_timing_breakdown(batch["resources"]["llm"])
+    _assert_timing_breakdown(summary["resources"]["llm"])
+    _assert_timing_breakdown(summary["resources"]["embedding"])
+
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= agent_count
+    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= agent_count
+    assert _successful_resource_calls(resource_calls, "embedding")
+
+
+@pytest.mark.asyncio
 async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     llm_model, embed_model = _build_models()
     engine = Society0(save_dir=str(tmp_path), base_config=_llm_agent_config(), llm=llm_model, embed=embed_model)
