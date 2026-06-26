@@ -946,6 +946,12 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             max_turns=3,
             max_tokens=80,
             temperature=0,
+            reasoning_stages=[
+                {
+                    "name": "plan",
+                    "description": "Choose a concise campus-life topic before publishing.",
+                }
+            ],
             action_call_limits={"publish_post": 1},
             required_actions=["publish_post"],
             name="publish_round",
@@ -975,6 +981,12 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             max_turns=3,
             max_tokens=120,
             temperature=0,
+            reasoning_stages=[
+                {
+                    "name": "observe",
+                    "description": "Inspect visible feed context before deciding whether and how to comment.",
+                }
+            ],
             action_call_limits={"get_trending_posts": 1, "comment": 1},
             completion_action_tags=["social_write"],
             required_action_tags=["social_write"],
@@ -1040,6 +1052,8 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
         "extract": True,
         "top_k": 10,
     }
+    assert publish_batch["execution_options"]["reasoning_stage_count"] == 1
+    assert publish_batch["execution_options"]["reasoning_stages"][0]["name"] == "plan"
     assert publish_batch["action_counts"].get("publish_post", 0) >= 1
     assert publish_batch["successful_action_counts"].get("publish_post", 0) >= 1
     assert publish_batch["failed_action_counts"].get("publish_post", 0) == 0
@@ -1069,6 +1083,8 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
         "extract": True,
         "top_k": 10,
     }
+    assert browse_batch["execution_options"]["reasoning_stage_count"] == 1
+    assert browse_batch["execution_options"]["reasoning_stages"][0]["name"] == "observe"
     assert browse_batch["action_counts"].get("comment", 0) >= 1
     assert browse_batch["successful_action_counts"].get("comment", 0) >= 1
     assert browse_batch["failed_action_counts"].get("comment", 0) == 0
