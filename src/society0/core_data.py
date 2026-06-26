@@ -51,6 +51,39 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 print = _debug_print
 
 
+def _capability_table_entry_matches(key: Any, entry: Dict[str, Any], name: str) -> bool:
+    """Match capability registry entries by key, canonical id, display name, or function name."""
+    target = str(name)
+    meta = entry.get("meta")
+    aliases: Set[str] = set()
+    for value in (
+        key,
+        entry.get("canonical_id"),
+        entry.get("display_name"),
+        entry.get("func_name"),
+        entry.get("name"),
+    ):
+        if value is None:
+            continue
+        text = str(value)
+        aliases.add(text)
+        if "." in text:
+            aliases.add(text.rsplit(".", maxsplit=1)[-1])
+    if meta is not None:
+        for attr in ("canonical_id", "name", "func_name"):
+            value = getattr(meta, attr, None)
+            if value is None:
+                continue
+            text = str(value)
+            aliases.add(text)
+            if "." in text:
+                aliases.add(text.rsplit(".", maxsplit=1)[-1])
+    if target in aliases:
+        return True
+    lowered = target.lower()
+    return lowered in {alias.lower() for alias in aliases}
+
+
 @dataclass
 class BaseOperatorResult:
     """
@@ -1013,6 +1046,74 @@ class World:
             return f"{base_message}. Available FoVs include: {', '.join(available_fovs[:10])}"
         return base_message
 
+    def _validate_action_filter(self, agent: Any, action_tags: Optional[List[str]]) -> None:
+        """Fail early when a non-empty action filter cannot expose any action."""
+        if action_tags is None or len(action_tags) == 0:
+            return
+        actionset = getattr(agent, "_actionset", None)
+        if actionset is None:
+            actionset = self.assemble_agent_actionset(agent)
+        filtered_actionset = actionset.filter_by_tags(action_tags=action_tags)
+        if filtered_actionset.actions:
+            return
+        raise ValueError(self._action_filter_not_found_message(action_tags, actionset))
+
+    def _action_filter_not_found_message(self, action_tags: List[str], actionset: Any) -> str:
+        requested = [str(tag) for tag in action_tags]
+        requested_text = "[" + ", ".join(repr(tag) for tag in requested) + "]"
+        parts = [f"Action filter {requested_text} matched no available actions."]
+        registry = getattr(self, "_function_registry", None)
+        if registry is not None:
+            for token in requested:
+                matching_kinds = self._capability_kinds_matching_name(token, exclude_kind="action")
+                if not matching_kinds:
+                    continue
+                for kind in matching_kinds:
+                    if kind == "fov":
+                        parts.append(
+                            f"'{token}' is a FoV, not an action. Use fovs=['{token}'] for context."
+                        )
+                    elif kind == "rule":
+                        parts.append(f"'{token}' is a rule, not an action. Use ctx.rule('{token}', ...).")
+                    elif kind == "behavior":
+                        parts.append(
+                            f"'{token}' is a behavior, not an action. Use ctx.behavior(...) or AgentGroup.behavior(...)."
+                        )
+        available = self._available_action_filter_tokens(actionset)
+        if available:
+            parts.append(f"Available action names/tags include: {', '.join(available[:16])}.")
+        parts.append("Use actions=[...] only for actions or action tags exposed to the LLM tool loop.")
+        return " ".join(parts)
+
+    def _capability_kinds_matching_name(self, name: str, *, exclude_kind: Optional[str] = None) -> List[str]:
+        registry = getattr(self, "_function_registry", None)
+        if registry is None:
+            return []
+        tables = (
+            ("fov", getattr(registry, "env_fovs", {}) or {}),
+            ("action", getattr(registry, "env_agent_tools", {}) or {}),
+            ("rule", getattr(registry, "rules", {}) or {}),
+            ("behavior", getattr(registry, "behaviors", {}) or {}),
+        )
+        matches: List[str] = []
+        for kind, table in tables:
+            if kind == exclude_kind:
+                continue
+            if any(_capability_table_entry_matches(key, entry, name) for key, entry in table.items()):
+                matches.append(kind)
+        return matches
+
+    @staticmethod
+    def _available_action_filter_tokens(actionset: Any) -> List[str]:
+        tokens: List[str] = []
+        for action_name, action_info in getattr(actionset, "actions", {}).items():
+            tokens.append(str(action_name))
+            if "." in str(action_name):
+                tokens.append(str(action_name).rsplit(".", maxsplit=1)[-1])
+            for tag in action_info.get("tags", []) or []:
+                tokens.append(str(tag))
+        return sorted(dict.fromkeys(token for token in tokens if token))
+
     def _build_fov_cache_key(self, fov_name: str, params: Dict[str, Any]) -> str:
         """Build a cache key for a FoV invocation, excluding injected context."""
         if not params:
@@ -1180,6 +1281,7 @@ class World:
         # Get agent instance
         agent = self.get_agent(agent_id)
         step_number = current_step if current_step is not None else self.step
+        self._validate_action_filter(agent, action_tags)
 
         fov_collection_started = time.time()
         fov_results = await self._collect_fov_results(

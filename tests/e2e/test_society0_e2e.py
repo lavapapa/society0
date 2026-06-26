@@ -753,6 +753,76 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     assert len(final_checkpoint["environment_data"]["state"]["posts"]["post_1"]["replies"]) == 1
 
 
+@pytest.mark.asyncio
+async def test_e2e_instruct_rejects_fov_name_in_actions_before_llm_call(tmp_path, monkeypatch):
+    llm_calls = []
+
+    class FakeLLMManager:
+        async def request(self, payload):
+            llm_calls.append(payload)
+            return {"role": "assistant", "content": "should not be called"}
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(LLMModel, "build_manager", lambda self, *, log_context=None: FakeLLMManager())
+    llm = LLMModel.openai_compatible(
+        id="default",
+        model="fake-model",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test-key",
+        concurrency=1,
+    )
+    config = {
+        "agent_types": [{"id": "social_user", "archetype": "llm"}],
+        "agents": [
+            {
+                "id": "viewer",
+                "type": "social_user",
+                "persona": "A concise social media user.",
+                "state": {},
+            }
+        ],
+        "environment": {
+            "type": "social_network",
+            "config": {"social_media": {"recommendation": {"use_embedding_similarity": False}}},
+            "state": {},
+        },
+    }
+    engine = Society0(save_dir=str(tmp_path), base_config=config, llm=llm, embed=_fake_embed_model())
+
+    @engine.step(name="bad_action_filter")
+    async def bad_action_filter(ctx):
+        result = await ctx.agents.all().instruct(
+            "Try to browse the feed.",
+            actions=["recommended_feed"],
+            memory=False,
+            max_turns=1,
+            name="bad_action_filter",
+        )
+        return ctx.result(
+            metrics={"errors": result.error_count, "success": result.success_count},
+            tables={"result": result.table()},
+        )
+
+    await engine.run(steps=1)
+
+    assert llm_calls == []
+    steps = _jsonl(tmp_path / "steps.jsonl")
+    row = steps[0]["result"]["tables"]["result"][0]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    batch = summary["events"]["agent_batches"]["instruct / bad_action_filter"]
+
+    assert row["status"] == "error"
+    assert "Action filter ['recommended_feed'] matched no available actions" in row["error"]
+    assert "'recommended_feed' is a FoV, not an action" in row["error"]
+    assert "Use fovs=['recommended_feed'] for context" in row["error"]
+    assert batch["error_samples"][0]["error"] == row["error"]
+    assert batch["agent_count"] == 1
+    assert batch["success_count_total"] == 0
+    assert batch["error_count_total"] == 1
+
+
 @pytest.mark.parametrize(
     "script_name,expected_run_dir",
     [
