@@ -327,6 +327,7 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
         action_errors = batch.get("action_error_samples")
         if isinstance(action_errors, list) and action_errors:
             lines.append(f"- Action error samples: {len(action_errors)}; inspect tool arguments before weakening actions.")
+            lines.extend(_render_action_error_samples(action_errors))
 
         resources = batch.get("resources") if isinstance(batch.get("resources"), dict) else {}
         if resources:
@@ -380,6 +381,21 @@ def _render_batch_action_semantics(batch: Mapping[str, Any]) -> List[str]:
         if rendered_groups:
             lines.append(f"- Action semantics: {'; '.join(rendered_groups)}.")
 
+    return lines
+
+
+def _render_action_error_samples(action_errors: List[Any], *, limit: int = 3) -> List[str]:
+    lines: List[str] = []
+    for sample in action_errors[:limit]:
+        if not isinstance(sample, Mapping):
+            continue
+        context = _compact_context(sample, keys=("agent_id", "action_name", "status"))
+        error = _compact_text(sample.get("error") or sample.get("result") or "unknown")
+        line = f"  - Sample: {context}; error={error}." if context else f"  - Sample: error={error}."
+        arguments = sample.get("arguments")
+        if isinstance(arguments, Mapping) and arguments:
+            line += f" Arguments: {_format_mapping_sample(arguments)}."
+        lines.append(line)
     return lines
 
 
@@ -483,6 +499,24 @@ def _format_counts(counts: Mapping[str, Any]) -> str:
 
 def _format_list(value: List[Any]) -> str:
     return "[" + ", ".join(str(item) for item in value) + "]"
+
+
+def _format_mapping_sample(value: Mapping[str, Any], *, limit: int = 4) -> str:
+    parts = []
+    for key in sorted(value, key=str)[:limit]:
+        parts.append(f"{key}={_compact_text(value.get(key))}")
+    remaining = len(value) - limit
+    if remaining > 0:
+        parts.append(f"+{remaining} more")
+    return ", ".join(parts)
+
+
+def _compact_text(value: Any, *, limit: int = 120) -> str:
+    text = str(value)
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
 
 
 def _format_error_sample(sample: Mapping[str, Any]) -> str:
