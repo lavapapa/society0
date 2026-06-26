@@ -959,7 +959,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
             "Call submit_final_decision to submit your final decision. "
             "If the tool returns an error, read the error and retry by calling "
             "submit_final_decision again once with decision='approve'.",
-            actions=["submit_final_decision"],
+            actions=["env.submit_final_decision"],
             output=None,
             max_turns=4,
             max_tokens=120,

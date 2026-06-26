@@ -4403,7 +4403,8 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
         assert ctx.capabilities.has("action", "mark_exposure", source="experiment")
         assert ctx.capabilities.has("action", "env.mark_exposure", source="experiment")
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("alice"))
-        filtered = actionset.filter_by_tags(["mark_exposure"])
+        assert "mark_exposure" in actionset.filter_by_tags(["mark_exposure"]).actions
+        filtered = actionset.filter_by_tags(["env.mark_exposure"])
         result = await filtered.call_action("mark_exposure", intensity=4)
         return ctx.result(
             metrics={
@@ -4430,7 +4431,13 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
         entry for entry in summary["capabilities"]["by_kind"]["actions"] if entry["source"] == "experiment"
     ]
     assert [entry["name"] for entry in experiment_actions] == ["mark_exposure"]
-    assert set(experiment_actions[0]["tags"]) >= {"environment", "stimulus", "measurement", "mark_exposure"}
+    assert set(experiment_actions[0]["tags"]) >= {
+        "environment",
+        "stimulus",
+        "measurement",
+        "mark_exposure",
+        "env.mark_exposure",
+    }
 
 
 @pytest.mark.asyncio

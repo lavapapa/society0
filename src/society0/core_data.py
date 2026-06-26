@@ -1567,6 +1567,7 @@ class World:
                 # 自动补全标签：包含显式标签、动作名称及环境标识，便于 action_tags 匹配
                 base_tags = action_info.get("tags", [])
                 implicit_tags = {action_name, "environment"}
+                implicit_tags.add(f"env.{action_name}")
                 if "." in action_name:
                     implicit_tags.add(action_name.split(".")[-1])
                 env_tags = list({*base_tags, *implicit_tags})
@@ -1937,7 +1938,12 @@ class World:
                 return action_wrapper
 
             tags: Set[str] = set(action_info.get("tags", []) or [])
-            tags.update({"environment", "experiment", str(action_info.get("display_name") or action_name)})
+            tags.update({
+                "environment",
+                "experiment",
+                canonical_id,
+                str(action_info.get("display_name") or action_name),
+            })
             if "." in canonical_id:
                 tags.add(canonical_id.rsplit(".", maxsplit=1)[-1])
 
