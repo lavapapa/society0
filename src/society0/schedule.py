@@ -187,6 +187,10 @@ class AgentBatchResult:
                 counts[tag_key] = counts.get(tag_key, 0) + 1
         return counts
 
+    def action_duration_summary(self, *, limit: int = 5) -> Dict[str, Any]:
+        """Summarize wall-clock duration for actual action/tool calls."""
+        return _summarize_action_durations(self.actions(), limit=limit)
+
     def termination_reason_counts(self) -> Dict[str, int]:
         """Count how successful agent loops terminated."""
         counts: Dict[str, int] = {}
@@ -259,6 +263,7 @@ class AgentBatchResult:
             "failed_action_counts": self.failed_action_counts(),
             "action_tag_counts": self.action_tag_counts(),
             "action_error_samples": self.action_error_samples(),
+            "action_duration_summary": self.action_duration_summary(),
             "termination_reason_counts": self.termination_reason_counts(),
             "memory_summary": self.memory_summary(),
             "duration_summary": self.duration_summary(),
@@ -674,6 +679,7 @@ class AgentGroup:
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             action_error_samples=batch_result.action_error_samples(),
+            action_duration_summary=batch_result.action_duration_summary(),
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             agent_duration_summary=batch_result.duration_summary(),
@@ -878,6 +884,7 @@ class AgentGroup:
             failed_action_counts=batch_result.failed_action_counts(),
             action_tag_counts=batch_result.action_tag_counts(),
             action_error_samples=batch_result.action_error_samples(),
+            action_duration_summary=batch_result.action_duration_summary(),
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             agent_duration_summary=batch_result.duration_summary(),
@@ -1634,6 +1641,7 @@ def _record_agent_batch_event(
     failed_action_counts: Optional[Dict[str, int]] = None,
     action_tag_counts: Optional[Dict[str, int]] = None,
     action_error_samples: Optional[List[Dict[str, Any]]] = None,
+    action_duration_summary: Optional[Dict[str, Any]] = None,
     termination_reason_counts: Optional[Dict[str, int]] = None,
     memory_summary: Optional[Dict[str, Any]] = None,
     agent_duration_summary: Optional[Dict[str, Any]] = None,
@@ -1709,6 +1717,8 @@ def _record_agent_batch_event(
             event_data["action_tag_counts"] = _jsonable(action_tag_counts)
         if action_error_samples:
             event_data["action_error_samples"] = _jsonable(action_error_samples)
+        if action_duration_summary:
+            event_data["action_duration_summary"] = _jsonable(action_duration_summary)
         if termination_reason_counts:
             event_data["termination_reason_counts"] = _jsonable(termination_reason_counts)
         if memory_summary:
@@ -1867,6 +1877,74 @@ def _action_error_samples(actions: List[Dict[str, Any]], *, limit: int = 5) -> L
             sample["arguments"] = _compact_action_mapping(arguments)
         samples.append({key: _jsonable(value) for key, value in sample.items() if value is not None})
     return samples
+
+
+def _summarize_action_durations(actions: List[Dict[str, Any]], *, limit: int = 5) -> Dict[str, Any]:
+    timed_actions = [
+        action
+        for action in actions
+        if isinstance(action.get("duration_sec"), (int, float))
+    ]
+    if not timed_actions:
+        return {}
+
+    by_action: Dict[str, Dict[str, Any]] = {}
+    total_sec = 0.0
+    for action in timed_actions:
+        action_name = str(action.get("action_name") or "unknown_action")
+        duration = max(float(action.get("duration_sec") or 0.0), 0.0)
+        total_sec += duration
+        row = by_action.setdefault(
+            action_name,
+            {
+                "record_count": 0,
+                "total_sec": 0.0,
+                "max_sec": 0.0,
+            },
+        )
+        row["record_count"] += 1
+        row["total_sec"] += duration
+        row["max_sec"] = max(float(row["max_sec"]), duration)
+
+    finalized_by_action: Dict[str, Dict[str, Any]] = {}
+    for action_name, row in sorted(by_action.items()):
+        count = int(row["record_count"])
+        total = float(row["total_sec"])
+        finalized_by_action[action_name] = {
+            "record_count": count,
+            "total_sec": _round_duration(total),
+            "mean_sec": _round_duration(total / count) if count else 0.0,
+            "max_sec": _round_duration(float(row["max_sec"])),
+        }
+
+    slowest_actions = []
+    for action in sorted(
+        timed_actions,
+        key=lambda item: float(item.get("duration_sec") or 0.0),
+        reverse=True,
+    )[:limit]:
+        sample = {
+            "agent_id": action.get("agent_id"),
+            "action_name": action.get("action_name"),
+            "status": action.get("status"),
+            "duration_sec": _round_duration(float(action.get("duration_sec") or 0.0)),
+        }
+        if action.get("error"):
+            sample["error"] = action.get("error")
+        slowest_actions.append({key: _jsonable(value) for key, value in sample.items() if value is not None})
+
+    bottleneck_action = max(
+        finalized_by_action.items(),
+        key=lambda item: item[1]["total_sec"],
+    )[0]
+    return {
+        "record_count": len(timed_actions),
+        "total_sec": _round_duration(total_sec),
+        "mean_sec": _round_duration(total_sec / len(timed_actions)),
+        "bottleneck_action": bottleneck_action,
+        "by_action": finalized_by_action,
+        "slowest_actions": slowest_actions,
+    }
 
 
 def _memory_payload_from_record(record: AgentCallRecord) -> Dict[str, Any]:

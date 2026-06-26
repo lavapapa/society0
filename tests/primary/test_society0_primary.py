@@ -325,6 +325,7 @@ def test_agent_batch_result_exposes_action_summaries():
                             "result": "hot posts",
                             "status": "success",
                             "tags": ["get_trending_posts", "social_read"],
+                            "duration_sec": 0.04,
                         },
                         {
                             "type": "action_call",
@@ -333,6 +334,7 @@ def test_agent_batch_result_exposes_action_summaries():
                             "result": "profile",
                             "status": "success",
                             "tags": ["get_agent_profile", "profile_read"],
+                            "duration_sec": 0.02,
                         },
                         {
                             "type": "action_call",
@@ -341,6 +343,7 @@ def test_agent_batch_result_exposes_action_summaries():
                             "result": long_result,
                             "status": "success",
                             "tags": ["get_trending_posts", "social_read"],
+                            "duration_sec": 0.03,
                         },
                         {
                             "type": "action_call",
@@ -349,6 +352,7 @@ def test_agent_batch_result_exposes_action_summaries():
                             "result": "Post not found",
                             "status": "error",
                             "tags": ["comment", "social_write"],
+                            "duration_sec": 0.01,
                         },
                     ],
                     "memory_retrieved": True,
@@ -381,6 +385,7 @@ def test_agent_batch_result_exposes_action_summaries():
                             "result": "hot posts",
                             "status": "success",
                             "tags": ["get_trending_posts", "social_read"],
+                            "duration_sec": 0.05,
                         }
                     ],
                     "memory_retrieved": True,
@@ -427,6 +432,29 @@ def test_agent_batch_result_exposes_action_summaries():
         "social_read": 3,
         "get_agent_profile": 1,
         "profile_read": 1,
+    }
+    action_duration_summary = result.action_duration_summary()
+    assert action_duration_summary["record_count"] == 5
+    assert action_duration_summary["total_sec"] == 0.15
+    assert action_duration_summary["mean_sec"] == 0.03
+    assert action_duration_summary["bottleneck_action"] == "get_trending_posts"
+    assert action_duration_summary["by_action"]["get_trending_posts"] == {
+        "record_count": 3,
+        "total_sec": 0.12,
+        "mean_sec": 0.04,
+        "max_sec": 0.05,
+    }
+    assert action_duration_summary["by_action"]["comment"] == {
+        "record_count": 1,
+        "total_sec": 0.01,
+        "mean_sec": 0.01,
+        "max_sec": 0.01,
+    }
+    assert action_duration_summary["slowest_actions"][0] == {
+        "agent_id": "bob",
+        "action_name": "get_trending_posts",
+        "status": "success",
+        "duration_sec": 0.05,
     }
     assert result.termination_reason_counts() == {
         "completion_action_tag": 1,
@@ -530,6 +558,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["successful_action_counts"] == result.successful_action_counts()
     assert result.to_dict()["failed_action_counts"] == result.failed_action_counts()
     assert result.to_dict()["action_error_samples"] == result.action_error_samples()
+    assert result.to_dict()["action_duration_summary"] == result.action_duration_summary()
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
     assert result.to_dict()["termination_reason_counts"] == result.termination_reason_counts()
     assert result.to_dict()["memory_summary"] == result.memory_summary()
@@ -1639,6 +1668,7 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
                             "tags": ["comment", "social_write", "engagement"],
                             "status": "success",
                             "result": "commented",
+                            "duration_sec": 0.07,
                         }
                     ],
                     "total_turns": 1,
@@ -1652,6 +1682,7 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
                         "tags": ["get_trending_posts", "social_read", "lookup"],
                         "status": "success",
                         "result": "hot posts",
+                        "duration_sec": 0.03,
                     }
                 ],
                 "total_turns": 1,
@@ -1697,6 +1728,22 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
     assert completed["event_data"]["action_tag_counts"] == result.action_tag_counts()
     assert batch["action_counts"] == {"comment": 1, "get_trending_posts": 1}
     assert batch["action_tag_counts"] == result.action_tag_counts()
+    assert batch["action_duration_summary"]["record_count"] == 2
+    assert batch["action_duration_summary"]["total_sec"] == 0.1
+    assert batch["action_duration_summary"]["bottleneck_action"] == "comment"
+    assert batch["action_duration_summary"]["by_action"]["comment"] == {
+        "record_count": 1,
+        "total_sec": 0.07,
+        "mean_sec": 0.07,
+        "max_sec": 0.07,
+    }
+    assert batch["action_duration_summary"]["by_action"]["get_trending_posts"] == {
+        "record_count": 1,
+        "total_sec": 0.03,
+        "mean_sec": 0.03,
+        "max_sec": 0.03,
+    }
+    assert batch["by_tick"]["1"]["action_duration_summary"]["bottleneck_action"] == "comment"
     assert batch["error_samples"] == [
         {
             "agent_id": "bob",
@@ -1977,6 +2024,8 @@ async def test_completion_action_tag_stops_after_successful_matching_action():
     assert [call["action_name"] for call in result.action_calls] == ["get_trending_posts", "comment"]
     assert result.action_calls[0]["tags"] == ["get_trending_posts", "social_read", "lookup"]
     assert result.action_calls[1]["tags"] == ["comment", "social_write", "engagement"]
+    assert all("duration_sec" in call for call in result.action_calls)
+    assert all(call["duration_sec"] >= 0 for call in result.action_calls)
     assert result.termination_reason == "completion_action_tag"
     assert result.termination_action == "comment"
 

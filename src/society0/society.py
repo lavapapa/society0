@@ -199,6 +199,85 @@ def _finalize_phase_timing_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     return summary
 
 
+def _merge_action_duration_summary(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    record_count = source.get("record_count")
+    total_sec = source.get("total_sec")
+    if isinstance(record_count, int):
+        target["record_count"] = int(target.get("record_count", 0)) + record_count
+    if isinstance(total_sec, (int, float)):
+        target["total_sec"] = round(float(target.get("total_sec", 0.0)) + float(total_sec), 6)
+
+    target_by_action = target.setdefault("by_action", {})
+    source_by_action = source.get("by_action")
+    if isinstance(source_by_action, dict):
+        for action_name, action_data in source_by_action.items():
+            if not isinstance(action_data, dict):
+                continue
+            row = target_by_action.setdefault(
+                str(action_name),
+                {"record_count": 0, "total_sec": 0.0, "max_sec": 0.0},
+            )
+            action_record_count = action_data.get("record_count")
+            action_total_sec = action_data.get("total_sec")
+            action_max_sec = action_data.get("max_sec")
+            if isinstance(action_record_count, int):
+                row["record_count"] = int(row.get("record_count", 0)) + action_record_count
+            if isinstance(action_total_sec, (int, float)):
+                row["total_sec"] = round(float(row.get("total_sec", 0.0)) + float(action_total_sec), 6)
+            if isinstance(action_max_sec, (int, float)):
+                row["max_sec"] = round(max(float(row.get("max_sec", 0.0)), float(action_max_sec)), 6)
+
+    slowest = target.setdefault("slowest_actions", [])
+    for sample in source.get("slowest_actions") or []:
+        if isinstance(sample, dict):
+            slowest.append(sample)
+    slowest.sort(key=lambda item: float(item.get("duration_sec") or 0.0), reverse=True)
+    del slowest[5:]
+
+
+def _finalize_action_duration_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    record_count = summary.get("record_count")
+    total_sec = summary.get("total_sec")
+    by_action = summary.get("by_action")
+    if (
+        not isinstance(record_count, int)
+        or record_count <= 0
+        or not isinstance(total_sec, (int, float))
+        or not isinstance(by_action, dict)
+    ):
+        return {}
+
+    finalized_by_action: Dict[str, Dict[str, Any]] = {}
+    for action_name, row in sorted(by_action.items()):
+        if not isinstance(row, dict):
+            continue
+        count = row.get("record_count")
+        action_total = row.get("total_sec")
+        if not isinstance(count, int) or count <= 0 or not isinstance(action_total, (int, float)):
+            continue
+        finalized_by_action[str(action_name)] = {
+            "record_count": count,
+            "total_sec": round(float(action_total), 6),
+            "mean_sec": round(float(action_total) / count, 6),
+            "max_sec": round(float(row.get("max_sec") or 0.0), 6),
+        }
+
+    if not finalized_by_action:
+        return {}
+
+    summary["record_count"] = record_count
+    summary["total_sec"] = round(float(total_sec), 6)
+    summary["mean_sec"] = round(float(total_sec) / record_count, 6)
+    summary["bottleneck_action"] = max(
+        finalized_by_action.items(),
+        key=lambda item: item[1]["total_sec"],
+    )[0]
+    summary["by_action"] = finalized_by_action
+    if not summary.get("slowest_actions"):
+        summary.pop("slowest_actions", None)
+    return summary
+
+
 class Society0:
     """Code-driven simulation engine for social simulation experiments."""
 
@@ -1994,6 +2073,7 @@ class Society0:
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
                                 "termination_reason_counts": {},
+                                "action_duration_summary": {},
                                 "memory_summary": {},
                                 "agent_duration_summary": {},
                                 "phase_timing_summary": {},
@@ -2032,6 +2112,7 @@ class Society0:
                                 "failed_action_counts": {},
                                 "action_tag_counts": {},
                                 "termination_reason_counts": {},
+                                "action_duration_summary": {},
                                 "memory_summary": {},
                                 "agent_duration_summary": {},
                                 "phase_timing_summary": {},
@@ -2139,6 +2220,16 @@ class Society0:
                             if isinstance(memory_summary, dict):
                                 _merge_memory_summary(batch["memory_summary"], memory_summary)
                                 _merge_memory_summary(tick_batch["memory_summary"], memory_summary)
+                            action_duration_summary = event_data.get("action_duration_summary")
+                            if isinstance(action_duration_summary, dict):
+                                _merge_action_duration_summary(
+                                    batch["action_duration_summary"],
+                                    action_duration_summary,
+                                )
+                                _merge_action_duration_summary(
+                                    tick_batch["action_duration_summary"],
+                                    action_duration_summary,
+                                )
                             duration_summary = event_data.get("agent_duration_summary")
                             if isinstance(duration_summary, dict):
                                 _merge_agent_duration_summary(batch["agent_duration_summary"], duration_summary)
@@ -2308,6 +2399,13 @@ class Society0:
                     batch.pop("concurrency_source_counts", None)
                 if not batch.get("termination_reason_counts"):
                     batch.pop("termination_reason_counts", None)
+                action_duration_summary = _finalize_action_duration_summary(
+                    batch.get("action_duration_summary") or {}
+                )
+                if action_duration_summary:
+                    batch["action_duration_summary"] = action_duration_summary
+                else:
+                    batch.pop("action_duration_summary", None)
                 memory_summary = _finalize_memory_summary(batch.get("memory_summary") or {})
                 if memory_summary:
                     batch["memory_summary"] = memory_summary
@@ -2336,6 +2434,13 @@ class Society0:
                             tick_batch.pop("concurrency_source_counts", None)
                         if isinstance(tick_batch, dict) and not tick_batch.get("termination_reason_counts"):
                             tick_batch.pop("termination_reason_counts", None)
+                        tick_action_duration_summary = _finalize_action_duration_summary(
+                            tick_batch.get("action_duration_summary") or {}
+                        )
+                        if tick_action_duration_summary:
+                            tick_batch["action_duration_summary"] = tick_action_duration_summary
+                        else:
+                            tick_batch.pop("action_duration_summary", None)
                         tick_memory_summary = _finalize_memory_summary(
                             tick_batch.get("memory_summary") or {}
                         )
