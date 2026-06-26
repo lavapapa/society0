@@ -24,11 +24,12 @@ Use this skill to help a non-engineer researcher turn a social phenomenon into a
 7. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden. After running, verify batch-level `concurrency` and `concurrency_source` in `summary.json`.
 8. For LLM action rounds and surveys, set a bounded `max_tokens` when the expected response is short, and inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
 9. Treat memory as part of the simulation, not a speed optimization target. `memory=True` retrieves memory and saves extractive memory by default; use `extract_memory=False` only when the user explicitly accepts a lightweight pilot that is less faithful.
-10. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
-11. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
-12. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
-13. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
-14. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
+10. Treat the tool/action loop as part of the model of the social situation. Do not replace an action-bearing `instruct` round with direct JSON output just to reduce latency; use direct structured output only for action-free measurement tasks.
+11. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
+12. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
+13. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
+14. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
+15. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
 
 ## Researcher-Friendly Collaboration
 
@@ -127,6 +128,7 @@ When a researcher wants to contribute, treat their research artifact as the sour
 - Do not design agents before the environment. The environment defines what agents can see, do, and leave behind as evidence.
 - Do not hide provider requirements. LLM agents require working LLM and embedding providers.
 - Do not ask researchers to tune concurrency by default. Put known provider limits on the model declaration; use 5 when unknown.
+- Do not turn off memory, actions, terminal/completion semantics, or the agent loop simply because a run is slow. Diagnose first; only simplify when the user explicitly accepts the modeling tradeoff.
 - Do not mix multiple studies in one run folder. Create a fresh experiment folder before writing code, running simulations, or analyzing outputs.
 - Do not make first experiments large. Prototype, inspect, then scale.
 - Do not overclaim from one run. Treat outputs as simulated evidence requiring robustness checks and researcher interpretation.
