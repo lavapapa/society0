@@ -1003,6 +1003,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     assert metrics["max_turns"] == 2
 
     batch = summary["events"]["agent_batches"]["instruct / terminal_retry_round"]
+    assert batch["actions"] == ["env.submit_final_decision"]
     assert batch["execution_options"]["terminal_actions"] == ["submit_final_decision"]
     assert batch["execution_options"]["required_actions"] == ["submit_final_decision"]
     assert batch["execution_options"]["reasoning_stage_count"] == 1
@@ -1012,10 +1013,19 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
         if entry["name"] == "submit_final_decision"
     )
     assert experiment_action["source"] == "experiment"
-    assert set(experiment_action["tags"]) >= {"environment", "experiment", "decision", "submit_final_decision"}
+    assert set(experiment_action["tags"]) >= {
+        "environment",
+        "experiment",
+        "decision",
+        "submit_final_decision",
+        "env.submit_final_decision",
+    }
     assert batch["action_counts"]["submit_final_decision"] == 2
     assert batch["successful_action_counts"]["submit_final_decision"] == 1
     assert batch["failed_action_counts"]["submit_final_decision"] == 1
+    assert batch["action_tag_counts"]["submit_final_decision"] == 1
+    assert batch["action_tag_counts"]["env.submit_final_decision"] == 1
+    assert batch["action_tag_counts"]["decision"] == 1
     assert batch["termination_reason_counts"] == {"terminal_action": 1}
     assert batch["agent_duration_summary"]["slowest_agents"][0]["termination_reason"] == "terminal_action"
     assert batch["memory_summary"]["retrieve_enabled_count"] == 1
