@@ -17,7 +17,9 @@ This repository contains the standalone `society0` core simulation library. Futu
 - A selected LLM agent must run the real agent loop through `World.instruct_agent()` or `World.interview_agent()`.
 - Default LLM simulations require both `LLMModel` and `EmbedModel`; memory must initialize successfully on the main `Society0` path.
 - `AgentGroup.instruct(..., memory=True)` must retrieve memory and save extractive memory by default. Do not downgrade to lightweight memory for speed unless a caller explicitly sets `extract_memory=False`.
+- Do not set `memory=False` or `extract_memory=False` in LLM-agent e2e tests merely to make them faster. Use those options only when the test or experiment is explicitly about a no-memory or lightweight-memory condition.
 - Preserve the full tool/action loop, including action filters, terminal actions, completion action tags, action call limits, reasoning stages, and per-call concurrency. These are semantic modeling controls, not performance shortcuts to remove.
+- `prefer_direct_json_output` is an opt-in path for action-free structured measurement. Do not use it for `instruct` rounds where ordinary tools/actions, terminal actions, required actions, or completion action tags are part of the experimental semantics.
 - Treat `terminal_actions` as semantic endpoints only after the terminal action succeeds. A failed terminal action should return feedback to the agent loop so the agent can correct arguments instead of ending the round prematurely.
 - Treat `required_actions` and `required_action_tags` as loop-level semantic constraints, not only post-hoc assertions. If turns remain and the model stops before satisfying them, the loop should guide the model to correct the missing behavior.
 - Unit tests may use fake managers or fake model responses, but product code must still exercise the same LLM, embedding, memory, FoV, and action plumbing.
