@@ -17,6 +17,7 @@ import pytest
 from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0
+from society0.diagnostics import render_runtime_diagnostic_report
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
 
 
@@ -1083,6 +1084,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    diagnostic_report = render_runtime_diagnostic_report(tmp_path)
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
 
@@ -1125,6 +1127,25 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 2
     assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
     assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    assert (
+        "Actions: attempted submit_final_decision=2; successful submit_final_decision=1; "
+        "failed submit_final_decision=1."
+    ) in diagnostic_report
+    assert "Successful action tags:" in diagnostic_report
+    for tag in [
+        "decision=1",
+        "env.submit_final_decision=1",
+        "environment=1",
+        "experiment=1",
+        "submit_final_decision=1",
+    ]:
+        assert tag in diagnostic_report
+    assert "Termination reasons: terminal_action=1." in diagnostic_report
+    assert (
+        "Action semantics: required_actions configured [submit_final_decision], "
+        "observed submit_final_decision=1."
+    ) in diagnostic_report
+    assert "Memory: retrieved 1/1, saved 1, extractive enabled 1" in diagnostic_report
     assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= 2
     assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= 1
     assert embedding_traces
