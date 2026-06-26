@@ -304,3 +304,37 @@ def test_runtime_diagnostic_report_flags_concurrency_fanout_mismatch():
 
     assert "Max in-flight agents observed: 5 above configured concurrency 3" in report
     assert "unexpected fan-out" in report
+
+
+def test_runtime_diagnostic_report_explains_action_preflight_configuration_errors():
+    report = render_runtime_diagnostic_report(
+        {
+            "events": {
+                "agent_batches": {
+                    "instruct / unsatisfiable_required_action": {
+                        "agent_count": 1,
+                        "concurrency": 1,
+                        "concurrency_source": "explicit",
+                        "success_count_total": 0,
+                        "error_count_total": 1,
+                        "error_samples": [
+                            {
+                                "agent_id": "viewer",
+                                "status": "error",
+                                "error": (
+                                    "Required action(s) 'publish_post' are not available after "
+                                    "applying actions=['comment']. Align required_actions/"
+                                    "required_action_tags with the actions exposed to the LLM tool loop."
+                                ),
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+    assert "Agent error samples: 1; inspect configuration and per-agent logs." in report
+    assert "Sample: agent_id=viewer, status=error; error=Required action(s) 'publish_post'" in report
+    assert "Configuration preflight: required_actions or required_action_tags cannot be satisfied" in report
+    assert "instead of weakening the tool/action loop" in report

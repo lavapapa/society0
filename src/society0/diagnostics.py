@@ -329,6 +329,14 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
             lines.append(f"- Action error samples: {len(action_errors)}; inspect tool arguments before weakening actions.")
             lines.extend(_render_action_error_samples(action_errors))
 
+        error_samples = batch.get("error_samples")
+        if isinstance(error_samples, list) and error_samples:
+            lines.append(f"- Agent error samples: {len(error_samples)}; inspect configuration and per-agent logs.")
+            lines.extend(_render_agent_error_samples(error_samples))
+            preflight_hint = _preflight_action_error_hint(error_samples)
+            if preflight_hint:
+                lines.append(f"- Configuration preflight: {preflight_hint}")
+
         resources = batch.get("resources") if isinstance(batch.get("resources"), dict) else {}
         if resources:
             for resource_name, bucket in sorted(resources.items()):
@@ -397,6 +405,36 @@ def _render_action_error_samples(action_errors: List[Any], *, limit: int = 3) ->
             line += f" Arguments: {_format_mapping_sample(arguments)}."
         lines.append(line)
     return lines
+
+
+def _render_agent_error_samples(error_samples: List[Any], *, limit: int = 3) -> List[str]:
+    lines: List[str] = []
+    for sample in error_samples[:limit]:
+        if not isinstance(sample, Mapping):
+            continue
+        context = _compact_context(sample, keys=("agent_id", "status"))
+        error = _compact_text(sample.get("error") or "unknown")
+        line = f"  - Sample: {context}; error={error}." if context else f"  - Sample: error={error}."
+        lines.append(line)
+    return lines
+
+
+def _preflight_action_error_hint(error_samples: List[Any]) -> Optional[str]:
+    for sample in error_samples:
+        if not isinstance(sample, Mapping):
+            continue
+        error = str(sample.get("error") or "")
+        if "Action filter" in error and "matched no available actions" in error:
+            return (
+                "the action filter exposed no tools before the LLM call. "
+                "Move FoV names to fovs=[...] and keep actions=[...] for action names or action tags."
+            )
+        if "Required action" in error and "not available after applying actions=" in error:
+            return (
+                "required_actions or required_action_tags cannot be satisfied by the filtered action set. "
+                "Align required_* with actions=[...] instead of weakening the tool/action loop."
+            )
+    return None
 
 
 def _render_batch_concurrency(batch: Mapping[str, Any]) -> List[str]:
