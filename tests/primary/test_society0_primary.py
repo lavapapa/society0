@@ -338,6 +338,15 @@ def test_agent_batch_result_exposes_action_summaries():
                         },
                         {
                             "type": "action_call",
+                            "action_name": "submit_final_decision",
+                            "arguments": {"decision": "approve"},
+                            "result": {"ok": True},
+                            "status": "success",
+                            "tags": ["submit_final_decision", "env.submit_final_decision", "decision"],
+                            "duration_sec": 0.06,
+                        },
+                        {
+                            "type": "action_call",
                             "action_name": "get_trending_posts",
                             "arguments": {"query": "campus", "note": "n" * 300},
                             "result": long_result,
@@ -415,8 +424,17 @@ def test_agent_batch_result_exposes_action_summaries():
         ]
     )
 
-    assert result.action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1, "comment": 1}
-    assert result.successful_action_counts() == {"get_trending_posts": 3, "get_agent_profile": 1}
+    assert result.action_counts() == {
+        "get_trending_posts": 3,
+        "get_agent_profile": 1,
+        "submit_final_decision": 1,
+        "comment": 1,
+    }
+    assert result.successful_action_counts() == {
+        "get_trending_posts": 3,
+        "get_agent_profile": 1,
+        "submit_final_decision": 1,
+    }
     assert result.failed_action_counts() == {"comment": 1}
     assert result.action_error_samples() == [
         {
@@ -432,11 +450,14 @@ def test_agent_batch_result_exposes_action_summaries():
         "social_read": 3,
         "get_agent_profile": 1,
         "profile_read": 1,
+        "submit_final_decision": 1,
+        "env.submit_final_decision": 1,
+        "decision": 1,
     }
     action_duration_summary = result.action_duration_summary()
-    assert action_duration_summary["record_count"] == 5
-    assert action_duration_summary["total_sec"] == 0.15
-    assert action_duration_summary["mean_sec"] == 0.03
+    assert action_duration_summary["record_count"] == 6
+    assert action_duration_summary["total_sec"] == 0.21
+    assert action_duration_summary["mean_sec"] == 0.035
     assert action_duration_summary["bottleneck_action"] == "get_trending_posts"
     assert action_duration_summary["by_action"]["get_trending_posts"] == {
         "record_count": 3,
@@ -450,11 +471,17 @@ def test_agent_batch_result_exposes_action_summaries():
         "mean_sec": 0.01,
         "max_sec": 0.01,
     }
+    assert action_duration_summary["by_action"]["submit_final_decision"] == {
+        "record_count": 1,
+        "total_sec": 0.06,
+        "mean_sec": 0.06,
+        "max_sec": 0.06,
+    }
     assert action_duration_summary["slowest_actions"][0] == {
-        "agent_id": "bob",
-        "action_name": "get_trending_posts",
+        "agent_id": "alice",
+        "action_name": "submit_final_decision",
         "status": "success",
-        "duration_sec": 0.05,
+        "duration_sec": 0.06,
     }
     assert result.termination_reason_counts() == {
         "completion_action_tag": 1,
@@ -535,6 +562,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert [action["action_name"] for action in result.actions_by_agent("alice")] == [
         "get_trending_posts",
         "get_agent_profile",
+        "submit_final_decision",
         "get_trending_posts",
         "comment",
     ]
