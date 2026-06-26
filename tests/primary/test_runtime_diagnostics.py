@@ -218,13 +218,13 @@ def test_runtime_diagnostic_report_accepts_summary_mapping():
     report = render_runtime_diagnostic_report(
         {
             "failed": True,
-            "failure": {"error_type": "RuntimeError"},
+            "failure": {"error_type": "RuntimeError", "failed_step": 2, "error": "boom"},
             "events": {},
         }
     )
 
     assert "Status: failed" in report
-    assert "The run failed with `RuntimeError`" in report
+    assert "The run failed with `RuntimeError` at step 2: boom" in report
 
 
 def test_runtime_diagnostic_report_flags_concurrency_fanout_mismatch():

@@ -4542,6 +4542,11 @@ async def test_rule_failure_is_summarized_with_logic_error_sample(tmp_path):
     ]
     assert summary["events"]["error_samples"][0]["logic_kind"] == "rule"
     assert summary["events"]["error_samples"][0]["logic_name"] == "explode_rule"
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
+    assert "Status: failed" in diagnostics
+    assert "### rule / explode_rule" in diagnostics
+    assert "started/completed/failed 1/0/1" in diagnostics
+    assert "RuntimeError: rule failed at high" in diagnostics
 
 
 @pytest.mark.asyncio

@@ -385,7 +385,12 @@ def _render_diagnostic_notes(summary: Mapping[str, Any]) -> List[str]:
     if summary.get("failed"):
         failure = summary.get("failure") if isinstance(summary.get("failure"), dict) else {}
         error_type = failure.get("error_type") or "unknown"
-        lines.append(f"- The run failed with `{error_type}`; inspect `events.jsonl` before interpreting metrics.")
+        details = f"`{error_type}`"
+        if failure.get("failed_step") is not None:
+            details += f" at step {failure.get('failed_step')}"
+        if failure.get("error"):
+            details += f": {failure.get('error')}"
+        lines.append(f"- The run failed with {details}; inspect `events.jsonl` before interpreting metrics.")
     lines.append("")
     return lines
 
