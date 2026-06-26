@@ -107,6 +107,42 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
                     ],
                 },
             },
+            "social_recommendations": {
+                "trace_count": 2,
+                "flush_count": 1,
+                "unique_agent_count": 2,
+                "raw_candidate_count_avg": 1000.0,
+                "raw_candidate_count_max": 1000,
+                "active_pool_count_avg": 1000.0,
+                "active_pool_count_max": 1000,
+                "returned_count_avg": 8.0,
+                "returned_count_max": 8,
+                "record_impression_count": 2,
+                "record_recommended_state_count": 2,
+                "preview_count": 0,
+                "cache_rebuilds_total": 1,
+                "rank_duration_sec_total": 0.12,
+                "duration_sec_total": 0.8,
+                "output_characters_max": 2400,
+                "impression_delta_total": 16,
+                "impression_post_count_total": 8,
+                "recommended_agent_update_count": 2,
+                "state_patch_count": 10,
+                "by_tick": {"0": {"trace_count": 2, "flush_count": 1}},
+                "score_samples": [
+                    {
+                        "tick": "0",
+                        "agent_id": "alice",
+                        "rank": 1,
+                        "post_id": "old_high",
+                        "total_score": 42.0,
+                        "engagement_contribution": 40.0,
+                        "time_contribution": 0.1,
+                        "network_contribution": 0.0,
+                        "semantic_contribution": 1.9,
+                    }
+                ],
+            },
             "agent_batches": {
                 "instruct / browse_round": {
                     "agent_count": 4,
@@ -198,6 +234,11 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
     assert "### rule / refresh_recommendation_cache" in report
     assert "success/error 3/0" in report
     assert "Params: pool_size." in report
+    assert "## Social Recommendation Diagnostics" in report
+    assert "Recommendation traces: 2; agents 2; raw candidates avg/max 1000.0/1000" in report
+    assert "active pool avg/max 1000.0/1000; returned avg/max 8.0/8" in report
+    assert "Deferred recommendation flushes: 1; impression delta total 16" in report
+    assert "Top score sample: tick=0, agent_id=alice, rank=1, post_id=old_high" in report
     assert "`llm`: 8 calls, 10.500s total, bottleneck `provider`." in report
     assert "Slowest call: 3.200s (step_name=browse_once" in report
     assert "### instruct / browse_round" in report

@@ -472,6 +472,21 @@ async def test_view_counts_flush_after_tick(tmp_path):
     assert trace_events[0]["event_data"]["active_pool_count"] == 1
     assert trace_events[0]["event_data"]["record_impression"] is True
     assert isinstance(trace_events[0]["event_data"]["duration_sec"], float)
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    recommendation_summary = summary["events"]["social_recommendations"]
+    assert recommendation_summary["trace_count"] == 2
+    assert recommendation_summary["flush_count"] == 1
+    assert recommendation_summary["unique_agent_count"] == 2
+    assert recommendation_summary["raw_candidate_count_max"] == 1
+    assert recommendation_summary["active_pool_count_max"] == 1
+    assert recommendation_summary["returned_count_total"] == 2
+    assert recommendation_summary["impression_delta_total"] == 2
+    assert recommendation_summary["recommended_agent_update_count"] == 2
+    assert recommendation_summary["state_patch_count"] == 3
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
+    assert "## Social Recommendation Diagnostics" in diagnostics
+    assert "Recommendation traces: 2; agents 2" in diagnostics
+    assert "Deferred recommendation flushes: 1; impression delta total 2" in diagnostics
 
 
 @pytest.mark.asyncio
