@@ -268,6 +268,10 @@ async def test_e2e_failed_step_records_failed_event_and_final_checkpoint(tmp_pat
     assert summary["failed"] is True
     assert summary["failure"]["failed_step"] == 0
     assert summary["failure"]["error_type"] == "RuntimeError"
+    assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] == (tmp_path / "diagnostics.md").stat().st_size
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
+    assert "Status: failed" in diagnostics
+    assert "The run failed with `RuntimeError` at step 0: intentional e2e failure" in diagnostics
 
 
 @pytest.mark.asyncio

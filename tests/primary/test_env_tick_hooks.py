@@ -193,6 +193,11 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
     assert before_hook["by_tick"]["0"]["started_count"] == 1
     assert before_hook["by_tick"]["0"]["completed_count"] == 0
     assert before_hook["by_tick"]["0"]["failed_count"] == 1
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
+    assert "Status: failed" in diagnostics
+    assert "### before_tick" in diagnostics
+    assert "started/completed/failed 1/0/1" in diagnostics
+    assert "RuntimeError: before hook failed" in diagnostics
     assert before_hook["error_samples"] == [
         {
             "step": 0,
