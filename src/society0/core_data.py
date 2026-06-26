@@ -1585,6 +1585,15 @@ class World:
         # Add registry-based actions (from function registry)
         try:
             if hasattr(self, '_function_registry') and self._function_registry:
+                registry_env_actions = self._get_registry_env_actions(agent)
+                for action_name, action_info in registry_env_actions.items():
+                    actionset.add_action(
+                        name=action_name,
+                        func=action_info["function"],
+                        description=action_info["description"],
+                        parameters=action_info["parameters"],
+                        tags=action_info.get("tags", ["environment", "experiment"]),
+                    )
                 registry_actions = self._get_registry_actions(agent)
                 for action_name, action_info in registry_actions.items():
                     actionset.add_action(
@@ -1859,6 +1868,87 @@ class World:
                     "additionalProperties": True,
                 },
                 "tags": ["registry", "agent_action"],
+            }
+
+        return registry_actions
+
+    def _get_registry_env_actions(self, agent: 'Agent') -> Dict[str, Dict[str, Any]]:
+        """Get experiment-specific environment actions from the function registry."""
+        registry_actions: Dict[str, Dict[str, Any]] = {}
+
+        if not hasattr(self._function_registry, "env_agent_tools"):
+            return registry_actions
+
+        seen: Set[str] = set()
+        for action_name, action_info in self._function_registry.env_agent_tools.items():
+            if action_info.get("source") != "experiment":
+                continue
+            canonical_id = str(action_info.get("canonical_id") or action_name)
+            if canonical_id in seen:
+                continue
+            seen.add(canonical_id)
+
+            original_func = action_info["function"]
+            signature = action_info.get("signature")
+
+            def create_experiment_env_action_wrapper(func, sig):
+                async def action_wrapper(**kwargs):
+                    environment = self.get_environment()
+                    context = self._build_execution_context(caller=agent)
+                    call_kwargs: Dict[str, Any] = {}
+                    consumed_user_kwargs: Set[str] = set()
+                    var_keyword_name: Optional[str] = None
+
+                    parameters = getattr(sig, "parameters", {}) if sig is not None else {}
+                    for param_name, param in parameters.items():
+                        if param_name in {"self", "cls"}:
+                            continue
+                        if param.kind == param.VAR_POSITIONAL:
+                            continue
+                        if param.kind == param.VAR_KEYWORD:
+                            var_keyword_name = param_name
+                            continue
+
+                        if param_name == "agent":
+                            call_kwargs[param_name] = agent
+                        elif param_name == "agents":
+                            call_kwargs[param_name] = [agent]
+                        elif param_name == "agent_ids":
+                            call_kwargs[param_name] = [getattr(agent, "id", None)]
+                        elif param_name in {"env", "environment"}:
+                            call_kwargs[param_name] = environment
+                        elif param_name == "world":
+                            call_kwargs[param_name] = self
+                        elif param_name == "context":
+                            call_kwargs[param_name] = context
+                        elif param_name == "params":
+                            call_kwargs[param_name] = dict(kwargs)
+                        elif param_name in kwargs:
+                            call_kwargs[param_name] = kwargs[param_name]
+                            consumed_user_kwargs.add(param_name)
+
+                    if var_keyword_name is not None:
+                        for key, value in kwargs.items():
+                            if key not in consumed_user_kwargs:
+                                call_kwargs[key] = value
+
+                    return await invoke_maybe_async(func, **call_kwargs)
+
+                return action_wrapper
+
+            tags: Set[str] = set(action_info.get("tags", []) or [])
+            tags.update({"environment", "experiment", str(action_info.get("display_name") or action_name)})
+            if "." in canonical_id:
+                tags.add(canonical_id.rsplit(".", maxsplit=1)[-1])
+
+            registry_actions[action_info.get("display_name") or action_name] = {
+                "function": create_experiment_env_action_wrapper(original_func, signature),
+                "description": action_info.get("description", f"Environment action: {action_name}"),
+                "parameters": copy.deepcopy(action_info.get("parameters") or {
+                    "type": "object",
+                    "properties": {},
+                }),
+                "tags": sorted(tag for tag in tags if tag),
             }
 
         return registry_actions
