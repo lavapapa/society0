@@ -1044,6 +1044,11 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert publish_batch["successful_action_counts"].get("publish_post", 0) >= 1
     assert publish_batch["failed_action_counts"].get("publish_post", 0) == 0
     assert publish_batch["action_tag_counts"].get("social_write", 0) >= 1
+    assert publish_batch["action_duration_summary"]["record_count"] >= agent_count
+    assert publish_batch["action_duration_summary"]["by_action"]["publish_post"]["record_count"] >= agent_count
+    assert publish_batch["action_duration_summary"]["bottleneck_action"] in publish_batch[
+        "action_duration_summary"
+    ]["by_action"]
     assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
     publish_duration_summary = publish_batch["agent_duration_summary"]
     assert publish_duration_summary["record_count"] == agent_count
@@ -1069,6 +1074,11 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_batch["failed_action_counts"].get("comment", 0) == 0
     assert browse_batch["action_tag_counts"].get("social_read", 0) >= 1
     assert browse_batch["action_tag_counts"].get("social_write", 0) >= 1
+    assert browse_batch["action_duration_summary"]["record_count"] >= 1
+    assert browse_batch["action_duration_summary"]["by_action"]["comment"]["record_count"] >= 1
+    assert browse_batch["action_duration_summary"]["bottleneck_action"] in browse_batch[
+        "action_duration_summary"
+    ]["by_action"]
     assert browse_batch["action_semantics"]["completion_action_tags"]["configured"] == ["social_write"]
     assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
     assert browse_batch["termination_reason_counts"] == {"completion_action_tag": agent_count}

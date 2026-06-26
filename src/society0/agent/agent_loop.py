@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 import re
 import logging
 import json_repair
+import time
 from collections import Counter
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,7 @@ class ActionCall:
     result: Any = None
     status: str = "success"
     error: Optional[str] = None
+    duration_sec: Optional[float] = None
 
 
 def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
@@ -819,6 +821,7 @@ async def execute_action_loop(
                 action_call.result = limit_error
                 action_call.status = "blocked"
                 action_call.error = limit_error
+                action_call.duration_sec = 0.0
                 executed_action_calls.append(action_call)
                 if context_provider is not None:
                     try:
@@ -832,11 +835,18 @@ async def execute_action_loop(
 
             try:
                 # Execute the action call with context management
-                action_result = await action_set.call_action(
-                    action_call.action_name,
-                    context_provider=context_provider,
-                    **action_call.arguments
-                )
+                action_started = time.perf_counter()
+                try:
+                    action_result = await action_set.call_action(
+                        action_call.action_name,
+                        context_provider=context_provider,
+                        **action_call.arguments
+                    )
+                finally:
+                    action_call.duration_sec = round(
+                        max(time.perf_counter() - action_started, 0.0),
+                        6,
+                    )
 
                 # Add action result message to conversation
                 base_content = str(action_result)
@@ -867,6 +877,8 @@ async def execute_action_loop(
                 logger.debug("Action result: %s", str(action_result)[:100])
 
             except Exception as e:
+                if action_call.duration_sec is None:
+                    action_call.duration_sec = 0.0
                 error_msg = f"Error executing action {action_call.action_name}: {str(e)}"
                 logger.debug("Action error: %s", error_msg)
 
@@ -924,6 +936,7 @@ async def execute_action_loop(
                     "arguments": ac.arguments,
                     "result": ac.result,
                     "status": ac.status,
+                    **({"duration_sec": ac.duration_sec} if ac.duration_sec is not None else {}),
                     **({"error": ac.error} if ac.error else {}),
                 }
                 for ac in executed_action_calls
@@ -959,6 +972,7 @@ async def execute_action_loop(
             "result": action_call.result,
             "status": action_call.status,
             "tags": _action_trace_tags(action_call.action_name),
+            **({"duration_sec": action_call.duration_sec} if action_call.duration_sec is not None else {}),
             **({"error": action_call.error} if action_call.error else {}),
         }
         for action_call in all_action_calls
