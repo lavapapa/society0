@@ -721,6 +721,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     steps = _jsonl(tmp_path / "steps.jsonl")
     browse_actions = steps[0]["result"]["tables"]["browse_actions"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
 
     assert len(llm_calls) == 2
@@ -741,6 +742,9 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
             "arguments": {"content": "I used the author id by mistake.", "post_id": "user_0"},
         }
     ]
+    assert "Action error samples: 1; inspect tool arguments before weakening actions." in diagnostics
+    assert "Sample: agent_id=user_0, action_name=comment, status=error; error=Post user_0 not found." in diagnostics
+    assert "Arguments: content=I used the author id by mistake., post_id=user_0." in diagnostics
     assert len(final_checkpoint["environment_data"]["state"]["posts"]["post_1"]["replies"]) == 1
 
 

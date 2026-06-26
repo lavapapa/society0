@@ -191,6 +191,18 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
                             "observed_counts": {"social_write": 1},
                         },
                     },
+                    "action_error_samples": [
+                        {
+                            "agent_id": "alice",
+                            "action_name": "comment",
+                            "status": "error",
+                            "error": "Post user_7 not found",
+                            "arguments": {
+                                "post_id": "user_7",
+                                "content": "I used the author id by mistake.",
+                            },
+                        }
+                    ],
                     "memory_summary": {
                         "record_count": 4,
                         "retrieve_enabled_count": 4,
@@ -251,6 +263,9 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
     assert "Successful action tags: comment=1, social_read=1, social_write=1." in report
     assert "Termination reasons: completion_action_tag=4." in report
     assert "Action semantics: completion_action_tags configured [social_write], observed social_write=1; required_action_tags configured [social_write], observed social_write=1." in report
+    assert "Action error samples: 1; inspect tool arguments before weakening actions." in report
+    assert "Sample: agent_id=alice, action_name=comment, status=error; error=Post user_7 not found." in report
+    assert "Arguments: content=I used the author id by mistake., post_id=user_7." in report
     assert "Memory: retrieved 4/4, saved 4, extractive enabled 4, extractive success 3." in report
     assert "do not disable memory, FoVs, or actions" in report
 
