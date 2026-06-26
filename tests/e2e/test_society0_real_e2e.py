@@ -1368,7 +1368,6 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
         result = await ctx.agents.all().instruct(
             "Call publish_post once with a concise original campus-life post, then stop.",
             actions=["publish_post"],
-            memory=False,
             output=None,
             max_turns=3,
             max_tokens=80,
@@ -1389,7 +1388,6 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
             "Browse the recommended feed. Comment once on post_1 if it is visible, then stop.",
             fovs=["recommended_feed"],
             actions=["comment"],
-            memory=False,
             output=None,
             max_turns=3,
             max_tokens=120,
@@ -1416,6 +1414,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    diagnostic_report = render_runtime_diagnostic_report(tmp_path)
     events = _read_jsonl(tmp_path / "events.jsonl")
 
     posts = checkpoint["environment_data"]["state"].get("posts", {})
@@ -1440,11 +1439,13 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["agent_operations"]["publish_first_tick"]["action_counts"].get("publish_post") == agent_count
     assert summary["agent_operations"]["browse_second_tick"]["agent_count"] == agent_count
     assert summary["agent_operations"]["browse_second_tick"]["action_counts"].get("comment", 0) >= 1
-    assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["call_count"] == agent_count
+    assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["call_count"] >= agent_count
     assert summary["agent_operations"]["publish_first_tick"]["resources"]["embedding"]["call_count"] >= 1
-    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["call_count"] <= agent_count * 2
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["call_count"] >= agent_count
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["embedding"]["call_count"] >= 1
     assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= agent_count * 2
+    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count * 2
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
     assert summary["resources"]["embedding"]["fidelity"]["environment"]["call_count"] >= 2
     assert (
         summary["resources"]["embedding"]["by_interaction_type"]["env_post_embedding"]["call_count"]
@@ -1466,7 +1467,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
         ]["call_count"]
         >= 1
     )
-    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["messages_count_max"] <= 4
+    assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["messages_count_max"] >= 4
     assert summary["agent_operations"]["publish_first_tick"]["resources"]["llm"]["tools_characters"] > 0
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["payload_characters"] >= (
         summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["tools_characters"]
@@ -1483,22 +1484,42 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     publish_batch = summary["events"]["agent_batches"]["instruct / multi_tick_publish"]
     browse_batch = summary["events"]["agent_batches"]["instruct / multi_tick_browse"]
     assert publish_batch["execution_options"]["memory"] == {
-        "retrieve": False,
-        "save": False,
-        "extract": False,
+        "retrieve": True,
+        "save": True,
+        "extract": True,
         "top_k": 10,
     }
+    assert publish_batch["memory_summary"]["retrieve_enabled_count"] == agent_count
+    assert publish_batch["memory_summary"]["save_enabled_count"] == agent_count
+    assert publish_batch["memory_summary"]["extraction_enabled_count"] == agent_count
     assert publish_batch["execution_options"]["action_call_limits"] == {"publish_post": 1}
     assert browse_batch["fovs"] == ["recommended_feed"]
     assert browse_batch["actions"] == ["comment"]
+    assert browse_batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
     assert browse_batch["execution_options"]["completion_action_tags"] == ["social_write"]
     assert browse_batch["execution_options"]["action_call_limits"] == {"comment": 1}
     assert browse_batch["successful_action_counts"].get("comment", 0) >= 1
     assert browse_batch["failed_action_counts"].get("comment", 0) == 0
     assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
+    assert browse_batch["memory_summary"]["retrieve_enabled_count"] == agent_count
+    assert browse_batch["memory_summary"]["save_enabled_count"] == agent_count
+    assert browse_batch["memory_summary"]["extraction_enabled_count"] == agent_count
 
-    assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) == agent_count
-    assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) <= agent_count * 2
+    assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) >= agent_count * 2
+    assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) >= agent_count * 2
     assert any(item.get("interaction_type") == "env_post_embedding" for item in embedding_traces)
     assert any(item.get("interaction_type") == "semantic_recommendation" for item in embedding_traces)
     assert any(event.get("event_type") == "social_recommendation_state_flushed" for event in events)
+    assert "Environment: `social_network`." in diagnostic_report
+    assert "## Environment Hooks" in diagnostic_report
+    assert "### after_tick" in diagnostic_report
+    assert "## Agent Batches" in diagnostic_report
+    assert "### instruct / multi_tick_publish" in diagnostic_report
+    assert "### instruct / multi_tick_browse" in diagnostic_report
+    assert "Memory: retrieved" in diagnostic_report
+    assert "Action semantics: completion_action_tags configured [social_write]" in diagnostic_report
