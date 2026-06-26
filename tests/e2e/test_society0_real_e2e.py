@@ -1052,6 +1052,12 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert {
         sample["termination_reason"] for sample in publish_duration_summary["slowest_agents"]
     } == {"action_budget_exhausted"}
+    publish_phase_summary = publish_batch["phase_timing_summary"]
+    assert publish_phase_summary["record_count"] == agent_count
+    assert publish_phase_summary["phases"]["agent_loop"]["record_count"] == agent_count
+    assert publish_phase_summary["phases"]["memory_extract"]["record_count"] == agent_count
+    assert publish_phase_summary["phases"]["memory_write"]["record_count"] >= 1
+    assert publish_phase_summary["bottleneck"] in publish_phase_summary["phases"]
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": True,
@@ -1073,6 +1079,12 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert {
         sample["termination_reason"] for sample in browse_duration_summary["slowest_agents"]
     } == {"completion_action_tag"}
+    browse_phase_summary = browse_batch["phase_timing_summary"]
+    assert browse_phase_summary["record_count"] == agent_count
+    assert browse_phase_summary["phases"]["fov_collection"]["record_count"] == agent_count
+    assert browse_phase_summary["phases"]["agent_loop"]["record_count"] == agent_count
+    assert browse_phase_summary["phases"]["memory_extract"]["record_count"] == agent_count
+    assert browse_phase_summary["bottleneck"] in browse_phase_summary["phases"]
     assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
         "memory_extraction"
     ]["call_count"] >= agent_count

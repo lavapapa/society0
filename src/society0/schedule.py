@@ -213,6 +213,10 @@ class AgentBatchResult:
         """Summarize per-agent wall-clock duration for batch diagnostics."""
         return _summarize_agent_record_durations(self.records, limit=limit)
 
+    def phase_timing_summary(self) -> Dict[str, Any]:
+        """Summarize per-agent runtime phase timings for bottleneck diagnostics."""
+        return _summarize_agent_phase_timings(self.records)
+
     def error_samples(self, *, limit: int = 5) -> List[Dict[str, Any]]:
         """Return compact failed-agent samples for step-level diagnostics."""
         return _logic_error_samples(self.records, limit=limit)
@@ -258,6 +262,7 @@ class AgentBatchResult:
             "termination_reason_counts": self.termination_reason_counts(),
             "memory_summary": self.memory_summary(),
             "duration_summary": self.duration_summary(),
+            "phase_timing_summary": self.phase_timing_summary(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
         }
@@ -672,6 +677,7 @@ class AgentGroup:
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             agent_duration_summary=batch_result.duration_summary(),
+            phase_timing_summary=batch_result.phase_timing_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -875,6 +881,7 @@ class AgentGroup:
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
             agent_duration_summary=batch_result.duration_summary(),
+            phase_timing_summary=batch_result.phase_timing_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -1464,6 +1471,64 @@ def _summarize_agent_record_durations(
     }
 
 
+def _phase_timing_payload_from_record(record: AgentCallRecord) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    if isinstance(record.raw, dict):
+        payload.update(record.raw)
+    if isinstance(record.value, dict):
+        payload.update(record.value)
+    timings = payload.get("phase_timings")
+    return timings if isinstance(timings, dict) else {}
+
+
+def _summarize_agent_phase_timings(records: Iterable[AgentCallRecord]) -> Dict[str, Any]:
+    phase_rows: Dict[str, Dict[str, Any]] = {}
+    record_count = 0
+
+    for record in records:
+        timings = _phase_timing_payload_from_record(record)
+        if not timings:
+            continue
+        record_count += 1
+        for phase_name, duration in timings.items():
+            if not isinstance(duration, (int, float)):
+                continue
+            duration_sec = max(float(duration), 0.0)
+            phase_key = str(phase_name)
+            row = phase_rows.setdefault(
+                phase_key,
+                {
+                    "record_count": 0,
+                    "total_sec": 0.0,
+                    "max_sec": 0.0,
+                },
+            )
+            row["record_count"] += 1
+            row["total_sec"] += duration_sec
+            row["max_sec"] = max(float(row["max_sec"]), duration_sec)
+
+    if not phase_rows:
+        return {}
+
+    phases: Dict[str, Dict[str, Any]] = {}
+    for phase_name, row in sorted(phase_rows.items()):
+        count = int(row["record_count"])
+        total = float(row["total_sec"])
+        phases[phase_name] = {
+            "record_count": count,
+            "total_sec": _round_duration(total),
+            "mean_sec": _round_duration(total / count) if count else 0.0,
+            "max_sec": _round_duration(float(row["max_sec"])),
+        }
+
+    bottleneck = max(phases.items(), key=lambda item: item[1]["total_sec"])[0]
+    return {
+        "record_count": record_count,
+        "bottleneck": bottleneck,
+        "phases": phases,
+    }
+
+
 def _record_logic_event(
     world: Any,
     event_type: str,
@@ -1570,6 +1635,7 @@ def _record_agent_batch_event(
     termination_reason_counts: Optional[Dict[str, int]] = None,
     memory_summary: Optional[Dict[str, Any]] = None,
     agent_duration_summary: Optional[Dict[str, Any]] = None,
+    phase_timing_summary: Optional[Dict[str, Any]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     event_logger = getattr(world, "event_logger", None)
@@ -1647,6 +1713,8 @@ def _record_agent_batch_event(
             event_data["memory_summary"] = _jsonable(memory_summary)
         if agent_duration_summary:
             event_data["agent_duration_summary"] = _jsonable(agent_duration_summary)
+        if phase_timing_summary:
+            event_data["phase_timing_summary"] = _jsonable(phase_timing_summary)
         if error_samples:
             event_data["error_samples"] = _jsonable(error_samples)
 
