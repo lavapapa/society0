@@ -925,6 +925,102 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_path):
+    llm_model, embed_model = _build_models(llm_concurrency=1, embed_concurrency=1)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_llm_agent_config(),
+        llm=llm_model,
+        embed=embed_model,
+    )
+    attempts: list[dict] = []
+
+    @engine.registry.agent.action(
+        name="submit_final_decision",
+        desc=(
+            "Submit the final decision for this round. If the tool returns an "
+            "error, inspect the error and call this tool again with a corrected decision."
+        ),
+    )
+    async def submit_final_decision(agent_ids, world, params):
+        attempts.append({"agent_ids": list(agent_ids or []), "params": dict(params or {})})
+        if len(attempts) == 1:
+            return (
+                "Error: transient submission rejection. "
+                "You must call submit_final_decision again with decision='approve'."
+            )
+        return {"ok": True, "accepted": True, "decision": params.get("decision", "approve")}
+
+    @engine.step(name="terminal_retry")
+    async def terminal_retry(ctx):
+        result = await ctx.agents.all().instruct(
+            "Call submit_final_decision to submit your final decision. "
+            "If the tool returns an error, read the error and retry by calling "
+            "submit_final_decision again once with decision='approve'.",
+            actions=["submit_final_decision"],
+            output=None,
+            max_turns=4,
+            max_tokens=120,
+            temperature=0,
+            terminal_actions=["submit_final_decision"],
+            action_call_limits={"submit_final_decision": 1},
+            required_actions=["submit_final_decision"],
+            reasoning_stages=[
+                {
+                    "name": "correct",
+                    "description": "Use the tool result to decide whether a retry is required.",
+                }
+            ],
+            name="terminal_retry_round",
+        )
+        rows = result.table()
+        return ctx.result(
+            metrics={
+                "retry_errors": result.error_count,
+                "retry_success": result.success_count,
+                "submit_attempts": result.action_counts().get("submit_final_decision", 0),
+                "failed_submit_attempts": result.failed_action_counts().get("submit_final_decision", 0),
+                "max_turns": max(row.get("total_turns", 0) for row in rows),
+            },
+            tables={"terminal_retry": rows, "terminal_retry_actions": result.actions()},
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    embedding_traces = _successful_resource_calls(resource_calls, "embedding")
+
+    assert len(attempts) == 2
+    assert metrics["retry_errors"] == 0
+    assert metrics["retry_success"] == 1
+    assert metrics["submit_attempts"] == 2
+    assert metrics["failed_submit_attempts"] == 1
+    assert metrics["max_turns"] == 2
+
+    batch = summary["events"]["agent_batches"]["instruct / terminal_retry_round"]
+    assert batch["execution_options"]["terminal_actions"] == ["submit_final_decision"]
+    assert batch["execution_options"]["required_actions"] == ["submit_final_decision"]
+    assert batch["execution_options"]["reasoning_stage_count"] == 1
+    assert batch["action_counts"]["submit_final_decision"] == 2
+    assert batch["successful_action_counts"]["submit_final_decision"] == 1
+    assert batch["failed_action_counts"]["submit_final_decision"] == 1
+    assert batch["termination_reason_counts"] == {"terminal_action": 1}
+    assert batch["agent_duration_summary"]["slowest_agents"][0]["termination_reason"] == "terminal_action"
+    assert batch["memory_summary"]["retrieve_enabled_count"] == 1
+    assert batch["memory_summary"]["save_enabled_count"] == 1
+    assert batch["memory_summary"]["extraction_enabled_count"] == 1
+    assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 2
+    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= 2
+    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= 1
+    assert embedding_traces
+
+
+@pytest.mark.asyncio
 async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tmp_path):
     agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_BROWSE_AGENT_COUNT"), default=2)
     agent_count = max(2, min(agent_count, 6))
