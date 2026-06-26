@@ -935,21 +935,23 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     )
     attempts: list[dict] = []
 
-    @engine.registry.agent.action(
+    @engine.registry.env.action(
         name="submit_final_decision",
         desc=(
             "Submit the final decision for this round. If the tool returns an "
             "error, inspect the error and call this tool again with a corrected decision."
         ),
+        tags=["decision"],
     )
-    async def submit_final_decision(agent_ids, world, params):
-        attempts.append({"agent_ids": list(agent_ids or []), "params": dict(params or {})})
+    async def submit_final_decision(agent, env, decision: str = "approve"):
+        attempts.append({"agent_id": agent.id, "decision": decision})
+        env.state["last_terminal_decision_attempt"] = decision
         if len(attempts) == 1:
             return (
                 "Error: transient submission rejection. "
                 "You must call submit_final_decision again with decision='approve'."
             )
-        return {"ok": True, "accepted": True, "decision": params.get("decision", "approve")}
+        return {"ok": True, "accepted": True, "decision": decision}
 
     @engine.step(name="terminal_retry")
     async def terminal_retry(ctx):
@@ -1004,6 +1006,13 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     assert batch["execution_options"]["terminal_actions"] == ["submit_final_decision"]
     assert batch["execution_options"]["required_actions"] == ["submit_final_decision"]
     assert batch["execution_options"]["reasoning_stage_count"] == 1
+    experiment_action = next(
+        entry
+        for entry in summary["capabilities"]["by_kind"]["actions"]
+        if entry["name"] == "submit_final_decision"
+    )
+    assert experiment_action["source"] == "experiment"
+    assert set(experiment_action["tags"]) >= {"environment", "experiment", "decision", "submit_final_decision"}
     assert batch["action_counts"]["submit_final_decision"] == 2
     assert batch["successful_action_counts"]["submit_final_decision"] == 1
     assert batch["failed_action_counts"]["submit_final_decision"] == 1

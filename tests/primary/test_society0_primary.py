@@ -4379,6 +4379,61 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_code_step_experiment_env_action_is_discoverable_and_agent_callable(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+
+    @engine.registry.env.action(
+        name="mark_exposure",
+        desc="Record that the current agent was exposed to an experimental stimulus.",
+        tags=["stimulus", "measurement"],
+    )
+    async def mark_exposure(agent, env, intensity: int, context=None):
+        env.state.setdefault("exposures", []).append(
+            {
+                "agent_id": agent.id,
+                "intensity": intensity,
+                "step": context.step_number if context else None,
+            }
+        )
+        agent.state["last_exposure_intensity"] = intensity
+        return {"ok": True, "agent_id": agent.id, "intensity": intensity}
+
+    @engine.step(name="apply_env_action")
+    async def apply_env_action(ctx):
+        assert ctx.capabilities.has("action", "mark_exposure", source="experiment")
+        assert ctx.capabilities.has("action", "env.mark_exposure", source="experiment")
+        actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("alice"))
+        filtered = actionset.filter_by_tags(["mark_exposure"])
+        result = await filtered.call_action("mark_exposure", intensity=4)
+        return ctx.result(
+            metrics={
+                "env_action_ok": int(result["ok"] is True),
+                "exposure_count": len(ctx.env.state.get("exposures", [])),
+            },
+            observations={
+                "action_names": ctx.capabilities.names("action", source="experiment"),
+                "action_result": result,
+            },
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    assert metrics == {"env_action_ok": 1, "exposure_count": 1}
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert checkpoint["environment_data"]["state"]["exposures"] == [
+        {"agent_id": "alice", "intensity": 4, "step": 0}
+    ]
+    assert checkpoint["agents_data"]["alice"]["state"]["last_exposure_intensity"] == 4
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    experiment_actions = [
+        entry for entry in summary["capabilities"]["by_kind"]["actions"] if entry["source"] == "experiment"
+    ]
+    assert [entry["name"] for entry in experiment_actions] == ["mark_exposure"]
+    assert set(experiment_actions[0]["tags"]) >= {"environment", "stimulus", "measurement", "mark_exposure"}
+
+
+@pytest.mark.asyncio
 async def test_behavior_error_samples_are_summarized_without_failing_run(tmp_path):
     engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
 

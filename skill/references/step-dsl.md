@@ -224,7 +224,7 @@ await ctx.behavior("update_trust", agents=["alice", "bob"], delta=-0.02)
 Logic has two sources:
 
 - env-provided logic: an environment can provide `@rule` and `@behavior` capabilities.
-- experiment-specific logic: register one-study logic with `engine.registry.env.rule(...)` or `engine.registry.sched.behavior(...)`.
+- experiment-specific logic: register one-study logic with `engine.registry.env.rule(...)`, `engine.registry.env.action(...)`, or `engine.registry.sched.behavior(...)`.
 
 Use `ctx.capabilities.by_source("environment", kind="rule")` and `ctx.capabilities.by_source("experiment", kind="behavior")` when the distinction matters for the study design or final explanation.
 

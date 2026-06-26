@@ -53,6 +53,7 @@ Use "logic" to mean deterministic rule/behavior code:
 - Env-provided `behavior`: built into an environment to update or prepare individual agents in that environment.
 - Experiment-specific `rule`: written for one study when the environment needs a custom system update.
 - Experiment-specific `behavior`: written for one study when rule-based agents or baselines need custom deterministic behavior.
+- Experiment-specific `env.action`: written for one study when LLM agents need a custom environment tool, such as submitting a ballot, requesting a resource, recording an exposure, or interacting with a one-off institution.
 
 Examples:
 
@@ -66,6 +67,7 @@ Discover first:
 ```python
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
+ctx.capabilities.names("action", source="experiment")
 ctx.capabilities.names("rule", source="environment")
 ctx.capabilities.by_source("experiment", kind="behavior")
 ctx.capabilities.get("action", "env.publish_post")
@@ -74,6 +76,23 @@ ctx.capabilities.get("action", "env.publish_post")
 Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
 
 Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. This matters when an agent reads both docs and source code: `recommended_feed`, `env.recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
+
+Use `engine.registry.env.action(...)` for study-specific tools that belong to the environment:
+
+```python
+@engine.registry.env.action(
+    name="submit_ballot",
+    desc="Submit one final ballot for the current round.",
+    tags=["voting", "decision"],
+)
+async def submit_ballot(agent, env, choice: str, context=None):
+    env.state.setdefault("ballots", []).append(
+        {"agent_id": agent.id, "choice": choice, "step": context.step_number}
+    )
+    return {"ok": True, "choice": choice}
+```
+
+Expose it to LLM agents through `instruct(..., actions=["submit_ballot"])`, `actions=["voting"]`, or another declared tag. If the action is the semantic endpoint of the task, pair it with `terminal_actions=["submit_ballot"]`; if it is only one possible way to complete a category, use `completion_action_tags=[...]`. Do not call env actions directly to bypass the LLM agent loop when the study is about agent behavior.
 
 ## Env Tick Lifecycle Hooks
 

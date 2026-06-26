@@ -10,7 +10,7 @@ v3.0 新增：
 - register_from_environment_meta() 方法用于批量注册 Environment capabilities
 """
 
-from typing import Dict, Callable, Any, List, Set
+from typing import Dict, Callable, Any, List, Optional, Set
 import inspect
 import logging
 
@@ -183,6 +183,65 @@ class EnvironmentRegistry:
             self._registry.rules[func_name] = entry
 
             logger.debug(f"Registered environment rule function: {canonical_id}")
+            return func
+
+        return decorator
+
+    def action(self, desc: str = "", name: str = None, tags: Optional[List[str]] = None):
+        """Register an experiment-specific environment action.
+
+        These actions are exposed as LLM tools through ``instruct(..., actions=[...])``
+        and should represent capabilities provided by the environment for this
+        experiment, not shortcuts around the agent loop.
+
+        Supported injected parameter names include ``agent``, ``env``/
+        ``environment``, ``world``, ``context``, ``agent_ids``, and ``params``.
+        Other parameters are exposed to the model as action arguments.
+        """
+
+        def decorator(func: Callable):
+            func_name = name or func.__name__
+            canonical_id = f"env.{func_name}"
+            sig = inspect.signature(func)
+            action_tags = list(
+                dict.fromkeys(
+                    [
+                        "environment",
+                        "experiment",
+                        func_name,
+                        *(tags or []),
+                    ]
+                )
+            )
+            entry = {
+                'function': func,
+                'description': desc,
+                'signature': sig,
+                'source': 'experiment',
+                'kind': 'action',
+                'canonical_id': canonical_id,
+                'display_name': func_name,
+                'func_name': func_name,
+                'environment_type': None,
+                'tags': action_tags,
+                'parameters': _parameters_schema_from_signature(
+                    sig,
+                    injected_names={
+                        "agent",
+                        "agents",
+                        "agent_ids",
+                        "env",
+                        "environment",
+                        "world",
+                        "context",
+                        "params",
+                    },
+                ),
+            }
+            self._registry.env_agent_tools[canonical_id] = entry
+            self._registry.env_agent_tools[func_name] = entry
+
+            logger.debug(f"Registered experiment environment action function: {canonical_id}")
             return func
 
         return decorator
