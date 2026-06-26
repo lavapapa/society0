@@ -201,6 +201,29 @@ def _social_publish_agent_config(agent_count: int) -> dict:
     }
 
 
+def _round_robin_llm_agent_config(agent_count: int = 2) -> dict:
+    return {
+        "agent_types": [{"id": "participant", "archetype": "llm"}],
+        "agents": [
+            {
+                "id": f"participant_{idx}",
+                "type": "participant",
+                "persona": (
+                    "A concise participant in a paired conversation simulation. "
+                    "When paired, send exactly one short message to your current partner."
+                ),
+                "state": {"cohort": "round-robin-real-e2e"},
+            }
+            for idx in range(agent_count)
+        ],
+        "environment": {
+            "type": "round_robin_conversation",
+            "config": {"group_size": agent_count, "session_duration_minutes": 5},
+            "state": {},
+        },
+    }
+
+
 def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
@@ -789,6 +812,131 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
         for interaction_type in _trace_values(item, "interaction_type", "interaction_types")
     }
     assert {"memory_retrieve", "memory_write"}.issubset(interaction_types)
+
+
+@pytest.mark.asyncio
+async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_path):
+    agent_count = 2
+    llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=10)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_round_robin_llm_agent_config(agent_count),
+        llm=llm_model,
+        embed=embed_model,
+    )
+
+    @engine.step(name="pair_and_converse")
+    async def pair_and_converse(ctx):
+        assert ctx.capabilities.has("rule", "advance_round_robin_with_pairing", source="environment")
+        assert ctx.capabilities.has("behavior", "mark_conversation_participant", source="environment")
+        assert ctx.capabilities.has("fov", "get_conversation_fov", source="environment")
+        assert ctx.capabilities.has("action", "send_message_to_partner", source="environment")
+
+        pairing = await ctx.rule("advance_round_robin_with_pairing", round_number=1)
+        marked = await ctx.agents.all().behavior(
+            "mark_conversation_participant",
+            marker="paired-before-llm",
+            concurrency=1,
+        )
+        messages = await ctx.agents.all().instruct(
+            "Read your conversation context and call send_message_to_partner exactly once. "
+            "Send one short friendly message to your current partner, then stop.",
+            fovs=["get_conversation_fov"],
+            actions=["send_message_to_partner"],
+            max_turns=3,
+            max_tokens=80,
+            temperature=0,
+            action_call_limits={"send_message_to_partner": 1},
+            required_actions=["send_message_to_partner"],
+            reasoning_stages=[
+                {
+                    "name": "situate",
+                    "description": "Use the environment FoV to identify the current partner before sending.",
+                }
+            ],
+            name="paired_message_round",
+        )
+        return ctx.result(
+            metrics={
+                "successful_pairs": pairing["successful_pairs"],
+                "logic_behavior_success": marked.success_count,
+                "logic_behavior_errors": marked.error_count,
+                "message_success": messages.success_count,
+                "message_errors": messages.error_count,
+                "message_action_count": messages.action_counts().get("send_message_to_partner", 0),
+            },
+            tables={
+                "marked": marked.table(),
+                "messages": messages.table(),
+                "message_actions": messages.actions(),
+            },
+            observations={
+                "message_action_counts": messages.action_counts(),
+                "message_action_tags": messages.action_tag_counts(),
+            },
+        )
+
+    await engine.run(steps=1)
+
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+
+    assert metrics["successful_pairs"] == 1
+    assert metrics["logic_behavior_success"] == agent_count
+    assert metrics["logic_behavior_errors"] == 0
+    assert metrics["message_success"] == agent_count
+    assert metrics["message_errors"] == 0
+    assert metrics["message_action_count"] == agent_count
+
+    logic_executions = summary["events"]["logic_executions"]
+    assert logic_executions["rule / advance_round_robin_with_pairing"]["completed_count"] == 1
+    assert logic_executions["rule / advance_round_robin_with_pairing"]["success_count"] == 1
+    assert logic_executions["behavior / mark_conversation_participant"]["completed_count"] == 1
+    assert logic_executions["behavior / mark_conversation_participant"]["success_count"] == agent_count
+    assert logic_executions["behavior / mark_conversation_participant"]["agent_count_total"] == agent_count
+
+    capabilities = summary["capabilities"]
+    assert capabilities["environment_type"] == "round_robin_conversation"
+    assert capabilities["by_source"]["environment"]["rules"] >= 1
+    assert capabilities["by_source"]["environment"]["behaviors"] >= 1
+    assert capabilities["by_source"]["environment"]["fovs"] >= 1
+    assert capabilities["by_source"]["environment"]["actions"] >= 1
+
+    batch = summary["events"]["agent_batches"]["instruct / paired_message_round"]
+    assert batch["agent_count"] == agent_count
+    assert batch["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert batch["execution_options"]["required_actions"] == ["send_message_to_partner"]
+    assert batch["execution_options"]["reasoning_stage_count"] == 1
+    assert batch["action_counts"].get("send_message_to_partner") == agent_count
+    assert batch["successful_action_counts"].get("send_message_to_partner") == agent_count
+    assert batch["failed_action_counts"].get("send_message_to_partner", 0) == 0
+    assert batch["action_semantics"]["required_actions"]["observed_counts"]["send_message_to_partner"] == agent_count
+    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
+    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+
+    assert checkpoint["environment_data"]["state"]["message_counter"] == agent_count
+    for agent_id in ("participant_0", "participant_1"):
+        assert checkpoint["agents_data"][agent_id]["state"]["conversation_marker"] == "paired-before-llm"
+    round_messages = checkpoint["environment_data"]["state"]["round_messages"]["1"]
+    assert sum(len(messages) for messages in round_messages.values()) == agent_count
+
+    llm_traces = _successful_resource_calls(resource_calls, "llm")
+    embedding_traces = _successful_resource_calls(resource_calls, "embedding")
+    assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= agent_count
+    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= agent_count
+    assert embedding_traces
+    assert "### rule / advance_round_robin_with_pairing" in diagnostics
+    assert "### behavior / mark_conversation_participant" in diagnostics
+    assert "Action semantics: required_actions configured [send_message_to_partner]" in diagnostics
+    assert "Memory: retrieved 2/2, saved 2, extractive enabled 2" in diagnostics
 
 
 @pytest.mark.asyncio
