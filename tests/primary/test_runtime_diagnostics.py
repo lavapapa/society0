@@ -69,6 +69,21 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
                             }
                         },
                     },
+                    "action_counts": {"get_trending_posts": 1, "comment": 2},
+                    "successful_action_counts": {"get_trending_posts": 1, "comment": 1},
+                    "failed_action_counts": {"comment": 1},
+                    "action_tag_counts": {"social_read": 1, "social_write": 1, "comment": 1},
+                    "termination_reason_counts": {"completion_action_tag": 4},
+                    "action_semantics": {
+                        "completion_action_tags": {
+                            "configured": ["social_write"],
+                            "observed_counts": {"social_write": 1},
+                        },
+                        "required_action_tags": {
+                            "configured": ["social_write"],
+                            "observed_counts": {"social_write": 1},
+                        },
+                    },
                     "memory_summary": {
                         "record_count": 4,
                         "retrieve_enabled_count": 4,
@@ -103,6 +118,10 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
     assert "Progress diagnostics: max started 4, max pending 2, progress events 4, heartbeat events 1." in report
     assert "Runtime phase bottleneck: `agent_loop`." in report
     assert "Slowest action family: `recommended_feed`" in report
+    assert "Actions: attempted comment=2, get_trending_posts=1; successful comment=1, get_trending_posts=1; failed comment=1." in report
+    assert "Successful action tags: comment=1, social_read=1, social_write=1." in report
+    assert "Termination reasons: completion_action_tag=4." in report
+    assert "Action semantics: completion_action_tags configured [social_write], observed social_write=1; required_action_tags configured [social_write], observed social_write=1." in report
     assert "Memory: retrieved 4/4, saved 4, extractive enabled 4, extractive success 3." in report
     assert "do not disable memory, FoVs, or actions" in report
 
