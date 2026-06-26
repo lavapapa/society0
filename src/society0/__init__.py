@@ -18,6 +18,8 @@ __all__ = [
     "Environment",
     "EnvironmentTickContext",
     "FunctionRegistry",
+    "load_run_summary",
+    "render_runtime_diagnostic_report",
 ]
 
 # 延迟导入映射，避免在包初始化阶段触发重量级依赖
@@ -34,6 +36,8 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "Environment": ("society0.environment", "Environment"),
     "EnvironmentTickContext": ("society0.environment", "EnvironmentTickContext"),
     "FunctionRegistry": ("society0.function_registry", "FunctionRegistry"),
+    "load_run_summary": ("society0.diagnostics", "load_run_summary"),
+    "render_runtime_diagnostic_report": ("society0.diagnostics", "render_runtime_diagnostic_report"),
 }
 
 
@@ -59,3 +63,4 @@ if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
     from .core_data import World  # noqa: F401
     from .environment import Environment, EnvironmentTickContext  # noqa: F401
     from .function_registry import FunctionRegistry  # noqa: F401
+    from .diagnostics import load_run_summary, render_runtime_diagnostic_report  # noqa: F401
