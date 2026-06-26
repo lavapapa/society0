@@ -678,10 +678,14 @@ class Society0:
             summary["failure"] = dict(failure)
         path = self.save_dir / "summary.json"
         self._write_summary_payload(path, summary)
-        self._write_diagnostics_report(summary)
-        summary["outputs"] = self._summarize_output_files()
-        self._write_summary_payload(path, summary)
-        self._write_diagnostics_report(summary)
+        for _ in range(10):
+            self._write_diagnostics_report(summary)
+            outputs = self._summarize_output_files()
+            if outputs == summary.get("outputs"):
+                return
+            summary["outputs"] = outputs
+            self._write_summary_payload(path, summary)
+        logger.warning("Run output summary did not stabilize after writing diagnostics.md")
 
     def _write_summary_payload(self, path: Path, summary: Dict[str, Any]) -> None:
         with path.open("w", encoding="utf-8") as handle:
