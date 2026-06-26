@@ -67,15 +67,16 @@ Discover first:
 ```python
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
-ctx.capabilities.names("action", source="experiment")
+ctx.capabilities.names("tools", source="experiment")
 ctx.capabilities.names("rule", source="environment")
-ctx.capabilities.by_source("experiment", kind="behavior")
+ctx.capabilities.find("publish_post")
+ctx.capabilities.by_source("experiment", kind="behaviors")
 ctx.capabilities.get("action", "env.publish_post")
 ```
 
 Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
 
-Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. This matters when an agent reads both docs and source code: `recommended_feed`, `env.recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
+Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. Kind names may be singular or plural, and `tool`/`tools` are accepted as action aliases. When you only know a copied name, use `ctx.capabilities.find(name)` to determine whether it is a FoV, action/tool, rule, or behavior before wiring it into `fovs=[...]`, `actions=[...]`, `ctx.rule(...)`, or `ctx.behavior(...)`. This matters when an agent reads both docs and source code: `recommended_feed`, `env.recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
 
 Use `engine.registry.env.action(...)` for study-specific tools that belong to the environment:
 

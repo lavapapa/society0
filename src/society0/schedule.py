@@ -300,13 +300,32 @@ class CapabilityCatalog:
     def names(self, kind: str, *, source: Optional[str] = None) -> List[str]:
         return [entry["name"] for entry in self.by_kind(kind) if source is None or entry.get("source") == source]
 
+    def find(
+        self,
+        name: str,
+        *,
+        kind: Optional[str] = None,
+        source: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Find capabilities by name or alias, optionally narrowing kind/source.
+
+        This is the discovery path for user-facing agents that know a copied
+        capability name but do not yet know whether it is a FoV, action, rule,
+        or behavior.
+        """
+        kinds = [_normalize_capability_kind(kind)] if kind is not None else ["fov", "action", "rule", "behavior"]
+        matches: List[Dict[str, Any]] = []
+        for normalized_kind in kinds:
+            for entry in self.by_kind(normalized_kind):
+                if source is not None and entry.get("source") != source:
+                    continue
+                if _capability_entry_matches(entry, name):
+                    matches.append(entry)
+        return _dedupe_capability_entries(matches)
+
     def get(self, kind: str, name: str, *, source: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        for entry in self.by_kind(kind):
-            if source is not None and entry.get("source") != source:
-                continue
-            if _capability_entry_matches(entry, name):
-                return entry
-        return None
+        matches = self.find(name, kind=kind, source=source)
+        return matches[0] if matches else None
 
     def has(self, kind: str, name: str, *, source: Optional[str] = None) -> bool:
         return self.get(kind, name, source=source) is not None
@@ -322,6 +341,7 @@ class CapabilityCatalog:
         }
 
     def by_kind(self, kind: str) -> List[Dict[str, Any]]:
+        kind = _normalize_capability_kind(kind)
         registry = self.world.get_logic_provider()
         if kind == "fov":
             return _capability_entries(registry.env_fovs, "fov")
@@ -2106,6 +2126,27 @@ def _normalize_output_schema(output: Any) -> Any:
     if callable(schema):
         return schema()
     return output
+
+
+def _normalize_capability_kind(kind: str) -> str:
+    normalized = str(kind).strip().lower()
+    aliases = {
+        "fov": "fov",
+        "fovs": "fov",
+        "field_of_view": "fov",
+        "field_of_views": "fov",
+        "action": "action",
+        "actions": "action",
+        "tool": "action",
+        "tools": "action",
+        "rule": "rule",
+        "rules": "rule",
+        "behavior": "behavior",
+        "behaviors": "behavior",
+    }
+    if normalized in aliases:
+        return aliases[normalized]
+    raise ValueError(f"Unknown capability kind: {kind}")
 
 
 def _capability_entries(table: Dict[str, Dict[str, Any]], kind: str) -> List[Dict[str, Any]]:
