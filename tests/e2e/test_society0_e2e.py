@@ -311,6 +311,11 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         wrong_kind_message = str(wrong_kind.value)
         assert "'send_message_to_partner' is registered as action, not behavior" in wrong_kind_message
         assert "actions with instruct(..., actions=[...])" in wrong_kind_message
+        with pytest.raises(ValueError) as wrong_alias_kind:
+            await ctx.agents.all().behavior("env.send_message_to_partner")
+        wrong_alias_message = str(wrong_alias_kind.value)
+        assert "'env.send_message_to_partner' is registered as action, not behavior" in wrong_alias_message
+        assert "actions with instruct(..., actions=[...])" in wrong_alias_message
 
         pairing = await ctx.rule("advance_round_robin_with_pairing", round_number=1)
         sender_actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("participant_0"))

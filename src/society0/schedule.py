@@ -2256,11 +2256,12 @@ def _format_missing_logic_error(world: Any, name: str, kind: str) -> str:
         if same_kind:
             plural = "behaviors" if kind == "behavior" else "rules"
             parts.append(f"Available {plural}: {', '.join(same_kind[:12])}.")
-        matching_other_kinds = [
-            other_kind
-            for other_kind in ("fov", "action", "rule", "behavior")
-            if other_kind != kind and name in catalog.names(other_kind)
-        ]
+        matching_other_kinds = []
+        for other_kind in ("fov", "action", "rule", "behavior"):
+            if other_kind == kind:
+                continue
+            if catalog.get(other_kind, name) is not None:
+                matching_other_kinds.append(other_kind)
         if matching_other_kinds:
             parts.append(
                 f"'{name}' is registered as {', '.join(matching_other_kinds)}, not {kind}."

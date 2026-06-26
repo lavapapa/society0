@@ -228,7 +228,7 @@ Logic has two sources:
 
 Use `ctx.capabilities.by_source("environment", kind="rule")` and `ctx.capabilities.by_source("experiment", kind="behavior")` when the distinction matters for the study design or final explanation.
 
-Missing rule/behavior names are configuration errors and should fail fast. If these helpers are unavailable in the installed version, use the lower-level source-backed APIs only after reading `src/society0/schedule.py`, `src/society0/function_registry.py`, `src/society0/agent/core.py`, and the target env source. Do not claim a workflow migration is complete until code steps can trigger FoVs, actions, interviews, rules, and behaviors.
+Missing rule/behavior names are configuration errors and should fail fast. If an error says a name is registered as an `action`, do not call it with `ctx.behavior(...)`; expose it to LLM agents through `instruct(..., actions=[...])` so the agent loop performs the behavior. If an error says a name is registered as a `fov`, use it in `fovs=[...]` or call the env method directly only for inspection. If these helpers are unavailable in the installed version, use the lower-level source-backed APIs only after reading `src/society0/schedule.py`, `src/society0/function_registry.py`, `src/society0/agent/core.py`, and the target env source. Do not claim a workflow migration is complete until code steps can trigger FoVs, actions, interviews, rules, and behaviors.
 
 ## Batch Results
 
