@@ -131,6 +131,7 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
                 f"- Slowest action family: `{action_duration.get('bottleneck_action', 'unknown')}` "
                 f"across {action_duration.get('record_count', 0)} action attempts."
             )
+        lines.extend(_render_batch_action_semantics(batch))
 
         memory = batch.get("memory_summary") if isinstance(batch.get("memory_summary"), dict) else {}
         if memory:
@@ -158,6 +159,47 @@ def _render_agent_batches(agent_batches: Mapping[str, Any]) -> List[str]:
                     f"{bucket.get('call_count', 0)} direct calls."
                 )
         lines.append("")
+    return lines
+
+
+def _render_batch_action_semantics(batch: Mapping[str, Any]) -> List[str]:
+    lines: List[str] = []
+    action_counts = _count_mapping(batch.get("action_counts"))
+    successful_action_counts = _count_mapping(batch.get("successful_action_counts"))
+    failed_action_counts = _count_mapping(batch.get("failed_action_counts"))
+    action_tag_counts = _count_mapping(batch.get("action_tag_counts"))
+    termination_reason_counts = _count_mapping(batch.get("termination_reason_counts"))
+
+    if action_counts or successful_action_counts or failed_action_counts:
+        lines.append(
+            "- Actions: "
+            f"attempted {_format_counts(action_counts)}; "
+            f"successful {_format_counts(successful_action_counts)}; "
+            f"failed {_format_counts(failed_action_counts)}."
+        )
+    if action_tag_counts:
+        lines.append(f"- Successful action tags: {_format_counts(action_tag_counts)}.")
+    if termination_reason_counts:
+        lines.append(f"- Termination reasons: {_format_counts(termination_reason_counts)}.")
+
+    action_semantics = batch.get("action_semantics")
+    if isinstance(action_semantics, Mapping) and action_semantics:
+        rendered_groups = []
+        for name in sorted(action_semantics):
+            group = action_semantics.get(name)
+            if not isinstance(group, Mapping):
+                continue
+            configured = group.get("configured")
+            observed_counts = _count_mapping(group.get("observed_counts"))
+            if not configured and not observed_counts:
+                continue
+            configured_text = _format_list(configured) if isinstance(configured, list) else "[]"
+            rendered_groups.append(
+                f"{name} configured {configured_text}, observed {_format_counts(observed_counts)}"
+            )
+        if rendered_groups:
+            lines.append(f"- Action semantics: {'; '.join(rendered_groups)}.")
+
     return lines
 
 
@@ -240,6 +282,22 @@ def _fmt_seconds(value: Any) -> str:
     if not isinstance(value, (int, float)):
         return "unknown"
     return f"{float(value):.3f}s"
+
+
+def _count_mapping(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): count for key, count in sorted(value.items(), key=lambda item: str(item[0]))}
+
+
+def _format_counts(counts: Mapping[str, Any]) -> str:
+    if not counts:
+        return "none"
+    return ", ".join(f"{key}={counts[key]}" for key in sorted(counts))
+
+
+def _format_list(value: List[Any]) -> str:
+    return "[" + ", ".join(str(item) for item in value) + "]"
 
 
 def _compact_context(row: Mapping[str, Any], *, keys: Iterable[str]) -> str:
