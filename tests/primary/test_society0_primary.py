@@ -2943,6 +2943,68 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_agent_group_instruct_defaults_to_full_extractive_memory(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+    captured_kwargs = {}
+
+    class FakeWorld:
+        step = 5
+        _current_code_step_name = "default_memory_round"
+        _default_agent_concurrency = 1
+        _model_provider = None
+        agents_data = {"alice": {"type": "participant"}}
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            captured_kwargs.update(kwargs)
+            return {
+                "structured_output": {"ok": True},
+                "memory_retrieved": kwargs.get("retrieve_memory"),
+                "memory_top_k": kwargs.get("memory_top_k"),
+                "memory_saved": kwargs.get("save_memory"),
+                "memory_extraction_enabled": kwargs.get("extract_memory"),
+                "memory_extraction_success": True,
+                "extracted_memories": [{"content": "default extractive memory"}],
+            }
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_5")
+
+    group = AgentSelector(FakeWorld(event_logger)).all()
+    result = await group.instruct("act naturally", name="default_memory")
+
+    event_logger.close()
+    events = _read_jsonl(events_path)
+    started = next(event for event in events if event.get("event_type") == "agent_batch_started")
+    completed = next(event for event in events if event.get("event_type") == "agent_batch_completed")
+
+    assert result.success_count == 1
+    assert captured_kwargs["retrieve_memory"] is True
+    assert captured_kwargs["save_memory"] is True
+    assert captured_kwargs["extract_memory"] is True
+    assert captured_kwargs["memory_top_k"] == 10
+    assert started["event_data"]["execution_options"]["memory"] == {
+        "retrieve": True,
+        "save": True,
+        "extract": True,
+        "top_k": 10,
+    }
+    assert completed["event_data"]["memory_summary"] == {
+        "record_count": 1,
+        "retrieve_enabled_count": 1,
+        "save_enabled_count": 1,
+        "extraction_enabled_count": 1,
+        "extraction_success_count": 1,
+        "extraction_error_count": 0,
+        "extracted_memory_count": 1,
+        "top_k_values": [10],
+    }
+
+
+@pytest.mark.asyncio
 async def test_agent_group_instruct_writes_heartbeat_events_while_in_flight(tmp_path):
     events_path = tmp_path / "events.jsonl"
     event_logger = EventLogger(str(events_path))
