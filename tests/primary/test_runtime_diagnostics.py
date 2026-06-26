@@ -14,6 +14,20 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
         "total_time": 12.3456,
         "runtime": {"agent_concurrency": 4, "agent_concurrency_source": "llm_model"},
         "outputs": {"total_bytes": 9876},
+        "capabilities": {
+            "environment_type": "social_network",
+            "counts": {"fovs": 4, "actions": 7, "rules": 3, "behaviors": 2},
+            "by_source": {
+                "environment": {"fovs": 4, "actions": 6, "rules": 3, "behaviors": 2},
+                "experiment": {"fovs": 0, "actions": 1, "rules": 0, "behaviors": 0},
+            },
+            "by_kind": {
+                "fovs": [{"name": "recommended_feed"}, {"name": "profile"}],
+                "actions": [{"name": "comment"}, {"name": "publish_post"}],
+                "rules": [{"name": "refresh_recommendation_cache"}],
+                "behaviors": [{"name": "update_trust"}],
+            },
+        },
         "resources": {
             "llm": {
                 "call_count": 8,
@@ -36,6 +50,29 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
             },
         },
         "events": {
+            "env_hooks": {
+                "before_tick": {
+                    "hook_name": "before_tick",
+                    "environment_type": "social_network",
+                    "started_count": 3,
+                    "completed_count": 3,
+                    "failed_count": 0,
+                    "duration_sec_total": 0.3,
+                    "by_tick": {"0": {}, "1": {}, "2": {}},
+                },
+                "after_tick": {
+                    "hook_name": "after_tick",
+                    "environment_type": "social_network",
+                    "started_count": 3,
+                    "completed_count": 2,
+                    "failed_count": 1,
+                    "duration_sec_total": 0.45,
+                    "by_tick": {"0": {}, "1": {}, "2": {}},
+                    "error_samples": [
+                        {"step": 2, "error": "cache flush failed", "error_type": "RuntimeError"}
+                    ],
+                },
+            },
             "agent_batches": {
                 "instruct / browse_round": {
                     "agent_count": 4,
@@ -110,6 +147,15 @@ def test_runtime_diagnostic_report_renders_key_bottlenecks(tmp_path):
     assert "# Society0 Runtime Diagnostic Report" in report
     assert "Status: completed" in report
     assert "Agent concurrency: 4 (llm_model)" in report
+    assert "Environment: `social_network`." in report
+    assert "Capability counts: actions=7, behaviors=2, fovs=4, rules=3." in report
+    assert "By source: environment actions=6, behaviors=2, fovs=4, rules=3; experiment actions=1, behaviors=0, fovs=0, rules=0." in report
+    assert "Sample actions: comment, publish_post." in report
+    assert "### before_tick" in report
+    assert "started/completed/failed 3/3/0" in report
+    assert "### after_tick" in report
+    assert "started/completed/failed 3/2/1" in report
+    assert "RuntimeError: cache flush failed" in report
     assert "`llm`: 8 calls, 10.500s total, bottleneck `provider`." in report
     assert "Slowest call: 3.200s (step_name=browse_once" in report
     assert "### instruct / browse_round" in report

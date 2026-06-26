@@ -28,6 +28,8 @@ def render_runtime_diagnostic_report(run_dir_or_summary: str | Path | Mapping[st
 
     lines: List[str] = ["# Society0 Runtime Diagnostic Report", ""]
     lines.extend(_render_run_overview(summary))
+    lines.extend(_render_environment_capabilities(summary.get("capabilities") or {}))
+    lines.extend(_render_env_hooks(summary.get("events", {}).get("env_hooks") or {}))
     lines.extend(_render_resource_bottlenecks(summary.get("resources") or {}))
     lines.extend(_render_agent_batches(summary.get("events", {}).get("agent_batches") or {}))
     lines.extend(_render_diagnostic_notes(summary))
@@ -59,6 +61,75 @@ def _render_run_overview(summary: Mapping[str, Any]) -> List[str]:
     if output_bytes:
         lines.append(f"- Run artifact size: {int(output_bytes)} bytes")
     lines.append("")
+    return lines
+
+
+def _render_environment_capabilities(capabilities: Mapping[str, Any]) -> List[str]:
+    if not capabilities:
+        return []
+
+    lines = ["## Environment And Capabilities", ""]
+    environment_type = capabilities.get("environment_type")
+    if environment_type:
+        lines.append(f"- Environment: `{environment_type}`.")
+
+    counts = _count_mapping(capabilities.get("counts"))
+    if counts:
+        lines.append(f"- Capability counts: {_format_counts(counts)}.")
+
+    by_source = capabilities.get("by_source")
+    if isinstance(by_source, Mapping) and by_source:
+        rendered_sources = []
+        for source in sorted(by_source):
+            source_counts = _count_mapping(by_source.get(source))
+            if source_counts:
+                rendered_sources.append(f"{source} {_format_counts(source_counts)}")
+        if rendered_sources:
+            lines.append(f"- By source: {'; '.join(rendered_sources)}.")
+
+    by_kind = capabilities.get("by_kind")
+    if isinstance(by_kind, Mapping) and by_kind:
+        for kind in ("fovs", "actions", "rules", "behaviors"):
+            names = _capability_names(by_kind.get(kind))
+            if names:
+                lines.append(f"- Sample {kind}: {_format_name_sample(names)}.")
+
+    lines.append("")
+    return lines
+
+
+def _render_env_hooks(env_hooks: Mapping[str, Any]) -> List[str]:
+    if not env_hooks:
+        return []
+
+    lines = ["## Environment Hooks", ""]
+    for name, hook in sorted(env_hooks.items()):
+        if not isinstance(hook, Mapping):
+            continue
+        lines.append(f"### {name}")
+        lines.append("")
+        environment_type = hook.get("environment_type")
+        prefix = f"- Environment: `{environment_type}`; " if environment_type else "- "
+        lines.append(
+            prefix
+            + "started/completed/failed "
+            f"{hook.get('started_count', 0)}/{hook.get('completed_count', 0)}/{hook.get('failed_count', 0)}; "
+            f"total {_fmt_seconds(hook.get('duration_sec_total'))}."
+        )
+        by_tick = hook.get("by_tick")
+        if isinstance(by_tick, Mapping) and by_tick:
+            ticks = ", ".join(str(tick) for tick in sorted(by_tick, key=str))
+            lines.append(f"- Tick coverage: {ticks}.")
+        error_samples = hook.get("error_samples")
+        if isinstance(error_samples, list) and error_samples:
+            sample = error_samples[0]
+            if isinstance(sample, Mapping):
+                error_type = sample.get("error_type") or "Error"
+                error = sample.get("error") or "unknown"
+                step = sample.get("step")
+                suffix = f" at step {step}" if step is not None else ""
+                lines.append(f"- Error sample: {error_type}: {error}{suffix}.")
+        lines.append("")
     return lines
 
 
@@ -298,6 +369,23 @@ def _format_counts(counts: Mapping[str, Any]) -> str:
 
 def _format_list(value: List[Any]) -> str:
     return "[" + ", ".join(str(item) for item in value) + "]"
+
+
+def _capability_names(value: Any) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    names = []
+    for entry in value:
+        if isinstance(entry, Mapping) and entry.get("name"):
+            names.append(str(entry.get("name")))
+    return sorted(dict.fromkeys(names))
+
+
+def _format_name_sample(names: List[str], *, limit: int = 8) -> str:
+    if len(names) <= limit:
+        return ", ".join(names)
+    shown = ", ".join(names[:limit])
+    return f"{shown}, +{len(names) - limit} more"
 
 
 def _compact_context(row: Mapping[str, Any], *, keys: Iterable[str]) -> str:
