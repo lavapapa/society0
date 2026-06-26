@@ -97,15 +97,19 @@ class AgentCallRecord:
     value: Any = None
     error: Optional[str] = None
     raw: Any = None
+    duration_sec: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "agent_id": self.agent_id,
             "status": self.status,
             "value": _jsonable(self.value),
             "error": self.error,
             "raw": _jsonable(self.raw),
         }
+        if self.duration_sec is not None:
+            payload["duration_sec"] = round(float(self.duration_sec), 6)
+        return payload
 
 
 @dataclass(slots=True)
@@ -205,6 +209,10 @@ class AgentBatchResult:
             (record.agent_id, _memory_payload_from_record(record)) for record in self.records
         )
 
+    def duration_summary(self, *, limit: int = 5) -> Dict[str, Any]:
+        """Summarize per-agent wall-clock duration for batch diagnostics."""
+        return _summarize_agent_record_durations(self.records, limit=limit)
+
     def error_samples(self, *, limit: int = 5) -> List[Dict[str, Any]]:
         """Return compact failed-agent samples for step-level diagnostics."""
         return _logic_error_samples(self.records, limit=limit)
@@ -219,6 +227,8 @@ class AgentBatchResult:
                 row["value"] = record.value
             if record.error:
                 row["error"] = record.error
+            if record.duration_sec is not None:
+                row["duration_sec"] = round(float(record.duration_sec), 6)
             rows.append(_jsonable(row))
         return rows
 
@@ -247,6 +257,7 @@ class AgentBatchResult:
             "action_error_samples": self.action_error_samples(),
             "termination_reason_counts": self.termination_reason_counts(),
             "memory_summary": self.memory_summary(),
+            "duration_summary": self.duration_summary(),
             "error_samples": self.error_samples(),
             "records": [record.to_dict() for record in self.records],
         }
@@ -363,6 +374,7 @@ class AgentGroup:
         )
 
         async def call(agent_id: str) -> AgentCallRecord:
+            agent_started = time.time()
             try:
                 agent = self.world.get_agent(agent_id)
                 env = self.world.get_environment()
@@ -385,9 +397,20 @@ class AgentGroup:
                     callable_name=resolved_name,
                 )
                 result = await invoke_maybe_async(behavior_func, **call_kwargs)
-                return AgentCallRecord(agent_id, "success", _extract_call_value(result), raw=result)
+                return AgentCallRecord(
+                    agent_id,
+                    "success",
+                    _extract_call_value(result),
+                    raw=result,
+                    duration_sec=time.time() - agent_started,
+                )
             except Exception as exc:
-                return AgentCallRecord(agent_id, "error", error=str(exc))
+                return AgentCallRecord(
+                    agent_id,
+                    "error",
+                    error=str(exc),
+                    duration_sec=time.time() - agent_started,
+                )
 
         try:
             batch_result = AgentBatchResult(
@@ -482,6 +505,7 @@ class AgentGroup:
         )
 
         async def call(agent_id: str) -> AgentCallRecord:
+            agent_started = time.time()
             try:
                 result = await self.world.instruct_agent(
                     agent_id,
@@ -514,10 +538,22 @@ class AgentGroup:
                     required_action_tags=required_action_tags,
                 )
                 if failure_record is not None:
+                    failure_record.duration_sec = time.time() - agent_started
                     return failure_record
-                return AgentCallRecord(agent_id, "success", _extract_call_value(result), raw=result)
+                return AgentCallRecord(
+                    agent_id,
+                    "success",
+                    _extract_call_value(result),
+                    raw=result,
+                    duration_sec=time.time() - agent_started,
+                )
             except Exception as exc:
-                return AgentCallRecord(agent_id, "error", error=str(exc))
+                return AgentCallRecord(
+                    agent_id,
+                    "error",
+                    error=str(exc),
+                    duration_sec=time.time() - agent_started,
+                )
 
         effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
@@ -635,6 +671,7 @@ class AgentGroup:
             action_error_samples=batch_result.action_error_samples(),
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
+            agent_duration_summary=batch_result.duration_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -681,6 +718,7 @@ class AgentGroup:
         )
 
         async def call(agent_id: str) -> AgentCallRecord:
+            agent_started = time.time()
             try:
                 result = await self.world.interview_agent(
                     agent_id,
@@ -703,10 +741,22 @@ class AgentGroup:
                     require_structured_output=output_schema is not None,
                 )
                 if failure_record is not None:
+                    failure_record.duration_sec = time.time() - agent_started
                     return failure_record
-                return AgentCallRecord(agent_id, "success", _extract_call_value(result), raw=result)
+                return AgentCallRecord(
+                    agent_id,
+                    "success",
+                    _extract_call_value(result),
+                    raw=result,
+                    duration_sec=time.time() - agent_started,
+                )
             except Exception as exc:
-                return AgentCallRecord(agent_id, "error", error=str(exc))
+                return AgentCallRecord(
+                    agent_id,
+                    "error",
+                    error=str(exc),
+                    duration_sec=time.time() - agent_started,
+                )
 
         effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
@@ -824,6 +874,7 @@ class AgentGroup:
             action_error_samples=batch_result.action_error_samples(),
             termination_reason_counts=batch_result.termination_reason_counts(),
             memory_summary=batch_result.memory_summary(),
+            agent_duration_summary=batch_result.duration_summary(),
             error_samples=_logic_error_samples(batch_result.records),
         )
         return batch_result
@@ -1361,6 +1412,58 @@ def _logic_error_samples(records: List[AgentCallRecord], *, limit: int = 5) -> L
     return samples
 
 
+def _round_duration(value: float) -> float:
+    return round(float(value), 6)
+
+
+def _agent_record_timing_sample(record: AgentCallRecord) -> Dict[str, Any]:
+    sample: Dict[str, Any] = {
+        "agent_id": record.agent_id,
+        "status": record.status,
+        "duration_sec": _round_duration(float(record.duration_sec or 0.0)),
+    }
+    payload: Dict[str, Any] = {}
+    if isinstance(record.raw, dict):
+        payload.update(record.raw)
+    if isinstance(record.value, dict):
+        payload.update(record.value)
+    for key in ("total_turns", "llm_calls", "termination_reason", "model_id"):
+        if key in payload:
+            sample[key] = _jsonable(payload[key])
+    if record.error:
+        sample["error"] = record.error
+    return sample
+
+
+def _summarize_agent_record_durations(
+    records: Iterable[AgentCallRecord],
+    *,
+    limit: int = 5,
+) -> Dict[str, Any]:
+    timed_records = [
+        record
+        for record in records
+        if isinstance(record.duration_sec, (int, float))
+    ]
+    if not timed_records:
+        return {}
+
+    durations = [float(record.duration_sec or 0.0) for record in timed_records]
+    slowest = sorted(
+        timed_records,
+        key=lambda record: float(record.duration_sec or 0.0),
+        reverse=True,
+    )[:limit]
+    return {
+        "record_count": len(timed_records),
+        "total_sec": _round_duration(sum(durations)),
+        "mean_sec": _round_duration(statistics.fmean(durations)),
+        "min_sec": _round_duration(min(durations)),
+        "max_sec": _round_duration(max(durations)),
+        "slowest_agents": [_agent_record_timing_sample(record) for record in slowest],
+    }
+
+
 def _record_logic_event(
     world: Any,
     event_type: str,
@@ -1466,6 +1569,7 @@ def _record_agent_batch_event(
     action_error_samples: Optional[List[Dict[str, Any]]] = None,
     termination_reason_counts: Optional[Dict[str, int]] = None,
     memory_summary: Optional[Dict[str, Any]] = None,
+    agent_duration_summary: Optional[Dict[str, Any]] = None,
     error_samples: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     event_logger = getattr(world, "event_logger", None)
@@ -1541,6 +1645,8 @@ def _record_agent_batch_event(
             event_data["termination_reason_counts"] = _jsonable(termination_reason_counts)
         if memory_summary:
             event_data["memory_summary"] = _jsonable(memory_summary)
+        if agent_duration_summary:
+            event_data["agent_duration_summary"] = _jsonable(agent_duration_summary)
         if error_samples:
             event_data["error_samples"] = _jsonable(error_samples)
 

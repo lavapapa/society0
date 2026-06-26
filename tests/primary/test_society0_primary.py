@@ -358,7 +358,10 @@ def test_agent_batch_result_exposes_action_summaries():
                     "memory_extraction_success": True,
                     "extracted_memories": [{"content": "Alice learned that the post was missing."}],
                     "termination_reason": "completion_action_tag",
+                    "total_turns": 3,
+                    "llm_calls": 2,
                 },
+                duration_sec=0.25,
             ),
             AgentCallRecord(
                 agent_id="bob",
@@ -381,13 +384,17 @@ def test_agent_batch_result_exposes_action_summaries():
                     "memory_extraction_success": False,
                     "extracted_memories": [],
                     "termination_reason": "no_action_calls",
+                    "total_turns": 1,
+                    "llm_calls": 1,
                 },
+                duration_sec=0.1,
             ),
             AgentCallRecord(
                 agent_id="carol",
                 status="error",
                 value={"reason": "required action missing"},
                 error="Missing required actions for carol: publish_post",
+                duration_sec=0.05,
             ),
         ]
     )
@@ -424,6 +431,38 @@ def test_agent_batch_result_exposes_action_summaries():
         "extracted_memory_count": 1,
         "top_k_values": [5, 7],
     }
+    assert result.duration_summary() == {
+        "record_count": 3,
+        "total_sec": 0.4,
+        "mean_sec": 0.133333,
+        "min_sec": 0.05,
+        "max_sec": 0.25,
+        "slowest_agents": [
+            {
+                "agent_id": "alice",
+                "status": "success",
+                "duration_sec": 0.25,
+                "total_turns": 3,
+                "llm_calls": 2,
+                "termination_reason": "completion_action_tag",
+            },
+            {
+                "agent_id": "bob",
+                "status": "success",
+                "duration_sec": 0.1,
+                "total_turns": 1,
+                "llm_calls": 1,
+                "termination_reason": "no_action_calls",
+            },
+            {
+                "agent_id": "carol",
+                "status": "error",
+                "duration_sec": 0.05,
+                "error": "Missing required actions for carol: publish_post",
+            },
+        ],
+    }
+    assert result.table()[0]["duration_sec"] == 0.25
     assert [action["action_name"] for action in result.actions_by_agent("alice")] == [
         "get_trending_posts",
         "get_agent_profile",
@@ -453,6 +492,7 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.to_dict()["action_tag_counts"] == result.action_tag_counts()
     assert result.to_dict()["termination_reason_counts"] == result.termination_reason_counts()
     assert result.to_dict()["memory_summary"] == result.memory_summary()
+    assert result.to_dict()["duration_summary"] == result.duration_summary()
     assert result.to_dict()["error_samples"] == result.error_samples()
 
 
@@ -2721,7 +2761,12 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
 
         async def instruct_agent(self, agent_id, instruction, **kwargs):
             await asyncio.sleep(0.02)
-            return {"structured_output": {"ok": True, "agent_id": agent_id}}
+            return {
+                "structured_output": {"ok": True, "agent_id": agent_id},
+                "total_turns": 1,
+                "llm_calls": 1,
+                "termination_reason": "no_action_calls",
+            }
 
         def get_context_stack(self):
             return ContextStack().push_step("step_6")
@@ -2752,6 +2797,20 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
     assert batch["concurrency_source"] == "world_default"
     assert batch["concurrency_source_counts"] == {"world_default": 1}
     assert batch["by_tick"]["6"]["concurrency_source"] == "world_default"
+    duration_summary = batch["agent_duration_summary"]
+    assert duration_summary["record_count"] == 4
+    assert duration_summary["total_sec"] >= duration_summary["max_sec"] >= duration_summary["min_sec"] >= 0
+    assert duration_summary["mean_sec"] > 0
+    assert len(duration_summary["slowest_agents"]) == 4
+    assert {sample["agent_id"] for sample in duration_summary["slowest_agents"]} == {
+        "alice",
+        "bob",
+        "carol",
+        "dave",
+    }
+    assert {sample["total_turns"] for sample in duration_summary["slowest_agents"]} == {1}
+    assert {sample["llm_calls"] for sample in duration_summary["slowest_agents"]} == {1}
+    assert batch["by_tick"]["6"]["agent_duration_summary"]["record_count"] == 4
 
 
 @pytest.mark.asyncio

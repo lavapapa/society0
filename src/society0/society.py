@@ -102,6 +102,46 @@ def _finalize_memory_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
     return summary
 
 
+def _merge_agent_duration_summary(target: Dict[str, Any], source: Dict[str, Any]) -> None:
+    record_count = source.get("record_count")
+    total_sec = source.get("total_sec")
+    if isinstance(record_count, int):
+        target["record_count"] = int(target.get("record_count", 0)) + record_count
+    if isinstance(total_sec, (int, float)):
+        target["total_sec"] = round(float(target.get("total_sec", 0.0)) + float(total_sec), 6)
+    for key, reducer in (("min_sec", min), ("max_sec", max)):
+        value = source.get(key)
+        if not isinstance(value, (int, float)):
+            continue
+        if isinstance(target.get(key), (int, float)):
+            target[key] = round(float(reducer(float(target[key]), float(value))), 6)
+        else:
+            target[key] = round(float(value), 6)
+
+    slowest = target.setdefault("slowest_agents", [])
+    for sample in source.get("slowest_agents") or []:
+        if isinstance(sample, dict):
+            slowest.append(sample)
+    slowest.sort(key=lambda item: float(item.get("duration_sec") or 0.0), reverse=True)
+    del slowest[5:]
+
+
+def _finalize_agent_duration_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
+    record_count = summary.get("record_count")
+    total_sec = summary.get("total_sec")
+    if not isinstance(record_count, int) or record_count <= 0 or not isinstance(total_sec, (int, float)):
+        return {}
+    summary["total_sec"] = round(float(total_sec), 6)
+    summary["mean_sec"] = round(float(total_sec) / record_count, 6)
+    if isinstance(summary.get("min_sec"), (int, float)):
+        summary["min_sec"] = round(float(summary["min_sec"]), 6)
+    if isinstance(summary.get("max_sec"), (int, float)):
+        summary["max_sec"] = round(float(summary["max_sec"]), 6)
+    if not summary.get("slowest_agents"):
+        summary.pop("slowest_agents", None)
+    return summary
+
+
 class Society0:
     """Code-driven simulation engine for social simulation experiments."""
 
@@ -1898,6 +1938,7 @@ class Society0:
                                 "action_tag_counts": {},
                                 "termination_reason_counts": {},
                                 "memory_summary": {},
+                                "agent_duration_summary": {},
                                 "by_tick": {},
                                 "action_error_samples": [],
                                 "error_samples": [],
@@ -1934,6 +1975,7 @@ class Society0:
                                 "action_tag_counts": {},
                                 "termination_reason_counts": {},
                                 "memory_summary": {},
+                                "agent_duration_summary": {},
                                 "action_error_samples": [],
                                 "error_samples": [],
                             },
@@ -2038,6 +2080,10 @@ class Society0:
                             if isinstance(memory_summary, dict):
                                 _merge_memory_summary(batch["memory_summary"], memory_summary)
                                 _merge_memory_summary(tick_batch["memory_summary"], memory_summary)
+                            duration_summary = event_data.get("agent_duration_summary")
+                            if isinstance(duration_summary, dict):
+                                _merge_agent_duration_summary(batch["agent_duration_summary"], duration_summary)
+                                _merge_agent_duration_summary(tick_batch["agent_duration_summary"], duration_summary)
                             event_action_error_samples = event_data.get("action_error_samples")
                             if isinstance(event_action_error_samples, list):
                                 for sample in event_action_error_samples:
@@ -2198,6 +2244,11 @@ class Society0:
                     batch["memory_summary"] = memory_summary
                 else:
                     batch.pop("memory_summary", None)
+                duration_summary = _finalize_agent_duration_summary(batch.get("agent_duration_summary") or {})
+                if duration_summary:
+                    batch["agent_duration_summary"] = duration_summary
+                else:
+                    batch.pop("agent_duration_summary", None)
                 by_tick_batches = batch.get("by_tick")
                 if isinstance(by_tick_batches, dict):
                     for tick_batch in by_tick_batches.values():
@@ -2216,6 +2267,13 @@ class Society0:
                             tick_batch["memory_summary"] = tick_memory_summary
                         else:
                             tick_batch.pop("memory_summary", None)
+                        tick_duration_summary = _finalize_agent_duration_summary(
+                            tick_batch.get("agent_duration_summary") or {}
+                        )
+                        if tick_duration_summary:
+                            tick_batch["agent_duration_summary"] = tick_duration_summary
+                        else:
+                            tick_batch.pop("agent_duration_summary", None)
                     batch["by_tick"] = dict(sorted(by_tick_batches.items(), key=lambda item: item[0]))
             result["agent_batches"] = dict(sorted(agent_batches.items()))
         if logic_executions:
