@@ -155,6 +155,21 @@ If `llm.call_count` is higher than the number of selected agents, inspect whethe
 
 For detailed attribution, inspect `resource_calls.jsonl`. LLM records should include `agent_id`, `step_name`, `interaction_type`, and `interaction_name`. Embedding records can be batched; when a batch covers multiple agents or memory operations, read plural fields such as `agent_ids`, `step_names`, `interaction_types`, and `interaction_names`.
 
+For a compact first-pass runtime report, generate a read-only diagnostics file from `summary.json`:
+
+```python
+from pathlib import Path
+from society0.diagnostics import render_runtime_diagnostic_report
+
+run_dir = Path("runs/demo")
+(run_dir / "diagnostics.md").write_text(
+    render_runtime_diagnostic_report(run_dir),
+    encoding="utf-8",
+)
+```
+
+Use the report to decide where to inspect next: provider capacity, concurrency, FoV collection, action duration, memory extraction, or environment caches. The helper does not change runtime behavior and should not be used as a shortcut to disable memory, FoVs, tools, actions, terminal/completion semantics, or extractive memory just to make a test faster.
+
 During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion with the same concurrency state, so short batches without heartbeat events can still be diagnosed. `agent_batch_completed` closes the batch and includes `agent_duration_summary`, an end-to-end per-agent timing summary for that batch.
 
 ## Runtime Explanation
