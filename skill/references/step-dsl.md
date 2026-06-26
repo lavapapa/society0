@@ -33,17 +33,19 @@ Capability discovery:
 ```python
 ctx.capabilities.names("fov")
 ctx.capabilities.names("action")
+ctx.capabilities.names("tools")  # alias for actions
 ctx.capabilities.names("rule")
 ctx.capabilities.names("behavior")
 ctx.capabilities.names("action", source="environment")
+ctx.capabilities.find("get_trending_posts")
 ctx.capabilities.has("rule", "advance_round_robin_with_pairing")
 ctx.capabilities.has("behavior", "custom_baseline", source="experiment")
 ctx.capabilities.by_source("environment")
-ctx.capabilities.by_source("experiment", kind="rule")
+ctx.capabilities.by_source("experiment", kind="rules")
 ctx.capabilities.get("rule", "env.advance_round_robin_with_pairing")
 ```
 
-During a step, use `ctx.capabilities.by_source(...)` to distinguish env-provided capabilities from experiment-specific rules and behaviors. `ctx.capabilities.has(...)` and `ctx.capabilities.get(...)` accept display names, canonical IDs, registry keys, function names, and aliases, so an agent can safely resolve names copied from source code, `summary.json`, or docs. After a run, inspect `summary.json -> capabilities.by_source` for the same distinction in the final report. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
+During a step, use `ctx.capabilities.by_source(...)` to distinguish env-provided capabilities from experiment-specific rules and behaviors. If you have a name but do not know its kind, call `ctx.capabilities.find(name)` first; it returns matching FoVs, actions/tools, rules, and behaviors with their sources. `ctx.capabilities.has(...)`, `ctx.capabilities.get(...)`, and `ctx.capabilities.names(...)` accept singular/plural kind names, plus `tool`/`tools` as aliases for `action`/`actions`. They also accept display names, canonical IDs, registry keys, function names, and aliases, so an agent can safely resolve names copied from source code, `summary.json`, or docs. After a run, inspect `summary.json -> capabilities.by_source` for the same distinction in the final report. This is useful when deciding whether to extend an environment or keep one-study logic in the experiment code.
 
 Capability entries include `aliases`, `parameters`, `return_value_schema`, `func_name`, `tags`, `source`, and `environment_type` when available. Before calling `ctx.rule(...)`, `ctx.behavior(...)`, or exposing `actions=[...]`, inspect those fields instead of guessing argument names.
 

@@ -110,6 +110,8 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         env_fov_names = ctx.capabilities.names("fov", source="environment")
         env_action_names = ctx.capabilities.names("action", source="environment")
         env_rule_names = ctx.capabilities.names("rule", source="environment")
+        trending_matches = ctx.capabilities.find("get_trending_posts")
+        profile_tool_matches = ctx.capabilities.find("get_agent_profile", kind="tools", source="environment")
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("viewer"))
 
         observed["recommended_feed_entry"] = ctx.world._resolve_fov_entry("recommended_feed")
@@ -124,6 +126,8 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         observed["env_fov_names"] = env_fov_names
         observed["env_action_names"] = env_action_names
         observed["env_rule_names"] = env_rule_names
+        observed["trending_matches"] = trending_matches
+        observed["profile_tool_matches"] = profile_tool_matches
         observed["env_capabilities"] = ctx.capabilities.by_source("environment")
         observed["registry_fovs"] = set(registry.env_fovs.keys())
         observed["registry_actions"] = set(registry.env_agent_tools.keys())
@@ -160,6 +164,12 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert "get_trending_posts" in observed["env_action_names"]
     assert "update_trending_topics" in observed["env_rule_names"]
     assert "get_agent_profile" in {entry["name"] for entry in observed["env_capabilities"]["actions"]}
+    assert [(entry["kind"], entry["source"], entry["name"]) for entry in observed["trending_matches"]] == [
+        ("action", "environment", "get_trending_posts")
+    ]
+    assert [(entry["kind"], entry["source"], entry["name"]) for entry in observed["profile_tool_matches"]] == [
+        ("action", "environment", "get_agent_profile")
+    ]
     profile_capability = next(
         entry for entry in observed["env_capabilities"]["actions"] if entry["name"] == "get_agent_profile"
     )

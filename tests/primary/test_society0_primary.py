@@ -4434,6 +4434,13 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
     async def apply_env_action(ctx):
         assert ctx.capabilities.has("action", "mark_exposure", source="experiment")
         assert ctx.capabilities.has("action", "env.mark_exposure", source="experiment")
+        assert ctx.capabilities.has("tool", "mark_exposure", source="experiment")
+        assert ctx.capabilities.names("tools", source="experiment") == ["mark_exposure"]
+        found = ctx.capabilities.find("mark_exposure")
+        assert [(entry["kind"], entry["source"], entry["name"]) for entry in found] == [
+            ("action", "experiment", "mark_exposure")
+        ]
+        assert ctx.capabilities.find("mark_exposure", kind="tools", source="experiment") == found
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("alice"))
         assert "mark_exposure" in actionset.filter_by_tags(["mark_exposure"]).actions
         filtered = actionset.filter_by_tags(["env.mark_exposure"])
@@ -4579,6 +4586,8 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
         assert behavior_entry["source"] == "experiment"
         assert "delta" in behavior_entry["parameters"]["properties"]
         assert "set_pressure" in ctx.capabilities.names("rule")
+        assert ctx.capabilities.names("rules", source="experiment") == ["set_pressure"]
+        assert ctx.capabilities.names("behaviors", source="experiment") == ["adjust_trust"]
         assert ctx.capabilities.names("rule", source="experiment") == ["set_pressure"]
         assert ctx.capabilities.names("rule", source="environment") == []
         assert "adjust_trust" in ctx.capabilities.names("behavior")
@@ -4586,6 +4595,9 @@ async def test_capability_catalog_and_missing_logic_errors(tmp_path):
         assert "set_pressure" in {entry["name"] for entry in experiment_capabilities["rules"]}
         assert "adjust_trust" in {entry["name"] for entry in experiment_capabilities["behaviors"]}
         assert ctx.capabilities.by_source("environment", kind="rule") == []
+        assert ctx.capabilities.by_source("experiment", kind="rules") == [rule_entry]
+        assert ctx.capabilities.find("set_pressure", source="experiment") == [rule_entry]
+        assert ctx.capabilities.find("adjust_trust", kind="behaviors") == [behavior_entry]
         with pytest.raises(ValueError, match="Rule 'missing_rule' not found"):
             await ctx.rule("missing_rule")
         with pytest.raises(ValueError, match="Behavior 'missing_behavior' not found"):
