@@ -114,7 +114,11 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
 
         observed["recommended_feed_entry"] = ctx.world._resolve_fov_entry("recommended_feed")
         observed["recommended_preview_entry"] = ctx.world._resolve_fov_entry("recommended_feed_preview")
-        observed["legacy_method_entry"] = ctx.world._resolve_fov_entry("env.get_recommended_feed")
+        observed["recommended_method_entry"] = ctx.world._resolve_fov_entry("env.recommended_feed")
+        observed["legacy_python_alias"] = await ctx.env.get_recommended_feed(
+            ctx.world.get_agent("viewer"),
+            ctx.env,
+        )
         observed["fov_names"] = fov_names
         observed["action_names"] = action_names
         observed["env_fov_names"] = env_fov_names
@@ -141,7 +145,8 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
 
     assert observed["recommended_feed_entry"] is not None
     assert observed["recommended_preview_entry"] is not None
-    assert observed["legacy_method_entry"] is not None
+    assert observed["recommended_method_entry"] is not None
+    assert "推荐" in observed["legacy_python_alias"]
     assert "recommended_feed" in observed["fov_names"]
     assert "recommended_feed_preview" in observed["fov_names"]
     assert "get_recommended_feed" not in observed["fov_names"]
@@ -159,7 +164,12 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         entry for entry in observed["env_capabilities"]["actions"] if entry["name"] == "get_agent_profile"
     )
     assert "environment" in profile_capability["tags"]
-    assert "recommended_feed" in {entry["name"] for entry in observed["env_capabilities"]["fovs"]}
+    recommended_capability = next(
+        entry for entry in observed["env_capabilities"]["fovs"] if entry["name"] == "recommended_feed"
+    )
+    assert recommended_capability["func_name"] == "recommended_feed"
+    assert "env.recommended_feed" in recommended_capability["aliases"]
+    assert "env.get_recommended_feed" not in recommended_capability["aliases"]
     assert "get_agent_profile" in observed["registry_actions"]
     assert "get_trending_posts" in observed["registry_actions"]
     assert "get_agent_profile" not in observed["registry_fovs"]
