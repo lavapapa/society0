@@ -309,6 +309,29 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         assert "actions with instruct(..., actions=[...])" in wrong_kind_message
 
         pairing = await ctx.rule("advance_round_robin_with_pairing", round_number=1)
+        sender_actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("participant_0"))
+        social_actionset = sender_actionset.filter_by_tags(["send_message_to_partner"])
+        assert "send_message_to_partner" in social_actionset.actions
+        sent = await social_actionset.call_action(
+            "send_message_to_partner",
+            content="Hello from participant_0.",
+        )
+        assert sent["status"] == "success"
+        partner_id = sent["sent_to"]
+        partner_fov = await ctx.env.get_conversation_fov(ctx.world.get_agent(partner_id), ctx.env)
+        assert "Hello from participant_0." in partner_fov
+
+        broadcast_actionset = sender_actionset.filter_by_tags(["broadcast_to_group"])
+        assert "broadcast_to_group" in broadcast_actionset.actions
+        broadcast = await broadcast_actionset.call_action(
+            "broadcast_to_group",
+            content="Round 1 group update.",
+        )
+        assert broadcast["status"] == "success"
+        assert len(broadcast["delivered"]) == 3
+        group_peer_fov = await ctx.env.get_conversation_fov(ctx.world.get_agent("participant_1"), ctx.env)
+        assert "Round 1 group update." in group_peer_fov
+
         marked = await ctx.agents.ids(["participant_0", "participant_1"]).behavior(
             "mark_conversation_participant",
             marker="baseline-ready",
@@ -319,6 +342,7 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
                 "successful_pairs": pairing["successful_pairs"],
                 "marked": marked.success_count,
                 "behavior_errors": marked.error_count,
+                "messages_sent": ctx.env.state["message_counter"],
             },
             tables={"marked": marked.table()},
         )
@@ -330,11 +354,22 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         "successful_pairs": 2,
         "marked": 2,
         "behavior_errors": 0,
+        "messages_sent": 4,
     }
     final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
     assert final_checkpoint["agents_data"]["participant_0"]["state"]["conversation_marker"] == "baseline-ready"
     assert final_checkpoint["environment_data"]["state"]["pairing_status"]["current_round"] == 1
     assert len(final_checkpoint["environment_data"]["state"]["pairing_status"]["completed_pairs"]) == 2
+    assert final_checkpoint["environment_data"]["state"]["message_counter"] == 4
+    round_messages = final_checkpoint["environment_data"]["state"]["round_messages"]["1"]
+    assert any(
+        message["content"] == "Hello from participant_0."
+        for message in round_messages["participant_3"]
+    )
+    assert any(
+        message["content"] == "Round 1 group update."
+        for message in round_messages["participant_1"]
+    )
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     rule_entries = summary["capabilities"]["by_kind"]["rules"]
     action_entries = summary["capabilities"]["by_kind"]["actions"]
