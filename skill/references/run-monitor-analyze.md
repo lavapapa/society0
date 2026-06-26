@@ -168,7 +168,7 @@ run_dir = Path("runs/demo")
 )
 ```
 
-Use the report to decide where to inspect next: provider capacity, concurrency, FoV collection, action duration, memory extraction, or environment caches. The helper does not change runtime behavior and should not be used as a shortcut to disable memory, FoVs, tools, actions, terminal/completion semantics, or extractive memory just to make a test faster.
+Use the report to decide where to inspect next: environment capability design, env tick hooks, deterministic rules and behaviors, provider capacity, concurrency, FoV collection, action duration, memory extraction, or environment caches. Read it from the top down: first confirm the environment type and available FoVs/actions/rules/behaviors, then check `before_tick`/`after_tick`, then inspect rule/behavior executions, model and embedding resources, and finally agent batches. The helper does not change runtime behavior and should not be used as a shortcut to disable memory, FoVs, tools, actions, terminal/completion semantics, or extractive memory just to make a test faster.
 
 During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion with the same concurrency state, so short batches without heartbeat events can still be diagnosed. `agent_batch_completed` closes the batch and includes `agent_duration_summary`, an end-to-end per-agent timing summary for that batch.
 
