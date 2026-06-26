@@ -364,6 +364,7 @@ def test_agent_batch_result_exposes_action_summaries():
                         "fov_collection": 0.02,
                         "agent_loop": 0.2,
                         "memory_extract": 0.03,
+                        "total": 0.25,
                     },
                 },
                 duration_sec=0.25,
@@ -394,6 +395,7 @@ def test_agent_batch_result_exposes_action_summaries():
                     "phase_timings": {
                         "agent_loop": 0.08,
                         "memory_retrieve": 0.01,
+                        "total": 0.1,
                     },
                 },
                 duration_sec=0.1,

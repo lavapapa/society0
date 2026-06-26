@@ -1493,8 +1493,10 @@ def _summarize_agent_phase_timings(records: Iterable[AgentCallRecord]) -> Dict[s
         for phase_name, duration in timings.items():
             if not isinstance(duration, (int, float)):
                 continue
-            duration_sec = max(float(duration), 0.0)
             phase_key = str(phase_name)
+            if phase_key == "total":
+                continue
+            duration_sec = max(float(duration), 0.0)
             row = phase_rows.setdefault(
                 phase_key,
                 {
