@@ -208,6 +208,7 @@ class EnvironmentRegistry:
                     [
                         "environment",
                         "experiment",
+                        canonical_id,
                         func_name,
                         *(tags or []),
                     ]
@@ -796,7 +797,7 @@ def register_environment_capabilities(registry: FunctionRegistry, env_meta, env_
         # 根据 kind 注册到不同的字典
         if cap_meta.kind == 'action':
             canonical_id = f"env.{cap_meta.func_name}"
-            action_tags = list(dict.fromkeys([*(cap_meta.tags or []), cap_meta.name, "environment"]))
+            action_tags = list(dict.fromkeys([*(cap_meta.tags or []), canonical_id, cap_meta.name, "environment"]))
             entry = {
                 'function': bound_method,
                 'description': cap_meta.description,
