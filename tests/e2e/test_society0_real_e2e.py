@@ -1045,6 +1045,13 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert publish_batch["failed_action_counts"].get("publish_post", 0) == 0
     assert publish_batch["action_tag_counts"].get("social_write", 0) >= 1
     assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
+    publish_duration_summary = publish_batch["agent_duration_summary"]
+    assert publish_duration_summary["record_count"] == agent_count
+    assert publish_duration_summary["total_sec"] >= publish_duration_summary["max_sec"] >= publish_duration_summary["min_sec"] > 0
+    assert len(publish_duration_summary["slowest_agents"]) == agent_count
+    assert {
+        sample["termination_reason"] for sample in publish_duration_summary["slowest_agents"]
+    } == {"action_budget_exhausted"}
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
         "save": True,
@@ -1059,6 +1066,13 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_batch["action_semantics"]["completion_action_tags"]["configured"] == ["social_write"]
     assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
     assert browse_batch["termination_reason_counts"] == {"completion_action_tag": agent_count}
+    browse_duration_summary = browse_batch["agent_duration_summary"]
+    assert browse_duration_summary["record_count"] == agent_count
+    assert browse_duration_summary["total_sec"] >= browse_duration_summary["max_sec"] >= browse_duration_summary["min_sec"] > 0
+    assert len(browse_duration_summary["slowest_agents"]) == agent_count
+    assert {
+        sample["termination_reason"] for sample in browse_duration_summary["slowest_agents"]
+    } == {"completion_action_tag"}
     assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
         "memory_extraction"
     ]["call_count"] >= agent_count
