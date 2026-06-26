@@ -824,6 +824,96 @@ async def test_e2e_instruct_rejects_fov_name_in_actions_before_llm_call(tmp_path
 
 
 @pytest.mark.parametrize(
+    "actions,required_actions,required_action_tags,expected_error",
+    [
+        (
+            ["comment"],
+            ["publish_post"],
+            None,
+            "Required action(s) 'publish_post' are not available after applying actions=['comment'].",
+        ),
+        (
+            ["get_trending_posts"],
+            None,
+            ["social_write"],
+            "Required action tag(s) 'social_write' are not available after applying actions=['get_trending_posts'].",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_e2e_instruct_rejects_unsatisfiable_required_actions_before_llm_call(
+    tmp_path,
+    monkeypatch,
+    actions,
+    required_actions,
+    required_action_tags,
+    expected_error,
+):
+    llm_calls = []
+
+    class FakeLLMManager:
+        async def request(self, payload):
+            llm_calls.append(payload)
+            return {"role": "assistant", "content": "should not be called"}
+
+        async def close(self):
+            return None
+
+    monkeypatch.setattr(LLMModel, "build_manager", lambda self, *, log_context=None: FakeLLMManager())
+    llm = LLMModel.openai_compatible(
+        id="default",
+        model="fake-model",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test-key",
+        concurrency=1,
+    )
+    config = {
+        "agent_types": [{"id": "social_user", "archetype": "llm"}],
+        "agents": [
+            {
+                "id": "viewer",
+                "type": "social_user",
+                "persona": "A concise social media user.",
+                "state": {},
+            }
+        ],
+        "environment": {
+            "type": "social_network",
+            "config": {"social_media": {"recommendation": {"use_embedding_similarity": False}}},
+            "state": {},
+        },
+    }
+    engine = Society0(save_dir=str(tmp_path), base_config=config, llm=llm, embed=_fake_embed_model())
+
+    @engine.step(name="unsatisfiable_required_action")
+    async def unsatisfiable_required_action(ctx):
+        result = await ctx.agents.all().instruct(
+            "Try to complete a required social action.",
+            actions=actions,
+            memory=False,
+            max_turns=1,
+            required_actions=required_actions,
+            required_action_tags=required_action_tags,
+            name="unsatisfiable_required_action",
+        )
+        return ctx.result(tables={"result": result.table()})
+
+    await engine.run(steps=1)
+
+    assert llm_calls == []
+    row = _jsonl(tmp_path / "steps.jsonl")[0]["result"]["tables"]["result"][0]
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    batch = summary["events"]["agent_batches"]["instruct / unsatisfiable_required_action"]
+
+    assert row["status"] == "error"
+    assert expected_error in row["error"]
+    assert "Align required_actions/required_action_tags with the actions exposed to the LLM tool loop." in row["error"]
+    assert batch["error_samples"][0]["error"] == row["error"]
+    assert batch["success_count_total"] == 0
+    assert batch["error_count_total"] == 1
+
+
+@pytest.mark.parametrize(
     "script_name,expected_run_dir",
     [
         ("example_usage.py", Path("runs/basic_example")),

@@ -1046,17 +1046,45 @@ class World:
             return f"{base_message}. Available FoVs include: {', '.join(available_fovs[:10])}"
         return base_message
 
-    def _validate_action_filter(self, agent: Any, action_tags: Optional[List[str]]) -> None:
-        """Fail early when a non-empty action filter cannot expose any action."""
-        if action_tags is None or len(action_tags) == 0:
-            return
+    def _validate_action_filter(
+        self,
+        agent: Any,
+        action_tags: Optional[List[str]],
+        *,
+        required_action_names: Optional[List[str]] = None,
+        required_action_tags: Optional[List[str]] = None,
+    ) -> None:
+        """Fail early when action filters make required tool behavior impossible."""
         actionset = getattr(agent, "_actionset", None)
         if actionset is None:
             actionset = self.assemble_agent_actionset(agent)
-        filtered_actionset = actionset.filter_by_tags(action_tags=action_tags)
-        if filtered_actionset.actions:
-            return
-        raise ValueError(self._action_filter_not_found_message(action_tags, actionset))
+        if action_tags is None:
+            filtered_actionset = actionset.filter_by_tags(exclude_tags=["memory"])
+        else:
+            filtered_actionset = actionset.filter_by_tags(action_tags=action_tags)
+
+        if action_tags is not None and len(action_tags) > 0 and not filtered_actionset.actions:
+            raise ValueError(self._action_filter_not_found_message(action_tags, actionset))
+
+        missing_required_actions = [
+            name
+            for name in (required_action_names or [])
+            if not self._actionset_has_action_name(filtered_actionset, str(name))
+        ]
+        missing_required_tags = [
+            tag
+            for tag in (required_action_tags or [])
+            if not self._actionset_has_action_tag(filtered_actionset, str(tag))
+        ]
+        if missing_required_actions or missing_required_tags:
+            raise ValueError(
+                self._required_action_constraints_not_available_message(
+                    filtered_actionset,
+                    action_tags=action_tags,
+                    missing_required_actions=missing_required_actions,
+                    missing_required_tags=missing_required_tags,
+                )
+            )
 
     def _action_filter_not_found_message(self, action_tags: List[str], actionset: Any) -> str:
         requested = [str(tag) for tag in action_tags]
@@ -1084,6 +1112,72 @@ class World:
             parts.append(f"Available action names/tags include: {', '.join(available[:16])}.")
         parts.append("Use actions=[...] only for actions or action tags exposed to the LLM tool loop.")
         return " ".join(parts)
+
+    def _required_action_constraints_not_available_message(
+        self,
+        filtered_actionset: Any,
+        *,
+        action_tags: Optional[List[str]],
+        missing_required_actions: List[str],
+        missing_required_tags: List[str],
+    ) -> str:
+        parts = []
+        filter_text = "None" if action_tags is None else "[" + ", ".join(repr(str(tag)) for tag in action_tags) + "]"
+        if missing_required_actions:
+            parts.append(
+                "Required action(s) "
+                + ", ".join(repr(str(name)) for name in missing_required_actions)
+                + f" are not available after applying actions={filter_text}."
+            )
+        if missing_required_tags:
+            parts.append(
+                "Required action tag(s) "
+                + ", ".join(repr(str(tag)) for tag in missing_required_tags)
+                + f" are not available after applying actions={filter_text}."
+            )
+        for token in [*missing_required_actions, *missing_required_tags]:
+            matching_kinds = self._capability_kinds_matching_name(str(token), exclude_kind="action")
+            for kind in matching_kinds:
+                if kind == "fov":
+                    parts.append(f"'{token}' is a FoV, not an action; use fovs=['{token}'].")
+                elif kind == "rule":
+                    parts.append(f"'{token}' is a rule, not an action; use ctx.rule('{token}', ...).")
+                elif kind == "behavior":
+                    parts.append(
+                        f"'{token}' is a behavior, not an action; use ctx.behavior(...) or AgentGroup.behavior(...)."
+                    )
+        available = self._available_action_filter_tokens(filtered_actionset)
+        if available:
+            parts.append(f"Available filtered action names/tags include: {', '.join(available[:16])}.")
+        else:
+            parts.append("The filtered action set is empty.")
+        parts.append(
+            "Align required_actions/required_action_tags with the actions exposed to the LLM tool loop."
+        )
+        return " ".join(parts)
+
+    @staticmethod
+    def _actionset_has_action_name(actionset: Any, name: str) -> bool:
+        target = name.lower()
+        for action_name in getattr(actionset, "actions", {}):
+            aliases = {str(action_name).lower()}
+            if "." in str(action_name):
+                aliases.add(str(action_name).rsplit(".", maxsplit=1)[-1].lower())
+            if target in aliases:
+                return True
+        return False
+
+    @staticmethod
+    def _actionset_has_action_tag(actionset: Any, tag: str) -> bool:
+        target = tag.lower()
+        for action_name, action_info in getattr(actionset, "actions", {}).items():
+            tokens = {str(action_name).lower()}
+            if "." in str(action_name):
+                tokens.add(str(action_name).rsplit(".", maxsplit=1)[-1].lower())
+            tokens.update(str(item).lower() for item in (action_info.get("tags", []) or []))
+            if target in tokens:
+                return True
+        return False
 
     def _capability_kinds_matching_name(self, name: str, *, exclude_kind: Optional[str] = None) -> List[str]:
         registry = getattr(self, "_function_registry", None)
@@ -1281,7 +1375,12 @@ class World:
         # Get agent instance
         agent = self.get_agent(agent_id)
         step_number = current_step if current_step is not None else self.step
-        self._validate_action_filter(agent, action_tags)
+        self._validate_action_filter(
+            agent,
+            action_tags,
+            required_action_names=kwargs.get("required_action_names"),
+            required_action_tags=kwargs.get("required_action_tags"),
+        )
 
         fov_collection_started = time.time()
         fov_results = await self._collect_fov_results(
