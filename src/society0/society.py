@@ -14,6 +14,7 @@ import yaml
 from .async_utils import invoke_maybe_async
 from .context_stack import ContextStack
 from .core_data import World
+from .diagnostics import render_runtime_diagnostic_report
 from .environment import Environment, EnvironmentTickContext
 from .function_registry import FunctionRegistry, register_environment_capabilities
 from .logging import ExperimentLogContext
@@ -676,9 +677,20 @@ class Society0:
         if failure is not None:
             summary["failure"] = dict(failure)
         path = self.save_dir / "summary.json"
+        self._write_summary_payload(path, summary)
+        self._write_diagnostics_report(summary)
+        summary["outputs"] = self._summarize_output_files()
+        self._write_summary_payload(path, summary)
+        self._write_diagnostics_report(summary)
+
+    def _write_summary_payload(self, path: Path, summary: Dict[str, Any]) -> None:
         with path.open("w", encoding="utf-8") as handle:
             json.dump(summary, handle, ensure_ascii=False, indent=2, default=str)
             handle.write("\n")
+
+    def _write_diagnostics_report(self, summary: Dict[str, Any]) -> None:
+        report_path = self.save_dir / "diagnostics.md"
+        report_path.write_text(render_runtime_diagnostic_report(summary), encoding="utf-8")
 
     def _summarize_models(self) -> Dict[str, Any]:
         """Summarize declared models without exposing endpoints or credentials."""
@@ -1899,7 +1911,7 @@ class Society0:
 
         files: Dict[str, Dict[str, Any]] = {}
         total_bytes = 0
-        for name in ("events.jsonl", "steps.jsonl", "metrics.jsonl", "resource_calls.jsonl"):
+        for name in ("events.jsonl", "steps.jsonl", "metrics.jsonl", "resource_calls.jsonl", "diagnostics.md"):
             path = self.save_dir / name
             if not path.exists():
                 continue

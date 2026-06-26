@@ -20,6 +20,7 @@ steps.jsonl
 metrics.jsonl
 events.jsonl
 summary.json
+diagnostics.md
 checkpoints/
 logs/
 chroma_store/
@@ -155,7 +156,7 @@ If `llm.call_count` is higher than the number of selected agents, inspect whethe
 
 For detailed attribution, inspect `resource_calls.jsonl`. LLM records should include `agent_id`, `step_name`, `interaction_type`, and `interaction_name`. Embedding records can be batched; when a batch covers multiple agents or memory operations, read plural fields such as `agent_ids`, `step_names`, `interaction_types`, and `interaction_names`.
 
-For a compact first-pass runtime report, generate a read-only diagnostics file from `summary.json`:
+Each run writes `diagnostics.md`, a compact first-pass runtime report generated from `summary.json`. To regenerate it after copying or editing a run summary:
 
 ```python
 from pathlib import Path
