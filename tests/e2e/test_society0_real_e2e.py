@@ -17,7 +17,6 @@ import pytest
 from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0
-from society0.diagnostics import render_runtime_diagnostic_report
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
 
 
@@ -1084,7 +1083,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
-    diagnostic_report = render_runtime_diagnostic_report(tmp_path)
+    diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
 
@@ -1127,6 +1126,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 2
     assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
     assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
+    assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] > 0
     assert (
         "Actions: attempted submit_final_decision=2; successful submit_final_decision=1; "
         "failed submit_final_decision=1."
@@ -1414,7 +1414,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
-    diagnostic_report = render_runtime_diagnostic_report(tmp_path)
+    diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     events = _read_jsonl(tmp_path / "events.jsonl")
 
     posts = checkpoint["environment_data"]["state"].get("posts", {})
@@ -1425,6 +1425,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["steps_requested"] == 2
     assert summary["steps_completed"] == 2
     assert summary["final_step"] == 2
+    assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] > 0
     assert len(posts) == agent_count
     assert any(int(post.get("view_count") or 0) >= 1 for post in posts.values())
     assert recommended_posts

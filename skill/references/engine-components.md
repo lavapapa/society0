@@ -148,6 +148,7 @@ The runtime writes:
 - `metrics.jsonl`: per-step metrics.
 - `events.jsonl`: compact monitoring events for lifecycle, errors, action traces, recommendation traces, and long-running agent-batch progress.
 - `summary.json`: final run summary.
+- `diagnostics.md`: read-only researcher-facing runtime diagnostic report generated from `summary.json`.
 - `checkpoints/`: initial, periodic, and final world state.
 - `chroma_store/`: memory persistence.
 - `logs/`: structured resource and simulation logs.

@@ -67,6 +67,7 @@ steps.jsonl
 metrics.jsonl
 events.jsonl
 summary.json
+diagnostics.md
 checkpoints/
 chroma_store/
 ```
