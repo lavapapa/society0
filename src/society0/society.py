@@ -1953,6 +1953,30 @@ class Society0:
         agent_batches: Dict[str, Dict[str, Any]] = {}
         logic_executions: Dict[str, Dict[str, Any]] = {}
         env_hooks: Dict[str, Dict[str, Any]] = {}
+        social_recommendations: Dict[str, Any] = {
+            "trace_count": 0,
+            "flush_count": 0,
+            "unique_agent_ids": set(),
+            "record_impression_count": 0,
+            "record_recommended_state_count": 0,
+            "preview_count": 0,
+            "raw_candidate_count_total": 0,
+            "raw_candidate_count_max": 0,
+            "active_pool_count_total": 0,
+            "active_pool_count_max": 0,
+            "returned_count_total": 0,
+            "returned_count_max": 0,
+            "cache_rebuilds_total": 0,
+            "rank_duration_sec_total": 0.0,
+            "duration_sec_total": 0.0,
+            "output_characters_max": 0,
+            "impression_delta_total": 0,
+            "impression_post_count_total": 0,
+            "recommended_agent_update_count": 0,
+            "state_patch_count": 0,
+            "score_samples": [],
+            "by_tick": {},
+        }
         action_counts: Dict[str, int] = {}
         error_samples: list[Dict[str, Any]] = []
 
@@ -2051,6 +2075,115 @@ class Society0:
                     if action:
                         action_key = str(action)
                         action_counts[action_key] = action_counts.get(action_key, 0) + 1
+                    if name == "social_recommendation_trace":
+                        social_recommendations["trace_count"] += 1
+                        tick_trace = social_recommendations["by_tick"].setdefault(
+                            tick,
+                            {
+                                "trace_count": 0,
+                                "flush_count": 0,
+                                "raw_candidate_count_max": 0,
+                                "active_pool_count_max": 0,
+                                "returned_count_total": 0,
+                                "impression_delta_total": 0,
+                            },
+                        )
+                        tick_trace["trace_count"] += 1
+                        agent_id = event_data.get("agent_id")
+                        if agent_id is not None:
+                            social_recommendations["unique_agent_ids"].add(str(agent_id))
+                        for source_key, total_key, max_key in (
+                            ("raw_candidate_count", "raw_candidate_count_total", "raw_candidate_count_max"),
+                            ("active_pool_count", "active_pool_count_total", "active_pool_count_max"),
+                            ("returned_count", "returned_count_total", "returned_count_max"),
+                        ):
+                            value = event_data.get(source_key)
+                            if isinstance(value, int):
+                                social_recommendations[total_key] += value
+                                social_recommendations[max_key] = max(social_recommendations[max_key], value)
+                                tick_trace[max_key] = max(tick_trace.get(max_key, 0), value)
+                                if source_key == "returned_count":
+                                    tick_trace["returned_count_total"] += value
+                        cache_rebuilds = event_data.get("cache_rebuilds_delta")
+                        if isinstance(cache_rebuilds, int):
+                            social_recommendations["cache_rebuilds_total"] += cache_rebuilds
+                        for source_key, total_key in (
+                            ("rank_duration_sec", "rank_duration_sec_total"),
+                            ("duration_sec", "duration_sec_total"),
+                        ):
+                            value = event_data.get(source_key)
+                            if isinstance(value, (int, float)):
+                                social_recommendations[total_key] = round(
+                                    float(social_recommendations[total_key]) + float(value),
+                                    6,
+                                )
+                        output_characters = event_data.get("output_characters")
+                        if isinstance(output_characters, int):
+                            social_recommendations["output_characters_max"] = max(
+                                social_recommendations["output_characters_max"],
+                                output_characters,
+                            )
+                        if event_data.get("record_impression") is True:
+                            social_recommendations["record_impression_count"] += 1
+                        if event_data.get("record_recommended_state") is True:
+                            social_recommendations["record_recommended_state_count"] += 1
+                        if event_data.get("record_impression") is False:
+                            social_recommendations["preview_count"] += 1
+                        score_breakdown = event_data.get("score_breakdown")
+                        if isinstance(score_breakdown, list):
+                            for score in score_breakdown:
+                                if not isinstance(score, dict):
+                                    continue
+                                if len(social_recommendations["score_samples"]) >= 5:
+                                    break
+                                sample = {
+                                    "tick": tick,
+                                    "agent_id": agent_id,
+                                    **{
+                                        key: score.get(key)
+                                        for key in (
+                                            "rank",
+                                            "post_id",
+                                            "author_id",
+                                            "total_score",
+                                            "time_contribution",
+                                            "engagement_contribution",
+                                            "network_contribution",
+                                            "semantic_contribution",
+                                        )
+                                    },
+                                }
+                                social_recommendations["score_samples"].append(sample)
+                    elif name == "social_recommendation_state_flushed":
+                        social_recommendations["flush_count"] += 1
+                        tick_trace = social_recommendations["by_tick"].setdefault(
+                            tick,
+                            {
+                                "trace_count": 0,
+                                "flush_count": 0,
+                                "raw_candidate_count_max": 0,
+                                "active_pool_count_max": 0,
+                                "returned_count_total": 0,
+                                "impression_delta_total": 0,
+                            },
+                        )
+                        tick_trace["flush_count"] += 1
+                        impression_deltas = event_data.get("impression_deltas")
+                        if isinstance(impression_deltas, dict):
+                            impression_total = sum(
+                                int(value)
+                                for value in impression_deltas.values()
+                                if isinstance(value, int)
+                            )
+                            social_recommendations["impression_delta_total"] += impression_total
+                            social_recommendations["impression_post_count_total"] += len(impression_deltas)
+                            tick_trace["impression_delta_total"] += impression_total
+                        recommended_posts = event_data.get("recommended_posts")
+                        if isinstance(recommended_posts, dict):
+                            social_recommendations["recommended_agent_update_count"] += len(recommended_posts)
+                        state_patches = event_data.get("state_patches")
+                        if isinstance(state_patches, list):
+                            social_recommendations["state_patch_count"] += len(state_patches)
                     if name.startswith("agent_batch_"):
                         interaction_type = str(event_data.get("interaction_type") or "unknown_type")
                         interaction_name = str(event_data.get("interaction_name") or "unknown_name")
@@ -2404,6 +2537,28 @@ class Society0:
             "by_event": dict(sorted(by_event.items())),
             "by_tick": dict(sorted(by_tick.items(), key=lambda item: item[0])),
         }
+        if social_recommendations["trace_count"] or social_recommendations["flush_count"]:
+            trace_count = int(social_recommendations["trace_count"] or 0)
+            agent_ids = sorted(social_recommendations.pop("unique_agent_ids"))
+            social_recommendations["unique_agent_count"] = len(agent_ids)
+            if agent_ids:
+                social_recommendations["agent_ids_sample"] = agent_ids[:10]
+            if trace_count:
+                for total_key, avg_key in (
+                    ("raw_candidate_count_total", "raw_candidate_count_avg"),
+                    ("active_pool_count_total", "active_pool_count_avg"),
+                    ("returned_count_total", "returned_count_avg"),
+                ):
+                    social_recommendations[avg_key] = round(
+                        float(social_recommendations.get(total_key, 0)) / trace_count,
+                        3,
+                    )
+            by_tick_recommendations = social_recommendations.get("by_tick")
+            if isinstance(by_tick_recommendations, dict):
+                social_recommendations["by_tick"] = dict(
+                    sorted(by_tick_recommendations.items(), key=lambda item: item[0])
+                )
+            result["social_recommendations"] = dict(sorted(social_recommendations.items()))
         if agent_batches:
             self._attach_resource_calls_to_agent_batches(agent_batches)
             for batch in agent_batches.values():

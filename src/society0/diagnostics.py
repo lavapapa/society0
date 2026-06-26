@@ -30,6 +30,7 @@ def render_runtime_diagnostic_report(run_dir_or_summary: str | Path | Mapping[st
     lines.extend(_render_run_overview(summary))
     lines.extend(_render_environment_capabilities(summary.get("capabilities") or {}))
     lines.extend(_render_env_hooks(summary.get("events", {}).get("env_hooks") or {}))
+    lines.extend(_render_social_recommendations(summary.get("events", {}).get("social_recommendations") or {}))
     lines.extend(_render_logic_executions(summary.get("events", {}).get("logic_executions") or {}))
     lines.extend(_render_resource_bottlenecks(summary.get("resources") or {}))
     lines.extend(_render_agent_batches(summary.get("events", {}).get("agent_batches") or {}))
@@ -129,6 +130,73 @@ def _render_env_hooks(env_hooks: Mapping[str, Any]) -> List[str]:
                 suffix = f" at step {step}" if step is not None else ""
                 lines.append(f"- Error sample: {_format_error_sample(sample)}{suffix}.")
         lines.append("")
+    return lines
+
+
+def _render_social_recommendations(recommendations: Mapping[str, Any]) -> List[str]:
+    if not recommendations:
+        return []
+
+    lines = ["## Social Recommendation Diagnostics", ""]
+    trace_count = recommendations.get("trace_count", 0)
+    flush_count = recommendations.get("flush_count", 0)
+    unique_agents = recommendations.get("unique_agent_count", 0)
+
+    if trace_count:
+        lines.append(
+            "- Recommendation traces: "
+            f"{trace_count}; agents {unique_agents}; "
+            f"raw candidates avg/max {recommendations.get('raw_candidate_count_avg', 0)}/"
+            f"{recommendations.get('raw_candidate_count_max', 0)}; "
+            f"active pool avg/max {recommendations.get('active_pool_count_avg', 0)}/"
+            f"{recommendations.get('active_pool_count_max', 0)}; "
+            f"returned avg/max {recommendations.get('returned_count_avg', 0)}/"
+            f"{recommendations.get('returned_count_max', 0)}."
+        )
+        lines.append(
+            "- Recommendation side effects requested by traces: "
+            f"impression traces {recommendations.get('record_impression_count', 0)}, "
+            f"recommended-state traces {recommendations.get('record_recommended_state_count', 0)}, "
+            f"preview traces {recommendations.get('preview_count', 0)}."
+        )
+        lines.append(
+            "- Recommendation cache during rendering: "
+            f"rebuilds {recommendations.get('cache_rebuilds_total', 0)}; "
+            f"ranking {_fmt_seconds(recommendations.get('rank_duration_sec_total'))}; "
+            f"rendering {_fmt_seconds(recommendations.get('duration_sec_total'))}; "
+            f"max output chars {recommendations.get('output_characters_max', 0)}."
+        )
+
+    if flush_count:
+        lines.append(
+            "- Deferred recommendation flushes: "
+            f"{flush_count}; impression delta total {recommendations.get('impression_delta_total', 0)}; "
+            f"posts touched {recommendations.get('impression_post_count_total', 0)}; "
+            f"agent recommendation updates {recommendations.get('recommended_agent_update_count', 0)}; "
+            f"state patches {recommendations.get('state_patch_count', 0)}."
+        )
+
+    by_tick = recommendations.get("by_tick")
+    if isinstance(by_tick, Mapping) and by_tick:
+        ticks = ", ".join(str(tick) for tick in sorted(by_tick, key=str))
+        lines.append(f"- Tick coverage: {ticks}.")
+
+    score_samples = recommendations.get("score_samples")
+    if isinstance(score_samples, list) and score_samples:
+        sample = score_samples[0]
+        if isinstance(sample, Mapping):
+            context = _compact_context(sample, keys=("tick", "agent_id", "rank", "post_id"))
+            lines.append(
+                "- Top score sample: "
+                + (f"{context}; " if context else "")
+                + f"total={sample.get('total_score', 'unknown')}, "
+                f"engagement={sample.get('engagement_contribution', 'unknown')}, "
+                f"time={sample.get('time_contribution', 'unknown')}, "
+                f"network={sample.get('network_contribution', 'unknown')}, "
+                f"semantic={sample.get('semantic_contribution', 'unknown')}."
+            )
+
+    lines.append("")
     return lines
 
 
