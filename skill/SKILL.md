@@ -1,6 +1,6 @@
 ---
 name: society0
-description: "Help humanities, social science, and communication researchers use the Society0 simulation engine: design env-first social simulation experiments from observations, choose or extend environments, configure rule-based or LLM-based agents, write code-driven step(ctx) runs, configure LLM and embedding providers, monitor outputs, analyze results, and debug runtime issues."
+description: "Help humanities, social science, communication, economics, finance, and interdisciplinary researchers use the Society0 simulation engine: design env-first LLM-based multi-agent social simulation experiments from observations or papers, choose or extend environments, configure rule-based or LLM-based agents, reproduce domain-specific simulation designs, write code-driven step(ctx) runs, configure LLM and embedding providers, monitor outputs, analyze results, and debug runtime issues."
 ---
 
 # Society0
@@ -112,9 +112,27 @@ async def rule_update(ctx):
 - `references/step-dsl.md`: CodeSchedule, StepContext, AgentGroup, instruct/interview, results, outputs.
 - `references/research-design.md`: Convert social science observations into simulation experiments.
 - `references/study-patterns.md`: Reusable study patterns for communication, governance, organization, city, and economy simulations.
+- `references/simulation-paper-distillation.md`: Meta-guide for reading full papers and distilling LLM-based social simulation methods into consolidated domain guides.
+- `references/economics-finance-simulation-design.md`: Entry point for economics/finance simulation targets, evidence map, taxonomy, loading order, and reproduction boundaries.
+- `references/economics-finance-macro-urban-simulation.md`: Household macroeconomy, urban multi-role economy, and economic testbed designs distilled from EconAgent, SimCity, and EconGym.
+- `references/economics-finance-expectations-survey-simulation.md`: Macroeconomic expectations, inflation expectations, professional forecasts, text-generated beliefs, and survey-agent experiment designs.
+- `references/economics-finance-financial-market-simulation.md`: LLM trader, stock-market, investor-belief, bank-run, depositor-withdrawal, and crisis-communication simulation designs.
+- `references/economics-finance-method-synthesis.md`: Cross-target economics/finance principles, fidelity checklist, calibration, FoV control, baselines, ablations, validation, and failure modes.
 - `references/run-monitor-analyze.md`: Monitor runs and analyze quantitative and qualitative outputs.
 - `references/debugging.md`: Provider, Chroma, schema, import, memory, and runtime troubleshooting.
 - `references/field-examples.md`: Representative generative-agent and LLM social simulation examples.
+
+## Domain Simulation Guides
+
+When the user asks to reproduce, adapt, or design a simulation from a discipline-specific paper, first read `references/simulation-paper-distillation.md`, then load the matching domain guide after the core Society0 references. Domain guides should teach how to turn a research question, research hunch, or intuitive idea into Society0's env-first scaffold: setting, FoVs, actions, hosted constraints, records, measurements, baselines, ablations, and interpretation boundaries. They are not just paper summaries or reproduction checklists; use the references to triage non-headline work such as data preparation, persona construction, treatment design, calibration, parsing, qualitative coding, and validation.
+
+- Economics and finance overview: read `references/economics-finance-simulation-design.md` first for the target taxonomy, paper evidence map, loading order, and fidelity labels.
+- Household macro, urban macro, or economic testbed: read `references/economics-finance-macro-urban-simulation.md` when the user mentions EconAgent, SimCity, EconGym, work/consumption, tax redistribution, labor/goods/financial markets, city development, policy tests, GDP, inflation, unemployment, or stylized macro facts.
+- Expectations or survey-agent experiments: read `references/economics-finance-expectations-survey-simulation.md` when the user mentions inflation expectations, macro expectations, survey experiments, professional forecasters, SCE/SPF-style panels, treatment effects, text-generated beliefs, recapitulation, or LLM respondents.
+- Financial markets or banking crises: read `references/economics-finance-financial-market-simulation.md` when the user mentions ASFM, LLM traders, buy/sell/hold orders, order matching, investor beliefs, bank runs, deposit withdrawals, panic posts, or crisis communication.
+- New economics/finance designs and robustness planning: read `references/economics-finance-method-synthesis.md` when the user asks for a new design, cross-paper synthesis, reproduction fidelity, calibration, FoV control, baselines, ablations, validation, or known failure modes.
+
+Consolidate distillation products by discipline or simulation target instead of creating one reference file per paper. Create a general cross-domain simulation guide only after multiple domain guides exist and there is enough evidence to extract shared principles without flattening discipline-specific design constraints.
 
 If the skill or references are not specific enough, inspect the source directly. Start from `src/society0/society.py`, `src/society0/schedule.py`, `src/society0/environment.py`, `src/society0/env/`, and `src/society0/agent/core.py`. Treat source behavior as authoritative.
 
