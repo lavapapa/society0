@@ -524,8 +524,8 @@ class Society0:
         env = world.get_environment()
         self._register_environment_functions(env)
         if hasattr(env, "set_resource_handles"):
-            vector_client = self.persistence_manager.get_chroma_client()
             embed_call = self._embedding_manager.request if self._embedding_manager else None
+            vector_client = self.persistence_manager.get_chroma_client() if embed_call else None
             env.set_resource_handles(embed_call=embed_call, vector_client=vector_client)
 
         has_llm_agents = any(data.get("archetype") == "llm" for data in world.agents_data.values())
