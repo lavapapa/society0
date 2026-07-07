@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Iterable, Iterator, List, Optional
 
+from jsonschema import validate as validate_json_schema
+
 from .async_utils import invoke_maybe_async
 from .core_data import BaseOperatorResult, ExecutionContext
 
@@ -1078,9 +1080,15 @@ class StepContext:
 
         This is a thin scheduling primitive. Domain code should decide how to
         interpret the returned text; the core only normalizes messages, routes
-        the call through the model provider, and optionally parses JSON.
+        the call through the model provider, optionally parses JSON, and reports
+        schema validation errors when a JSON schema is available.
         """
         llm_call, model_id = _resolve_step_llm_call(self.world, model=model)
+        validation_schema = _step_llm_validation_schema(
+            response_format=response_format,
+            output_schema=output_schema,
+            json_schema=json_schema,
+        )
         payload = _build_step_llm_payload(
             prompt=prompt,
             messages=messages,
@@ -1100,14 +1108,25 @@ class StepContext:
         )
         raw = await llm_call(payload)
         content = _extract_llm_content(raw)
-        should_parse_json = bool(parse_json or output_schema is not None or json_schema is not None)
+        should_parse_json = bool(
+            parse_json
+            or output_schema is not None
+            or json_schema is not None
+            or _response_format_requests_json(response_format)
+        )
         parsed = None
         parse_error = None
+        validation_error = None
         if should_parse_json:
             try:
                 parsed = _parse_json_from_llm_text(content)
             except Exception as exc:
                 parse_error = str(exc) or repr(exc)
+        if parsed is not None and validation_schema is not None:
+            try:
+                validate_json_schema(instance=parsed, schema=validation_schema)
+            except Exception as exc:
+                validation_error = str(exc) or repr(exc)
         result = {
             "model_id": model_id,
             "content": content,
@@ -1116,6 +1135,8 @@ class StepContext:
         }
         if parse_error:
             result["parse_error"] = parse_error
+        if validation_error:
+            result["validation_error"] = validation_error
         return result
 
     async def llm_json(self, prompt: Optional[str] = None, **kwargs: Any) -> Dict[str, Any]:
@@ -1404,7 +1425,11 @@ def _resolve_step_llm_call(world: Any, *, model: Optional[str]) -> tuple[Callabl
 
     llm_call = getattr(world, "_llm_call", None)
     if llm_call is not None:
-        return llm_call, model
+        if model is not None:
+            raise ValueError(
+                "ctx.llm(model=...) requires a Society0 model provider; fallback _llm_call cannot route by model"
+            )
+        return llm_call, None
 
     raise RuntimeError("ctx.llm(...) requires Society0(..., llm=LLMModel(...)) or an injected model provider")
 
@@ -1517,6 +1542,40 @@ def _safe_response_schema_name(value: str) -> str:
     cleaned = "".join(ch if ch.isascii() and (ch.isalnum() or ch in {"_", "-"}) else "_" for ch in str(value or "schema"))
     cleaned = cleaned.strip("_") or "schema"
     return cleaned[:64]
+
+
+def _response_format_requests_json(response_format: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(response_format, dict):
+        return False
+    return response_format.get("type") in {"json_object", "json_schema"}
+
+
+def _step_llm_validation_schema(
+    *,
+    response_format: Optional[Dict[str, Any]],
+    output_schema: Any,
+    json_schema: Any,
+) -> Optional[Dict[str, Any]]:
+    schema_source = json_schema if json_schema is not None else output_schema
+    if schema_source is None:
+        schema_source = response_format
+    if schema_source is None:
+        return None
+    schema = _json_schema_from_value(schema_source)
+    return _extract_json_schema_definition(schema)
+
+
+def _extract_json_schema_definition(schema: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    schema_type = schema.get("type")
+    if schema_type == "json_object":
+        return None
+    if schema_type == "json_schema":
+        json_schema_payload = schema.get("json_schema")
+        if isinstance(json_schema_payload, dict):
+            nested_schema = json_schema_payload.get("schema")
+            if isinstance(nested_schema, dict):
+                return dict(nested_schema)
+    return dict(schema)
 
 
 def _extract_llm_content(raw: Any) -> str:

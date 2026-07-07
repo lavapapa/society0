@@ -67,6 +67,17 @@ def _read_jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+class _CallableLLMManager:
+    def __init__(self, call):
+        self._call = call
+
+    async def request(self, payload):
+        return await self._call(payload)
+
+    async def close(self):
+        pass
+
+
 def test_event_logger_compacts_large_state_change_values_but_not_listener_batch(tmp_path):
     events_path = tmp_path / "events.jsonl"
     captured_batches = []
@@ -4412,17 +4423,14 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_code_step_can_call_llm_with_json_output(tmp_path):
+async def test_code_step_can_call_llm_with_structured_json_output(tmp_path):
     llm_calls = []
 
     async def fake_llm_call(payload):
         llm_calls.append(payload)
         return {
             "role": "assistant",
-            "content": (
-                '{"numeric_effects":[{"path":"demand_index","delta":0.2}],'
-                '"message":"订单需求上升，但主要解释仍保留在文本中。"}'
-            ),
+            "content": "{\"items\":[{\"label\":\"alpha\",\"score\":2}],\"note\":\"compact structured result\"}",
         }
 
     engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
@@ -4444,29 +4452,29 @@ async def test_code_step_can_call_llm_with_json_output(tmp_path):
         default_model_id="semantic",
     )
 
-    @engine.step(name="translate_external_text")
-    async def translate_external_text(ctx):
+    @engine.step(name="extract_structured_note")
+    async def extract_structured_note(ctx):
         result = await ctx.llm(
-            "把外部新闻转成最少数字调整和一段消息。",
-            system="数字最小化，语义最大化。",
+            "Extract a compact JSON note.",
+            system="Return JSON only.",
             model="semantic",
             output_schema={
                 "type": "object",
                 "properties": {
-                    "numeric_effects": {"type": "array"},
-                    "message": {"type": "string"},
+                    "items": {"type": "array"},
+                    "note": {"type": "string"},
                 },
-                "required": ["numeric_effects", "message"],
+                "required": ["items", "note"],
             },
             max_tokens=128,
             temperature=0,
-            metadata={"source_ref": "news_1"},
-            name="external_text_compression",
+            metadata={"source_ref": "fixture_1"},
+            name="structured_note",
         )
-        ctx.env.state["translated"] = result["parsed"]
+        ctx.env.state["structured_note"] = result["parsed"]
         return ctx.result(
-            metrics={"numeric_effects": len(result["parsed"]["numeric_effects"])},
-            observations={"message": result["parsed"]["message"], "model_id": result["model_id"]},
+            metrics={"item_count": len(result["parsed"]["items"])},
+            observations={"note": result["parsed"]["note"], "model_id": result["model_id"]},
         )
 
     await engine.run(steps=1)
@@ -4474,23 +4482,144 @@ async def test_code_step_can_call_llm_with_json_output(tmp_path):
     assert len(llm_calls) == 1
     payload = llm_calls[0]
     assert payload["messages"] == [
-        {"role": "system", "content": "数字最小化，语义最大化。"},
-        {"role": "user", "content": "把外部新闻转成最少数字调整和一段消息。"},
+        {"role": "system", "content": "Return JSON only."},
+        {"role": "user", "content": "Extract a compact JSON note."},
     ]
     assert payload["max_tokens"] == 128
     assert payload["temperature"] == 0
     assert payload["response_format"]["type"] == "json_schema"
     assert payload["metadata"] == {
-        "source_ref": "news_1",
+        "source_ref": "fixture_1",
         "step": 0,
-        "step_name": "translate_external_text",
+        "step_name": "extract_structured_note",
         "interaction_type": "code_schedule_llm",
-        "interaction_name": "external_text_compression",
+        "interaction_name": "structured_note",
     }
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
-    assert metrics[0]["metrics"] == {"numeric_effects": 1}
+    assert metrics[0]["metrics"] == {"item_count": 1}
     final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
-    assert final_checkpoint["environment_data"]["state"]["translated"]["message"] == "订单需求上升，但主要解释仍保留在文本中。"
+    assert final_checkpoint["environment_data"]["state"]["structured_note"]["note"] == "compact structured result"
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_parses_json_response_format_with_fallback_call(tmp_path):
+    llm_calls = []
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {"choices": [{"message": {"content": "{\"status\":\"ok\"}"}}]}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="parse_json_object")
+    async def parse_json_object(ctx):
+        result = await ctx.llm(
+            messages=[{"role": "user", "content": "Return status."}],
+            response_format={"type": "json_object"},
+            name="status_extract",
+        )
+        ctx.env.state["status"] = result["parsed"]
+        return ctx.result(observations={"status": result["parsed"]["status"], "model_id": result["model_id"]})
+
+    await engine.run(steps=1)
+
+    assert llm_calls[0]["response_format"] == {"type": "json_object"}
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["status"] == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_fallback_rejects_model_selection(tmp_path):
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": "{}"}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="fallback_model_selection")
+    async def fallback_model_selection(ctx):
+        await ctx.llm("hello", model="secondary")
+        return ctx.result()
+
+    with pytest.raises(ValueError, match="model provider"):
+        await engine.run(steps=1)
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_selects_registered_model(tmp_path):
+    llm_calls = {"primary": [], "secondary": []}
+
+    async def primary_llm_call(payload):
+        llm_calls["primary"].append(payload)
+        return {"role": "assistant", "content": "primary"}
+
+    async def secondary_llm_call(payload):
+        llm_calls["secondary"].append(payload)
+        return {"role": "assistant", "content": "secondary"}
+
+    def runtime(model_id, llm_call):
+        return ModelRuntime(
+            config=ModelConfig(
+                model_id=model_id,
+                name=model_id,
+                model_type="llm",
+                base_url="http://localhost/v1",
+                model=f"fake-{model_id}",
+                api_key="test",
+                concurrency=2,
+            ),
+            llm_call=llm_call,
+        )
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._model_provider = ModelProvider(
+        models={
+            "primary": runtime("primary", primary_llm_call),
+            "secondary": runtime("secondary", secondary_llm_call),
+        },
+        default_model_id="primary",
+    )
+
+    @engine.step(name="select_model")
+    async def select_model(ctx):
+        result = await ctx.llm("hello", model="secondary")
+        ctx.env.state["model_id"] = result["model_id"]
+        return ctx.result(observations={"model_id": result["model_id"], "content": result["content"]})
+
+    await engine.run(steps=1)
+
+    assert llm_calls["primary"] == []
+    assert len(llm_calls["secondary"]) == 1
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["model_id"] == "secondary"
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_reports_schema_validation_error(tmp_path):
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": "{\"status\":\"ok\"}"}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="validate_structured_output")
+    async def validate_structured_output(ctx):
+        result = await ctx.llm(
+            "Return a count.",
+            output_schema={
+                "type": "object",
+                "properties": {"count": {"type": "integer"}},
+                "required": ["count"],
+            },
+        )
+        ctx.env.state["validation_error"] = result.get("validation_error")
+        return ctx.result(observations={"has_validation_error": "validation_error" in result})
+
+    await engine.run(steps=1)
+
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert "count" in final_checkpoint["environment_data"]["state"]["validation_error"]
 
 
 @pytest.mark.asyncio
