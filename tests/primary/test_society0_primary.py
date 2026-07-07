@@ -12,6 +12,7 @@ from society0.agent.memory import Memory
 from society0.core_data import World
 from society0.function_registry import FunctionRegistry
 from society0.logging import ExperimentLogContext
+from society0.llm_model_types import ModelConfig, ModelProvider, ModelRuntime
 from society0.models import LLMModel as PublicLLMModel
 from society0.resource_managers import EmbeddingManager, LLMManager
 from society0.context_stack import ContextStack
@@ -4408,6 +4409,101 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["completed_count"] == 2
     assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["success_count"] == 3
     assert logic_summary["behavior / adjust_trust"]["by_tick"]["1"]["agent_count_total"] == 3
+
+
+@pytest.mark.asyncio
+async def test_code_step_can_call_llm_with_json_output(tmp_path):
+    llm_calls = []
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": (
+                '{"numeric_effects":[{"path":"demand_index","delta":0.2}],'
+                '"message":"订单需求上升，但主要解释仍保留在文本中。"}'
+            ),
+        }
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._model_provider = ModelProvider(
+        models={
+            "semantic": ModelRuntime(
+                config=ModelConfig(
+                    model_id="semantic",
+                    name="semantic",
+                    model_type="llm",
+                    base_url="http://localhost/v1",
+                    model="fake-semantic-model",
+                    api_key="test",
+                    concurrency=2,
+                ),
+                llm_call=fake_llm_call,
+            )
+        },
+        default_model_id="semantic",
+    )
+
+    @engine.step(name="translate_external_text")
+    async def translate_external_text(ctx):
+        result = await ctx.llm(
+            "把外部新闻转成最少数字调整和一段消息。",
+            system="数字最小化，语义最大化。",
+            model="semantic",
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "numeric_effects": {"type": "array"},
+                    "message": {"type": "string"},
+                },
+                "required": ["numeric_effects", "message"],
+            },
+            max_tokens=128,
+            temperature=0,
+            metadata={"source_ref": "news_1"},
+            name="external_text_compression",
+        )
+        ctx.env.state["translated"] = result["parsed"]
+        return ctx.result(
+            metrics={"numeric_effects": len(result["parsed"]["numeric_effects"])},
+            observations={"message": result["parsed"]["message"], "model_id": result["model_id"]},
+        )
+
+    await engine.run(steps=1)
+
+    assert len(llm_calls) == 1
+    payload = llm_calls[0]
+    assert payload["messages"] == [
+        {"role": "system", "content": "数字最小化，语义最大化。"},
+        {"role": "user", "content": "把外部新闻转成最少数字调整和一段消息。"},
+    ]
+    assert payload["max_tokens"] == 128
+    assert payload["temperature"] == 0
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["metadata"] == {
+        "source_ref": "news_1",
+        "step": 0,
+        "step_name": "translate_external_text",
+        "interaction_type": "code_schedule_llm",
+        "interaction_name": "external_text_compression",
+    }
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")
+    assert metrics[0]["metrics"] == {"numeric_effects": 1}
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["translated"]["message"] == "订单需求上升，但主要解释仍保留在文本中。"
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_requires_model_provider(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+
+    @engine.step(name="missing_llm")
+    async def missing_llm(ctx):
+        await ctx.llm("hello")
+        return ctx.result()
+
+    with pytest.raises(RuntimeError, match=r"ctx\.llm"):
+        await engine.run(steps=1)
 
 
 @pytest.mark.asyncio
