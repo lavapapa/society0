@@ -34,6 +34,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_BUILTIN_ENV_CLASS_PATHS = {
+    "plain": "society0.env.plain.env.PlainEnvironment",
+    "round_robin_conversation": "society0.env.round_robin.env.RoundRobinConversationEnv",
+    "social_network": "society0.env.social_network.env.SocialNetworkEnv",
+}
+
+
+def _load_builtin_environment_class(env_type: str) -> Optional[type]:
+    """按需导入指定内置环境，避免 runtime 为发现无关环境加载重依赖。"""
+    class_path = _BUILTIN_ENV_CLASS_PATHS.get(str(env_type))
+    if not class_path:
+        return None
+    module_name, _, class_name = class_path.rpartition(".")
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name, None)
+
+
 def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None, flush: bool = False) -> None:
     """Route legacy debug prints through logging without writing to stdout."""
     if file is not None:
@@ -712,22 +729,25 @@ class World:
             # Get environment type from configuration
             env_type = self.environment_data.get("type", "base")
 
-            # 1) 使用内置发现机制解析环境类
-            env_class = None
+            # 1) 优先按目标类型惰性导入内置环境，避免发现阶段加载所有环境依赖
+            env_class = _load_builtin_environment_class(str(env_type))
+
+            # 2) 使用内置发现机制解析非直达路径覆盖的环境类
             try:
-                from .env_discovery import discover_builtins  # type: ignore
-                if self._env_meta_cache is None:
-                    self._env_meta_cache = discover_builtins()
-                meta = self._env_meta_cache.get(env_type) if self._env_meta_cache else None
-                if meta is not None:
-                    module_name, _, class_name = meta.class_path.rpartition(".")
-                    if module_name:
-                        module = importlib.import_module(module_name)
-                        env_class = getattr(module, class_name, None)
+                if env_class is None:
+                    from .env_discovery import discover_builtins  # type: ignore
+                    if self._env_meta_cache is None:
+                        self._env_meta_cache = discover_builtins()
+                    meta = self._env_meta_cache.get(env_type) if self._env_meta_cache else None
+                    if meta is not None:
+                        module_name, _, class_name = meta.class_path.rpartition(".")
+                        if module_name:
+                            module = importlib.import_module(module_name)
+                            env_class = getattr(module, class_name, None)
             except Exception:
                 env_class = None
 
-            # 2) 回退到旧的内置注册表
+            # 3) 回退到旧的内置注册表
             if env_class is None:
                 try:
                     from .env import BUILTIN_ENVS  # type: ignore
@@ -735,14 +755,14 @@ class World:
                 except Exception:
                     env_class = None
 
-            # 3) 最终回退：基础 Environment
+            # 4) 最终回退：基础 Environment
             if env_class is None:
                 from .environment import Environment  # Import here to avoid circular imports
                 self._environment_cache = Environment(self)
                 logger.warning(f"Environment type '{env_type}' not registered, using base Environment")
             else:
                 self._environment_cache = env_class(self)
-                agents = self.get_all_agents()
+                agents = list(self.agents_data.keys()) if env_type == "plain" else self.get_all_agents()
                 self._environment_cache.initialize(agents, self)
                 # 🔑 v3.0: 初始化 Environment 提供的字段
                 self.initialize_env_provided_fields()

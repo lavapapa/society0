@@ -11,8 +11,6 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, Iterable, Iterator, List, Optional
 
-from jsonschema import validate as validate_json_schema
-
 from .async_utils import invoke_maybe_async
 from .core_data import BaseOperatorResult, ExecutionContext
 
@@ -1124,6 +1122,8 @@ class StepContext:
                 parse_error = str(exc) or repr(exc)
         if parsed is not None and validation_schema is not None:
             try:
+                from jsonschema import validate as validate_json_schema
+
                 validate_json_schema(instance=parsed, schema=validation_schema)
             except Exception as exc:
                 validation_error = str(exc) or repr(exc)
