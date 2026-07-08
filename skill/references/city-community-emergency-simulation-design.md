@@ -486,7 +486,7 @@ Use the smallest credible validation set for the target:
 - Traffic: FixedTime, MaxPressure, no-neighbor, no-history, no-complexity
   routing, rule/RL baselines where available; average travel time, queue length,
   waiting time, throughput, invalid phase, runtime, and OOD traffic.
-- Benchmark: task-specific metrics, city-level breakdowns, prompt/model
+- Benchmark: task specific metrics, city-level breakdowns, prompt/model
   sensitivity, refusal/misformat rate, and geographic bias.
 
 Run repeated seeds and report model/provider versions. For high-stakes

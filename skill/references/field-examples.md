@@ -40,7 +40,37 @@ WarAgent applies LLM multi-agent simulation to international conflict scenarios.
 
 Link: https://arxiv.org/abs/2311.17227
 
-Society0 mapping: high-stakes simulations require careful framing and limitation statements.
+Society0 mapping: model historical diplomacy as env-hosted country profiles, relationship boards, fixed actions, messages, treaty/war records, and graph metrics. High-stakes simulations require non-operational framing and limitation statements. Load `international-relations-conflict-security-simulation-design.md`.
+
+## EscalAItion And Crisis Escalation
+
+EscalAItion studies escalation risks from LLM agents in military and diplomatic decision-making with fixed nation actions, dynamic variables, world-model consequence summaries, action severity, and escalation scoring.
+
+Links:
+
+- https://dl.acm.org/doi/10.1145/3630106.3658942
+- https://github.com/jprivera44/EscalAItion
+
+Society0 mapping: use a custom crisis env with fixed action schemas, public/private communication, validated targets, severity labels, prompt/temperature/model sensitivity checks, and explicit deployment caution. Use for mechanism exploration and safety evaluation only.
+
+## Strategic Games And Security Dilemmas
+
+Recent LLM strategic-game work treats models as experimental subjects in repeated security dilemmas, varying polarity, finite horizons, and communication.
+
+Link: https://arxiv.org/abs/2605.03604
+
+Society0 mapping: start from a minimal game env with `attack`, `do_nothing`, optional public messages, terminal conflict, and repeated-seed robustness. Treat results as theory-probing artifacts, not state-behavior predictions.
+
+## Historical Battle Emulation
+
+BattleAgent uses a spatial sandbox, quantized time, map observations, dynamic agent structures, and historical-record comparison to emulate past battles.
+
+Links:
+
+- https://arxiv.org/abs/2404.15532
+- https://github.com/agiresearch/BattleAgent
+
+Society0 mapping: use only for historical emulation, pedagogy, and sandbox mechanism evidence. Keep public examples non-tactical and route modern conflict or safety-evaluation requests to the IR/security guide boundaries.
 
 ## Governance, Institutions, And Policy Practice
 

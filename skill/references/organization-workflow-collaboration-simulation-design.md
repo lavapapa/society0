@@ -8,7 +8,7 @@ organization-level decision behavior. Load it after `research-design.md`,
 `simulation-paper-distillation.md` when adapting a paper.
 
 This guide is not a generic multi-agent-framework guide. Extract organization,
-team, workflow, role, delegation, artifact, and task-environment mechanisms only.
+team, workflow, role, delegation, artifact, and task environment mechanisms only.
 Use ChatDev, MetaGPT, and AutoGen as supporting evidence for workflow design
 patterns, not as a reason to add a broad MAS reference file.
 
@@ -53,7 +53,7 @@ to the research claim. Keep organization-specific mechanics inside the env or
 experiment, not in `Society0`, `CodeSchedule`, `World`, or generic agent APIs.
 
 High-stakes boundary: organization and work simulations can support mechanism
-exploration, workflow rehearsal, task-benchmark design, and research planning.
+exploration, workflow rehearsal, task benchmark design, and research planning.
 They cannot by themselves evaluate workers, justify hiring, firing, discipline,
 performance management, compensation, surveillance, union strategy, automation
 policy, or consequential enterprise deployment. Require consent, privacy review,
@@ -71,7 +71,7 @@ reproduction. Candidate lists are not evidence.
 | Zhu et al., *Can LLM Agents Sustain Long-Horizon Organizational Dynamics?*, arXiv:2606.01199, https://arxiv.org/abs/2606.01199 and https://github.com/ZhuXuanCH/TaskWeave | Full arXiv PDF and official repository README checked. | TaskWeave long-horizon organizational coherence with role hierarchy, delegation topology, planning-state propagation, dependency-aware execution, trace memory, tools, and incident adaptation. |
 | Zou et al., *Simulating Organized Group Behavior: New Framework, Benchmark, and Analysis*, arXiv:2604.09874, https://arxiv.org/abs/2604.09874 and https://huggingface.co/datasets/jayzou3773/GROVE | Full arXiv PDF inspected. Paper lists a GROVE dataset link; a separate official code repository was not confirmed in this pass. | Organization or group as unit of analysis, historical context-decision pairs, codified decision trees, temporal drift, cross-group transfer, and multidimensional evaluation. |
 | Almutairi et al., *Simulating Teams with LLM Agents: Interactive 2D Environments for Studying Human-AI Dynamics*, arXiv:2510.08242, https://arxiv.org/abs/2510.08242 | Full arXiv PDF inspected. Public official code was not confirmed in this pass. | VirT-Lab configurable team simulations with 2D environment, roles, movement, communication, action logs, team metrics, agent metrics, and post-hoc interviews. |
-| Ju and Aral, *Collaborating with AI Agents: A Field Experiment on Teamwork, Productivity, and Performance*, arXiv:2503.18238, https://arxiv.org/abs/2503.18238 | Full arXiv PDF inspected. Treat as empirical process evidence, not as an LLM-agent simulation paper. | Pairit randomized human-human versus human-AI collaboration, real-time workspace logs, task-oriented communication, delegation, AI recognition, quality tradeoffs, and diversity collapse. |
+| Ju and Aral, *Collaborating with AI Agents: A Field Experiment on Teamwork, Productivity, and Performance*, arXiv:2503.18238, https://arxiv.org/abs/2503.18238 | Full arXiv PDF inspected. Treat as empirical process evidence, not as an LLM-agent simulation paper. | Pairit randomized human-human versus human-AI collaboration, real-time workspace logs, task oriented communication, delegation, AI recognition, quality tradeoffs, and diversity collapse. |
 | Xu et al., *TheAgentCompany: Benchmarking LLM Agents on Consequential Real World Tasks*, arXiv:2412.14161, https://arxiv.org/abs/2412.14161 and https://github.com/TheAgentCompany/TheAgentCompany | Full arXiv PDF and official repository README checked. | Self-contained software-company benchmark with workplace web apps, simulated coworkers, checkpoints, partial-credit evaluators, and diverse professional tasks. |
 | Drouin et al., *WorkArena: How Capable are Web Agents at Solving Common Knowledge Work Tasks?*, arXiv:2403.07718, https://arxiv.org/abs/2403.07718 and https://github.com/ServiceNow/WorkArena | Full arXiv PDF and official repository README checked. | Enterprise web-task benchmark with BrowserGym observations/actions, ServiceNow tasks, oracle/validator machinery, and human comparison. |
 | Boisvert et al., *WorkArena++: Towards Compositional Planning and Reasoning-based Common Knowledge Work Tasks*, arXiv:2407.05291, https://arxiv.org/abs/2407.05291 and https://github.com/ServiceNow/WorkArena | Full arXiv PDF and official repository README checked. | Compositional knowledge-work workflows with L2/L3 tasks, ticket instructions, task composition, validators, and oracle traces. |
@@ -238,7 +238,7 @@ Communication is a work artifact, not incidental chat. Define:
 - whether unread messages, notifications, and summaries appear in FoV.
 - whether a meeting has an agenda, turn order, facilitator, decision rule, and
   minutes.
-- whether task-oriented, interpersonal, delegation, conflict, or recognition
+- whether task oriented, interpersonal, delegation, conflict, or recognition
   codes will be computed later.
 
 For software-style workflows, prefer structured handoff artifacts over idle
@@ -420,7 +420,7 @@ Source support:
 - Supported by paper: Pairit randomized 2,234 participants into human-human and
   human-AI teams; logged messages, edits, selections, generated images,
   intermediate outputs, and API calls; measured productivity, text quality,
-  image quality, field ad performance, task-oriented communication,
+  image quality, field ad performance, task oriented communication,
   interpersonal communication, delegation, AI recognition, and diversity
   collapse.
 - Supported by official code/config: Unknown or unavailable in this pass.
@@ -489,7 +489,7 @@ Society0 scaffold:
 - records: observations, actions, UI state, tool outputs, coworker messages,
   submitted artifacts, checkpoints, validator results, and partial-credit score.
 - measurements: success, partial credit, step count, failure type, human
-  baseline, oracle gap, repeated-seed variance, and task-category performance.
+  baseline, oracle gap, repeated-seed variance, and task category performance.
 
 Do not treat a web-agent success rate as a social simulation result by itself.
 For Society0, the design lesson is how to host a realistic work environment
@@ -497,7 +497,7 @@ with certifiable tasks and auditable traces.
 
 ### ChatDev, MetaGPT, And AutoGen: Workflow Mechanisms Only
 
-Use this pattern when the user needs task-oriented collaboration patterns for a
+Use this pattern when the user needs task oriented collaboration patterns for a
 workflow or software-company simulation.
 
 Source support:
@@ -630,7 +630,7 @@ Validation checks:
   order.
 - role validity: agents do not act outside role authority or see hidden labels.
 - artifact validity: human or expert evaluators review important outputs.
-- communication validity: coding rubrics distinguish task-oriented,
+- communication validity: coding rubrics distinguish task oriented,
   interpersonal, delegation, conflict, and recognition messages.
 - coherence validity: later decisions cite or use prior plans, artifacts, and
   evidence rather than contradicting them.
