@@ -54,6 +54,8 @@ Read `simulation-paper-distillation.md` before using these guides for paper repr
 | AgentSociety | Full arXiv PDF inspected | `economics-finance-method-synthesis.md` |
 | GenSim | Full arXiv PDF and official repo inspected | `economics-finance-method-synthesis.md` |
 | AdaSociety | Full arXiv PDF and official repo inspected | `economics-finance-method-synthesis.md` |
+| LLM-Based Multi-Agent System for Simulating and Analyzing Marketing and Consumer Behavior | Full arXiv PDF and official repo README inspected | `consumer-marketing-marketplace-simulation-design.md` |
+| Magentic Marketplace | Microsoft Research PDF and official repo README inspected | `consumer-marketing-marketplace-simulation-design.md` |
 
 If a future user needs legal-grade or paper-specific reproduction, re-check latest paper versions and repos before claiming exact fidelity.
 
@@ -69,6 +71,7 @@ Choose the target by the economic object being simulated:
 - **Text-to-belief generation**: news or documents are used to generate expectations or sentiment time series. Use `economics-finance-expectations-survey-simulation.md`; if the target is asset pricing or bubble sentiment, also use `economics-finance-financial-market-simulation.md`.
 - **Stock-market simulation**: trader agents observe price histories, order book/news, and use buy/sell/hold actions; env owns order matching and settlement. Use `economics-finance-financial-market-simulation.md`.
 - **Bank-run or crisis-communication simulation**: depositor personas receive panic messages and bank communications; env maps withdrawal propensities into liquidity or contagion dynamics. Use `economics-finance-financial-market-simulation.md`.
+- **Consumer marketing or agentic marketplaces**: consumers, buyer agents, seller agents, catalogs, search, discounts, proposals, payments, welfare, and manipulation are the mechanism. Use `consumer-marketing-marketplace-simulation-design.md`; return here only for broader economic interpretation or market-design baselines.
 
 ## Loading Order
 
@@ -85,6 +88,7 @@ For economics/finance work, load only the files needed for the target:
    - `economics-finance-expectations-survey-simulation.md`
    - `economics-finance-financial-market-simulation.md`
    - `economics-finance-method-synthesis.md`
+   - `consumer-marketing-marketplace-simulation-design.md` when purchase, marketing, or marketplace transaction design is central
 
 Load `economics-finance-method-synthesis.md` when the user asks for a new design, reproduction fidelity, robustness plan, or cross-paper methodology.
 

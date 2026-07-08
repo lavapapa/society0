@@ -54,6 +54,9 @@ Read `simulation-paper-distillation.md` before using this guide for paper reprod
 | Social opinions prediction utilizes fusing dynamics equation with LLM-based agents, Scientific Reports 2025, https://www.nature.com/articles/s41598-025-99704-3 | Full Nature HTML/PDF inspected; article says data are in the article and supplementary information. No stable official code repository was confirmed during this pass. | LLM opinion leaders plus CA/SIR followers for opinion trajectories. |
 | An LLM-enhanced Agent-based Simulation Tool for Information Propagation, IJCAI 2024, https://www.ijcai.org/proceedings/2024/1007 and https://github.com/shaunahu/LAIDSim | Full IJCAI PDF and official tool repository checked. | Independent-cascade style diffusion with LLM message alteration. |
 | Topology-Aware LLM-Driven Social Simulation, arXiv 2604.18011, https://arxiv.org/abs/2604.18011 and https://github.com/D2I-CUHKSZ/MicroWorld | Full arXiv PDF inspected; paper-provided artifact repository checked. | Topology-aware exposure materialization and update coordination for scalable LLM social simulation. |
+| POSIM: A Multi-Agent Simulation Framework for Social Media Public Opinion Evolution and Governance, arXiv 2603.23884, https://arxiv.org/abs/2603.23884 and https://github.com/DeepCogLab/posim/ | Full arXiv PDF and official repository README checked. Public datasets/components are staged for release after review/anonymization. | Social media public-opinion evolution with Social-BDI cognition, Hawkes activation, recommendation, Weibo event datasets, and governance interventions. |
+| LLM-Agent-based Social Simulation for Attitude Diffusion, arXiv 2604.03898, https://arxiv.org/abs/2604.03898 | Full arXiv PDF inspected. Official package availability should be rechecked before exact reproduction. | Immigration attitude diffusion after a real event using news retrieval, small-world network exposure, generated posts, and theory-linked belief updates. |
+| Modeling U.S. Attitudes Toward China via an Event-Steered Multi-Agent Simulator, arXiv 2606.06971, https://arxiv.org/abs/2606.06971 | Full arXiv PDF inspected. Dataset/code availability should be rechecked before exact reproduction. | Event/news-steered public attitude dynamics with dual-stream significant events and personalized news exposure. |
 
 If a user needs paper-specific reproduction, re-check the latest paper version, appendix, repository state, and data availability before claiming exact fidelity.
 
@@ -65,6 +68,7 @@ Choose the target by the communication object being simulated:
 - **News or information diffusion**: a message, event, article, rumor, or content item spreads through a network or platform. Track reach, scale, depth, breadth, exposure channel, and text mutation.
 - **Rumor or fake-news belief dynamics**: agents form, update, defend, or abandon belief in a claim. Track susceptible/infected/recovered states, belief, reasons, corrections, and official interventions.
 - **Opinion, attitude, emotion, and polarization**: agents' stances or emotional states evolve through exposure and interaction. Track average attitudes, extreme opinions, disagreement, echo chambers, E-I index, and content quality.
+- **Public-opinion event dynamics**: significant events, daily news, platform interactions, and social networks jointly drive group-level opinion trajectories. Treat these as communication simulations unless a separate legal, health, education, market, or high-risk domain mechanism is the main target.
 - **Platform intervention and governance**: feed ranking, chronological timelines, bridging algorithms, hiding engagement counts, accuracy labels, influencer blocking, official declarations, or moderation actions are treatments.
 - **Social movement or event-response simulation**: public reactions to trigger events unfold across timelines; core users generate discourse while ordinary users update attitude through ABM or dynamics rules.
 - **Group-agent or hybrid-scale simulation**: one agent represents a behaviorally similar group, or LLM agents model semantic leaders while rules model followers. Use when scale is part of the method, not just a performance wish.
@@ -83,7 +87,7 @@ For communication and social-media work, load only the files needed for the targ
 7. `run-monitor-analyze.md` when planning metrics, tables, repeated runs, or qualitative review
 8. Source files only if implementing or debugging a concrete env: start from `src/society0/env/`, `src/society0/environment.py`, `src/society0/schedule.py`, and `src/society0/agent/core.py`
 
-Load this guide when the user mentions social media, communication, feeds, posting, reposting, commenting, likes, follows, recommendation algorithms, news diffusion, information diffusion, rumor, fake news, misinformation, disinformation, belief spread, attitude dynamics, emotion propagation, opinion dynamics, polarization, echo chambers, bridging algorithms, platform interventions, social movements, online events, group agents, hybrid scale, OASIS, S3, FPS, HiSim, GA-S3, MIDSim, LAID, FDE-LLM, or TopoSim.
+Load this guide when the user mentions social media, communication, feeds, posting, reposting, commenting, likes, follows, recommendation algorithms, news diffusion, information diffusion, rumor, fake news, misinformation, disinformation, belief spread, attitude dynamics, emotion propagation, opinion dynamics, public opinion, attitude diffusion, polarization, echo chambers, bridging algorithms, platform interventions, social movements, online events, group agents, hybrid scale, OASIS, S3, FPS, HiSim, GA-S3, MIDSim, LAID, FDE-LLM, TopoSim, POSIM, discourse_sim, or ES-MAS.
 
 ## General Construction Rules
 
@@ -335,6 +339,36 @@ fidelity_check_sample:
 
 Validation:
   Compare coordinated execution against full-agent execution on a small graph before using it for scale.
+
+### Event-Steered Public Opinion Needs Dual Exposure Records
+
+Supported by paper and official code/config:
+  POSIM models social-media public opinion through Social-BDI agents, a virtual platform with social networks and recommendation, and a Hawkes self-exciting temporal engine. Its official repository documents agent roles, event injection, recommendation, and staged dataset release. The attitude-diffusion paper grounds immigration attitude change in a verified event timeline, live news retrieval, small-world peer exposure, generated posts, and theory-linked belief dimensions. ES-MAS combines significant events with personalized daily news to simulate attitude trajectories over quarterly steps.
+
+Society0 mapping:
+  Separate macro event exposure from personalized news or peer exposure:
+
+```text
+opinion_exposure:
+  agent_id
+  tick
+  source: significant_event | daily_news | platform_feed | peer_post | official_guidance
+  content_id
+  topic
+  frame
+  visibility_channel
+```
+
+  Keep event labels and benchmark outcomes out of FoV unless the paper explicitly makes them visible. Use `instruct` for posts, reposts, replies, and sharing; use `interview` or analysis coding for attitude, stance, sentiment, or belief measurement.
+
+Inference for Society0 mapping:
+  Hawkes activation, news-interest grouping, and belief-update equations can be implemented as env rules or code steps. LLM agents should interpret the rendered evidence and choose bounded communication actions, not directly set the aggregate public-opinion curve.
+
+Unknown or unavailable:
+  POSIM full datasets/components, attitude-diffusion package details, and ES-MAS CURE dataset/code should be rechecked before exact reproduction.
+
+Fidelity:
+  Exact reproduction requires event/news data, platform records, activation parameters, prompt templates, stance coding, benchmark series, and intervention definitions.
 
 ## Dirty-Work Triage
 
