@@ -72,6 +72,8 @@ Do not use this guide when:
 | Kreutner et al., *Persona-driven Simulation of Voting Behavior in the European Parliament* (arXiv:2506.11798; EACL Findings 2026) | MEP persona prompting and roll-call simulation | Supported by paper and official GitHub `dess-mannheim/european_parliament_simulation` | Use explicit persona attributes, proposal text, roll-call visibility, counter-speech options, and group/national-party ablations; report coalition-strategy limitations. |
 | Hao and Xie, *A Multi-LLM-Agent-Based Framework for Economic and Public Policy Analysis* (arXiv:2502.16879) | Economic/public-policy analysis with heterogeneous LLM agents | Supported by paper; no official code found in checked paper text | Use only for policy-analysis framing where agent heterogeneity is specified; keep economics-heavy mechanics routed to economics/finance guides. |
 | Luo and Arora, *We Need Strong Preconditions For Using Simulations In Policy* (arXiv:2604.07838) | Policy use, dual-use, participation, validation, and accountability boundaries | Supported by paper; boundary source rather than implementation source | Require participation, independent validation, accountability, and deployment/reporting language before simulations affect consequential policy. |
+| Zhou et al., *Investigating Prosocial Behavior Theory in LLM Agents Under Policy-Induced Inequities* / ProSim (arXiv:2505.15857; AAAI 2026) | Prosocial behavior, policy interventions, inequity, fairness perception, and social contagion | Supported by paper and official GitHub `halsayxi/ProSim` README | Treat prosociality as a norm/policy environment with scenarios, intervention arms, network observation, perceived unfairness, and human benchmark checks. |
+| Vallinder and Hughes, *Cultural Evolution of Cooperation among LLM Agents* (arXiv:2412.10270) | Indirect reciprocity, cooperation, reputation, punishment, and cultural transmission | Supported by paper and official GitHub `aronvallinder/llm-donor-game` README | Use as a compact cooperation/norm probe: hosted donor-game payoffs, reputation traces, punishment affordance, generation boundary, and repeated-seed/model comparison. |
 
 Candidate names such as GPLab or policy lab papers are not enough by themselves.
 Cite only the paper, official page, official repository, or official data that
@@ -156,6 +158,44 @@ Inference for Society0 mapping:
 
 Do not hide the norm in a persona paragraph. Keep it as an environment record so
 runs can explain which norm existed, when it spread, and why an agent complied.
+
+### Prosocial Norms, Fairness, and Cooperation Probes
+
+Use when the question is about helping, donating, volunteering, recycling,
+cooperating, indirect reciprocity, reputation, punishment, fairness perception,
+or erosion of prosocial norms under policy conditions.
+
+Supported by paper and official code/config:
+- ProSim initializes agents with demographic and psychological traits, evaluates
+  six prosocial scenarios, embeds agents in a Watts-Strogatz network, tests
+  cognitive/behavioral and voluntary/imposed policy interventions, introduces
+  reward or burden asymmetry, and tracks perceived unfairness and prosocial
+  contagion against human benchmark tasks.
+- Cultural Evolution of Cooperation uses an iterated Donor Game across
+  generations. Agents observe recent behavior, decide donation amounts, may have
+  costly punishment affordances, carry resources/reputation traces, and transmit
+  surviving strategies to the next generation.
+
+Inference for Society0 mapping:
+- Environment: prosocial scenario board or donor-game env with resources,
+  partner assignment, policy arm, asymmetry condition, reputation trace, network
+  activation, and generation boundary.
+- FoVs: scenario description, own traits/state, policy framing, neighbor
+  observations, recipient resources/reputation, prior round traces, and current
+  fairness condition.
+- Actions: `help`, `donate`, `volunteer`, `cooperate`, `share_information`,
+  `recycle`, `donate_amount`, `punish`, `abstain`, `rate_unfairness`,
+  `revise_strategy`.
+- Hosted constraints: payoff equations, donation bounds, punishment cost,
+  recognition/benefit asymmetry, burden asymmetry, active network edge sampling,
+  selection/survival rule, and strategy inheritance.
+- Measures: prosocial intention or action, resources, cooperation rate,
+  punishment rate, perceived unfairness, norm erosion, contagion by network
+  distance, generation-level strategy change, and human/model alignment.
+
+Keep interpretation narrow. These designs probe norm mechanisms and model
+behavior under controlled conditions; they do not prove real communities will
+cooperate or that a policy is fair.
 
 ### Content Governance and Moderation
 
@@ -246,7 +286,9 @@ public goods, sanctions, norm emergence, rule compliance, legitimacy,
 accountability, content governance, moderation policy, fact-checking arms,
 appeals, Community Notes-like mechanisms, GovSim, CRSEC, MOSAIC, ElectionSim,
 Political Actor Agent, European Parliament voting, Artificial Leviathan, or
-policy-use preconditions.
+policy-use preconditions, ProSim, prosocial behavior, policy-induced inequity,
+fairness contagion, donor game, indirect reciprocity, or cultural evolution of
+cooperation.
 
 ## Society0 Construction Rules
 

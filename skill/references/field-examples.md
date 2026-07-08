@@ -86,6 +86,47 @@ Links:
 
 Society0 mapping: implement the institution as env state, FoVs, typed actions, hosted constraints, and process/outcome records. Keep policy claims bounded by validation and participation requirements, and load `governance-institution-public-policy-simulation-design.md`.
 
+## Education And Classroom Learning
+
+AgentSchool models education as a state-transition simulation with student knowledge graphs, misconceptions, teacher scaffolding, classroom scenes, and informal peer dynamics.
+
+Link: https://arxiv.org/abs/2605.30144
+
+Society0 mapping: host curriculum, lesson scene, peer graph, assessment, student learning state, teacher actions, and misconception records in the environment. Load `education-learning-classroom-simulation-design.md`.
+
+## Legal Society
+
+Law in Silico simulates legal society with individual decisions and legal institutions for legislation, adjudication, and enforcement.
+
+Link: https://aclanthology.org/2026.findings-acl.396/
+
+Society0 mapping: use a closed-world law registry, typed legal/social actions, docket records, adjudication/enforcement steps, periodic law updates, legal-cost constraints, and non-operational boundaries. Load `law-justice-crime-simulation-design.md`.
+
+## Public Health And Risk Behavior
+
+VacSim studies vaccine hesitancy with demographic agents, social-network exposure, vaccine news, warmup, attitude modulation, and policy interventions. Recent heatwave work models vulnerability, warnings, protective behavior, psychosocial needs, and risk information diffusion.
+
+Links:
+
+- https://arxiv.org/abs/2503.09639
+- https://github.com/abehou/VacSim
+- https://arxiv.org/abs/2605.15918
+
+Society0 mapping: host risk phase, warning/news exposure, social diffusion, intervention arm, vulnerability strata, protective actions, and validation records. Load `public-health-simulation-design.md`.
+
+## Consumer Markets And Agentic Marketplaces
+
+Consumer/marketing simulations test promotions, purchase behavior, word-of-mouth, and transaction records. Magentic Marketplace studies buyer/seller AI agents, search, messages, proposals, payments, welfare, manipulation, and market-design effects.
+
+Links:
+
+- https://arxiv.org/abs/2510.18155
+- https://github.com/carolchu1208/LLM-Based-Generative-Agents-Simulating-Consumer-Decisions
+- https://www.microsoft.com/en-us/research/publication/magentic-marketplace-an-open-source-environment-for-studying-agentic-markets/
+- https://github.com/microsoft/multi-agent-marketplace
+
+Society0 mapping: host catalogs, prices, discounts, budgets, search results, proposals, payments, transaction validation, welfare metrics, and manipulation arms. Load `consumer-marketing-marketplace-simulation-design.md`.
+
 ## OASIS
 
 OASIS focuses on large-scale social media simulation with many LLM agents.

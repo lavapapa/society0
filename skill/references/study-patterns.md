@@ -75,6 +75,62 @@ Start with:
 
 MVP: one bounded task, such as whether a recommendation assistant can identify a hidden target item within a fixed number of turns.
 
+For consumer purchase, marketing promotion, word-of-mouth, buyer/seller agentic market, search, negotiation, transaction, marketplace welfare, or manipulation studies, load `consumer-marketing-marketplace-simulation-design.md`. Treat prices, catalogs, discounts, search results, budgets, proposals, payments, and transaction validity as environment mechanics, not agent prose.
+
+## Education, Learning, And Classroom
+
+Question shape:
+
+```text
+How do teacher scaffolds, peer relations, classroom scenes, or educational interventions change learning traces, misconceptions, participation, or social belonging?
+```
+
+Start with:
+
+- environment: `plain` for one lesson or tutoring pilot; custom env when curriculum graph, grouping, classroom social network, assessment, or reusable lesson records matter.
+- agents: students with mutable learning state, teacher/tutor agents, optional peer leaders or rule-based assessment baselines.
+- FoVs: lesson material, prior student answer, teacher feedback, peer message, visible group work, assessment prompt.
+- actions: ask, answer, explain, hint, challenge misconception, assign group, invite peer, support, exclude, submit work.
+- measures: mastery, weak concepts, misconception persistence, participation, peer ties, assessment score, teacher reflection.
+
+MVP: one topic, one teacher, 3-8 students, one misconception table, and a post-lesson trace review. For AgentSchool-inspired work, load `education-learning-classroom-simulation-design.md`.
+
+## Law, Justice, And Legal Society
+
+Question shape:
+
+```text
+How do laws, courts, enforcement, legal costs, or legal aid shape compliance, legal recourse, rights protection, or regulatory evasion?
+```
+
+Start with:
+
+- environment: custom env once a law registry, docket, litigation cost, legal aid, or enforcement state persists across turns; `plain` only for a tiny closed-world vignette.
+- agents: affected individuals, power holders, firms, residents, judges, legislators, enforcement roles.
+- FoVs: current simulated law, personal harm, visible ruling, legal options, litigation cost, trust or transparency signal.
+- actions: comply, violate, sue, seek legal aid, protest, strike, report, adjudicate, enforce, amend law.
+- measures: action distribution, lawsuits filed, unmet legal need, rulings, law changes, welfare, rights protection, compliance.
+
+MVP: one closed-world dispute, one current-law table, one docket, and a monthly law-review step. For Law in Silico-inspired work, load `law-justice-crime-simulation-design.md` and keep outputs non-operational.
+
+## Public Health, Risk, And Health Behavior
+
+Question shape:
+
+```text
+How do public warnings, health-risk information, vulnerability, social ties, or interventions shape attitudes and protective behavior?
+```
+
+Start with:
+
+- environment: `plain` for a message/attitude pilot; custom env when hazard phase, resources, vulnerability, or network diffusion are central.
+- agents: residents, patients, caregivers, officials, community ambassadors, vulnerable groups.
+- FoVs: official warning, local risk status, news item, peer message, policy incentive, resource availability.
+- actions: share, discuss, seek help, help neighbor, adopt protective action, delay, refuse, comply, stay, travel.
+- measures: attitude distribution, protective-action adoption, unmet need, trust, perceived risk, vulnerability-stratified outcomes, risk message diffusion.
+
+MVP: one risk scenario, one intervention/control, 10-20 agents, warmup, and explicit exposure records. For VacSim or heatwave designs, load `public-health-simulation-design.md`.
+
 ## City, Community, And Emergency Behavior
 
 Question shape:
@@ -139,3 +195,4 @@ Pick the simplest pattern that makes the research mechanism visible:
 - Use `round_robin_conversation` when interaction protocol is the mechanism.
 - Write a custom env only when FoVs, actions, hosted constraints, or records will be reused across steps or studies.
 - For high-risk IR/security mechanisms, start with abstract or historical research scaffolds and keep the action surface coarse, typed, auditable, and non-operational.
+- For education, legal, public-health, and consumer-market mechanisms, prefer small domain pilots with inspectable state and records before scaling; these domains need external validation before consequential claims.

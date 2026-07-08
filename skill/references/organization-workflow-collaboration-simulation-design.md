@@ -119,6 +119,9 @@ situated in a spatial emergency, urban, or mobility environment. Use the
 communication guide when platform visibility, diffusion, or audience effects are
 central. Use economics/finance guides when the organization is mainly a firm,
 bank, market participant, or macro actor in an economic mechanism.
+Use `consumer-marketing-marketplace-simulation-design.md` when organization
+agents appear as buyers, sellers, service providers, or customer-facing proxies
+inside a transaction marketplace.
 
 ## Loading Order
 
@@ -141,9 +144,12 @@ files needed for the target:
    platform interventions
 10. `economics-finance-simulation-design.md` when firm, labor, market, banking,
     or macroeconomic mechanisms are central
-11. `run-monitor-analyze.md` when planning repeated runs, output tables,
+11. `consumer-marketing-marketplace-simulation-design.md` when buyer/seller
+    agents, catalogs, search, negotiation, payments, or marketplace welfare are
+    central
+12. `run-monitor-analyze.md` when planning repeated runs, output tables,
     validators, trace replay, or qualitative review
-12. Source files only when implementing or debugging a concrete env: start from
+13. Source files only when implementing or debugging a concrete env: start from
     `src/society0/env/`, `src/society0/environment.py`,
     `src/society0/schedule.py`, and `src/society0/agent/core.py`
 
