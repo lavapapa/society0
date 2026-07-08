@@ -111,6 +111,25 @@ Start with:
 
 MVP: rule-based macro mechanics first, then add LLM agents only where interpretation or expectations matter.
 
+## International Relations, Crisis, And Security
+
+Question shape:
+
+```text
+How do bounded diplomatic actions, communication, strategic uncertainty, or historical context shape escalation, restraint, alliance formation, or crisis stability?
+```
+
+Start with a high-risk boundary: research planning, mechanism exploration, historical interpretation, robustness checks, or safety evaluation only. Do not produce operational military advice, conflict prediction, targeting, evasion, or policy recommendation.
+
+- environment: custom env for crisis state, relationship graphs, fixed action schemas, severity labels, public/private messages, dynamic variables, and stopping rules; `plain` only for a tiny strategic-game prototype.
+- agents: LLM nation/delegate/game agents for interpretation and communication; rule agents or fixed strategies for baselines.
+- FoVs: own profile, allowed actions, public and private messages, prior actions, visible relationship state, game horizon, or local historical context.
+- actions: send message, propose agreement, accept/reject, wait, de-escalate, choose attack/do-nothing in abstract games, or submit a safety/risk classification.
+- hosted constraints: valid targets, action severity, visibility, turn order, terminal action, crisis clock, relationship update, and non-operational scenario boundary.
+- measures: escalation score trajectory, first extreme action, alliance graph similarity, treaty/message counts, crisis duration, attack timing, prompt/temperature sensitivity, and qualitative rationale categories.
+
+MVP: use an abstract security dilemma with `attack`, `do_nothing`, and optional public messaging before building any richer crisis env. For WarAgent, EscalAItion, BattleAgent, strategic games, WarBench, or ARMOR-inspired work, load `international-relations-conflict-security-simulation-design.md`.
+
 ## Pattern Selection Rule
 
 Pick the simplest pattern that makes the research mechanism visible:
@@ -119,3 +138,4 @@ Pick the simplest pattern that makes the research mechanism visible:
 - Use `social_network` when visibility and diffusion are the mechanism.
 - Use `round_robin_conversation` when interaction protocol is the mechanism.
 - Write a custom env only when FoVs, actions, hosted constraints, or records will be reused across steps or studies.
+- For high-risk IR/security mechanisms, start with abstract or historical research scaffolds and keep the action surface coarse, typed, auditable, and non-operational.

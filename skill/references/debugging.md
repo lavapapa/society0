@@ -127,12 +127,13 @@ Preferred real E2E endpoint variables:
 export SOCIETY0_RUN_REAL_E2E=1
 export SOCIETY0_REAL_E2E_LLM_BASE_URL="https://your-llm-provider/v1"
 export SOCIETY0_REAL_E2E_LLM_MODEL="your-chat-model"
-export SOCIETY0_REAL_E2E_LLM_API_KEY="..."
 export SOCIETY0_REAL_E2E_EMBED_BASE_URL="https://your-embedding-provider/v1"
 export SOCIETY0_REAL_E2E_EMBED_MODEL="your-embedding-model"
-export SOCIETY0_REAL_E2E_EMBED_API_KEY="..."
 export SOCIETY0_REAL_E2E_EMBED_PROVIDER="openai_compatible"
 export SOCIETY0_REAL_E2E_EMBED_DIMENSIONS=768
 ```
 
-For local Ollama embeddings, set `SOCIETY0_REAL_E2E_EMBED_PROVIDER=ollama`, `SOCIETY0_REAL_E2E_EMBED_BASE_URL=http://localhost:11434`, and omit the embedding API key. `SOCIETY0_PLATFORM_ROOT` is only a local maintainer fallback, not the public testing path.
+Keep provider credentials in the local environment or secret manager used by the
+test runner; do not commit them to docs or run artifacts. For local Ollama
+embeddings, set `SOCIETY0_REAL_E2E_EMBED_PROVIDER=ollama` and
+`SOCIETY0_REAL_E2E_EMBED_BASE_URL=http://localhost:11434`.
