@@ -66,6 +66,8 @@ Only promote an item into a guide when its source is clear or the text labels it
 
 ## Design-Transfer Stance
 
+Read `founder-experience.md` before promoting paper notes into a domain guide. Use it as the cross-domain guardrail for evidence boundaries, subject-layer selection, environment-hosted consequences, and avoiding schema-first or prompt-only worldbuilding.
+
 Read a paper as evidence about how to construct a simulation paradigm, not as a fixed artifact to copy. Ask:
 
 - What research question would make this simulation method necessary rather than a survey, archival regression, lab experiment, or traditional ABM?
@@ -347,3 +349,4 @@ Avoid these failures:
 - **Metric opacity**: recording final metrics without enough tables to recompute them.
 - **Overgeneralization**: promoting a single paper's design choice into a domain principle.
 - **Unmarked inference**: presenting a Society0 implementation decision as if the original paper specified it.
+- **Schema-first compression**: turning semantic information into a large event taxonomy before proving which fields the environment must enforce or the study must measure.

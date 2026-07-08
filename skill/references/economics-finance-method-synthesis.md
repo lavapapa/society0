@@ -22,6 +22,8 @@ Contents:
 
 This is not a literature review and not mainly a reproduction manual. It distills cross-paper methods into reusable Society0 design rules: how to turn a research question, hypothesis, or intuitive idea into a simulated economic world with actors, institutions, FoVs, actions, measurements, and validation. Promote a rule here only when it is supported by multiple targets or is a direct consequence of Society0's env-first architecture.
 
+Use `founder-experience.md` as the cross-domain preflight before applying this economics/finance guide. The economics guide tells you what domain institutions often matter; the founder notes tell you how to avoid over-agentifying objects, over-structuring semantic information, or letting macro conclusions leak into micro-agent design.
+
 ## Cross-Target Principles
 
 ### Host Institutions In The Environment
@@ -47,6 +49,8 @@ visible profile + visible local state + visible public/context signals
 + exact task/question/action affordances
 - hidden labels, future facts, researcher metadata, and global state not visible in the paper
 ```
+
+For broad economic news, policy language, forecasts, or market narratives, preserve semantic text in FoVs when the mechanism depends on interpretation. Add numeric updates only when the environment must enforce a quantity, price, date, limit, account, or constraint.
 
 ### Separate Behavior From Measurement
 

@@ -39,6 +39,17 @@ Borrow from ABM:
 - sensitivity analysis.
 - careful separation between mechanism exploration and empirical claim.
 
+## Founder Design Gate
+
+Before expanding a vague or ambitious idea into agents and code, read `founder-experience.md` and apply its design gate. The first pass should establish:
+
+- **Evidence boundary**: what the supplied material supports, what it does not support, and which claims would overreach.
+- **Subject layer**: which entities perceive, decide, act, and bear consequences; which entities are only resources, records, institutions, locations, topics, graph nodes, or process slots.
+- **Hosted consequences**: what the environment must enforce even if every LLM agent were replaced by rule agents.
+- **LLM boundary**: what requires language, memory, interpretation, planning, social meaning, or judgment rather than deterministic rules.
+
+This gate prevents two common mistakes: turning every object in a domain graph into an agent, and embedding an aggregate conclusion directly into micro-agent prompts or visible state.
+
 ## Environment-First Design
 
 Do not start by making a list of agents. Start by making the social situation precise:
