@@ -7,29 +7,32 @@ description: "Help humanities, social science, communication, economics, finance
 
 Use this skill to help a non-engineer researcher turn a social phenomenon into a small, runnable Society0 experiment, then inspect outputs and interpret results with appropriate methodological caution.
 
+For new or complex designs, strongly prefer reading `references/founder-experience.md` before designing agents, writing code, or loading discipline-specific guides. Then load the relevant domain guide. The founder notes are the cross-domain guardrail for avoiding traditional ABM drift, prompt-only worldbuilding, over-structured event schemas, hidden macro assumptions, and scale before mechanism.
+
 ## Operating Loop
 
 1. Start and maintain a visible todo list for the experiment. Use researcher-facing phases such as clarify phenomenon, design environment, define agents, write steps, run pilot, inspect outputs, analyze results, and refine.
 2. Translate the user's observation into: research question, constructs, environment, agents, interaction loop, intervention/control, and measurements.
-3. Design the **environment first**: the social setting, visibility rules, possible actions, interaction records, and institution/platform constraints. Agents only become meaningful inside that environment.
+3. Before expanding the design, establish the evidence boundary and subject layer: what the supplied material can support, what it cannot support, which entities can actually perceive/decide/act, and which entities are only resources, records, institutions, graph nodes, or process slots.
+4. Design the **environment first**: the social setting, visibility rules, possible actions, hosted constraints, interaction records, and institution/platform consequences. Agents only become meaningful inside that environment.
    For recommendation experiments, explicitly state the recommendation pool, scoring weights, pruning thresholds, and displayed post count; these are experimental conditions, not neutral plumbing.
-4. Choose a built-in environment or propose a new one:
+5. Choose a built-in environment or propose a new one:
    - Start with `plain` for first surveys, simple state transitions, and rule baselines.
    - Use `social_network` for feeds, posts, endorsements, replies, recommendations, and diffusion.
    - Use `round_robin_conversation` for paired or rotating conversations.
-5. Choose agent style:
+6. Choose agent style:
    - Prefer **LLM-based agents** for interpretation, language, memory, persuasion, trust, identity, interviews, and social meaning.
    - Use **rule-based agents** for baselines, deterministic mechanisms, controls, parameter sweeps, fixtures, or non-linguistic updates.
-6. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
-7. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden. After running, verify batch-level `concurrency` and `concurrency_source` in `summary.json`.
-8. For LLM action rounds and surveys, set a bounded `max_tokens` when the expected response is short, and inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
-9. Treat memory as part of the simulation, not a speed optimization target. `memory=True` retrieves memory and saves extractive memory by default; use `extract_memory=False` only when the user explicitly accepts a lightweight pilot that is less faithful.
-10. Treat the tool/action loop as part of the model of the social situation. Do not replace an action-bearing `instruct` round with direct JSON output just to reduce latency; use direct structured output only for action-free measurement tasks.
-11. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
-12. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
-13. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
-14. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
-15. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
+7. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
+8. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden. After running, verify batch-level `concurrency` and `concurrency_source` in `summary.json`.
+9. For LLM action rounds and surveys, set a bounded `max_tokens` when the expected response is short, and inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
+10. Treat memory as part of the simulation, not a speed optimization target. `memory=True` retrieves memory and saves extractive memory by default; use `extract_memory=False` only when the user explicitly accepts a lightweight pilot that is less faithful.
+11. Treat the tool/action loop as part of the model of the social situation. Do not replace an action-bearing `instruct` round with direct JSON output just to reduce latency; use direct structured output only for action-free measurement tasks.
+12. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
+13. Create one clean experiment folder per study. Put the experiment code, run outputs, analysis notebooks or scripts, and final report in that folder so runs do not mix.
+14. Build the smallest useful run first: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
+15. Inspect artifacts, explain what happened, then recommend repeated runs, controls, ablations, and sensitivity checks before making research claims. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
+16. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
 
 ## Researcher-Friendly Collaboration
 
@@ -107,6 +110,7 @@ async def rule_update(ctx):
 ## Read References As Needed
 
 - `references/engine-components.md`: Current Society0 components and how they map to the codebase.
+- `references/founder-experience.md`: Cross-domain founder-level design lessons for evidence boundaries, subject layers, env-hosted consequences, semantic-rich FoVs, ABM drift, and scale discipline.
 - `references/environment-design.md`: Why environment comes first, built-in environments, FoVs, actions, rules, and how to add a new env.
 - `references/agent-design.md`: Agent types, personas, state, properties, models, memory, and reasoning stages.
 - `references/step-dsl.md`: CodeSchedule, StepContext, AgentGroup, instruct/interview, results, outputs.
@@ -124,7 +128,7 @@ async def rule_update(ctx):
 
 ## Domain Simulation Guides
 
-When the user asks to reproduce, adapt, or design a simulation from a discipline-specific paper, first read `references/simulation-paper-distillation.md`, then load the matching domain guide after the core Society0 references. Domain guides should teach how to turn a research question, research hunch, or intuitive idea into Society0's env-first scaffold: setting, FoVs, actions, hosted constraints, records, measurements, baselines, ablations, and interpretation boundaries. They are not just paper summaries or reproduction checklists; use the references to triage non-headline work such as data preparation, persona construction, treatment design, calibration, parsing, qualitative coding, and validation.
+When the user asks to reproduce, adapt, or design a simulation from a discipline-specific paper, first read `references/founder-experience.md` and `references/simulation-paper-distillation.md`, then load the matching domain guide after the core Society0 references. Domain guides should teach how to turn a research question, research hunch, or intuitive idea into Society0's env-first scaffold: setting, FoVs, actions, hosted constraints, records, measurements, baselines, ablations, and interpretation boundaries. They are not just paper summaries or reproduction checklists; use the references to triage non-headline work such as data preparation, persona construction, treatment design, calibration, parsing, qualitative coding, and validation.
 
 - Economics and finance overview: read `references/economics-finance-simulation-design.md` first for the target taxonomy, paper evidence map, loading order, and fidelity labels.
 - Household macro, urban macro, or economic testbed: read `references/economics-finance-macro-urban-simulation.md` when the user mentions EconAgent, SimCity, EconGym, work/consumption, tax redistribution, labor/goods/financial markets, city development, policy tests, GDP, inflation, unemployment, or stylized macro facts.

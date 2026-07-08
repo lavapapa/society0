@@ -1,6 +1,6 @@
 # Economics And Finance Simulation Design
 
-Use this reference as the entry point for economics, macroeconomics, banking, market, policy, expectations, and finance simulations in Society0. Load it after `research-design.md`, `environment-design.md`, and `step-dsl.md`; then load the target guide that matches the user's study.
+Use this reference as the entry point for economics, macroeconomics, banking, market, policy, expectations, and finance simulations in Society0. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, and `step-dsl.md`; then load the target guide that matches the user's study.
 
 Contents:
 
@@ -27,6 +27,8 @@ Keep deterministic economic mechanics in environment rules. Do not ask the LLM t
 Use `instruct` with environment actions for behavior that changes the simulated world: work, consume, borrow, save, trade, invest, withdraw deposits, hire, fire, set prices, or choose policy. Use `interview` for measurement: surveys, expectations, reasons, forecasts, perceived risk, and post-hoc explanations.
 
 Use paper distillation to learn design moves for new Society0 studies, not only to copy paper recipes. Ask how a research concern becomes a simulated institution, bounded FoV, action or interview, hosted consequence, record, and validation target. Triage non-headline work such as sample construction, treatment wording, calibration, bias correction, qualitative coding, and robustness checks by whether it belongs in Society0, can be done by the agent, requires external tooling, or needs user input.
+
+Do not embed macro expectations directly into micro-agent visible state. Convert aggregate information into hosted environment conditions, public or role-specific FoVs, minimal numeric constraints when unavoidable, or researcher-only labels when agents should not know them.
 
 ## Evidence Map
 
@@ -72,12 +74,13 @@ Choose the target by the economic object being simulated:
 
 For economics/finance work, load only the files needed for the target:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `step-dsl.md`
-4. `simulation-paper-distillation.md` when adapting a paper
-5. This overview
-6. One or more target guides:
+1. `founder-experience.md`
+2. `research-design.md`
+3. `environment-design.md`
+4. `step-dsl.md`
+5. `simulation-paper-distillation.md` when adapting a paper
+6. This overview
+7. One or more target guides:
    - `economics-finance-macro-urban-simulation.md`
    - `economics-finance-expectations-survey-simulation.md`
    - `economics-finance-financial-market-simulation.md`
