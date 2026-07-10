@@ -11,12 +11,74 @@ v3.0 新增：
 """
 
 from typing import Dict, Callable, Any, List, Optional, Set
+import copy
 import inspect
 import logging
 
 from .async_utils import invoke_maybe_async
 
 logger = logging.getLogger(__name__)
+
+
+def validate_strict_function_parameters(schema: Dict[str, Any]) -> None:
+    """Validate the JSON Schema subset required by strict function tools.
+
+    Strict schemas must close every object, require every declared property,
+    and define the item schema for arrays. Optional values should therefore be
+    represented as required nullable properties.
+    """
+
+    def includes_type(value: Any, expected: str) -> bool:
+        if isinstance(value, str):
+            return value == expected
+        if isinstance(value, list):
+            return expected in value
+        return False
+
+    def visit(node: Any, path: str) -> None:
+        if not isinstance(node, dict):
+            raise ValueError(f"strict function schema at {path} must be an object")
+        unsupported_reference_keywords = {"$ref", "$defs", "definitions"} & set(node)
+        if unsupported_reference_keywords:
+            keywords = ", ".join(sorted(unsupported_reference_keywords))
+            raise ValueError(
+                f"strict function schema at {path} uses unsupported reference keyword(s): {keywords}"
+            )
+
+        if includes_type(node.get("type"), "object"):
+            properties = node.get("properties")
+            if not isinstance(properties, dict):
+                raise ValueError(f"strict function schema object at {path} must define properties")
+            if node.get("additionalProperties") is not False:
+                raise ValueError(
+                    f"strict function schema object at {path} must set additionalProperties=false"
+                )
+            required = node.get("required")
+            if not isinstance(required, list) or set(required) != set(properties):
+                raise ValueError(
+                    f"strict function schema object at {path} must require every declared property; "
+                    "represent optional values as nullable"
+                )
+            for property_name, property_schema in properties.items():
+                visit(property_schema, f"{path}.{property_name}")
+
+        if includes_type(node.get("type"), "array"):
+            if "items" not in node:
+                raise ValueError(f"strict function schema array at {path} must define items")
+            visit(node["items"], f"{path}[]")
+
+        for keyword in ("anyOf", "oneOf", "allOf"):
+            alternatives = node.get(keyword)
+            if alternatives is None:
+                continue
+            if not isinstance(alternatives, list) or not alternatives:
+                raise ValueError(f"strict function schema {keyword} at {path} must be a non-empty array")
+            for index, alternative in enumerate(alternatives):
+                visit(alternative, f"{path}.{keyword}[{index}]")
+
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        raise ValueError("strict function parameters must use a root object schema")
+    visit(schema, "$")
 
 
 def _json_type_for_annotation(annotation: Any) -> str:
@@ -187,7 +249,14 @@ class EnvironmentRegistry:
 
         return decorator
 
-    def action(self, desc: str = "", name: str = None, tags: Optional[List[str]] = None):
+    def action(
+        self,
+        desc: str = "",
+        name: str = None,
+        tags: Optional[List[str]] = None,
+        strict: bool = False,
+        parameters_schema: Optional[Dict[str, Any]] = None,
+    ):
         """Register an experiment-specific environment action.
 
         These actions are exposed as LLM tools through ``instruct(..., actions=[...])``
@@ -197,12 +266,78 @@ class EnvironmentRegistry:
         Supported injected parameter names include ``agent``, ``env``/
         ``environment``, ``world``, ``context``, ``agent_ids``, and ``params``.
         Other parameters are exposed to the model as action arguments.
+
+        ``strict=True`` requires an explicit, strict-compatible
+        ``parameters_schema``. Provider support is also required; unsupported
+        providers fail normally rather than silently downgrading validation.
         """
 
         def decorator(func: Callable):
             func_name = name or func.__name__
             canonical_id = f"env.{func_name}"
             sig = inspect.signature(func)
+            if strict and parameters_schema is None:
+                raise ValueError(
+                    f"strict experiment action {canonical_id} requires an explicit parameters_schema"
+                )
+            exposed_parameters = (
+                copy.deepcopy(parameters_schema)
+                if parameters_schema is not None
+                else _parameters_schema_from_signature(
+                    sig,
+                    injected_names={
+                        "agent",
+                        "agents",
+                        "agent_ids",
+                        "env",
+                        "environment",
+                        "world",
+                        "context",
+                        "params",
+                    },
+                )
+            )
+            if strict:
+                validate_strict_function_parameters(exposed_parameters)
+            exposed_signature_names: Set[str] = set()
+            required_signature_names: Set[str] = set()
+            accepts_schema_mapping = False
+            injected_names = {
+                "agent",
+                "agents",
+                "agent_ids",
+                "env",
+                "environment",
+                "world",
+                "context",
+                "params",
+            }
+            for param_name, param in sig.parameters.items():
+                if param_name in {"self", "cls"}:
+                    continue
+                if param.kind == inspect.Parameter.VAR_POSITIONAL:
+                    continue
+                if param.kind == inspect.Parameter.VAR_KEYWORD or param_name == "params":
+                    accepts_schema_mapping = True
+                    continue
+                if param_name in injected_names:
+                    continue
+                exposed_signature_names.add(param_name)
+                if param.default is inspect.Parameter.empty:
+                    required_signature_names.add(param_name)
+            schema_property_names = set((exposed_parameters.get("properties") or {}).keys())
+            missing_required = required_signature_names - schema_property_names
+            if missing_required:
+                raise ValueError(
+                    f"experiment action {canonical_id} parameters_schema omits required function "
+                    f"parameter(s): {', '.join(sorted(missing_required))}"
+                )
+            unknown_properties = schema_property_names - exposed_signature_names
+            if unknown_properties and not accepts_schema_mapping:
+                raise ValueError(
+                    f"experiment action {canonical_id} parameters_schema declares unknown "
+                    f"property/properties: {', '.join(sorted(unknown_properties))}"
+                )
             action_tags = list(
                 dict.fromkeys(
                     [
@@ -225,20 +360,10 @@ class EnvironmentRegistry:
                 'func_name': func_name,
                 'environment_type': None,
                 'tags': action_tags,
-                'parameters': _parameters_schema_from_signature(
-                    sig,
-                    injected_names={
-                        "agent",
-                        "agents",
-                        "agent_ids",
-                        "env",
-                        "environment",
-                        "world",
-                        "context",
-                        "params",
-                    },
-                ),
+                'parameters': exposed_parameters,
             }
+            if strict:
+                entry['strict'] = True
             self._registry.env_agent_tools[canonical_id] = entry
             self._registry.env_agent_tools[func_name] = entry
 

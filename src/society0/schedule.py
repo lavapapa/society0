@@ -2480,25 +2480,26 @@ def _capability_entries(table: Dict[str, Dict[str, Any]], kind: str) -> List[Dic
             key=key,
             func_name=func_name,
         )
-        entries.append(
-            {
-                "id": canonical_id,
-                "name": display_name,
-                "kind": entry.get("kind") or kind,
-                "source": entry.get("source") or "unknown",
-                "description": entry.get("description", ""),
-                "tags": list(entry.get("tags", []) or []),
-                "parameters": _jsonable(parameters),
-                "return_value_schema": _jsonable(return_value_schema),
-                "state_access": _jsonable(state_access),
-                "key": key,
-                "func_name": func_name,
-                "aliases": aliases,
-                "environment_type": entry.get("environment_type"),
-                "cache_on_step": cache_on_step,
-                "cache_on_agent": cache_on_agent,
-            }
-        )
+        capability_entry = {
+            "id": canonical_id,
+            "name": display_name,
+            "kind": entry.get("kind") or kind,
+            "source": entry.get("source") or "unknown",
+            "description": entry.get("description", ""),
+            "tags": list(entry.get("tags", []) or []),
+            "parameters": _jsonable(parameters),
+            "return_value_schema": _jsonable(return_value_schema),
+            "state_access": _jsonable(state_access),
+            "key": key,
+            "func_name": func_name,
+            "aliases": aliases,
+            "environment_type": entry.get("environment_type"),
+            "cache_on_step": cache_on_step,
+            "cache_on_agent": cache_on_agent,
+        }
+        if entry.get("strict"):
+            capability_entry["strict"] = True
+        entries.append(capability_entry)
     return _dedupe_capability_entries(entries)
 
 
