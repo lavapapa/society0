@@ -67,6 +67,138 @@ def _read_jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def test_action_set_emits_opt_in_strict_function_schema():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="submit_plan",
+        func=lambda **_kwargs: {"ok": True},
+        description="Submit a structured plan",
+        parameters={
+            "type": "object",
+            "properties": {"items": {"type": "array", "items": {"type": "string"}}},
+            "required": ["items"],
+            "additionalProperties": False,
+        },
+        tags=["plan"],
+        strict=True,
+    )
+
+    schema = action_set.get_openai_actions_schema()
+
+    assert schema[0]["function"]["strict"] is True
+
+
+def test_action_set_default_schema_does_not_emit_or_store_strict_metadata():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="legacy_action",
+        func=lambda **_kwargs: {"ok": True},
+        description="Legacy action",
+        parameters={"type": "object", "properties": {}},
+    )
+
+    assert "strict" not in action_set.actions["legacy_action"]
+    assert "strict" not in action_set.get_openai_actions_schema()[0]["function"]
+
+
+def test_experiment_environment_action_registry_preserves_strict_metadata():
+    registry = FunctionRegistry()
+
+    @registry.env.action(
+        name="submit_plan",
+        strict=True,
+        parameters_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["items"],
+        },
+    )
+    def submit_plan(agent, env, items: list):
+        return {"ok": True, "items": items}
+
+    assert registry.env_agent_tools["submit_plan"]["strict"] is True
+    assert registry.env_agent_tools["env.submit_plan"]["strict"] is True
+
+
+def test_experiment_environment_strict_action_requires_explicit_valid_schema():
+    registry = FunctionRegistry()
+
+    with pytest.raises(ValueError, match="requires an explicit parameters_schema"):
+        registry.env.action(name="invalid", strict=True)(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="additionalProperties=false"):
+        registry.env.action(
+            name="open_object",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+            },
+        )(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="unsupported reference keyword"):
+        registry.env.action(
+            name="referenced_object",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"value": {"$ref": "#/$defs/value"}},
+                "required": ["value"],
+                "$defs": {"value": {"type": "string"}},
+            },
+        )(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="omits required function parameter.*amount"):
+        registry.env.action(
+            name="signature_mismatch",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"value": {"type": "number"}},
+                "required": ["value"],
+            },
+        )(lambda agent, env, amount: amount)
+
+
+@pytest.mark.asyncio
+async def test_action_loop_sends_strict_flag_in_real_tool_payload():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="submit_plan",
+        func=lambda items: {"ok": True, "items": items},
+        description="Submit plan",
+        parameters={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"items": {"type": "array", "items": {"type": "string"}}},
+            "required": ["items"],
+        },
+        strict=True,
+    )
+    requests = []
+
+    async def fake_llm_call(request):
+        requests.append(request)
+        return {"role": "assistant", "content": "done", "tool_calls": []}
+
+    await execute_action_loop(
+        instruction="Inspect the plan.",
+        action_set=action_set,
+        system_prompt="Test agent",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=1,
+    )
+
+    assert requests[0]["tools"][0]["function"]["strict"] is True
+
+
 class _CallableLLMManager:
     def __init__(self, call):
         self._call = call
@@ -4643,6 +4775,13 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
         name="mark_exposure",
         desc="Record that the current agent was exposed to an experimental stimulus.",
         tags=["stimulus", "measurement"],
+        strict=True,
+        parameters_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"intensity": {"type": "integer"}},
+            "required": ["intensity"],
+        },
     )
     async def mark_exposure(agent, env, intensity: int, context=None):
         env.state.setdefault("exposures", []).append(
@@ -4666,9 +4805,11 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
             ("action", "experiment", "mark_exposure")
         ]
         assert ctx.capabilities.find("mark_exposure", kind="tools", source="experiment") == found
+        assert found[0]["strict"] is True
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("alice"))
         assert "mark_exposure" in actionset.filter_by_tags(["mark_exposure"]).actions
         filtered = actionset.filter_by_tags(["env.mark_exposure"])
+        assert filtered.get_openai_actions_schema()[0]["function"]["strict"] is True
         result = await filtered.call_action("mark_exposure", intensity=4)
         return ctx.result(
             metrics={

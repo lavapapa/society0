@@ -1763,7 +1763,8 @@ class World:
                         func=action_info["function"],
                         description=action_info["description"],
                         parameters=action_info["parameters"],
-                        tags=action_info.get("tags", ["memory"])
+                        tags=action_info.get("tags", ["memory"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 logger.debug(f"Added {len(memory_actions)} memory actions for agent {agent.id}")
             else:
@@ -1798,7 +1799,8 @@ class World:
                     func=action_info["function"],
                     description=action_info["description"],
                     parameters=action_info["parameters"],
-                    tags=env_tags
+                    tags=env_tags,
+                    strict=bool(action_info.get("strict", False)),
                 )
             logger.debug(f"Added {len(env_actions)} environment actions for agent {agent.id}")
         except Exception as e:
@@ -1815,6 +1817,7 @@ class World:
                         description=action_info["description"],
                         parameters=action_info["parameters"],
                         tags=action_info.get("tags", ["environment", "experiment"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 registry_actions = self._get_registry_actions(agent)
                 for action_name, action_info in registry_actions.items():
@@ -1823,7 +1826,8 @@ class World:
                         func=action_info["function"],
                         description=action_info["description"],
                         parameters=action_info["parameters"],
-                        tags=action_info.get("tags", ["registry"])
+                        tags=action_info.get("tags", ["registry"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 logger.debug(f"Added {len(registry_actions)} registry actions for agent {agent.id}")
         except Exception as e:
@@ -2176,6 +2180,7 @@ class World:
                     "properties": {},
                 }),
                 "tags": sorted(tag for tag in tags if tag),
+                "strict": bool(action_info.get("strict", False)),
             }
 
         return registry_actions
