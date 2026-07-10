@@ -1,6 +1,6 @@
 # Communication And Social Media Simulation Design
 
-Use this guide for Society0 simulations about social media, news diffusion, rumor or fake-news spread, information diffusion, polarization, echo chambers, platform interventions, social movements, group agents, and hybrid-scale communication systems. Load it after `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about social media, news diffusion, rumor or fake-news spread, information diffusion, polarization, echo chambers, platform interventions, social movements, group agents, and hybrid-scale communication systems. Load `founder-experience.md` first as a preflight, then load this guide after `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
 
 This guide is not a literature review. It distills design moves from social-media and communication simulation papers into Society0's env-first scaffold: setting, FoVs, actions, hosted constraints, records, measurements, baselines, ablations, and interpretation boundaries.
 
@@ -10,6 +10,7 @@ Contents:
 - Evidence map
 - Target taxonomy
 - Loading order
+- Founder preflight
 - General construction rules
 - Paper-derived patterns
 - Dirty-work triage
@@ -83,11 +84,24 @@ For communication and social-media work, load only the files needed for the targ
 3. `agent-design.md`
 4. `step-dsl.md`
 5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `run-monitor-analyze.md` when planning metrics, tables, repeated runs, or qualitative review
-8. Source files only if implementing or debugging a concrete env: start from `src/society0/env/`, `src/society0/environment.py`, `src/society0/schedule.py`, and `src/society0/agent/core.py`
+6. `founder-experience.md` as a preflight before turning artifacts into agents, states, or claims
+7. This guide
+8. `run-monitor-analyze.md` when planning metrics, tables, repeated runs, or qualitative review
+9. Source files only if implementing or debugging a concrete env: start from `src/society0/env/`, `src/society0/environment.py`, `src/society0/schedule.py`, and `src/society0/agent/core.py`
 
 Load this guide when the user mentions social media, communication, feeds, posting, reposting, commenting, likes, follows, recommendation algorithms, news diffusion, information diffusion, rumor, fake news, misinformation, disinformation, belief spread, attitude dynamics, emotion propagation, opinion dynamics, public opinion, attitude diffusion, polarization, echo chambers, bridging algorithms, platform interventions, social movements, online events, group agents, hybrid scale, OASIS, S3, FPS, HiSim, GA-S3, MIDSim, LAID, FDE-LLM, TopoSim, POSIM, discourse_sim, or ES-MAS.
+
+## Founder Preflight For Communication Simulations
+
+Start with the evidence boundary, not agent count, graph size, corpus size, or run scale. A news corpus or event list can support exposure design, scenario construction, local context, and benchmark comparison. By itself it does not prove causality, prediction quality, or real-population attitudes.
+
+Do not automatically turn news, events, posts, topics, labels, feeds, graph nodes, or public-opinion curves into agents. First identify who can perceive, decide, act, and bear consequences. Platform mechanics, feeds and recommenders, event injection, hidden labels, metrics, moderation, benchmark trajectories, and downstream consequences belong in env state, env rules, run records, or analysis tables.
+
+Use LLM agents where the simulation needs attention, interpretation, belief or stance reasoning, language action, memory, and judgment under bounded exposure. Keep deterministic platform operations, label handling, propagation bookkeeping, feed construction, and benchmark storage outside the agent prompt.
+
+Do not embed macro conclusions or public-opinion curves directly into micro-agent prompts. Convert them into visible events, local exposure, env conditions, hidden labels, or benchmark records depending on what the source actually exposes. Public-opinion and event-dynamics papers should keep ground-truth trajectories out of FoV unless the source study explicitly exposes them to simulated users.
+
+Preserve semantic FoV for news, event, policy, and platform text unless numeric fields are needed for constraints or measurement. A compact schema should route content and audit exposure; it should not pre-digest the meaning that agents are supposed to interpret.
 
 ## General Construction Rules
 
@@ -113,6 +127,7 @@ Design rules:
 - Use `completion_action_tags=["social_write"]` when a social browsing round should end after one real write interaction. Use `terminal_actions` only when a successful action is the semantic endpoint of the round.
 - Represent "do nothing" or "no action" explicitly. Non-action is often part of diffusion dynamics.
 - Keep hidden truth and treatment labels out of FoV. A fake-news experiment may tell an agent about an official correction only when the intervention schedule delivers it.
+- Keep public-opinion trajectories, event labels, source truth labels, and benchmark curves out of FoV unless the source study makes them visible to the simulated user. Store them as hidden properties, env records, or validation tables.
 - Make time meaningful: one tick might be a minute, 3 minutes, an hour, a day, or an event stage. Record the mapping and whether agents are synchronously or asynchronously activated.
 - Keep memory as a modeled mechanism. For ongoing social interaction, `memory=True` is usually appropriate; ablate memory only to test its effect. Do not turn it off for speed in a memory-bearing design.
 - Separate language generation from metric coding. An LLM may generate a post; a separate rule, classifier, human coder, or analysis model may code stance, toxicity, or bridging quality.
@@ -523,6 +538,9 @@ Paper-specific cautions:
 - **Prompt-only platform**: feeds, recommendations, graph, and actions exist only as prose.
 - **Candidate-list evidence**: a reading list is treated as proof instead of official papers/code.
 - **Hidden-label leakage**: treatment, truth label, topology condition, or future correction appears in FoV.
+- **Event/news label leakage**: event type, source truth, stance label, intervention arm, or benchmark outcome is shown to agents when it should remain hidden.
+- **Over-taxonomized news FoV**: event or news fields replace the semantic text agents need to interpret.
+- **Trajectory-as-belief**: public-opinion curves or macro attitude trajectories are treated as individual agent beliefs.
 - **Feed-treatment opacity**: the candidate pool and ranking rule are not recorded, so exposure cannot be audited.
 - **Metric-only logging**: final reach, toxicity, or DTW is stored without rows to recompute it.
 - **Action collapse**: "engage" mixes like, repost, reply, follow, and quote into one ambiguous action.
