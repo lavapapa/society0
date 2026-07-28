@@ -13,6 +13,7 @@ __all__ = [
     "StepContext",
     "StepResult",
     "AgentBatchResult",
+    "AgentGroup",
     "CapabilityCatalog",
     "World",
     "Environment",
@@ -31,6 +32,7 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "StepContext": ("society0.schedule", "StepContext"),
     "StepResult": ("society0.schedule", "StepResult"),
     "AgentBatchResult": ("society0.schedule", "AgentBatchResult"),
+    "AgentGroup": ("society0.schedule", "AgentGroup"),
     "CapabilityCatalog": ("society0.schedule", "CapabilityCatalog"),
     "World": ("society0.core_data", "World"),
     "Environment": ("society0.environment", "Environment"),
@@ -59,7 +61,7 @@ def __dir__() -> list[str]:
 if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
     from .society import Society0  # noqa: F401
     from .models import LLMModel, EmbedModel  # noqa: F401
-    from .schedule import AgentBatchResult, CapabilityCatalog, CodeSchedule, StepContext, StepResult  # noqa: F401
+    from .schedule import AgentBatchResult, AgentGroup, CapabilityCatalog, CodeSchedule, StepContext, StepResult  # noqa: F401
     from .core_data import World  # noqa: F401
     from .environment import Environment, EnvironmentTickContext  # noqa: F401
     from .function_registry import FunctionRegistry  # noqa: F401
