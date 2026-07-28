@@ -83,7 +83,6 @@ def _build_models(
         api_key=llm_env.get("LLM_API_KEY"),
         concurrency=llm_concurrency,
         timeout=min(float(llm_env.get("LLM_TIMEOUT") or 180), 180.0),
-        tool_call_mode=llm_env.get("LLM_TOOL_MODE") or "native",
     )
     if provider_type == "ollama":
         embed = EmbedModel.ollama(
@@ -311,70 +310,6 @@ async def test_real_endpoint_smoke_llm_and_embedding():
     finally:
         await embed_manager.close()
         await llm_manager.close()
-
-
-@pytest.mark.asyncio
-async def test_real_society0_prompted_json_required_action_e2e(tmp_path):
-    llm_model, embed_model = _build_models()
-    if llm_model.tool_call_mode != "prompted_json":
-        pytest.skip("Set SOCIETY0_REAL_E2E_LLM_TOOL_MODE=prompted_json for this adapter test.")
-
-    engine = Society0(
-        save_dir=str(tmp_path),
-        base_config=_llm_agent_config(),
-        llm=llm_model,
-        embed=embed_model,
-    )
-
-    @engine.registry.env.action(
-        name="record_operating_intent",
-        desc="Record one concise operating intent.",
-        tags=["operating_write"],
-    )
-    async def record_operating_intent(agent, env, intent: str):
-        env.state["operating_intent"] = {
-            "agent_id": agent.id,
-            "intent": intent,
-        }
-        return {"ok": True, "intent": intent}
-
-    @engine.step(name="prompted_json_required_action")
-    async def prompted_json_required_action(ctx):
-        result = await ctx.agents.ids(["alice"]).instruct(
-            "You must call record_operating_intent exactly once. "
-            "Set intent to a concise plan that contains the word production, then stop.",
-            actions=["operating_write"],
-            memory=True,
-            max_turns=3,
-            max_tokens=200,
-            temperature=0,
-            terminal_actions=["record_operating_intent"],
-            required_actions=["record_operating_intent"],
-            max_action_calls=1,
-            name="prompted_json_required_action",
-        )
-        return ctx.result(
-            metrics={
-                "errors": result.error_count,
-                "action_count": result.action_counts().get("record_operating_intent", 0),
-            }
-        )
-
-    await engine.run(steps=1)
-
-    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    checkpoint = json.loads(
-        (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8")
-    )
-    intent = checkpoint["environment_data"]["state"]["operating_intent"]
-    assert metrics == {"errors": 0, "action_count": 1}
-    assert intent["agent_id"] == "alice"
-    assert "production" in intent["intent"].lower()
-    assert any(
-        event.get("event") == "embedding_request_completed"
-        and event.get("interaction_type") == "memory_write"
-        for event in _resource_events(tmp_path, "embedding")
-    )
 
 
 @pytest.mark.saturation

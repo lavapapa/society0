@@ -99,21 +99,6 @@ Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-s
 For LLM agents, `memory=True` retrieves memory and saves extractive memory by default.
 If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
 
-### Providers without native tool calling
-
-Some OpenAI-compatible deployments reject the `tools` request field unless the server enables a provider-specific tool parser. For those endpoints, opt into the prompted JSON adapter:
-
-```python
-llm = LLMModel.openai_compatible(
-    model="your-chat-model",
-    base_url="https://your-provider/v1",
-    api_key="...",
-    tool_call_mode="prompted_json",
-)
-```
-
-The model receives the same tool schemas in a strict JSON protocol. Society0 converts the returned JSON to its normal tool-call representation, then uses the existing validation, action loop, logging, and memory path. Native tool calling remains the default.
-
 ## External environments
 
 Experiment packages can inject an `Environment` subclass at the Society0 composition root without mutating the built-in environment registry:

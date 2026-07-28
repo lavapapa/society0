@@ -49,12 +49,6 @@ def _direct_endpoint_env(env: Mapping[str, str]) -> tuple[dict[str, str], dict[s
         "LLM_MODEL": llm_model,
         "LLM_API_KEY": _first_env(env, "SOCIETY0_REAL_E2E_LLM_API_KEY", "LLM_API_KEY") or "",
         "LLM_TIMEOUT": _first_env(env, "SOCIETY0_REAL_E2E_LLM_TIMEOUT", "LLM_TIMEOUT") or "180",
-        "LLM_TOOL_MODE": _first_env(
-            env,
-            "SOCIETY0_REAL_E2E_LLM_TOOL_MODE",
-            "LLM_TOOL_MODE",
-        )
-        or "native",
     }
     embedding_env = {
         "EMBEDDING_BASE_URL": embed_base_url,

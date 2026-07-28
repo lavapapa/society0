@@ -22,7 +22,6 @@ import os
 from pathlib import Path
 from collections import OrderedDict
 
-import json_repair
 from pydantic import BaseModel, Field
 from tenacity import (
     AsyncRetrying,
@@ -67,155 +66,6 @@ def _optional_float(value: Any) -> Optional[float]:
         return None
 
 
-def _prepare_prompted_json_tool_request(
-    request_params: Dict[str, Any],
-) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
-    """Translate native tool declarations into a strict JSON prompt."""
-    tools = request_params.get("tools")
-    if not tools:
-        return request_params, None
-
-    transformed = dict(request_params)
-    transformed.pop("tools", None)
-    tool_choice = transformed.pop("tool_choice", None)
-    tool_contract = {
-        "available_tools": tools,
-        "tool_choice": tool_choice,
-        "response_schema": {
-            "content": "string",
-            "tool_calls": [
-                {
-                    "name": "one available function name",
-                    "arguments": "object matching that function parameters schema",
-                }
-            ],
-        },
-    }
-    exact_tool_name = None
-    if isinstance(tool_choice, dict):
-        exact_tool_name = (
-            tool_choice.get("function", {}).get("name")
-            if isinstance(tool_choice.get("function"), dict)
-            else None
-        )
-    exact_choice_instruction = ""
-    if exact_tool_name:
-        exact_choice_instruction = (
-            f" The tool choice is mandatory: return exactly one call to `{exact_tool_name}`. "
-            "Keep `content` empty and do not return an empty `tool_calls` array."
-        )
-    protocol_message = {
-        "role": "system",
-        "content": (
-            "This model endpoint does not expose native function calling. "
-            "Follow the tool contract below yourself. Respond with exactly one JSON object, "
-            "without Markdown or commentary. Put ordinary assistant text in `content`. "
-            "Put requested calls in `tool_calls`; each call must use an available function "
-            "name and an arguments object that matches its schema. When no call is needed, "
-            "return an empty `tool_calls` array."
-            + exact_choice_instruction
-            + "\n"
-            + json.dumps(tool_contract, ensure_ascii=False, separators=(",", ":"))
-        ),
-    }
-    messages = [
-        _flatten_prompted_json_history_message(message)
-        for message in list(transformed.get("messages") or [])
-    ]
-    if messages and messages[0].get("role") == "system":
-        messages[0] = {
-            **messages[0],
-            "content": (
-                str(messages[0].get("content") or "")
-                + "\n\n[Prompted JSON tool protocol]\n"
-                + protocol_message["content"]
-            ),
-        }
-        transformed["messages"] = messages
-    else:
-        transformed["messages"] = [protocol_message, *messages]
-    return transformed, {
-        "names": {
-            str(tool.get("function", {}).get("name"))
-            for tool in tools
-            if tool.get("function", {}).get("name")
-        }
-    }
-
-
-def _flatten_prompted_json_history_message(message: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep prior tool activity readable by endpoints without tool-role support."""
-    normalized = dict(message)
-    role = normalized.get("role")
-    tool_calls = normalized.pop("tool_calls", None)
-    if role == "tool":
-        tool_name = normalized.get("name") or normalized.get("tool_call_id") or "tool"
-        return {
-            "role": "user",
-            "content": f"[Tool result: {tool_name}]\n{normalized.get('content') or ''}",
-        }
-    if tool_calls:
-        existing = str(normalized.get("content") or "")
-        rendered = json.dumps(tool_calls, ensure_ascii=False, separators=(",", ":"))
-        normalized["content"] = f"{existing}\n[Tool calls already made]\n{rendered}".strip()
-    normalized.pop("tool_call_id", None)
-    normalized.pop("name", None)
-    return normalized
-
-
-def _convert_prompted_json_tool_response(
-    result: Dict[str, Any],
-    prompted_tools: Dict[str, Any],
-) -> Dict[str, Any]:
-    """Restore Society0's normal tool-call response shape from prompted JSON."""
-    content = str(result.get("content") or "").strip()
-    try:
-        parsed = json_repair.loads(content)
-    except Exception:
-        return result
-    if not isinstance(parsed, dict):
-        return result
-
-    raw_calls = parsed.get("tool_calls")
-    if raw_calls is None and parsed.get("name"):
-        raw_calls = [parsed]
-    if not isinstance(raw_calls, list):
-        return result
-
-    allowed_names = set(prompted_tools.get("names") or set())
-    normalized_calls = []
-    for index, raw_call in enumerate(raw_calls, start=1):
-        if not isinstance(raw_call, dict):
-            continue
-        function = raw_call.get("function") if isinstance(raw_call.get("function"), dict) else raw_call
-        name = str(function.get("name") or "").strip()
-        if not name:
-            continue
-        if name not in allowed_names:
-            raise ValueError(f"Prompted JSON response requested unavailable tool: {name}")
-        arguments = function.get("arguments", {})
-        if isinstance(arguments, str):
-            argument_text = arguments
-        else:
-            argument_text = json.dumps(arguments, ensure_ascii=False)
-        normalized_calls.append(
-            {
-                "id": f"prompted_call_{index}",
-                "type": "function",
-                "function": {
-                    "name": name,
-                    "arguments": argument_text,
-                },
-            }
-        )
-
-    converted = dict(result)
-    converted["content"] = str(parsed.get("content") or "")
-    if normalized_calls:
-        converted["tool_calls"] = normalized_calls
-    return converted
-
-
 @dataclass
 class EndpointConfig:
     """端点配置数据结构"""
@@ -229,7 +79,6 @@ class EndpointConfig:
     provider_type: str = "openai"  # 提供商类型: openai, azure, other
     api_version: Optional[str] = None  # Azure API版本
     deployment_name: Optional[str] = None  # Azure部署名称
-    tool_call_mode: str = "native"
 
 
 @dataclass
@@ -375,10 +224,7 @@ class LLMManager:
             provider_type=config.get("provider_type", "openai"),
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
-            tool_call_mode=config.get("tool_call_mode", "native"),
         )
-        if endpoint.tool_call_mode not in {"native", "prompted_json"}:
-            raise ValueError("tool_call_mode must be 'native' or 'prompted_json'")
 
         # 创建异步客户端（注入共享 HTTP 客户端以复用连接池）
         try:
@@ -614,11 +460,6 @@ class LLMManager:
                             request_params = payload.copy()
                             request_params.pop("metadata", None)
                             request_params.pop("agent_id", None)
-                            prompted_tools = None
-                            if endpoint.tool_call_mode == "prompted_json":
-                                request_params, prompted_tools = _prepare_prompted_json_tool_request(
-                                    request_params
-                                )
 
                             # Azure使用deployment_name，其他使用model
                             if endpoint.provider_type == "azure" and endpoint.deployment_name:
@@ -646,11 +487,6 @@ class LLMManager:
                                 )
                             provider_duration = time.time() - provider_start_time
                             result = self._convert_response(response)
-                            if prompted_tools is not None:
-                                result = _convert_prompted_json_tool_response(
-                                    result,
-                                    prompted_tools,
-                                )
 
                             execution_time = time.time() - start_time
                             extras.duration_sec = execution_time
