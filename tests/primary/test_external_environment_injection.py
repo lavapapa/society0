@@ -2,13 +2,17 @@ import json
 
 import pytest
 
-from society0 import Society0
+from society0 import AgentGroup, Society0
 from society0.decorators import env_type, fov
 from society0.environment import Environment
 from society0.env import BUILTIN_ENVS
 
 
 pytestmark = pytest.mark.primary
+
+
+def test_agent_group_is_public_for_environment_level_activation():
+    assert AgentGroup.__module__ == "society0.schedule"
 
 
 @env_type(
