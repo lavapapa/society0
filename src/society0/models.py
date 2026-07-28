@@ -24,10 +24,13 @@ class LLMModel:
     timeout: float = 30.0
     api_version: Optional[str] = None
     deployment_name: Optional[str] = None
+    tool_call_mode: str = "native"
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.concurrency = _validate_positive_int(self.concurrency, "concurrency")
+        if self.tool_call_mode not in {"native", "prompted_json"}:
+            raise ValueError("tool_call_mode must be 'native' or 'prompted_json'")
 
     @classmethod
     def openai(
@@ -39,6 +42,7 @@ class LLMModel:
         base_url: str = "https://api.openai.com/v1",
         concurrency: int = 5,
         timeout: float = 30.0,
+        tool_call_mode: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -48,6 +52,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            tool_call_mode=tool_call_mode,
         )
 
     @classmethod
@@ -60,6 +65,7 @@ class LLMModel:
         api_key: Optional[str] = None,
         concurrency: int = 5,
         timeout: float = 30.0,
+        tool_call_mode: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -69,6 +75,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            tool_call_mode=tool_call_mode,
         )
 
     @classmethod
@@ -83,6 +90,7 @@ class LLMModel:
         deployment_name: Optional[str] = None,
         concurrency: int = 5,
         timeout: float = 30.0,
+        tool_call_mode: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -94,6 +102,7 @@ class LLMModel:
             deployment_name=deployment_name,
             concurrency=concurrency,
             timeout=timeout,
+            tool_call_mode=tool_call_mode,
         )
 
     @classmethod
@@ -105,6 +114,7 @@ class LLMModel:
         base_url: str = "http://localhost:11434/v1",
         concurrency: int = 5,
         timeout: float = 120.0,
+        tool_call_mode: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -114,6 +124,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            tool_call_mode=tool_call_mode,
         )
 
     def endpoint_config(self) -> Dict[str, Any]:
@@ -127,6 +138,7 @@ class LLMModel:
             "provider_type": self.provider_type,
             "api_version": self.api_version,
             "deployment_name": self.deployment_name,
+            "tool_call_mode": self.tool_call_mode,
         }
 
     def build_manager(self, *, log_context=None) -> LLMManager:
@@ -146,7 +158,7 @@ class LLMModel:
             provider_type=self.provider_type,
             api_version=self.api_version,
             deployment_name=self.deployment_name,
-            metadata=dict(self.metadata),
+            metadata={**self.metadata, "tool_call_mode": self.tool_call_mode},
         )
         return ModelRuntime(config=config, llm_call=manager.request), manager
 

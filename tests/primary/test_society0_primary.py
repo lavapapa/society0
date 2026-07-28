@@ -1844,6 +1844,61 @@ async def test_terminal_action_stops_agent_loop_after_tool_call():
 
 
 @pytest.mark.asyncio
+async def test_single_required_action_uses_exact_tool_choice_on_first_turn():
+    action_set = ActionSet()
+    llm_calls = []
+
+    async def publish_post(content: str):
+        return {"published": True, "content": content}
+
+    action_set.add_action(
+        name="publish_post",
+        func=publish_post,
+        description="Publish one post",
+        parameters={
+            "type": "object",
+            "properties": {"content": {"type": "string"}},
+            "required": ["content"],
+        },
+        tags=["social_write"],
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                        "name": "publish_post",
+                        "arguments": '{"content": "hello"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Publish one post.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        required_action_names=["publish_post"],
+        max_action_calls=1,
+    )
+
+    assert llm_calls[0]["tool_choice"] == {
+        "type": "function",
+        "function": {"name": "publish_post"},
+    }
+    assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
+
+
+@pytest.mark.asyncio
 async def test_terminal_action_requires_success_before_ending_loop():
     action_set = ActionSet()
     called_actions = []
@@ -5522,6 +5577,102 @@ async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp
     assert summary["llm"]["total_tools_characters"] == success_record["tools_characters"]
     assert summary["llm"]["total_payload_characters"] == success_record["payload_characters"]
     assert summary["llm"]["slowest_calls"][0]["payload_characters"] == success_record["payload_characters"]
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_prompted_json_tool_mode_preserves_agent_tool_contract():
+    captured_payloads = []
+
+    class FakeMessage:
+        role = "assistant"
+        content = json.dumps(
+            {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "name": "publish_post",
+                        "arguments": {"content": "hello"},
+                    }
+                ],
+            }
+        )
+        tool_calls = []
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+        usage = None
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            captured_payloads.append(kwargs)
+            return FakeResponse()
+
+    class FakeChat:
+        completions = FakeCompletions()
+
+    class FakeClient:
+        chat = FakeChat()
+
+    manager = LLMManager(
+        [
+            {
+                "id": "default",
+                "api_key": "test",
+                "base_url": "http://localhost:9999/v1",
+                "model": "model-without-native-tools",
+                "concurrency": 1,
+                "timeout": 30,
+                "tool_call_mode": "prompted_json",
+            }
+        ]
+    )
+    manager.clients["default"] = FakeClient()
+
+    try:
+        result = await manager.request(
+            {
+                "messages": [{"role": "user", "content": "publish now"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "publish_post",
+                            "description": "Publish a short social post.",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"content": {"type": "string"}},
+                                "required": ["content"],
+                            },
+                        },
+                    }
+                ],
+                "tool_choice": {
+                    "type": "function",
+                    "function": {"name": "publish_post"},
+                },
+            }
+        )
+    finally:
+        await manager.close()
+
+    assert "tools" not in captured_payloads[0]
+    assert "tool_choice" not in captured_payloads[0]
+    assert "publish_post" in captured_payloads[0]["messages"][0]["content"]
+    assert "tool choice is mandatory" in captured_payloads[0]["messages"][0]["content"]
+    assert result["content"] == ""
+    assert result["tool_calls"] == [
+        {
+            "id": "prompted_call_1",
+            "type": "function",
+            "function": {
+                "name": "publish_post",
+                "arguments": '{"content": "hello"}',
+            },
+        }
+    ]
 
 
 def test_legacy_schedule_importable():
