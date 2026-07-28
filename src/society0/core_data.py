@@ -305,6 +305,7 @@ class World:
         self._llm_manager: Optional[Any] = None
         self._embedding_manager: Optional[Any] = None
         self._model_provider: Optional[Any] = None
+        self._environment_factory: Optional[Callable[["World"], "Environment"]] = None
         # 内部缓存：已发现的环境类型元数据（仅首次访问时构建）
         self._env_meta_cache: Optional[Dict[str, Any]] = None
         # 节点差异调度器，由 SimEngine 在组合根注入
@@ -701,6 +702,17 @@ class World:
 
     # Environment management methods
 
+    def set_environment_factory(
+        self,
+        factory: Callable[["World"], "Environment"],
+    ) -> None:
+        """Inject an external Environment factory before the environment is created."""
+        if self._environment_cache is not None:
+            raise RuntimeError("Environment factory must be set before the environment is created")
+        if not callable(factory):
+            raise TypeError("Environment factory must be callable")
+        self._environment_factory = factory
+
     def get_environment(self) -> 'Environment':
         """
         Get the Environment object (with proxy support)
@@ -709,6 +721,22 @@ class World:
             Environment object with proxy-enabled state access
         """
         if self._environment_cache is None:
+            if self._environment_factory is not None:
+                from .environment import Environment
+
+                environment = self._environment_factory(self)
+                if not isinstance(environment, Environment):
+                    raise TypeError("Environment factory must return an Environment instance")
+                self._environment_cache = environment
+                agents = self.get_all_agents()
+                self._environment_cache.initialize(agents, self)
+                self.initialize_env_provided_fields()
+                logger.info(
+                    "Created and initialized externally injected %s environment",
+                    environment.__class__.__name__,
+                )
+                return self._environment_cache
+
             # Get environment type from configuration
             env_type = self.environment_data.get("type", "base")
 

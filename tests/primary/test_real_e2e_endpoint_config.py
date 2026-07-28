@@ -9,6 +9,7 @@ def test_real_e2e_endpoint_config_prefers_provider_neutral_env():
             "SOCIETY0_REAL_E2E_LLM_BASE_URL": "https://llm.example.test/v1",
             "SOCIETY0_REAL_E2E_LLM_MODEL": "provider-chat-model",
             "SOCIETY0_REAL_E2E_LLM_API_KEY": "llm-placeholder",
+            "SOCIETY0_REAL_E2E_LLM_TOOL_MODE": "prompted_json",
             "SOCIETY0_REAL_E2E_EMBED_BASE_URL": "https://embed.example.test/v1",
             "SOCIETY0_REAL_E2E_EMBED_MODEL": "provider-embed-model",
             "SOCIETY0_REAL_E2E_EMBED_API_KEY": "embed-placeholder",
@@ -22,6 +23,7 @@ def test_real_e2e_endpoint_config_prefers_provider_neutral_env():
         "LLM_MODEL": "provider-chat-model",
         "LLM_API_KEY": "llm-placeholder",
         "LLM_TIMEOUT": "180",
+        "LLM_TOOL_MODE": "prompted_json",
     }
     assert embed_env == {
         "EMBEDDING_BASE_URL": "https://embed.example.test/v1",

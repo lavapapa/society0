@@ -613,6 +613,21 @@ async def execute_action_loop(
             return None
         if list(action_set.actions.keys()) == ["submit_result"]:
             return {"type": "function", "function": {"name": "submit_result"}}
+        successful_required_names = set()
+        for action_call in all_action_calls:
+            if getattr(action_call, "status", "success") == "success":
+                successful_required_names.update(_action_aliases(action_call.action_name))
+        remaining_required_names = required_action_name_set - successful_required_names
+        required_candidates = [
+            action_name
+            for action_name in action_set.actions
+            if _action_aliases(action_name) & remaining_required_names
+        ]
+        if len(required_candidates) == 1:
+            return {
+                "type": "function",
+                "function": {"name": required_candidates[0]},
+            }
 
         return "auto"
 
