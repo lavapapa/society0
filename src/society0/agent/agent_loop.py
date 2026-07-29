@@ -14,6 +14,8 @@ import json_repair
 import time
 from collections import Counter
 
+from ..state_proxy import DictProxy
+
 logger = logging.getLogger(__name__)
 
 
@@ -133,7 +135,7 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
     Treat clear failure strings as action errors so completion tags do not end
     the round after a failed write such as "Post post_x not found".
     """
-    if isinstance(result, dict):
+    if isinstance(result, (dict, DictProxy)):
         explicit_ok = result.get("ok")
         if explicit_ok is False:
             return "error", str(result.get("error") or result.get("message") or "action failed")

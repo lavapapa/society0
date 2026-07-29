@@ -17,6 +17,7 @@ from society0.resource_managers import EmbeddingManager, LLMManager
 from society0.context_stack import ContextStack
 from society0.events import StateChangeEvent
 from society0.schedule import AgentBatchResult, AgentCallRecord, AgentSelector, StepResult
+from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
 
 pytestmark = pytest.mark.primary
@@ -2192,6 +2193,64 @@ async def test_completion_action_tag_ignores_semantic_action_failure():
     assert len(llm_calls) == 2
     assert [call["status"] for call in result.action_calls] == ["error", "success"]
     assert result.action_calls[0]["error"] == "Post missing_post not found"
+
+
+@pytest.mark.asyncio
+async def test_completion_action_tag_accepts_successful_state_proxy_with_failure_words_in_business_text():
+    action_set = ActionSet()
+    llm_calls = []
+    plan_proxy = DictProxy(
+        {
+            "id": "operating-plan:seller",
+            "status": "active",
+            "review": {"next_steps": "当前未找到新的供应商，维持已有经营安排。"},
+        },
+        event_recorder=lambda event: None,
+        context_provider=lambda: [],
+    )
+
+    async def update_plan_review():
+        return plan_proxy
+
+    action_set.add_action(
+        name="update_plan_review",
+        func=update_plan_review,
+        description="Update a business plan review",
+        parameters={"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_update_review",
+                    "type": "function",
+                    "function": {
+                        "name": "update_plan_review",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the current business plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "Review", "desc": "Review the plan"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        completion_action_tags=["industry_plan"],
+    )
+
+    assert len(llm_calls) == 1
+    assert result.action_calls[0]["status"] == "success"
+    assert result.termination_reason == "completion_action_tag"
+    assert result.termination_action == "update_plan_review"
 
 
 def test_empty_action_tags_filter_exposes_no_actions():
