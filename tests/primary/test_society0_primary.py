@@ -4500,6 +4500,113 @@ async def test_extractive_memory_compacts_large_tool_results_before_llm_call():
     assert "x" * 10_000 not in serialized
 
 
+@pytest.mark.asyncio
+async def test_extractive_memory_retry_keeps_the_output_limit():
+    calls = []
+    action_set = ActionSet()
+
+    class FakeMemory:
+        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
+            return ["mem_1"]
+
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "经营自己的组织。",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_0")
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    extraction_calls = 0
+
+    async def fake_llm_call(payload):
+        nonlocal extraction_calls
+        calls.append(payload)
+        tool_names = [
+            tool["function"]["name"]
+            for tool in (payload.get("tools") or [])
+        ]
+        if "extract_memories" not in tool_names:
+            return {
+                "role": "assistant",
+                "content": "本轮经营完成。",
+                "tool_calls": [],
+            }
+        extraction_calls += 1
+        if extraction_calls == 1:
+            return {
+                "role": "assistant",
+                "content": "我会记住这件事。",
+                "tool_calls": [],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "extract_1",
+                    "type": "function",
+                    "function": {
+                        "name": "extract_memories",
+                        "arguments": (
+                            '{"memories": [{"content": "我完成了本轮经营。", '
+                            '"importance": 2}]}'
+                        ),
+                    },
+                }
+            ],
+        }
+
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="经营自己的组织。",
+        memory=FakeMemory(),
+        llm_call=fake_llm_call,
+        actionset=action_set,
+    )
+
+    result = await agent.instruct(
+        "处理当前经营事项。",
+        retrieve_memory=False,
+        save_memory=True,
+        extract_memory=True,
+        max_turns=1,
+    )
+
+    extraction_payloads = [
+        payload
+        for payload in calls
+        if any(
+            tool["function"]["name"] == "extract_memories"
+            for tool in (payload.get("tools") or [])
+        )
+    ]
+    assert result["memory_extraction_success"] is True
+    assert len(extraction_payloads) == 2
+    assert {
+        payload.get("max_tokens")
+        for payload in extraction_payloads
+    } == {2_048}
+
+
 def test_json_prefix_fallback_parses_prefilled_object_continuation():
     parsed = _parse_structured_json_from_model_text(
         '"trust_score": 3, "reason": "Plausible but underspecified."}\\n```',
