@@ -20,7 +20,7 @@ _MAX_INTERACTION_SUMMARY_CHARS = 16_000
 _MAX_RESPONSE_CONTENT_CHARS = 500
 _MAX_ACTION_ARGUMENTS_CHARS = 300
 _MAX_ACTION_RESULT_CHARS = 500
-_MAX_EXTRACTION_OUTPUT_TOKENS = 1_024
+_MAX_EXTRACTION_OUTPUT_TOKENS = 2_048
 
 
 EXTRACT_MEMORIES_SCHEMA: Dict[str, Any] = {
@@ -237,6 +237,7 @@ async def perform_memory_extraction(
         ],
         "tools": [actionset],
         "tool_choice": {"type": "function", "function": {"name": "extract_memories"}},
+        "max_tokens": _MAX_EXTRACTION_OUTPUT_TOKENS,
         "metadata": {
             "interaction_type": "memory_extract",
             "interaction_name": "memory_extract_retry",
