@@ -4368,6 +4368,138 @@ async def test_extractive_memory_llm_call_is_traced_as_memory_extract():
     assert memory.write_calls[0]["entries"][0]["metadata"]["extraction_method"] == "structured_extract"
 
 
+@pytest.mark.asyncio
+async def test_extractive_memory_compacts_large_tool_results_before_llm_call():
+    calls = []
+    action_set = ActionSet()
+
+    class FakeMemory:
+        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
+            return ["mem_1"]
+
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "经营自己的组织。",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_0")
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    async def inspect_record(record_id: str):
+        return {
+            "record_id": record_id,
+            "status": "active",
+            "detail": "x" * 200_000,
+        }
+
+    action_set.add_action(
+        name="inspect_record",
+        func=inspect_record,
+        description="Inspect one detailed record.",
+        parameters={
+            "type": "object",
+            "properties": {"record_id": {"type": "string"}},
+            "required": ["record_id"],
+        },
+    )
+
+    ordinary_call_count = 0
+
+    async def fake_llm_call(payload):
+        nonlocal ordinary_call_count
+        calls.append(payload)
+        tool_names = [tool["function"]["name"] for tool in payload.get("tools", [])]
+        if "extract_memories" in tool_names:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "extract_1",
+                        "type": "function",
+                        "function": {
+                            "name": "extract_memories",
+                            "arguments": (
+                                '{"memories": [{"content": "我查看了合同记录。", '
+                                '"importance": 3}]}'
+                            ),
+                        },
+                    }
+                ],
+            }
+        ordinary_call_count += 1
+        if ordinary_call_count == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "inspect_1",
+                        "type": "function",
+                        "function": {
+                            "name": "inspect_record",
+                            "arguments": '{"record_id": "contract-001"}',
+                        },
+                    }
+                ],
+            }
+        return {
+            "role": "assistant",
+            "content": "记录已经检查完毕。",
+            "tool_calls": [],
+        }
+
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="经营自己的组织。",
+        memory=FakeMemory(),
+        llm_call=fake_llm_call,
+        actionset=action_set,
+    )
+
+    result = await agent.instruct(
+        "检查需要关注的记录。",
+        retrieve_memory=False,
+        save_memory=True,
+        extract_memory=True,
+        max_turns=3,
+    )
+
+    extraction_payload = next(
+        payload
+        for payload in calls
+        if any(
+            tool["function"]["name"] == "extract_memories"
+            for tool in payload.get("tools", [])
+        )
+    )
+    serialized = json.dumps(extraction_payload, ensure_ascii=False)
+
+    assert result["memory_extraction_success"] is True
+    assert len(serialized) < 30_000
+    assert "inspect_record" in serialized
+    assert "contract-001" in serialized
+    assert "x" * 10_000 not in serialized
+
+
 def test_json_prefix_fallback_parses_prefilled_object_continuation():
     parsed = _parse_structured_json_from_model_text(
         '"trust_score": 3, "reason": "Plausible but underspecified."}\\n```',
