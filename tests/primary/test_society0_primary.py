@@ -1490,6 +1490,13 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
 
     world = FakeWorld()
     group = AgentSelector(world).ids(["alice"])
+    prior_messages = {
+        "alice": [
+            {"role": "system", "content": "system"},
+            {"role": "user", "content": "earlier task"},
+            {"role": "assistant", "content": "earlier result"},
+        ]
+    }
 
     instruct = await group.instruct(
         "act",
@@ -1514,6 +1521,7 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
         top_p=0.9,
         timeout=45,
         llm_options={"max_tokens": 120, "metadata": {"bad": True}},
+        prior_messages_by_agent=prior_messages,
     )
     assert instruct.mean("trust_score") == 0.5
     assert instruct.table()[0]["total_turns"] == 2
@@ -1523,6 +1531,7 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
     assert world.instruct_call[2]["save_memory"] is False
     assert world.instruct_call[2]["extract_memory"] is False
     assert world.instruct_call[2]["model_id"] == "fast"
+    assert world.instruct_call[2]["prior_messages"] == prior_messages["alice"]
     assert world.instruct_call[2]["name"] == "feed_interaction"
     assert world.instruct_call[2]["reasoning_stages"] == [{"name": "think", "desc": "think first"}]
     assert world.instruct_call[2]["terminal_action_names"] == ["submit_final_decision"]
@@ -1842,6 +1851,65 @@ async def test_terminal_action_stops_agent_loop_after_tool_call():
     assert [call["action_name"] for call in result.action_calls] == ["submit_final_decision"]
     assert result.termination_reason == "terminal_action"
     assert result.termination_action == "submit_final_decision"
+
+
+@pytest.mark.asyncio
+async def test_action_loop_can_continue_an_existing_agent_thread():
+    first_payloads = []
+
+    async def first_llm_call(payload):
+        first_payloads.append(json.loads(json.dumps(payload)))
+        return {
+            "role": "assistant",
+            "content": "I completed the first turn.",
+        }
+
+    first = await execute_action_loop(
+        instruction="First instruction.",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=first_llm_call,
+        max_turns=1,
+    )
+
+    second_payloads = []
+
+    async def second_llm_call(payload):
+        second_payloads.append(json.loads(json.dumps(payload)))
+        return {
+            "role": "assistant",
+            "content": "I continued the existing thread.",
+        }
+
+    second = await execute_action_loop(
+        instruction="Second instruction.",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=second_llm_call,
+        max_turns=1,
+        prior_messages=first.conversation_messages,
+    )
+
+    assert [message["role"] for message in first.conversation_messages] == [
+        "system",
+        "user",
+        "assistant",
+    ]
+    assert [message["role"] for message in second_payloads[0]["messages"]] == [
+        "system",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert second_payloads[0]["messages"][1]["content"] == (
+        "First instruction."
+    )
+    assert second_payloads[0]["messages"][-1]["content"] == (
+        "Second instruction."
+    )
+    assert len(second.conversation_messages) == 5
 
 
 @pytest.mark.asyncio
@@ -2962,8 +3030,14 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
             "output_schema": False,
             "reasoning_stage_count": 0,
             "reasoning_stages": [],
-            "memory": {"retrieve": False, "save": False, "extract": False, "top_k": 10},
+            "memory": {
+                "retrieve": False,
+                "save": False,
+                "extract": False,
+                "top_k": 10,
+            },
             "llm_request_options": {},
+            "continued_agent_count": 0,
         },
     }
     assert [event["event_data"]["completed_count"] for event in progress_events] == [1, 2, 3]

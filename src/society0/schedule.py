@@ -505,6 +505,9 @@ class AgentGroup:
         top_p: Optional[float] = None,
         timeout: Optional[float] = None,
         llm_options: Optional[Dict[str, Any]] = None,
+        prior_messages_by_agent: Optional[
+            Dict[str, List[Dict[str, Any]]]
+        ] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
         llm_request_options = _build_llm_request_options(
@@ -533,6 +536,12 @@ class AgentGroup:
             required_action_tags=required_action_tags,
             llm_request_options=llm_request_options,
         )
+        continued_agent_count = sum(
+            1
+            for agent_id in self.agent_ids
+            if (prior_messages_by_agent or {}).get(agent_id)
+        )
+        execution_options["continued_agent_count"] = continued_agent_count
 
         async def call(agent_id: str) -> AgentCallRecord:
             agent_started = time.time()
@@ -559,6 +568,9 @@ class AgentGroup:
                     max_action_calls=max_action_calls,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
+                    prior_messages=(
+                        prior_messages_by_agent or {}
+                    ).get(agent_id),
                 )
                 failure_record = _agent_failure_record(
                     agent_id,

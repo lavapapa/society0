@@ -8,6 +8,7 @@ Actions replace the previous tool system with enhanced metadata support.
 
 from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
 from dataclasses import dataclass, field
+import copy
 import re
 import logging
 import json_repair
@@ -337,6 +338,7 @@ class LoopResult:
     phases: Dict[str, Union[str, List[Dict[str, Any]]]] = field(default_factory=dict)
     phases_unknown: Dict[str, Union[str, List[Dict[str, Any]]]] = field(default_factory=dict)
     full_history: List[Dict[str, Any]] = field(default_factory=list)
+    conversation_messages: List[Dict[str, Any]] = field(default_factory=list)
     parsing_errors: List[str] = field(default_factory=list)
     total_turns: int = 0
     default_stage_name: str = "default"
@@ -493,6 +495,7 @@ async def execute_action_loop(
     max_action_calls: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     llm_request_options: Optional[Dict[str, Any]] = None,
+    prior_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> LoopResult:
     """
     Execute a configurable multi-stage action loop.
@@ -544,13 +547,27 @@ async def execute_action_loop(
         stages_text = format_stages_for_prompt(normalized_stages)
         flow_section = f"[输出流程]\n{act_prompt.format(stages=stages_text)}"
     system_message = f"{system_prompt}\n\n{flow_section}"
-    messages = [
-        {
+    if prior_messages:
+        messages = copy.deepcopy(prior_messages)
+        if (
+            not isinstance(messages[0], dict)
+            or messages[0].get("role") != "system"
+        ):
+            raise ValueError("prior_messages must start with a system message")
+        messages[0] = {
+            **messages[0],
             "role": "system",
-            "content": system_message
-        },
-        {"role": "user", "content": instruction}
-    ]
+            "content": system_message,
+        }
+        messages.append({"role": "user", "content": instruction})
+    else:
+        messages = [
+            {
+                "role": "system",
+                "content": system_message
+            },
+            {"role": "user", "content": instruction}
+        ]
 
     full_history = []
     total_turns = 0
@@ -1028,6 +1045,7 @@ async def execute_action_loop(
         phases=processed_phases,
         phases_unknown=phases_unknown,
         full_history=full_history,
+        conversation_messages=copy.deepcopy(messages),
         parsing_errors=parsing_errors,
         total_turns=total_turns,
         default_stage_name=default_stage_name,
