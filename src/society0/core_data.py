@@ -166,6 +166,7 @@ class ExecutionContext:
     event_logger: Optional['EventLogger'] = None  # Reference to event logger for traceability
     log_context: Optional['ExperimentLogContext'] = None  # Structured logging context
     operator_id: Optional[str] = None  # 当前正在执行的 operator 标识（若有）
+    action_call_id: Optional[str] = None  # 当前 LLM 工具调用的内部编号
 
     @property
     def step_number(self) -> int:
@@ -374,6 +375,8 @@ class World:
         node: Optional['StepNode'] = None,
     ) -> ExecutionContext:
         """构造标准 ExecutionContext，统一包含当前 world 引用。"""
+        from .agent.agent_loop import current_action_call_id
+
         return ExecutionContext(
             world=self,
             step=step,
@@ -381,6 +384,7 @@ class World:
             caller=caller,
             event_logger=self.event_logger,
             log_context=self._log_context,
+            action_call_id=current_action_call_id(),
         )
 
     # Agent management methods

@@ -1854,6 +1854,97 @@ async def test_terminal_action_stops_agent_loop_after_tool_call():
 
 
 @pytest.mark.asyncio
+async def test_action_call_id_is_available_in_execution_context():
+    action_set = ActionSet()
+    world = World()
+    seen_call_ids = []
+    llm_call_count = 0
+
+    async def record_delivery():
+        context = world._build_execution_context(caller="test-agent")
+        seen_call_ids.append(context.action_call_id)
+        return {"ok": True}
+
+    action_set.add_action(
+        name="record_delivery",
+        func=record_delivery,
+        description="Record one delivery.",
+        parameters={"type": "object", "properties": {}},
+    )
+
+    async def fake_llm_call(payload):
+        nonlocal llm_call_count
+        llm_call_count += 1
+        if llm_call_count == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_delivery_1",
+                        "type": "function",
+                        "function": {
+                            "name": "record_delivery",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "done", "tool_calls": []}
+
+    await execute_action_loop(
+        instruction="Record the delivery.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+    )
+
+    assert seen_call_ids == ["call_delivery_1"]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_action_call_ids_do_not_leak_between_tasks():
+    action_set = ActionSet()
+    world = World()
+    seen = {}
+
+    async def observe(label: str):
+        await asyncio.sleep(0)
+        context = world._build_execution_context(caller=label)
+        seen[label] = context.action_call_id
+        return {"ok": True}
+
+    action_set.add_action(
+        name="observe",
+        func=observe,
+        description="Observe the current action context.",
+        parameters={
+            "type": "object",
+            "properties": {"label": {"type": "string"}},
+            "required": ["label"],
+        },
+    )
+
+    await asyncio.gather(
+        action_set.call_action(
+            "observe",
+            _society0_call_id="call_a",
+            label="a",
+        ),
+        action_set.call_action(
+            "observe",
+            _society0_call_id="call_b",
+            label="b",
+        ),
+    )
+
+    assert seen == {"a": "call_a", "b": "call_b"}
+    assert world._build_execution_context(caller="outside").action_call_id is None
+
+
+@pytest.mark.asyncio
 async def test_action_loop_can_continue_an_existing_agent_thread():
     first_payloads = []
 
