@@ -9,6 +9,7 @@ Actions replace the previous tool system with enhanced metadata support.
 from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
 from dataclasses import dataclass, field
 import copy
+import contextvars
 import re
 import logging
 import json_repair
@@ -18,6 +19,16 @@ from collections import Counter
 from ..state_proxy import DictProxy
 
 logger = logging.getLogger(__name__)
+
+_CURRENT_ACTION_CALL_ID: contextvars.ContextVar[Optional[str]] = (
+    contextvars.ContextVar("society0_action_call_id", default=None)
+)
+
+
+def current_action_call_id() -> Optional[str]:
+    """Return the provider tool-call id for the action currently executing."""
+
+    return _CURRENT_ACTION_CALL_ID.get()
 
 
 def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None, flush: bool = False) -> None:
@@ -198,7 +209,14 @@ class ActionSet:
             "tags": tags or []
         }
 
-    async def call_action(self, action_name: str, context_provider: Optional[Callable] = None, **kwargs) -> Any:
+    async def call_action(
+        self,
+        action_name: str,
+        context_provider: Optional[Callable] = None,
+        *,
+        _society0_call_id: Optional[str] = None,
+        **kwargs,
+    ) -> Any:
         """Call an action by name with arguments, handling both sync and async functions and context management.
 
         Args:
@@ -209,6 +227,7 @@ class ActionSet:
         if action_name not in self.actions:
             raise ValueError(f"Action '{action_name}' not found in actionset")
 
+        call_id_token = _CURRENT_ACTION_CALL_ID.set(_society0_call_id)
         try:
             action_func = self.actions[action_name]["function"]
 
@@ -261,6 +280,8 @@ class ActionSet:
         except Exception as e:
             logger.error(f"Error calling action '{action_name}': {e}")
             raise
+        finally:
+            _CURRENT_ACTION_CALL_ID.reset(call_id_token)
 
     def filter_by_tags(
         self,
@@ -874,6 +895,7 @@ async def execute_action_loop(
                     action_result = await action_set.call_action(
                         action_call.action_name,
                         context_provider=context_provider,
+                        _society0_call_id=action_call.call_id,
                         **action_call.arguments
                     )
                 finally:
