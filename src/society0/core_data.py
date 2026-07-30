@@ -1975,13 +1975,10 @@ class World:
                     injected_params = {}
                     for sys_param_name, sys_param_type in sys_params.items():
                         if sys_param_type == ExecutionContext:
-                            injected_params[sys_param_name] = ExecutionContext(
-                                world=self,
-                                step=None,
-                                node=None,
-                                caller=agent,
-                                event_logger=self.event_logger,
-                                log_context=self._log_context
+                            injected_params[sys_param_name] = (
+                                self._build_execution_context(
+                                    caller=agent,
+                                )
                             )
                         elif sys_param_type == "agent":
                             injected_params[sys_param_name] = agent
