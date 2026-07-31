@@ -149,9 +149,15 @@ async def test_group_instruct_can_use_a_domain_tick_for_memory_time():
 
     result = await AgentGroup(World({}), ["alice"]).instruct(
         "经营公司。",
-        memory=False,
+        memory=True,
+        retrieve_memory=True,
+        save_memory=False,
+        extract_memory=False,
         current_step=23,
     )
 
     assert result.success_count == 1
     assert captured[0]["current_step"] == 23
+    assert captured[0]["retrieve_memory"] is True
+    assert captured[0]["save_memory"] is False
+    assert captured[0]["extract_memory"] is False

@@ -621,6 +621,8 @@ class AgentGroup:
         actions: List[str] | None = None,
         output: Any = None,
         memory: bool = True,
+        retrieve_memory: Optional[bool] = None,
+        save_memory: Optional[bool] = None,
         extract_memory: bool = True,
         model: Optional[str] = None,
         current_step: Optional[int] = None,
@@ -655,14 +657,22 @@ class AgentGroup:
         effective_current_step = _resolve_memory_timestamp(
             self.world.step if current_step is None else current_step
         )
-        effective_extract_memory = bool(memory and extract_memory)
+        effective_retrieve_memory = (
+            bool(memory) if retrieve_memory is None else bool(retrieve_memory)
+        )
+        effective_save_memory = (
+            bool(memory) if save_memory is None else bool(save_memory)
+        )
+        effective_extract_memory = bool(
+            effective_save_memory and extract_memory
+        )
         execution_options = _agent_batch_execution_options(
             max_turns=max_turns,
             output_schema=output_schema,
             reasoning_stages=reasoning_stages,
             memory={
-                "retrieve": memory,
-                "save": memory,
+                "retrieve": effective_retrieve_memory,
+                "save": effective_save_memory,
                 "extract": effective_extract_memory,
                 "top_k": memory_top_k,
             },
@@ -694,8 +704,8 @@ class AgentGroup:
                     model_id=model,
                     output_schema=output_schema,
                     max_turns=max_turns,
-                    retrieve_memory=memory,
-                    save_memory=memory,
+                    retrieve_memory=effective_retrieve_memory,
+                    save_memory=effective_save_memory,
                     extract_memory=effective_extract_memory,
                     memory_top_k=memory_top_k,
                     name=name,
