@@ -980,6 +980,12 @@ class StepContext:
     def capabilities(self) -> CapabilityCatalog:
         return CapabilityCatalog(self.world)
 
+    def activation_pool(self, *, concurrency: Optional[int] = None) -> Any:
+        """Create a temporary dynamic activation pool for this code step."""
+        from .activation_pool import ActivationPoolSession
+
+        return ActivationPoolSession(context=self, concurrency=concurrency)
+
     async def rule(self, rule_name: str, *, name: Optional[str] = None, **params: Any) -> Any:
         resolved = _resolve_logic_entry(self.world, rule_name, "rule")
         if resolved is None:
