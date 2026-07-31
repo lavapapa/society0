@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from society0.agent.memory import Memory
 from society0.schedule import AgentGroup
 
 
@@ -134,6 +135,129 @@ async def test_group_remember_isolates_agent_failures_and_honors_concurrency():
     assert result.success_count == 1
     assert result.error_count == 1
     assert result.by_agent("bob").error == "bob write failed"
+
+
+@pytest.mark.asyncio
+async def test_group_remember_uses_runtime_concurrency_by_default():
+    release = asyncio.Event()
+    active = 0
+    maximum_active = 0
+
+    class Memory(_Memory):
+        async def add_episodic_memory(self, **kwargs):
+            nonlocal active, maximum_active
+            active += 1
+            maximum_active = max(maximum_active, active)
+            try:
+                await release.wait()
+            finally:
+                active -= 1
+            return f"memory:{self.agent_id}"
+
+    agents = {
+        agent_id: _Agent(agent_id, Memory(agent_id))
+        for agent_id in ("a", "b", "c", "d")
+    }
+    task = asyncio.create_task(
+        AgentGroup(_World(agents), agents).remember(
+            {agent_id: f"episode {agent_id}" for agent_id in agents}
+        )
+    )
+    for _ in range(20):
+        if maximum_active == 2:
+            break
+        await asyncio.sleep(0)
+
+    assert maximum_active == 2
+    release.set()
+    result = await task
+    assert result.success_count == 4
+    assert maximum_active == 2
+
+
+@pytest.mark.asyncio
+async def test_group_remember_passes_a_stable_memory_id_for_retries():
+    memory = _Memory("alice")
+    group = AgentGroup(
+        _World({"alice": _Agent("alice", memory)}),
+        ["alice"],
+    )
+
+    await group.remember(
+        {"alice": "tick episode"},
+        idempotency_key="run-1:tick-4",
+    )
+    await group.remember(
+        {"alice": "tick episode"},
+        idempotency_key="run-1:tick-4",
+    )
+
+    first_id = memory.calls[0]["memory_id"]
+    second_id = memory.calls[1]["memory_id"]
+    assert first_id == second_id
+    assert first_id.startswith("episodic_")
+
+
+@pytest.mark.asyncio
+async def test_group_memory_time_rejects_fractional_values():
+    memory = _Memory("alice")
+    group = AgentGroup(
+        _World({"alice": _Agent("alice", memory)}),
+        ["alice"],
+    )
+
+    with pytest.raises(ValueError, match="non-negative integer"):
+        await group.remember({"alice": "episode"}, timestamp=1.9)
+
+
+@pytest.mark.asyncio
+async def test_explicit_memory_id_upserts_instead_of_duplicating():
+    class Collection:
+        def __init__(self):
+            self.rows = {}
+
+        def upsert(self, *, ids, documents, embeddings, metadatas):
+            for index, memory_id in enumerate(ids):
+                self.rows[memory_id] = {
+                    "document": documents[index],
+                    "embedding": embeddings[index],
+                    "metadata": metadatas[index],
+                }
+
+    collection = Collection()
+
+    class VectorClient:
+        def get_or_create_collection(self, **kwargs):
+            return collection
+
+    async def embed(texts, dimensions, metadata=None):
+        return {
+            "result": [[1.0, 0.0, 0.0] for _ in texts],
+            "dimensions": dimensions,
+        }
+
+    memory = Memory(
+        "alice",
+        VectorClient(),
+        embed_call=embed,
+        embedding_dim=3,
+    )
+    first = await memory.add_episodic_memory(
+        "first",
+        timestamp=4,
+        importance=3.0,
+        memory_id="episodic_stable",
+    )
+    second = await memory.add_episodic_memory(
+        "second",
+        timestamp=4,
+        importance=3.0,
+        memory_id="episodic_stable",
+    )
+
+    assert first == second == "episodic_stable"
+    assert list(collection.rows) == ["episodic_stable"]
+    assert collection.rows["episodic_stable"]["document"] == "second"
 
 
 @pytest.mark.asyncio

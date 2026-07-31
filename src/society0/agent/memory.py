@@ -453,6 +453,7 @@ class Memory:
         importance: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
         trace: Optional[Dict[str, Any]] = None,
+        memory_id: Optional[str] = None,
     ) -> str:
         """
         添加情景记忆
@@ -466,7 +467,15 @@ class Memory:
         Returns:
             记忆条目的ID
         """
-        return await self._add_memory("episodic", content, timestamp, importance, metadata, trace=trace)
+        return await self._add_memory(
+            "episodic",
+            content,
+            timestamp,
+            importance,
+            metadata,
+            trace=trace,
+            memory_id=memory_id,
+        )
         
     async def add_semantic_memory(
         self,
@@ -498,6 +507,7 @@ class Memory:
         importance: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
         trace: Optional[Dict[str, Any]] = None,
+        memory_id: Optional[str] = None,
     ) -> str:
         """内部方法：添加记忆（单条封装到批量通道）"""
         ids = await self.add_memories_batch(
@@ -508,6 +518,7 @@ class Memory:
                     "timestamp": timestamp,
                     "importance": importance,
                     "metadata": metadata,
+                    "memory_id": memory_id,
                 }
             ],
             fire_and_forget=False,
@@ -534,7 +545,15 @@ class Memory:
         if not entries:
             return []
 
-        memory_ids = [self._new_memory_id() for _ in entries]
+        memory_ids = [
+            str(item.get("memory_id") or self._new_memory_id())
+            for item in entries
+        ]
+        if any(not memory_id.strip() for memory_id in memory_ids):
+            raise ValueError("memory_id must be a non-empty string")
+        if len(set(memory_ids)) != len(memory_ids):
+            raise ValueError("memory_id values must be unique within one batch")
+        use_upsert = any(item.get("memory_id") is not None for item in entries)
 
         async def _persist_batch():
             try:
@@ -565,7 +584,8 @@ class Memory:
 
                 async with self._io_lock:
                     collection = self._get_collection()
-                    collection.add(
+                    write = collection.upsert if use_upsert else collection.add
+                    write(
                         ids=memory_ids,
                         documents=docs,
                         embeddings=[item["_embedding"] for item in entries],
