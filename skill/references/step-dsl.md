@@ -246,7 +246,8 @@ self.activation_pool.instruct(
 )
 ```
 
-`submit(key, async_closure, payload=..., dedupe_token=..., serial_key=...)` and
+`submit(key, async_closure, payload=..., dedupe_token=..., serial_key=...,
+handler_id=...)` and
 its `enqueue` alias support non-agent asynchronous work. The closure may accept one
 `ActivationBatch` argument to inspect all payloads merged into that round.
 One key denotes one task contract:
@@ -256,16 +257,23 @@ One key denotes one task contract:
 - a repeated `(key, dedupe_token)` is ignored for the rest of the pool session;
 - different tokens are retained in arrival order.
 
+The first submission binds the key to a handler for the lifetime of the pool.
+Passing a different closure under the same key is rejected instead of silently
+discarding the later closure. A stable function or bound method normally needs
+no explicit `handler_id`. If an environment method creates a new nested closure
+on every call, pass the same stable `handler_id` for closures that implement the
+same contract.
+
 The default key for `pool.instruct(...)` is the target agent, which prevents the
 same agent from entering concurrent instruct rounds. Instruct calls also use a
 separate Agent serial key. Environment closures that act as the same Agent can
 join that mutual-exclusion domain without merging their work:
 
 ```python
-pool.submit(
+pool.submit_agent(
+    agent_id,
     ("industry_follow_up", agent_id),
     run_industry_follow_up,
-    serial_key=pool.agent_serial_key(agent_id),
 )
 ```
 
@@ -277,10 +285,16 @@ same serial key, closure contract, FoVs, actions, and instruct options. Their
 distinct static instruction strings are joined once in arrival order. Put
 domain concepts such as inbox items or agenda records in the environment's
 payloads and FoV; the core pool only understands work keys, serial keys,
-payloads, and tokens.
+handler identities, payloads, and tokens. Two `instruct` submissions under the
+same key must use the same Agent, FoVs, actions, and execution options; a
+configuration mismatch is rejected rather than being overwritten by the first
+call.
 
 `await pool.drain()` returns queryable `ActivationResult` records after all
-queued and follow-up work finishes. If a closure failed, drain raises
+queued and follow-up work finishes. The idle check also covers work submitted
+on the same event-loop boundary where the queue first becomes empty, so the
+context manager cannot detach the environment while a late closure is still
+running. If a closure failed, drain raises
 `ActivationPoolError` after the remaining work has completed; the same records
 remain available through `pool.results`. If the step body itself fails, the
 pool cancels running work, discards queued work, and removes

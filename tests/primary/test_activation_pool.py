@@ -4,6 +4,7 @@ import pytest
 
 from society0 import (
     ActivationBatch,
+    ActivationPool,
     ActivationPoolError,
     ActivationResult,
     ActivationSignal,
@@ -275,15 +276,15 @@ async def test_agent_serial_key_blocks_other_keys_without_occupying_pool_capacit
     async with ctx.activation_pool() as pool:
         alice_serial = pool.agent_serial_key("alice")
         pool.instruct("alice", "经营企业。")
-        pool.submit(
+        pool.submit_agent(
+            "alice",
             ("industry", "alice"),
             run_alice_industry,
-            serial_key=alice_serial,
         )
-        pool.submit(
+        pool.submit_agent(
+            "bob",
             ("industry", "bob"),
             run_bob,
-            serial_key=pool.agent_serial_key("bob"),
         )
 
         await asyncio.wait_for(alice_instruct_started.wait(), timeout=1)
@@ -328,6 +329,165 @@ async def test_rejected_serial_key_change_does_not_consume_dedupe_token():
 
 
 @pytest.mark.asyncio
+async def test_same_key_rejects_a_different_closure_before_consuming_token():
+    env = _Env()
+    ctx = StepContext(
+        step=0,
+        step_name="activate",
+        world=_World(),
+        env=env,
+        params={},
+    )
+    seen = []
+
+    async def first(batch):
+        seen.append(("first", batch.payloads))
+
+    async def second(batch):
+        seen.append(("second", batch.payloads))
+
+    async with ctx.activation_pool() as pool:
+        pool.submit("shared", first, payload="a", dedupe_token="first")
+        with pytest.raises(ValueError, match="handler_id"):
+            pool.submit(
+                "shared",
+                second,
+                payload="b",
+                dedupe_token="retry",
+            )
+        accepted = pool.submit(
+            "shared",
+            first,
+            payload="b",
+            dedupe_token="retry",
+        )
+        assert accepted.disposition == "merged"
+
+    assert seen == [("first", ("a", "b"))]
+
+
+@pytest.mark.asyncio
+async def test_instruct_rejects_different_execution_options_for_one_key():
+    class InstructWorld(_World):
+        agents_data = {"alice": {"id": "alice", "type": "enterprise"}}
+        step = 0
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            return {"status": "success", "content": "ok"}
+
+    ctx = StepContext(
+        step=0,
+        step_name="activate",
+        world=InstructWorld(),
+        env=_Env(),
+        params={},
+    )
+
+    async with ctx.activation_pool() as pool:
+        pool.instruct(
+            "alice",
+            "first",
+            fovs=["profile"],
+            actions=["read"],
+        )
+        with pytest.raises(ValueError, match="handler_id"):
+            pool.instruct(
+                "alice",
+                "second",
+                fovs=["market"],
+                actions=["write"],
+            )
+
+
+@pytest.mark.asyncio
+async def test_drain_waits_for_work_submitted_on_idle_boundary():
+    pool = ActivationPool(
+        world=object(),
+        capacity=1,
+        concurrency_source="test",
+    )
+    await pool.start()
+    first_started = asyncio.Event()
+    first_release = asyncio.Event()
+    late_started = asyncio.Event()
+    late_release = asyncio.Event()
+
+    async def first():
+        first_started.set()
+        await first_release.wait()
+
+    async def late():
+        late_started.set()
+        await late_release.wait()
+
+    pool.submit("first", first)
+    await asyncio.wait_for(first_started.wait(), timeout=1)
+
+    async def submit_on_idle_boundary():
+        await pool._queue._finished.wait()
+        pool.submit("late", late)
+
+    late_submitter = asyncio.create_task(submit_on_idle_boundary())
+    await asyncio.sleep(0)
+    drain_task = asyncio.create_task(pool.drain())
+    await asyncio.sleep(0)
+
+    first_release.set()
+    await asyncio.wait_for(late_started.wait(), timeout=1)
+    assert drain_task.done() is False
+
+    late_release.set()
+    await asyncio.wait_for(drain_task, timeout=1)
+    await asyncio.wait_for(late_submitter, timeout=1)
+    await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_close_waits_for_work_submitted_on_idle_boundary():
+    pool = ActivationPool(
+        world=object(),
+        capacity=1,
+        concurrency_source="test",
+    )
+    await pool.start()
+    first_started = asyncio.Event()
+    first_release = asyncio.Event()
+    late_started = asyncio.Event()
+    late_release = asyncio.Event()
+
+    async def first():
+        first_started.set()
+        await first_release.wait()
+
+    async def late():
+        late_started.set()
+        await late_release.wait()
+
+    pool.submit("first", first)
+    await asyncio.wait_for(first_started.wait(), timeout=1)
+
+    async def submit_on_idle_boundary():
+        await pool._queue._finished.wait()
+        pool.submit("late", late)
+
+    late_submitter = asyncio.create_task(submit_on_idle_boundary())
+    await asyncio.sleep(0)
+    close_task = asyncio.create_task(pool.close())
+    await asyncio.sleep(0)
+
+    first_release.set()
+    await asyncio.wait_for(late_started.wait(), timeout=1)
+    assert close_task.done() is False
+    assert pool.closed is False
+
+    late_release.set()
+    await asyncio.wait_for(close_task, timeout=1)
+    await asyncio.wait_for(late_submitter, timeout=1)
+    assert pool.closed is True
+    assert not pool._execution_tasks
+
+
+@pytest.mark.asyncio
 async def test_environment_can_submit_work_from_its_own_method_during_step_session():
     class SchedulingEnv:
         activation_pool = None
@@ -339,7 +499,12 @@ async def test_environment_can_submit_work_from_its_own_method_during_step_sessi
             async def handle(batch):
                 self.seen.extend(batch.payloads)
 
-            return self.activation_pool.enqueue("shared-work", handle, payload=label)
+            return self.activation_pool.enqueue(
+                "shared-work",
+                handle,
+                payload=label,
+                handler_id="scheduling-env:shared-work",
+            )
 
     class SchedulingWorld(_World):
         step = 0

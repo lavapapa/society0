@@ -87,6 +87,7 @@ class _PendingActivation:
 @dataclass(slots=True)
 class _ActivationState:
     serial_key: Hashable | None = None
+    handler_id: Hashable | None = None
     pending: _PendingActivation | None = None
     follow_up: _PendingActivation | None = None
     running: bool = False
@@ -124,6 +125,7 @@ class ActivationPool:
         self._execution_errors: list[BaseException] = []
         self._results: list[ActivationResult] = []
         self._sentinel = object()
+        self._submission_generation = 0
 
     async def start(self) -> "ActivationPool":
         if self.closed:
@@ -145,6 +147,7 @@ class ActivationPool:
         payload: Any = None,
         dedupe_token: Hashable | None = None,
         serial_key: Hashable | None = None,
+        handler_id: Hashable | None = None,
     ) -> ActivationSubmission:
         """Submit a keyed closure and merge duplicate requests into one round.
 
@@ -155,7 +158,34 @@ class ActivationPool:
         execute one at a time; waiting for that serial domain uses no capacity.
         """
         signal = ActivationSignal(payload=payload, dedupe_token=dedupe_token)
-        return self._submit_signal(key, task, signal, serial_key=serial_key)
+        return self._submit_signal(
+            key,
+            task,
+            signal,
+            serial_key=serial_key,
+            handler_id=task if handler_id is None else handler_id,
+        )
+
+    def submit_agent(
+        self,
+        agent_id: str,
+        key: ActivationKey,
+        task: ActivationCallable,
+        *,
+        payload: Any = None,
+        dedupe_token: Hashable | None = None,
+        handler_id: Hashable | None = None,
+    ) -> ActivationSubmission:
+        """Submit agent-related closure work in that agent's serial domain."""
+
+        return self.submit(
+            key,
+            task,
+            payload=payload,
+            dedupe_token=dedupe_token,
+            serial_key=self.agent_serial_key(agent_id),
+            handler_id=handler_id,
+        )
 
     def instruct(
         self,
@@ -178,6 +208,15 @@ class ActivationPool:
             raise ValueError("instruction must be a non-empty string")
         task_key = key if key is not None else ("instruct", str(agent_id))
         normalized_instruction = instruction.strip()
+        resolved_fovs = tuple(fovs or ())
+        resolved_actions = tuple(actions) if actions is not None else None
+        handler_id = (
+            "instruct",
+            str(agent_id),
+            resolved_fovs,
+            resolved_actions,
+            self._freeze_handler_options(options),
+        )
 
         async def run(batch: ActivationBatch) -> Any:
             from .schedule import AgentGroup
@@ -189,8 +228,12 @@ class ActivationPool:
                     instructions.append(text)
             return await AgentGroup(self.world, [str(agent_id)]).instruct(
                 "\n\n".join(instructions),
-                fovs=list(fovs or []),
-                actions=list(actions) if actions is not None else None,
+                fovs=list(resolved_fovs),
+                actions=(
+                    list(resolved_actions)
+                    if resolved_actions is not None
+                    else None
+                ),
                 concurrency=1,
                 **options,
             )
@@ -205,6 +248,7 @@ class ActivationPool:
             run,
             signal,
             serial_key=self.agent_serial_key(agent_id),
+            handler_id=handler_id,
         )
 
     @staticmethod
@@ -219,6 +263,7 @@ class ActivationPool:
         signal: ActivationSignal,
         *,
         serial_key: Hashable | None,
+        handler_id: Hashable,
     ) -> ActivationSubmission:
         if self.closed:
             raise RuntimeError("Activation pool is closed")
@@ -229,9 +274,12 @@ class ActivationPool:
         hash(key)
         if serial_key is not None:
             hash(serial_key)
+        hash(handler_id)
         state = self._states.get(key)
         if state is not None and state.serial_key != serial_key:
             raise ValueError("serial_key must stay the same for one activation key")
+        if state is not None and state.handler_id != handler_id:
+            raise ValueError("handler_id must stay the same for one activation key")
         dedupe_token = signal.dedupe_token
         if dedupe_token is not None:
             hash(dedupe_token)
@@ -241,7 +289,10 @@ class ActivationPool:
             self._seen_tokens.add(token_key)
 
         if state is None:
-            state = _ActivationState(serial_key=serial_key)
+            state = _ActivationState(
+                serial_key=serial_key,
+                handler_id=handler_id,
+            )
             self._states[key] = state
         if state.running:
             if state.follow_up is None:
@@ -250,13 +301,13 @@ class ActivationPool:
                     signals=[signal],
                     serial_key=serial_key,
                 )
-                return ActivationSubmission(key, "follow_up", True)
+                return self._accepted_submission(key, "follow_up")
             state.follow_up.signals.append(signal)
-            return ActivationSubmission(key, "merged_follow_up", True)
+            return self._accepted_submission(key, "merged_follow_up")
 
         if state.pending is not None:
             state.pending.signals.append(signal)
-            return ActivationSubmission(key, "merged", True)
+            return self._accepted_submission(key, "merged")
 
         state.pending = _PendingActivation(
             task=task,
@@ -264,7 +315,7 @@ class ActivationPool:
             serial_key=serial_key,
         )
         self._queue.put_nowait(key)
-        return ActivationSubmission(key, "queued", True)
+        return self._accepted_submission(key, "queued")
 
     enqueue = submit
 
@@ -274,7 +325,18 @@ class ActivationPool:
 
     async def drain(self, *, raise_on_error: bool = True) -> tuple[ActivationResult, ...]:
         """Wait until all work submitted so far, including follow-up work, is done."""
-        await self._queue.join()
+        while True:
+            generation = self._submission_generation
+            await self._queue.join()
+            # Queue.join() can be awakened by a transient zero before another
+            # ready task submits work. Give those ready tasks one turn, then
+            # require both the generation and every internal state to be idle.
+            await asyncio.sleep(0)
+            if (
+                generation == self._submission_generation
+                and self._is_idle()
+            ):
+                break
         if self._execution_errors:
             details = "; ".join(str(error) or repr(error) for error in self._execution_errors)
             raise RuntimeError(f"Activation pool scheduler failed: {details}")
@@ -283,6 +345,48 @@ class ActivationPool:
         if raise_on_error and failures:
             raise ActivationPoolError(failures)
         return results
+
+    def _accepted_submission(
+        self,
+        key: ActivationKey,
+        disposition: str,
+    ) -> ActivationSubmission:
+        self._submission_generation += 1
+        return ActivationSubmission(key, disposition, True)
+
+    def _is_idle(self) -> bool:
+        if not self._queue.empty() or self._execution_tasks:
+            return False
+        return not any(
+            state.pending is not None
+            or state.follow_up is not None
+            or state.running
+            for state in self._states.values()
+        )
+
+    @classmethod
+    def _freeze_handler_options(cls, value: Any) -> Hashable:
+        if isinstance(value, dict):
+            return tuple(
+                sorted(
+                    (
+                        str(key),
+                        cls._freeze_handler_options(item),
+                    )
+                    for key, item in value.items()
+                )
+            )
+        if isinstance(value, (list, tuple)):
+            return tuple(cls._freeze_handler_options(item) for item in value)
+        if isinstance(value, set):
+            return frozenset(
+                cls._freeze_handler_options(item) for item in value
+            )
+        try:
+            hash(value)
+        except TypeError:
+            return (type(value).__qualname__, repr(value))
+        return value
 
     async def close(self, *, raise_on_error: bool = True) -> None:
         if self.closed:
