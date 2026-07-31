@@ -79,6 +79,7 @@ class EndpointConfig:
     provider_type: str = "openai"  # 提供商类型: openai, azure, other
     api_version: Optional[str] = None  # Azure API版本
     deployment_name: Optional[str] = None  # Azure部署名称
+    trust_env: bool = True  # 是否继承系统代理等运行环境配置
 
 
 @dataclass
@@ -1012,6 +1013,7 @@ class EmbeddingManager:
             provider_type=provider_type,
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
+            trust_env=bool(config.get("trust_env", True)),
         )
 
         # 创建异步客户端
@@ -1022,7 +1024,10 @@ class EmbeddingManager:
                 except ImportError:
                     raise ImportError("Please install ollama: pip install ollama")
 
-                client = AsyncClient(host=endpoint.base_url)
+                client = AsyncClient(
+                    host=endpoint.base_url,
+                    trust_env=endpoint.trust_env,
+                )
             else:
                 import openai
                 client = openai.AsyncOpenAI(
