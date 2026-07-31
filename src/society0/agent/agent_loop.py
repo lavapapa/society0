@@ -808,6 +808,13 @@ async def execute_action_loop(
         parts.append("Call the required tool now if the environment state allows it; do not just describe the action.")
         return " ".join(parts)
 
+    def _empty_response_reminder() -> str:
+        return (
+            "Your previous response was empty: it contained neither visible text "
+            "nor a tool call. Respond with a concrete decision in text, call an "
+            "available tool, or explicitly state that no change is needed."
+        )
+
 
     for turn in range(max_turns):
         total_turns = turn + 1
@@ -880,6 +887,14 @@ async def execute_action_loop(
 
         # Execute action calls if present
         if not action_calls:
+            if not str(final_content_part or "").strip():
+                if turn + 1 < max_turns:
+                    messages.append(
+                        {"role": "user", "content": _empty_response_reminder()}
+                    )
+                    continue
+                loop_result.termination_reason = "empty_model_response"
+                break
             missing_names, missing_tags = _missing_loop_requirements()
             if (missing_names or missing_tags) and turn + 1 < max_turns:
                 messages.append({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
@@ -1136,8 +1151,12 @@ async def execute_action_loop(
         processed_phases[target_stage_name] = stage_list
 
     # Determine final status
-    status = "success"
-    if parsing_errors:
+    status = (
+        "error"
+        if loop_result.termination_reason == "empty_model_response"
+        else "success"
+    )
+    if parsing_errors and status != "error":
         status = "partial_success" if processed_phases else "error"
 
     return LoopResult(
