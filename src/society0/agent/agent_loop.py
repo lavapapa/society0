@@ -696,6 +696,7 @@ async def execute_action_loop(
     for action_name, limit in normalized_action_limits.items():
         if limit < 0:
             raise ValueError(f"action_call_limits[{action_name}] must be non-negative")
+    action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
 
     def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
@@ -739,7 +740,10 @@ async def execute_action_loop(
 
     def _all_available_action_budgets_exhausted() -> bool:
         """Return true when another LLM turn cannot execute any non-system action."""
-        if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+        if (
+            max_action_calls is not None
+            and sum(action_attempt_counts.values()) >= max_action_calls
+        ):
             return True
 
         limited_action_seen = False
@@ -753,7 +757,7 @@ async def execute_action_loop(
                 return False
 
             limited_action_seen = True
-            if action_call_counts[action_key] < limit:
+            if action_attempt_counts[action_key] < limit:
                 return False
 
         return limited_action_seen
@@ -911,10 +915,17 @@ async def execute_action_loop(
             action_key = action_call.action_name.lower()
             action_succeeded = False
             limit_error: Optional[str] = None
-            if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+            if (
+                max_action_calls is not None
+                and sum(action_attempt_counts.values()) >= max_action_calls
+            ):
                 limit_error = f"Action budget exhausted: max_action_calls={max_action_calls}"
             per_action_limit = _action_limit_for(action_call.action_name)
-            if limit_error is None and per_action_limit is not None and action_call_counts[action_key] >= per_action_limit:
+            if (
+                limit_error is None
+                and per_action_limit is not None
+                and action_attempt_counts[action_key] >= per_action_limit
+            ):
                 limit_error = (
                     f"Action budget exhausted for {action_call.action_name}: "
                     f"limit={per_action_limit}"
@@ -954,6 +965,7 @@ async def execute_action_loop(
                         logger.debug("Failed to record blocked action %s", action_call.action_name, exc_info=True)
                 continue
 
+            action_attempt_counts[action_key] += 1
             try:
                 # Execute the action call with context management
                 action_started = time.perf_counter()
