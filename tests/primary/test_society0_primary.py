@@ -3197,6 +3197,63 @@ async def test_execute_action_loop_records_budget_blocked_actions():
 
 
 @pytest.mark.asyncio
+async def test_oversized_tool_call_batch_records_one_budget_rejection():
+    action_set = ActionSet()
+    executed = []
+
+    async def limited_action(sequence: int):
+        executed.append(sequence)
+        return f"done:{sequence}"
+
+    action_set.add_action(
+        "limited_action",
+        limited_action,
+        "limited",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm(_payload):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{sequence}",
+                    "type": "function",
+                    "function": {
+                        "name": "limited_action",
+                        "arguments": json.dumps({"sequence": sequence}),
+                    },
+                }
+                for sequence in range(50)
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="try actions",
+        action_set=action_set,
+        system_prompt="system",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=1,
+        max_action_calls=2,
+    )
+
+    assert executed == [0, 1]
+    assert [item["status"] for item in result.action_calls] == [
+        "success",
+        "success",
+        "blocked",
+    ]
+    assert result.full_history[0]["discarded_action_call_count"] == 47
+    assert result.termination_reason == "action_budget_exhausted"
+
+
+@pytest.mark.asyncio
 async def test_failed_action_attempts_consume_the_action_budget():
     action_set = ActionSet()
     llm_calls = 0

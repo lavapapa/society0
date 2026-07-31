@@ -930,10 +930,11 @@ async def execute_action_loop(
             action_key = action_call.action_name.lower()
             action_succeeded = False
             limit_error: Optional[str] = None
-            if (
+            global_budget_exhausted = (
                 max_action_calls is not None
                 and sum(action_attempt_counts.values()) >= max_action_calls
-            ):
+            )
+            if global_budget_exhausted:
                 limit_error = f"Action budget exhausted: max_action_calls={max_action_calls}"
             per_action_limit = _action_limit_for(action_call.action_name)
             if (
@@ -978,6 +979,11 @@ async def execute_action_loop(
                             record_action(action_call.action_name, action_call.arguments, limit_error, "blocked")
                     except Exception:
                         logger.debug("Failed to record blocked action %s", action_call.action_name, exc_info=True)
+                if global_budget_exhausted:
+                    discarded = len(action_calls) - idx - 1
+                    if discarded > 0 and full_history:
+                        full_history[-1]["discarded_action_call_count"] = discarded
+                    break
                 continue
 
             action_attempt_counts[action_key] += 1
