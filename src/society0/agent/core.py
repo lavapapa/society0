@@ -1288,9 +1288,12 @@ class LLMAgent(Agent):
 
             total_llm_calls = loop_result.total_turns + extra_llm_calls
             record_phase("total", instruct_started)
+            instruction_status = (
+                "error" if loop_result.status == "error" else "success"
+            )
 
             return {
-                "status": "success",
+                "status": instruction_status,
                 "agent_id": self.id,
                 "instruction": instruction,
                 "performative_output": performative_output,
@@ -1302,6 +1305,11 @@ class LLMAgent(Agent):
                 "actions": loop_result.action_calls,
                 "termination_reason": loop_result.termination_reason,
                 "termination_action": loop_result.termination_action,
+                **(
+                    {"error": loop_result.termination_reason or "agent_loop_error"}
+                    if instruction_status == "error"
+                    else {}
+                ),
                 "llm_calls": total_llm_calls,
                 "finish_instruction_called": finish_instruction_called,  # 现在正确实现了
                 "stages_executed": list(loop_result.phases.keys()),

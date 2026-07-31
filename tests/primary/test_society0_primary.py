@@ -2255,6 +2255,106 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
 
 
 @pytest.mark.asyncio
+async def test_blank_assistant_turn_is_retried_before_accepting_a_visible_decision():
+    calls = []
+
+    async def fake_llm_call(payload):
+        calls.append(json.loads(json.dumps(payload)))
+        if len(calls) == 1:
+            return {"role": "assistant", "content": "", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "维持现有经营安排，本轮不需要调整。",
+            "tool_calls": [],
+        }
+
+    result = await execute_action_loop(
+        instruction="经营你负责的企业。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    assert len(calls) == 2
+    assert "empty" in calls[1]["messages"][-1]["content"].lower()
+    assert result.status == "success"
+    assert result.termination_reason == "no_action_calls"
+    assert result.total_turns == 2
+
+
+@pytest.mark.asyncio
+async def test_repeated_blank_assistant_turns_fail_the_instruction():
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": None, "tool_calls": []}
+
+    result = await execute_action_loop(
+        instruction="处理未读经营信息。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "empty_model_response"
+    assert result.total_turns == 2
+
+
+@pytest.mark.asyncio
+async def test_llm_agent_propagates_repeated_blank_turns_as_an_error():
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "Act concisely.",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack()
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": "", "tool_calls": []}
+
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="Act concisely.",
+        memory=None,
+        llm_call=fake_llm_call,
+        actionset=ActionSet(),
+    )
+
+    result = await agent.instruct(
+        "处理未读信息。",
+        retrieve_memory=False,
+        save_memory=False,
+        max_turns=2,
+    )
+
+    assert result["status"] == "error"
+    assert result["error"] == "empty_model_response"
+    assert result["termination_reason"] == "empty_model_response"
+
+
+@pytest.mark.asyncio
 async def test_completion_action_tag_stops_after_successful_matching_action():
     action_set = ActionSet()
     called = []
