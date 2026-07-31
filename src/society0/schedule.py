@@ -579,10 +579,23 @@ class AgentGroup:
                     },
                 }
                 if idempotency_key is not None:
-                    digest = hashlib.sha256(
-                        f"{idempotency_key}\0{agent_id}".encode("utf-8")
-                    ).hexdigest()
-                    memory_kwargs["memory_id"] = f"episodic_{digest}"
+                    if hasattr(agent.memory, "stable_memory_id"):
+                        stable_id = agent.memory.stable_memory_id(
+                            idempotency_key,
+                            memory_type="episodic",
+                        )
+                    else:
+                        branch_id = str(
+                            getattr(agent.memory, "branch_id", "main")
+                        )
+                        digest = hashlib.sha256(
+                            (
+                                f"{idempotency_key}\0{agent_id}\0"
+                                f"{branch_id}"
+                            ).encode("utf-8")
+                        ).hexdigest()
+                        stable_id = f"episodic_{digest}"
+                    memory_kwargs["memory_id"] = stable_id
                     agent_metadata.setdefault(
                         "idempotency_key", idempotency_key
                     )

@@ -261,6 +261,69 @@ async def test_explicit_memory_id_upserts_instead_of_duplicating():
 
 
 @pytest.mark.asyncio
+async def test_stable_memory_id_keeps_parallel_branches_separate():
+    class Collection:
+        def __init__(self):
+            self.rows = {}
+
+        def upsert(self, *, ids, documents, embeddings, metadatas):
+            for index, memory_id in enumerate(ids):
+                self.rows[memory_id] = {
+                    "document": documents[index],
+                    "metadata": metadatas[index],
+                }
+
+    collection = Collection()
+
+    class VectorClient:
+        def get_or_create_collection(self, **kwargs):
+            return collection
+
+    async def embed(texts, dimensions, metadata=None):
+        return {
+            "result": [[1.0, 0.0, 0.0] for _ in texts],
+            "dimensions": dimensions,
+        }
+
+    main = Memory(
+        "alice",
+        VectorClient(),
+        branch_id="main",
+        embed_call=embed,
+        embedding_dim=3,
+    )
+    alternative = Memory(
+        "alice",
+        VectorClient(),
+        branch_id="alternative",
+        embed_call=embed,
+        embedding_dim=3,
+    )
+    main_id = main.stable_memory_id("run-1:tick-4")
+    alternative_id = alternative.stable_memory_id("run-1:tick-4")
+
+    await main.add_episodic_memory(
+        "main branch",
+        timestamp=4,
+        importance=3.0,
+        memory_id=main_id,
+    )
+    await alternative.add_episodic_memory(
+        "alternative branch",
+        timestamp=4,
+        importance=3.0,
+        memory_id=alternative_id,
+    )
+
+    assert main_id != alternative_id
+    assert len(collection.rows) == 2
+    assert {row["metadata"]["branch_id"] for row in collection.rows.values()} == {
+        "main",
+        "alternative",
+    }
+
+
+@pytest.mark.asyncio
 async def test_group_instruct_can_use_a_domain_tick_for_memory_time():
     captured = []
 

@@ -8,6 +8,7 @@
 """
 
 import uuid
+import hashlib
 import math
 import asyncio
 import os
@@ -295,6 +296,28 @@ class Memory:
 
     def _new_memory_id(self) -> str:
         return self._normalize_memory_id(uuid.uuid4().hex[:12])
+
+    def stable_memory_id(
+        self,
+        idempotency_key: str,
+        *,
+        memory_type: str = "episodic",
+    ) -> str:
+        """Build an idempotent ID inside this agent and branch namespace."""
+
+        normalized_key = str(idempotency_key).strip()
+        normalized_type = str(memory_type).strip()
+        if not normalized_key:
+            raise ValueError("idempotency_key must be a non-empty string")
+        if not normalized_type:
+            raise ValueError("memory_type must be a non-empty string")
+        digest = hashlib.sha256(
+            (
+                f"{self.agent_id}\0{self.branch_id}\0"
+                f"{normalized_type}\0{normalized_key}"
+            ).encode("utf-8")
+        ).hexdigest()
+        return self._normalize_memory_id(f"{normalized_type}_{digest}")
         
     def _ensure_collection(self):
         """确保共享记忆 Collection 可用。"""
