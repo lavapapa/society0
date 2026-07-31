@@ -5366,9 +5366,62 @@ def test_model_declaration_builds_endpoint_configs():
     ] == 5
     assert EmbedModel.ollama(model="nomic-embed-text").endpoint_config()["concurrency"] == 5
     assert embed.endpoint_config()["provider_type"] == "ollama"
+    assert embed.endpoint_config()["trust_env"] is False
     assert EmbedModel.openai(id="embed", model="text-embedding-3-small", dimensions=1536).endpoint_config()[
         "dimensions"
     ] == 1536
+
+
+def test_ollama_embedding_client_bypasses_system_proxy_by_default(monkeypatch):
+    import ollama
+
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, *, host, **kwargs):
+            captured.update(host=host, **kwargs)
+
+    monkeypatch.setattr(ollama, "AsyncClient", FakeClient)
+    manager = EmbeddingManager(
+        [
+            EmbedModel.ollama(
+                model="nomic-embed-text",
+                base_url="http://internal-ollama:11434",
+            ).endpoint_config()
+        ]
+    )
+
+    assert captured == {
+        "host": "http://internal-ollama:11434",
+        "trust_env": False,
+    }
+    assert manager.endpoints[0].trust_env is False
+
+
+def test_ollama_embedding_client_can_inherit_proxy_when_requested(monkeypatch):
+    import ollama
+
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, *, host, **kwargs):
+            captured.update(host=host, **kwargs)
+
+    monkeypatch.setattr(ollama, "AsyncClient", FakeClient)
+    EmbeddingManager(
+        [
+            EmbedModel.ollama(
+                model="nomic-embed-text",
+                base_url="http://remote-ollama:11434",
+                trust_env=True,
+            ).endpoint_config()
+        ]
+    )
+
+    assert captured == {
+        "host": "http://remote-ollama:11434",
+        "trust_env": True,
+    }
 
 
 def test_model_declaration_rejects_invalid_concurrency():
