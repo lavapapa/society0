@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import random
 import statistics
@@ -484,6 +485,7 @@ class AgentGroup:
         episodes_by_agent: Mapping[str, str],
         *,
         timestamp: Optional[int] = None,
+        idempotency_key: Optional[str] = None,
         importance: Optional[float] = 3.0,
         metadata: Optional[Mapping[str, Any]] = None,
         metadata_by_agent: Optional[Mapping[str, Mapping[str, Any]]] = None,
@@ -526,10 +528,13 @@ class AgentGroup:
         effective_timestamp = _resolve_memory_timestamp(
             self.world.step if timestamp is None else timestamp
         )
-        effective_concurrency = _resolve_non_llm_batch_concurrency(
-            len(self.agent_ids), concurrency
+        effective_concurrency, concurrency_source = (
+            _resolve_agent_call_concurrency_info(
+                self.world,
+                explicit_concurrency=concurrency,
+                model_id=None,
+            )
         )
-        concurrency_source = "explicit" if concurrency is not None else "group_size"
         interaction_name = name or "remember"
         started = time.time()
         execution_options = {
@@ -537,6 +542,8 @@ class AgentGroup:
                 "type": "episodic",
                 "caller_prepared": True,
                 "llm_extraction": False,
+                "timestamp": effective_timestamp,
+                "idempotent": idempotency_key is not None,
             }
         }
         _record_agent_batch_event(
@@ -560,16 +567,27 @@ class AgentGroup:
                 agent = self.world.get_agent(agent_id)
                 agent_metadata = dict(common_metadata)
                 agent_metadata.update(dict(per_agent_metadata.get(agent_id, {})))
-                memory_id = await agent.memory.add_episodic_memory(
-                    content=episodes_by_agent[agent_id].strip(),
-                    timestamp=effective_timestamp,
-                    importance=importance,
-                    metadata=agent_metadata,
-                    trace={
+                memory_kwargs = {
+                    "content": episodes_by_agent[agent_id].strip(),
+                    "timestamp": effective_timestamp,
+                    "importance": importance,
+                    "metadata": agent_metadata,
+                    "trace": {
                         "step": effective_timestamp,
                         "interaction_type": "memory_write",
                         "interaction_name": interaction_name,
                     },
+                }
+                if idempotency_key is not None:
+                    digest = hashlib.sha256(
+                        f"{idempotency_key}\0{agent_id}".encode("utf-8")
+                    ).hexdigest()
+                    memory_kwargs["memory_id"] = f"episodic_{digest}"
+                    agent_metadata.setdefault(
+                        "idempotency_key", idempotency_key
+                    )
+                memory_id = await agent.memory.add_episodic_memory(
+                    **memory_kwargs,
                 )
                 return AgentCallRecord(
                     agent_id,
@@ -1444,12 +1462,14 @@ def _resolve_non_llm_batch_concurrency(item_count: int, explicit_concurrency: Op
 def _resolve_memory_timestamp(value: Any) -> int:
     if isinstance(value, bool):
         raise ValueError("current_step/timestamp must be a non-negative integer")
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value.strip())
+    else:
         raise ValueError(
             "current_step/timestamp must be a non-negative integer"
-        ) from None
+        )
     if parsed < 0:
         raise ValueError("current_step/timestamp must be a non-negative integer")
     return parsed
