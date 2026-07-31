@@ -576,7 +576,10 @@ class World:
         action_name: str,
     ) -> None:
         """记录指令/访谈决策与详情。"""
-        decision_summary = summarize_text(result.get("performative_output", ""))
+        visible_assistant_text = result.get("visible_assistant_text")
+        if not isinstance(visible_assistant_text, str):
+            visible_assistant_text = str(result.get("performative_output") or "")
+        decision_summary = summarize_text(visible_assistant_text)
         structured_keys = self._collect_structured_output_keys(result.get("structured_output"))
         actions_preview = self._extract_actions_preview_from_result(result)
 
@@ -586,7 +589,14 @@ class World:
             LogField.DECISION_PREVIEW.value: decision_summary["preview"],
             LogField.DECISION_LENGTH.value: decision_summary["length"],
             LogField.INTERACTION_TYPE.value: interaction_type,
+            LogField.ASSISTANT_TURN_TRACE.value: result.get("assistant_turn_trace") or [],
         }
+        termination_reason = result.get("termination_reason")
+        if termination_reason is not None:
+            payload[LogField.TERMINATION_REASON.value] = termination_reason
+        termination_action = result.get("termination_action")
+        if termination_action is not None:
+            payload[LogField.TERMINATION_ACTION.value] = termination_action
         if actions_preview:
             payload[LogField.ACTIONS_PREVIEW.value] = actions_preview
         if structured_keys:
