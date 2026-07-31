@@ -7,7 +7,11 @@ from pydantic import BaseModel
 
 from society0 import EmbedModel, LLMModel, Society0
 from society0.agent.core import LLMAgent, _parse_structured_json_from_model_text
-from society0.agent.agent_loop import ActionSet, execute_action_loop
+from society0.agent.agent_loop import (
+    ActionSet,
+    build_assistant_turn_trace,
+    execute_action_loop,
+)
 from society0.agent.memory import Memory
 from society0.core_data import World
 from society0.function_registry import FunctionRegistry
@@ -2003,6 +2007,72 @@ async def test_action_loop_can_continue_an_existing_agent_thread():
     assert len(second.conversation_messages) == 5
 
 
+def test_assistant_turn_trace_preserves_visible_text_and_tool_order_only():
+    trace = build_assistant_turn_trace(
+        [
+            {
+                "turn": 1,
+                "response": {
+                    "role": "assistant",
+                    "content": "",
+                    "reasoning_content": "private provider reasoning",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "inspect_inventory",
+                                "arguments": '{"product_id":"hog"}',
+                            },
+                        },
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {
+                                "name": "set_delivery_plan",
+                                "arguments": '{"batches":[500,500]}',
+                            },
+                        },
+                    ],
+                },
+                "action_results": [
+                    {
+                        "call_id": "call_1",
+                        "action_name": "inspect_inventory",
+                        "status": "success",
+                    },
+                    {
+                        "call_id": "call_2",
+                        "action_name": "set_delivery_plan",
+                        "status": "error",
+                        "error": "capacity unavailable",
+                    },
+                ],
+            },
+            {
+                "turn": 2,
+                "response": {
+                    "role": "assistant",
+                    "content": "I will keep the original delivery plan.",
+                    "tool_calls": [],
+                },
+            },
+        ]
+    )
+
+    assert trace[0]["assistant_text"] == ""
+    assert trace[0]["assistant_text_state"] == "empty"
+    assert trace[0]["has_visible_text"] is False
+    assert [item["action_name"] for item in trace[0]["tool_calls"]] == [
+        "inspect_inventory",
+        "set_delivery_plan",
+    ]
+    assert trace[0]["tool_calls"][1]["status"] == "error"
+    assert trace[1]["assistant_text_state"] == "present"
+    assert trace[1]["has_visible_text"] is True
+    assert "private provider reasoning" not in json.dumps(trace)
+
+
 @pytest.mark.asyncio
 async def test_single_required_action_uses_exact_tool_choice_on_first_turn():
     action_set = ActionSet()
@@ -2714,7 +2784,7 @@ async def test_plain_action_instruction_omits_redundant_output_requirements_when
         actionset=action_set,
     )
 
-    await agent.instruct(
+    result = await agent.instruct(
         "Call publish_post once.",
         action_tags=["publish_post"],
         retrieve_memory=False,
@@ -2727,6 +2797,18 @@ async def test_plain_action_instruction_omits_redundant_output_requirements_when
     assert "结构化输出" not in user_prompt
     assert "记忆策略" not in user_prompt
     assert "[任务]" in user_prompt
+    assert result["performative_output"] == "done"
+    assert result["visible_assistant_text"] == "done"
+    assert result["assistant_turn_trace"] == [
+        {
+            "turn": 1,
+            "assistant_text": "done",
+            "assistant_text_state": "present",
+            "has_visible_text": True,
+            "tool_calls": [],
+        }
+    ]
+    assert result["raw_output"]["assistant_turn_trace"] == result["assistant_turn_trace"]
 
 
 @pytest.mark.asyncio
@@ -3791,6 +3873,77 @@ async def test_world_instruct_logs_fov_preview_without_full_result_by_default(tm
 
 
 @pytest.mark.asyncio
+async def test_world_instruct_persists_visible_assistant_trace_and_termination(tmp_path):
+    class FakeAgent:
+        id = "alice"
+
+        async def instruct(self, **kwargs):
+            return {
+                "status": "success",
+                "performative_output": "Visible operating judgment.",
+                "visible_assistant_text": "Visible operating judgment.",
+                "assistant_turn_trace": [
+                    {
+                        "turn": 1,
+                        "assistant_text": "",
+                        "assistant_text_state": "empty",
+                        "has_visible_text": False,
+                        "tool_calls": [
+                            {
+                                "call_id": "call_1",
+                                "action_name": "inspect_inventory",
+                                "arguments": "{}",
+                                "status": "success",
+                            }
+                        ],
+                    },
+                    {
+                        "turn": 2,
+                        "assistant_text": "Visible operating judgment.",
+                        "assistant_text_state": "present",
+                        "has_visible_text": True,
+                        "tool_calls": [],
+                    },
+                ],
+                "reasoning_content": "private provider reasoning",
+                "termination_reason": "no_action_calls",
+                "termination_action": None,
+                "total_turns": 2,
+                "actions": [],
+                "llm_calls": 2,
+            }
+
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    log_context = ExperimentLogContext(tmp_path / "logs")
+    world.set_log_context(log_context)
+    world.agents_data["alice"] = {
+        "id": "alice",
+        "type": "social_user",
+        "archetype": "llm",
+        "state": {},
+        "properties": {},
+        "reminders": [],
+    }
+    world.get_agent = lambda agent_id: FakeAgent()
+    world.get_environment = lambda: object()
+
+    try:
+        await world.instruct_agent("alice", "operate")
+    finally:
+        log_context.close()
+
+    records = _read_jsonl(tmp_path / "logs" / "agents" / "alice.jsonl")
+    decision = next(record for record in records if record["event"] == "agent_decision")
+    assert decision["decision_preview"] == "Visible operating judgment."
+    assert decision["termination_reason"] == "no_action_calls"
+    assert [turn["assistant_text_state"] for turn in decision["assistant_turn_trace"]] == [
+        "empty",
+        "present",
+    ]
+    assert "private provider reasoning" not in json.dumps(decision)
+
+
+@pytest.mark.asyncio
 async def test_world_interview_logs_fov_failure(tmp_path):
     class FakeAgent:
         id = "alice"
@@ -3916,6 +4069,11 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert calls[0]["metadata"].get("must_not") is None
     assert len(calls) == 1
     assert calls[0]["tool_choice"] == {"type": "function", "function": {"name": "submit_result"}}
+    assert result["visible_assistant_text"] == ""
+    assert result["assistant_turn_trace"][0]["assistant_text_state"] == "empty"
+    assert result["assistant_turn_trace"][0]["has_visible_text"] is False
+    assert result["assistant_turn_trace"][0]["tool_calls"][0]["action_name"] == "submit_result"
+    assert result["termination_reason"] == "terminal_action"
 
 
 @pytest.mark.asyncio

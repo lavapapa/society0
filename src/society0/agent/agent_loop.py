@@ -379,6 +379,72 @@ class LoopResult:
     memory_extraction_success: bool = False
     memory_extraction_error: Optional[str] = None
 
+
+def build_assistant_turn_trace(full_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build an audit trace from provider-visible assistant output.
+
+    The trace intentionally excludes ``reasoning_content`` and request
+    messages. It contains only public assistant ``content`` and the tool calls
+    returned alongside that content.
+    """
+
+    turns: List[Dict[str, Any]] = []
+    for index, history_item in enumerate(full_history or [], start=1):
+        if not isinstance(history_item, dict):
+            continue
+        response = history_item.get("response")
+        if not isinstance(response, dict):
+            response = {}
+
+        if "content" not in response:
+            content_state = "missing"
+            assistant_text = ""
+        elif response.get("content") is None:
+            content_state = "null"
+            assistant_text = ""
+        elif isinstance(response.get("content"), str):
+            assistant_text = response["content"]
+            content_state = "present" if assistant_text.strip() else "empty"
+        else:
+            content_state = "non_text"
+            assistant_text = str(response.get("content"))
+
+        action_results = {
+            str(item.get("call_id")): item
+            for item in (history_item.get("action_results") or [])
+            if isinstance(item, dict) and item.get("call_id") is not None
+        }
+        tool_calls: List[Dict[str, Any]] = []
+        for tool_call in response.get("tool_calls") or []:
+            if not isinstance(tool_call, dict):
+                continue
+            function = tool_call.get("function")
+            if not isinstance(function, dict):
+                function = {}
+            call_id = str(tool_call.get("id") or "")
+            execution = action_results.get(call_id, {})
+            trace_item: Dict[str, Any] = {
+                "call_id": call_id,
+                "action_name": str(function.get("name") or ""),
+                "arguments": function.get("arguments"),
+                "status": str(execution.get("status") or "not_executed"),
+            }
+            if execution.get("error"):
+                trace_item["error"] = str(execution["error"])
+            tool_calls.append(trace_item)
+
+        turns.append(
+            {
+                "turn": int(history_item.get("turn") or index),
+                "assistant_text": assistant_text,
+                "assistant_text_state": content_state,
+                "has_visible_text": bool(assistant_text.strip()),
+                "tool_calls": tool_calls,
+            }
+        )
+    return turns
+
+
 def _normalize_stage_name(stage_name: str, defined_stages: List[str]) -> Optional[str]:
     """
     Normalize stage name with fuzzy matching for common variations.
