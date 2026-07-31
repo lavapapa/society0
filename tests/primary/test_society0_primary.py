@@ -3097,6 +3097,61 @@ async def test_execute_action_loop_records_budget_blocked_actions():
 
 
 @pytest.mark.asyncio
+async def test_failed_action_attempts_consume_the_action_budget():
+    action_set = ActionSet()
+    llm_calls = 0
+    action_attempts = 0
+
+    async def failing_action():
+        nonlocal action_attempts
+        action_attempts += 1
+        raise ValueError("still invalid")
+
+    action_set.add_action(
+        "failing_action",
+        failing_action,
+        "always fails",
+        {"type": "object", "properties": {}},
+    )
+
+    async def fake_llm(_payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{llm_calls}",
+                    "type": "function",
+                    "function": {
+                        "name": "failing_action",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="try action",
+        action_set=action_set,
+        system_prompt="system",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=5,
+        max_action_calls=2,
+    )
+
+    assert llm_calls == 2
+    assert action_attempts == 2
+    assert [item["status"] for item in result.action_calls] == [
+        "error",
+        "error",
+    ]
+    assert result.termination_reason == "action_budget_exhausted"
+
+
+@pytest.mark.asyncio
 async def test_instruct_and_interview_use_world_default_concurrency():
     class SlowWorld:
         step = 1
