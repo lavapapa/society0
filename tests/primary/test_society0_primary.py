@@ -3211,6 +3211,7 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
             },
             "llm_request_options": {},
             "continued_agent_count": 0,
+            "current_step": 3,
         },
     }
     assert [event["event_data"]["completed_count"] for event in progress_events] == [1, 2, 3]
