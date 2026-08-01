@@ -1179,38 +1179,54 @@ async def execute_action_loop(
         final_payload.update(safe_llm_request_options)
         final_payload["tools"] = None
         final_payload["tool_choice"] = None
-        response = await llm_call(final_payload)
-        full_history.append(
-            {
-                "turn": total_turns,
-                "request": final_payload,
-                "response": response,
-            }
-        )
-        reasoning_content, final_content_part, response_metadata = (
-            _extract_reasoning_content(response)
-        )
-        if reasoning_content:
-            if loop_result.reasoning_content is None:
-                loop_result.reasoning_content = reasoning_content
-            else:
-                loop_result.reasoning_content += "\n\n" + reasoning_content
-            loop_result.thinking_process.append(
+        try:
+            response = await llm_call(final_payload)
+        except Exception as exc:
+            logger.warning(
+                "Tool-free closing request failed after the action budget "
+                "was exhausted: %s",
+                exc,
+            )
+            full_history.append(
                 {
                     "turn": total_turns,
-                    "content": reasoning_content,
-                    "metadata": response_metadata,
+                    "request": final_payload,
+                    "response": None,
+                    "closing_error": str(exc),
                 }
             )
-            loop_result.has_reasoning = True
-        if loop_result.model_type is None:
-            loop_result.model_type = response_metadata["model_type"]
-        if final_content_part:
-            if final_content is None:
-                final_content = final_content_part
-            else:
-                final_content += "\n\n" + final_content_part
-        messages.append(response)
+        else:
+            full_history.append(
+                {
+                    "turn": total_turns,
+                    "request": final_payload,
+                    "response": response,
+                }
+            )
+            reasoning_content, final_content_part, response_metadata = (
+                _extract_reasoning_content(response)
+            )
+            if reasoning_content:
+                if loop_result.reasoning_content is None:
+                    loop_result.reasoning_content = reasoning_content
+                else:
+                    loop_result.reasoning_content += "\n\n" + reasoning_content
+                loop_result.thinking_process.append(
+                    {
+                        "turn": total_turns,
+                        "content": reasoning_content,
+                        "metadata": response_metadata,
+                    }
+                )
+                loop_result.has_reasoning = True
+            if loop_result.model_type is None:
+                loop_result.model_type = response_metadata["model_type"]
+            if final_content_part:
+                if final_content is None:
+                    final_content = final_content_part
+                else:
+                    final_content += "\n\n" + final_content_part
+            messages.append(response)
 
     # Parse the final response content into stages
     phases, phases_unknown, parsing_errors = _parse_stages(

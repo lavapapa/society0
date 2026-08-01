@@ -3687,7 +3687,16 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
                 "No supplier is available this month, so I will keep the "
                 "current plan unchanged and review it next month."
             ),
-            "tool_calls": [],
+            "tool_calls": [
+                {
+                    "id": "ignored_closing_call",
+                    "type": "function",
+                    "function": {
+                        "name": "inspect_world",
+                        "arguments": "{}",
+                    },
+                }
+            ],
         }
 
     result = await execute_action_loop(
@@ -3711,6 +3720,65 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
     )
     assert len(result.action_calls) == 2
     assert result.termination_reason == "action_budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_tool_free_final_decision_failure_does_not_retry_completed_actions():
+    action_set = ActionSet()
+    executed = []
+    llm_calls = 0
+
+    async def place_order():
+        executed.append("order")
+        return "order accepted"
+
+    action_set.add_action(
+        "place_order",
+        place_order,
+        "place one order",
+        {"type": "object", "properties": {}},
+    )
+
+    async def fake_llm(payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        if payload.get("tools") is None:
+            raise ConnectionError("closing request unavailable")
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "place_once",
+                    "type": "function",
+                    "function": {
+                        "name": "place_order",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Place an order if useful.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=3,
+        max_action_calls=1,
+    )
+
+    assert executed == ["order"]
+    assert llm_calls == 2
+    assert [item["action_name"] for item in result.action_calls] == [
+        "place_order"
+    ]
+    assert result.termination_reason == "action_budget_exhausted"
+    assert result.status == "success"
+    assert result.full_history[-1]["closing_error"] == (
+        "closing request unavailable"
+    )
 
 
 @pytest.mark.asyncio
