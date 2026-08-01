@@ -2217,8 +2217,17 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
 
     async def fake_llm_call(payload):
         llm_payloads.append(
-            {"messages": [dict(message) for message in payload["messages"]]}
+            {
+                "messages": [dict(message) for message in payload["messages"]],
+                "tools": payload.get("tools"),
+            }
         )
+        if payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "The required post was published.",
+                "tool_calls": [],
+            }
         if len(llm_payloads) == 1:
             return {"role": "assistant", "content": "I will publish a post.", "tool_calls": []}
         return {
@@ -2248,8 +2257,9 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
     )
 
     assert called == ["Campus is lively today."]
-    assert len(llm_payloads) == 2
+    assert len(llm_payloads) == 3
     assert "Required action name(s): publish_post" in llm_payloads[1]["messages"][-1]["content"]
+    assert llm_payloads[-1]["tools"] is None
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
     assert result.termination_reason == "action_budget_exhausted"
 
@@ -2550,6 +2560,12 @@ async def test_action_loop_stops_when_an_action_reports_no_state_change():
 
     async def fake_llm_call(payload):
         llm_calls.append(payload)
+        if payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "The single post was published.",
+                "tool_calls": [],
+            }
         return {
             "role": "assistant",
             "content": "",
@@ -3130,9 +3146,10 @@ async def test_action_call_limits_stop_when_all_available_actions_exhausted_with
     )
 
     assert published == ["post 1"]
-    assert len(llm_calls) == 1
+    assert len(llm_calls) == 2
     assert llm_calls[0]["tool_choice"] == "auto"
-    assert result.total_turns == 1
+    assert llm_calls[-1]["tools"] is None
+    assert result.total_turns == 2
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
 
 
@@ -3261,6 +3278,12 @@ async def test_action_call_limits_continue_when_other_actions_remain_available()
 
     async def fake_llm_call(payload):
         llm_calls.append(payload)
+        if payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "The post was published and liked.",
+                "tool_calls": [],
+            }
         if len(llm_calls) == 1:
             return {
                 "role": "assistant",
@@ -3302,8 +3325,9 @@ async def test_action_call_limits_continue_when_other_actions_remain_available()
     )
 
     assert called == [("publish_post", "post 1"), ("like_post", "post_1")]
-    assert len(llm_calls) == 2
-    assert result.total_turns == 2
+    assert len(llm_calls) == 3
+    assert llm_calls[-1]["tools"] is None
+    assert result.total_turns == 3
     assert [call["action_name"] for call in result.action_calls] == ["publish_post", "like_post"]
 
 
@@ -3582,9 +3606,15 @@ async def test_failed_action_attempts_consume_the_action_budget():
         {"type": "object", "properties": {}},
     )
 
-    async def fake_llm(_payload):
+    async def fake_llm(payload):
         nonlocal llm_calls
         llm_calls += 1
+        if payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "The attempted action failed; no change was made.",
+                "tool_calls": [],
+            }
         return {
             "role": "assistant",
             "content": "",
@@ -3610,12 +3640,76 @@ async def test_failed_action_attempts_consume_the_action_budget():
         max_action_calls=2,
     )
 
-    assert llm_calls == 2
+    assert llm_calls == 3
     assert action_attempts == 2
     assert [item["status"] for item in result.action_calls] == [
         "error",
         "error",
     ]
+    assert result.termination_reason == "action_budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decision():
+    action_set = ActionSet()
+    llm_payloads = []
+
+    async def inspect_world():
+        return "No executable supplier is currently available."
+
+    action_set.add_action(
+        "inspect_world",
+        inspect_world,
+        "inspect the current world",
+        {"type": "object", "properties": {}},
+    )
+
+    async def fake_llm(payload):
+        llm_payloads.append(json.loads(json.dumps(payload)))
+        if len(llm_payloads) <= 2:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": f"call_{len(llm_payloads)}",
+                        "type": "function",
+                        "function": {
+                            "name": "inspect_world",
+                            "arguments": "{}",
+                        },
+                    }
+                ],
+            }
+        return {
+            "role": "assistant",
+            "content": (
+                "No supplier is available this month, so I will keep the "
+                "current plan unchanged and review it next month."
+            ),
+            "tool_calls": [],
+        }
+
+    result = await execute_action_loop(
+        instruction="Operate the company and conclude with your decision.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=5,
+        max_action_calls=2,
+    )
+
+    assert len(llm_payloads) == 3
+    assert llm_payloads[-1]["tools"] is None
+    assert llm_payloads[-1]["tool_choice"] is None
+    assert "No further actions can be called" in (
+        llm_payloads[-1]["messages"][-1]["content"]
+    )
+    assert "keep the current plan unchanged" in (
+        result.full_history[-1]["response"]["content"]
+    )
+    assert len(result.action_calls) == 2
     assert result.termination_reason == "action_budget_exhausted"
 
 
