@@ -2525,6 +2525,132 @@ async def test_completion_action_tag_ignores_semantic_action_failure():
 
 
 @pytest.mark.asyncio
+async def test_action_loop_stops_when_an_action_reports_no_state_change():
+    action_set = ActionSet()
+    action_calls = []
+    llm_calls = []
+
+    async def save_review(summary: str):
+        action_calls.append(summary)
+        return {
+            "change_applied": len(action_calls) == 1,
+            "summary": summary,
+        }
+
+    action_set.add_action(
+        name="save_review",
+        func=save_review,
+        description="Save a review",
+        parameters={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(llm_calls)}",
+                    "type": "function",
+                    "function": {
+                        "name": "save_review",
+                        "arguments": '{"summary": "same review"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "answer", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=8,
+    )
+
+    assert action_calls == ["same review", "same review"]
+    assert len(llm_calls) == 2
+    assert result.total_turns == 2
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "success",
+    ]
+    assert result.termination_reason == "action_reported_no_change"
+
+
+@pytest.mark.asyncio
+async def test_action_loop_allows_identical_calls_that_report_real_changes():
+    action_set = ActionSet()
+    action_calls = []
+    llm_calls = []
+
+    async def deliver(contract_id: str, quantity: float):
+        action_calls.append((contract_id, quantity))
+        return {
+            "change_applied": True,
+            "contract_id": contract_id,
+            "quantity": quantity,
+        }
+
+    action_set.add_action(
+        name="deliver",
+        func=deliver,
+        description="Record a delivery",
+        parameters={
+            "type": "object",
+            "properties": {
+                "contract_id": {"type": "string"},
+                "quantity": {"type": "number"},
+            },
+            "required": ["contract_id", "quantity"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        if len(llm_calls) > 2:
+            return {"role": "assistant", "content": "done"}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(llm_calls)}",
+                    "type": "function",
+                    "function": {
+                        "name": "deliver",
+                        "arguments": '{"contract_id": "contract-1", "quantity": 10}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Make the scheduled deliveries.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "answer", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=8,
+    )
+
+    assert action_calls == [("contract-1", 10), ("contract-1", 10)]
+    assert len(llm_calls) == 3
+    assert result.total_turns == 3
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "success",
+    ]
+    assert result.termination_reason == "no_action_calls"
+
+
+@pytest.mark.asyncio
 async def test_completion_action_tag_accepts_successful_state_proxy_with_failure_words_in_business_text():
     action_set = ActionSet()
     llm_calls = []

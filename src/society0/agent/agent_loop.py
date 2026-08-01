@@ -174,6 +174,21 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
         return "error", text
     return "success", None
 
+
+def _action_reported_no_change(result: Any) -> bool:
+    """Honor an environment's explicit statement that a write was a no-op.
+
+    The runtime does not deduplicate calls from names and arguments alone:
+    identical arguments may represent legitimate repeated business actions.
+    An environment that can prove idempotence may return
+    ``change_applied=False`` to stop the current action loop safely.
+    """
+
+    return (
+        isinstance(result, (dict, DictProxy))
+        and result.get("change_applied") is False
+    )
+
 @dataclass
 class ActionSet:
     """Container for available actions that can be called by the LLM."""
@@ -929,6 +944,7 @@ async def execute_action_loop(
             is_last_action_in_turn = idx == len(action_calls) - 1
             action_key = action_call.action_name.lower()
             action_succeeded = False
+            action_reported_no_change = False
             limit_error: Optional[str] = None
             global_budget_exhausted = (
                 max_action_calls is not None
@@ -1028,6 +1044,9 @@ async def execute_action_loop(
                 if action_call.status == "success":
                     action_call_counts[action_key] += 1
                     action_succeeded = True
+                    action_reported_no_change = _action_reported_no_change(
+                        action_result
+                    )
 
                 logger.debug("Action result: %s", str(action_result)[:100])
 
@@ -1060,6 +1079,15 @@ async def execute_action_loop(
                 action_call.error = error_msg
                 executed_action_calls.append(action_call)
 
+            if action_succeeded and action_reported_no_change:
+                terminate_loop = True
+                loop_result.termination_reason = "action_reported_no_change"
+                loop_result.termination_action = action_call.action_name
+                logger.debug(
+                    "Action %s reported no state change; ending loop",
+                    action_call.action_name,
+                )
+                break
             if action_succeeded and action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
                 loop_result.termination_reason = "terminal_action"
