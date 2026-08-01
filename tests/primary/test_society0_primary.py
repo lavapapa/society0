@@ -2651,6 +2651,191 @@ async def test_action_loop_allows_identical_calls_that_report_real_changes():
 
 
 @pytest.mark.asyncio
+async def test_no_change_does_not_discard_later_actions_in_the_same_batch():
+    action_set = ActionSet()
+    action_calls = []
+    llm_calls = []
+
+    async def save_review(summary: str):
+        action_calls.append(("save_review", summary))
+        return {"change_applied": False, "summary": summary}
+
+    async def deliver(contract_id: str, quantity: float):
+        action_calls.append(("deliver", contract_id, quantity))
+        return {
+            "change_applied": True,
+            "contract_id": contract_id,
+            "quantity": quantity,
+        }
+
+    action_set.add_action(
+        name="save_review",
+        func=save_review,
+        description="Save a review",
+        parameters={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        },
+    )
+    action_set.add_action(
+        name="deliver",
+        func=deliver,
+        description="Record a delivery",
+        parameters={
+            "type": "object",
+            "properties": {
+                "contract_id": {"type": "string"},
+                "quantity": {"type": "number"},
+            },
+            "required": ["contract_id", "quantity"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_review",
+                    "type": "function",
+                    "function": {
+                        "name": "save_review",
+                        "arguments": '{"summary": "same review"}',
+                    },
+                },
+                {
+                    "id": "call_delivery",
+                    "type": "function",
+                    "function": {
+                        "name": "deliver",
+                        "arguments": '{"contract_id": "contract-1", "quantity": 10}',
+                    },
+                },
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the plan and make the scheduled delivery.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "answer", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=8,
+    )
+
+    assert action_calls == [
+        ("save_review", "same review"),
+        ("deliver", "contract-1", 10),
+    ]
+    assert len(llm_calls) == 1
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "success",
+    ]
+    assert result.termination_reason == "action_reported_no_change"
+
+
+@pytest.mark.asyncio
+async def test_batch_error_after_no_change_can_be_corrected_next_turn():
+    action_set = ActionSet()
+    delivery_attempts = []
+    llm_calls = []
+
+    async def save_review(summary: str):
+        return {"change_applied": False, "summary": summary}
+
+    async def deliver(quantity: float):
+        delivery_attempts.append(quantity)
+        if quantity <= 0:
+            raise ValueError("quantity must be positive")
+        return {"change_applied": True, "quantity": quantity}
+
+    action_set.add_action(
+        name="save_review",
+        func=save_review,
+        description="Save a review",
+        parameters={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        },
+    )
+    action_set.add_action(
+        name="deliver",
+        func=deliver,
+        description="Record a delivery",
+        parameters={
+            "type": "object",
+            "properties": {"quantity": {"type": "number"}},
+            "required": ["quantity"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        if len(llm_calls) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_review",
+                        "type": "function",
+                        "function": {
+                            "name": "save_review",
+                            "arguments": '{"summary": "same review"}',
+                        },
+                    },
+                    {
+                        "id": "call_bad_delivery",
+                        "type": "function",
+                        "function": {
+                            "name": "deliver",
+                            "arguments": '{"quantity": 0}',
+                        },
+                    },
+                ],
+            }
+        if len(llm_calls) == 2:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_corrected_delivery",
+                        "type": "function",
+                        "function": {
+                            "name": "deliver",
+                            "arguments": '{"quantity": 10}',
+                        },
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "done"}
+
+    result = await execute_action_loop(
+        instruction="Review the plan and make the scheduled delivery.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "answer", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=8,
+    )
+
+    assert delivery_attempts == [0, 10]
+    assert len(llm_calls) == 3
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "error",
+        "success",
+    ]
+    assert result.termination_reason == "no_action_calls"
+
+
+@pytest.mark.asyncio
 async def test_completion_action_tag_accepts_successful_state_proxy_with_failure_words_in_business_text():
     action_set = ActionSet()
     llm_calls = []
