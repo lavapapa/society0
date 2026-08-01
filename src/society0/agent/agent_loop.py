@@ -1084,10 +1084,11 @@ async def execute_action_loop(
                 loop_result.termination_reason = "action_reported_no_change"
                 loop_result.termination_action = action_call.action_name
                 logger.debug(
-                    "Action %s reported no state change; ending loop",
+                    "Action %s reported no state change; ending loop after "
+                    "the current action batch",
                     action_call.action_name,
                 )
-                break
+                continue
             if action_succeeded and action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
                 loop_result.termination_reason = "terminal_action"
@@ -1124,6 +1125,22 @@ async def execute_action_loop(
                 }
                 for ac in executed_action_calls
             ]
+
+        if (
+            terminate_loop
+            and loop_result.termination_reason == "action_reported_no_change"
+            and any(
+                action_call.status in {"error", "blocked"}
+                for action_call in executed_action_calls
+            )
+        ):
+            terminate_loop = False
+            loop_result.termination_reason = None
+            loop_result.termination_action = None
+            logger.debug(
+                "An action in the no-change batch failed or was blocked; "
+                "continuing so the model can correct it"
+            )
 
         if terminate_loop:
             break
