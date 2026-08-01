@@ -492,7 +492,7 @@ class ActivationPool:
                 )
                 try:
                     value = await self._invoke_task(pending.task, batch)
-                except Exception as exc:
+                except (asyncio.CancelledError, Exception) as exc:
                     self._results.append(
                         ActivationResult(
                             key=key,

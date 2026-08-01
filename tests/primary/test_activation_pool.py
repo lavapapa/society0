@@ -200,6 +200,33 @@ async def test_activation_pool_surfaces_closure_errors_and_keeps_queryable_resul
 
 
 @pytest.mark.asyncio
+async def test_activation_pool_surfaces_a_closure_that_cancels_itself():
+    env = _Env()
+    ctx = StepContext(
+        step=0,
+        step_name="activate",
+        world=_World(),
+        env=env,
+        params={},
+    )
+
+    async def cancel_itself():
+        raise asyncio.CancelledError("activation cancelled itself")
+
+    with pytest.raises(ActivationPoolError, match="activation cancelled itself"):
+        async with ctx.activation_pool() as pool:
+            pool.submit("self-cancelled", cancel_itself)
+
+    assert pool.closed is True
+    assert env.activation_pool is None
+    assert len(pool.results) == 1
+    assert pool.results[0].key == "self-cancelled"
+    assert pool.results[0].round == 1
+    assert pool.results[0].status == "error"
+    assert isinstance(pool.results[0].error, asyncio.CancelledError)
+
+
+@pytest.mark.asyncio
 async def test_activation_pool_instruct_merges_prompts_for_one_agent_call():
     class InstructWorld(_World):
         agents_data = {"alice": {"id": "alice", "type": "enterprise"}}
