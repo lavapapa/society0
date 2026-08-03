@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import random
 import statistics
 import time
@@ -1054,6 +1055,95 @@ class StepContext:
             **params,
         )
 
+    async def llm(
+        self,
+        prompt: Optional[str] = None,
+        *,
+        messages: Optional[List[Dict[str, Any]]] = None,
+        system: Optional[str] = None,
+        model: Optional[str] = None,
+        response_format: Optional[Dict[str, Any]] = None,
+        output_schema: Any = None,
+        json_schema: Any = None,
+        parse_json: bool = False,
+        max_tokens: Optional[int] = None,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        timeout: Optional[float] = None,
+        llm_options: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Call the configured LLM once from a code schedule step.
+
+        This is a thin scheduling primitive. Domain code should decide how to
+        interpret the returned text; the core only normalizes messages, routes
+        the call through the model provider, optionally parses JSON, and reports
+        schema validation errors when a JSON schema is available.
+        """
+        llm_call, model_id = _resolve_step_llm_call(self.world, model=model)
+        validation_schema = _step_llm_validation_schema(
+            response_format=response_format,
+            output_schema=output_schema,
+            json_schema=json_schema,
+        )
+        payload = _build_step_llm_payload(
+            prompt=prompt,
+            messages=messages,
+            system=system,
+            response_format=response_format,
+            output_schema=output_schema,
+            json_schema=json_schema,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            top_p=top_p,
+            timeout=timeout,
+            llm_options=llm_options,
+            metadata=metadata,
+            step=self.step,
+            step_name=self.step_name,
+            name=name,
+        )
+        raw = await llm_call(payload)
+        content = _extract_llm_content(raw)
+        should_parse_json = bool(
+            parse_json
+            or output_schema is not None
+            or json_schema is not None
+            or _response_format_requests_json(response_format)
+        )
+        parsed = None
+        parse_error = None
+        validation_error = None
+        if should_parse_json:
+            try:
+                parsed = _parse_json_from_llm_text(content)
+            except Exception as exc:
+                parse_error = str(exc) or repr(exc)
+        if parsed is not None and validation_schema is not None:
+            try:
+                from jsonschema import validate as validate_json_schema
+
+                validate_json_schema(instance=parsed, schema=validation_schema)
+            except Exception as exc:
+                validation_error = str(exc) or repr(exc)
+        result = {
+            "model_id": model_id,
+            "content": content,
+            "parsed": parsed,
+            "raw": _jsonable(raw),
+        }
+        if parse_error:
+            result["parse_error"] = parse_error
+        if validation_error:
+            result["validation_error"] = validation_error
+        return result
+
+    async def llm_json(self, prompt: Optional[str] = None, **kwargs: Any) -> Dict[str, Any]:
+        """Convenience wrapper for ``ctx.llm(..., parse_json=True)``."""
+        kwargs["parse_json"] = True
+        return await self.llm(prompt, **kwargs)
+
     def result(
         self,
         *,
@@ -1320,6 +1410,216 @@ def _resolve_agent_call_concurrency_info(
             pass
 
     return 5, "default"
+
+
+def _resolve_step_llm_call(world: Any, *, model: Optional[str]) -> tuple[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]], Optional[str]]:
+    provider = getattr(world, "_model_provider", None)
+    if provider is not None:
+        if model and hasattr(provider, "has_model") and not provider.has_model(model):
+            raise ValueError(f"Model '{model}' is not registered in the Society0 model provider")
+        selection = provider.get(model)
+        llm_call = getattr(selection.runtime, "llm_call", None)
+        if llm_call is None:
+            raise RuntimeError("Selected model runtime does not expose llm_call")
+        return llm_call, selection.model_id
+
+    llm_call = getattr(world, "_llm_call", None)
+    if llm_call is not None:
+        if model is not None:
+            raise ValueError(
+                "ctx.llm(model=...) requires a Society0 model provider; fallback _llm_call cannot route by model"
+            )
+        return llm_call, None
+
+    raise RuntimeError("ctx.llm(...) requires Society0(..., llm=LLMModel(...)) or an injected model provider")
+
+
+def _build_step_llm_payload(
+    *,
+    prompt: Optional[str],
+    messages: Optional[List[Dict[str, Any]]],
+    system: Optional[str],
+    response_format: Optional[Dict[str, Any]],
+    output_schema: Any,
+    json_schema: Any,
+    max_tokens: Optional[int],
+    temperature: Optional[float],
+    top_p: Optional[float],
+    timeout: Optional[float],
+    llm_options: Optional[Dict[str, Any]],
+    metadata: Optional[Dict[str, Any]],
+    step: int,
+    step_name: str,
+    name: Optional[str],
+) -> Dict[str, Any]:
+    payload = _build_llm_request_options(
+        llm_options,
+        max_tokens=max_tokens,
+        temperature=temperature,
+        top_p=top_p,
+        timeout=timeout,
+    )
+    payload["messages"] = _normalize_step_llm_messages(prompt=prompt, messages=messages, system=system)
+    normalized_response_format = _normalize_step_llm_response_format(
+        response_format=response_format,
+        output_schema=output_schema,
+        json_schema=json_schema,
+        name=name,
+    )
+    if normalized_response_format is not None:
+        payload["response_format"] = normalized_response_format
+    payload["metadata"] = {
+        **dict(metadata or {}),
+        "step": step,
+        "step_name": step_name,
+        "interaction_type": "code_schedule_llm",
+        "interaction_name": name or "ctx.llm",
+    }
+    return payload
+
+
+def _normalize_step_llm_messages(
+    *,
+    prompt: Optional[str],
+    messages: Optional[List[Dict[str, Any]]],
+    system: Optional[str],
+) -> List[Dict[str, Any]]:
+    if messages is not None and prompt is not None:
+        raise ValueError("ctx.llm(...) accepts either prompt or messages, not both")
+    normalized: List[Dict[str, Any]] = []
+    if system:
+        normalized.append({"role": "system", "content": str(system)})
+    if messages is not None:
+        for message in messages:
+            if not isinstance(message, dict):
+                raise TypeError("messages must be a list of dicts")
+            role = str(message.get("role") or "user")
+            normalized.append({**message, "role": role})
+    elif prompt is not None:
+        normalized.append({"role": "user", "content": str(prompt)})
+    else:
+        raise ValueError("ctx.llm(...) requires prompt or messages")
+    return normalized
+
+
+def _normalize_step_llm_response_format(
+    *,
+    response_format: Optional[Dict[str, Any]],
+    output_schema: Any,
+    json_schema: Any,
+    name: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    if response_format is not None:
+        return dict(response_format)
+    schema_source = json_schema if json_schema is not None else output_schema
+    if schema_source is None:
+        return None
+    schema = _json_schema_from_value(schema_source)
+    if isinstance(schema, dict) and schema.get("type") in {"json_object", "json_schema"}:
+        return dict(schema)
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": _safe_response_schema_name(name or "code_schedule_output"),
+            "schema": schema,
+        },
+    }
+
+
+def _json_schema_from_value(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if hasattr(value, "model_json_schema"):
+        return _jsonable(value.model_json_schema())
+    if isinstance(value, type) and hasattr(value, "model_json_schema"):
+        return _jsonable(value.model_json_schema())
+    if hasattr(value, "schema"):
+        return _jsonable(value.schema())
+    raise TypeError("output_schema/json_schema must be a dict or expose model_json_schema()/schema()")
+
+
+def _safe_response_schema_name(value: str) -> str:
+    cleaned = "".join(ch if ch.isascii() and (ch.isalnum() or ch in {"_", "-"}) else "_" for ch in str(value or "schema"))
+    cleaned = cleaned.strip("_") or "schema"
+    return cleaned[:64]
+
+
+def _response_format_requests_json(response_format: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(response_format, dict):
+        return False
+    return response_format.get("type") in {"json_object", "json_schema"}
+
+
+def _step_llm_validation_schema(
+    *,
+    response_format: Optional[Dict[str, Any]],
+    output_schema: Any,
+    json_schema: Any,
+) -> Optional[Dict[str, Any]]:
+    schema_source = json_schema if json_schema is not None else output_schema
+    if schema_source is None:
+        schema_source = response_format
+    if schema_source is None:
+        return None
+    schema = _json_schema_from_value(schema_source)
+    return _extract_json_schema_definition(schema)
+
+
+def _extract_json_schema_definition(schema: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    schema_type = schema.get("type")
+    if schema_type == "json_object":
+        return None
+    if schema_type == "json_schema":
+        json_schema_payload = schema.get("json_schema")
+        if isinstance(json_schema_payload, dict):
+            nested_schema = json_schema_payload.get("schema")
+            if isinstance(nested_schema, dict):
+                return dict(nested_schema)
+    return dict(schema)
+
+
+def _extract_llm_content(raw: Any) -> str:
+    if isinstance(raw, dict):
+        content = raw.get("content")
+        if content is not None:
+            return str(content)
+        choices = raw.get("choices")
+        if isinstance(choices, list) and choices:
+            choice = choices[0]
+            if isinstance(choice, dict):
+                message = choice.get("message") or {}
+                if isinstance(message, dict) and message.get("content") is not None:
+                    return str(message.get("content"))
+    choices = getattr(raw, "choices", None)
+    if choices:
+        choice = choices[0]
+        message = getattr(choice, "message", None)
+        content = getattr(message, "content", None)
+        if content is not None:
+            return str(content)
+    return ""
+
+
+def _parse_json_from_llm_text(text: str) -> Any:
+    stripped = str(text or "").strip()
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    try:
+        return json.loads(stripped)
+    except json.JSONDecodeError:
+        start_candidates = [idx for idx in (stripped.find("{"), stripped.find("[")) if idx >= 0]
+        if not start_candidates:
+            raise
+        start = min(start_candidates)
+        end = max(stripped.rfind("}"), stripped.rfind("]"))
+        if end < start:
+            raise
+        return json.loads(stripped[start : end + 1])
 
 
 def _build_llm_request_options(
@@ -2180,25 +2480,26 @@ def _capability_entries(table: Dict[str, Dict[str, Any]], kind: str) -> List[Dic
             key=key,
             func_name=func_name,
         )
-        entries.append(
-            {
-                "id": canonical_id,
-                "name": display_name,
-                "kind": entry.get("kind") or kind,
-                "source": entry.get("source") or "unknown",
-                "description": entry.get("description", ""),
-                "tags": list(entry.get("tags", []) or []),
-                "parameters": _jsonable(parameters),
-                "return_value_schema": _jsonable(return_value_schema),
-                "state_access": _jsonable(state_access),
-                "key": key,
-                "func_name": func_name,
-                "aliases": aliases,
-                "environment_type": entry.get("environment_type"),
-                "cache_on_step": cache_on_step,
-                "cache_on_agent": cache_on_agent,
-            }
-        )
+        capability_entry = {
+            "id": canonical_id,
+            "name": display_name,
+            "kind": entry.get("kind") or kind,
+            "source": entry.get("source") or "unknown",
+            "description": entry.get("description", ""),
+            "tags": list(entry.get("tags", []) or []),
+            "parameters": _jsonable(parameters),
+            "return_value_schema": _jsonable(return_value_schema),
+            "state_access": _jsonable(state_access),
+            "key": key,
+            "func_name": func_name,
+            "aliases": aliases,
+            "environment_type": entry.get("environment_type"),
+            "cache_on_step": cache_on_step,
+            "cache_on_agent": cache_on_agent,
+        }
+        if entry.get("strict"):
+            capability_entry["strict"] = True
+        entries.append(capability_entry)
     return _dedupe_capability_entries(entries)
 
 

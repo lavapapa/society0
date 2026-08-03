@@ -14,6 +14,8 @@ import json_repair
 import time
 from collections import Counter
 
+from ..function_registry import validate_strict_function_parameters
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,7 +173,8 @@ class ActionSet:
         func: Callable[..., Any],
         description: str,
         parameters: Dict[str, Any],
-        tags: List[str] = None
+        tags: List[str] = None,
+        strict: bool = False,
     ):
         """
         Add an action to the actionset with proper OpenAI function calling schema.
@@ -182,18 +185,24 @@ class ActionSet:
             description: Action description
             parameters: OpenAI-style parameters schema with type, properties, required
             tags: List of tags for action categorization and filtering
+            strict: Request provider-side strict JSON Schema enforcement for this function tool
         """
         # Commented out debug prints
         # print(f"--- [DEBUG] Adding action to ActionSet: '{name}' ---")
         # print(f"  Description: {description}")
         # print(f"  Tags: {tags or []}")
 
-        self.actions[name] = {
+        if strict:
+            validate_strict_function_parameters(parameters)
+        action_info = {
             "function": func,
             "description": description,
             "parameters": parameters,
-            "tags": tags or []
+            "tags": tags or [],
         }
+        if strict:
+            action_info["strict"] = True
+        self.actions[name] = action_info
 
     async def call_action(self, action_name: str, context_provider: Optional[Callable] = None, **kwargs) -> Any:
         """Call an action by name with arguments, handling both sync and async functions and context management.
@@ -318,13 +327,16 @@ class ActionSet:
         """Get OpenAI-compatible actions schema."""
         actions_schema = []
         for action_name, action_info in self.actions.items():
+            function_schema = {
+                "name": action_name,
+                "description": action_info["description"],
+                "parameters": action_info["parameters"],
+            }
+            if action_info.get("strict"):
+                function_schema["strict"] = True
             actions_schema.append({
                 "type": "function",
-                "function": {
-                    "name": action_name,
-                    "description": action_info["description"],
-                    "parameters": action_info["parameters"]
-                }
+                "function": function_schema,
             })
         return actions_schema
 

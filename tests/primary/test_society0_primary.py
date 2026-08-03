@@ -12,6 +12,7 @@ from society0.agent.memory import Memory
 from society0.core_data import World
 from society0.function_registry import FunctionRegistry
 from society0.logging import ExperimentLogContext
+from society0.llm_model_types import ModelConfig, ModelProvider, ModelRuntime
 from society0.models import LLMModel as PublicLLMModel
 from society0.resource_managers import EmbeddingManager, LLMManager
 from society0.context_stack import ContextStack
@@ -64,6 +65,149 @@ def _social_network_recommendation_config():
 
 def _read_jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_action_set_emits_opt_in_strict_function_schema():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="submit_plan",
+        func=lambda **_kwargs: {"ok": True},
+        description="Submit a structured plan",
+        parameters={
+            "type": "object",
+            "properties": {"items": {"type": "array", "items": {"type": "string"}}},
+            "required": ["items"],
+            "additionalProperties": False,
+        },
+        tags=["plan"],
+        strict=True,
+    )
+
+    schema = action_set.get_openai_actions_schema()
+
+    assert schema[0]["function"]["strict"] is True
+
+
+def test_action_set_default_schema_does_not_emit_or_store_strict_metadata():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="legacy_action",
+        func=lambda **_kwargs: {"ok": True},
+        description="Legacy action",
+        parameters={"type": "object", "properties": {}},
+    )
+
+    assert "strict" not in action_set.actions["legacy_action"]
+    assert "strict" not in action_set.get_openai_actions_schema()[0]["function"]
+
+
+def test_experiment_environment_action_registry_preserves_strict_metadata():
+    registry = FunctionRegistry()
+
+    @registry.env.action(
+        name="submit_plan",
+        strict=True,
+        parameters_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "items": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["items"],
+        },
+    )
+    def submit_plan(agent, env, items: list):
+        return {"ok": True, "items": items}
+
+    assert registry.env_agent_tools["submit_plan"]["strict"] is True
+    assert registry.env_agent_tools["env.submit_plan"]["strict"] is True
+
+
+def test_experiment_environment_strict_action_requires_explicit_valid_schema():
+    registry = FunctionRegistry()
+
+    with pytest.raises(ValueError, match="requires an explicit parameters_schema"):
+        registry.env.action(name="invalid", strict=True)(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="additionalProperties=false"):
+        registry.env.action(
+            name="open_object",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "properties": {"value": {"type": "string"}},
+                "required": ["value"],
+            },
+        )(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="unsupported reference keyword"):
+        registry.env.action(
+            name="referenced_object",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"value": {"$ref": "#/$defs/value"}},
+                "required": ["value"],
+                "$defs": {"value": {"type": "string"}},
+            },
+        )(lambda agent, env, value: value)
+
+    with pytest.raises(ValueError, match="omits required function parameter.*amount"):
+        registry.env.action(
+            name="signature_mismatch",
+            strict=True,
+            parameters_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"value": {"type": "number"}},
+                "required": ["value"],
+            },
+        )(lambda agent, env, amount: amount)
+
+
+@pytest.mark.asyncio
+async def test_action_loop_sends_strict_flag_in_real_tool_payload():
+    action_set = ActionSet()
+    action_set.add_action(
+        name="submit_plan",
+        func=lambda items: {"ok": True, "items": items},
+        description="Submit plan",
+        parameters={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"items": {"type": "array", "items": {"type": "string"}}},
+            "required": ["items"],
+        },
+        strict=True,
+    )
+    requests = []
+
+    async def fake_llm_call(request):
+        requests.append(request)
+        return {"role": "assistant", "content": "done", "tool_calls": []}
+
+    await execute_action_loop(
+        instruction="Inspect the plan.",
+        action_set=action_set,
+        system_prompt="Test agent",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=1,
+    )
+
+    assert requests[0]["tools"][0]["function"]["strict"] is True
+
+
+class _CallableLLMManager:
+    def __init__(self, call):
+        self._call = call
+
+    async def request(self, payload):
+        return await self._call(payload)
+
+    async def close(self):
+        pass
 
 
 def test_event_logger_compacts_large_state_change_values_but_not_listener_batch(tmp_path):
@@ -4411,6 +4555,219 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_code_step_can_call_llm_with_structured_json_output(tmp_path):
+    llm_calls = []
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {
+            "role": "assistant",
+            "content": "{\"items\":[{\"label\":\"alpha\",\"score\":2}],\"note\":\"compact structured result\"}",
+        }
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._model_provider = ModelProvider(
+        models={
+            "semantic": ModelRuntime(
+                config=ModelConfig(
+                    model_id="semantic",
+                    name="semantic",
+                    model_type="llm",
+                    base_url="http://localhost/v1",
+                    model="fake-semantic-model",
+                    api_key="test",
+                    concurrency=2,
+                ),
+                llm_call=fake_llm_call,
+            )
+        },
+        default_model_id="semantic",
+    )
+
+    @engine.step(name="extract_structured_note")
+    async def extract_structured_note(ctx):
+        result = await ctx.llm(
+            "Extract a compact JSON note.",
+            system="Return JSON only.",
+            model="semantic",
+            output_schema={
+                "type": "object",
+                "properties": {
+                    "items": {"type": "array"},
+                    "note": {"type": "string"},
+                },
+                "required": ["items", "note"],
+            },
+            max_tokens=128,
+            temperature=0,
+            metadata={"source_ref": "fixture_1"},
+            name="structured_note",
+        )
+        ctx.env.state["structured_note"] = result["parsed"]
+        return ctx.result(
+            metrics={"item_count": len(result["parsed"]["items"])},
+            observations={"note": result["parsed"]["note"], "model_id": result["model_id"]},
+        )
+
+    await engine.run(steps=1)
+
+    assert len(llm_calls) == 1
+    payload = llm_calls[0]
+    assert payload["messages"] == [
+        {"role": "system", "content": "Return JSON only."},
+        {"role": "user", "content": "Extract a compact JSON note."},
+    ]
+    assert payload["max_tokens"] == 128
+    assert payload["temperature"] == 0
+    assert payload["response_format"]["type"] == "json_schema"
+    assert payload["metadata"] == {
+        "source_ref": "fixture_1",
+        "step": 0,
+        "step_name": "extract_structured_note",
+        "interaction_type": "code_schedule_llm",
+        "interaction_name": "structured_note",
+    }
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")
+    assert metrics[0]["metrics"] == {"item_count": 1}
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["structured_note"]["note"] == "compact structured result"
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_parses_json_response_format_with_fallback_call(tmp_path):
+    llm_calls = []
+
+    async def fake_llm_call(payload):
+        llm_calls.append(payload)
+        return {"choices": [{"message": {"content": "{\"status\":\"ok\"}"}}]}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="parse_json_object")
+    async def parse_json_object(ctx):
+        result = await ctx.llm(
+            messages=[{"role": "user", "content": "Return status."}],
+            response_format={"type": "json_object"},
+            name="status_extract",
+        )
+        ctx.env.state["status"] = result["parsed"]
+        return ctx.result(observations={"status": result["parsed"]["status"], "model_id": result["model_id"]})
+
+    await engine.run(steps=1)
+
+    assert llm_calls[0]["response_format"] == {"type": "json_object"}
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["status"] == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_fallback_rejects_model_selection(tmp_path):
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": "{}"}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="fallback_model_selection")
+    async def fallback_model_selection(ctx):
+        await ctx.llm("hello", model="secondary")
+        return ctx.result()
+
+    with pytest.raises(ValueError, match="model provider"):
+        await engine.run(steps=1)
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_selects_registered_model(tmp_path):
+    llm_calls = {"primary": [], "secondary": []}
+
+    async def primary_llm_call(payload):
+        llm_calls["primary"].append(payload)
+        return {"role": "assistant", "content": "primary"}
+
+    async def secondary_llm_call(payload):
+        llm_calls["secondary"].append(payload)
+        return {"role": "assistant", "content": "secondary"}
+
+    def runtime(model_id, llm_call):
+        return ModelRuntime(
+            config=ModelConfig(
+                model_id=model_id,
+                name=model_id,
+                model_type="llm",
+                base_url="http://localhost/v1",
+                model=f"fake-{model_id}",
+                api_key="test",
+                concurrency=2,
+            ),
+            llm_call=llm_call,
+        )
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._model_provider = ModelProvider(
+        models={
+            "primary": runtime("primary", primary_llm_call),
+            "secondary": runtime("secondary", secondary_llm_call),
+        },
+        default_model_id="primary",
+    )
+
+    @engine.step(name="select_model")
+    async def select_model(ctx):
+        result = await ctx.llm("hello", model="secondary")
+        ctx.env.state["model_id"] = result["model_id"]
+        return ctx.result(observations={"model_id": result["model_id"], "content": result["content"]})
+
+    await engine.run(steps=1)
+
+    assert llm_calls["primary"] == []
+    assert len(llm_calls["secondary"]) == 1
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert final_checkpoint["environment_data"]["state"]["model_id"] == "secondary"
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_reports_schema_validation_error(tmp_path):
+    async def fake_llm_call(payload):
+        return {"role": "assistant", "content": "{\"status\":\"ok\"}"}
+
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine._llm_manager = _CallableLLMManager(fake_llm_call)
+
+    @engine.step(name="validate_structured_output")
+    async def validate_structured_output(ctx):
+        result = await ctx.llm(
+            "Return a count.",
+            output_schema={
+                "type": "object",
+                "properties": {"count": {"type": "integer"}},
+                "required": ["count"],
+            },
+        )
+        ctx.env.state["validation_error"] = result.get("validation_error")
+        return ctx.result(observations={"has_validation_error": "validation_error" in result})
+
+    await engine.run(steps=1)
+
+    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    assert "count" in final_checkpoint["environment_data"]["state"]["validation_error"]
+
+
+@pytest.mark.asyncio
+async def test_code_step_llm_requires_model_provider(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+
+    @engine.step(name="missing_llm")
+    async def missing_llm(ctx):
+        await ctx.llm("hello")
+        return ctx.result()
+
+    with pytest.raises(RuntimeError, match=r"ctx\.llm"):
+        await engine.run(steps=1)
+
+
+@pytest.mark.asyncio
 async def test_code_step_experiment_env_action_is_discoverable_and_agent_callable(tmp_path):
     engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
 
@@ -4418,6 +4775,13 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
         name="mark_exposure",
         desc="Record that the current agent was exposed to an experimental stimulus.",
         tags=["stimulus", "measurement"],
+        strict=True,
+        parameters_schema={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"intensity": {"type": "integer"}},
+            "required": ["intensity"],
+        },
     )
     async def mark_exposure(agent, env, intensity: int, context=None):
         env.state.setdefault("exposures", []).append(
@@ -4441,9 +4805,11 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
             ("action", "experiment", "mark_exposure")
         ]
         assert ctx.capabilities.find("mark_exposure", kind="tools", source="experiment") == found
+        assert found[0]["strict"] is True
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("alice"))
         assert "mark_exposure" in actionset.filter_by_tags(["mark_exposure"]).actions
         filtered = actionset.filter_by_tags(["env.mark_exposure"])
+        assert filtered.get_openai_actions_schema()[0]["function"]["strict"] is True
         result = await filtered.call_action("mark_exposure", intensity=4)
         return ctx.result(
             metrics={
