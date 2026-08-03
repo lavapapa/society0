@@ -103,8 +103,8 @@ class PersistenceManager:
         default_metadata.update(loaded_metadata)
         self.experiment_metadata = default_metadata
 
-        # 尽早创建 Chroma 客户端；失败时允许后续懒加载重试
-        self._ensure_chroma_client()
+        # Chroma 只在 memory/vector store 被实际请求时创建。
+        # 纯规则或无 LLM 的 CodeSchedule 不应在初始化阶段承担 Chroma 依赖成本。
 
     @staticmethod
     def _load_runtime_mode() -> str:
@@ -865,6 +865,9 @@ class PersistenceManager:
 
             if not source_dir.exists():
                 logger.warning(f"Chroma store directory not found at {source_dir}")
+                return
+            if self._chroma_client is None and not any(source_dir.iterdir()):
+                logger.debug("Skipping empty Chroma backup for step %s; client was never initialized", step)
                 return
 
             backup_dir = self.chroma_backup_dir / f"step_{step:06d}"

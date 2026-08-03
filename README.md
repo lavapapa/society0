@@ -99,6 +99,27 @@ Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-s
 For LLM agents, `memory=True` retrieves memory and saves extractive memory by default.
 If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
 
+## External environments
+
+Experiment packages can inject an `Environment` subclass at the Society0 composition root without mutating the built-in environment registry:
+
+```python
+from society0 import Environment, Society0
+
+
+class MyEnvironment(Environment):
+    pass
+
+
+engine = Society0(
+    save_dir="runs/custom-env",
+    base_config=config,
+    environment_factory=MyEnvironment,
+)
+```
+
+The factory receives the current `World` and must return an `Environment`. Society0 still initializes the environment and registers its decorated FoV and Action capabilities.
+
 ## Contributing
 
 Society0 welcomes contributions from social science researchers. If you or your agent creates a useful environment, finds a bug, or has an experiment-driven feature request, ask your coding agent to help open an issue or prepare a focused pull request.

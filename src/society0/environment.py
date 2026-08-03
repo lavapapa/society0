@@ -50,6 +50,8 @@ class Environment:
         # 可选的资源句柄（由引擎注入，子类按需使用）
         self._embed_call = None
         self._vector_client = None
+        # 仅在 ``async with ctx.activation_pool()`` 会话内由运行时注入。
+        self.activation_pool = None
         logger.debug("Created Environment proxy")
 
     # 资源注入接口：引擎在环境实例化后调用，子类可复用

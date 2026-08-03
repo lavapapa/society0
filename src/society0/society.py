@@ -291,6 +291,7 @@ class Society0:
         embed: Optional[EmbedModel] = None,
         checkpoint_every: int = 10,
         agent_concurrency: Optional[int] = None,
+        environment_factory: Optional[Callable[[World], Environment]] = None,
         log_state_changes: bool = False,
         experiment_log_context: Optional[ExperimentLogContext] = None,
         log_hooks: Optional[Iterable[Callable[[str, Dict[str, Any]], None]]] = None,
@@ -302,6 +303,7 @@ class Society0:
         self.embed_model = embed
         self.checkpoint_every = max(1, int(checkpoint_every))
         self.agent_concurrency = self._validate_optional_concurrency(agent_concurrency)
+        self.environment_factory = environment_factory
         self.schedule = CodeSchedule()
         self.persistence_manager = PersistenceManager(str(self.save_dir))
         self.log_state_changes = bool(log_state_changes)
@@ -524,8 +526,8 @@ class Society0:
         env = world.get_environment()
         self._register_environment_functions(env)
         if hasattr(env, "set_resource_handles"):
-            vector_client = self.persistence_manager.get_chroma_client()
             embed_call = self._embedding_manager.request if self._embedding_manager else None
+            vector_client = self.persistence_manager.get_chroma_client() if embed_call else None
             env.set_resource_handles(embed_call=embed_call, vector_client=vector_client)
 
         has_llm_agents = any(data.get("archetype") == "llm" for data in world.agents_data.values())
@@ -576,6 +578,8 @@ class Society0:
             event_log_path=str(self.save_dir / "events.jsonl"),
             event_logger=self.event_logger,
         )
+        if self.environment_factory is not None:
+            world.set_environment_factory(self.environment_factory)
 
         agent_types = self.config.get("agent_types") or self.config.get("types") or []
         type_index = {item.get("id"): item for item in agent_types if isinstance(item, dict) and item.get("id")}

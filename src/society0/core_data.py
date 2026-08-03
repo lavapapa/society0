@@ -34,6 +34,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_BUILTIN_ENV_CLASS_PATHS = {
+    "plain": "society0.env.plain.env.PlainEnvironment",
+    "round_robin_conversation": "society0.env.round_robin.env.RoundRobinConversationEnv",
+    "social_network": "society0.env.social_network.env.SocialNetworkEnv",
+}
+
+
+def _load_builtin_environment_class(env_type: str) -> Optional[type]:
+    """按需导入指定内置环境，避免 runtime 为发现无关环境加载重依赖。"""
+    class_path = _BUILTIN_ENV_CLASS_PATHS.get(str(env_type))
+    if not class_path:
+        return None
+    module_name, _, class_name = class_path.rpartition(".")
+    module = importlib.import_module(module_name)
+    return getattr(module, class_name, None)
+
+
 def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None, flush: bool = False) -> None:
     """Route legacy debug prints through logging without writing to stdout."""
     if file is not None:
@@ -166,6 +183,7 @@ class ExecutionContext:
     event_logger: Optional['EventLogger'] = None  # Reference to event logger for traceability
     log_context: Optional['ExperimentLogContext'] = None  # Structured logging context
     operator_id: Optional[str] = None  # 当前正在执行的 operator 标识（若有）
+    action_call_id: Optional[str] = None  # 当前 LLM 工具调用的内部编号
 
     @property
     def step_number(self) -> int:
@@ -305,6 +323,7 @@ class World:
         self._llm_manager: Optional[Any] = None
         self._embedding_manager: Optional[Any] = None
         self._model_provider: Optional[Any] = None
+        self._environment_factory: Optional[Callable[["World"], "Environment"]] = None
         # 内部缓存：已发现的环境类型元数据（仅首次访问时构建）
         self._env_meta_cache: Optional[Dict[str, Any]] = None
         # 节点差异调度器，由 SimEngine 在组合根注入
@@ -373,6 +392,8 @@ class World:
         node: Optional['StepNode'] = None,
     ) -> ExecutionContext:
         """构造标准 ExecutionContext，统一包含当前 world 引用。"""
+        from .agent.agent_loop import current_action_call_id
+
         return ExecutionContext(
             world=self,
             step=step,
@@ -380,6 +401,7 @@ class World:
             caller=caller,
             event_logger=self.event_logger,
             log_context=self._log_context,
+            action_call_id=current_action_call_id(),
         )
 
     # Agent management methods
@@ -571,7 +593,10 @@ class World:
         action_name: str,
     ) -> None:
         """记录指令/访谈决策与详情。"""
-        decision_summary = summarize_text(result.get("performative_output", ""))
+        visible_assistant_text = result.get("visible_assistant_text")
+        if not isinstance(visible_assistant_text, str):
+            visible_assistant_text = str(result.get("performative_output") or "")
+        decision_summary = summarize_text(visible_assistant_text)
         structured_keys = self._collect_structured_output_keys(result.get("structured_output"))
         actions_preview = self._extract_actions_preview_from_result(result)
 
@@ -581,7 +606,14 @@ class World:
             LogField.DECISION_PREVIEW.value: decision_summary["preview"],
             LogField.DECISION_LENGTH.value: decision_summary["length"],
             LogField.INTERACTION_TYPE.value: interaction_type,
+            LogField.ASSISTANT_TURN_TRACE.value: result.get("assistant_turn_trace") or [],
         }
+        termination_reason = result.get("termination_reason")
+        if termination_reason is not None:
+            payload[LogField.TERMINATION_REASON.value] = termination_reason
+        termination_action = result.get("termination_action")
+        if termination_action is not None:
+            payload[LogField.TERMINATION_ACTION.value] = termination_action
         if actions_preview:
             payload[LogField.ACTIONS_PREVIEW.value] = actions_preview
         if structured_keys:
@@ -701,6 +733,17 @@ class World:
 
     # Environment management methods
 
+    def set_environment_factory(
+        self,
+        factory: Callable[["World"], "Environment"],
+    ) -> None:
+        """Inject an external Environment factory before the environment is created."""
+        if self._environment_cache is not None:
+            raise RuntimeError("Environment factory must be set before the environment is created")
+        if not callable(factory):
+            raise TypeError("Environment factory must be callable")
+        self._environment_factory = factory
+
     def get_environment(self) -> 'Environment':
         """
         Get the Environment object (with proxy support)
@@ -709,25 +752,44 @@ class World:
             Environment object with proxy-enabled state access
         """
         if self._environment_cache is None:
+            if self._environment_factory is not None:
+                from .environment import Environment
+
+                environment = self._environment_factory(self)
+                if not isinstance(environment, Environment):
+                    raise TypeError("Environment factory must return an Environment instance")
+                self._environment_cache = environment
+                agents = self.get_all_agents()
+                self._environment_cache.initialize(agents, self)
+                self.initialize_env_provided_fields()
+                logger.info(
+                    "Created and initialized externally injected %s environment",
+                    environment.__class__.__name__,
+                )
+                return self._environment_cache
+
             # Get environment type from configuration
             env_type = self.environment_data.get("type", "base")
 
-            # 1) 使用内置发现机制解析环境类
-            env_class = None
+            # 1) 优先按目标类型惰性导入内置环境，避免发现阶段加载所有环境依赖
+            env_class = _load_builtin_environment_class(str(env_type))
+
+            # 2) 使用内置发现机制解析非直达路径覆盖的环境类
             try:
-                from .env_discovery import discover_builtins  # type: ignore
-                if self._env_meta_cache is None:
-                    self._env_meta_cache = discover_builtins()
-                meta = self._env_meta_cache.get(env_type) if self._env_meta_cache else None
-                if meta is not None:
-                    module_name, _, class_name = meta.class_path.rpartition(".")
-                    if module_name:
-                        module = importlib.import_module(module_name)
-                        env_class = getattr(module, class_name, None)
+                if env_class is None:
+                    from .env_discovery import discover_builtins  # type: ignore
+                    if self._env_meta_cache is None:
+                        self._env_meta_cache = discover_builtins()
+                    meta = self._env_meta_cache.get(env_type) if self._env_meta_cache else None
+                    if meta is not None:
+                        module_name, _, class_name = meta.class_path.rpartition(".")
+                        if module_name:
+                            module = importlib.import_module(module_name)
+                            env_class = getattr(module, class_name, None)
             except Exception:
                 env_class = None
 
-            # 2) 回退到旧的内置注册表
+            # 3) 回退到旧的内置注册表
             if env_class is None:
                 try:
                     from .env import BUILTIN_ENVS  # type: ignore
@@ -735,14 +797,14 @@ class World:
                 except Exception:
                     env_class = None
 
-            # 3) 最终回退：基础 Environment
+            # 4) 最终回退：基础 Environment
             if env_class is None:
                 from .environment import Environment  # Import here to avoid circular imports
                 self._environment_cache = Environment(self)
                 logger.warning(f"Environment type '{env_type}' not registered, using base Environment")
             else:
                 self._environment_cache = env_class(self)
-                agents = self.get_all_agents()
+                agents = list(self.agents_data.keys()) if env_type == "plain" else self.get_all_agents()
                 self._environment_cache.initialize(agents, self)
                 # 🔑 v3.0: 初始化 Environment 提供的字段
                 self.initialize_env_provided_fields()
@@ -1743,7 +1805,8 @@ class World:
                         func=action_info["function"],
                         description=action_info["description"],
                         parameters=action_info["parameters"],
-                        tags=action_info.get("tags", ["memory"])
+                        tags=action_info.get("tags", ["memory"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 logger.debug(f"Added {len(memory_actions)} memory actions for agent {agent.id}")
             else:
@@ -1778,7 +1841,8 @@ class World:
                     func=action_info["function"],
                     description=action_info["description"],
                     parameters=action_info["parameters"],
-                    tags=env_tags
+                    tags=env_tags,
+                    strict=bool(action_info.get("strict", False)),
                 )
             logger.debug(f"Added {len(env_actions)} environment actions for agent {agent.id}")
         except Exception as e:
@@ -1795,6 +1859,7 @@ class World:
                         description=action_info["description"],
                         parameters=action_info["parameters"],
                         tags=action_info.get("tags", ["environment", "experiment"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 registry_actions = self._get_registry_actions(agent)
                 for action_name, action_info in registry_actions.items():
@@ -1803,7 +1868,8 @@ class World:
                         func=action_info["function"],
                         description=action_info["description"],
                         parameters=action_info["parameters"],
-                        tags=action_info.get("tags", ["registry"])
+                        tags=action_info.get("tags", ["registry"]),
+                        strict=bool(action_info.get("strict", False)),
                     )
                 logger.debug(f"Added {len(registry_actions)} registry actions for agent {agent.id}")
         except Exception as e:
@@ -1943,13 +2009,10 @@ class World:
                     injected_params = {}
                     for sys_param_name, sys_param_type in sys_params.items():
                         if sys_param_type == ExecutionContext:
-                            injected_params[sys_param_name] = ExecutionContext(
-                                world=self,
-                                step=None,
-                                node=None,
-                                caller=agent,
-                                event_logger=self.event_logger,
-                                log_context=self._log_context
+                            injected_params[sys_param_name] = (
+                                self._build_execution_context(
+                                    caller=agent,
+                                )
                             )
                         elif sys_param_type == "agent":
                             injected_params[sys_param_name] = agent
@@ -2156,6 +2219,7 @@ class World:
                     "properties": {},
                 }),
                 "tags": sorted(tag for tag in tags if tag),
+                "strict": bool(action_info.get("strict", False)),
             }
 
         return registry_actions
