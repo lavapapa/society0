@@ -161,6 +161,7 @@ class EmbedModel:
     concurrency: int = 5
     timeout: float = 30.0
     dimensions: int = 512
+    trust_env: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -222,6 +223,7 @@ class EmbedModel:
         dimensions: int = 512,
         concurrency: int = 5,
         timeout: float = 120.0,
+        trust_env: bool = False,
     ) -> "EmbedModel":
         return cls(
             id=id,
@@ -232,6 +234,7 @@ class EmbedModel:
             dimensions=dimensions,
             concurrency=concurrency,
             timeout=timeout,
+            trust_env=trust_env,
         )
 
     def endpoint_config(self) -> Dict[str, Any]:
@@ -244,6 +247,7 @@ class EmbedModel:
             "timeout": self.timeout,
             "provider_type": self.provider_type,
             "dimensions": self.dimensions,
+            "trust_env": self.trust_env,
         }
 
     def build_manager(self, *, log_context=None) -> EmbeddingManager:

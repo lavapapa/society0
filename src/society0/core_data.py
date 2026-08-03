@@ -183,6 +183,7 @@ class ExecutionContext:
     event_logger: Optional['EventLogger'] = None  # Reference to event logger for traceability
     log_context: Optional['ExperimentLogContext'] = None  # Structured logging context
     operator_id: Optional[str] = None  # 当前正在执行的 operator 标识（若有）
+    action_call_id: Optional[str] = None  # 当前 LLM 工具调用的内部编号
 
     @property
     def step_number(self) -> int:
@@ -322,6 +323,7 @@ class World:
         self._llm_manager: Optional[Any] = None
         self._embedding_manager: Optional[Any] = None
         self._model_provider: Optional[Any] = None
+        self._environment_factory: Optional[Callable[["World"], "Environment"]] = None
         # 内部缓存：已发现的环境类型元数据（仅首次访问时构建）
         self._env_meta_cache: Optional[Dict[str, Any]] = None
         # 节点差异调度器，由 SimEngine 在组合根注入
@@ -390,6 +392,8 @@ class World:
         node: Optional['StepNode'] = None,
     ) -> ExecutionContext:
         """构造标准 ExecutionContext，统一包含当前 world 引用。"""
+        from .agent.agent_loop import current_action_call_id
+
         return ExecutionContext(
             world=self,
             step=step,
@@ -397,6 +401,7 @@ class World:
             caller=caller,
             event_logger=self.event_logger,
             log_context=self._log_context,
+            action_call_id=current_action_call_id(),
         )
 
     # Agent management methods
@@ -588,7 +593,10 @@ class World:
         action_name: str,
     ) -> None:
         """记录指令/访谈决策与详情。"""
-        decision_summary = summarize_text(result.get("performative_output", ""))
+        visible_assistant_text = result.get("visible_assistant_text")
+        if not isinstance(visible_assistant_text, str):
+            visible_assistant_text = str(result.get("performative_output") or "")
+        decision_summary = summarize_text(visible_assistant_text)
         structured_keys = self._collect_structured_output_keys(result.get("structured_output"))
         actions_preview = self._extract_actions_preview_from_result(result)
 
@@ -598,7 +606,14 @@ class World:
             LogField.DECISION_PREVIEW.value: decision_summary["preview"],
             LogField.DECISION_LENGTH.value: decision_summary["length"],
             LogField.INTERACTION_TYPE.value: interaction_type,
+            LogField.ASSISTANT_TURN_TRACE.value: result.get("assistant_turn_trace") or [],
         }
+        termination_reason = result.get("termination_reason")
+        if termination_reason is not None:
+            payload[LogField.TERMINATION_REASON.value] = termination_reason
+        termination_action = result.get("termination_action")
+        if termination_action is not None:
+            payload[LogField.TERMINATION_ACTION.value] = termination_action
         if actions_preview:
             payload[LogField.ACTIONS_PREVIEW.value] = actions_preview
         if structured_keys:
@@ -718,6 +733,17 @@ class World:
 
     # Environment management methods
 
+    def set_environment_factory(
+        self,
+        factory: Callable[["World"], "Environment"],
+    ) -> None:
+        """Inject an external Environment factory before the environment is created."""
+        if self._environment_cache is not None:
+            raise RuntimeError("Environment factory must be set before the environment is created")
+        if not callable(factory):
+            raise TypeError("Environment factory must be callable")
+        self._environment_factory = factory
+
     def get_environment(self) -> 'Environment':
         """
         Get the Environment object (with proxy support)
@@ -726,6 +752,22 @@ class World:
             Environment object with proxy-enabled state access
         """
         if self._environment_cache is None:
+            if self._environment_factory is not None:
+                from .environment import Environment
+
+                environment = self._environment_factory(self)
+                if not isinstance(environment, Environment):
+                    raise TypeError("Environment factory must return an Environment instance")
+                self._environment_cache = environment
+                agents = self.get_all_agents()
+                self._environment_cache.initialize(agents, self)
+                self.initialize_env_provided_fields()
+                logger.info(
+                    "Created and initialized externally injected %s environment",
+                    environment.__class__.__name__,
+                )
+                return self._environment_cache
+
             # Get environment type from configuration
             env_type = self.environment_data.get("type", "base")
 
@@ -1967,13 +2009,10 @@ class World:
                     injected_params = {}
                     for sys_param_name, sys_param_type in sys_params.items():
                         if sys_param_type == ExecutionContext:
-                            injected_params[sys_param_name] = ExecutionContext(
-                                world=self,
-                                step=None,
-                                node=None,
-                                caller=agent,
-                                event_logger=self.event_logger,
-                                log_context=self._log_context
+                            injected_params[sys_param_name] = (
+                                self._build_execution_context(
+                                    caller=agent,
+                                )
                             )
                         elif sys_param_type == "agent":
                             injected_params[sys_param_name] = agent

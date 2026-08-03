@@ -10,7 +10,7 @@ v3.0 新增功能：
 - 支持基于 schema 的权限控制
 """
 
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Callable, Awaitable
+from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable
 import logging
 import copy
 import json
@@ -24,7 +24,7 @@ from .memory_extraction import perform_memory_extraction, build_interaction_summ
 
 if TYPE_CHECKING:
     from .memory import Memory
-    from .agent_loop import ActionSet, execute_action_loop
+    from .agent_loop import ActionSet
     from ..core_data import World
 
 logger = logging.getLogger(__name__)
@@ -564,6 +564,7 @@ class LLMAgent(Agent):
                       action_call_limits: Optional[Dict[str, int]] = None,
                       prefer_direct_json_output: bool = False,
                       llm_request_options: Optional[Dict[str, Any]] = None,
+                      prior_messages: Optional[List[Dict[str, Any]]] = None,
                       trace: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         完整的指令执行方法 - LLMAgent的"大脑中枢"
@@ -759,7 +760,13 @@ class LLMAgent(Agent):
         agent_loop_started: Optional[float] = None
         try:
             agent_loop_started = time.perf_counter()
-            from .agent_loop import execute_action_loop, ActionSet, DEFAULT_REASONING_STAGES, LoopResult
+            from .agent_loop import (
+                ActionSet,
+                DEFAULT_REASONING_STAGES,
+                LoopResult,
+                build_assistant_turn_trace,
+                execute_action_loop,
+            )
 
             # 决定使用哪个推理阶段配置：优先级：参数传入 > Agent默认配置 > 全局默认
             active_stages = reasoning_stages or self._default_reasoning_stages or DEFAULT_REASONING_STAGES
@@ -935,6 +942,7 @@ class LLMAgent(Agent):
                         max_action_calls=max_action_calls,
                         action_call_limits=action_call_limits,
                         llm_request_options=safe_llm_request_options,
+                        prior_messages=prior_messages,
                     )
             finally:
                 if previous_action_trace is None:
@@ -1117,11 +1125,19 @@ class LLMAgent(Agent):
             record_phase("agent_loop", agent_loop_started)
 
             # 6. 处理结果与写入记忆
-            performative_output = loop_result.phases.get("Reflection", "")
+            assistant_turn_trace = build_assistant_turn_trace(loop_result.full_history)
+            visible_assistant_text = "\n\n".join(
+                turn["assistant_text"]
+                for turn in assistant_turn_trace
+                if turn["has_visible_text"]
+            )
+            performative_output = visible_assistant_text
             raw_loop_output = {
                 "phases": loop_result.phases,
                 "phases_unknown": loop_result.phases_unknown,
                 "full_history": loop_result.full_history,
+                "conversation_messages": loop_result.conversation_messages,
+                "assistant_turn_trace": assistant_turn_trace,
                 "parsing_errors": loop_result.parsing_errors,
                 "default_stage_name": loop_result.default_stage_name,
             }
@@ -1272,18 +1288,28 @@ class LLMAgent(Agent):
 
             total_llm_calls = loop_result.total_turns + extra_llm_calls
             record_phase("total", instruct_started)
+            instruction_status = (
+                "error" if loop_result.status == "error" else "success"
+            )
 
             return {
-                "status": "success",
+                "status": instruction_status,
                 "agent_id": self.id,
                 "instruction": instruction,
                 "performative_output": performative_output,
+                "visible_assistant_text": visible_assistant_text,
+                "assistant_turn_trace": assistant_turn_trace,
                 "structured_output": structured_output,
                 "raw_output": raw_loop_output,
                 "total_turns": total_llm_calls,
                 "actions": loop_result.action_calls,
                 "termination_reason": loop_result.termination_reason,
                 "termination_action": loop_result.termination_action,
+                **(
+                    {"error": loop_result.termination_reason or "agent_loop_error"}
+                    if instruction_status == "error"
+                    else {}
+                ),
                 "llm_calls": total_llm_calls,
                 "finish_instruction_called": finish_instruction_called,  # 现在正确实现了
                 "stages_executed": list(loop_result.phases.keys()),
@@ -1317,6 +1343,8 @@ class LLMAgent(Agent):
                 "instruction": instruction,
                 "error": str(e),
                 "performative_output": f"执行指令时发生错误: {str(e)}",
+                "visible_assistant_text": "",
+                "assistant_turn_trace": [],
                 "structured_output": None,
                 "raw_output": None,
                 "total_turns": 0,

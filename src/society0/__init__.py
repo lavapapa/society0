@@ -13,7 +13,15 @@ __all__ = [
     "StepContext",
     "StepResult",
     "AgentBatchResult",
+    "AgentGroup",
     "CapabilityCatalog",
+    "ActivationBatch",
+    "ActivationPool",
+    "ActivationPoolError",
+    "ActivationResult",
+    "ActivationSignal",
+    "ActivationSubmission",
+    "ActivationPoolSession",
     "World",
     "Environment",
     "EnvironmentTickContext",
@@ -31,7 +39,15 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "StepContext": ("society0.schedule", "StepContext"),
     "StepResult": ("society0.schedule", "StepResult"),
     "AgentBatchResult": ("society0.schedule", "AgentBatchResult"),
+    "AgentGroup": ("society0.schedule", "AgentGroup"),
     "CapabilityCatalog": ("society0.schedule", "CapabilityCatalog"),
+    "ActivationBatch": ("society0.activation_pool", "ActivationBatch"),
+    "ActivationPool": ("society0.activation_pool", "ActivationPool"),
+    "ActivationPoolError": ("society0.activation_pool", "ActivationPoolError"),
+    "ActivationResult": ("society0.activation_pool", "ActivationResult"),
+    "ActivationSignal": ("society0.activation_pool", "ActivationSignal"),
+    "ActivationSubmission": ("society0.activation_pool", "ActivationSubmission"),
+    "ActivationPoolSession": ("society0.activation_pool", "ActivationPoolSession"),
     "World": ("society0.core_data", "World"),
     "Environment": ("society0.environment", "Environment"),
     "EnvironmentTickContext": ("society0.environment", "EnvironmentTickContext"),
@@ -59,7 +75,16 @@ def __dir__() -> list[str]:
 if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
     from .society import Society0  # noqa: F401
     from .models import LLMModel, EmbedModel  # noqa: F401
-    from .schedule import AgentBatchResult, CapabilityCatalog, CodeSchedule, StepContext, StepResult  # noqa: F401
+    from .schedule import AgentBatchResult, AgentGroup, CapabilityCatalog, CodeSchedule, StepContext, StepResult  # noqa: F401
+    from .activation_pool import (  # noqa: F401
+        ActivationBatch,
+        ActivationPool,
+        ActivationPoolError,
+        ActivationPoolSession,
+        ActivationResult,
+        ActivationSignal,
+        ActivationSubmission,
+    )
     from .core_data import World  # noqa: F401
     from .environment import Environment, EnvironmentTickContext  # noqa: F401
     from .function_registry import FunctionRegistry  # noqa: F401

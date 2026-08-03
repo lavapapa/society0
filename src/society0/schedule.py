@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import json
 import random
 import statistics
 import time
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, Iterable, Iterator, List, Optional
+from typing import Any, Awaitable, Callable, Dict, Iterable, Iterator, List, Mapping, Optional
 
 from .async_utils import invoke_maybe_async
 from .core_data import BaseOperatorResult, ExecutionContext
@@ -480,6 +481,170 @@ class AgentGroup:
         )
         return batch_result
 
+    async def remember(
+        self,
+        episodes_by_agent: Mapping[str, str],
+        *,
+        timestamp: Optional[int] = None,
+        idempotency_key: Optional[str] = None,
+        importance: Optional[float] = 3.0,
+        metadata: Optional[Mapping[str, Any]] = None,
+        metadata_by_agent: Optional[Mapping[str, Mapping[str, Any]]] = None,
+        concurrency: Optional[int] = None,
+        name: Optional[str] = None,
+    ) -> AgentBatchResult:
+        """Persist one caller-prepared episodic memory for every agent in the group.
+
+        This is the batch boundary for simulations that consolidate an agent's
+        completed turns once per tick.  It deliberately stores supplied text and
+        does not run another LLM extraction pass.
+        """
+        episode_keys = set(episodes_by_agent)
+        group_keys = set(self.agent_ids)
+        if episode_keys != group_keys:
+            raise ValueError(
+                "episodes_by_agent keys must exactly match the AgentGroup ids"
+            )
+        invalid_ids = [
+            agent_id
+            for agent_id in self.agent_ids
+            if not isinstance(episodes_by_agent[agent_id], str)
+            or not episodes_by_agent[agent_id].strip()
+        ]
+        if invalid_ids:
+            raise ValueError(
+                "Each episode must be a non-empty string; invalid agents: "
+                + ", ".join(invalid_ids)
+            )
+
+        common_metadata = dict(metadata or {})
+        per_agent_metadata = dict(metadata_by_agent or {})
+        unknown_metadata_ids = set(per_agent_metadata) - group_keys
+        if unknown_metadata_ids:
+            raise ValueError(
+                "metadata_by_agent contains ids outside the AgentGroup: "
+                + ", ".join(sorted(unknown_metadata_ids))
+            )
+
+        effective_timestamp = _resolve_memory_timestamp(
+            self.world.step if timestamp is None else timestamp
+        )
+        effective_concurrency, concurrency_source = (
+            _resolve_agent_call_concurrency_info(
+                self.world,
+                explicit_concurrency=concurrency,
+                model_id=None,
+            )
+        )
+        interaction_name = name or "remember"
+        started = time.time()
+        execution_options = {
+            "memory": {
+                "type": "episodic",
+                "caller_prepared": True,
+                "llm_extraction": False,
+                "timestamp": effective_timestamp,
+                "idempotent": idempotency_key is not None,
+            }
+        }
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_started",
+            interaction_type="remember",
+            interaction_name=interaction_name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
+            model_id=None,
+            fovs=[],
+            actions=[],
+            target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
+        )
+
+        async def call(agent_id: str) -> AgentCallRecord:
+            agent_started = time.time()
+            try:
+                agent = self.world.get_agent(agent_id)
+                agent_metadata = dict(common_metadata)
+                agent_metadata.update(dict(per_agent_metadata.get(agent_id, {})))
+                memory_kwargs = {
+                    "content": episodes_by_agent[agent_id].strip(),
+                    "timestamp": effective_timestamp,
+                    "importance": importance,
+                    "metadata": agent_metadata,
+                    "trace": {
+                        "step": effective_timestamp,
+                        "interaction_type": "memory_write",
+                        "interaction_name": interaction_name,
+                    },
+                }
+                if idempotency_key is not None:
+                    if hasattr(agent.memory, "stable_memory_id"):
+                        stable_id = agent.memory.stable_memory_id(
+                            idempotency_key,
+                            memory_type="episodic",
+                        )
+                    else:
+                        branch_id = str(
+                            getattr(agent.memory, "branch_id", "main")
+                        )
+                        digest = hashlib.sha256(
+                            (
+                                f"{idempotency_key}\0{agent_id}\0"
+                                f"{branch_id}"
+                            ).encode("utf-8")
+                        ).hexdigest()
+                        stable_id = f"episodic_{digest}"
+                    memory_kwargs["memory_id"] = stable_id
+                    agent_metadata.setdefault(
+                        "idempotency_key", idempotency_key
+                    )
+                memory_id = await agent.memory.add_episodic_memory(
+                    **memory_kwargs,
+                )
+                return AgentCallRecord(
+                    agent_id,
+                    "success",
+                    {"memory_id": memory_id},
+                    duration_sec=time.time() - agent_started,
+                )
+            except Exception as exc:
+                return AgentCallRecord(
+                    agent_id,
+                    "error",
+                    error=str(exc),
+                    duration_sec=time.time() - agent_started,
+                )
+
+        batch_result = AgentBatchResult(
+            await _run_limited(self.agent_ids, call, effective_concurrency)
+        )
+        _record_agent_batch_event(
+            self.world,
+            "agent_batch_completed",
+            interaction_type="remember",
+            interaction_name=interaction_name,
+            agent_count=len(self.agent_ids),
+            concurrency=effective_concurrency,
+            concurrency_source=concurrency_source,
+            model_id=None,
+            fovs=[],
+            actions=[],
+            target_ids_sample=self.agent_ids[:5],
+            execution_options=execution_options,
+            duration_sec=time.time() - started,
+            success_count=batch_result.success_count,
+            error_count=batch_result.error_count,
+            completed_count=len(self.agent_ids),
+            started_count=len(self.agent_ids),
+            in_flight_count=0,
+            pending_count=0,
+            agent_duration_summary=batch_result.duration_summary(),
+            error_samples=_logic_error_samples(batch_result.records),
+        )
+        return batch_result
+
     async def instruct(
         self,
         instruction: str,
@@ -488,8 +653,11 @@ class AgentGroup:
         actions: List[str] | None = None,
         output: Any = None,
         memory: bool = True,
+        retrieve_memory: Optional[bool] = None,
+        save_memory: Optional[bool] = None,
         extract_memory: bool = True,
         model: Optional[str] = None,
+        current_step: Optional[int] = None,
         max_turns: int = 3,
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
@@ -506,6 +674,9 @@ class AgentGroup:
         top_p: Optional[float] = None,
         timeout: Optional[float] = None,
         llm_options: Optional[Dict[str, Any]] = None,
+        prior_messages_by_agent: Optional[
+            Dict[str, List[Dict[str, Any]]]
+        ] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
         llm_request_options = _build_llm_request_options(
@@ -515,14 +686,25 @@ class AgentGroup:
             top_p=top_p,
             timeout=timeout,
         )
-        effective_extract_memory = bool(memory and extract_memory)
+        effective_current_step = _resolve_memory_timestamp(
+            self.world.step if current_step is None else current_step
+        )
+        effective_retrieve_memory = (
+            bool(memory) if retrieve_memory is None else bool(retrieve_memory)
+        )
+        effective_save_memory = (
+            bool(memory) if save_memory is None else bool(save_memory)
+        )
+        effective_extract_memory = bool(
+            effective_save_memory and extract_memory
+        )
         execution_options = _agent_batch_execution_options(
             max_turns=max_turns,
             output_schema=output_schema,
             reasoning_stages=reasoning_stages,
             memory={
-                "retrieve": memory,
-                "save": memory,
+                "retrieve": effective_retrieve_memory,
+                "save": effective_save_memory,
                 "extract": effective_extract_memory,
                 "top_k": memory_top_k,
             },
@@ -534,6 +716,13 @@ class AgentGroup:
             required_action_tags=required_action_tags,
             llm_request_options=llm_request_options,
         )
+        continued_agent_count = sum(
+            1
+            for agent_id in self.agent_ids
+            if (prior_messages_by_agent or {}).get(agent_id)
+        )
+        execution_options["continued_agent_count"] = continued_agent_count
+        execution_options["current_step"] = effective_current_step
 
         async def call(agent_id: str) -> AgentCallRecord:
             agent_started = time.time()
@@ -543,12 +732,12 @@ class AgentGroup:
                     instruction,
                     fovs=fovs or [],
                     action_tags=actions,
-                    current_step=self.world.step,
+                    current_step=effective_current_step,
                     model_id=model,
                     output_schema=output_schema,
                     max_turns=max_turns,
-                    retrieve_memory=memory,
-                    save_memory=memory,
+                    retrieve_memory=effective_retrieve_memory,
+                    save_memory=effective_save_memory,
                     extract_memory=effective_extract_memory,
                     memory_top_k=memory_top_k,
                     name=name,
@@ -560,6 +749,9 @@ class AgentGroup:
                     max_action_calls=max_action_calls,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
+                    prior_messages=(
+                        prior_messages_by_agent or {}
+                    ).get(agent_id),
                 )
                 failure_record = _agent_failure_record(
                     agent_id,
@@ -969,6 +1161,12 @@ class StepContext:
     def capabilities(self) -> CapabilityCatalog:
         return CapabilityCatalog(self.world)
 
+    def activation_pool(self, *, concurrency: Optional[int] = None) -> Any:
+        """Create a temporary dynamic activation pool for this code step."""
+        from .activation_pool import ActivationPoolSession
+
+        return ActivationPoolSession(context=self, concurrency=concurrency)
+
     async def rule(self, rule_name: str, *, name: Optional[str] = None, **params: Any) -> Any:
         resolved = _resolve_logic_entry(self.world, rule_name, "rule")
         if resolved is None:
@@ -1361,6 +1559,22 @@ def _resolve_non_llm_batch_concurrency(item_count: int, explicit_concurrency: Op
         return max(1, item_count)
     if parsed <= 0:
         return max(1, item_count)
+    return parsed
+
+
+def _resolve_memory_timestamp(value: Any) -> int:
+    if isinstance(value, bool):
+        raise ValueError("current_step/timestamp must be a non-negative integer")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value.strip())
+    else:
+        raise ValueError(
+            "current_step/timestamp must be a non-negative integer"
+        )
+    if parsed < 0:
+        raise ValueError("current_step/timestamp must be a non-negative integer")
     return parsed
 
 
