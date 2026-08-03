@@ -10,7 +10,17 @@ vectorization: [{"content": str, "importance": int}].
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Callable, Awaitable
+import json
 import json_repair
+
+
+_MAX_SYSTEM_CONTEXT_CHARS = 3_000
+_MAX_TASK_CONTEXT_CHARS = 3_000
+_MAX_INTERACTION_SUMMARY_CHARS = 16_000
+_MAX_RESPONSE_CONTENT_CHARS = 500
+_MAX_ACTION_ARGUMENTS_CHARS = 300
+_MAX_ACTION_RESULT_CHARS = 500
+_MAX_EXTRACTION_OUTPUT_TOKENS = 2_048
 
 
 EXTRACT_MEMORIES_SCHEMA: Dict[str, Any] = {
@@ -34,23 +44,54 @@ EXTRACT_MEMORIES_SCHEMA: Dict[str, Any] = {
 }
 
 
+def _compact_text(value: Any, limit: int) -> str:
+    if isinstance(value, str):
+        text = value
+    else:
+        try:
+            text = json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                default=str,
+            )
+        except Exception:
+            text = str(value)
+    if len(text) <= limit:
+        return text
+    omitted = len(text) - limit
+    return f"{text[:limit]}…[省略 {omitted} 个字符]"
+
+
 def _build_interaction_summary(loop_result) -> str:
-    """Construct a concise, ordered description of the full interaction."""
+    """Construct a bounded, ordered description of the interaction."""
     lines: List[str] = []
     for turn in loop_result.full_history or []:
         turn_no = turn.get("turn")
         resp = turn.get("response", {}) or {}
         content = resp.get("content")
         if content:
-            lines.append(f"Turn {turn_no} - 我说：{content}")
+            lines.append(
+                f"Turn {turn_no} - 我说："
+                f"{_compact_text(content, _MAX_RESPONSE_CONTENT_CHARS)}"
+            )
 
         for action_item in turn.get("action_results", []) or []:
             name = action_item.get("action_name")
-            args = action_item.get("arguments")
-            result = action_item.get("result")
-            lines.append(f"Turn {turn_no} - 我调用 {name}，参数: {args}，结果: {result}")
+            args = _compact_text(
+                action_item.get("arguments"),
+                _MAX_ACTION_ARGUMENTS_CHARS,
+            )
+            result = _compact_text(
+                action_item.get("result"),
+                _MAX_ACTION_RESULT_CHARS,
+            )
+            lines.append(
+                f"Turn {turn_no} - 我调用 {name}，参数: {args}，结果: {result}"
+            )
 
-    return "\n".join(lines) if lines else "无可用交互记录"
+    summary = "\n".join(lines) if lines else "无可用交互记录"
+    return _compact_text(summary, _MAX_INTERACTION_SUMMARY_CHARS)
 
 
 def build_interaction_summary(loop_result) -> str:
@@ -72,6 +113,50 @@ def _build_extraction_prompt(loop_result) -> str:
         "[完整过程回顾]\n"
         f"{summary}"
     )
+
+
+def _build_extraction_context(loop_result) -> List[Dict[str, str]]:
+    """Keep role and task context without replaying the full tool conversation."""
+    first_turn = (loop_result.full_history or [{}])[0]
+    messages = first_turn.get("request", {}).get("messages", []) or []
+    system_content = next(
+        (
+            message.get("content")
+            for message in messages
+            if message.get("role") == "system" and message.get("content")
+        ),
+        "",
+    )
+    task_content = next(
+        (
+            message.get("content")
+            for message in messages
+            if message.get("role") == "user" and message.get("content")
+        ),
+        "",
+    )
+    context: List[Dict[str, str]] = []
+    if system_content:
+        context.append(
+            {
+                "role": "system",
+                "content": _compact_text(
+                    system_content,
+                    _MAX_SYSTEM_CONTEXT_CHARS,
+                ),
+            }
+        )
+    if task_content:
+        context.append(
+            {
+                "role": "user",
+                "content": _compact_text(
+                    task_content,
+                    _MAX_TASK_CONTEXT_CHARS,
+                ),
+            }
+        )
+    return context
 
 
 def _parse_memories_from_tool_call(tool_call: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
@@ -105,9 +190,7 @@ async def perform_memory_extraction(
     if not loop_result.full_history:
         return {"success": False, "memories": [], "error": "no_history"}
 
-    last_turn = loop_result.full_history[-1]
-    base_messages = list(last_turn.get("request", {}).get("messages", []))
-    base_messages += last_turn.get("tool_messages", []) or []
+    base_messages = _build_extraction_context(loop_result)
 
     actionset = {
         "type": "function",
@@ -123,6 +206,7 @@ async def perform_memory_extraction(
         "messages": base_messages + [{"role": "user", "content": prompt}],
         "tools": [actionset],
         "tool_choice": "auto",
+        "max_tokens": _MAX_EXTRACTION_OUTPUT_TOKENS,
         "metadata": {
             "interaction_type": "memory_extract",
             "interaction_name": "memory_extract",
@@ -153,6 +237,7 @@ async def perform_memory_extraction(
         ],
         "tools": [actionset],
         "tool_choice": {"type": "function", "function": {"name": "extract_memories"}},
+        "max_tokens": _MAX_EXTRACTION_OUTPUT_TOKENS,
         "metadata": {
             "interaction_type": "memory_extract",
             "interaction_name": "memory_extract_retry",
