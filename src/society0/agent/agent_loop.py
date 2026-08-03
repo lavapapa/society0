@@ -8,13 +8,28 @@ Actions replace the previous tool system with enhanced metadata support.
 
 from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
 from dataclasses import dataclass, field
+import copy
+import contextvars
 import re
 import logging
 import json_repair
 import time
 from collections import Counter
 
+from ..function_registry import validate_strict_function_parameters
+from ..state_proxy import DictProxy
+
 logger = logging.getLogger(__name__)
+
+_CURRENT_ACTION_CALL_ID: contextvars.ContextVar[Optional[str]] = (
+    contextvars.ContextVar("society0_action_call_id", default=None)
+)
+
+
+def current_action_call_id() -> Optional[str]:
+    """Return the provider tool-call id for the action currently executing."""
+
+    return _CURRENT_ACTION_CALL_ID.get()
 
 
 def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None, flush: bool = False) -> None:
@@ -133,7 +148,7 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
     Treat clear failure strings as action errors so completion tags do not end
     the round after a failed write such as "Post post_x not found".
     """
-    if isinstance(result, dict):
+    if isinstance(result, (dict, DictProxy)):
         explicit_ok = result.get("ok")
         if explicit_ok is False:
             return "error", str(result.get("error") or result.get("message") or "action failed")
@@ -160,6 +175,21 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
         return "error", text
     return "success", None
 
+
+def _action_reported_no_change(result: Any) -> bool:
+    """Honor an environment's explicit statement that a write was a no-op.
+
+    The runtime does not deduplicate calls from names and arguments alone:
+    identical arguments may represent legitimate repeated business actions.
+    An environment that can prove idempotence may return
+    ``change_applied=False`` to stop the current action loop safely.
+    """
+
+    return (
+        isinstance(result, (dict, DictProxy))
+        and result.get("change_applied") is False
+    )
+
 @dataclass
 class ActionSet:
     """Container for available actions that can be called by the LLM."""
@@ -171,7 +201,8 @@ class ActionSet:
         func: Callable[..., Any],
         description: str,
         parameters: Dict[str, Any],
-        tags: List[str] = None
+        tags: List[str] = None,
+        strict: bool = False,
     ):
         """
         Add an action to the actionset with proper OpenAI function calling schema.
@@ -182,20 +213,33 @@ class ActionSet:
             description: Action description
             parameters: OpenAI-style parameters schema with type, properties, required
             tags: List of tags for action categorization and filtering
+            strict: Request provider-side strict JSON Schema enforcement for this function tool
         """
         # Commented out debug prints
         # print(f"--- [DEBUG] Adding action to ActionSet: '{name}' ---")
         # print(f"  Description: {description}")
         # print(f"  Tags: {tags or []}")
 
-        self.actions[name] = {
+        if strict:
+            validate_strict_function_parameters(parameters)
+        action_info = {
             "function": func,
             "description": description,
             "parameters": parameters,
-            "tags": tags or []
+            "tags": tags or [],
         }
+        if strict:
+            action_info["strict"] = True
+        self.actions[name] = action_info
 
-    async def call_action(self, action_name: str, context_provider: Optional[Callable] = None, **kwargs) -> Any:
+    async def call_action(
+        self,
+        action_name: str,
+        context_provider: Optional[Callable] = None,
+        *,
+        _society0_call_id: Optional[str] = None,
+        **kwargs,
+    ) -> Any:
         """Call an action by name with arguments, handling both sync and async functions and context management.
 
         Args:
@@ -206,6 +250,7 @@ class ActionSet:
         if action_name not in self.actions:
             raise ValueError(f"Action '{action_name}' not found in actionset")
 
+        call_id_token = _CURRENT_ACTION_CALL_ID.set(_society0_call_id)
         try:
             action_func = self.actions[action_name]["function"]
 
@@ -258,6 +303,8 @@ class ActionSet:
         except Exception as e:
             logger.error(f"Error calling action '{action_name}': {e}")
             raise
+        finally:
+            _CURRENT_ACTION_CALL_ID.reset(call_id_token)
 
     def filter_by_tags(
         self,
@@ -318,13 +365,16 @@ class ActionSet:
         """Get OpenAI-compatible actions schema."""
         actions_schema = []
         for action_name, action_info in self.actions.items():
+            function_schema = {
+                "name": action_name,
+                "description": action_info["description"],
+                "parameters": action_info["parameters"],
+            }
+            if action_info.get("strict"):
+                function_schema["strict"] = True
             actions_schema.append({
                 "type": "function",
-                "function": {
-                    "name": action_name,
-                    "description": action_info["description"],
-                    "parameters": action_info["parameters"]
-                }
+                "function": function_schema,
             })
         return actions_schema
 
@@ -335,6 +385,7 @@ class LoopResult:
     phases: Dict[str, Union[str, List[Dict[str, Any]]]] = field(default_factory=dict)
     phases_unknown: Dict[str, Union[str, List[Dict[str, Any]]]] = field(default_factory=dict)
     full_history: List[Dict[str, Any]] = field(default_factory=list)
+    conversation_messages: List[Dict[str, Any]] = field(default_factory=list)
     parsing_errors: List[str] = field(default_factory=list)
     total_turns: int = 0
     default_stage_name: str = "default"
@@ -353,6 +404,72 @@ class LoopResult:
     extracted_memories: List[Dict[str, Any]] = field(default_factory=list)
     memory_extraction_success: bool = False
     memory_extraction_error: Optional[str] = None
+
+
+def build_assistant_turn_trace(full_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build an audit trace from provider-visible assistant output.
+
+    The trace intentionally excludes ``reasoning_content`` and request
+    messages. It contains only public assistant ``content`` and the tool calls
+    returned alongside that content.
+    """
+
+    turns: List[Dict[str, Any]] = []
+    for index, history_item in enumerate(full_history or [], start=1):
+        if not isinstance(history_item, dict):
+            continue
+        response = history_item.get("response")
+        if not isinstance(response, dict):
+            response = {}
+
+        if "content" not in response:
+            content_state = "missing"
+            assistant_text = ""
+        elif response.get("content") is None:
+            content_state = "null"
+            assistant_text = ""
+        elif isinstance(response.get("content"), str):
+            assistant_text = response["content"]
+            content_state = "present" if assistant_text.strip() else "empty"
+        else:
+            content_state = "non_text"
+            assistant_text = str(response.get("content"))
+
+        action_results = {
+            str(item.get("call_id")): item
+            for item in (history_item.get("action_results") or [])
+            if isinstance(item, dict) and item.get("call_id") is not None
+        }
+        tool_calls: List[Dict[str, Any]] = []
+        for tool_call in response.get("tool_calls") or []:
+            if not isinstance(tool_call, dict):
+                continue
+            function = tool_call.get("function")
+            if not isinstance(function, dict):
+                function = {}
+            call_id = str(tool_call.get("id") or "")
+            execution = action_results.get(call_id, {})
+            trace_item: Dict[str, Any] = {
+                "call_id": call_id,
+                "action_name": str(function.get("name") or ""),
+                "arguments": function.get("arguments"),
+                "status": str(execution.get("status") or "not_executed"),
+            }
+            if execution.get("error"):
+                trace_item["error"] = str(execution["error"])
+            tool_calls.append(trace_item)
+
+        turns.append(
+            {
+                "turn": int(history_item.get("turn") or index),
+                "assistant_text": assistant_text,
+                "assistant_text_state": content_state,
+                "has_visible_text": bool(assistant_text.strip()),
+                "tool_calls": tool_calls,
+            }
+        )
+    return turns
+
 
 def _normalize_stage_name(stage_name: str, defined_stages: List[str]) -> Optional[str]:
     """
@@ -491,6 +608,7 @@ async def execute_action_loop(
     max_action_calls: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     llm_request_options: Optional[Dict[str, Any]] = None,
+    prior_messages: Optional[List[Dict[str, Any]]] = None,
 ) -> LoopResult:
     """
     Execute a configurable multi-stage action loop.
@@ -542,13 +660,27 @@ async def execute_action_loop(
         stages_text = format_stages_for_prompt(normalized_stages)
         flow_section = f"[输出流程]\n{act_prompt.format(stages=stages_text)}"
     system_message = f"{system_prompt}\n\n{flow_section}"
-    messages = [
-        {
+    if prior_messages:
+        messages = copy.deepcopy(prior_messages)
+        if (
+            not isinstance(messages[0], dict)
+            or messages[0].get("role") != "system"
+        ):
+            raise ValueError("prior_messages must start with a system message")
+        messages[0] = {
+            **messages[0],
             "role": "system",
-            "content": system_message
-        },
-        {"role": "user", "content": instruction}
-    ]
+            "content": system_message,
+        }
+        messages.append({"role": "user", "content": instruction})
+    else:
+        messages = [
+            {
+                "role": "system",
+                "content": system_message
+            },
+            {"role": "user", "content": instruction}
+        ]
 
     full_history = []
     total_turns = 0
@@ -590,6 +722,7 @@ async def execute_action_loop(
     for action_name, limit in normalized_action_limits.items():
         if limit < 0:
             raise ValueError(f"action_call_limits[{action_name}] must be non-negative")
+    action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
 
     def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
@@ -613,12 +746,30 @@ async def execute_action_loop(
             return None
         if list(action_set.actions.keys()) == ["submit_result"]:
             return {"type": "function", "function": {"name": "submit_result"}}
+        successful_required_names = set()
+        for action_call in all_action_calls:
+            if getattr(action_call, "status", "success") == "success":
+                successful_required_names.update(_action_aliases(action_call.action_name))
+        remaining_required_names = required_action_name_set - successful_required_names
+        required_candidates = [
+            action_name
+            for action_name in action_set.actions
+            if _action_aliases(action_name) & remaining_required_names
+        ]
+        if len(required_candidates) == 1:
+            return {
+                "type": "function",
+                "function": {"name": required_candidates[0]},
+            }
 
         return "auto"
 
     def _all_available_action_budgets_exhausted() -> bool:
         """Return true when another LLM turn cannot execute any non-system action."""
-        if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+        if (
+            max_action_calls is not None
+            and sum(action_attempt_counts.values()) >= max_action_calls
+        ):
             return True
 
         limited_action_seen = False
@@ -632,7 +783,7 @@ async def execute_action_loop(
                 return False
 
             limited_action_seen = True
-            if action_call_counts[action_key] < limit:
+            if action_attempt_counts[action_key] < limit:
                 return False
 
         return limited_action_seen
@@ -682,6 +833,13 @@ async def execute_action_loop(
             parts.append(f"Required action tag(s): {', '.join(missing_tags)}.")
         parts.append("Call the required tool now if the environment state allows it; do not just describe the action.")
         return " ".join(parts)
+
+    def _empty_response_reminder() -> str:
+        return (
+            "Your previous response was empty: it contained neither visible text "
+            "nor a tool call. Respond with a concrete decision in text, call an "
+            "available tool, or explicitly state that no change is needed."
+        )
 
 
     for turn in range(max_turns):
@@ -755,6 +913,14 @@ async def execute_action_loop(
 
         # Execute action calls if present
         if not action_calls:
+            if not str(final_content_part or "").strip():
+                if turn + 1 < max_turns:
+                    messages.append(
+                        {"role": "user", "content": _empty_response_reminder()}
+                    )
+                    continue
+                loop_result.termination_reason = "empty_model_response"
+                break
             missing_names, missing_tags = _missing_loop_requirements()
             if (missing_names or missing_tags) and turn + 1 < max_turns:
                 messages.append({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
@@ -789,11 +955,20 @@ async def execute_action_loop(
             is_last_action_in_turn = idx == len(action_calls) - 1
             action_key = action_call.action_name.lower()
             action_succeeded = False
+            action_reported_no_change = False
             limit_error: Optional[str] = None
-            if max_action_calls is not None and sum(action_call_counts.values()) >= max_action_calls:
+            global_budget_exhausted = (
+                max_action_calls is not None
+                and sum(action_attempt_counts.values()) >= max_action_calls
+            )
+            if global_budget_exhausted:
                 limit_error = f"Action budget exhausted: max_action_calls={max_action_calls}"
             per_action_limit = _action_limit_for(action_call.action_name)
-            if limit_error is None and per_action_limit is not None and action_call_counts[action_key] >= per_action_limit:
+            if (
+                limit_error is None
+                and per_action_limit is not None
+                and action_attempt_counts[action_key] >= per_action_limit
+            ):
                 limit_error = (
                     f"Action budget exhausted for {action_call.action_name}: "
                     f"limit={per_action_limit}"
@@ -831,8 +1006,14 @@ async def execute_action_loop(
                             record_action(action_call.action_name, action_call.arguments, limit_error, "blocked")
                     except Exception:
                         logger.debug("Failed to record blocked action %s", action_call.action_name, exc_info=True)
+                if global_budget_exhausted:
+                    discarded = len(action_calls) - idx - 1
+                    if discarded > 0 and full_history:
+                        full_history[-1]["discarded_action_call_count"] = discarded
+                    break
                 continue
 
+            action_attempt_counts[action_key] += 1
             try:
                 # Execute the action call with context management
                 action_started = time.perf_counter()
@@ -840,6 +1021,7 @@ async def execute_action_loop(
                     action_result = await action_set.call_action(
                         action_call.action_name,
                         context_provider=context_provider,
+                        _society0_call_id=action_call.call_id,
                         **action_call.arguments
                     )
                 finally:
@@ -873,6 +1055,9 @@ async def execute_action_loop(
                 if action_call.status == "success":
                     action_call_counts[action_key] += 1
                     action_succeeded = True
+                    action_reported_no_change = _action_reported_no_change(
+                        action_result
+                    )
 
                 logger.debug("Action result: %s", str(action_result)[:100])
 
@@ -905,6 +1090,16 @@ async def execute_action_loop(
                 action_call.error = error_msg
                 executed_action_calls.append(action_call)
 
+            if action_succeeded and action_reported_no_change:
+                terminate_loop = True
+                loop_result.termination_reason = "action_reported_no_change"
+                loop_result.termination_action = action_call.action_name
+                logger.debug(
+                    "Action %s reported no state change; ending loop after "
+                    "the current action batch",
+                    action_call.action_name,
+                )
+                continue
             if action_succeeded and action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
                 loop_result.termination_reason = "terminal_action"
@@ -942,6 +1137,22 @@ async def execute_action_loop(
                 for ac in executed_action_calls
             ]
 
+        if (
+            terminate_loop
+            and loop_result.termination_reason == "action_reported_no_change"
+            and any(
+                action_call.status in {"error", "blocked"}
+                for action_call in executed_action_calls
+            )
+        ):
+            terminate_loop = False
+            loop_result.termination_reason = None
+            loop_result.termination_action = None
+            logger.debug(
+                "An action in the no-change batch failed or was blocked; "
+                "continuing so the model can correct it"
+            )
+
         if terminate_loop:
             break
         if _all_available_action_budgets_exhausted():
@@ -957,6 +1168,76 @@ async def execute_action_loop(
                 loop_result.termination_reason = "missing_required_action_tag"
             else:
                 loop_result.termination_reason = "max_turns"
+
+    if loop_result.termination_reason == "action_budget_exhausted":
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "No further actions can be called in this activation. "
+                    "Based only on the information and completed action results "
+                    "already available, provide your final decision in text. "
+                    "Do not claim that an unexecuted action occurred."
+                ),
+            }
+        )
+        total_turns += 1
+        final_payload = {
+            "messages": messages,
+            "tools": None,
+            "tool_choice": None,
+        }
+        final_payload.update(safe_llm_request_options)
+        final_payload["tools"] = None
+        final_payload["tool_choice"] = None
+        try:
+            response = await llm_call(final_payload)
+        except Exception as exc:
+            logger.warning(
+                "Tool-free closing request failed after the action budget "
+                "was exhausted: %s",
+                exc,
+            )
+            full_history.append(
+                {
+                    "turn": total_turns,
+                    "request": final_payload,
+                    "response": None,
+                    "closing_error": str(exc),
+                }
+            )
+        else:
+            full_history.append(
+                {
+                    "turn": total_turns,
+                    "request": final_payload,
+                    "response": response,
+                }
+            )
+            reasoning_content, final_content_part, response_metadata = (
+                _extract_reasoning_content(response)
+            )
+            if reasoning_content:
+                if loop_result.reasoning_content is None:
+                    loop_result.reasoning_content = reasoning_content
+                else:
+                    loop_result.reasoning_content += "\n\n" + reasoning_content
+                loop_result.thinking_process.append(
+                    {
+                        "turn": total_turns,
+                        "content": reasoning_content,
+                        "metadata": response_metadata,
+                    }
+                )
+                loop_result.has_reasoning = True
+            if loop_result.model_type is None:
+                loop_result.model_type = response_metadata["model_type"]
+            if final_content_part:
+                if final_content is None:
+                    final_content = final_content_part
+                else:
+                    final_content += "\n\n" + final_content_part
+            messages.append(response)
 
     # Parse the final response content into stages
     phases, phases_unknown, parsing_errors = _parse_stages(
@@ -1002,8 +1283,12 @@ async def execute_action_loop(
         processed_phases[target_stage_name] = stage_list
 
     # Determine final status
-    status = "success"
-    if parsing_errors:
+    status = (
+        "error"
+        if loop_result.termination_reason == "empty_model_response"
+        else "success"
+    )
+    if parsing_errors and status != "error":
         status = "partial_success" if processed_phases else "error"
 
     return LoopResult(
@@ -1011,6 +1296,7 @@ async def execute_action_loop(
         phases=processed_phases,
         phases_unknown=phases_unknown,
         full_history=full_history,
+        conversation_messages=copy.deepcopy(messages),
         parsing_errors=parsing_errors,
         total_turns=total_turns,
         default_stage_name=default_stage_name,

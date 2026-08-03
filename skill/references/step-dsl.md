@@ -26,6 +26,7 @@ Step functions must be async and should return either `ctx.result(...)` or `None
 - `ctx.params`: step params.
 - `ctx.log`: runtime log context.
 - `ctx.capabilities`: discovery helper for FoVs, actions, rules, and behaviors.
+- `ctx.activation_pool(...)`: temporary bounded pool for work discovered while a step is already running.
 - `ctx.result(...)`: structured return helper.
 
 Capability discovery:
@@ -207,6 +208,97 @@ This run will let up to N LLM agents think at the same time. If your provider al
 ```
 
 Use a per-call override only for special study design reasons, such as slowing a sensitive interview or letting a deterministic pilot run faster. Deterministic `behavior` calls are not governed by the model concurrency policy.
+
+### Dynamic activation pool
+
+Use an activation pool when actions performed by one agent can reveal more
+agents that need to run in the same step. The pool continuously fills free
+slots, so a fast agent does not wait for the slowest member of a fixed batch.
+Its default capacity follows the same resolved runtime concurrency as ordinary
+agent calls.
+
+```python
+@engine.step(name="respond_to_new_work")
+async def respond_to_new_work(ctx):
+    async with ctx.activation_pool() as pool:
+        for agent_id in ctx.env.initially_active_agent_ids():
+            pool.instruct(
+                agent_id,
+                "Review what changed and act when useful.",
+                fovs=["operating_context"],
+                actions=["environment"],
+                dedupe_token=("initial", ctx.step, agent_id),
+            )
+```
+
+The context manager drains the pool before the step finishes. While the block
+is active, the same object is available as `ctx.env.activation_pool`, so an
+environment method or an agent action can synchronously enqueue newly
+discovered work:
+
+```python
+self.activation_pool.instruct(
+    recipient_id,
+    "Review what changed and act when useful.",
+    fovs=["operating_context"],
+    actions=["environment"],
+    dedupe_token=("message", message_id),
+)
+```
+
+`submit(key, async_closure, payload=..., dedupe_token=..., serial_key=...,
+handler_id=...)` and
+its `enqueue` alias support non-agent asynchronous work. The closure may accept one
+`ActivationBatch` argument to inspect all payloads merged into that round.
+One key denotes one task contract:
+
+- repeated submissions while queued become one round;
+- submissions arriving while that key is running become at most one follow-up round;
+- a repeated `(key, dedupe_token)` is ignored for the rest of the pool session;
+- different tokens are retained in arrival order.
+
+The first submission binds the key to a handler for the lifetime of the pool.
+Passing a different closure under the same key is rejected instead of silently
+discarding the later closure. A stable function or bound method normally needs
+no explicit `handler_id`. If an environment method creates a new nested closure
+on every call, pass the same stable `handler_id` for closures that implement the
+same contract.
+
+The default key for `pool.instruct(...)` is the target agent, which prevents the
+same agent from entering concurrent instruct rounds. Instruct calls also use a
+separate Agent serial key. Environment closures that act as the same Agent can
+join that mutual-exclusion domain without merging their work:
+
+```python
+pool.submit_agent(
+    agent_id,
+    ("industry_follow_up", agent_id),
+    run_industry_follow_up,
+)
+```
+
+Tasks with different work keys remain separate rounds, while equal non-null
+`serial_key` values prevent them from running concurrently. Waiting for a
+serial key does not consume one of the pool's capacity slots, so unrelated
+agents can start immediately. Calls merged under one work key should use the
+same serial key, closure contract, FoVs, actions, and instruct options. Their
+distinct static instruction strings are joined once in arrival order. Put
+domain concepts such as inbox items or agenda records in the environment's
+payloads and FoV; the core pool only understands work keys, serial keys,
+handler identities, payloads, and tokens. Two `instruct` submissions under the
+same key must use the same Agent, FoVs, actions, and execution options; a
+configuration mismatch is rejected rather than being overwritten by the first
+call.
+
+`await pool.drain()` returns queryable `ActivationResult` records after all
+queued and follow-up work finishes. The idle check also covers work submitted
+on the same event-loop boundary where the queue first becomes empty, so the
+context manager cannot detach the environment while a late closure is still
+running. If a closure failed, drain raises
+`ActivationPoolError` after the remaining work has completed; the same records
+remain available through `pool.results`. If the step body itself fails, the
+pool cancels running work, discards queued work, and removes
+`env.activation_pool`.
 
 ## Rule And Behavior
 

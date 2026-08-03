@@ -84,6 +84,9 @@ class LogField(str, Enum):
     DECISION_PREVIEW = "decision_preview"
     DECISION_LENGTH = "decision_length"
     DECISION_FULL = "decision_full"
+    ASSISTANT_TURN_TRACE = "assistant_turn_trace"
+    TERMINATION_REASON = "termination_reason"
+    TERMINATION_ACTION = "termination_action"
     ACTIONS_PREVIEW = "actions_preview"
     STRUCTURED_OUTPUT_KEYS = "structured_output_keys"
     STAGES_EXECUTED = "stages_executed"
@@ -531,11 +534,14 @@ AGENT_EVENT_SPECS: Mapping[AgentEvent, EventSpecification] = {
     AgentEvent.AGENT_DECISION: EventSpecification(
         channel=LogChannel.AGENT,
         event=str(AgentEvent.AGENT_DECISION),
-        description="决策摘要或结构化思考链。",
+        description="Agent 的公开输出、工具调用顺序和终止原因。",
         required_fields=_fields(LogField.DECISION_PREVIEW),
         optional_fields=_fields(
             LogField.DECISION_LENGTH,
             LogField.ACTIONS_PREVIEW,
+            LogField.ASSISTANT_TURN_TRACE,
+            LogField.TERMINATION_REASON,
+            LogField.TERMINATION_ACTION,
             LogField.STRUCTURED_OUTPUT_KEYS,
             LogField.STAGES_EXECUTED,
             LogField.STATUS,
