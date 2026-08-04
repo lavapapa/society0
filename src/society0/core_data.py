@@ -68,6 +68,39 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 print = _debug_print
 
 
+def _prepare_strict_invocation_value(value: Any, schema: Any) -> Any:
+    """把 provider strict 的占位 null 还原为普通 Python 可选参数语义。"""
+
+    if not isinstance(schema, dict):
+        return value
+    schema_type = schema.get("type")
+    schema_types = (
+        set(schema_type)
+        if isinstance(schema_type, list)
+        else {schema_type}
+    )
+    if isinstance(value, dict) and "object" in schema_types:
+        properties = schema.get("properties", {})
+        originally_required = set(schema.get("required", []))
+        cleaned: Dict[str, Any] = {}
+        for key, item in value.items():
+            property_schema = properties.get(key, {})
+            if item is None and key not in originally_required:
+                continue
+            cleaned[key] = _prepare_strict_invocation_value(
+                item,
+                property_schema,
+            )
+        return cleaned
+    if isinstance(value, list) and "array" in schema_types:
+        item_schema = schema.get("items", {})
+        return [
+            _prepare_strict_invocation_value(item, item_schema)
+            for item in value
+        ]
+    return value
+
+
 def _capability_table_entry_matches(key: Any, entry: Dict[str, Any], name: str) -> bool:
     """Match capability registry entries by key, canonical id, display name, or function name."""
     target = str(name)
@@ -2037,8 +2070,9 @@ class World:
                 action_name_local,
                 sys_params,
                 usr_params,
-                schema,
                 capability_meta,
+                invocation_schema,
+                strict,
             ):
                 async def intelligent_action(**kwargs):
                     _require_action_available_to_agent(
@@ -2059,12 +2093,22 @@ class World:
                             injected_params[sys_param_name] = agent
 
                     # 🔧 Step 2: Validate and filter user parameters
-                    schema_props = schema.get('properties', {})
+                    invocation_kwargs = (
+                        _prepare_strict_invocation_value(
+                            kwargs,
+                            invocation_schema,
+                        )
+                        if strict
+                        else kwargs
+                    )
+                    schema_props = invocation_schema.get('properties', {})
                     filtered_user_params = {}
 
                     for param_name in usr_params.keys():
-                        if param_name in kwargs:
-                            filtered_user_params[param_name] = kwargs[param_name]
+                        if param_name in invocation_kwargs:
+                            filtered_user_params[param_name] = invocation_kwargs[
+                                param_name
+                            ]
                         elif param_name in schema_props and 'default' in schema_props[param_name]:
                             # Use default value from schema
                             filtered_user_params[param_name] = schema_props[param_name]['default']
@@ -2089,12 +2133,17 @@ class World:
                     cap_meta.name,
                     system_params,
                     user_params,
-                    action_schema,
                     cap_meta,
+                    (
+                        cap_meta.invocation_parameters_schema
+                        or action_schema
+                    ),
+                    bool(getattr(cap_meta, "strict", False)),
                 ),
                 "description": cap_meta.description,
                 "parameters": action_schema,
-                "tags": ["environment"] + cap_meta.tags
+                "tags": ["environment"] + cap_meta.tags,
+                "strict": bool(getattr(cap_meta, "strict", False)),
             }
 
             logger.debug(f"🔧 Loaded action '{cap_meta.name}' from capabilities: system={list(system_params.keys())}, user={list(user_params.keys())}")

@@ -230,6 +230,9 @@ class ActionSet:
         }
         if strict:
             action_info["strict"] = True
+            from jsonschema import Draft202012Validator
+
+            action_info["argument_validator"] = Draft202012Validator(parameters)
         self.actions[name] = action_info
 
     async def call_action(
@@ -250,9 +253,14 @@ class ActionSet:
         if action_name not in self.actions:
             raise ValueError(f"Action '{action_name}' not found in actionset")
 
+        action_info = self.actions[action_name]
+        argument_validator = action_info.get("argument_validator")
+        if argument_validator is not None:
+            argument_validator.validate(kwargs)
+
         call_id_token = _CURRENT_ACTION_CALL_ID.set(_society0_call_id)
         try:
-            action_func = self.actions[action_name]["function"]
+            action_func = action_info["function"]
 
             # If context_provider is available, use context management
             if context_provider:

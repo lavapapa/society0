@@ -14,7 +14,10 @@ from society0.agent.agent_loop import (
 )
 from society0.agent.memory import Memory
 from society0.core_data import World
-from society0.function_registry import FunctionRegistry
+from society0.function_registry import (
+    FunctionRegistry,
+    normalize_strict_function_parameters,
+)
 from society0.logging import ExperimentLogContext
 from society0.llm_model_types import ModelConfig, ModelProvider, ModelRuntime
 from society0.models import LLMModel as PublicLLMModel
@@ -26,6 +29,28 @@ from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
 
 pytestmark = pytest.mark.primary
+
+
+def test_strict_normalization_keeps_optional_enum_nullable():
+    normalized = normalize_strict_function_parameters(
+        {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": ["buyer", "seller"],
+                }
+            },
+            "required": [],
+        }
+    )
+
+    assert normalized["properties"]["role"]["type"] == ["string", "null"]
+    assert normalized["properties"]["role"]["enum"] == [
+        "buyer",
+        "seller",
+        None,
+    ]
 
 
 def _base_config():
@@ -202,6 +227,41 @@ async def test_action_loop_sends_strict_flag_in_real_tool_payload():
     )
 
     assert requests[0]["tools"][0]["function"]["strict"] is True
+
+
+@pytest.mark.asyncio
+async def test_structured_output_strict_request_does_not_silently_downgrade():
+    requests = []
+
+    async def failing_llm_call(request):
+        requests.append(request)
+        raise RuntimeError("provider rejected strict request")
+
+    agent = object.__new__(LLMAgent)
+    request = {
+        "messages": [{"role": "user", "content": "submit"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "submit_result",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"result": {"type": "string"}},
+                        "required": ["result"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        ],
+    }
+
+    with pytest.raises(RuntimeError, match="provider rejected strict request"):
+        await agent._call_with_strict_retry(failing_llm_call, request)
+
+    assert len(requests) == 1
+    assert requests[0]["tools"][0]["function"]["strict"] is True
+    assert "strict" not in requests[0]["tools"][0]["function"]["parameters"]
 
 
 class _CallableLLMManager:
@@ -4897,6 +4957,7 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert calls[0]["top_p"] == 0.8
     assert calls[0]["metadata"]["agent_id"] == "alice"
     assert calls[0]["metadata"].get("must_not") is None
+    assert calls[0]["tools"][0]["function"]["strict"] is True
     assert len(calls) == 1
     assert calls[0]["tool_choice"] == {"type": "function", "function": {"name": "submit_result"}}
     assert result["visible_assistant_text"] == ""
@@ -7182,6 +7243,64 @@ async def test_llm_manager_enforces_hard_timeout_and_logs_failure(tmp_path):
     assert resource_calls[-1]["status"] == "failed"
     assert resource_calls[-1]["error_type"] == "TimeoutError"
     assert resource_calls[-1]["error_preview"]
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_retries_after_first_connection_failure():
+    attempts = 0
+
+    class FakeMessage:
+        role = "assistant"
+        content = "recovered"
+        tool_calls = []
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+        usage = None
+
+    class FlakyCompletions:
+        async def create(self, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise ConnectionError("temporary connection failure")
+            return FakeResponse()
+
+    class FlakyChat:
+        completions = FlakyCompletions()
+
+    class FlakyClient:
+        chat = FlakyChat()
+
+    manager = LLMManager(
+        [
+            {
+                "id": "default",
+                "api_key": "test",
+                "base_url": "http://localhost:9999/v1",
+                "model": "gpt-test",
+                "concurrency": 1,
+                "timeout": 30,
+            }
+        ]
+    )
+    manager.clients["default"] = FlakyClient()
+    manager._max_retries = 2
+
+    try:
+        result = await manager.request(
+            {"messages": [{"role": "user", "content": "retry"}]}
+        )
+    finally:
+        await manager.close()
+
+    assert attempts == 2
+    assert result["content"] == "recovered"
+    assert manager.endpoint_stats["default"]["errors"] == 1
+    assert manager.endpoint_stats["default"]["successes"] == 1
 
 
 @pytest.mark.asyncio

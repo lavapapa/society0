@@ -122,6 +122,8 @@ class CapabilityMeta:
     func_name: str  # 绑定的原始方法名
 
     tags: List[str] = field(default_factory=list)
+    strict: bool = False
+    invocation_parameters_schema: Optional[Dict[str, Any]] = None
 
     # 仅允许这些 Agent.type 使用该动作；空列表表示不限制。
     target_agent_types: List[str] = field(default_factory=list)
@@ -143,6 +145,8 @@ class CapabilityMeta:
             "return_value_schema": self.return_value_schema,
             "tags": self.tags,
             "target_agent_types": self.target_agent_types,
+            "strict": self.strict,
+            "invocation_parameters_schema": self.invocation_parameters_schema,
             "func_name": self.func_name,
             "state_access_declaration": self.state_access_declaration,
             "cache_on_step": self.cache_on_step,
