@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import copy
 import inspect
 import sys
 from dataclasses import replace
@@ -389,6 +390,7 @@ def capability(
     return_value_schema: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
     target_agent_types: Optional[List[str]] = None,
+    strict: bool = False,
     state_access: Optional[Dict[str, List[str]]] = None,
     cache_on_step: bool = False,
     cache_on_agent: bool = False,
@@ -406,11 +408,20 @@ def capability(
     def decorator(func: Callable):
         func_name = name or func.__name__
 
+        if strict and kind != "action":
+            raise ValueError("strict capability schemas are only supported for actions")
+
         # 自动生成或使用手动提供的 schema
         if parameters_schema is None:
             params_schema, _, _, _ = _generate_schema_from_signature(func, kind=kind)
         else:
             params_schema = parameters_schema
+
+        invocation_parameters_schema = copy.deepcopy(params_schema)
+        if strict:
+            from .function_registry import normalize_strict_function_parameters
+
+            params_schema = normalize_strict_function_parameters(params_schema)
 
         # 创建元数据
         meta = CapabilityMeta(
@@ -421,6 +432,8 @@ def capability(
             return_value_schema=return_value_schema or {},
             tags=tags or [],
             target_agent_types=target_agent_types or [],
+            strict=strict,
+            invocation_parameters_schema=invocation_parameters_schema,
             func_name=func.__name__,
             state_access_declaration=state_access,
             cache_on_step=cache_on_step,

@@ -28,6 +28,17 @@ def validate_strict_function_parameters(schema: Dict[str, Any]) -> None:
     represented as required nullable properties.
     """
 
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
+
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as exc:
+        raise ValueError(
+            "invalid JSON Schema for strict function parameters: "
+            f"{exc.message}"
+        ) from exc
+
     def includes_type(value: Any, expected: str) -> bool:
         if isinstance(value, str):
             return value == expected
@@ -79,6 +90,103 @@ def validate_strict_function_parameters(schema: Dict[str, Any]) -> None:
     if not isinstance(schema, dict) or schema.get("type") != "object":
         raise ValueError("strict function parameters must use a root object schema")
     visit(schema, "$")
+
+
+def normalize_strict_function_parameters(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a strict-compatible copy of an ordinary function schema.
+
+    Provider strict mode requires closed objects and every declared property in
+    ``required``. Properties that were optional remain semantically optional by
+    accepting ``null``; environment wrappers may then recover a declared
+    non-null default before calling the action.
+    """
+
+    normalized = copy.deepcopy(schema)
+
+    def allows_null(node: Dict[str, Any]) -> bool:
+        enum = node.get("enum")
+        if isinstance(enum, list) and None not in enum:
+            return False
+        node_type = node.get("type")
+        if node_type == "null":
+            return True
+        if isinstance(node_type, list) and "null" in node_type:
+            return True
+        return any(
+            isinstance(alternative, dict) and allows_null(alternative)
+            for keyword in ("anyOf", "oneOf")
+            for alternative in (node.get(keyword) or [])
+        )
+
+    def make_nullable(node: Any) -> Dict[str, Any]:
+        if not isinstance(node, dict):
+            raise ValueError("function schema properties must be JSON Schema objects")
+        if allows_null(node):
+            return node
+        node_type = node.get("type")
+        if isinstance(node_type, str):
+            node["type"] = [node_type, "null"]
+            if isinstance(node.get("enum"), list):
+                node["enum"].append(None)
+            return node
+        if isinstance(node_type, list):
+            if "null" not in node_type:
+                node["type"] = [*node_type, "null"]
+            if isinstance(node.get("enum"), list) and None not in node["enum"]:
+                node["enum"].append(None)
+            return node
+        if isinstance(node.get("anyOf"), list):
+            node["anyOf"].append({"type": "null"})
+            return node
+        return {"anyOf": [node, {"type": "null"}]}
+
+    def visit(node: Any, *, is_root: bool = False) -> None:
+        if not isinstance(node, dict):
+            raise ValueError("function schema nodes must be JSON Schema objects")
+
+        node_type = node.get("type")
+        is_object = node_type == "object" or (
+            isinstance(node_type, list) and "object" in node_type
+        )
+        if is_object:
+            declared_properties = node.get("properties")
+            additional_properties = node.get("additionalProperties")
+            if (
+                (not is_root and declared_properties is None)
+                or additional_properties is True
+                or isinstance(additional_properties, dict)
+            ):
+                raise ValueError(
+                    "cannot normalize a free-form object for strict function tools; "
+                    "declare its properties explicitly"
+                )
+            properties = node.setdefault("properties", {})
+            if not isinstance(properties, dict):
+                raise ValueError("function schema object properties must be a mapping")
+            originally_required = set(node.get("required") or [])
+            for property_name, property_schema in list(properties.items()):
+                if property_name not in originally_required:
+                    property_schema = make_nullable(property_schema)
+                    properties[property_name] = property_schema
+                visit(property_schema)
+            node["required"] = list(properties)
+            node["additionalProperties"] = False
+
+        is_array = node_type == "array" or (
+            isinstance(node_type, list) and "array" in node_type
+        )
+        if is_array and "items" in node:
+            visit(node["items"])
+
+        for keyword in ("anyOf", "oneOf", "allOf"):
+            alternatives = node.get(keyword)
+            if isinstance(alternatives, list):
+                for alternative in alternatives:
+                    visit(alternative)
+
+    visit(normalized, is_root=True)
+    validate_strict_function_parameters(normalized)
+    return normalized
 
 
 def _json_type_for_annotation(annotation: Any) -> str:
@@ -937,6 +1045,9 @@ def register_environment_capabilities(registry: FunctionRegistry, env_meta, env_
                 'display_name': cap_meta.name,
                 'canonical_id': canonical_id,
             }
+            if cap_meta.strict:
+                validate_strict_function_parameters(cap_meta.parameters_schema)
+                entry['strict'] = True
             registry.env_agent_tools[canonical_id] = entry
             # 兼容旧引用（使用装饰器名称）
             registry.env_agent_tools[cap_meta.name] = entry
