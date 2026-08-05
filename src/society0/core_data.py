@@ -101,6 +101,33 @@ def _capability_table_entry_matches(key: Any, entry: Dict[str, Any], name: str) 
     return lowered in {alias.lower() for alias in aliases}
 
 
+def _action_target_agent_types(meta: Any) -> List[str]:
+    """返回 action 允许的 Agent.type；空列表表示不限制。"""
+    if meta is None:
+        return []
+    values = getattr(meta, "target_agent_types", None) or []
+    return [str(value) for value in values]
+
+
+def _action_is_available_to_agent(meta: Any, agent: Any) -> bool:
+    target_agent_types = _action_target_agent_types(meta)
+    return not target_agent_types or str(agent.type) in target_agent_types
+
+
+def _require_action_available_to_agent(
+    meta: Any,
+    agent: Any,
+    action_name: str,
+) -> None:
+    """执行 action 前重新核对 Agent.type，防止复用过期 ActionSet 越权。"""
+    target_agent_types = _action_target_agent_types(meta)
+    if target_agent_types and str(agent.type) not in target_agent_types:
+        raise PermissionError(
+            f"Action '{action_name}' is not available to agent type "
+            f"'{agent.type}'; allowed agent types: {target_agent_types}."
+        )
+
+
 @dataclass
 class BaseOperatorResult:
     """
@@ -1973,6 +2000,8 @@ class World:
         for cap_meta in env_meta.capabilities:
             if cap_meta.kind != 'action':
                 continue
+            if not _action_is_available_to_agent(cap_meta, agent):
+                continue
 
             # 🔑 从环境**实例**获取绑定的方法
             if not hasattr(environment, cap_meta.func_name):
@@ -2003,8 +2032,20 @@ class World:
                     user_params[param_name] = param
 
             # 创建智能 wrapper 函数
-            def create_intelligent_wrapper(env_func, action_name_local, sys_params, usr_params, schema):
+            def create_intelligent_wrapper(
+                env_func,
+                action_name_local,
+                sys_params,
+                usr_params,
+                schema,
+                capability_meta,
+            ):
                 async def intelligent_action(**kwargs):
+                    _require_action_available_to_agent(
+                        capability_meta,
+                        agent,
+                        action_name_local,
+                    )
                     # 🔧 Step 1: Prepare system parameters
                     injected_params = {}
                     for sys_param_name, sys_param_type in sys_params.items():
@@ -2048,7 +2089,8 @@ class World:
                     cap_meta.name,
                     system_params,
                     user_params,
-                    action_schema
+                    action_schema,
+                    cap_meta,
                 ),
                 "description": cap_meta.description,
                 "parameters": action_schema,
@@ -2072,8 +2114,16 @@ class World:
             meta = action_info.get("meta")
 
             if meta is not None:
-                def create_logic_action_wrapper(func, logic_meta):
+                if not _action_is_available_to_agent(meta, agent):
+                    continue
+
+                def create_logic_action_wrapper(func, logic_meta, action_name_local):
                     async def action_wrapper(**kwargs):
+                        _require_action_available_to_agent(
+                            logic_meta,
+                            agent,
+                            action_name_local,
+                        )
                         call_kwargs = dict(kwargs)
                         context_param = getattr(logic_meta, "context_parameter_name", None)
                         if context_param:
@@ -2099,7 +2149,11 @@ class World:
                     tags.add(short_name)
 
                 registry_actions[action_name] = {
-                    "function": create_logic_action_wrapper(original_func, meta),
+                    "function": create_logic_action_wrapper(
+                        original_func,
+                        meta,
+                        action_name,
+                    ),
                     "description": getattr(meta, "description", "") or action_info.get(
                         "description",
                         f"Logic action: {action_name}",
@@ -2155,9 +2209,22 @@ class World:
 
             original_func = action_info["function"]
             signature = action_info.get("signature")
+            meta = action_info.get("meta")
+            if not _action_is_available_to_agent(meta, agent):
+                continue
 
-            def create_experiment_env_action_wrapper(func, sig):
+            def create_experiment_env_action_wrapper(
+                func,
+                sig,
+                capability_meta,
+                action_name_local,
+            ):
                 async def action_wrapper(**kwargs):
+                    _require_action_available_to_agent(
+                        capability_meta,
+                        agent,
+                        action_name_local,
+                    )
                     environment = self.get_environment()
                     context = self._build_execution_context(caller=agent)
                     call_kwargs: Dict[str, Any] = {}
@@ -2212,7 +2279,12 @@ class World:
                 tags.add(canonical_id.rsplit(".", maxsplit=1)[-1])
 
             registry_actions[action_info.get("display_name") or action_name] = {
-                "function": create_experiment_env_action_wrapper(original_func, signature),
+                "function": create_experiment_env_action_wrapper(
+                    original_func,
+                    signature,
+                    meta,
+                    canonical_id,
+                ),
                 "description": action_info.get("description", f"Environment action: {action_name}"),
                 "parameters": copy.deepcopy(action_info.get("parameters") or {
                     "type": "object",

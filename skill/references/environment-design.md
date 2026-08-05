@@ -45,6 +45,26 @@ Boundary rules:
 - The env should not rewrite stable persona unless the study explicitly models identity reconstruction and records that choice.
 - Hidden treatment labels and ground-truth answers should stay in `properties`, step params, or output tables, not visible `state`.
 
+### Restrict Actions By Agent Type
+
+Environment actions are available to every agent by default. When an action belongs only to one social type, pass `role`; when several types share it, pass `roles`. Both options compare against `Agent.type`, and they cannot be used together. Do not add a separate `Agent.role` field.
+
+```python
+@action(description="Remove a reported post.", role="moderator")
+def remove_reported_post(self, agent, post_id: str):
+    ...
+
+@action(
+    description="Review a reported post.",
+    roles=["moderator", "administrator"],
+    tags=["moderation"],
+)
+def review_report(self, agent, post_id: str):
+    ...
+```
+
+The runtime omits an unauthorized action when it assembles that agent's `ActionSet`, then checks `Agent.type` again immediately before the wrapper calls the environment method. Passing the action name or one of its tags through `instruct(..., actions=[...])` cannot grant access. Role restrictions are serialized in capability metadata as `target_agent_types`.
+
 ## Logic Sources
 
 Use "logic" to mean deterministic rule/behavior code:

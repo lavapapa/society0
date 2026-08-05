@@ -41,6 +41,37 @@ LOGIC_META_ATTR = "__logic_meta__"  # 附着在 logic 函数上的元数据属�
 MODULE_LOGICS_ATTR = "__logic_functions__"  # 模块级 logic 函数列表
 
 
+def _normalize_action_agent_types(
+    *,
+    role: Optional[str] = None,
+    roles: Optional[List[str]] = None,
+) -> List[str]:
+    """校验并归一化 action 的 Agent.type 限制。"""
+    if role is not None and roles is not None:
+        raise ValueError("action: role 与 roles 不能同时指定")
+
+    if role is not None:
+        if not isinstance(role, str) or not role.strip():
+            raise ValueError("action: role 必须是非空字符串")
+        return [role.strip()]
+
+    if roles is None:
+        return []
+    if not isinstance(roles, list):
+        raise ValueError("action: roles 必须是非空 list[str]")
+    if not roles:
+        raise ValueError("action: roles 必须是非空 list[str]")
+
+    normalized: List[str] = []
+    for item in roles:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError("action: roles 的每一项都必须是非空字符串")
+        value = item.strip()
+        if value not in normalized:
+            normalized.append(value)
+    return normalized
+
+
 # =============================================================================
 # Schema 自动生成（基于 pydantic）
 # =============================================================================
@@ -357,6 +388,7 @@ def capability(
     parameters_schema: Optional[Dict[str, Any]] = None,
     return_value_schema: Optional[Dict[str, Any]] = None,
     tags: Optional[List[str]] = None,
+    target_agent_types: Optional[List[str]] = None,
     state_access: Optional[Dict[str, List[str]]] = None,
     cache_on_step: bool = False,
     cache_on_agent: bool = False,
@@ -388,6 +420,7 @@ def capability(
             parameters_schema=params_schema,
             return_value_schema=return_value_schema or {},
             tags=tags or [],
+            target_agent_types=target_agent_types or [],
             func_name=func.__name__,
             state_access_declaration=state_access,
             cache_on_step=cache_on_step,
@@ -415,9 +448,26 @@ def fov(
 def action(
     name: Optional[str] = None,
     description: Optional[str] = None,
+    *,
+    role: Optional[str] = None,
+    roles: Optional[List[str]] = None,
     **kwargs
 ):
-    """@capability(kind='action', ...) 的快捷方式"""
+    """@capability(kind='action', ...) 的快捷方式。
+
+    ``role`` 和 ``roles`` 按 ``Agent.type`` 限制动作的使用者；两者互斥。
+    未指定时，该动作对所有 Agent 可用。
+    """
+    if "target_agent_types" in kwargs:
+        if role is not None or roles is not None:
+            raise ValueError(
+                "action: role/roles 不能与 target_agent_types 同时指定"
+            )
+    else:
+        kwargs["target_agent_types"] = _normalize_action_agent_types(
+            role=role,
+            roles=roles,
+        )
     return capability(kind='action', name=name, description=description, **kwargs)
 
 
@@ -523,9 +573,22 @@ class _LogicDecoratorFactory:
         self,
         name: str,
         description: str = "",
+        *,
+        role: Optional[str] = None,
+        roles: Optional[List[str]] = None,
         **kwargs
     ):
         """@logic.action 装饰器"""
+        if "target_agent_types" in kwargs:
+            if role is not None or roles is not None:
+                raise ValueError(
+                    "action: role/roles 不能与 target_agent_types 同时指定"
+                )
+        else:
+            kwargs["target_agent_types"] = _normalize_action_agent_types(
+                role=role,
+                roles=roles,
+            )
         return self._create_decorator('action', name, description, **kwargs)
 
     def fov(
