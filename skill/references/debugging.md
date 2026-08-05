@@ -16,7 +16,7 @@ Fix:
 
 ```bash
 pip install -e .
-python -m pytest -q tests/primary
+python -m pytest tests/primary
 ```
 
 Use `society0`, not the old `simengine` import.
@@ -112,11 +112,11 @@ If selection returns no agents:
 ## Useful Test Commands
 
 ```bash
-python -m pytest -q tests/primary
-python -m pytest -q tests/e2e
-SOCIETY0_RUN_REAL_E2E=1 python -m pytest -q tests/e2e/test_society0_real_e2e.py
-SOCIETY0_RUN_REAL_E2E=1 SOCIETY0_REAL_E2E_SATURATION_CONCURRENCY=6 python -m pytest -q tests/e2e/test_society0_real_e2e.py -m saturation
-python -m pytest -q
+python -m pytest tests/primary
+python -m pytest tests/e2e
+SOCIETY0_RUN_REAL_E2E=1 python -m pytest tests/e2e/test_society0_real_e2e.py
+SOCIETY0_RUN_REAL_E2E=1 SOCIETY0_REAL_E2E_SATURATION_CONCURRENCY=6 python -m pytest tests/e2e/test_society0_real_e2e.py -m saturation
+python -m pytest
 ```
 
 Real E2E requires working LLM and embedding endpoints. Skipped real E2E does not prove provider integration works.
