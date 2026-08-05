@@ -123,6 +123,9 @@ class CapabilityMeta:
 
     tags: List[str] = field(default_factory=list)
 
+    # 仅允许这些 Agent.type 使用该动作；空列表表示不限制。
+    target_agent_types: List[str] = field(default_factory=list)
+
     # 🔑 状态访问声明（同 LogicMeta）
     state_access_declaration: Optional[Dict[str, List[str]]] = None
 
@@ -139,6 +142,7 @@ class CapabilityMeta:
             "parameters_schema": self.parameters_schema,
             "return_value_schema": self.return_value_schema,
             "tags": self.tags,
+            "target_agent_types": self.target_agent_types,
             "func_name": self.func_name,
             "state_access_declaration": self.state_access_declaration,
             "cache_on_step": self.cache_on_step,

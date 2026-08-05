@@ -1265,9 +1265,9 @@ class SimEngine:
             return
 
         initial_step = self.current_world_state.step
-        checkpoint_path = self.persistence_manager.checkpoints_dir / f"checkpoint_{initial_step:06d}.json"
-
-        if not checkpoint_path.exists():
+        try:
+            self.persistence_manager.resolve_checkpoint(initial_step)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError):
             await self.persistence_manager.save_checkpoint(
                 self.current_world_state,
                 self.schedule,
@@ -1281,9 +1281,11 @@ class SimEngine:
         if not self.streaming_bridge:
             return
 
-        checkpoint_path = self.persistence_manager.checkpoints_dir / f"checkpoint_{step_number:06d}.json"
-        if not checkpoint_path.exists():
+        try:
+            checkpoint_record = self.persistence_manager.resolve_checkpoint(step_number)
+        except (FileNotFoundError, ValueError, json.JSONDecodeError):
             return
+        checkpoint_path = checkpoint_record["checkpoint_file"]
 
         def _load_snapshot() -> Dict[str, Any]:
             with checkpoint_path.open("r", encoding="utf-8") as fp:
@@ -1342,10 +1344,21 @@ class SimEngine:
         logger.info(f"Resuming simulation from step {resume_step}")
 
         # Load world state from checkpoint
-        world, schedule = await self.persistence_manager.load_checkpoint(resume_step)
+        world, schedule = await self.persistence_manager.load_checkpoint(
+            resume_step,
+            event_logger=self.event_logger,
+        )
         self.current_world_state = world
         if self.current_world_state:
             self.current_world_state.set_log_context(self.log_context)
+            self.current_world_state.set_function_registry(self.register)
+            self.current_world_state.set_persistence_manager(self.persistence_manager)
+            self.current_world_state.set_resource_managers(
+                llm_manager=self._llm_manager,
+                embedding_manager=self._embedding_manager,
+            )
+            if self._model_provider is not None:
+                self.current_world_state.set_model_provider(self._model_provider)
         if self._node_diff_dispatcher:
             self.current_world_state.set_node_diff_dispatcher(self._node_diff_dispatcher)
 
