@@ -159,19 +159,40 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
 
     text = str(result or "").strip()
     lowered = text.lower()
-    failure_markers = (
-        "error:",
-        "错误",
-        "失败",
-        "不存在",
-        "not found",
-        "does not exist",
-        "cannot ",
-        "can't ",
-        "invalid ",
-        "未找到",
+    # Only treat an explicit error/failure prefix (or a complete not-found
+    # clause) as a failed action.  Domain text such as ``配种失败率`` contains
+    # the characters ``失败`` but describes a metric, not an execution error.
+    explicit_failure_prefix = re.compile(
+        r"^(?:error|错误)(?!\s*(?:rate|ratio|percentage|probability))"
+        r"(?:\s*[:：-]|\s|$)|"
+        r"^(?:invalid|cannot|can't|未找到)"
+        r"(?:\s*[:：-]|\s|$)|"
+        r"^(?:失败|failure|failed)(?:\s*[:：-]|$)",
+        re.IGNORECASE,
     )
-    if lowered.startswith("❌") or any(marker in lowered for marker in failure_markers):
+    explicit_failure_token = re.compile(
+        r"(?:错误|失败)(?=$|[\s,，;；:：.!！?？])"
+    )
+    explicit_failed_token = re.compile(
+        r"\bfailed(?=$|[\s,;:.!?])",
+        re.IGNORECASE,
+    )
+    explicit_not_found = re.search(
+        r"(?:not found|does not exist)\s*[.!?。！？]*$",
+        lowered,
+    )
+    explicit_not_found_cn = re.search(
+        r"(?:不存在|未找到)(?=$|[\s,，;；:：.!！?？])",
+        text,
+    )
+    if (
+        lowered.startswith("❌")
+        or explicit_failure_prefix.search(text) is not None
+        or explicit_failure_token.search(text) is not None
+        or explicit_failed_token.search(text) is not None
+        or explicit_not_found is not None
+        or explicit_not_found_cn is not None
+    ):
         return "error", text
     return "success", None
 
@@ -1034,6 +1055,7 @@ async def execute_action_loop(
             all_action_calls.extend(executed_action_calls)
             if full_history:
                 full_history[-1]["tool_messages"] = turn_tool_messages
+                full_history[-1]["batch_termination_reason"] = batch_termination_reason
                 full_history[-1]["action_results"] = [
                     {
                         "call_id": action_call.call_id,
@@ -1046,7 +1068,14 @@ async def execute_action_loop(
                     }
                     for action_call in executed_action_calls
                 ]
-            loop_result.termination_reason = batch_termination_reason
+            # The whole batch remains blocked for state safety, but an
+            # oversized provider batch is a normal budget boundary.  Route it
+            # through the existing tool-free closing turn instead of returning
+            # an activation-level error that can trigger a retry storm.
+            if batch_termination_reason == "action_batch_exceeds_budget":
+                loop_result.termination_reason = "action_budget_exhausted"
+            else:
+                loop_result.termination_reason = batch_termination_reason
             break
 
         for idx, action_call in enumerate(action_calls):
@@ -1387,7 +1416,6 @@ async def execute_action_loop(
     # Determine final status
     error_termination_reasons = {
         "empty_model_response",
-        "action_batch_exceeds_budget",
         "action_batch_exceeds_action_limit",
     }
     status = (
