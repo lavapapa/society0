@@ -2569,6 +2569,63 @@ async def test_llm_agent_propagates_repeated_blank_turns_as_an_error():
 
 
 @pytest.mark.asyncio
+async def test_llm_agent_error_keeps_exception_type_for_blank_timeout_message():
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "Act concisely.",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack()
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    async def fake_llm_call(_payload):
+        error = asyncio.TimeoutError()
+        error.request = {"method": "POST", "url": "https://example.test/v1/chat"}
+        error.timeout = 12.0
+        raise error
+
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="Act concisely.",
+        memory=None,
+        llm_call=fake_llm_call,
+        actionset=ActionSet(),
+    )
+
+    result = await agent.instruct(
+        "Process the current activation.",
+        retrieve_memory=False,
+        save_memory=False,
+        max_turns=1,
+    )
+
+    assert result["status"] == "error"
+    assert result["error"].startswith("TimeoutError")
+    assert result["error"]
+    assert "request=" in result["error"]
+    assert "timeout=12.0" in result["error"]
+    assert result["performative_output"].endswith(result["error"])
+
+
+@pytest.mark.asyncio
 async def test_completion_action_tag_stops_after_successful_matching_action():
     action_set = ActionSet()
     called = []
@@ -2736,6 +2793,53 @@ async def test_completion_action_tag_ignores_semantic_action_failure():
     assert len(llm_calls) == 2
     assert [call["status"] for call in result.action_calls] == ["error", "success"]
     assert result.action_calls[0]["error"] == "Post missing_post not found"
+
+
+@pytest.mark.asyncio
+async def test_semantic_action_status_does_not_treat_failure_rate_as_action_error():
+    action_set = ActionSet()
+
+    async def inspect_breeding_metrics():
+        return "当前配种失败率为 12%，存栏状态已更新。"
+
+    action_set.add_action(
+        name="inspect_breeding_metrics",
+        func=inspect_breeding_metrics,
+        description="Inspect breeding metrics",
+        parameters={"type": "object", "properties": {}},
+        tags=["business_read"],
+    )
+
+    async def fake_llm(payload):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "metrics_call",
+                    "type": "function",
+                    "function": {
+                        "name": "inspect_breeding_metrics",
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect the breeding metrics.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm,
+        max_turns=3,
+        completion_action_tags=["business_read"],
+    )
+
+    assert result.status == "success"
+    assert result.termination_reason == "completion_action_tag"
+    assert result.action_calls[0]["status"] == "success"
+    assert "error" not in result.action_calls[0]
 
 
 @pytest.mark.asyncio
@@ -3678,6 +3782,7 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     world.set_context_stack(ContextStack().push_step("step_0"))
     action_set = ActionSet()
     traces = []
+    llm_payloads = []
 
     async def limited_action():
         return "should not run"
@@ -3685,6 +3790,13 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     action_set.add_action("limited_action", limited_action, "limited", {"type": "object", "properties": {}})
 
     async def fake_llm(_payload):
+        llm_payloads.append(_payload)
+        if _payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "No action can be executed within the configured budget.",
+                "tool_calls": [],
+            }
         return {
             "role": "assistant",
             "content": "",
@@ -3728,8 +3840,13 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     )
     assert result.action_calls[0]["action_name"] == "limited_action"
     assert result.action_calls[0]["result"] == expected_error
-    assert result.status == "error"
-    assert result.termination_reason == "action_batch_exceeds_budget"
+    assert result.status == "success"
+    assert result.termination_reason == "action_budget_exhausted"
+    assert len(llm_payloads) == 2
+    assert llm_payloads[-1]["tools"] is None
+    assert result.full_history[0]["batch_termination_reason"] == (
+        "action_batch_exceeds_budget"
+    )
     assert traces == [
         {
             "action_name": "limited_action",
@@ -3745,6 +3862,7 @@ async def test_execute_action_loop_records_budget_blocked_actions():
 async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes():
     action_set = ActionSet()
     executed = []
+    llm_payloads = []
 
     async def limited_action(sequence: int):
         executed.append(sequence)
@@ -3762,6 +3880,13 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
     )
 
     async def fake_llm(_payload):
+        llm_payloads.append(_payload)
+        if _payload.get("tools") is None:
+            return {
+                "role": "assistant",
+                "content": "The requested actions were not executed; budget is exhausted.",
+                "tool_calls": [],
+            }
         return {
             "role": "assistant",
             "content": "",
@@ -3804,8 +3929,13 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
         for item in result.conversation_messages
         if item.get("role") == "tool"
     ] == [f"call_{sequence}" for sequence in range(50)]
-    assert result.termination_reason == "action_batch_exceeds_budget"
-    assert result.status == "error"
+    assert result.termination_reason == "action_budget_exhausted"
+    assert result.status == "success"
+    assert len(llm_payloads) == 2
+    assert llm_payloads[-1]["tools"] is None
+    assert result.full_history[0]["batch_termination_reason"] == (
+        "action_batch_exceeds_budget"
+    )
 
 
 @pytest.mark.asyncio
