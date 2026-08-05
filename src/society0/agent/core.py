@@ -84,6 +84,52 @@ def _sanitize_llm_request_options(options: Optional[Dict[str, Any]]) -> Dict[str
     }
 
 
+def _format_agent_exception(exc: BaseException) -> str:
+    """Return a non-empty, audit-friendly description of an agent error.
+
+    Some timeout implementations have an empty ``str(exc)``.  Keep the
+    exception type/repr in that case and include lightweight request/timeout
+    context when the provider attached those attributes.
+    """
+
+    exception_type = type(exc).__name__
+    detail = str(exc).strip()
+    message = f"{exception_type}: {detail}" if detail else repr(exc)
+    if not message:
+        message = exception_type
+
+    context_parts = []
+    for attribute in ("request", "timeout"):
+        try:
+            value = getattr(exc, attribute)
+        except Exception:
+            continue
+        if value is None:
+            continue
+        if attribute == "request":
+            if isinstance(value, dict):
+                method = value.get("method")
+                url = value.get("url")
+            else:
+                method = getattr(value, "method", None)
+                url = getattr(value, "url", None)
+            if method is not None or url is not None:
+                value_text = " ".join(
+                    str(part) for part in (method, url) if part is not None
+                )
+            elif isinstance(value, dict):
+                keys = sorted(str(key) for key in value.keys())[:10]
+                value_text = f"dict(keys={keys})"
+            else:
+                value_text = f"<{type(value).__name__}>"
+        else:
+            value_text = summarize_text(repr(value), limit=120)["preview"]
+        context_parts.append(f"{attribute}={value_text}")
+    if context_parts:
+        message = f"{message} ({', '.join(context_parts)})"
+    return message
+
+
 def _parse_structured_json_from_model_text(content: str, *, assume_prefilled_object: bool = False) -> Any:
     """Parse JSON from model text, including continuations after a prefilled ``{``."""
     import json_repair
@@ -1333,13 +1379,19 @@ class LLMAgent(Agent):
             if agent_loop_started is not None and "agent_loop" not in phase_timings:
                 record_phase("agent_loop", agent_loop_started)
             record_phase("total", instruct_started)
-            logger.error(f"Error in instruction execution for agent {self.id}: {e}")
+            error_message = _format_agent_exception(e)
+            logger.error(
+                "Error in instruction execution for agent %s: %s",
+                self.id,
+                error_message,
+                exc_info=True,
+            )
             return {
                 "status": "error",
                 "agent_id": self.id,
                 "instruction": instruction,
-                "error": str(e),
-                "performative_output": f"执行指令时发生错误: {str(e)}",
+                "error": error_message,
+                "performative_output": f"执行指令时发生错误: {error_message}",
                 "visible_assistant_text": "",
                 "assistant_turn_trace": [],
                 "structured_output": None,
