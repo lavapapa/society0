@@ -448,126 +448,127 @@ class LLMManager:
 
                 try:
                     async for attempt in retrying:
-                        attempt_number = attempt.retry_state.attempt_number
-                        provider_start_time: Optional[float] = None
-                        try:
-                            extras.error = None
-                            extras.error_type = None
-                            extras.retry_count = attempt_number - 1
+                        with attempt:
+                            attempt_number = attempt.retry_state.attempt_number
+                            provider_start_time: Optional[float] = None
+                            try:
+                                extras.error = None
+                                extras.error_type = None
+                                extras.retry_count = attempt_number - 1
 
-                            stats_entry["requests"] += 1
+                                stats_entry["requests"] += 1
 
-                            client = self.clients[endpoint.id]
-                            request_params = payload.copy()
-                            request_params.pop("metadata", None)
-                            request_params.pop("agent_id", None)
+                                client = self.clients[endpoint.id]
+                                request_params = payload.copy()
+                                request_params.pop("metadata", None)
+                                request_params.pop("agent_id", None)
 
-                            # Azure使用deployment_name，其他使用model
-                            if endpoint.provider_type == "azure" and endpoint.deployment_name:
-                                request_params["model"] = endpoint.deployment_name
-                            else:
-                                request_params["model"] = endpoint.model
+                                # Azure使用deployment_name，其他使用model
+                                if endpoint.provider_type == "azure" and endpoint.deployment_name:
+                                    request_params["model"] = endpoint.deployment_name
+                                else:
+                                    request_params["model"] = endpoint.model
 
-                            request_timeout = request_params.get("timeout", endpoint.timeout)
-                            effective_timeout: Optional[float]
-                            if isinstance(request_timeout, (int, float)) and request_timeout > 0:
-                                effective_timeout = float(request_timeout)
-                            elif isinstance(endpoint.timeout, (int, float)) and endpoint.timeout > 0:
-                                effective_timeout = float(endpoint.timeout)
-                            else:
-                                effective_timeout = None
+                                request_timeout = request_params.get("timeout", endpoint.timeout)
+                                effective_timeout: Optional[float]
+                                if isinstance(request_timeout, (int, float)) and request_timeout > 0:
+                                    effective_timeout = float(request_timeout)
+                                elif isinstance(endpoint.timeout, (int, float)) and endpoint.timeout > 0:
+                                    effective_timeout = float(endpoint.timeout)
+                                else:
+                                    effective_timeout = None
 
-                            provider_start_time = time.time()
-                            request_coro = client.chat.completions.create(**request_params)
-                            if effective_timeout is None:
-                                response = await request_coro
-                            else:
-                                response = await asyncio.wait_for(
-                                    request_coro,
-                                    timeout=effective_timeout,
-                                )
-                            provider_duration = time.time() - provider_start_time
-                            result = self._convert_response(response)
+                                provider_start_time = time.time()
+                                request_coro = client.chat.completions.create(**request_params)
+                                if effective_timeout is None:
+                                    response = await request_coro
+                                else:
+                                    response = await asyncio.wait_for(
+                                        request_coro,
+                                        timeout=effective_timeout,
+                                    )
+                                provider_duration = time.time() - provider_start_time
+                                result = self._convert_response(response)
 
-                            execution_time = time.time() - start_time
-                            extras.duration_sec = execution_time
-                            extras.provider_duration_sec = provider_duration
+                                execution_time = time.time() - start_time
+                                extras.duration_sec = execution_time
+                                extras.provider_duration_sec = provider_duration
 
-                            usage = getattr(response, "usage", None)
+                                usage = getattr(response, "usage", None)
 
-                            def _extract_usage_value(value: Any, key: str) -> Optional[int]:
-                                if value is None:
-                                    return None
-                                if isinstance(value, dict):
-                                    maybe = value.get(key)
-                                    return int(maybe) if isinstance(maybe, (int, float)) else maybe
-                                maybe_attr = getattr(value, key, None)
-                                return int(maybe_attr) if isinstance(maybe_attr, (int, float)) else maybe_attr
+                                def _extract_usage_value(value: Any, key: str) -> Optional[int]:
+                                    if value is None:
+                                        return None
+                                    if isinstance(value, dict):
+                                        maybe = value.get(key)
+                                        return int(maybe) if isinstance(maybe, (int, float)) else maybe
+                                    maybe_attr = getattr(value, key, None)
+                                    return int(maybe_attr) if isinstance(maybe_attr, (int, float)) else maybe_attr
 
-                            extras.prompt_tokens = _extract_usage_value(usage, "prompt_tokens")
-                            extras.completion_tokens = _extract_usage_value(usage, "completion_tokens")
-                            extras.total_tokens = _extract_usage_value(usage, "total_tokens")
+                                extras.prompt_tokens = _extract_usage_value(usage, "prompt_tokens")
+                                extras.completion_tokens = _extract_usage_value(usage, "completion_tokens")
+                                extras.total_tokens = _extract_usage_value(usage, "total_tokens")
 
-                            if self._log_context:
-                                completed_payload = extras.model_dump(exclude_none=True)
-                                completed_payload.update(trace_fields)
-                                self._log_context.log_resource(
-                                    "llm",
-                                    "INFO",
-                                    ResourceEvent.LLM_REQUEST_COMPLETED.value,
-                                    **completed_payload,
-                                )
+                                if self._log_context:
+                                    completed_payload = extras.model_dump(exclude_none=True)
+                                    completed_payload.update(trace_fields)
+                                    self._log_context.log_resource(
+                                        "llm",
+                                        "INFO",
+                                        ResourceEvent.LLM_REQUEST_COMPLETED.value,
+                                        **completed_payload,
+                                    )
 
-                            stats_entry["successes"] += 1
-                            stats_entry["total_time"] += execution_time
-                            stats_entry["avg_time"] = stats_entry["total_time"] / stats_entry["requests"]
+                                stats_entry["successes"] += 1
+                                stats_entry["total_time"] += execution_time
+                                stats_entry["avg_time"] = stats_entry["total_time"] / stats_entry["requests"]
 
-                            logger.debug(
-                                "LLM request completed on %s in %.3fs",
-                                endpoint.id,
-                                execution_time,
-                            )
-                            return result
-
-                        except Exception as exc:
-                            extras.error_type = type(exc).__name__
-                            extras.error = str(exc) or repr(exc)
-                            extras.duration_sec = time.time() - start_time
-                            if provider_start_time is not None:
-                                extras.provider_duration_sec = time.time() - provider_start_time
-                            stats_entry["errors"] += 1
-
-                            level = (
-                                "WARNING"
-                                if attempt.retry_state.attempt_number < self._max_retries
-                                else "ERROR"
-                            )
-                            if self._log_context:
-                                failed_payload = extras.model_dump(exclude_none=True)
-                                failed_payload.update(trace_fields)
-                                self._log_context.log_resource(
-                                    "llm",
-                                    level,
-                                    ResourceEvent.LLM_REQUEST_FAILED.value,
-                                    **failed_payload,
-                                )
-
-                            if level == "WARNING":
-                                logger.warning(
-                                    "LLM request retry %s/%s failed on endpoint %s: %s",
-                                    attempt.retry_state.attempt_number,
-                                    self._max_retries,
+                                logger.debug(
+                                    "LLM request completed on %s in %.3fs",
                                     endpoint.id,
-                                    exc,
+                                    execution_time,
                                 )
-                            else:
-                                logger.error(
-                                    "LLM request failed on endpoint %s after %s attempts: %s",
-                                    endpoint.id,
-                                    self._max_retries,
-                                    exc,
+                                return result
+
+                            except Exception as exc:
+                                extras.error_type = type(exc).__name__
+                                extras.error = str(exc) or repr(exc)
+                                extras.duration_sec = time.time() - start_time
+                                if provider_start_time is not None:
+                                    extras.provider_duration_sec = time.time() - provider_start_time
+                                stats_entry["errors"] += 1
+
+                                level = (
+                                    "WARNING"
+                                    if attempt.retry_state.attempt_number < self._max_retries
+                                    else "ERROR"
                                 )
-                            raise
+                                if self._log_context:
+                                    failed_payload = extras.model_dump(exclude_none=True)
+                                    failed_payload.update(trace_fields)
+                                    self._log_context.log_resource(
+                                        "llm",
+                                        level,
+                                        ResourceEvent.LLM_REQUEST_FAILED.value,
+                                        **failed_payload,
+                                    )
+
+                                if level == "WARNING":
+                                    logger.warning(
+                                        "LLM request retry %s/%s failed on endpoint %s: %s",
+                                        attempt.retry_state.attempt_number,
+                                        self._max_retries,
+                                        endpoint.id,
+                                        exc,
+                                    )
+                                else:
+                                    logger.error(
+                                        "LLM request failed on endpoint %s after %s attempts: %s",
+                                        endpoint.id,
+                                        self._max_retries,
+                                        exc,
+                                    )
+                                raise
                 except RetryError as retry_error:
                     final_exc = retry_error.last_attempt.exception()
                     if final_exc is None:

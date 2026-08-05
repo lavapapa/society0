@@ -14,7 +14,10 @@ from society0.agent.agent_loop import (
 )
 from society0.agent.memory import Memory
 from society0.core_data import World
-from society0.function_registry import FunctionRegistry
+from society0.function_registry import (
+    FunctionRegistry,
+    normalize_strict_function_parameters,
+)
 from society0.logging import ExperimentLogContext
 from society0.llm_model_types import ModelConfig, ModelProvider, ModelRuntime
 from society0.models import LLMModel as PublicLLMModel
@@ -26,6 +29,28 @@ from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
 
 pytestmark = pytest.mark.primary
+
+
+def test_strict_normalization_keeps_optional_enum_nullable():
+    normalized = normalize_strict_function_parameters(
+        {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": ["buyer", "seller"],
+                }
+            },
+            "required": [],
+        }
+    )
+
+    assert normalized["properties"]["role"]["type"] == ["string", "null"]
+    assert normalized["properties"]["role"]["enum"] == [
+        "buyer",
+        "seller",
+        None,
+    ]
 
 
 def _base_config():
@@ -202,6 +227,41 @@ async def test_action_loop_sends_strict_flag_in_real_tool_payload():
     )
 
     assert requests[0]["tools"][0]["function"]["strict"] is True
+
+
+@pytest.mark.asyncio
+async def test_structured_output_strict_request_does_not_silently_downgrade():
+    requests = []
+
+    async def failing_llm_call(request):
+        requests.append(request)
+        raise RuntimeError("provider rejected strict request")
+
+    agent = object.__new__(LLMAgent)
+    request = {
+        "messages": [{"role": "user", "content": "submit"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "submit_result",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"result": {"type": "string"}},
+                        "required": ["result"],
+                        "additionalProperties": False,
+                    },
+                },
+            }
+        ],
+    }
+
+    with pytest.raises(RuntimeError, match="provider rejected strict request"):
+        await agent._call_with_strict_retry(failing_llm_call, request)
+
+    assert len(requests) == 1
+    assert requests[0]["tools"][0]["function"]["strict"] is True
+    assert "strict" not in requests[0]["tools"][0]["function"]["parameters"]
 
 
 class _CallableLLMManager:
@@ -3662,13 +3722,19 @@ async def test_execute_action_loop_records_budget_blocked_actions():
         max_action_calls=0,
     )
 
+    expected_error = (
+        "Action batch exceeds remaining budget: requested=1, remaining=0, "
+        "max_action_calls=0"
+    )
     assert result.action_calls[0]["action_name"] == "limited_action"
-    assert result.action_calls[0]["result"] == "Action budget exhausted: max_action_calls=0"
+    assert result.action_calls[0]["result"] == expected_error
+    assert result.status == "error"
+    assert result.termination_reason == "action_batch_exceeds_budget"
     assert traces == [
         {
             "action_name": "limited_action",
             "arguments": {},
-            "result": "Action budget exhausted: max_action_calls=0",
+            "result": expected_error,
             "status": "blocked",
             "stack": [{"type": "step", "id": "step_0", "params": {}, "metadata": {}}],
         }
@@ -3676,7 +3742,7 @@ async def test_execute_action_loop_records_budget_blocked_actions():
 
 
 @pytest.mark.asyncio
-async def test_oversized_tool_call_batch_records_one_budget_rejection():
+async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes():
     action_set = ActionSet()
     executed = []
 
@@ -3722,14 +3788,112 @@ async def test_oversized_tool_call_batch_records_one_budget_rejection():
         max_action_calls=2,
     )
 
-    assert executed == [0, 1]
-    assert [item["status"] for item in result.action_calls] == [
-        "success",
-        "success",
-        "blocked",
+    assert executed == []
+    assert len(result.action_calls) == 50
+    assert {item["status"] for item in result.action_calls} == {"blocked"}
+    assert [
+        item["tool_call_id"]
+        for item in result.full_history[0]["tool_messages"]
+    ] == [f"call_{sequence}" for sequence in range(50)]
+    assert [
+        item["call_id"]
+        for item in result.full_history[0]["action_results"]
+    ] == [f"call_{sequence}" for sequence in range(50)]
+    assert [
+        item["tool_call_id"]
+        for item in result.conversation_messages
+        if item.get("role") == "tool"
+    ] == [f"call_{sequence}" for sequence in range(50)]
+    assert result.termination_reason == "action_batch_exceeds_budget"
+    assert result.status == "error"
+
+
+@pytest.mark.asyncio
+async def test_tool_call_batch_exceeding_one_action_limit_rejects_every_call():
+    action_set = ActionSet()
+    executed = []
+
+    async def publish_post(sequence: int):
+        executed.append(("publish_post", sequence))
+        return f"published:{sequence}"
+
+    async def inspect_world():
+        executed.append(("inspect_world", None))
+        return "inspected"
+
+    action_set.add_action(
+        "publish_post",
+        publish_post,
+        "publish",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+    action_set.add_action(
+        "inspect_world",
+        inspect_world,
+        "inspect",
+        {"type": "object", "properties": {}},
+    )
+
+    async def fake_llm(_payload):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "publish_1",
+                    "type": "function",
+                    "function": {
+                        "name": "publish_post",
+                        "arguments": json.dumps({"sequence": 1}),
+                    },
+                },
+                {
+                    "id": "inspect_1",
+                    "type": "function",
+                    "function": {
+                        "name": "inspect_world",
+                        "arguments": "{}",
+                    },
+                },
+                {
+                    "id": "publish_2",
+                    "type": "function",
+                    "function": {
+                        "name": "publish_post",
+                        "arguments": json.dumps({"sequence": 2}),
+                    },
+                },
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="inspect and publish",
+        action_set=action_set,
+        system_prompt="system",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=1,
+        max_action_calls=5,
+        action_call_limits={"publish_post": 1},
+    )
+
+    assert executed == []
+    assert [item["call_id"] for item in result.action_calls] == [
+        "publish_1",
+        "inspect_1",
+        "publish_2",
     ]
-    assert result.full_history[0]["discarded_action_call_count"] == 47
-    assert result.termination_reason == "action_budget_exhausted"
+    assert {item["status"] for item in result.action_calls} == {"blocked"}
+    assert [
+        item["tool_call_id"]
+        for item in result.full_history[0]["tool_messages"]
+    ] == ["publish_1", "inspect_1", "publish_2"]
+    assert result.termination_reason == "action_batch_exceeds_action_limit"
+    assert result.status == "error"
 
 
 @pytest.mark.asyncio
@@ -4897,6 +5061,7 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert calls[0]["top_p"] == 0.8
     assert calls[0]["metadata"]["agent_id"] == "alice"
     assert calls[0]["metadata"].get("must_not") is None
+    assert calls[0]["tools"][0]["function"]["strict"] is True
     assert len(calls) == 1
     assert calls[0]["tool_choice"] == {"type": "function", "function": {"name": "submit_result"}}
     assert result["visible_assistant_text"] == ""
@@ -7182,6 +7347,64 @@ async def test_llm_manager_enforces_hard_timeout_and_logs_failure(tmp_path):
     assert resource_calls[-1]["status"] == "failed"
     assert resource_calls[-1]["error_type"] == "TimeoutError"
     assert resource_calls[-1]["error_preview"]
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_retries_after_first_connection_failure():
+    attempts = 0
+
+    class FakeMessage:
+        role = "assistant"
+        content = "recovered"
+        tool_calls = []
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+        usage = None
+
+    class FlakyCompletions:
+        async def create(self, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise ConnectionError("temporary connection failure")
+            return FakeResponse()
+
+    class FlakyChat:
+        completions = FlakyCompletions()
+
+    class FlakyClient:
+        chat = FlakyChat()
+
+    manager = LLMManager(
+        [
+            {
+                "id": "default",
+                "api_key": "test",
+                "base_url": "http://localhost:9999/v1",
+                "model": "gpt-test",
+                "concurrency": 1,
+                "timeout": 30,
+            }
+        ]
+    )
+    manager.clients["default"] = FlakyClient()
+    manager._max_retries = 2
+
+    try:
+        result = await manager.request(
+            {"messages": [{"role": "user", "content": "retry"}]}
+        )
+    finally:
+        await manager.close()
+
+    assert attempts == 2
+    assert result["content"] == "recovered"
+    assert manager.endpoint_stats["default"]["errors"] == 1
+    assert manager.endpoint_stats["default"]["successes"] == 1
 
 
 @pytest.mark.asyncio

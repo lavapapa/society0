@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -295,8 +295,15 @@ class Society0:
         log_state_changes: bool = False,
         experiment_log_context: Optional[ExperimentLogContext] = None,
         log_hooks: Optional[Iterable[Callable[[str, Dict[str, Any]], None]]] = None,
+        source_run: Optional[Union[str, Path]] = None,
+        source_step: Optional[int] = None,
+        resume_contract: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.save_dir = Path(save_dir)
+        self.source_run = Path(source_run).resolve() if source_run is not None else None
+        if self.source_run is not None:
+            self.validate_resume_paths(self.save_dir, self.source_run)
+        self._resume_contract_sha256 = self._resume_contract_hash(resume_contract)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config(base_config)
         self.llm_model = llm
@@ -321,6 +328,65 @@ class Society0:
         self._llm_manager = None
         self._embedding_manager = None
         self._model_provider = None
+        self.source_step = int(source_step) if source_step is not None else None
+        self._expected_resume_identity: Optional[Dict[str, Any]] = None
+        self.restored_checkpoint: Optional[Dict[str, Any]] = None
+        self._restore_unusable_reason: Optional[str] = None
+
+    @staticmethod
+    def validate_resume_paths(
+        save_dir: Union[str, Path],
+        source_run: Union[str, Path],
+    ) -> tuple[Path, Path]:
+        """Require disjoint destination and source trees before any destination write."""
+        destination = Path(save_dir).resolve()
+        source = Path(source_run).resolve()
+        if (
+            destination == source
+            or destination in source.parents
+            or source in destination.parents
+        ):
+            raise ValueError(
+                "Resume destination and source_run must be disjoint directory trees"
+            )
+        return destination, source
+
+    @classmethod
+    def _resume_contract_hash(
+        cls,
+        contract: Optional[Mapping[str, Any]],
+    ) -> Optional[str]:
+        if contract is None:
+            return None
+        cls._reject_secret_contract_keys(contract)
+        return PersistenceManager.canonical_sha256(dict(contract))
+
+    @classmethod
+    def _reject_secret_contract_keys(cls, value: Any) -> None:
+        if isinstance(value, Mapping):
+            for key, item in value.items():
+                normalized = str(key).strip().lower().replace("-", "_")
+                if (
+                    normalized
+                    in {
+                        "api_key",
+                        "token",
+                        "secret",
+                        "password",
+                        "authorization",
+                        "credential",
+                        "credentials",
+                        "private_key",
+                    }
+                    or normalized.endswith(
+                        ("_api_key", "_token", "_secret", "_password")
+                    )
+                ):
+                    raise ValueError("resume_contract must not contain credentials")
+                cls._reject_secret_contract_keys(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                cls._reject_secret_contract_keys(item)
 
     def step(
         self,
@@ -340,6 +406,7 @@ class Society0:
         return self.schedule.add_step(fn, name=name, params=params)
 
     async def run(self, steps: int) -> None:
+        self._assert_restore_usable()
         if steps < 0:
             raise ValueError("steps must be non-negative")
         await self._initialize()
@@ -355,7 +422,7 @@ class Society0:
         metrics_path.touch(exist_ok=True)
         (self.save_dir / "events.jsonl").touch(exist_ok=True)
 
-        await self._save_checkpoint_file("checkpoint_000000.json")
+        await self.persistence_manager.save_checkpoint(world, self.schedule)
         self._write_jsonl(
             self.save_dir / "events.jsonl",
             {
@@ -415,7 +482,7 @@ class Society0:
                 world.advance_step()
                 completed_ticks += 1
                 if world.step % self.checkpoint_every == 0:
-                    await self._save_checkpoint_file(f"checkpoint_{world.step:06d}.json")
+                    await self.persistence_manager.save_checkpoint(world, self.schedule)
         except BaseException as exc:
             failed_exc = exc
             failure_info = {
@@ -505,16 +572,208 @@ class Society0:
         )
 
     async def _initialize(self) -> None:
+        self._assert_restore_usable()
         if self.is_initialized:
             return
         self._initialize_models()
         world = self._create_initial_world()
+        self._expected_resume_identity = self._build_resume_identity(world)
+        world._resume_identity = dict(self._expected_resume_identity)
+        restored = False
+        if self.source_run is not None:
+            world = await self._load_source_world(self.source_run, self.source_step)
+            restored = True
+        try:
+            self._bind_world_runtime(world)
+            self._prepare_world_environment(world)
+            self._initialize_world_cognition(world)
+        except Exception as exc:
+            if restored:
+                self._disable_after_post_restore_failure(exc)
+            raise
+
+        self.current_world_state = world
+        self.event_logger.open()
+        self.is_initialized = True
+
+    async def restore(
+        self,
+        source_run: Union[str, Path],
+        step: Optional[int] = None,
+    ) -> int:
+        """Restore this code-driven engine from a complete checkpoint.
+
+        ``step=None`` selects the latest complete checkpoint. Registered code
+        steps stay attached to this engine and are used for subsequent ticks.
+        """
+        self._assert_restore_usable()
+        requested_source = Path(source_run).resolve()
+        if self.source_run is None:
+            raise ValueError(
+                "source_run must be declared when Society0 is constructed, "
+                "before the destination directory is created"
+            )
+        if requested_source != self.source_run:
+            raise ValueError("restore source_run does not match the declared source_run")
+        requested_step = int(step) if step is not None else None
+        if self.source_step is not None and requested_step != self.source_step:
+            raise ValueError("restore step does not match the declared source_step")
+        if self.source_step is None:
+            self.source_step = requested_step
+        if not self.is_initialized:
+            await self._initialize()
+        else:
+            world = await self._load_source_world(self.source_run, self.source_step)
+            try:
+                self._bind_world_runtime(world)
+                self._prepare_world_environment(world)
+                self._initialize_world_cognition(world)
+            except Exception as exc:
+                self._disable_after_post_restore_failure(exc)
+                raise
+            self.current_world_state = world
+        assert self.current_world_state is not None
+        return self.current_world_state.step
+
+    async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
+        record = PersistenceManager.resolve_checkpoint_from(source_run, step)
+        checkpoint_identity = (record["checkpoint_data"].get("world_metadata") or {}).get(
+            "resume_identity"
+        )
+        expected_identity = self._expected_resume_identity
+        if expected_identity is None:
+            raise RuntimeError("Society0 resume identity was not initialized")
+        if (
+            not isinstance(checkpoint_identity, Mapping)
+            or checkpoint_identity.get("identity_sha256")
+            != expected_identity["identity_sha256"]
+        ):
+            raise ValueError(
+                "Checkpoint resume identity does not match the current LLM, "
+                "embedding, capability schema, or application contract"
+            )
+        try:
+            world, _ = await self.persistence_manager._load_checkpoint_record(
+                record,
+                memory_required=None,
+                restore_chroma=True,
+                event_logger=self.event_logger,
+                event_log_path=str(self.save_dir / "events.jsonl"),
+                environment_factory=self.environment_factory,
+            )
+        except Exception as exc:
+            if self.persistence_manager._restore_failed:
+                self._restore_unusable_reason = f"{type(exc).__name__}: {exc}"
+            raise
+        world._resume_identity = dict(expected_identity)
+        self.restored_checkpoint = {
+            "source_run": str(source_run),
+            "step": int(record["step"]),
+            "checkpoint_id": str(record["checkpoint_id"]),
+            "marker": dict(record["marker"]),
+        }
+        return world
+
+    def _assert_restore_usable(self) -> None:
+        if self._restore_unusable_reason is not None:
+            raise RuntimeError(
+                "Society0 is unusable after post-restore initialization failed: "
+                f"{self._restore_unusable_reason}"
+            )
+
+    def _disable_after_post_restore_failure(self, exc: BaseException) -> None:
+        self._restore_unusable_reason = f"{type(exc).__name__}: {exc}"
+        self.persistence_manager.disable_after_restore_failure()
+
+    def _build_resume_identity(self, world: World) -> Dict[str, Any]:
+        env = world.get_environment()
+        env_meta = getattr(env.__class__, "__env_meta__", None)
+        capabilities = []
+        for item in getattr(env_meta, "capabilities", ()) or ():
+            capabilities.append(
+                {
+                    "kind": str(getattr(item, "kind", "")),
+                    "name": str(getattr(item, "name", "")),
+                    "func_name": str(getattr(item, "func_name", "")),
+                    "parameters_schema": getattr(item, "parameters_schema", {}) or {},
+                    "return_value_schema": getattr(item, "return_value_schema", {}) or {},
+                    "target_agent_types": sorted(
+                        str(value)
+                        for value in (getattr(item, "target_agent_types", ()) or ())
+                    ),
+                    "state_access": getattr(item, "state_access_declaration", None),
+                }
+            )
+        capability_schema = {
+            "environment_type": str(
+                getattr(env_meta, "type_name", None)
+                or world.environment_data.get("type", "base")
+            ),
+            "config_schema": getattr(env_meta, "config_schema", {}) or {},
+            "state_schema": getattr(env_meta, "state_schema", {}) or {},
+            "agent_managed_fields_schema": (
+                getattr(env_meta, "agent_managed_fields_schema", {}) or {}
+            ),
+            "capabilities": sorted(
+                capabilities,
+                key=lambda item: (item["kind"], item["name"], item["func_name"]),
+            ),
+        }
+        embedding = None
+        if self.embed_model is not None:
+            embedding = {
+                "id": self.embed_model.id,
+                "provider_type": self.embed_model.provider_type,
+                "model": self.embed_model.model,
+                "dimensions": self.embed_model.dimensions,
+                "base_url_sha256": PersistenceManager.canonical_sha256(
+                    str(self.embed_model.base_url)
+                ),
+                "trust_env": self.embed_model.trust_env,
+            }
+        llm = None
+        if self.llm_model is not None:
+            llm = {
+                "id": self.llm_model.id,
+                "provider_type": self.llm_model.provider_type,
+                "model": self.llm_model.model,
+                "base_url_sha256": PersistenceManager.canonical_sha256(
+                    str(self.llm_model.base_url)
+                ),
+                "api_version": self.llm_model.api_version,
+                "deployment_name": self.llm_model.deployment_name,
+            }
+        unsigned = {
+            "schema_version": 1,
+            "llm": llm,
+            "embedding": embedding,
+            "capability_schema_sha256": PersistenceManager.canonical_sha256(
+                capability_schema
+            ),
+            "application_contract_sha256": self._resume_contract_sha256,
+        }
+        return {
+            **unsigned,
+            "identity_sha256": PersistenceManager.canonical_sha256(unsigned),
+        }
+
+    def _bind_world_runtime(self, world: World) -> None:
         default_concurrency, concurrency_source = self._resolve_default_agent_concurrency()
         world._default_agent_concurrency = default_concurrency
         world._default_agent_concurrency_source = concurrency_source
         world.set_log_context(self.log_context)
         world.set_function_registry(self.registry)
         world.set_persistence_manager(self.persistence_manager)
+        if self.environment_factory is not None:
+            existing_factory = getattr(world, "_environment_factory", None)
+            environment_exists = getattr(world, "_environment_cache", None) is not None
+            if environment_exists:
+                if existing_factory is not self.environment_factory:
+                    raise RuntimeError(
+                        "Restored World was created with a different environment factory"
+                    )
+            else:
+                world.set_environment_factory(self.environment_factory)
         if self._llm_manager or self._embedding_manager:
             world.set_resource_managers(
                 llm_manager=self._llm_manager,
@@ -523,13 +782,7 @@ class Society0:
         if self._model_provider is not None:
             world.set_model_provider(self._model_provider)
 
-        env = world.get_environment()
-        self._register_environment_functions(env)
-        if hasattr(env, "set_resource_handles"):
-            embed_call = self._embedding_manager.request if self._embedding_manager else None
-            vector_client = self.persistence_manager.get_chroma_client() if embed_call else None
-            env.set_resource_handles(embed_call=embed_call, vector_client=vector_client)
-
+    def _initialize_world_cognition(self, world: World) -> None:
         has_llm_agents = any(data.get("archetype") == "llm" for data in world.agents_data.values())
         if has_llm_agents and self._llm_manager is None:
             raise ValueError("LLM agents require Society0(..., llm=LLMModel...)")
@@ -545,9 +798,13 @@ class Society0:
                 require_memory=True,
             )
 
-        self.current_world_state = world
-        self.event_logger.open()
-        self.is_initialized = True
+    def _prepare_world_environment(self, world: World) -> None:
+        env = world.get_environment()
+        self._register_environment_functions(env)
+        if hasattr(env, "set_resource_handles"):
+            embed_call = self._embedding_manager.request if self._embedding_manager else None
+            vector_client = self.persistence_manager.get_chroma_client() if embed_call else None
+            env.set_resource_handles(embed_call=embed_call, vector_client=vector_client)
 
     def _resolve_default_agent_concurrency(self) -> tuple[int, str]:
         if self.agent_concurrency is not None:
@@ -623,21 +880,13 @@ class Society0:
     async def _save_checkpoint_file(self, filename: str) -> None:
         if self.current_world_state is None:
             return
-        self.persistence_manager._sync_chroma_to_store()
-        path = self.persistence_manager.checkpoints_dir / filename
-        world = self.current_world_state
-        payload = {
-            "step": world.step,
-            "timestamp": time.time(),
-            "agents_data": world.agents_data,
-            "environment_data": world.environment_data,
-            "world_state_summary": world.get_state_summary(),
-        }
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        with tmp.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, ensure_ascii=False, separators=(",", ":"), default=str)
-            handle.write("\n")
-        tmp.replace(path)
+        if filename == "checkpoint_final.json":
+            await self.persistence_manager.save_diagnostic_checkpoint(
+                self.current_world_state,
+                filename=filename,
+            )
+            return
+        await self.persistence_manager.save_checkpoint(self.current_world_state, self.schedule)
 
     async def _save_summary(
         self,

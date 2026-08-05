@@ -236,6 +236,7 @@ class Environment:
                 "description": getattr(meta, "description", "") or "",
                 "parameters": getattr(meta, "parameters_schema", {}) or {},
                 "tags": list(getattr(meta, "tags", []) or []),
+                "strict": bool(getattr(meta, "strict", False)),
                 "source": "environment",
                 "func_name": attr_name,
             }

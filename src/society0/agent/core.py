@@ -514,8 +514,7 @@ class LLMAgent(Agent):
         return enhanced_schema
 
     async def _call_with_strict_retry(self, effective_llm_call: Callable, request: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        尝试 strict 模式，失败时简单重试
+        """Send the structured-output enforcement request in strict mode.
 
         Args:
             effective_llm_call: LLM 调用函数
@@ -524,20 +523,12 @@ class LLMAgent(Agent):
         Returns:
             LLM 响应结果
         """
-        # 第一次尝试：启用 strict
-        try:
-            enhanced_request = copy.deepcopy(request)
-            # 为 finish_instruction 工具添加 strict: true
-            for tool in enhanced_request.get("tools", []):
-                if tool.get("function", {}).get("name") == "finish_instruction":
-                    tool["function"]["parameters"]["strict"] = True
-                    break
-
-            return await effective_llm_call(enhanced_request)
-        except Exception as e:
-            # 简单重试：不使用 strict
-            logger.info(f"Strict mode failed, retrying without strict: {e}")
-            return await effective_llm_call(request)
+        enhanced_request = copy.deepcopy(request)
+        for tool in enhanced_request.get("tools", []):
+            function = tool.get("function", {})
+            if function.get("name") in {"finish_instruction", "submit_result"}:
+                function["strict"] = True
+        return await effective_llm_call(enhanced_request)
 
     async def instruct(self,
                       instruction: str,
@@ -795,6 +786,11 @@ class LLMAgent(Agent):
                     "required": ["result"],
                     "additionalProperties": False,
                 }
+                from ..function_registry import normalize_strict_function_parameters
+
+                submit_result_schema = normalize_strict_function_parameters(
+                    submit_result_schema
+                )
 
                 # 创建 submit_result Action（注意：action_tags 过滤已在之前进行，动态注入不受其影响）
                 async def _submit_result_action(**kwargs):
@@ -810,6 +806,7 @@ class LLMAgent(Agent):
                     description="【必须调用】提交结构化结果以完成本次指令。请在 result 字段中提供完整的结构化JSON。",
                     parameters=submit_result_schema,
                     tags=["system", "output", "required"],
+                    strict=True,
                 )
                 finish_instruction_added = True
 
