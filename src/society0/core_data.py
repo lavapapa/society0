@@ -68,6 +68,39 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 print = _debug_print
 
 
+def _prepare_strict_invocation_value(value: Any, schema: Any) -> Any:
+    """把 provider strict 的占位 null 还原为普通 Python 可选参数语义。"""
+
+    if not isinstance(schema, dict):
+        return value
+    schema_type = schema.get("type")
+    schema_types = (
+        set(schema_type)
+        if isinstance(schema_type, list)
+        else {schema_type}
+    )
+    if isinstance(value, dict) and "object" in schema_types:
+        properties = schema.get("properties", {})
+        originally_required = set(schema.get("required", []))
+        cleaned: Dict[str, Any] = {}
+        for key, item in value.items():
+            property_schema = properties.get(key, {})
+            if item is None and key not in originally_required:
+                continue
+            cleaned[key] = _prepare_strict_invocation_value(
+                item,
+                property_schema,
+            )
+        return cleaned
+    if isinstance(value, list) and "array" in schema_types:
+        item_schema = schema.get("items", {})
+        return [
+            _prepare_strict_invocation_value(item, item_schema)
+            for item in value
+        ]
+    return value
+
+
 def _capability_table_entry_matches(key: Any, entry: Dict[str, Any], name: str) -> bool:
     """Match capability registry entries by key, canonical id, display name, or function name."""
     target = str(name)
@@ -99,6 +132,33 @@ def _capability_table_entry_matches(key: Any, entry: Dict[str, Any], name: str) 
         return True
     lowered = target.lower()
     return lowered in {alias.lower() for alias in aliases}
+
+
+def _action_target_agent_types(meta: Any) -> List[str]:
+    """返回 action 允许的 Agent.type；空列表表示不限制。"""
+    if meta is None:
+        return []
+    values = getattr(meta, "target_agent_types", None) or []
+    return [str(value) for value in values]
+
+
+def _action_is_available_to_agent(meta: Any, agent: Any) -> bool:
+    target_agent_types = _action_target_agent_types(meta)
+    return not target_agent_types or str(agent.type) in target_agent_types
+
+
+def _require_action_available_to_agent(
+    meta: Any,
+    agent: Any,
+    action_name: str,
+) -> None:
+    """执行 action 前重新核对 Agent.type，防止复用过期 ActionSet 越权。"""
+    target_agent_types = _action_target_agent_types(meta)
+    if target_agent_types and str(agent.type) not in target_agent_types:
+        raise PermissionError(
+            f"Action '{action_name}' is not available to agent type "
+            f"'{agent.type}'; allowed agent types: {target_agent_types}."
+        )
 
 
 @dataclass
@@ -1973,6 +2033,8 @@ class World:
         for cap_meta in env_meta.capabilities:
             if cap_meta.kind != 'action':
                 continue
+            if not _action_is_available_to_agent(cap_meta, agent):
+                continue
 
             # 🔑 从环境**实例**获取绑定的方法
             if not hasattr(environment, cap_meta.func_name):
@@ -2003,8 +2065,21 @@ class World:
                     user_params[param_name] = param
 
             # 创建智能 wrapper 函数
-            def create_intelligent_wrapper(env_func, action_name_local, sys_params, usr_params, schema):
+            def create_intelligent_wrapper(
+                env_func,
+                action_name_local,
+                sys_params,
+                usr_params,
+                capability_meta,
+                invocation_schema,
+                strict,
+            ):
                 async def intelligent_action(**kwargs):
+                    _require_action_available_to_agent(
+                        capability_meta,
+                        agent,
+                        action_name_local,
+                    )
                     # 🔧 Step 1: Prepare system parameters
                     injected_params = {}
                     for sys_param_name, sys_param_type in sys_params.items():
@@ -2018,12 +2093,22 @@ class World:
                             injected_params[sys_param_name] = agent
 
                     # 🔧 Step 2: Validate and filter user parameters
-                    schema_props = schema.get('properties', {})
+                    invocation_kwargs = (
+                        _prepare_strict_invocation_value(
+                            kwargs,
+                            invocation_schema,
+                        )
+                        if strict
+                        else kwargs
+                    )
+                    schema_props = invocation_schema.get('properties', {})
                     filtered_user_params = {}
 
                     for param_name in usr_params.keys():
-                        if param_name in kwargs:
-                            filtered_user_params[param_name] = kwargs[param_name]
+                        if param_name in invocation_kwargs:
+                            filtered_user_params[param_name] = invocation_kwargs[
+                                param_name
+                            ]
                         elif param_name in schema_props and 'default' in schema_props[param_name]:
                             # Use default value from schema
                             filtered_user_params[param_name] = schema_props[param_name]['default']
@@ -2048,11 +2133,17 @@ class World:
                     cap_meta.name,
                     system_params,
                     user_params,
-                    action_schema
+                    cap_meta,
+                    (
+                        cap_meta.invocation_parameters_schema
+                        or action_schema
+                    ),
+                    bool(getattr(cap_meta, "strict", False)),
                 ),
                 "description": cap_meta.description,
                 "parameters": action_schema,
-                "tags": ["environment"] + cap_meta.tags
+                "tags": ["environment"] + cap_meta.tags,
+                "strict": bool(getattr(cap_meta, "strict", False)),
             }
 
             logger.debug(f"🔧 Loaded action '{cap_meta.name}' from capabilities: system={list(system_params.keys())}, user={list(user_params.keys())}")
@@ -2072,8 +2163,16 @@ class World:
             meta = action_info.get("meta")
 
             if meta is not None:
-                def create_logic_action_wrapper(func, logic_meta):
+                if not _action_is_available_to_agent(meta, agent):
+                    continue
+
+                def create_logic_action_wrapper(func, logic_meta, action_name_local):
                     async def action_wrapper(**kwargs):
+                        _require_action_available_to_agent(
+                            logic_meta,
+                            agent,
+                            action_name_local,
+                        )
                         call_kwargs = dict(kwargs)
                         context_param = getattr(logic_meta, "context_parameter_name", None)
                         if context_param:
@@ -2099,7 +2198,11 @@ class World:
                     tags.add(short_name)
 
                 registry_actions[action_name] = {
-                    "function": create_logic_action_wrapper(original_func, meta),
+                    "function": create_logic_action_wrapper(
+                        original_func,
+                        meta,
+                        action_name,
+                    ),
                     "description": getattr(meta, "description", "") or action_info.get(
                         "description",
                         f"Logic action: {action_name}",
@@ -2155,9 +2258,22 @@ class World:
 
             original_func = action_info["function"]
             signature = action_info.get("signature")
+            meta = action_info.get("meta")
+            if not _action_is_available_to_agent(meta, agent):
+                continue
 
-            def create_experiment_env_action_wrapper(func, sig):
+            def create_experiment_env_action_wrapper(
+                func,
+                sig,
+                capability_meta,
+                action_name_local,
+            ):
                 async def action_wrapper(**kwargs):
+                    _require_action_available_to_agent(
+                        capability_meta,
+                        agent,
+                        action_name_local,
+                    )
                     environment = self.get_environment()
                     context = self._build_execution_context(caller=agent)
                     call_kwargs: Dict[str, Any] = {}
@@ -2212,7 +2328,12 @@ class World:
                 tags.add(canonical_id.rsplit(".", maxsplit=1)[-1])
 
             registry_actions[action_info.get("display_name") or action_name] = {
-                "function": create_experiment_env_action_wrapper(original_func, signature),
+                "function": create_experiment_env_action_wrapper(
+                    original_func,
+                    signature,
+                    meta,
+                    canonical_id,
+                ),
                 "description": action_info.get("description", f"Environment action: {action_name}"),
                 "parameters": copy.deepcopy(action_info.get("parameters") or {
                     "type": "object",

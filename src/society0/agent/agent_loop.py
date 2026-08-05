@@ -230,6 +230,9 @@ class ActionSet:
         }
         if strict:
             action_info["strict"] = True
+            from jsonschema import Draft202012Validator
+
+            action_info["argument_validator"] = Draft202012Validator(parameters)
         self.actions[name] = action_info
 
     async def call_action(
@@ -250,9 +253,14 @@ class ActionSet:
         if action_name not in self.actions:
             raise ValueError(f"Action '{action_name}' not found in actionset")
 
+        action_info = self.actions[action_name]
+        argument_validator = action_info.get("argument_validator")
+        if argument_validator is not None:
+            argument_validator.validate(kwargs)
+
         call_id_token = _CURRENT_ACTION_CALL_ID.set(_society0_call_id)
         try:
-            action_func = self.actions[action_name]["function"]
+            action_func = action_info["function"]
 
             # If context_provider is available, use context management
             if context_provider:
@@ -947,6 +955,100 @@ async def execute_action_loop(
         remaining_turns = max_turns - (turn + 1)
         should_hint = turn_remain_hint and remaining_turns <= hint_on_remain_turn
 
+        batch_limit_error: Optional[str] = None
+        batch_termination_reason: Optional[str] = None
+        if max_action_calls is not None:
+            remaining_global_budget = max(
+                max_action_calls - sum(action_attempt_counts.values()),
+                0,
+            )
+            if len(action_calls) > remaining_global_budget:
+                batch_limit_error = (
+                    "Action batch exceeds remaining budget: "
+                    f"requested={len(action_calls)}, "
+                    f"remaining={remaining_global_budget}, "
+                    f"max_action_calls={max_action_calls}"
+                )
+                batch_termination_reason = "action_batch_exceeds_budget"
+
+        if batch_limit_error is None and normalized_action_limits:
+            batch_action_counts = Counter(
+                action_call.action_name.lower() for action_call in action_calls
+            )
+            for action_name, requested_count in batch_action_counts.items():
+                per_action_limit = _action_limit_for(action_name)
+                if per_action_limit is None:
+                    continue
+                remaining_action_budget = max(
+                    per_action_limit - action_attempt_counts[action_name],
+                    0,
+                )
+                if requested_count > remaining_action_budget:
+                    batch_limit_error = (
+                        f"Action batch exceeds remaining limit for {action_name}: "
+                        f"requested={requested_count}, "
+                        f"remaining={remaining_action_budget}, "
+                        f"limit={per_action_limit}"
+                    )
+                    batch_termination_reason = (
+                        "action_batch_exceeds_action_limit"
+                    )
+                    break
+
+        if batch_limit_error is not None:
+            base_content = (
+                f"Error: {batch_limit_error}. "
+                "The action batch was rejected before execution."
+            )
+            for action_call in action_calls:
+                tool_message = {
+                    "role": "tool",
+                    "content": base_content,
+                    "tool_call_id": action_call.call_id,
+                }
+                messages.append(tool_message)
+                turn_tool_messages.append(dict(tool_message))
+                action_call.result = batch_limit_error
+                action_call.status = "blocked"
+                action_call.error = batch_limit_error
+                action_call.duration_sec = 0.0
+                executed_action_calls.append(action_call)
+                if context_provider is not None:
+                    try:
+                        provided = context_provider()
+                        record_action = provided[2] if len(provided) > 2 else None
+                        if record_action is not None:
+                            record_action(
+                                action_call.action_name,
+                                action_call.arguments,
+                                batch_limit_error,
+                                "blocked",
+                            )
+                    except Exception:
+                        logger.debug(
+                            "Failed to record batch-blocked action %s",
+                            action_call.action_name,
+                            exc_info=True,
+                        )
+
+            all_action_calls.extend(executed_action_calls)
+            if full_history:
+                full_history[-1]["tool_messages"] = turn_tool_messages
+                full_history[-1]["action_results"] = [
+                    {
+                        "call_id": action_call.call_id,
+                        "action_name": action_call.action_name,
+                        "arguments": action_call.arguments,
+                        "result": action_call.result,
+                        "status": action_call.status,
+                        "duration_sec": action_call.duration_sec,
+                        "error": action_call.error,
+                    }
+                    for action_call in executed_action_calls
+                ]
+            loop_result.termination_reason = batch_termination_reason
+            break
+
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
             logger.debug("Executing action: %s", action_call.action_name)
@@ -1283,9 +1385,14 @@ async def execute_action_loop(
         processed_phases[target_stage_name] = stage_list
 
     # Determine final status
+    error_termination_reasons = {
+        "empty_model_response",
+        "action_batch_exceeds_budget",
+        "action_batch_exceeds_action_limit",
+    }
     status = (
         "error"
-        if loop_result.termination_reason == "empty_model_response"
+        if loop_result.termination_reason in error_termination_reasons
         else "success"
     )
     if parsing_errors and status != "error":
