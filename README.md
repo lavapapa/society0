@@ -123,3 +123,11 @@ The factory receives the current `World` and must return an `Environment`. Socie
 ## Contributing
 
 Society0 welcomes contributions from social science researchers. If you or your agent creates a useful environment, finds a bug, or has an experiment-driven feature request, ask your coding agent to help open an issue or prepare a focused pull request.
+
+Run the deterministic test suite from the repository root with one command:
+
+```bash
+python -m pytest
+```
+
+Live LLM and embedding tests remain opt-in because they require maintainer-provided endpoint configuration. Their command and environment variables are documented in [skill/references/debugging.md](skill/references/debugging.md).
