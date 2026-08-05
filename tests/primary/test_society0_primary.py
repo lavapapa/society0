@@ -9,6 +9,7 @@ from society0 import EmbedModel, LLMModel, Society0
 from society0.agent.core import LLMAgent, _parse_structured_json_from_model_text
 from society0.agent.agent_loop import (
     ActionSet,
+    _semantic_action_status,
     build_assistant_turn_trace,
     execute_action_loop,
 )
@@ -2840,6 +2841,95 @@ async def test_semantic_action_status_does_not_treat_failure_rate_as_action_erro
     assert result.termination_reason == "completion_action_tag"
     assert result.action_calls[0]["status"] == "success"
     assert "error" not in result.action_calls[0]
+
+
+@pytest.mark.parametrize(
+    "narrative_result",
+    [
+        "I reviewed the report and noted that the post was not found in the narrative, but the plan was saved.",
+        "The report says: Post user_0 not found in state, but the plan is saved.",
+    ],
+)
+def test_semantic_action_status_ignores_not_found_inside_narrative(narrative_result):
+    assert _semantic_action_status(narrative_result) == ("success", None)
+
+
+@pytest.mark.parametrize(
+    "missing_result",
+    [
+        "Post user_0 not found in state",
+        "Entity not found: x",
+        "Post not found; retry",
+    ],
+)
+@pytest.mark.asyncio
+async def test_completion_action_tag_retries_explicit_social_not_found_results(
+    missing_result,
+):
+    action_set = ActionSet()
+    llm_calls = []
+    action_results = [missing_result, "Successfully commented on post post_1"]
+
+    async def comment(post_id: str, content: str):
+        return action_results.pop(0)
+
+    action_set.add_action(
+        name="comment",
+        func=comment,
+        description="Comment on a post",
+        parameters={
+            "type": "object",
+            "properties": {
+                "post_id": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["post_id", "content"],
+        },
+        tags=["social_write"],
+    )
+
+    async def fake_llm(payload):
+        llm_calls.append(payload)
+        call_id = "comment_bad" if len(llm_calls) == 1 else "comment_good"
+        post_id = "user_0" if len(llm_calls) == 1 else "post_1"
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": call_id,
+                    "type": "function",
+                    "function": {
+                        "name": "comment",
+                        "arguments": json.dumps(
+                            {"post_id": post_id, "content": "retry safely"}
+                        ),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction=(
+            "Comment on the visible post. If the post id is missing, correct it "
+            "before completing the interaction."
+        ),
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm,
+        max_turns=3,
+        completion_action_tags=["social_write"],
+    )
+
+    assert len(llm_calls) == 2
+    assert [call["status"] for call in result.action_calls] == [
+        "error",
+        "success",
+    ]
+    assert result.action_calls[0]["error"] == missing_result
+    assert result.termination_reason == "completion_action_tag"
+    assert result.termination_action == "comment"
 
 
 @pytest.mark.asyncio

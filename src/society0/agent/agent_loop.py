@@ -48,6 +48,16 @@ def _debug_print(*values: Any, sep: str = " ", end: str = "\n", file: Any = None
 
 print = _debug_print
 
+
+_EXPLICIT_MISSING_ENTITY = re.compile(
+    r"^\s*(?:post|entity|item|object|record|resource|agent|company|contract|"
+    r"product|supplier|message|comment|reply)\b"
+    r"[^\n]{0,120}?\b(?:not found|does not exist)\b"
+    r"(?:\s+(?:in|within|on)\s+(?:the\s+)?(?:state|world|database|registry)"
+    r"|\s*[:;,-].*|[.!?。！？]*$)",
+    re.IGNORECASE,
+)
+
 # Default reasoning stages configuration
 DEFAULT_REASONING_STAGES = [
     {"name": "思考", "desc": "思考当前情况，分析信息"},
@@ -177,10 +187,6 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
         r"\bfailed(?=$|[\s,;:.!?])",
         re.IGNORECASE,
     )
-    explicit_not_found = re.search(
-        r"(?:not found|does not exist)\s*[.!?。！？]*$",
-        lowered,
-    )
     explicit_not_found_cn = re.search(
         r"(?:不存在|未找到)(?=$|[\s,，;；:：.!！?？])",
         text,
@@ -190,7 +196,7 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
         or explicit_failure_prefix.search(text) is not None
         or explicit_failure_token.search(text) is not None
         or explicit_failed_token.search(text) is not None
-        or explicit_not_found is not None
+        or _EXPLICIT_MISSING_ENTITY.search(text) is not None
         or explicit_not_found_cn is not None
     ):
         return "error", text
