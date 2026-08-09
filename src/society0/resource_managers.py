@@ -264,6 +264,14 @@ class EndpointConfig:
     api_version: Optional[str] = None  # Azure API版本
     deployment_name: Optional[str] = None  # Azure部署名称
     trust_env: bool = True  # 是否继承系统代理等运行环境配置
+    tool_choice_policy: str = "native"
+
+    def __post_init__(self) -> None:
+        self.tool_choice_policy = str(self.tool_choice_policy).strip().lower()
+        if self.tool_choice_policy not in {"native", "auto_restrict"}:
+            raise ValueError(
+                "tool_choice_policy must be one of: auto_restrict, native"
+            )
 
 
 @dataclass
@@ -545,6 +553,7 @@ class LLMManager:
             provider_type=config.get("provider_type", "openai"),
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
+            tool_choice_policy=config.get("tool_choice_policy", "native"),
         )
 
         # 创建异步客户端（注入共享 HTTP 客户端以复用连接池）
@@ -609,7 +618,82 @@ class LLMManager:
         if not endpoint:
             raise RuntimeError("No available LLM endpoints")
 
-        return await self._execute_request(endpoint, payload)
+        resolved_payload, tool_choice_resolution = self._resolve_tool_choice(
+            endpoint,
+            payload,
+        )
+        return await self._execute_request(
+            endpoint,
+            resolved_payload,
+            tool_choice_resolution=tool_choice_resolution,
+        )
+
+    @staticmethod
+    def _tool_name(tool: Any) -> Optional[str]:
+        if not isinstance(tool, Mapping):
+            return None
+        function = tool.get("function")
+        if not isinstance(function, Mapping):
+            return None
+        name = function.get("name")
+        return str(name) if isinstance(name, str) and name else None
+
+    @classmethod
+    def _resolve_tool_choice(
+        cls,
+        endpoint: EndpointConfig,
+        payload: Dict[str, Any],
+    ) -> tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+        """Compile Society0 tool intent into provider-supported wire parameters."""
+
+        resolved = payload.copy()
+        if endpoint.tool_choice_policy == "native":
+            return resolved, None
+        if endpoint.tool_choice_policy != "auto_restrict":
+            raise ValueError(
+                f"unsupported tool_choice_policy: {endpoint.tool_choice_policy}"
+            )
+
+        requested = resolved.get("tool_choice")
+        tools = resolved.get("tools")
+        if not isinstance(tools, list) or not tools:
+            return resolved, None
+
+        selected_name: Optional[str] = None
+        if isinstance(requested, Mapping):
+            function = requested.get("function")
+            if isinstance(function, Mapping):
+                name = function.get("name")
+                if isinstance(name, str) and name:
+                    selected_name = name
+
+        filtered = False
+        if selected_name is not None:
+            matching_tools = [
+                tool for tool in tools if cls._tool_name(tool) == selected_name
+            ]
+            if len(matching_tools) != 1:
+                raise ValueError(
+                    "named tool_choice must match exactly one declared tool: "
+                    f"{selected_name}"
+                )
+            resolved["tools"] = matching_tools
+            resolved["tool_choice"] = "auto"
+            filtered = len(matching_tools) != len(tools)
+        elif requested == "required":
+            resolved["tool_choice"] = "auto"
+        else:
+            return resolved, None
+
+        return resolved, {
+            "policy": endpoint.tool_choice_policy,
+            "requested": _safe_provider_payload(requested),
+            "effective": resolved.get("tool_choice"),
+            "selected_tool_name": selected_name,
+            "tools_filtered": filtered,
+            "original_tools_count": len(tools),
+            "effective_tools_count": len(resolved.get("tools") or []),
+        }
 
     def _select_endpoint(self) -> Optional[EndpointConfig]:
         """使用轮询策略选择端点"""
@@ -622,7 +706,13 @@ class LLMManager:
 
         return endpoint
 
-    async def _execute_request(self, endpoint: EndpointConfig, payload: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_request(
+        self,
+        endpoint: EndpointConfig,
+        payload: Dict[str, Any],
+        *,
+        tool_choice_resolution: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """在指定端点上执行请求"""
         start_time = time.time()
         request_id = f"llm_{uuid.uuid4().hex[:8]}"
@@ -799,7 +889,12 @@ class LLMManager:
                                     payload={
                                         "request": self._traceable_provider_request(
                                             request_params
-                                        )
+                                        ),
+                                        **(
+                                            {"tool_choice_resolution": tool_choice_resolution}
+                                            if tool_choice_resolution is not None
+                                            else {}
+                                        ),
                                     },
                                     provider_request_id=request_id,
                                     attempt_number=attempt_number,

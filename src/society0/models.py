@@ -13,6 +13,9 @@ from .llm_model_types import ModelConfig, ModelRuntime
 from .resource_managers import EmbeddingManager, LLMManager
 
 
+_TOOL_CHOICE_POLICIES = {"native", "auto_restrict"}
+
+
 @dataclass(slots=True)
 class LLMModel:
     id: str
@@ -26,9 +29,14 @@ class LLMModel:
     deployment_name: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     request_options: Dict[str, Any] = field(default_factory=dict)
+    tool_choice_policy: str = "native"
 
     def __post_init__(self) -> None:
         self.concurrency = _validate_positive_int(self.concurrency, "concurrency")
+        self.tool_choice_policy = str(self.tool_choice_policy).strip().lower()
+        if self.tool_choice_policy not in _TOOL_CHOICE_POLICIES:
+            allowed = ", ".join(sorted(_TOOL_CHOICE_POLICIES))
+            raise ValueError(f"tool_choice_policy must be one of: {allowed}")
 
     @classmethod
     def openai(
@@ -41,6 +49,7 @@ class LLMModel:
         concurrency: int = 5,
         timeout: float = 30.0,
         request_options: Optional[Dict[str, Any]] = None,
+        tool_choice_policy: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -51,6 +60,7 @@ class LLMModel:
             concurrency=concurrency,
             timeout=timeout,
             request_options=dict(request_options or {}),
+            tool_choice_policy=tool_choice_policy,
         )
 
     @classmethod
@@ -64,6 +74,7 @@ class LLMModel:
         concurrency: int = 5,
         timeout: float = 30.0,
         request_options: Optional[Dict[str, Any]] = None,
+        tool_choice_policy: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -74,6 +85,7 @@ class LLMModel:
             concurrency=concurrency,
             timeout=timeout,
             request_options=dict(request_options or {}),
+            tool_choice_policy=tool_choice_policy,
         )
 
     @classmethod
@@ -89,6 +101,7 @@ class LLMModel:
         concurrency: int = 5,
         timeout: float = 30.0,
         request_options: Optional[Dict[str, Any]] = None,
+        tool_choice_policy: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -101,6 +114,7 @@ class LLMModel:
             concurrency=concurrency,
             timeout=timeout,
             request_options=dict(request_options or {}),
+            tool_choice_policy=tool_choice_policy,
         )
 
     @classmethod
@@ -113,6 +127,7 @@ class LLMModel:
         concurrency: int = 5,
         timeout: float = 120.0,
         request_options: Optional[Dict[str, Any]] = None,
+        tool_choice_policy: str = "native",
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -123,6 +138,7 @@ class LLMModel:
             concurrency=concurrency,
             timeout=timeout,
             request_options=dict(request_options or {}),
+            tool_choice_policy=tool_choice_policy,
         )
 
     def endpoint_config(self) -> Dict[str, Any]:
@@ -136,6 +152,7 @@ class LLMModel:
             "provider_type": self.provider_type,
             "api_version": self.api_version,
             "deployment_name": self.deployment_name,
+            "tool_choice_policy": self.tool_choice_policy,
         }
 
     def build_manager(self, *, log_context=None) -> LLMManager:
@@ -161,6 +178,7 @@ class LLMModel:
             provider_type=self.provider_type,
             api_version=self.api_version,
             deployment_name=self.deployment_name,
+            tool_choice_policy=self.tool_choice_policy,
             metadata=dict(self.metadata),
         )
         return ModelRuntime(config=config, llm_call=llm_call), manager

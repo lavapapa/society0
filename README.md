@@ -99,6 +99,12 @@ Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-s
 For LLM agents, `memory=True` retrieves memory and saves extractive memory by default.
 If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
 
+Some OpenAI-compatible reasoning endpoints accept tools but reject `required` or a named
+`tool_choice`. For those endpoints, set `tool_choice_policy="auto_restrict"`. Society0 then
+narrows a named-tool request to that single tool and sends `tool_choice="auto"`, while its
+local required-action checks still decide whether the round may commit. Leave the default
+`"native"` policy for providers that implement the standard OpenAI tool-choice modes.
+
 ## External environments
 
 Experiment packages can inject an `Environment` subclass at the Society0 composition root without mutating the built-in environment registry:
