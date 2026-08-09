@@ -1147,7 +1147,9 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
-    checkpoints = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
+    checkpoints = sorted(
+        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
+    )
     marker = json.loads(
         (tmp_path / "checkpoints" / "complete" / "step_000000.json").read_text(
             encoding="utf-8"
@@ -1557,7 +1559,9 @@ async def test_checkpoint_policy(tmp_path):
 
     await engine.run(steps=25)
 
-    checkpoints = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
+    checkpoints = sorted(
+        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
+    )
     versioned_worlds = []
     for step in (0, 10, 20):
         marker = json.loads(

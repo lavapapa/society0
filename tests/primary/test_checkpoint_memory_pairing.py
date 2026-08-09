@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import json
 
 import pytest
@@ -9,6 +10,7 @@ from society0.decorators import action, env_type
 from society0.environment import Environment
 from society0.persistence import PersistenceManager
 from society0.schedule import CodeSchedule
+from society0.sim_engine import SimEngine
 
 
 @pytest.mark.asyncio
@@ -67,7 +69,23 @@ def _config():
 
 
 def _read(path):
+    if path.name.endswith(".json.gz"):
+        return json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write(path, payload):
+    encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    if path.name.endswith(".json.gz"):
+        path.write_bytes(gzip.compress(encoded, compresslevel=6, mtime=0))
+        return
+    path.write_bytes(encoded)
+
+
+def _read_text(path):
+    if path.name.endswith(".json.gz"):
+        return gzip.decompress(path.read_bytes()).decode("utf-8")
+    return path.read_text(encoding="utf-8")
 
 
 def _checkpoint_components(run_dir, step):
@@ -165,6 +183,11 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
 
     assert marker["complete"] is True
     assert marker["recoverable"] is True
+    assert marker["checkpoint_version"] == "complete_step_v2"
+    assert marker["world_encoding"] == "gzip-json"
+    assert checkpoint_path.name.endswith(".json.gz")
+    assert checkpoint_path.read_bytes().startswith(b"\x1f\x8b")
+    assert not list((source_run / "checkpoints").glob("checkpoint_[0-9]*.json"))
     assert marker["checkpoint_id"] == checkpoint["checkpoint_id"]
     assert marker["checkpoint_id"] == chroma_manifest["checkpoint_id"]
     assert marker["step"] == checkpoint["step"] == chroma_manifest["step"] == 1
@@ -311,6 +334,9 @@ async def test_failure_before_complete_marker_never_publishes_recoverable_checkp
         await manager.save_checkpoint(engine.current_world_state, engine.schedule)
 
     assert await manager.get_available_checkpoints() == []
+    assert not list(manager.complete_checkpoints_dir.glob("step_*.json"))
+    assert not list(manager.checkpoints_dir.glob("checkpoint_*.json.gz"))
+    assert not list(manager.checkpoints_dir.glob(".*.tmp.json.gz"))
     with pytest.raises(FileNotFoundError, match="No complete checkpoints"):
         await manager.load_checkpoint(None)
     engine.event_logger.close()
@@ -324,12 +350,78 @@ async def test_checkpoint_final_alone_is_diagnostic_and_cannot_be_loaded(tmp_pat
     await engine._initialize()
     await engine.persistence_manager.save_diagnostic_checkpoint(engine.current_world_state)
 
-    assert (tmp_path / "checkpoints" / "checkpoint_final.json").is_file()
+    diagnostic_path = tmp_path / "checkpoints" / "checkpoint_final.json"
+    assert diagnostic_path.is_file()
+    assert not diagnostic_path.read_bytes().startswith(b"\x1f\x8b")
+    assert _read(diagnostic_path)["diagnostic"] is True
     assert await engine.persistence_manager.get_available_checkpoints() == []
     with pytest.raises(FileNotFoundError, match="No complete checkpoints"):
         await engine.persistence_manager.load_checkpoint(None)
     engine.event_logger.close()
     engine.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tamper", ["encoding", "compressed_bytes", "rename"])
+async def test_world_component_rejects_encoding_corruption_and_rename(
+    tmp_path,
+    monkeypatch,
+    tamper,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    world = World(step=4)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    await manager.save_checkpoint(world, CodeSchedule())
+    marker_path, checkpoint_path, _, marker = _checkpoint_components(tmp_path, 4)
+
+    if tamper == "encoding":
+        marker["world_encoding"] = "plain-json"
+        expected = "Unsupported world checkpoint encoding"
+    elif tamper == "compressed_bytes":
+        checkpoint_path.write_bytes(b"not a gzip stream")
+        marker["world_sha256"] = PersistenceManager._file_sha256(checkpoint_path)
+        expected = "gzip JSON is invalid"
+    else:
+        renamed = checkpoint_path.with_name(f"renamed-{checkpoint_path.name}")
+        checkpoint_path.rename(renamed)
+        marker["world_file"] = renamed.name
+        expected = "filename does not match marker"
+    _write(marker_path, marker)
+
+    with pytest.raises(ValueError, match=expected):
+        manager.resolve_checkpoint(4)
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_streaming_broadcast_uses_resolved_checkpoint_data(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    engine = SimEngine(save_dir=str(tmp_path), base_config={})
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    await engine.persistence_manager.save_checkpoint(
+        world,
+        CodeSchedule(),
+    )
+    resolved = engine.persistence_manager.resolve_checkpoint(0)
+
+    class RecordingBridge:
+        payload = None
+
+        def publish_snapshot(self, **payload):
+            self.payload = payload
+
+    bridge = RecordingBridge()
+    engine.streaming_bridge = bridge
+    await engine._broadcast_latest_snapshot(0)
+
+    assert bridge.payload is not None
+    assert bridge.payload["snapshot"] == resolved["checkpoint_data"]
+    assert bridge.payload["checkpoint_path"].endswith(".json.gz")
+    engine.close()
 
 
 @pytest.mark.asyncio
@@ -431,7 +523,7 @@ async def test_memory_requirement_is_recomputed_from_world_agents(tmp_path, monk
     marker_path, checkpoint_path, _, _ = _checkpoint_components(tmp_path, 0)
     checkpoint = _read(checkpoint_path)
     checkpoint["agents_data"]["rule_0"]["archetype"] = "llm"
-    checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+    _write(checkpoint_path, checkpoint)
     marker = _read(marker_path)
     marker["world_sha256"] = PersistenceManager._file_sha256(checkpoint_path)
     marker_path.write_text(json.dumps(marker), encoding="utf-8")
@@ -456,7 +548,7 @@ async def test_checkpoint_components_and_hashes_must_match(tmp_path, monkeypatch
     if tamper == "world_metadata":
         checkpoint = _read(checkpoint_path)
         checkpoint["world_metadata"]["checkpoint_id"] = "foreign"
-        checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
+        _write(checkpoint_path, checkpoint)
         marker = _read(marker_path)
         marker["world_sha256"] = PersistenceManager._file_sha256(checkpoint_path)
         marker_path.write_text(json.dumps(marker), encoding="utf-8")
@@ -769,7 +861,7 @@ async def test_resume_identity_rejects_changed_embedding_before_chroma_restore(
 
     await source.run(steps=0)
     _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
-    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+    checkpoint_text = _read_text(checkpoint_path)
     assert "api_key" not in checkpoint_text
     assert "embedding-a" in checkpoint_text
     assert "source-secret" not in checkpoint_text
@@ -815,7 +907,7 @@ async def test_resume_identity_rejects_changed_llm_endpoint_without_leaking_url(
 
     await source.run(steps=0)
     _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
-    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+    checkpoint_text = _read_text(checkpoint_path)
     assert "decision-model" in checkpoint_text
     assert "llm-secret" not in checkpoint_text
     assert "token=hidden" not in checkpoint_text
@@ -868,7 +960,7 @@ async def test_resume_identity_rejects_changed_llm_request_options(
 
     await source.run(steps=0)
     _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
-    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+    checkpoint_text = _read_text(checkpoint_path)
     assert "source-secret" not in checkpoint_text
     assert "max_tokens" in checkpoint_text
 

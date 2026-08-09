@@ -1,3 +1,4 @@
+import gzip
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,6 +15,8 @@ pytestmark = pytest.mark.primary
 
 
 def _read_json(path: Path) -> dict:
+    if path.name.endswith(".json.gz"):
+        return json.loads(gzip.decompress(path.read_bytes()).decode("utf-8"))
     return json.loads(path.read_text(encoding="utf-8"))
 
 

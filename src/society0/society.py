@@ -2264,7 +2264,13 @@ class Society0:
         checkpoint_total = 0
         checkpoint_dir = self.save_dir / "checkpoints"
         if checkpoint_dir.exists():
-            for path in sorted(checkpoint_dir.glob("checkpoint*.json")):
+            checkpoint_paths = [
+                *checkpoint_dir.glob("checkpoint*.json"),
+                *checkpoint_dir.glob("checkpoint*.json.gz"),
+            ]
+            for path in sorted(checkpoint_paths):
+                if not path.is_file():
+                    continue
                 checkpoints[path.name] = summarize_file(path)
                 checkpoint_total += checkpoints[path.name]["bytes"]
 
