@@ -820,6 +820,7 @@ class Society0:
                 ),
                 "api_version": self.llm_model.api_version,
                 "deployment_name": self.llm_model.deployment_name,
+                "tool_choice_policy": self.llm_model.tool_choice_policy,
             }
         agent_concurrency, agent_concurrency_source = (
             self._resolve_default_agent_concurrency()

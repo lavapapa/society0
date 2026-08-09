@@ -31,6 +31,7 @@ class ModelConfig:
     provider_type: Optional[str] = None
     api_version: Optional[str] = None
     deployment_name: Optional[str] = None
+    tool_choice_policy: str = "native"
 
     def as_public_dict(self) -> Dict[str, Any]:
         """返回脱敏后的配置，用于对外展示。"""
@@ -48,6 +49,7 @@ class ModelConfig:
             config_data["metadata"]["api_version"] = self.api_version
         if self.deployment_name:
             config_data["metadata"]["deployment_name"] = self.deployment_name
+        config_data["metadata"]["tool_choice_policy"] = self.tool_choice_policy
 
         return {
             "model_id": self.model_id,
@@ -73,6 +75,7 @@ class ModelConfig:
             config_data["api_version"] = self.api_version
         if self.deployment_name:
             config_data["deployment_name"] = self.deployment_name
+        config_data["tool_choice_policy"] = self.tool_choice_policy
 
         return {
             "model_id": self.model_id,

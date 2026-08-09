@@ -896,6 +896,46 @@ async def test_resume_identity_rejects_changed_llm_request_options(
 
 
 @pytest.mark.asyncio
+async def test_resume_identity_rejects_changed_tool_choice_policy(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source_run = tmp_path / "source-tool-choice-policy"
+    source = Society0(
+        save_dir=str(source_run),
+        base_config=_config(),
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            tool_choice_policy="auto_restrict",
+        ),
+    )
+
+    @source.step(name="noop")
+    async def noop(ctx):
+        return ctx.result()
+
+    await source.run(steps=0)
+
+    destination = Society0(
+        save_dir=str(tmp_path / "destination-tool-choice-policy"),
+        base_config=_config(),
+        source_run=source_run,
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            tool_choice_policy="native",
+        ),
+    )
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_run)
+    destination.persistence_manager.close()
+
+
+@pytest.mark.asyncio
 async def test_resume_identity_rejects_changed_agent_concurrency(
     tmp_path,
     monkeypatch,
