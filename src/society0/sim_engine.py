@@ -8,7 +8,7 @@ without becoming a "god object". Each component has clear responsibilities.
 from typing import Dict, Any, Optional, Union, List, Callable, Set
 from collections.abc import Iterable
 from pathlib import Path
-import asyncio
+import copy
 import logging
 import json
 import yaml
@@ -1286,16 +1286,7 @@ class SimEngine:
         except (FileNotFoundError, ValueError, json.JSONDecodeError):
             return
         checkpoint_path = checkpoint_record["checkpoint_file"]
-
-        def _load_snapshot() -> Dict[str, Any]:
-            with checkpoint_path.open("r", encoding="utf-8") as fp:
-                return json.load(fp)
-
-        try:
-            snapshot_data = await asyncio.to_thread(_load_snapshot)
-        except Exception as exc:  # pragma: no cover - IO 错误仅记录日志
-            logger.warning("Failed to load checkpoint for streaming broadcast: %s", exc)
-            return
+        snapshot_data = copy.deepcopy(checkpoint_record["checkpoint_data"])
 
         diff_log_path = self.persistence_manager.diffs_dir / f"diffs_from_step_{step_number:06d}.jsonl"
         diff_exists = diff_log_path.exists()

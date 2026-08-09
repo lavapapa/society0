@@ -8,6 +8,8 @@ and event replay according to the final integration design document.
 from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable
 from pathlib import Path
 import copy
+import gzip
+import io
 import json
 import traceback
 import time
@@ -42,6 +44,10 @@ class PersistenceManager:
 
     按照resource_management_design.md，新增向量存储客户端管理职责。
     """
+
+    CHECKPOINT_VERSION = "complete_step_v2"
+    WORLD_ENCODING = "gzip-json"
+    WORLD_COMPRESSION_LEVEL = 6
 
     def __init__(self, save_dir: str):
         """
@@ -403,7 +409,21 @@ class PersistenceManager:
         """
         step = self._normalize_step(step)
         suffix = f".{checkpoint_id}" if checkpoint_id else ""
-        return self.checkpoints_dir / f"checkpoint_{step:06d}{suffix}.json"
+        return self.checkpoints_dir / f"checkpoint_{step:06d}{suffix}.json.gz"
+
+    @classmethod
+    def _read_world_checkpoint(cls, path: Path, *, encoding: Any) -> Dict[str, Any]:
+        """Decode one validated world component using its declared encoding."""
+        if encoding != cls.WORLD_ENCODING:
+            raise ValueError(f"Unsupported world checkpoint encoding: {encoding!r}")
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError("World checkpoint gzip JSON is invalid") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("World checkpoint payload must be a mapping")
+        return payload
 
     def _chroma_backup_path(
         self,
@@ -509,7 +529,7 @@ class PersistenceManager:
         According to the design document:
         1. Get current step number
         2. Call world.environment.snapshot() for custom environment data
-        3. Serialize world data to checkpoint_{step}.json
+        3. Stream world data directly into checkpoint_{step}.{id}.json.gz
         4. Backup Chroma vector store
         5. Update metadata.json
         
@@ -529,7 +549,7 @@ class PersistenceManager:
         checkpoint_published = False
         chroma_backup: Optional[Path] = None
         temp_path = checkpoint_file.with_name(
-            f".{checkpoint_file.name}.{uuid.uuid4().hex}.tmp"
+            f".{checkpoint_file.name}.{uuid.uuid4().hex}.tmp.json.gz"
         )
 
         try:
@@ -554,7 +574,8 @@ class PersistenceManager:
             )
 
             world_metadata = {
-                "checkpoint_version": "complete_step_v1",
+                "checkpoint_version": self.CHECKPOINT_VERSION,
+                "world_encoding": self.WORLD_ENCODING,
                 "created_by": "PersistenceManager.save_checkpoint",
                 "checkpoint_id": checkpoint_id,
                 "step": step,
@@ -653,56 +674,76 @@ class PersistenceManager:
                     fp.write(",")
                 fp.write("\n")
 
-            with temp_path.open("w", encoding="utf-8") as fp:
-                fp.write("{\n")
-                top_level_fields: List[Tuple[str, str]] = [
-                    ("checkpoint_id", "value"),
-                    ("step", "value"),
-                    ("timestamp", "value"),
-                    ("agents_data", "agents"),
-                    ("environment_data", "value"),
-                    ("world_metadata", "value"),
-                    ("observation_data", "observation"),
-                    ("source_step", "value"),
-                ]
-                include_metrics = step_metrics is not None
-                if include_metrics:
-                    top_level_fields.extend([("metrics", "value"), ("step_metrics", "value")])
+            with temp_path.open("xb") as raw_fp:
+                with gzip.GzipFile(
+                    filename="",
+                    mode="wb",
+                    compresslevel=self.WORLD_COMPRESSION_LEVEL,
+                    fileobj=raw_fp,
+                    mtime=0,
+                ) as gzip_fp:
+                    with io.TextIOWrapper(gzip_fp, encoding="utf-8") as fp:
+                        fp.write("{\n")
+                        top_level_fields: List[Tuple[str, str]] = [
+                            ("checkpoint_id", "value"),
+                            ("step", "value"),
+                            ("timestamp", "value"),
+                            ("agents_data", "agents"),
+                            ("environment_data", "value"),
+                            ("world_metadata", "value"),
+                            ("observation_data", "observation"),
+                            ("source_step", "value"),
+                        ]
+                        include_metrics = step_metrics is not None
+                        if include_metrics:
+                            top_level_fields.extend(
+                                [("metrics", "value"), ("step_metrics", "value")]
+                            )
 
-                for idx, (field_key, field_type) in enumerate(top_level_fields):
-                    last_field = idx == len(top_level_fields) - 1
-                    if field_type == "value":
-                        value_mapping = {
-                            "checkpoint_id": checkpoint_id,
-                            "step": step,
-                            "timestamp": current_time,
-                            "environment_data": environment_payload,
-                            "world_metadata": world_metadata,
-                            "source_step": step,
-                        }
-                        if include_metrics and field_key in {"metrics", "step_metrics"}:
-                            value_mapping[field_key] = step_metrics  # type: ignore[assignment]
-                        _write_value_field(
-                            fp,
-                            2,
-                            field_key,
-                            value_mapping[field_key],
-                            last=last_field,
-                        )
-                    elif field_type == "agents":
-                        _write_agents_field(fp, 2, field_key, world.agents_data, last=last_field)
-                    elif field_type == "observation":
-                        _write_observation_field(
-                            fp,
-                            2,
-                            field_key,
-                            observation_payload,
-                            world.agents_data,
-                            last=last_field,
-                        )
-                fp.write("}\n")
-                fp.flush()
-                os.fsync(fp.fileno())
+                        for idx, (field_key, field_type) in enumerate(top_level_fields):
+                            last_field = idx == len(top_level_fields) - 1
+                            if field_type == "value":
+                                value_mapping = {
+                                    "checkpoint_id": checkpoint_id,
+                                    "step": step,
+                                    "timestamp": current_time,
+                                    "environment_data": environment_payload,
+                                    "world_metadata": world_metadata,
+                                    "source_step": step,
+                                }
+                                if include_metrics and field_key in {
+                                    "metrics",
+                                    "step_metrics",
+                                }:
+                                    value_mapping[field_key] = step_metrics  # type: ignore[assignment]
+                                _write_value_field(
+                                    fp,
+                                    2,
+                                    field_key,
+                                    value_mapping[field_key],
+                                    last=last_field,
+                                )
+                            elif field_type == "agents":
+                                _write_agents_field(
+                                    fp,
+                                    2,
+                                    field_key,
+                                    world.agents_data,
+                                    last=last_field,
+                                )
+                            elif field_type == "observation":
+                                _write_observation_field(
+                                    fp,
+                                    2,
+                                    field_key,
+                                    observation_payload,
+                                    world.agents_data,
+                                    last=last_field,
+                                )
+                        fp.write("}\n")
+                        fp.flush()
+                raw_fp.flush()
+                os.fsync(raw_fp.fileno())
 
             temp_path.replace(checkpoint_file)
             self._fsync_directory(checkpoint_file.parent)
@@ -710,8 +751,10 @@ class PersistenceManager:
 
             # Validate the immutable world component before publishing the
             # marker.  A marker must never expose a truncated or foreign file.
-            with checkpoint_file.open("r", encoding="utf-8") as fp:
-                persisted_world = json.load(fp)
+            persisted_world = self._read_world_checkpoint(
+                checkpoint_file,
+                encoding=self.WORLD_ENCODING,
+            )
             if (
                 persisted_world.get("checkpoint_id") != checkpoint_id
                 or persisted_world.get("step") != step
@@ -746,10 +789,11 @@ class PersistenceManager:
                 "checkpoint_id": checkpoint_id,
                 "step": step,
                 "world_file": checkpoint_file.name,
+                "world_encoding": self.WORLD_ENCODING,
                 "chroma_backup": chroma_backup.name if chroma_backup is not None else None,
                 "memory_required": requires_memory,
                 "published_at": time.time(),
-                "checkpoint_version": "complete_step_v1",
+                "checkpoint_version": self.CHECKPOINT_VERSION,
                 "world_sha256": world_sha256,
                 "chroma_sha256": chroma_sha256,
                 "agent_threads_manifest": agent_threads["path"],
@@ -1173,7 +1217,7 @@ class PersistenceManager:
             or not checkpoint_id
         ):
             raise ValueError(f"Invalid checkpoint marker for step {step}")
-        if marker.get("checkpoint_version") != "complete_step_v1":
+        if marker.get("checkpoint_version") != cls.CHECKPOINT_VERSION:
             raise ValueError(f"Unsupported checkpoint version for step {step}")
 
         checkpoint_file = cls._safe_child(
@@ -1181,13 +1225,21 @@ class PersistenceManager:
             marker.get("world_file"),
             component="world checkpoint",
         )
+        expected_world_name = f"checkpoint_{step:06d}.{checkpoint_id}.json.gz"
+        if marker.get("world_file") != expected_world_name:
+            raise ValueError(f"World checkpoint filename does not match marker for step {step}")
+        world_encoding = marker.get("world_encoding")
+        if world_encoding != cls.WORLD_ENCODING:
+            raise ValueError(f"Unsupported world checkpoint encoding for step {step}")
         if not checkpoint_file.is_file() or checkpoint_file.is_symlink():
             raise FileNotFoundError(f"World checkpoint component missing for step {step}")
         expected_world_hash = marker.get("world_sha256")
         if not isinstance(expected_world_hash, str) or cls._file_sha256(checkpoint_file) != expected_world_hash:
             raise ValueError(f"World checkpoint content hash mismatch for step {step}")
-        with checkpoint_file.open("r", encoding="utf-8") as handle:
-            checkpoint_data = json.load(handle)
+        checkpoint_data = cls._read_world_checkpoint(
+            checkpoint_file,
+            encoding=world_encoding,
+        )
         checkpoint_step = checkpoint_data.get("step")
         if (
             checkpoint_data.get("checkpoint_id") != checkpoint_id
@@ -1212,6 +1264,7 @@ class PersistenceManager:
             or not isinstance(world_metadata.get("step"), int)
             or world_metadata.get("step") != step
             or world_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
+            or world_metadata.get("world_encoding") != world_encoding
             or world_metadata.get("memory_required") is not derived_memory_required
             or marker.get("memory_required") is not derived_memory_required
         ):
@@ -1536,7 +1589,7 @@ class PersistenceManager:
                 {
                     "checkpoint_id": checkpoint_id,
                     "step": step,
-                    "checkpoint_version": "complete_step_v1",
+                    "checkpoint_version": self.CHECKPOINT_VERSION,
                     "memory_required": memory_required,
                     "content_sha256": content_sha256,
                     "created_at": time.time(),
@@ -1595,7 +1648,7 @@ class PersistenceManager:
                 or isinstance(manifest.get("step"), bool)
                 or not isinstance(manifest.get("step"), int)
                 or manifest.get("step") != step
-                or manifest.get("checkpoint_version") != "complete_step_v1"
+                or manifest.get("checkpoint_version") != self.CHECKPOINT_VERSION
                 or manifest.get("memory_required") is not memory_required
                 or manifest.get("content_sha256") != content_sha256
             ):

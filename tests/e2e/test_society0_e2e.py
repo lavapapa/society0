@@ -144,7 +144,9 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     metrics = _jsonl(tmp_path / "metrics.jsonl")
     events = _jsonl(tmp_path / "events.jsonl")
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint_names = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
+    checkpoint_names = sorted(
+        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
+    )
 
     assert len(steps) == 24
     assert len(metrics) == 12
