@@ -18,7 +18,6 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Callable, Dict, Iterable, Optional, Protocol
 
-
 class LogHook(Protocol):
     """日志 Hook 接口，允许在记录写入后执行额外逻辑。"""
 
@@ -170,6 +169,11 @@ class ExperimentLogContext:
     ):
         self._logs_dir = Path(logs_dir)
         self._logs_dir.mkdir(parents=True, exist_ok=True)
+        # Lazy import avoids importing the full agent package while the logging
+        # package itself is being initialized.
+        from ..agent.thread_store import AgentThreadStore
+
+        self.agent_thread_store = AgentThreadStore(self._logs_dir.parent)
 
         self._experiment_id = experiment_id or self._infer_experiment_id(self._logs_dir)
         self._run_id = run_id
@@ -219,6 +223,91 @@ class ExperimentLogContext:
 
     def get_agent_logger(self, agent_id: str) -> StructuredLogger:
         return self._agent_cache.get(agent_id)
+
+    def open_agent_thread(
+        self,
+        *,
+        agent_id: str,
+        checkpoint_step: int | None,
+        scope: Dict[str, Any],
+        thread_id: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> str:
+        """Open one durable Agent Thread owned by this experiment."""
+
+        thread_metadata = dict(metadata or {})
+        if self._experiment_id is not None:
+            thread_metadata.setdefault("experiment_id", self._experiment_id)
+        if self._run_id is not None:
+            thread_metadata.setdefault("run_id", self._run_id)
+        return self.agent_thread_store.open_thread(
+            agent_id=agent_id,
+            checkpoint_step=checkpoint_step,
+            scope=scope,
+            thread_id=thread_id,
+            metadata=thread_metadata,
+        )
+
+    def append_agent_thread_event(
+        self,
+        thread_id: str,
+        event_type: str,
+        *,
+        payload: Any = None,
+        interaction_id: str | None = None,
+        interaction_type: str | None = None,
+        interaction_name: str | None = None,
+        turn_id: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        """Append and fsync one canonical Thread event."""
+
+        return self.agent_thread_store.append_event(
+            thread_id,
+            event_type,
+            payload=payload,
+            interaction_id=interaction_id,
+            interaction_type=interaction_type,
+            interaction_name=interaction_name,
+            turn_id=turn_id,
+            metadata=metadata,
+        )
+
+    def close_agent_thread(
+        self,
+        thread_id: str,
+        *,
+        metadata: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        return self.agent_thread_store.close_thread(thread_id, metadata=metadata)
+
+    def get_agent_thread_reference(
+        self,
+        thread_id: str,
+        *,
+        require_closed: bool = False,
+    ) -> Dict[str, Any]:
+        return self.agent_thread_store.get_thread_reference(
+            thread_id,
+            require_closed=require_closed,
+        )
+
+    def read_agent_thread_events(
+        self,
+        thread_id: str,
+        *,
+        materialize_payloads: bool = True,
+    ) -> list[Dict[str, Any]]:
+        return self.agent_thread_store.read_events(
+            thread_id,
+            materialize_payloads=materialize_payloads,
+        )
+
+    def read_agent_thread_messages(
+        self,
+        thread_id: str,
+    ) -> list[Dict[str, Any]]:
+        return self.agent_thread_store.read_messages(thread_id)
 
     def log_runtime(self, level: str, event: str, **payload: Any) -> Dict[str, Any]:
         return self._log_with(self.runtime, level, event, payload)

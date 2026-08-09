@@ -461,6 +461,115 @@ class Memory:
         )
         return sanitized_metadata
 
+    async def inspect_memory_ids(
+        self,
+        memory_ids: List[str],
+        *,
+        entries: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, List[str]]:
+        """按 ID 检查记忆是否已持久化，并可核对其 payload。
+
+        ``add_memories_batch`` 使用稳定 ID 做 upsert，但 Thread 的 receipt
+        与向量库不共享事务。重试前必须先读回这些 ID；只要已存在的记录与
+        pending entry 的正文和元数据一致，就可以跳过 embedding/upsert。
+
+        Args:
+            memory_ids: 需要确认的稳定记忆 ID，顺序会保留在返回值中。
+            entries: 可选的 pending entries。提供时会严格核对 content 及
+                持久化 metadata，并将不一致的 ID 放入 ``mismatched_ids``。
+
+        Returns:
+            ``existing_ids``、``missing_ids`` 和 ``mismatched_ids`` 三个列表。
+            ``mismatched_ids`` 只在提供 entries 时计算；调用方应将其视为
+            不可安全覆盖的冲突。
+        """
+
+        requested_ids = [str(memory_id).strip() for memory_id in memory_ids]
+        if any(not memory_id for memory_id in requested_ids):
+            raise ValueError("memory_ids must contain non-empty strings")
+        if len(set(requested_ids)) != len(requested_ids):
+            raise ValueError("memory_ids must be unique")
+
+        expected_by_id: Dict[str, Dict[str, Any]] = {}
+        if entries is not None:
+            if not isinstance(entries, list):
+                raise ValueError("entries must be a list")
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError("entries must contain dictionaries")
+                raw_id = entry.get("memory_id")
+                if raw_id is None or not str(raw_id).strip():
+                    raise ValueError("entries must include non-empty memory_id")
+                entry_id = str(raw_id).strip()
+                if entry_id not in requested_ids:
+                    raise ValueError("entries memory_id must be listed in memory_ids")
+                if entry_id in expected_by_id:
+                    raise ValueError("entries memory_id values must be unique")
+                expected_by_id[entry_id] = entry
+            if set(expected_by_id) != set(requested_ids):
+                raise ValueError("entries must cover every requested memory_id")
+
+        if not requested_ids:
+            return {"existing_ids": [], "missing_ids": [], "mismatched_ids": []}
+
+        async with self._io_lock:
+            collection = self._get_collection()
+            records = collection.get(
+                ids=requested_ids,
+                include=["documents", "metadatas"],
+                where=self._memory_where_filter(),
+            )
+
+        if isinstance(records, dict):
+            stored_ids = records.get("ids") or []
+            documents = records.get("documents") or []
+            metadatas = records.get("metadatas") or []
+        else:
+            stored_ids = getattr(records, "ids", None) or []
+            documents = getattr(records, "documents", None) or []
+            metadatas = getattr(records, "metadatas", None) or []
+
+        stored_by_id: Dict[str, Dict[str, Any]] = {}
+        for index, raw_id in enumerate(stored_ids):
+            record_id = str(raw_id)
+            if record_id not in requested_ids:
+                continue
+            metadata = metadatas[index] if index < len(metadatas) else {}
+            stored_by_id[record_id] = {
+                "content": documents[index] if index < len(documents) else "",
+                "metadata": dict(metadata or {}),
+            }
+
+        existing_ids = [memory_id for memory_id in requested_ids if memory_id in stored_by_id]
+        missing_ids = [memory_id for memory_id in requested_ids if memory_id not in stored_by_id]
+        mismatched_ids: List[str] = []
+
+        for memory_id in existing_ids:
+            expected = expected_by_id.get(memory_id)
+            if expected is None:
+                continue
+            expected_importance = expected.get("importance")
+            if expected_importance is None:
+                expected_importance = 3.0
+            expected_metadata = self._build_metadata(
+                memory_type=expected.get("memory_type", "episodic"),
+                timestamp=expected.get("timestamp", 0),
+                importance=expected_importance,
+                metadata=expected.get("metadata"),
+            )
+            stored = stored_by_id[memory_id]
+            if (
+                stored["content"] != expected.get("content", "")
+                or stored["metadata"] != expected_metadata
+            ):
+                mismatched_ids.append(memory_id)
+
+        return {
+            "existing_ids": existing_ids,
+            "missing_ids": missing_ids,
+            "mismatched_ids": mismatched_ids,
+        }
+
     @staticmethod
     def _distance_to_similarity(distance: Optional[float]) -> float:
         """将 Chroma 返回的距离值转换为相似度分数（越大越相似）。"""
@@ -581,7 +690,15 @@ class Memory:
         async def _persist_batch():
             try:
                 texts = [item.get("content", "") for item in entries]
-                embeddings = await self._generate_embeddings(texts, trace=trace)
+                embedding_trace = dict(trace or {})
+                if embedding_trace.get("thread_id") is not None:
+                    embedding_trace["memory_ids"] = list(memory_ids)
+                    if len(memory_ids) == 1:
+                        embedding_trace["memory_id"] = memory_ids[0]
+                embeddings = await self._generate_embeddings(
+                    texts,
+                    trace=embedding_trace,
+                )
                 if not embeddings or len(embeddings) < len(entries):
                     raise RuntimeError("Failed to generate embeddings for memories batch")
 

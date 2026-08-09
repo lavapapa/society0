@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 import copy
 import logging
 import time
-from abc import ABC
 
 # Import new unified state architecture components
 from .state_proxy import DictProxy
@@ -289,7 +288,7 @@ class ExecutionContext:
             if hasattr(self.world, 'get_context_stack'):
                 try:
                     context_stack = self.world.get_context_stack().to_list()
-                except:
+                except Exception:
                     context_stack = []
 
             event = ActionEvent(event_type, source, data, context_stack)
@@ -388,6 +387,9 @@ class World:
         self._env_meta_cache: Optional[Dict[str, Any]] = None
         # 节点差异调度器，由 SimEngine 在组合根注入
         self._node_diff_dispatcher: Optional[Any] = None
+        # 由已提交步骤派生的审计结果。它们随 checkpoint 留证，
+        # 但不进入 Environment 的 canonical 运行状态。
+        self._checkpoint_annotations: Dict[str, Any] = {}
         # 状态版本号：每次状态写入都会递增，用于缓存控制
         self._state_version: int = 0
         # FoV 结果缓存：按 step / 按 agent 的临时缓存，避免重复调用
@@ -398,6 +400,19 @@ class World:
         """Set the current context stack (called by Schedule/StepFlow)"""
         self._current_context_stack = context_stack
         self._context_stack_var.set(context_stack)
+
+    def set_checkpoint_annotation(self, name: str, value: Any) -> None:
+        """记录下一个 checkpoint 应持久化的派生审计结果。"""
+
+        normalized = str(name or "").strip()
+        if not normalized:
+            raise ValueError("checkpoint annotation name must be non-empty")
+        self._checkpoint_annotations[normalized] = copy.deepcopy(value)
+
+    def checkpoint_annotations(self) -> Dict[str, Any]:
+        """返回当前待持久化的派生审计结果。"""
+
+        return copy.deepcopy(self._checkpoint_annotations)
 
     def get_context_stack(self) -> ContextStack:
         """Get the current context stack"""
@@ -1607,9 +1622,8 @@ class World:
 
         特点：
         1. 硬编码action_tags=[]，禁止所有动作（除了finish_instruction）
-        2. 硬编码save_memory=False，禁止写入记忆
-        3. 允许retrieve_memory=True，可以读取现有记忆
-        4. 支持FoV数据收集，以便提供充分的上下文信息
+        2. 允许retrieve_memory=True，可以读取现有记忆
+        3. 支持FoV数据收集，以便提供充分的上下文信息
 
         Args:
             agent_id: Agent identifier
@@ -1678,9 +1692,9 @@ class World:
                 "step_name": getattr(self, "_current_code_step_name", None),
                 "interaction_type": interaction_type,
                 "interaction_name": call_name or "interview",
+                "thread_id": kwargs.get("thread_id"),
             },
             retrieve_memory=kwargs.get("retrieve_memory", True),
-            save_memory=kwargs.get("save_memory", False),
             memory_top_k=kwargs.get("memory_top_k", 10),
             prefer_direct_json_output=kwargs.get("prefer_direct_json_output", False),
             max_turns=kwargs.get("max_turns", 2),
@@ -1848,34 +1862,6 @@ class World:
         # Create empty ActionSet
         actionset = ActionSet()
 
-        # Add memory system actions (if available)
-        try:
-            if hasattr(agent, '_memory') and agent._memory:
-                memory_actions = self._get_memory_actions(agent._memory)
-
-                # 注释掉详细的调试信息
-                # print(f"--- [DEBUG] Actions from Memory system ---")
-                # print(f"Found {len(memory_actions)} memory actions: {list(memory_actions.keys())}")
-                # for action_name, action_info in memory_actions.items():
-                #     print(f"  Memory Action '{action_name}': tags={action_info.get('tags', [])}")
-
-                for action_name, action_info in memory_actions.items():
-                    actionset.add_action(
-                        name=action_name,
-                        func=action_info["function"],
-                        description=action_info["description"],
-                        parameters=action_info["parameters"],
-                        tags=action_info.get("tags", ["memory"]),
-                        strict=bool(action_info.get("strict", False)),
-                    )
-                logger.debug(f"Added {len(memory_actions)} memory actions for agent {agent.id}")
-            else:
-                # print(f"--- [DEBUG] No memory system available for agent {agent.id} ---")
-                logger.debug(f"No memory system available for agent {agent.id}, skipping memory actions")
-        except Exception as e:
-            # print(f"--- [DEBUG] Error loading memory actions: {e} ---")
-            logger.warning(f"Failed to load memory actions for agent {agent.id}: {e}")
-
         # Add environment actions (from current environment)
         try:
             environment = self.get_environment()
@@ -1937,68 +1923,6 @@ class World:
 
         logger.info(f"Assembled ActionSet for agent {agent.id}: {len(actionset.actions)} total actions")
         return actionset
-
-    def _get_memory_actions(self, memory):
-        """Get actions provided by the memory system"""
-        memory_actions = {}
-
-        # Create wrapped async functions for memory operations
-        async def remember_action(**kwargs):
-            content = kwargs.get("content", "")
-            timestamp = kwargs.get("timestamp", self.step)
-            importance = kwargs.get("importance", 3.0)
-            metadata = kwargs.get("metadata", {})
-
-            memory_id = await memory.add_episodic_memory(
-                content=content,
-                timestamp=timestamp,
-                importance=importance,
-                metadata=metadata
-            )
-            return f"Stored memory with ID: {memory_id}"
-
-        async def recall_action(**kwargs):
-            query = kwargs.get("query", "")
-            top_k = kwargs.get("top_k", 5)
-            current_step = kwargs.get("current_step", self.step)
-
-            memories = await memory.retrieve(
-                query=query,
-                top_k=top_k,
-                current_step=current_step
-            )
-            return {"memories": memories, "count": len(memories)}
-
-        memory_actions["remember"] = {
-            "function": remember_action,
-            "description": "Store new information in episodic memory",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "content": {"type": "string", "description": "Content to remember"},
-                    "importance": {"type": "number", "description": "Importance score 0-5", "default": 3.0},
-                    "metadata": {"type": "object", "description": "Additional metadata"}
-                },
-                "required": ["content"]
-            },
-            "tags": ["memory", "storage"]
-        }
-
-        memory_actions["recall"] = {
-            "function": recall_action,
-            "description": "Retrieve relevant memories",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query"},
-                    "top_k": {"type": "integer", "description": "Number of results", "default": 5}
-                },
-                "required": ["query"]
-            },
-            "tags": ["memory", "retrieval"]
-        }
-
-        return memory_actions
 
     def _get_environment_actions(self, environment, agent):
         """

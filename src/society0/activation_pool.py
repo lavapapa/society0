@@ -12,6 +12,7 @@ from .async_utils import invoke_maybe_async
 
 ActivationKey = Hashable
 ActivationCallable = Callable[..., Awaitable[Any]]
+DEFAULT_MAX_ACTIVATIONS = 4096
 
 
 @dataclass(slots=True)
@@ -35,6 +36,33 @@ class ActivationPoolError(RuntimeError):
             f"{result.key!r}: {result.error}" for result in failures
         )
         super().__init__(f"Activation pool completed with {len(failures)} error(s): {details}")
+
+
+class ActivationLimitError(ActivationPoolError):
+    """Raised when a session has unfinished work at its activation limit."""
+
+    def __init__(
+        self,
+        *,
+        maximum: int,
+        used: int,
+        pending_keys: tuple[ActivationKey, ...],
+        active_keys: tuple[ActivationKey, ...],
+    ) -> None:
+        self.maximum = int(maximum)
+        self.max_activations = self.maximum
+        self.used = int(used)
+        self.pending_keys = tuple(pending_keys)
+        self.active_keys = tuple(active_keys)
+        self.unfinished_keys = self.pending_keys + self.active_keys
+        self.reason = "max_activations"
+        super().__init__(())
+        self.args = (
+            "激活总数上限已达到："
+            f"used={self.used}, maximum={self.maximum}, "
+            f"pending_keys={self.pending_keys!r}, "
+            f"active_keys={self.active_keys!r}",
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,6 +131,7 @@ class ActivationPool:
         world: Any,
         capacity: int,
         concurrency_source: str,
+        max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
     ) -> None:
         try:
             parsed_capacity = int(capacity)
@@ -113,6 +142,19 @@ class ActivationPool:
         self.world = world
         self.capacity = parsed_capacity
         self.concurrency_source = str(concurrency_source)
+        if max_activations is None:
+            parsed_max_activations = None
+        else:
+            try:
+                parsed_max_activations = int(max_activations)
+            except (TypeError, ValueError):
+                raise ValueError("max_activations must be a positive integer or None") from None
+            if parsed_max_activations <= 0:
+                raise ValueError("max_activations must be a positive integer or None")
+        self.max_activations = parsed_max_activations
+        self._activation_count = 0
+        self._activation_limit_reached = False
+        self._activation_limit_event = asyncio.Event()
         self.closed = False
         self._started = False
         self._queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -327,11 +369,14 @@ class ActivationPool:
         """Wait until all work submitted so far, including follow-up work, is done."""
         while True:
             generation = self._submission_generation
-            await self._queue.join()
+            if await self._wait_for_queue_or_activation_limit():
+                raise self._build_activation_limit_error()
             # Queue.join() can be awakened by a transient zero before another
             # ready task submits work. Give those ready tasks one turn, then
             # require both the generation and every internal state to be idle.
             await asyncio.sleep(0)
+            if self._activation_limit_reached:
+                raise self._build_activation_limit_error()
             if (
                 generation == self._submission_generation
                 and self._is_idle()
@@ -345,6 +390,52 @@ class ActivationPool:
         if raise_on_error and failures:
             raise ActivationPoolError(failures)
         return results
+
+    async def _wait_for_queue_or_activation_limit(self) -> bool:
+        """Wait for idle work or stop promptly once the finite budget is hit."""
+
+        if self._activation_limit_reached:
+            return True
+        queue_task = asyncio.create_task(self._queue.join())
+        limit_task = asyncio.create_task(self._activation_limit_event.wait())
+        try:
+            done, _ = await asyncio.wait(
+                {queue_task, limit_task},
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if limit_task in done and self._activation_limit_reached:
+                return True
+            return False
+        finally:
+            for task in (queue_task, limit_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(queue_task, limit_task, return_exceptions=True)
+
+    @property
+    def activations_used(self) -> int:
+        """Number of activation rounds that have started in this session."""
+
+        return self._activation_count
+
+    def _build_activation_limit_error(self) -> ActivationLimitError:
+        maximum = self.max_activations
+        if maximum is None:
+            raise RuntimeError("activation limit is not configured")
+        pending_keys = tuple(
+            key
+            for key, state in self._states.items()
+            if state.pending is not None or state.follow_up is not None
+        )
+        active_keys = tuple(
+            key for key, state in self._states.items() if state.running
+        )
+        return ActivationLimitError(
+            maximum=maximum,
+            used=self._activation_count,
+            pending_keys=pending_keys,
+            active_keys=active_keys,
+        )
 
     def _accepted_submission(
         self,
@@ -394,6 +485,9 @@ class ActivationPool:
         try:
             await self.drain(raise_on_error=raise_on_error)
         except asyncio.CancelledError:
+            await self.cancel()
+            raise
+        except ActivationLimitError:
             await self.cancel()
             raise
         except BaseException:
@@ -481,9 +575,16 @@ class ActivationPool:
                 pending = state.pending
                 if pending is None:
                     return
+                if (
+                    self.max_activations is not None
+                    and self._activation_count >= self.max_activations
+                ):
+                    self._reach_activation_limit()
+                    return
                 state.pending = None
                 state.running = True
                 state.round_count += 1
+                self._activation_count += 1
                 batch = ActivationBatch(
                     key=key,
                     round=state.round_count,
@@ -517,10 +618,20 @@ class ActivationPool:
                     if state.follow_up is not None:
                         state.pending = state.follow_up
                         state.follow_up = None
-                        self._queue.put_nowait(key)
+                        if self._activation_limit_reached or (
+                            self.max_activations is not None
+                            and self._activation_count >= self.max_activations
+                        ):
+                            self._reach_activation_limit()
+                        else:
+                            self._queue.put_nowait(key)
         finally:
             if serial_lock is not None and serial_acquired:
                 serial_lock.release()
+
+    def _reach_activation_limit(self) -> None:
+        self._activation_limit_reached = True
+        self._activation_limit_event.set()
 
     async def _invoke_task(self, task: ActivationCallable, batch: ActivationBatch) -> Any:
         try:
@@ -544,7 +655,13 @@ class ActivationPool:
 class ActivationPoolSession:
     """Bind an :class:`ActivationPool` to an environment for one step block."""
 
-    def __init__(self, *, context: Any, concurrency: int | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        context: Any,
+        concurrency: int | None = None,
+        max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
+    ) -> None:
         from .schedule import _resolve_agent_call_concurrency_info
 
         self._env = context.env
@@ -558,6 +675,7 @@ class ActivationPoolSession:
             world=context.world,
             capacity=capacity,
             concurrency_source=source,
+            max_activations=max_activations,
         )
 
     async def __aenter__(self) -> ActivationPool:

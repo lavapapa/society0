@@ -12,17 +12,18 @@ SimEngine V2: Resource Managers - LLM和Embedding的统一管理器
 import asyncio
 import json
 import logging
+import math
+import re
 import time
 import uuid
 import hashlib
-from typing import Dict, List, Any, Optional, Callable, Union, Set
+from typing import Dict, List, Any, Optional, Callable, Set, Mapping, Iterable
 from dataclasses import dataclass
 import random
 import os
-from pathlib import Path
 from collections import OrderedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from tenacity import (
     AsyncRetrying,
     RetryError,
@@ -31,7 +32,7 @@ from tenacity import (
     wait_random_exponential,
 )
 
-from .logging import ExperimentLogContext, LogField, ResourceEvent, summarize_text
+from .logging import ExperimentLogContext, LogField, ResourceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,189 @@ def _optional_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+_REDACTED_CREDENTIAL = "[REDACTED]"
+_CREDENTIAL_KEY_NAMES = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "cookie",
+    "credentials",
+    "password",
+    "proxy_authorization",
+    "secret",
+    "set_cookie",
+    "token",
+    "x_api_key",
+}
+_CREDENTIAL_VALUE_PATTERN = re.compile(
+    r"(?ix)"
+    r"(\b(?:api[_ -]?key|authorization|cookie|credentials|password|"
+    r"proxy[_ -]?authorization|secret|set[_ -]?cookie|token|x[_ -]?api[_ -]?key)\b"
+    r"\s*(?:[:=]\s*|\bis\s+))"
+    r"([^\s,;\]}\[]+)"
+)
+_BEARER_PATTERN = re.compile(r"(?i)(\bBearer\s+)([^\s,;\]}\[]+)")
+
+
+def _is_credential_key(key: Any) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(key).strip().lower()).strip("_")
+    return normalized in _CREDENTIAL_KEY_NAMES or normalized.endswith(
+        ("_api_key", "_password", "_secret", "_token")
+    )
+
+
+def _redact_text(value: str, *, secrets: Iterable[Any] = ()) -> str:
+    """Remove credentials embedded in exception, tool, or provider text."""
+
+    redacted = _CREDENTIAL_VALUE_PATTERN.sub(
+        lambda match: f"{match.group(1)}{_REDACTED_CREDENTIAL}",
+        str(value),
+    )
+    redacted = _BEARER_PATTERN.sub(
+        lambda match: f"{match.group(1)}{_REDACTED_CREDENTIAL}",
+        redacted,
+    )
+    for secret in secrets:
+        if secret is None:
+            continue
+        secret_text = str(secret)
+        if secret_text:
+            redacted = redacted.replace(secret_text, _REDACTED_CREDENTIAL)
+    return redacted
+
+
+def redact_credentials(value: Any, *, secrets: Iterable[Any] = ()) -> Any:
+    """Recursively redact credential-bearing mapping fields.
+
+    Provider request/exception objects frequently nest headers and transport
+    options several levels deep.  Redacting only the top-level request leaves
+    credentials in durable Thread evidence, so every mapping/list branch is
+    traversed before it is serialized.
+    """
+
+    if isinstance(value, str):
+        return _redact_text(value, secrets=secrets)
+    if isinstance(value, Mapping):
+        return {
+            key: _REDACTED_CREDENTIAL
+            if _is_credential_key(key)
+            else redact_credentials(item, secrets=secrets)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_credentials(item, secrets=secrets) for item in value]
+    if isinstance(value, tuple):
+        return tuple(redact_credentials(item, secrets=secrets) for item in value)
+    return value
+
+
+def _safe_provider_payload(value: Any, *, secrets: Iterable[Any] = ()) -> Any:
+    """Serialize SDK values after trying every supported SDK conversion path."""
+
+    if value is None or isinstance(value, (bool, int, str)):
+        return redact_credentials(value, secrets=secrets)
+    if isinstance(value, float):
+        return value if math.isfinite(value) else {
+            "__society0_type__": "non_finite_float",
+            "text": _redact_text(str(value), secrets=secrets),
+        }
+    if isinstance(value, (bytes, bytearray)):
+        return redact_credentials(repr(value), secrets=secrets)
+    if isinstance(value, Mapping):
+        return redact_credentials(
+            {str(key): _safe_provider_payload(item, secrets=secrets) for key, item in value.items()},
+            secrets=secrets,
+        )
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [
+            _safe_provider_payload(item, secrets=secrets)
+            for item in value
+        ]
+    model_dump = getattr(value, "model_dump", None)
+    errors: list[BaseException] = []
+    if callable(model_dump):
+        for kwargs in ({"mode": "json", "exclude_none": False}, {}):
+            try:
+                return _safe_provider_payload(model_dump(**kwargs), secrets=secrets)
+            except BaseException as exc:
+                errors.append(exc)
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            return _safe_provider_payload(to_dict(), secrets=secrets)
+        except BaseException as exc:
+            errors.append(exc)
+    try:
+        attributes = vars(value)
+    except BaseException as exc:
+        attributes = None
+        errors.append(exc)
+    if isinstance(attributes, Mapping):
+        return _safe_provider_payload(attributes, secrets=secrets)
+    payload: Dict[str, Any] = {
+        "__society0_type__": f"{type(value).__module__}.{type(value).__qualname__}",
+        "text": _redact_text(str(value), secrets=secrets),
+    }
+    if errors:
+        error = errors[-1]
+        payload["serialization_error"] = _redact_text(
+            f"{type(error).__name__}: {error}",
+            secrets=secrets,
+        )
+    return payload
+
+
+def _log_model_payload(value: Any) -> Dict[str, Any]:
+    """Serialize log models even when a provider SDK monkeypatch breaks dumps."""
+
+    for method_name, kwargs in (
+        ("model_dump", {"exclude_none": True}),
+        ("dict", {"exclude_none": True}),
+    ):
+        method = getattr(value, method_name, None)
+        if not callable(method):
+            continue
+        try:
+            payload = method(**kwargs)
+            if isinstance(payload, Mapping):
+                return dict(redact_credentials(payload))
+        except BaseException:
+            continue
+    try:
+        payload = vars(value)
+    except BaseException:
+        payload = {}
+    return dict(redact_credentials(payload)) if isinstance(payload, Mapping) else {}
+
+
+def _log_resource_best_effort(
+    log_context: Optional[ExperimentLogContext],
+    resource_type: str,
+    level: str,
+    event: str,
+    *,
+    secrets: Iterable[Any] = (),
+    **payload: Any,
+) -> None:
+    """Keep diagnostics best effort so logging cannot repeat a provider call."""
+
+    if log_context is None:
+        return
+    try:
+        log_context.log_resource(
+            resource_type,
+            level,
+            event,
+            **redact_credentials(payload, secrets=secrets),
+        )
+    except BaseException as exc:
+        logger.warning(
+            "failed to persist %s resource trace: %s",
+            event,
+            _redact_text(str(exc) or repr(exc)),
+        )
 
 
 @dataclass
@@ -212,6 +396,142 @@ class LLMManager:
         """注入或更新日志上下文。"""
         self._log_context = log_context
 
+    @staticmethod
+    def _provider_response_payload(
+        response: Any,
+        *,
+        secrets: Iterable[Any] = (),
+    ) -> Any:
+        """Return every response field exposed by the installed SDK."""
+
+        return _safe_provider_payload(response, secrets=secrets)
+
+    @staticmethod
+    def _traceable_provider_request(request_params: Dict[str, Any]) -> Dict[str, Any]:
+        """Keep the provider request body while excluding transport credentials."""
+        return redact_credentials(request_params)
+
+    @staticmethod
+    def _provider_error_payload(
+        exc: BaseException,
+        *,
+        secrets: Iterable[Any] = (),
+    ) -> Dict[str, Any]:
+        """Capture provider error evidence without request credentials."""
+
+        payload: Dict[str, Any] = {
+            "error_type": type(exc).__name__,
+            "error": _redact_text(str(exc) or repr(exc), secrets=secrets),
+            "repr": _redact_text(repr(exc), secrets=secrets),
+        }
+        response = getattr(exc, "response", None)
+        if response is not None:
+            try:
+                status_code = getattr(response, "status_code", None)
+            except Exception:
+                status_code = None
+            if status_code is not None:
+                payload["status_code"] = status_code
+            try:
+                response_text = getattr(response, "text", None)
+            except Exception:
+                response_text = None
+            if response_text is not None:
+                payload["response_body"] = _redact_text(
+                    str(response_text), secrets=secrets
+                )
+            try:
+                headers = getattr(response, "headers", None)
+            except Exception:
+                headers = None
+            if headers is not None:
+                try:
+                    payload["response_headers"] = dict(headers)
+                except Exception:
+                    pass
+        return redact_credentials(payload, secrets=secrets)
+
+    def _append_agent_thread_event(
+        self,
+        trace_metadata: Dict[str, Any],
+        event_type: str,
+        *,
+        payload: Any,
+        provider_request_id: str,
+        attempt_number: int,
+        endpoint: EndpointConfig,
+    ) -> None:
+        """Persist one physical provider attempt when a Thread is attached."""
+
+        thread_id = trace_metadata.get("thread_id")
+        if thread_id is None:
+            return
+        if self._log_context is None:
+            raise RuntimeError(
+                "LLM request declares thread_id but no ExperimentLogContext is bound"
+            )
+        self._log_context.append_agent_thread_event(
+            str(thread_id),
+            event_type,
+            payload=payload,
+            interaction_id=(
+                str(trace_metadata["interaction_id"])
+                if trace_metadata.get("interaction_id") is not None
+                else None
+            ),
+            interaction_type=(
+                str(trace_metadata["interaction_type"])
+                if trace_metadata.get("interaction_type") is not None
+                else None
+            ),
+            interaction_name=(
+                str(trace_metadata["interaction_name"])
+                if trace_metadata.get("interaction_name") is not None
+                else None
+            ),
+            turn_id=(
+                str(trace_metadata["turn_id"])
+                if trace_metadata.get("turn_id") is not None
+                else None
+            ),
+            metadata={
+                "provider_request_id": provider_request_id,
+                "attempt_number": attempt_number,
+                "endpoint_id": endpoint.id,
+                "model": endpoint.model,
+            },
+        )
+
+    def _append_agent_thread_event_best_effort(
+        self,
+        trace_metadata: Dict[str, Any],
+        event_type: str,
+        *,
+        payload: Any,
+        provider_request_id: str,
+        attempt_number: int,
+        endpoint: EndpointConfig,
+    ) -> bool:
+        """Record trace evidence without changing a provider business result."""
+
+        try:
+            self._append_agent_thread_event(
+                trace_metadata,
+                event_type,
+                payload=payload,
+                provider_request_id=provider_request_id,
+                attempt_number=attempt_number,
+                endpoint=endpoint,
+            )
+        except BaseException as exc:
+            logger.warning(
+                "failed to persist %s in Agent Thread: %s",
+                event_type,
+                _redact_text(str(exc) or repr(exc), secrets=(endpoint.api_key,)),
+            )
+            return False
+        return True
+
     def _add_endpoint(self, config: Dict[str, Any]):
         """添加单个端点配置"""
         endpoint = EndpointConfig(
@@ -317,6 +637,7 @@ class LLMManager:
         temperature: Optional[float] = None
         top_p: Optional[float] = None
         cache_hit = False
+        metadata: Optional[Dict[str, Any]] = None
         if isinstance(payload, dict):
             metadata = payload.get("metadata")
             if isinstance(metadata, dict):
@@ -402,10 +723,12 @@ class LLMManager:
             if cache_hit:
                 start_payload[LogField.CACHE_HIT.value] = cache_hit
             start_payload.update(trace_fields)
-            self._log_context.log_resource(
+            _log_resource_best_effort(
+                self._log_context,
                 "llm",
                 "INFO",
                 ResourceEvent.LLM_REQUEST_STARTED.value,
+                secrets=(endpoint.api_key,),
                 **start_payload,
             )
 
@@ -451,6 +774,7 @@ class LLMManager:
                         with attempt:
                             attempt_number = attempt.retry_state.attempt_number
                             provider_start_time: Optional[float] = None
+                            decode_error_recorded = False
                             try:
                                 extras.error = None
                                 extras.error_type = None
@@ -468,6 +792,19 @@ class LLMManager:
                                     request_params["model"] = endpoint.deployment_name
                                 else:
                                     request_params["model"] = endpoint.model
+
+                                self._append_agent_thread_event_best_effort(
+                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                    "provider_request",
+                                    payload={
+                                        "request": self._traceable_provider_request(
+                                            request_params
+                                        )
+                                    },
+                                    provider_request_id=request_id,
+                                    attempt_number=attempt_number,
+                                    endpoint=endpoint,
+                                )
 
                                 request_timeout = request_params.get("timeout", endpoint.timeout)
                                 effective_timeout: Optional[float]
@@ -488,7 +825,70 @@ class LLMManager:
                                         timeout=effective_timeout,
                                     )
                                 provider_duration = time.time() - provider_start_time
-                                result = self._convert_response(response)
+                                try:
+                                    raw_response = self._provider_response_payload(
+                                        response,
+                                        secrets=(endpoint.api_key,),
+                                    )
+                                except Exception as raw_exc:
+                                    raw_response = {
+                                        "serialization_error": self._provider_error_payload(
+                                            raw_exc,
+                                            secrets=(endpoint.api_key,),
+                                        ),
+                                        "repr": _redact_text(
+                                            repr(response),
+                                            secrets=(endpoint.api_key,),
+                                        ),
+                                    }
+                                self._append_agent_thread_event_best_effort(
+                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                    "provider_response_raw",
+                                    payload={"response": raw_response},
+                                    provider_request_id=request_id,
+                                    attempt_number=attempt_number,
+                                    endpoint=endpoint,
+                                )
+                                try:
+                                    result = self._convert_response(response)
+                                except Exception as decode_exc:
+                                    decode_error_recorded = True
+                                    decode_payload = self._provider_error_payload(
+                                        decode_exc,
+                                        secrets=(endpoint.api_key,),
+                                    )
+                                    decode_payload["response"] = raw_response
+                                    self._append_agent_thread_event_best_effort(
+                                        dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                        "provider_decode_error",
+                                        payload=decode_payload,
+                                        provider_request_id=request_id,
+                                        attempt_number=attempt_number,
+                                        endpoint=endpoint,
+                                    )
+                                    raise
+
+                                choice = (
+                                    response.choices[0]
+                                    if getattr(response, "choices", None)
+                                    else None
+                                )
+                                self._append_agent_thread_event_best_effort(
+                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                    "provider_response",
+                                    payload={
+                                        "response": raw_response,
+                                        "message": result,
+                                        "finish_reason": getattr(
+                                            choice,
+                                            "finish_reason",
+                                            None,
+                                        ),
+                                    },
+                                    provider_request_id=request_id,
+                                    attempt_number=attempt_number,
+                                    endpoint=endpoint,
+                                )
 
                                 execution_time = time.time() - start_time
                                 extras.duration_sec = execution_time
@@ -510,12 +910,14 @@ class LLMManager:
                                 extras.total_tokens = _extract_usage_value(usage, "total_tokens")
 
                                 if self._log_context:
-                                    completed_payload = extras.model_dump(exclude_none=True)
+                                    completed_payload = _log_model_payload(extras)
                                     completed_payload.update(trace_fields)
-                                    self._log_context.log_resource(
+                                    _log_resource_best_effort(
+                                        self._log_context,
                                         "llm",
                                         "INFO",
                                         ResourceEvent.LLM_REQUEST_COMPLETED.value,
+                                        secrets=(endpoint.api_key,),
                                         **completed_payload,
                                     )
 
@@ -530,7 +932,49 @@ class LLMManager:
                                 )
                                 return result
 
+                            except asyncio.CancelledError as exc:
+                                self._append_agent_thread_event_best_effort(
+                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                    "provider_cancelled",
+                                    payload=self._provider_error_payload(
+                                        exc,
+                                        secrets=(endpoint.api_key,),
+                                    ),
+                                    provider_request_id=request_id,
+                                    attempt_number=attempt_number,
+                                    endpoint=endpoint,
+                                )
+                                extras.error_type = type(exc).__name__
+                                extras.error = str(exc) or repr(exc)
+                                extras.duration_sec = time.time() - start_time
+                                if provider_start_time is not None:
+                                    extras.provider_duration_sec = time.time() - provider_start_time
+                                stats_entry["errors"] += 1
+                                if self._log_context:
+                                    cancelled_payload = _log_model_payload(extras)
+                                    cancelled_payload.update(trace_fields)
+                                    _log_resource_best_effort(
+                                        self._log_context,
+                                        "llm",
+                                        "ERROR",
+                                        ResourceEvent.LLM_REQUEST_FAILED.value,
+                                        secrets=(endpoint.api_key,),
+                                        **cancelled_payload,
+                                    )
+                                raise
                             except Exception as exc:
+                                if not decode_error_recorded:
+                                    self._append_agent_thread_event_best_effort(
+                                        dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                        "provider_error",
+                                        payload=self._provider_error_payload(
+                                            exc,
+                                            secrets=(endpoint.api_key,),
+                                        ),
+                                        provider_request_id=request_id,
+                                        attempt_number=attempt_number,
+                                        endpoint=endpoint,
+                                    )
                                 extras.error_type = type(exc).__name__
                                 extras.error = str(exc) or repr(exc)
                                 extras.duration_sec = time.time() - start_time
@@ -544,12 +988,14 @@ class LLMManager:
                                     else "ERROR"
                                 )
                                 if self._log_context:
-                                    failed_payload = extras.model_dump(exclude_none=True)
+                                    failed_payload = _log_model_payload(extras)
                                     failed_payload.update(trace_fields)
-                                    self._log_context.log_resource(
+                                    _log_resource_best_effort(
+                                        self._log_context,
                                         "llm",
                                         level,
                                         ResourceEvent.LLM_REQUEST_FAILED.value,
+                                        secrets=(endpoint.api_key,),
                                         **failed_payload,
                                     )
 
@@ -705,6 +1151,120 @@ class EmbeddingManager:
     def set_log_context(self, log_context: Optional[ExperimentLogContext]) -> None:
         """注入或更新日志上下文。"""
         self._log_context = log_context
+
+    def _append_agent_thread_event(
+        self,
+        trace_metadata: Dict[str, Any],
+        event_type: str,
+        *,
+        payload: Any,
+        provider_request_id: str,
+        attempt_number: int,
+        endpoint: EndpointConfig,
+    ) -> None:
+        """Persist one physical embedding provider attempt on its Agent Thread."""
+
+        thread_id = trace_metadata.get("thread_id")
+        if thread_id is None:
+            return
+        if self._log_context is None:
+            raise RuntimeError(
+                "Embedding request declares thread_id but no ExperimentLogContext is bound"
+            )
+
+        event_metadata: Dict[str, Any] = {
+            "provider_request_id": provider_request_id,
+            "attempt_number": attempt_number,
+            "endpoint_id": endpoint.id,
+            "model": endpoint.model,
+        }
+        for key in ("memory_id", "memory_ids", "dimensions", "texts_count"):
+            value = trace_metadata.get(key)
+            if value is not None:
+                event_metadata[key] = value
+        self._log_context.append_agent_thread_event(
+            str(thread_id),
+            event_type,
+            payload=redact_credentials(payload),
+            interaction_id=(
+                str(trace_metadata["interaction_id"])
+                if trace_metadata.get("interaction_id") is not None
+                else None
+            ),
+            interaction_type=(
+                str(trace_metadata["interaction_type"])
+                if trace_metadata.get("interaction_type") is not None
+                else None
+            ),
+            interaction_name=(
+                str(trace_metadata["interaction_name"])
+                if trace_metadata.get("interaction_name") is not None
+                else None
+            ),
+            turn_id=(
+                str(trace_metadata["turn_id"])
+                if trace_metadata.get("turn_id") is not None
+                else None
+            ),
+            metadata=event_metadata,
+        )
+
+    def _append_agent_thread_event_best_effort(
+        self,
+        trace_metadata: Dict[str, Any],
+        event_type: str,
+        *,
+        payload: Any,
+        provider_request_id: str,
+        attempt_number: int,
+        endpoint: EndpointConfig,
+    ) -> bool:
+        """Record embedding trace evidence without changing request outcomes."""
+
+        try:
+            self._append_agent_thread_event(
+                trace_metadata,
+                event_type,
+                payload=payload,
+                provider_request_id=provider_request_id,
+                attempt_number=attempt_number,
+                endpoint=endpoint,
+            )
+        except BaseException as exc:
+            logger.warning(
+                "failed to persist %s in Agent Thread: %s",
+                event_type,
+                _redact_text(str(exc) or repr(exc), secrets=(endpoint.api_key,)),
+            )
+            return False
+        return True
+
+    def _append_cache_provenance(
+        self,
+        trace_metadata: Dict[str, Any],
+        *,
+        endpoint: EndpointConfig,
+        cache_key: str,
+        status: str,
+        text_index: int,
+    ) -> None:
+        """Attach cache/pending reuse provenance to the consuming Agent Thread."""
+
+        metadata = dict(trace_metadata)
+        metadata["cache_hit"] = status == "cache_hit"
+        metadata["cache_status"] = status
+        self._append_agent_thread_event_best_effort(
+            metadata,
+            "embedding_provider_cache_hit",
+            payload={
+                "cache_key": cache_key,
+                "cache_status": status,
+                "text_index": text_index,
+            },
+            provider_request_id=f"emb_cache_{uuid.uuid4().hex[:8]}",
+            attempt_number=0,
+            endpoint=endpoint,
+        )
 
     @staticmethod
     def _load_default_dimensions(endpoints: List[Dict[str, Any]]) -> int:
@@ -1091,11 +1651,18 @@ class EmbeddingManager:
         model = endpoint.model
         trace_metadata = dict(metadata or {})
         bucket_key = self._make_microbatch_bucket_key(model, requested_dimensions)
+        # Keep Thread-attached writes in separate physical batches.  A shared
+        # batch would either leak one Thread's text into another ThreadStore
+        # or lose the per-thread evidence association.
+        thread_id = trace_metadata.get("thread_id")
+        if thread_id is not None:
+            bucket_key = f"{bucket_key}|thread:{thread_id}"
         loop = asyncio.get_running_loop()
         results: List[Optional[List[float]]] = [None] * len(texts)
         cache_keys: List[str] = []
         wait_futures: Dict[str, asyncio.Future] = {}
         new_batch_items: List[_EmbeddingBatchItem] = []
+        cache_provenance: List[tuple[int, str, str]] = []
 
         async with self._cache_lock:
             for idx, text in enumerate(texts):
@@ -1106,6 +1673,7 @@ class EmbeddingManager:
                     self._embedding_cache.move_to_end(cache_key)
                     results[idx] = cached
                     self._cache_hits += 1
+                    cache_provenance.append((idx, cache_key, "cache_hit"))
                     continue
 
                 self._cache_misses += 1
@@ -1124,7 +1692,18 @@ class EmbeddingManager:
                             metadata=dict(trace_metadata),
                         )
                     )
+                else:
+                    cache_provenance.append((idx, cache_key, "pending_reuse"))
                 wait_futures[cache_key] = pending
+
+        for text_index, cache_key, status in cache_provenance:
+            self._append_cache_provenance(
+                trace_metadata,
+                endpoint=endpoint,
+                cache_key=cache_key,
+                status=status,
+                text_index=text_index,
+            )
 
         for item in new_batch_items:
             await self._enqueue_microbatch_item(bucket_key, item)
@@ -1157,7 +1736,7 @@ class EmbeddingManager:
             return {}
 
         combined: Dict[str, Any] = {}
-        scalar_keys = ("step",)
+        scalar_keys = ("step", "thread_id")
         for key in scalar_keys:
             values = [metadata.get(key) for metadata in metadata_items if metadata.get(key) is not None]
             unique = list(dict.fromkeys(values))
@@ -1195,6 +1774,7 @@ class EmbeddingManager:
                     id_pairs.add((key[:-1], key))
         for source_key, target_key in sorted(id_pairs):
             _collect_list(source_key, target_key)
+        _collect_list("thread_id", "thread_ids")
         _collect_list("step_name", "step_names")
         _collect_list("interaction_type", "interaction_types")
         _collect_list("interaction_name", "interaction_names")
@@ -1255,6 +1835,8 @@ class EmbeddingManager:
             for key, value in dict(metadata or {}).items()
             if value is not None
         }
+        trace_fields.setdefault("dimensions", dimensions)
+        trace_fields.setdefault("texts_count", texts_count)
         if self._log_context:
             start_payload = {
                 LogField.REQUEST_ID.value: request_id,
@@ -1265,10 +1847,12 @@ class EmbeddingManager:
                 LogField.INPUT_CHARACTERS.value: total_characters,
             }
             start_payload.update(trace_fields)
-            self._log_context.log_resource(
+            _log_resource_best_effort(
+                self._log_context,
                 "embedding",
                 "INFO",
                 ResourceEvent.EMBEDDING_REQUEST_STARTED.value,
+                secrets=(endpoint.api_key,),
                 **start_payload,
             )
 
@@ -1302,6 +1886,18 @@ class EmbeddingManager:
                     provider_start_time = time.time()
                     if endpoint.provider_type.lower() == "ollama":
                         # Ollama 支持批量 embed 调用
+                        request_params = {
+                            "model": endpoint.model,
+                            "input": texts,
+                        }
+                        self._append_agent_thread_event_best_effort(
+                            trace_fields,
+                            "embedding_provider_request",
+                            payload={"request": redact_credentials(request_params)},
+                            provider_request_id=request_id,
+                            attempt_number=attempt_number,
+                            endpoint=endpoint,
+                        )
                         response = await asyncio.wait_for(
                             client.embed(
                                 model=endpoint.model,
@@ -1316,18 +1912,72 @@ class EmbeddingManager:
                             embedding_list = getattr(response, "embeddings", None)
                         if embedding_list:
                             embeddings.extend(embedding_list)
+                        self._append_agent_thread_event_best_effort(
+                            trace_fields,
+                            "embedding_provider_response",
+                            payload={
+                                "response": redact_credentials(
+                                    LLMManager._provider_response_payload(
+                                        response,
+                                        secrets=(endpoint.api_key,),
+                                    ),
+                                    secrets=(endpoint.api_key,),
+                                ),
+                                "model": endpoint.model,
+                                "dimensions": dimensions,
+                                "vectors_returned": len(embedding_list or []),
+                            },
+                            provider_request_id=request_id,
+                            attempt_number=attempt_number,
+                            endpoint=endpoint,
+                        )
                     else:
                         batch_size = 50
                         for i in range(0, len(texts), batch_size):
                             batch_texts = texts[i:i + batch_size]
+                            request_params = {
+                                "model": endpoint.model,
+                                "input": batch_texts,
+                                "dimensions": dimensions,
+                                "timeout": request_deadline,
+                            }
+                            self._append_agent_thread_event_best_effort(
+                                trace_fields,
+                                "embedding_provider_request",
+                                payload={"request": redact_credentials(request_params)},
+                                provider_request_id=request_id,
+                                attempt_number=attempt_number,
+                                endpoint=endpoint,
+                            )
                             response = await client.embeddings.create(
                                 model=endpoint.model,
                                 input=batch_texts,
                                 dimensions=dimensions,
                                 timeout=request_deadline,
                             )
+                            response_embeddings = []
                             for embedding_obj in response.data:
-                                embeddings.append(embedding_obj.embedding)
+                                response_embeddings.append(embedding_obj.embedding)
+                            embeddings.extend(response_embeddings)
+                            self._append_agent_thread_event_best_effort(
+                                trace_fields,
+                                "embedding_provider_response",
+                                payload={
+                                    "response": redact_credentials(
+                                        LLMManager._provider_response_payload(
+                                            response,
+                                            secrets=(endpoint.api_key,),
+                                        ),
+                                        secrets=(endpoint.api_key,),
+                                    ),
+                                    "model": endpoint.model,
+                                    "dimensions": dimensions,
+                                    "vectors_returned": len(response_embeddings),
+                                },
+                                provider_request_id=request_id,
+                                attempt_number=attempt_number,
+                                endpoint=endpoint,
+                            )
                     provider_duration = time.time() - provider_start_time
 
                     if len(embeddings) != len(texts):
@@ -1347,12 +1997,14 @@ class EmbeddingManager:
                     }
 
                     if self._log_context:
-                        completed_payload = extras.model_dump(exclude_none=True)
+                        completed_payload = _log_model_payload(extras)
                         completed_payload.update(trace_fields)
-                        self._log_context.log_resource(
+                        _log_resource_best_effort(
+                            self._log_context,
                             "embedding",
                             "INFO",
                             ResourceEvent.EMBEDDING_REQUEST_COMPLETED.value,
+                            secrets=(endpoint.api_key,),
                             **completed_payload,
                         )
 
@@ -1370,7 +2022,32 @@ class EmbeddingManager:
                     )
                     return result
 
+                except asyncio.CancelledError as exc:
+                    self._append_agent_thread_event_best_effort(
+                        trace_fields,
+                        "embedding_provider_cancelled",
+                        payload=LLMManager._provider_error_payload(
+                            exc,
+                            secrets=(endpoint.api_key,),
+                        ),
+                        provider_request_id=request_id,
+                        attempt_number=attempt_number,
+                        endpoint=endpoint,
+                    )
+                    raise
+
                 except Exception as exc:
+                    self._append_agent_thread_event_best_effort(
+                        trace_fields,
+                        "embedding_provider_error",
+                        payload=LLMManager._provider_error_payload(
+                            exc,
+                            secrets=(endpoint.api_key,),
+                        ),
+                        provider_request_id=request_id,
+                        attempt_number=attempt_number,
+                        endpoint=endpoint,
+                    )
                     extras.error = str(exc) or repr(exc)
                     extras.error_type = type(exc).__name__
                     extras.duration_sec = time.time() - start_time
@@ -1381,14 +2058,16 @@ class EmbeddingManager:
                     is_last_attempt = attempt_number >= max_attempts
                     level = "ERROR" if is_last_attempt else "WARNING"
                     if self._log_context:
-                        failed_payload = extras.model_dump(exclude_none=True)
+                        failed_payload = _log_model_payload(extras)
                         failed_payload.update(trace_fields)
-                        self._log_context.log_resource(
+                        _log_resource_best_effort(
+                            self._log_context,
                             "embedding",
                             level,
                             ResourceEvent.EMBEDDING_REQUEST_FAILED.value,
+                            secrets=(endpoint.api_key,),
                             **failed_payload,
-                            )
+                        )
 
                     retry_payload = {
                         "attempt": attempt_number,
