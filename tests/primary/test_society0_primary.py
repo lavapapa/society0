@@ -576,17 +576,12 @@ def test_agent_batch_result_exposes_action_summaries():
                     ],
                     "memory_retrieved": True,
                     "memory_top_k": 7,
-                    "memory_saved": True,
-                    "memory_extraction_enabled": True,
-                    "memory_extraction_success": True,
-                    "extracted_memories": [{"content": "Alice learned that the post was missing."}],
                     "termination_reason": "completion_action_tag",
                     "total_turns": 3,
                     "llm_calls": 2,
                     "phase_timings": {
                         "fov_collection": 0.02,
                         "agent_loop": 0.2,
-                        "memory_extract": 0.03,
                         "total": 0.25,
                     },
                 },
@@ -609,10 +604,6 @@ def test_agent_batch_result_exposes_action_summaries():
                     ],
                     "memory_retrieved": True,
                     "memory_top_k": 5,
-                    "memory_saved": False,
-                    "memory_extraction_enabled": False,
-                    "memory_extraction_success": False,
-                    "extracted_memories": [],
                     "termination_reason": "no_action_calls",
                     "total_turns": 1,
                     "llm_calls": 1,
@@ -700,11 +691,6 @@ def test_agent_batch_result_exposes_action_summaries():
     assert result.memory_summary() == {
         "record_count": 2,
         "retrieve_enabled_count": 2,
-        "save_enabled_count": 1,
-        "extraction_enabled_count": 1,
-        "extraction_success_count": 1,
-        "extraction_error_count": 0,
-        "extracted_memory_count": 1,
         "top_k_values": [5, 7],
     }
     assert result.duration_summary() == {
@@ -753,12 +739,6 @@ def test_agent_batch_result_exposes_action_summaries():
                 "total_sec": 0.02,
                 "mean_sec": 0.02,
                 "max_sec": 0.02,
-            },
-            "memory_extract": {
-                "record_count": 1,
-                "total_sec": 0.03,
-                "mean_sec": 0.03,
-                "max_sec": 0.03,
             },
             "memory_retrieve": {
                 "record_count": 1,
@@ -824,10 +804,6 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
                                         "total_turns": 2,
                                         "memory_retrieved": True,
                                         "memory_top_k": 3,
-                                        "memory_saved": True,
-                                        "memory_extraction_enabled": True,
-                                        "memory_extraction_success": True,
-                                        "extracted_memories": [{"content": "Alice commented."}],
                                     },
                                     {
                                         "agent_id": "bob",
@@ -836,11 +812,6 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
                                         "error": "bad action",
                                         "memory_retrieved": True,
                                         "memory_top_k": 3,
-                                        "memory_saved": True,
-                                        "memory_extraction_enabled": True,
-                                        "memory_extraction_success": False,
-                                        "memory_extraction_error": "bad action",
-                                        "extracted_memories": [],
                                     },
                                 ],
                                 "browse_actions": [
@@ -961,13 +932,7 @@ def test_society0_summary_aggregates_agent_operations_from_steps(tmp_path):
     assert summary["browse_round"]["memory_summary"] == {
         "record_count": 2,
         "retrieve_enabled_count": 2,
-        "save_enabled_count": 2,
-        "extraction_enabled_count": 2,
-        "extraction_success_count": 1,
-        "extraction_error_count": 1,
-        "extracted_memory_count": 1,
         "top_k_values": [3],
-        "error_samples": [{"agent_id": "bob", "error": "bad action"}],
     }
     assert summary["browse_round"]["error_samples"][0]["agent_id"] == "bob"
     assert summary["browse_round"]["by_tick"]["0"]["agent_count"] == 2
@@ -1183,7 +1148,12 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
     checkpoints = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
-    assert checkpoints == ["checkpoint_000000.json", "checkpoint_final.json"]
+    marker = json.loads(
+        (tmp_path / "checkpoints" / "complete" / "step_000000.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert checkpoints == sorted([marker["world_file"], "checkpoint_final.json"])
 
     checkpoint_text = (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8")
     checkpoint_payload = json.loads(checkpoint_text)
@@ -1588,12 +1558,15 @@ async def test_checkpoint_policy(tmp_path):
     await engine.run(steps=25)
 
     checkpoints = sorted(path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json"))
-    assert checkpoints == [
-        "checkpoint_000000.json",
-        "checkpoint_000010.json",
-        "checkpoint_000020.json",
-        "checkpoint_final.json",
-    ]
+    versioned_worlds = []
+    for step in (0, 10, 20):
+        marker = json.loads(
+            (tmp_path / "checkpoints" / "complete" / f"step_{step:06d}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        versioned_worlds.append(marker["world_file"])
+    assert checkpoints == sorted([*versioned_worlds, "checkpoint_final.json"])
 
 
 @pytest.mark.asyncio
@@ -1699,20 +1672,14 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
 
     world = FakeWorld()
     group = AgentSelector(world).ids(["alice"])
-    prior_messages = {
-        "alice": [
-            {"role": "system", "content": "system"},
-            {"role": "user", "content": "earlier task"},
-            {"role": "assistant", "content": "earlier result"},
-        ]
-    }
+    thread_ids = {"alice": "thread-step-7-alice"}
 
     instruct = await group.instruct(
         "act",
         fovs=["feed"],
         actions=["social"],
         output={"type": "object"},
-        memory=False,
+        retrieve_memory=False,
         model="fast",
         max_turns=1,
         concurrency=2,
@@ -1730,17 +1697,15 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
         top_p=0.9,
         timeout=45,
         llm_options={"max_tokens": 120, "metadata": {"bad": True}},
-        prior_messages_by_agent=prior_messages,
+        thread_ids_by_agent=thread_ids,
     )
     assert instruct.mean("trust_score") == 0.5
     assert instruct.table()[0]["total_turns"] == 2
     assert world.instruct_call[2]["fovs"] == ["feed"]
     assert world.instruct_call[2]["action_tags"] == ["social"]
     assert world.instruct_call[2]["retrieve_memory"] is False
-    assert world.instruct_call[2]["save_memory"] is False
-    assert world.instruct_call[2]["extract_memory"] is False
     assert world.instruct_call[2]["model_id"] == "fast"
-    assert world.instruct_call[2]["prior_messages"] == prior_messages["alice"]
+    assert world.instruct_call[2]["thread_id"] == thread_ids["alice"]
     assert world.instruct_call[2]["name"] == "feed_interaction"
     assert world.instruct_call[2]["reasoning_stages"] == [{"name": "think", "desc": "think first"}]
     assert world.instruct_call[2]["terminal_action_names"] == ["submit_final_decision"]
@@ -1762,7 +1727,6 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
         fovs=["recent_posts"],
         output=TrustOutput,
         retrieve_memory=True,
-        save_memory=False,
         model="careful",
         name="trust_survey",
         reasoning_stages=[{"name": "answer", "desc": "answer directly"}],
@@ -1774,7 +1738,6 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
     assert interview.mean("trust_score") == 0.75
     assert interview.table()[0]["total_turns"] == 3
     assert world.interview_call[2]["fovs"] == ["recent_posts"]
-    assert world.interview_call[2]["save_memory"] is False
     assert world.interview_call[2]["name"] == "trust_survey"
     assert world.interview_call[2]["reasoning_stages"] == [{"name": "answer", "desc": "answer directly"}]
     assert world.interview_call[2]["memory_top_k"] == 2
@@ -1789,37 +1752,6 @@ async def test_instruct_and_interview_wrappers_pass_expected_options():
 
 
 @pytest.mark.asyncio
-async def test_agent_group_instruct_defaults_to_extractive_memory_write():
-    class FakeWorld:
-        step = 1
-        agents_data = {
-            "alice": {"id": "alice", "type": "participant", "archetype": "llm", "state": {}, "properties": {}}
-        }
-
-        def __init__(self):
-            self.calls = []
-
-        async def instruct_agent(self, agent_id, instruction, **kwargs):
-            self.calls.append(kwargs)
-            return {"structured_output": {"trust_score": 1.0}}
-
-        def get_agent(self, agent_id):
-            return type("Agent", (), {"id": agent_id})()
-
-    world = FakeWorld()
-    group = AgentSelector(world).all()
-
-    await group.instruct("remember this", memory=True)
-    await group.instruct("lightweight pilot", memory=True, extract_memory=False)
-    await group.instruct("no managed memory", memory=False)
-
-    assert world.calls[0]["retrieve_memory"] is True
-    assert world.calls[0]["save_memory"] is True
-    assert world.calls[0]["extract_memory"] is True
-    assert world.calls[1]["extract_memory"] is False
-    assert world.calls[2]["retrieve_memory"] is False
-    assert world.calls[2]["save_memory"] is False
-    assert world.calls[2]["extract_memory"] is False
 
 
 @pytest.mark.asyncio
@@ -1865,7 +1797,7 @@ async def test_agent_group_instruct_required_actions_turn_missing_action_into_er
     result = await AgentSelector(FakeWorld(event_logger)).all().instruct(
         "publish once",
         actions=["publish_post"],
-        memory=False,
+        retrieve_memory=False,
         name="publish_round",
         required_actions=["publish_post"],
     )
@@ -1949,7 +1881,7 @@ async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_e
     result = await AgentSelector(FakeWorld(event_logger)).all().instruct(
         "make one real social interaction",
         actions=["get_trending_posts", "comment"],
-        memory=False,
+        retrieve_memory=False,
         name="social_round",
         required_action_tags=["social_write"],
     )
@@ -2560,7 +2492,6 @@ async def test_llm_agent_propagates_repeated_blank_turns_as_an_error():
     result = await agent.instruct(
         "处理未读信息。",
         retrieve_memory=False,
-        save_memory=False,
         max_turns=2,
     )
 
@@ -2614,7 +2545,6 @@ async def test_llm_agent_error_keeps_exception_type_for_blank_timeout_message():
     result = await agent.instruct(
         "Process the current activation.",
         retrieve_memory=False,
-        save_memory=False,
         max_turns=1,
     )
 
@@ -3614,7 +3544,6 @@ async def test_plain_action_instruction_omits_redundant_output_requirements_when
         "Call publish_post once.",
         action_tags=["publish_post"],
         retrieve_memory=False,
-        save_memory=False,
         max_turns=1,
     )
 
@@ -3953,6 +3882,7 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
     action_set = ActionSet()
     executed = []
     llm_payloads = []
+    tool_turns = 0
 
     async def limited_action(sequence: int):
         executed.append(sequence)
@@ -3970,11 +3900,34 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
     )
 
     async def fake_llm(_payload):
+        nonlocal tool_turns
         llm_payloads.append(_payload)
         if _payload.get("tools") is None:
             return {
                 "role": "assistant",
-                "content": "The requested actions were not executed; budget is exhausted.",
+                "content": "The requested action has now been completed.",
+                "tool_calls": [],
+            }
+        tool_turns += 1
+        if tool_turns == 2:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "retry_1",
+                        "type": "function",
+                        "function": {
+                            "name": "limited_action",
+                            "arguments": json.dumps({"sequence": 7}),
+                        },
+                    }
+                ],
+            }
+        if tool_turns >= 3:
+            return {
+                "role": "assistant",
+                "content": "The requested action has now been completed.",
                 "tool_calls": [],
             }
         return {
@@ -3999,13 +3952,14 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
         system_prompt="system",
         stages=["Reflection"],
         llm_call=fake_llm,
-        max_turns=1,
+        max_turns=3,
         max_action_calls=2,
     )
 
-    assert executed == []
-    assert len(result.action_calls) == 50
-    assert {item["status"] for item in result.action_calls} == {"blocked"}
+    assert executed == [7]
+    assert len(result.action_calls) == 51
+    assert [item["status"] for item in result.action_calls[:50]] == ["blocked"] * 50
+    assert result.action_calls[-1]["status"] == "success"
     assert [
         item["tool_call_id"]
         for item in result.full_history[0]["tool_messages"]
@@ -4018,14 +3972,82 @@ async def test_oversized_tool_call_batch_is_rejected_before_any_action_executes(
         item["tool_call_id"]
         for item in result.conversation_messages
         if item.get("role") == "tool"
-    ] == [f"call_{sequence}" for sequence in range(50)]
-    assert result.termination_reason == "action_budget_exhausted"
+    ] == [*[f"call_{sequence}" for sequence in range(50)], "retry_1"]
+    assert result.termination_reason == "no_action_calls"
     assert result.status == "success"
-    assert len(llm_payloads) == 2
-    assert llm_payloads[-1]["tools"] is None
+    assert len(llm_payloads) == 3
+    assert any(
+        message.get("role") == "user"
+        and "minimum necessary action calls" in str(message.get("content"))
+        for message in result.conversation_messages
+    )
     assert result.full_history[0]["batch_termination_reason"] == (
         "action_batch_exceeds_budget"
     )
+
+
+@pytest.mark.asyncio
+async def test_duplicate_tool_calls_are_suppressed_before_budget_accounting():
+    action_set = ActionSet()
+    executed = []
+    turns = 0
+
+    async def limited_action(sequence: int):
+        executed.append(sequence)
+        return f"done:{sequence}"
+
+    action_set.add_action(
+        "limited_action",
+        limited_action,
+        "limited",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm(_payload):
+        nonlocal turns
+        turns += 1
+        if turns > 1:
+            return {
+                "role": "assistant",
+                "content": "Completed once.",
+                "tool_calls": [],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"duplicate_{index}",
+                    "type": "function",
+                    "function": {
+                        "name": "limited_action",
+                        "arguments": json.dumps({"sequence": 1}),
+                    },
+                }
+                for index in range(50)
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="execute once",
+        action_set=action_set,
+        system_prompt="system",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=2,
+        max_action_calls=2,
+    )
+
+    assert executed == [1]
+    assert result.action_calls[0]["status"] == "success"
+    assert [item["status"] for item in result.action_calls[1:]] == [
+        "blocked"
+    ] * 49
+    assert result.termination_reason == "no_action_calls"
 
 
 @pytest.mark.asyncio
@@ -4380,7 +4402,7 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
         "answer",
         fovs=["feed"],
         actions=["environment"],
-        memory=False,
+        retrieve_memory=False,
         name="measure_round",
     )
 
@@ -4418,8 +4440,6 @@ async def test_agent_group_instruct_writes_progress_events(tmp_path):
             "reasoning_stages": [],
             "memory": {
                 "retrieve": False,
-                "save": False,
-                "extract": False,
                 "top_k": 10,
             },
             "llm_request_options": {},
@@ -4475,7 +4495,7 @@ async def test_short_agent_batch_progress_records_in_flight_without_heartbeat(tm
 
     result = await AgentSelector(SlowWorld(event_logger)).all().instruct(
         "answer briefly",
-        memory=False,
+        retrieve_memory=False,
         name="short_round",
     )
 
@@ -4551,10 +4571,6 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
                 "structured_output": {"ok": True, "agent_id": agent_id},
                 "memory_retrieved": kwargs.get("retrieve_memory"),
                 "memory_top_k": kwargs.get("memory_top_k"),
-                "memory_saved": kwargs.get("save_memory"),
-                "memory_extraction_enabled": kwargs.get("extract_memory"),
-                "memory_extraction_success": True,
-                "extracted_memories": [{"content": "remembered action"}],
             }
 
         async def interview_agent(self, agent_id, question, **kwargs):
@@ -4562,10 +4578,6 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
                 "structured_output": {"trust_score": 4},
                 "memory_retrieved": kwargs.get("retrieve_memory"),
                 "memory_top_k": kwargs.get("memory_top_k"),
-                "memory_saved": kwargs.get("save_memory"),
-                "memory_extraction_enabled": False,
-                "memory_extraction_success": False,
-                "extracted_memories": [],
             }
 
         def get_context_stack(self):
@@ -4577,8 +4589,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
         fovs=["recommended_feed"],
         actions=["publish_post", "comment"],
         output={"type": "object"},
-        memory=True,
-        extract_memory=True,
+        retrieve_memory=True,
         max_turns=4,
         name="tool_round",
         reasoning_stages=[{"name": "plan", "desc": "Plan before acting."}],
@@ -4596,7 +4607,6 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
         fovs=["recent_posts"],
         output=TrustOutput,
         retrieve_memory=True,
-        save_memory=False,
         max_turns=2,
         name="survey_round",
         reasoning_stages=[{"name": "answer", "description": "Answer directly."}],
@@ -4613,7 +4623,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
 
     assert instruct_options["max_turns"] == 4
     assert instruct_options["output_schema"] is True
-    assert instruct_options["memory"] == {"retrieve": True, "save": True, "extract": True, "top_k": 7}
+    assert instruct_options["memory"] == {"retrieve": True, "top_k": 7}
     assert instruct_options["reasoning_stage_count"] == 1
     assert instruct_options["reasoning_stages"][0]["name"] == "plan"
     assert instruct_options["reasoning_stages"][0]["description_length"] == len("Plan before acting.")
@@ -4630,7 +4640,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
 
     assert interview_options["max_turns"] == 2
     assert interview_options["output_schema"] is True
-    assert interview_options["memory"] == {"retrieve": True, "save": False, "extract": False, "top_k": 5}
+    assert interview_options["memory"] == {"retrieve": True, "top_k": 5}
     assert interview_options["reasoning_stage_count"] == 1
     assert interview_options["reasoning_stages"][0]["name"] == "answer"
     assert interview_options["llm_request_options"] == {"top_p": 0.8}
@@ -4638,88 +4648,19 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     assert completed_events[0]["event_data"]["memory_summary"] == {
         "record_count": 1,
         "retrieve_enabled_count": 1,
-        "save_enabled_count": 1,
-        "extraction_enabled_count": 1,
-        "extraction_success_count": 1,
-        "extraction_error_count": 0,
-        "extracted_memory_count": 1,
         "top_k_values": [7],
     }
     assert completed_events[1]["event_data"]["memory_summary"] == {
         "record_count": 1,
         "retrieve_enabled_count": 1,
-        "save_enabled_count": 0,
-        "extraction_enabled_count": 0,
-        "extraction_success_count": 0,
-        "extraction_error_count": 0,
-        "extracted_memory_count": 0,
         "top_k_values": [5],
     }
     summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_events()
-    assert summary["agent_batches"]["instruct / tool_round"]["memory_summary"]["extraction_success_count"] == 1
-    assert summary["agent_batches"]["interview / survey_round"]["memory_summary"]["save_enabled_count"] == 0
+    assert summary["agent_batches"]["instruct / tool_round"]["memory_summary"]["top_k_values"] == [7]
+    assert summary["agent_batches"]["interview / survey_round"]["memory_summary"]["top_k_values"] == [5]
 
 
 @pytest.mark.asyncio
-async def test_agent_group_instruct_defaults_to_full_extractive_memory(tmp_path):
-    events_path = tmp_path / "events.jsonl"
-    event_logger = EventLogger(str(events_path))
-    captured_kwargs = {}
-
-    class FakeWorld:
-        step = 5
-        _current_code_step_name = "default_memory_round"
-        _default_agent_concurrency = 1
-        _model_provider = None
-        agents_data = {"alice": {"type": "participant"}}
-
-        def __init__(self, event_logger):
-            self.event_logger = event_logger
-
-        async def instruct_agent(self, agent_id, instruction, **kwargs):
-            captured_kwargs.update(kwargs)
-            return {
-                "structured_output": {"ok": True},
-                "memory_retrieved": kwargs.get("retrieve_memory"),
-                "memory_top_k": kwargs.get("memory_top_k"),
-                "memory_saved": kwargs.get("save_memory"),
-                "memory_extraction_enabled": kwargs.get("extract_memory"),
-                "memory_extraction_success": True,
-                "extracted_memories": [{"content": "default extractive memory"}],
-            }
-
-        def get_context_stack(self):
-            return ContextStack().push_step("step_5")
-
-    group = AgentSelector(FakeWorld(event_logger)).all()
-    result = await group.instruct("act naturally", name="default_memory")
-
-    event_logger.close()
-    events = _read_jsonl(events_path)
-    started = next(event for event in events if event.get("event_type") == "agent_batch_started")
-    completed = next(event for event in events if event.get("event_type") == "agent_batch_completed")
-
-    assert result.success_count == 1
-    assert captured_kwargs["retrieve_memory"] is True
-    assert captured_kwargs["save_memory"] is True
-    assert captured_kwargs["extract_memory"] is True
-    assert captured_kwargs["memory_top_k"] == 10
-    assert started["event_data"]["execution_options"]["memory"] == {
-        "retrieve": True,
-        "save": True,
-        "extract": True,
-        "top_k": 10,
-    }
-    assert completed["event_data"]["memory_summary"] == {
-        "record_count": 1,
-        "retrieve_enabled_count": 1,
-        "save_enabled_count": 1,
-        "extraction_enabled_count": 1,
-        "extraction_success_count": 1,
-        "extraction_error_count": 0,
-        "extracted_memory_count": 1,
-        "top_k_values": [10],
-    }
 
 
 @pytest.mark.asyncio
@@ -4751,7 +4692,7 @@ async def test_agent_group_instruct_writes_heartbeat_events_while_in_flight(tmp_
 
     result = await AgentSelector(SlowWorld(event_logger)).all().instruct(
         "answer slowly",
-        memory=False,
+        retrieve_memory=False,
         name="slow_round",
     )
 
@@ -4983,7 +4924,6 @@ async def test_agent_group_interview_passes_runtime_options_to_world():
         "rate",
         output=TrustOutput,
         retrieve_memory=False,
-        save_memory=True,
         max_turns=1,
         reasoning_stages=[{"name": "Answer", "desc": "answer directly"}],
         name="survey",
@@ -4991,7 +4931,6 @@ async def test_agent_group_interview_passes_runtime_options_to_world():
     )
 
     assert world.kwargs["retrieve_memory"] is False
-    assert world.kwargs["save_memory"] is True
     assert world.kwargs["max_turns"] == 1
     assert world.kwargs["name"] == "survey"
     assert world.kwargs["reasoning_stages"] == [{"name": "Answer", "desc": "answer directly"}]
@@ -5022,7 +4961,6 @@ async def test_world_interview_agent_passes_runtime_options_to_llm_agent(tmp_pat
         "alice",
         "rate",
         retrieve_memory=False,
-        save_memory=True,
         max_turns=1,
         memory_top_k=4,
         output_schema={"type": "object"},
@@ -5031,7 +4969,6 @@ async def test_world_interview_agent_passes_runtime_options_to_llm_agent(tmp_pat
     )
 
     assert fake_agent.kwargs["retrieve_memory"] is False
-    assert fake_agent.kwargs["save_memory"] is True
     assert fake_agent.kwargs["max_turns"] == 1
     assert fake_agent.kwargs["memory_top_k"] == 4
     assert fake_agent.kwargs["llm_request_options"] == {"max_tokens": 32, "temperature": 0.1}
@@ -5264,7 +5201,6 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
             "additionalProperties": False,
         },
         retrieve_memory=False,
-        save_memory=False,
         max_turns=3,
         llm_request_options={
             "max_tokens": 64,
@@ -5357,7 +5293,6 @@ async def test_forced_submit_result_turn_is_counted_in_structured_interview():
             "additionalProperties": False,
         },
         retrieve_memory=False,
-        save_memory=False,
         max_turns=2,
     )
 
@@ -5423,7 +5358,6 @@ async def test_structured_interview_direct_json_fast_path_uses_one_llm_call_when
             "additionalProperties": False,
         },
         retrieve_memory=False,
-        save_memory=False,
         max_turns=2,
         prefer_direct_json_output=True,
     )
@@ -5550,7 +5484,6 @@ async def test_llm_agent_instruct_uses_configured_memory_top_k():
             "additionalProperties": False,
         },
         retrieve_memory=True,
-        save_memory=False,
         memory_top_k=2,
         prefer_direct_json_output=True,
     )
@@ -5560,7 +5493,7 @@ async def test_llm_agent_instruct_uses_configured_memory_top_k():
 
 
 @pytest.mark.asyncio
-async def test_structured_interview_exposes_submit_result_only_even_with_memory_actions():
+async def test_structured_interview_exposes_submit_result_only():
     calls = []
     action_set = ActionSet()
 
@@ -5589,21 +5522,6 @@ async def test_structured_interview_exposes_submit_result_only_even_with_memory_
 
         def set_context_stack(self, stack):
             self.context_stack = stack
-
-    async def recall(query: str):
-        return {"memories": ["cobalt moon"]}
-
-    action_set.add_action(
-        name="recall",
-        func=recall,
-        description="Recall memory",
-        parameters={
-            "type": "object",
-            "properties": {"query": {"type": "string"}},
-            "required": ["query"],
-        },
-        tags=["memory"],
-    )
 
     async def fake_llm_call(payload):
         calls.append(payload)
@@ -5639,7 +5557,6 @@ async def test_structured_interview_exposes_submit_result_only_even_with_memory_
             "additionalProperties": False,
         },
         retrieve_memory=False,
-        save_memory=False,
         max_turns=2,
     )
 
@@ -5652,7 +5569,7 @@ async def test_structured_interview_exposes_submit_result_only_even_with_memory_
 
 
 @pytest.mark.asyncio
-async def test_default_structured_instruct_keeps_memory_actions_opt_in():
+async def test_default_structured_instruct_exposes_only_submit_result():
     calls = []
     action_set = ActionSet()
 
@@ -5681,21 +5598,6 @@ async def test_default_structured_instruct_keeps_memory_actions_opt_in():
 
         def set_context_stack(self, stack):
             self.context_stack = stack
-
-    async def recall(query: str):
-        return {"memories": ["cobalt moon"]}
-
-    action_set.add_action(
-        name="recall",
-        func=recall,
-        description="Recall memory",
-        parameters={
-            "type": "object",
-            "properties": {"query": {"type": "string"}},
-            "required": ["query"],
-        },
-        tags=["memory"],
-    )
 
     async def fake_llm_call(payload):
         calls.append(payload)
@@ -5731,7 +5633,6 @@ async def test_default_structured_instruct_keeps_memory_actions_opt_in():
             "additionalProperties": False,
         },
         retrieve_memory=False,
-        save_memory=False,
         max_turns=2,
     )
 
@@ -5740,469 +5641,7 @@ async def test_default_structured_instruct_keeps_memory_actions_opt_in():
     assert len(calls) == 1
     assert [tool["function"]["name"] for tool in calls[0]["tools"]] == ["submit_result"]
     assert calls[0]["tool_choice"] == {"type": "function", "function": {"name": "submit_result"}}
-    assert list(action_set.filter_by_tags(["memory"]).actions) == ["recall"]
-
-
-@pytest.mark.asyncio
-async def test_structured_instruct_awaits_framework_memory_write():
-    calls = []
-
-    class FakeMemory:
-        def __init__(self):
-            self.write_calls = []
-
-        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
-            await asyncio.sleep(0)
-            self.write_calls.append(
-                {
-                    "entries": entries,
-                    "fire_and_forget": fire_and_forget,
-                    "trace": trace,
-                }
-            )
-            return ["mem_1"]
-
-    class FakeWorld:
-        agents_data = {
-            "alice": {
-                "id": "alice",
-                "type": "participant",
-                "archetype": "llm",
-                "persona": "Answer directly.",
-                "state": {},
-                "properties": {},
-                "reminders": [],
-            }
-        }
-        event_logger = None
-
-        def get_environment(self):
-            return type("Env", (), {"agent_instruction": ""})()
-
-        def get_log_context(self):
-            return None
-
-        def get_context_stack(self):
-            return ContextStack().push_step("step_0")
-
-        def set_context_stack(self, stack):
-            self.context_stack = stack
-
-    async def fake_llm_call(payload):
-        calls.append(payload)
-        return {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "call_1",
-                    "type": "function",
-                    "function": {
-                        "name": "submit_result",
-                        "arguments": '{"result": {"trust_score": 4.0}}',
-                    },
-                }
-            ],
-        }
-
-    memory = FakeMemory()
-    agent = LLMAgent("alice", FakeWorld())
-    agent.initialize_cognitive_system(
-        persona="Answer directly.",
-        memory=memory,
-        llm_call=fake_llm_call,
-        actionset=ActionSet(),
-    )
-
-    result = await agent.instruct(
-        "Remember this and return a trust score.",
-        output_schema={
-            "type": "object",
-            "properties": {"trust_score": {"type": "number"}},
-            "required": ["trust_score"],
-            "additionalProperties": False,
-        },
-        retrieve_memory=False,
-        save_memory=True,
-        extract_memory=False,
-        max_turns=3,
-        trace={
-            "step": 0,
-            "step_name": "seed",
-            "interaction_type": "instruct",
-            "interaction_name": "seed_round",
-        },
-    )
-
-    assert result["structured_output"] == {"trust_score": 4.0}
-    assert len(memory.write_calls) == 1
-    assert memory.write_calls[0]["fire_and_forget"] is False
-    assert memory.write_calls[0]["trace"]["interaction_type"] == "memory_write"
-    assert memory.write_calls[0]["trace"]["parent_interaction_type"] == "instruct"
-    assert memory.write_calls[0]["trace"]["interaction_name"] == "seed_round"
-
-
-@pytest.mark.asyncio
-async def test_extractive_memory_llm_call_is_traced_as_memory_extract():
-    calls = []
-
-    class FakeMemory:
-        def __init__(self):
-            self.write_calls = []
-
-        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
-            self.write_calls.append({"entries": entries, "trace": trace})
-            return ["mem_1"]
-
-    class FakeWorld:
-        agents_data = {
-            "alice": {
-                "id": "alice",
-                "type": "participant",
-                "archetype": "llm",
-                "persona": "Answer directly.",
-                "state": {},
-                "properties": {},
-                "reminders": [],
-            }
-        }
-        event_logger = None
-
-        def get_environment(self):
-            return type("Env", (), {"agent_instruction": ""})()
-
-        def get_log_context(self):
-            return None
-
-        def get_context_stack(self):
-            return ContextStack().push_step("step_0")
-
-        def set_context_stack(self, stack):
-            self.context_stack = stack
-
-    async def fake_llm_call(payload):
-        calls.append(payload)
-        tool_names = [tool["function"]["name"] for tool in payload.get("tools", [])]
-        if "extract_memories" in tool_names:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": "extract_1",
-                        "type": "function",
-                        "function": {
-                            "name": "extract_memories",
-                            "arguments": '{"memories": [{"content": "我记住了 cobalt moon。", "importance": 4}]}',
-                        },
-                    }
-                ],
-            }
-        return {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "submit_1",
-                    "type": "function",
-                    "function": {
-                        "name": "submit_result",
-                        "arguments": '{"result": {"trust_score": 4.0}}',
-                    },
-                }
-            ],
-        }
-
-    memory = FakeMemory()
-    agent = LLMAgent("alice", FakeWorld())
-    agent.initialize_cognitive_system(
-        persona="Answer directly.",
-        memory=memory,
-        llm_call=fake_llm_call,
-        actionset=ActionSet(),
-    )
-
-    result = await agent.instruct(
-        "Remember cobalt moon and return a trust score.",
-        output_schema={
-            "type": "object",
-            "properties": {"trust_score": {"type": "number"}},
-            "required": ["trust_score"],
-            "additionalProperties": False,
-        },
-        retrieve_memory=False,
-        save_memory=True,
-        extract_memory=True,
-        max_turns=3,
-        trace={
-            "step": 0,
-            "step_name": "seed",
-            "interaction_type": "instruct",
-            "interaction_name": "seed_round",
-        },
-    )
-
-    assert result["memory_extraction_enabled"] is True
-    assert result["memory_extraction_success"] is True
-    phase_timings = result["phase_timings"]
-    for phase_name in (
-        "prompt_build",
-        "actionset_build",
-        "agent_loop",
-        "memory_extract",
-        "memory_write",
-        "memory_save",
-        "total",
-    ):
-        assert phase_name in phase_timings
-        assert phase_timings[phase_name] >= 0
-    assert len(calls) == 2
-    assert calls[0]["metadata"]["interaction_type"] == "instruct"
-    assert calls[0]["metadata"]["interaction_name"] == "seed_round"
-    assert calls[1]["metadata"]["interaction_type"] == "memory_extract"
-    assert calls[1]["metadata"]["interaction_name"] == "memory_extract"
-    assert memory.write_calls[0]["trace"]["interaction_type"] == "memory_write"
-    assert memory.write_calls[0]["entries"][0]["metadata"]["extraction_method"] == "structured_extract"
-
-
-@pytest.mark.asyncio
-async def test_extractive_memory_compacts_large_tool_results_before_llm_call():
-    calls = []
-    action_set = ActionSet()
-
-    class FakeMemory:
-        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
-            return ["mem_1"]
-
-    class FakeWorld:
-        agents_data = {
-            "alice": {
-                "id": "alice",
-                "type": "participant",
-                "archetype": "llm",
-                "persona": "经营自己的组织。",
-                "state": {},
-                "properties": {},
-                "reminders": [],
-            }
-        }
-        event_logger = None
-
-        def get_environment(self):
-            return type("Env", (), {"agent_instruction": ""})()
-
-        def get_log_context(self):
-            return None
-
-        def get_context_stack(self):
-            return ContextStack().push_step("step_0")
-
-        def set_context_stack(self, stack):
-            self.context_stack = stack
-
-    async def inspect_record(record_id: str):
-        return {
-            "record_id": record_id,
-            "status": "active",
-            "detail": "x" * 200_000,
-        }
-
-    action_set.add_action(
-        name="inspect_record",
-        func=inspect_record,
-        description="Inspect one detailed record.",
-        parameters={
-            "type": "object",
-            "properties": {"record_id": {"type": "string"}},
-            "required": ["record_id"],
-        },
-    )
-
-    ordinary_call_count = 0
-
-    async def fake_llm_call(payload):
-        nonlocal ordinary_call_count
-        calls.append(payload)
-        tool_names = [tool["function"]["name"] for tool in payload.get("tools", [])]
-        if "extract_memories" in tool_names:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": "extract_1",
-                        "type": "function",
-                        "function": {
-                            "name": "extract_memories",
-                            "arguments": (
-                                '{"memories": [{"content": "我查看了合同记录。", '
-                                '"importance": 3}]}'
-                            ),
-                        },
-                    }
-                ],
-            }
-        ordinary_call_count += 1
-        if ordinary_call_count == 1:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": "inspect_1",
-                        "type": "function",
-                        "function": {
-                            "name": "inspect_record",
-                            "arguments": '{"record_id": "contract-001"}',
-                        },
-                    }
-                ],
-            }
-        return {
-            "role": "assistant",
-            "content": "记录已经检查完毕。",
-            "tool_calls": [],
-        }
-
-    agent = LLMAgent("alice", FakeWorld())
-    agent.initialize_cognitive_system(
-        persona="经营自己的组织。",
-        memory=FakeMemory(),
-        llm_call=fake_llm_call,
-        actionset=action_set,
-    )
-
-    result = await agent.instruct(
-        "检查需要关注的记录。",
-        retrieve_memory=False,
-        save_memory=True,
-        extract_memory=True,
-        max_turns=3,
-    )
-
-    extraction_payload = next(
-        payload
-        for payload in calls
-        if any(
-            tool["function"]["name"] == "extract_memories"
-            for tool in payload.get("tools", [])
-        )
-    )
-    serialized = json.dumps(extraction_payload, ensure_ascii=False)
-
-    assert result["memory_extraction_success"] is True
-    assert len(serialized) < 30_000
-    assert "inspect_record" in serialized
-    assert "contract-001" in serialized
-    assert "x" * 10_000 not in serialized
-
-
-@pytest.mark.asyncio
-async def test_extractive_memory_retry_keeps_the_output_limit():
-    calls = []
-    action_set = ActionSet()
-
-    class FakeMemory:
-        async def add_memories_batch(self, entries, *, fire_and_forget=False, trace=None):
-            return ["mem_1"]
-
-    class FakeWorld:
-        agents_data = {
-            "alice": {
-                "id": "alice",
-                "type": "participant",
-                "archetype": "llm",
-                "persona": "经营自己的组织。",
-                "state": {},
-                "properties": {},
-                "reminders": [],
-            }
-        }
-        event_logger = None
-
-        def get_environment(self):
-            return type("Env", (), {"agent_instruction": ""})()
-
-        def get_log_context(self):
-            return None
-
-        def get_context_stack(self):
-            return ContextStack().push_step("step_0")
-
-        def set_context_stack(self, stack):
-            self.context_stack = stack
-
-    extraction_calls = 0
-
-    async def fake_llm_call(payload):
-        nonlocal extraction_calls
-        calls.append(payload)
-        tool_names = [
-            tool["function"]["name"]
-            for tool in (payload.get("tools") or [])
-        ]
-        if "extract_memories" not in tool_names:
-            return {
-                "role": "assistant",
-                "content": "本轮经营完成。",
-                "tool_calls": [],
-            }
-        extraction_calls += 1
-        if extraction_calls == 1:
-            return {
-                "role": "assistant",
-                "content": "我会记住这件事。",
-                "tool_calls": [],
-            }
-        return {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [
-                {
-                    "id": "extract_1",
-                    "type": "function",
-                    "function": {
-                        "name": "extract_memories",
-                        "arguments": (
-                            '{"memories": [{"content": "我完成了本轮经营。", '
-                            '"importance": 2}]}'
-                        ),
-                    },
-                }
-            ],
-        }
-
-    agent = LLMAgent("alice", FakeWorld())
-    agent.initialize_cognitive_system(
-        persona="经营自己的组织。",
-        memory=FakeMemory(),
-        llm_call=fake_llm_call,
-        actionset=action_set,
-    )
-
-    result = await agent.instruct(
-        "处理当前经营事项。",
-        retrieve_memory=False,
-        save_memory=True,
-        extract_memory=True,
-        max_turns=1,
-    )
-
-    extraction_payloads = [
-        payload
-        for payload in calls
-        if any(
-            tool["function"]["name"] == "extract_memories"
-            for tool in (payload.get("tools") or [])
-        )
-    ]
-    assert result["memory_extraction_success"] is True
-    assert len(extraction_payloads) == 2
-    assert {
-        payload.get("max_tokens")
-        for payload in extraction_payloads
-    } == {2_048}
-
+    assert list(action_set.filter_by_tags(["memory"]).actions) == []
 
 def test_json_prefix_fallback_parses_prefilled_object_continuation():
     parsed = _parse_structured_json_from_model_text(
@@ -6751,6 +6190,39 @@ def test_model_declaration_builds_endpoint_configs():
     assert EmbedModel.openai(id="embed", model="text-embedding-3-small", dimensions=1536).endpoint_config()[
         "dimensions"
     ] == 1536
+
+
+@pytest.mark.asyncio
+async def test_llm_model_request_options_are_defaults_for_every_call(monkeypatch):
+    llm = LLMModel.openai_compatible(
+        model="qwen-test",
+        base_url="http://localhost:9999/v1",
+        api_key="test-key",
+        request_options={
+            "extra_body": {"chat_template_kwargs": {"enable_thinking": False}},
+            "temperature": 0.4,
+        },
+    )
+    runtime, manager = llm.build_runtime()
+    captured = []
+
+    async def fake_request(payload):
+        captured.append(payload)
+        return {"role": "assistant", "content": "ok"}
+
+    monkeypatch.setattr(manager, "request", fake_request)
+    await runtime.llm_call({"messages": [], "temperature": 0})
+    await manager.close()
+
+    assert captured == [
+        {
+            "extra_body": {
+                "chat_template_kwargs": {"enable_thinking": False}
+            },
+            "temperature": 0,
+            "messages": [],
+        }
+    ]
 
 
 def test_ollama_embedding_client_bypasses_system_proxy_by_default(monkeypatch):
@@ -7302,36 +6774,6 @@ def test_society0_resource_summary_exposes_fidelity_diagnostics(tmp_path):
                 ),
                 json.dumps(
                     {
-                        "resource_type": "llm",
-                        "status": "success",
-                        "step": 0,
-                        "step_name": "browse",
-                        "interaction_type": "memory_extract",
-                        "interaction_name": "memory_extract",
-                        "duration_sec": 1.1,
-                        "provider_duration_sec": 1.0,
-                        "queue_duration_sec": 0.05,
-                        "input_characters": 900,
-                        "total_tokens": 150,
-                    }
-                ),
-                json.dumps(
-                    {
-                        "resource_type": "embedding",
-                        "status": "success",
-                        "step": 0,
-                        "step_name": "browse",
-                        "interaction_type": "memory_write",
-                        "interaction_name": "feed",
-                        "duration_sec": 0.4,
-                        "provider_duration_sec": 0.35,
-                        "queue_duration_sec": 0.02,
-                        "input_characters": 300,
-                        "texts_count": 1,
-                    }
-                ),
-                json.dumps(
-                    {
                         "resource_type": "embedding",
                         "status": "success",
                         "step": 0,
@@ -7354,15 +6796,10 @@ def test_society0_resource_summary_exposes_fidelity_diagnostics(tmp_path):
     summary = engine._summarize_resource_calls()
 
     assert summary["llm"]["by_interaction_type"]["instruct"]["call_count"] == 1
-    assert summary["llm"]["by_interaction_type"]["memory_extract"]["call_count"] == 1
     assert summary["llm"]["fidelity"]["agent_loop"]["call_count"] == 1
     assert summary["llm"]["fidelity"]["agent_loop"]["tools_count_total"] == 4
     assert summary["llm"]["fidelity"]["agent_loop"]["tools_characters"] == 1200
     assert summary["llm"]["fidelity"]["agent_loop"]["total_tokens"] == 900
-    assert summary["llm"]["fidelity"]["memory_extraction"]["call_count"] == 1
-    assert summary["llm"]["fidelity"]["memory_extraction"]["total_tokens"] == 150
-    assert summary["embedding"]["fidelity"]["memory_io"]["call_count"] == 1
-    assert summary["embedding"]["fidelity"]["memory_io"]["texts_count"] == 1
     assert summary["embedding"]["fidelity"]["environment"]["call_count"] == 1
     assert summary["embedding"]["fidelity"]["environment"]["texts_count"] == 2
 

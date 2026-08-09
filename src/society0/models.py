@@ -25,6 +25,7 @@ class LLMModel:
     api_version: Optional[str] = None
     deployment_name: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    request_options: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.concurrency = _validate_positive_int(self.concurrency, "concurrency")
@@ -39,6 +40,7 @@ class LLMModel:
         base_url: str = "https://api.openai.com/v1",
         concurrency: int = 5,
         timeout: float = 30.0,
+        request_options: Optional[Dict[str, Any]] = None,
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -48,6 +50,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            request_options=dict(request_options or {}),
         )
 
     @classmethod
@@ -60,6 +63,7 @@ class LLMModel:
         api_key: Optional[str] = None,
         concurrency: int = 5,
         timeout: float = 30.0,
+        request_options: Optional[Dict[str, Any]] = None,
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -69,6 +73,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            request_options=dict(request_options or {}),
         )
 
     @classmethod
@@ -83,6 +88,7 @@ class LLMModel:
         deployment_name: Optional[str] = None,
         concurrency: int = 5,
         timeout: float = 30.0,
+        request_options: Optional[Dict[str, Any]] = None,
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -94,6 +100,7 @@ class LLMModel:
             deployment_name=deployment_name,
             concurrency=concurrency,
             timeout=timeout,
+            request_options=dict(request_options or {}),
         )
 
     @classmethod
@@ -105,6 +112,7 @@ class LLMModel:
         base_url: str = "http://localhost:11434/v1",
         concurrency: int = 5,
         timeout: float = 120.0,
+        request_options: Optional[Dict[str, Any]] = None,
     ) -> "LLMModel":
         return cls(
             id=id,
@@ -114,6 +122,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            request_options=dict(request_options or {}),
         )
 
     def endpoint_config(self) -> Dict[str, Any]:
@@ -134,6 +143,12 @@ class LLMModel:
 
     def build_runtime(self, *, log_context=None) -> tuple[ModelRuntime, LLMManager]:
         manager = self.build_manager(log_context=log_context)
+
+        async def llm_call(payload: Dict[str, Any]) -> Dict[str, Any]:
+            request_payload = dict(self.request_options)
+            request_payload.update(payload)
+            return await manager.request(request_payload)
+
         config = ModelConfig(
             model_id=self.id,
             name=self.id,
@@ -148,7 +163,7 @@ class LLMModel:
             deployment_name=self.deployment_name,
             metadata=dict(self.metadata),
         )
-        return ModelRuntime(config=config, llm_call=manager.request), manager
+        return ModelRuntime(config=config, llm_call=llm_call), manager
 
 
 @dataclass(slots=True)

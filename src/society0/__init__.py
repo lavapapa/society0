@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
-__version__ = "2.2.3"
+__version__ = "2.3.0"
 __all__ = [
     "Society0",
     "LLMModel",
@@ -18,6 +18,7 @@ __all__ = [
     "ActivationBatch",
     "ActivationPool",
     "ActivationPoolError",
+    "ActivationLimitError",
     "ActivationResult",
     "ActivationSignal",
     "ActivationSubmission",
@@ -44,6 +45,7 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "ActivationBatch": ("society0.activation_pool", "ActivationBatch"),
     "ActivationPool": ("society0.activation_pool", "ActivationPool"),
     "ActivationPoolError": ("society0.activation_pool", "ActivationPoolError"),
+    "ActivationLimitError": ("society0.activation_pool", "ActivationLimitError"),
     "ActivationResult": ("society0.activation_pool", "ActivationResult"),
     "ActivationSignal": ("society0.activation_pool", "ActivationSignal"),
     "ActivationSubmission": ("society0.activation_pool", "ActivationSubmission"),
@@ -80,6 +82,7 @@ if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
         ActivationBatch,
         ActivationPool,
         ActivationPoolError,
+        ActivationLimitError,
         ActivationPoolSession,
         ActivationResult,
         ActivationSignal,

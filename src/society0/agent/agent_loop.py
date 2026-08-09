@@ -7,9 +7,11 @@ Actions replace the previous tool system with enhanced metadata support.
 """
 
 from typing import List, Dict, Any, Callable, Awaitable, Optional, Union
+import asyncio
 from dataclasses import dataclass, field
 import copy
 import contextvars
+import json
 import re
 import logging
 import json_repair
@@ -17,6 +19,7 @@ import time
 from collections import Counter
 
 from ..function_registry import validate_strict_function_parameters
+from ..resource_managers import redact_credentials
 from ..state_proxy import DictProxy
 
 logger = logging.getLogger(__name__)
@@ -644,6 +647,8 @@ async def execute_action_loop(
     action_call_limits: Optional[Dict[str, int]] = None,
     llm_request_options: Optional[Dict[str, Any]] = None,
     prior_messages: Optional[List[Dict[str, Any]]] = None,
+    thread_message_recorder: Optional[Callable[[Dict[str, Any]], None]] = None,
+    thread_event_recorder: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> LoopResult:
     """
     Execute a configurable multi-stage action loop.
@@ -717,6 +722,47 @@ async def execute_action_loop(
             {"role": "user", "content": instruction}
         ]
 
+    def _append_runtime_message(message: Dict[str, Any]) -> None:
+        messages.append(message)
+        if thread_message_recorder is not None:
+            thread_message_recorder(copy.deepcopy(message))
+
+    def _append_thread_event(event_type: str, payload: Dict[str, Any]) -> None:
+        """Persist a structured Thread event without converting failures to actions.
+
+        The recorder is part of the durable transaction boundary.  If it
+        cannot append, surface that infrastructure error to the caller; the
+        action loop must not turn a successfully committed domain action into
+        a synthetic action failure.
+        """
+
+        if thread_event_recorder is None:
+            return
+        try:
+            thread_event_recorder(
+                event_type,
+                redact_credentials(copy.deepcopy(payload)),
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                f"failed to persist Agent Thread event {event_type}"
+            ) from exc
+
+    def _append_thread_event_best_effort(
+        event_type: str,
+        payload: Dict[str, Any],
+    ) -> None:
+        """Best-effort event path used while preserving an active cancellation."""
+
+        try:
+            _append_thread_event(event_type, payload)
+        except BaseException as exc:
+            logger.warning(
+                "failed to persist Agent Thread event %s: %s",
+                event_type,
+                exc,
+            )
+
     full_history = []
     total_turns = 0
     all_action_calls = []  # Track all action calls across turns
@@ -759,6 +805,7 @@ async def execute_action_loop(
             raise ValueError(f"action_call_limits[{action_name}] must be non-negative")
     action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
+    oversized_batch_rejections = 0
 
     def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
         tags = {str(tag).lower() for tag in (action_info.get("tags", []) or [])}
@@ -883,8 +930,8 @@ async def execute_action_loop(
 
         # Call LLM with current message history and actions
         llm_payload = {
-            "messages": messages,
-            "tools": actions_schema if actions_schema else None,
+            "messages": copy.deepcopy(messages),
+            "tools": copy.deepcopy(actions_schema) if actions_schema else None,
             "tool_choice": _default_tool_choice()
         }
         llm_payload.update(safe_llm_request_options)
@@ -950,7 +997,7 @@ async def execute_action_loop(
         if not action_calls:
             if not str(final_content_part or "").strip():
                 if turn + 1 < max_turns:
-                    messages.append(
+                    _append_runtime_message(
                         {"role": "user", "content": _empty_response_reminder()}
                     )
                     continue
@@ -958,7 +1005,7 @@ async def execute_action_loop(
                 break
             missing_names, missing_tags = _missing_loop_requirements()
             if (missing_names or missing_tags) and turn + 1 < max_turns:
-                messages.append({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
+                _append_runtime_message({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
                 continue
             if missing_names:
                 loop_result.termination_reason = "missing_required_action"
@@ -975,6 +1022,24 @@ async def execute_action_loop(
             action_name=action_call["function"]["name"],
             arguments=json_repair.loads(action_call["function"]["arguments"] if str(action_call["function"]["arguments"]).strip() else {})
         ) for action_call in action_calls]
+        unique_action_calls = []
+        duplicate_call_ids: set[str] = set()
+        seen_action_payloads: set[tuple[str, str]] = set()
+        for action_call in action_calls:
+            payload_key = (
+                action_call.action_name.lower(),
+                json.dumps(
+                    action_call.arguments,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+            if payload_key in seen_action_payloads:
+                duplicate_call_ids.add(action_call.call_id)
+                continue
+            seen_action_payloads.add(payload_key)
+            unique_action_calls.append(action_call)
 
         turn_tool_messages = []  # 本轮的工具结果消息，写入 full_history 便于事后重建
         executed_action_calls = []
@@ -989,10 +1054,10 @@ async def execute_action_loop(
                 max_action_calls - sum(action_attempt_counts.values()),
                 0,
             )
-            if len(action_calls) > remaining_global_budget:
+            if len(unique_action_calls) > remaining_global_budget:
                 batch_limit_error = (
                     "Action batch exceeds remaining budget: "
-                    f"requested={len(action_calls)}, "
+                    f"requested={len(unique_action_calls)}, "
                     f"remaining={remaining_global_budget}, "
                     f"max_action_calls={max_action_calls}"
                 )
@@ -1000,7 +1065,8 @@ async def execute_action_loop(
 
         if batch_limit_error is None and normalized_action_limits:
             batch_action_counts = Counter(
-                action_call.action_name.lower() for action_call in action_calls
+                action_call.action_name.lower()
+                for action_call in unique_action_calls
             )
             for action_name, requested_count in batch_action_counts.items():
                 per_action_limit = _action_limit_for(action_name)
@@ -1033,7 +1099,7 @@ async def execute_action_loop(
                     "content": base_content,
                     "tool_call_id": action_call.call_id,
                 }
-                messages.append(tool_message)
+                _append_runtime_message(tool_message)
                 turn_tool_messages.append(dict(tool_message))
                 action_call.result = batch_limit_error
                 action_call.status = "blocked"
@@ -1074,12 +1140,36 @@ async def execute_action_loop(
                     }
                     for action_call in executed_action_calls
                 ]
-            # The whole batch remains blocked for state safety, but an
-            # oversized provider batch is a normal budget boundary.  Route it
-            # through the existing tool-free closing turn instead of returning
-            # an activation-level error that can trigger a retry storm.
+            remaining_global_budget = (
+                max(max_action_calls - sum(action_attempt_counts.values()), 0)
+                if max_action_calls is not None
+                else None
+            )
+            can_retry_smaller_batch = (
+                oversized_batch_rejections == 0
+                and turn + 1 < max_turns
+                and (remaining_global_budget is None or remaining_global_budget > 0)
+            )
+            if can_retry_smaller_batch:
+                oversized_batch_rejections += 1
+                _append_runtime_message(
+                    {
+                        "role": "user",
+                        "content": (
+                            "The entire previous action batch was rejected without "
+                            "execution. Submit only the minimum necessary action calls "
+                            "and stay within the remaining action limits."
+                        ),
+                    }
+                )
+                continue
+
             if batch_termination_reason == "action_batch_exceeds_budget":
-                loop_result.termination_reason = "action_budget_exhausted"
+                loop_result.termination_reason = (
+                    "action_budget_exhausted"
+                    if remaining_global_budget == 0
+                    else batch_termination_reason
+                )
             else:
                 loop_result.termination_reason = batch_termination_reason
             break
@@ -1093,6 +1183,24 @@ async def execute_action_loop(
             action_key = action_call.action_name.lower()
             action_succeeded = False
             action_reported_no_change = False
+            if action_call.call_id in duplicate_call_ids:
+                duplicate_message = (
+                    "Duplicate action call in the same assistant turn was "
+                    "suppressed without execution."
+                )
+                tool_message = {
+                    "role": "tool",
+                    "content": duplicate_message,
+                    "tool_call_id": action_call.call_id,
+                }
+                _append_runtime_message(tool_message)
+                turn_tool_messages.append(dict(tool_message))
+                action_call.result = duplicate_message
+                action_call.status = "blocked"
+                action_call.error = duplicate_message
+                action_call.duration_sec = 0.0
+                executed_action_calls.append(action_call)
+                continue
             limit_error: Optional[str] = None
             global_budget_exhausted = (
                 max_action_calls is not None
@@ -1124,7 +1232,7 @@ async def execute_action_loop(
                     "content": display_content,
                     "tool_call_id": action_call.call_id
                 }
-                messages.append(tool_message)
+                _append_runtime_message(tool_message)
                 turn_tool_messages.append({
                     "role": "tool",
                     "content": base_content,
@@ -1151,59 +1259,74 @@ async def execute_action_loop(
                 continue
 
             action_attempt_counts[action_key] += 1
+            action_started = time.perf_counter()
+            _append_thread_event_best_effort(
+                "tool_execution_started",
+                {
+                    "call_id": action_call.call_id,
+                    "action_name": action_call.action_name,
+                    "arguments": copy.deepcopy(action_call.arguments),
+                },
+            )
+            action_exception: Optional[Exception] = None
+            action_result: Any = None
             try:
-                # Execute the action call with context management
-                action_started = time.perf_counter()
+                action_result = await action_set.call_action(
+                    action_call.action_name,
+                    context_provider=context_provider,
+                    _society0_call_id=action_call.call_id,
+                    **action_call.arguments
+                )
+            except asyncio.CancelledError as exc:
+                action_call.duration_sec = round(
+                    max(time.perf_counter() - action_started, 0.0),
+                    6,
+                )
+                action_call.status = "cancelled"
+                action_call.error = str(exc) or repr(exc)
                 try:
-                    action_result = await action_set.call_action(
-                        action_call.action_name,
-                        context_provider=context_provider,
-                        _society0_call_id=action_call.call_id,
-                        **action_call.arguments
-                    )
-                finally:
-                    action_call.duration_sec = round(
-                        max(time.perf_counter() - action_started, 0.0),
-                        6,
-                    )
+                    cancelled_arguments = copy.deepcopy(action_call.arguments)
+                except BaseException as trace_exc:
+                    cancelled_arguments = {
+                        "__trace_error__": str(trace_exc) or repr(trace_exc),
+                    }
+                _append_thread_event_best_effort(
+                    "tool_execution_cancelled",
+                    {
+                        "call_id": action_call.call_id,
+                        "action_name": action_call.action_name,
+                        "arguments": cancelled_arguments,
+                        "error": action_call.error,
+                        "status": "cancelled",
+                        "duration_sec": action_call.duration_sec,
+                    },
+                )
+                raise
+            except Exception as exc:
+                action_exception = exc
+            finally:
+                action_call.duration_sec = round(
+                    max(time.perf_counter() - action_started, 0.0),
+                    6,
+                )
 
-                # Add action result message to conversation
-                base_content = str(action_result)
-                display_content = base_content
-                if should_hint and is_last_action_in_turn:
-                    display_content = (
-                        base_content
-                        + "\n\n⚠️ 提示：这是你最后一次行动机会，请在本轮完成必要的工具调用或提交结果。"
-                    )
-                tool_message = {
-                    "role": "tool",
-                    "content": display_content,
-                    "tool_call_id": action_call.call_id
-                }
-                messages.append(tool_message)
-                turn_tool_messages.append({
-                    "role": "tool",
-                    "content": base_content,
-                    "tool_call_id": action_call.call_id
-                })
-                action_call.result = action_result
-                action_call.status, action_call.error = _semantic_action_status(action_result)
-                executed_action_calls.append(action_call)
-                if action_call.status == "success":
-                    action_call_counts[action_key] += 1
-                    action_succeeded = True
-                    action_reported_no_change = _action_reported_no_change(
-                        action_result
-                    )
-
-                logger.debug("Action result: %s", str(action_result)[:100])
-
-            except Exception as e:
-                if action_call.duration_sec is None:
-                    action_call.duration_sec = 0.0
-                error_msg = f"Error executing action {action_call.action_name}: {str(e)}"
+            if action_exception is not None:
+                error_msg = (
+                    f"Error executing action {action_call.action_name}: "
+                    f"{action_exception}"
+                )
+                _append_thread_event(
+                    "tool_execution_failed",
+                    {
+                        "call_id": action_call.call_id,
+                        "action_name": action_call.action_name,
+                        "arguments": copy.deepcopy(action_call.arguments),
+                        "error": error_msg,
+                        "status": "error",
+                        "duration_sec": action_call.duration_sec,
+                    },
+                )
                 logger.debug("Action error: %s", error_msg)
-
                 base_content = f"Error: {error_msg}"
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
@@ -1216,7 +1339,7 @@ async def execute_action_loop(
                     "content": display_content,
                     "tool_call_id": action_call.call_id
                 }
-                messages.append(tool_message)
+                _append_runtime_message(tool_message)
                 turn_tool_messages.append({
                     "role": "tool",
                     "content": base_content,
@@ -1226,6 +1349,53 @@ async def execute_action_loop(
                 action_call.status = "error"
                 action_call.error = error_msg
                 executed_action_calls.append(action_call)
+            else:
+                action_call.result = action_result
+                action_call.status, action_call.error = _semantic_action_status(action_result)
+                event_type = (
+                    "tool_execution_completed"
+                    if action_call.status == "success"
+                    else "tool_execution_failed"
+                )
+                event_payload: Dict[str, Any] = {
+                    "call_id": action_call.call_id,
+                    "action_name": action_call.action_name,
+                    "arguments": copy.deepcopy(action_call.arguments),
+                    "result": copy.deepcopy(action_result),
+                    "status": action_call.status,
+                    "duration_sec": action_call.duration_sec,
+                }
+                if action_call.error:
+                    event_payload["error"] = action_call.error
+                _append_thread_event(event_type, event_payload)
+
+                base_content = str(action_result)
+                display_content = base_content
+                if should_hint and is_last_action_in_turn:
+                    display_content = (
+                        base_content
+                        + "\n\n⚠️ 提示：这是你最后一次行动机会，请在本轮完成必要的工具调用或提交结果。"
+                    )
+                tool_message = {
+                    "role": "tool",
+                    "content": display_content,
+                    "tool_call_id": action_call.call_id
+                }
+                _append_runtime_message(tool_message)
+                turn_tool_messages.append({
+                    "role": "tool",
+                    "content": base_content,
+                    "tool_call_id": action_call.call_id
+                })
+                executed_action_calls.append(action_call)
+                if action_call.status == "success":
+                    action_call_counts[action_key] += 1
+                    action_succeeded = True
+                    action_reported_no_change = _action_reported_no_change(
+                        action_result
+                    )
+
+                logger.debug("Action result: %s", str(action_result)[:100])
 
             if action_succeeded and action_reported_no_change:
                 terminate_loop = True
@@ -1307,7 +1477,7 @@ async def execute_action_loop(
                 loop_result.termination_reason = "max_turns"
 
     if loop_result.termination_reason == "action_budget_exhausted":
-        messages.append(
+        _append_runtime_message(
             {
                 "role": "user",
                 "content": (
@@ -1320,7 +1490,7 @@ async def execute_action_loop(
         )
         total_turns += 1
         final_payload = {
-            "messages": messages,
+            "messages": copy.deepcopy(messages),
             "tools": None,
             "tool_choice": None,
         }

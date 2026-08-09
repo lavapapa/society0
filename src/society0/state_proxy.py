@@ -10,6 +10,7 @@ v3.0 新增功能：
 - agent_editable 权限检查（在 __setitem__ 时）
 """
 
+from collections.abc import MutableMapping, MutableSequence
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple, Callable, Optional, Union
 import logging
@@ -69,7 +70,7 @@ class AccessContext:
         return True
 
 
-class DictProxy:
+class DictProxy(MutableMapping[str, Any]):
     """
     字典代理类，透明地拦截字典操作并生成状态变更事件。
 
@@ -323,7 +324,7 @@ class DictProxy:
         return str(self._target_dict)
 
 
-class ListProxy:
+class ListProxy(MutableSequence[Any]):
     """
     列表代理类，透明地拦截列表操作并生成状态变更事件。
 

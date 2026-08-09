@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
 import json
+import logging
 import random
+import re
 import statistics
 import time
 from dataclasses import dataclass, field
@@ -20,30 +21,78 @@ ACTION_TEXT_PREVIEW_CHARS = 240
 MEMORY_DIAGNOSTIC_KEYS = (
     "memory_retrieved",
     "memory_top_k",
-    "memory_saved",
-    "memory_extraction_enabled",
-    "memory_extraction_success",
-    "memory_extraction_error",
-    "extracted_memory_count",
-    "extracted_memories",
 )
-MEMORY_TABLE_KEYS = tuple(key for key in MEMORY_DIAGNOSTIC_KEYS if key != "extracted_memories")
+MEMORY_TABLE_KEYS = MEMORY_DIAGNOSTIC_KEYS
+logger = logging.getLogger(__name__)
+_REDACTED_CREDENTIAL = "[REDACTED]"
+_CREDENTIAL_TEXT_PATTERN = re.compile(
+    r"(?ix)(\b(?:api[_ -]?key|authorization|cookie|password|secret|token)\b"
+    r"\s*(?:[:=]\s*|\bis\s+))([^\s,;\]}\[]+)"
+)
+
+
+def _redact_trace_text(value: str) -> str:
+    return _CREDENTIAL_TEXT_PATTERN.sub(
+        lambda match: f"{match.group(1)}{_REDACTED_CREDENTIAL}",
+        str(value),
+    )
+
+
+def _trace_credential_key(key: Any) -> bool:
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(key).strip().lower()).strip("_")
+    return normalized in {
+        "api_key",
+        "apikey",
+        "authorization",
+        "cookie",
+        "password",
+        "secret",
+        "token",
+    } or normalized.endswith(("_api_key", "_password", "_secret", "_token"))
 
 
 def _jsonable(value: Any) -> Any:
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, (int, bool)):
         return value
-    if isinstance(value, dict):
-        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, str):
+        return _redact_trace_text(value)
+    if isinstance(value, float):
+        return value if value == value and abs(value) != float("inf") else str(value)
+    if isinstance(value, Mapping):
+        return {
+            str(k): _REDACTED_CREDENTIAL
+            if _trace_credential_key(k)
+            else _jsonable(v)
+            for k, v in value.items()
+        }
     if isinstance(value, (list, tuple, set)):
         return [_jsonable(item) for item in value]
-    if hasattr(value, "model_dump"):
-        return _jsonable(value.model_dump())
-    if hasattr(value, "dict"):
-        return _jsonable(value.dict())
-    if hasattr(value, "__dict__"):
-        return _jsonable(vars(value))
-    return str(value)
+    model_dump = getattr(value, "model_dump", None)
+    if callable(model_dump):
+        for kwargs in ({"mode": "json", "exclude_none": False}, {}):
+            try:
+                return _jsonable(model_dump(**kwargs))
+            except BaseException:
+                continue
+    to_dict = getattr(value, "to_dict", None)
+    if callable(to_dict):
+        try:
+            return _jsonable(to_dict())
+        except BaseException:
+            pass
+    dict_method = getattr(value, "dict", None)
+    if callable(dict_method):
+        try:
+            return _jsonable(dict_method())
+        except BaseException:
+            pass
+    try:
+        attributes = vars(value)
+    except BaseException:
+        attributes = None
+    if isinstance(attributes, Mapping):
+        return _jsonable(attributes)
+    return _redact_trace_text(str(value))
 
 
 def _compact_action_text(text: str, *, limit: int = ACTION_TEXT_PREVIEW_CHARS) -> Dict[str, Any]:
@@ -363,6 +412,60 @@ class AgentGroup:
         self.world = world
         self.agent_ids = list(dict.fromkeys(agent_ids))
 
+    def _open_interaction_thread(
+        self,
+        agent_id: str,
+        *,
+        interaction_type: str,
+        interaction_name: Optional[str],
+    ) -> tuple[Any, str | None]:
+        """Open one short-lived Thread when the real world exposes Thread storage."""
+
+        get_log_context = getattr(self.world, "get_log_context", None)
+        log_context = get_log_context() if callable(get_log_context) else None
+        opener = getattr(log_context, "open_agent_thread", None)
+        if not callable(opener):
+            return log_context, None
+        step = getattr(self.world, "step", None)
+        if isinstance(step, bool) or not isinstance(step, int):
+            raise ValueError("world.step must be an integer for interaction Thread")
+        thread_id = opener(
+            agent_id=agent_id,
+            checkpoint_step=step + 1,
+            scope={
+                "kind": "interaction",
+                "interaction_type": interaction_type,
+                "interaction_name": interaction_name or interaction_type,
+            },
+            metadata={"owner": "AgentGroup", "lifecycle": "one_shot"},
+        )
+        return log_context, str(thread_id)
+
+    @staticmethod
+    def _close_interaction_thread(
+        log_context: Any,
+        thread_id: str | None,
+        *,
+        status: str,
+        error: Optional[str] = None,
+    ) -> None:
+        if not thread_id:
+            return
+        closer = getattr(log_context, "close_agent_thread", None)
+        if not callable(closer):
+            return
+        metadata: Dict[str, Any] = {"status": status}
+        if error:
+            metadata["error"] = error
+        try:
+            closer(thread_id, metadata=metadata)
+        except BaseException as exc:
+            logger.warning(
+                "failed to close one-shot Agent Thread %s: %s",
+                thread_id,
+                exc,
+            )
+
     def __iter__(self) -> Iterator[Any]:
         for agent_id in self.agent_ids:
             yield self.world.get_agent(agent_id)
@@ -481,39 +584,34 @@ class AgentGroup:
         )
         return batch_result
 
-    async def remember(
+    async def extract_thread_memories(
         self,
-        episodes_by_agent: Mapping[str, str],
+        thread_ids_by_agent: Mapping[str, str],
         *,
         timestamp: Optional[int] = None,
-        idempotency_key: Optional[str] = None,
-        importance: Optional[float] = 3.0,
+        idempotency_key: str | None = None,
         metadata: Optional[Mapping[str, Any]] = None,
         metadata_by_agent: Optional[Mapping[str, Mapping[str, Any]]] = None,
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
     ) -> AgentBatchResult:
-        """Persist one caller-prepared episodic memory for every agent in the group.
+        """为组内每个 Agent 在原 Thread 末尾追加一次记忆提炼。"""
 
-        This is the batch boundary for simulations that consolidate an agent's
-        completed turns once per tick.  It deliberately stores supplied text and
-        does not run another LLM extraction pass.
-        """
-        episode_keys = set(episodes_by_agent)
+        summary_keys = set(thread_ids_by_agent)
         group_keys = set(self.agent_ids)
-        if episode_keys != group_keys:
+        if summary_keys != group_keys:
             raise ValueError(
-                "episodes_by_agent keys must exactly match the AgentGroup ids"
+                "thread_ids_by_agent keys must exactly match the AgentGroup ids"
             )
         invalid_ids = [
             agent_id
             for agent_id in self.agent_ids
-            if not isinstance(episodes_by_agent[agent_id], str)
-            or not episodes_by_agent[agent_id].strip()
+            if not isinstance(thread_ids_by_agent[agent_id], str)
+            or not thread_ids_by_agent[agent_id].strip()
         ]
         if invalid_ids:
             raise ValueError(
-                "Each episode must be a non-empty string; invalid agents: "
+                "Each thread id must be a non-empty string; invalid agents: "
                 + ", ".join(invalid_ids)
             )
 
@@ -525,7 +623,6 @@ class AgentGroup:
                 "metadata_by_agent contains ids outside the AgentGroup: "
                 + ", ".join(sorted(unknown_metadata_ids))
             )
-
         effective_timestamp = _resolve_memory_timestamp(
             self.world.step if timestamp is None else timestamp
         )
@@ -536,13 +633,13 @@ class AgentGroup:
                 model_id=None,
             )
         )
-        interaction_name = name or "remember"
+        interaction_name = name or "extract_memories"
         started = time.time()
         execution_options = {
             "memory": {
                 "type": "episodic",
-                "caller_prepared": True,
-                "llm_extraction": False,
+                "caller_prepared": False,
+                "llm_extraction": True,
                 "timestamp": effective_timestamp,
                 "idempotent": idempotency_key is not None,
             }
@@ -550,7 +647,7 @@ class AgentGroup:
         _record_agent_batch_event(
             self.world,
             "agent_batch_started",
-            interaction_type="remember",
+            interaction_type="memory_extract",
             interaction_name=interaction_name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
@@ -562,60 +659,198 @@ class AgentGroup:
             execution_options=execution_options,
         )
 
+        def close_thread(
+            agent_id: str,
+            *,
+            status: str,
+            error: str | None = None,
+        ) -> Dict[str, Any] | None:
+            get_log_context = getattr(self.world, "get_log_context", None)
+            log_context = get_log_context() if callable(get_log_context) else None
+            close = getattr(log_context, "close_agent_thread", None)
+            if not callable(close):
+                return None
+            return close(
+                thread_ids_by_agent[agent_id],
+                metadata={
+                    "memory_extraction_status": status,
+                    **({"memory_extraction_error": error} if error else {}),
+                },
+            )
+
+        def thread_reference(
+            agent_id: str,
+            *,
+            require_closed: bool = False,
+        ) -> Dict[str, Any] | None:
+            get_log_context = getattr(self.world, "get_log_context", None)
+            log_context = get_log_context() if callable(get_log_context) else None
+            get_reference = getattr(log_context, "get_agent_thread_reference", None)
+            if not callable(get_reference):
+                return None
+            try:
+                return get_reference(
+                    thread_ids_by_agent[agent_id],
+                    require_closed=require_closed,
+                )
+            except Exception:
+                return None
+
+        def has_recoverable_memory_commit(agent_id: str) -> bool:
+            """检测 pending/receipt，避免失败路径把可重试 Thread 关掉。"""
+
+            get_log_context = getattr(self.world, "get_log_context", None)
+            log_context = get_log_context() if callable(get_log_context) else None
+            read_events = getattr(log_context, "read_agent_thread_events", None)
+            if not callable(read_events):
+                return False
+            try:
+                try:
+                    events = read_events(
+                        thread_ids_by_agent[agent_id],
+                        materialize_payloads=True,
+                    )
+                except TypeError:
+                    events = read_events(thread_ids_by_agent[agent_id])
+            except Exception:
+                return False
+            key = (
+                str(idempotency_key).strip()
+                if idempotency_key is not None
+                else f"thread:{thread_ids_by_agent[agent_id].strip()}:memory_extract"
+            )
+            return any(
+                isinstance(event, dict)
+                and event.get("event_type")
+                in {"memory_extraction_pending", "memory_extraction_receipt"}
+                and isinstance(event.get("payload"), dict)
+                and str(event["payload"].get("idempotency_key") or "") == key
+                for event in (events or [])
+            )
+
         async def call(agent_id: str) -> AgentCallRecord:
             agent_started = time.time()
             try:
                 agent = self.world.get_agent(agent_id)
+                extract = getattr(agent, "extract_memories_from_thread", None)
+                if not callable(extract):
+                    raise TypeError(
+                        f"Agent {agent_id} does not support memory extraction"
+                    )
                 agent_metadata = dict(common_metadata)
                 agent_metadata.update(dict(per_agent_metadata.get(agent_id, {})))
-                memory_kwargs = {
-                    "content": episodes_by_agent[agent_id].strip(),
-                    "timestamp": effective_timestamp,
-                    "importance": importance,
-                    "metadata": agent_metadata,
-                    "trace": {
-                        "step": effective_timestamp,
-                        "interaction_type": "memory_write",
-                        "interaction_name": interaction_name,
-                    },
-                }
-                if idempotency_key is not None:
-                    if hasattr(agent.memory, "stable_memory_id"):
-                        stable_id = agent.memory.stable_memory_id(
-                            idempotency_key,
-                            memory_type="episodic",
-                        )
-                    else:
-                        branch_id = str(
-                            getattr(agent.memory, "branch_id", "main")
-                        )
-                        digest = hashlib.sha256(
-                            (
-                                f"{idempotency_key}\0{agent_id}\0"
-                                f"{branch_id}"
-                            ).encode("utf-8")
-                        ).hexdigest()
-                        stable_id = f"episodic_{digest}"
-                    memory_kwargs["memory_id"] = stable_id
-                    agent_metadata.setdefault(
-                        "idempotency_key", idempotency_key
-                    )
-                memory_id = await agent.memory.add_episodic_memory(
-                    **memory_kwargs,
+                value = await extract(
+                    thread_id=thread_ids_by_agent[agent_id].strip(),
+                    timestamp=effective_timestamp,
+                    idempotency_key=idempotency_key,
+                    metadata=agent_metadata,
+                    interaction_name=interaction_name,
                 )
+                try:
+                    thread_ref = close_thread(agent_id, status="success")
+                except Exception as close_exc:
+                    # close 可能在 durable close 后才抛错；只有重新读取到
+                    # closed=True 才能把业务结果判为成功。
+                    durable_ref = thread_reference(agent_id, require_closed=True)
+                    if durable_ref is not None and (
+                        not isinstance(durable_ref, Mapping)
+                        or durable_ref.get("closed") is True
+                    ):
+                        if isinstance(value, dict):
+                            value["thread_close_error"] = (
+                                f"{type(close_exc).__name__}: {close_exc}"
+                            )
+                            value["thread_ref"] = durable_ref
+                        return AgentCallRecord(
+                            agent_id,
+                            "success",
+                            value,
+                            duration_sec=time.time() - agent_started,
+                        )
+                    if isinstance(value, dict):
+                        value["thread_close_error"] = (
+                            f"{type(close_exc).__name__}: {close_exc}"
+                        )
+                        value["thread_ref"] = thread_reference(agent_id)
+                    return AgentCallRecord(
+                        agent_id,
+                        "error",
+                        value,
+                        error=(
+                            f"{type(close_exc).__name__}: {close_exc}; Agent Thread "
+                            "close was not durable; retry with the same idempotency key"
+                        ),
+                        duration_sec=time.time() - agent_started,
+                    )
+                if isinstance(value, dict) and thread_ref is not None:
+                    value["thread_ref"] = thread_ref
+                if (
+                    thread_ref is not None
+                    and isinstance(thread_ref, Mapping)
+                    and thread_ref.get("closed") is not True
+                ):
+                    return AgentCallRecord(
+                        agent_id,
+                        "error",
+                        value,
+                        error=(
+                            "Agent Thread close was not durable; retry with the "
+                            "same idempotency key"
+                        ),
+                        duration_sec=time.time() - agent_started,
+                    )
                 return AgentCallRecord(
                     agent_id,
                     "success",
-                    {"memory_id": memory_id},
+                    value,
                     duration_sec=time.time() - agent_started,
                 )
+            except asyncio.CancelledError as exc:
+                if not has_recoverable_memory_commit(agent_id):
+                    try:
+                        close_thread(
+                            agent_id,
+                            status="cancelled",
+                            error=type(exc).__name__,
+                        )
+                    except Exception as close_exc:
+                        exc.add_note(
+                            "failed to close cancelled Agent Thread: "
+                            f"{type(close_exc).__name__}: {close_exc}"
+                        )
+                raise
             except Exception as exc:
+                error = str(exc)
+                if not has_recoverable_memory_commit(agent_id):
+                    try:
+                        close_thread(agent_id, status="error", error=error)
+                    except Exception as close_exc:
+                        error = f"{error}; failed to close Agent Thread: {close_exc}"
+                else:
+                    error = (
+                        f"{error}; memory commit is recoverable with the same "
+                        "idempotency key"
+                    )
                 return AgentCallRecord(
                     agent_id,
                     "error",
-                    error=str(exc),
+                    error=error,
                     duration_sec=time.time() - agent_started,
                 )
+            except BaseException as exc:
+                if not has_recoverable_memory_commit(agent_id):
+                    try:
+                        close_thread(
+                            agent_id,
+                            status="error",
+                            error=f"{type(exc).__name__}: {exc}",
+                        )
+                    except Exception as close_exc:
+                        exc.add_note(
+                            "failed to close interrupted Agent Thread: "
+                            f"{type(close_exc).__name__}: {close_exc}"
+                        )
+                raise
 
         batch_result = AgentBatchResult(
             await _run_limited(self.agent_ids, call, effective_concurrency)
@@ -623,7 +858,7 @@ class AgentGroup:
         _record_agent_batch_event(
             self.world,
             "agent_batch_completed",
-            interaction_type="remember",
+            interaction_type="memory_extract",
             interaction_name=interaction_name,
             agent_count=len(self.agent_ids),
             concurrency=effective_concurrency,
@@ -652,10 +887,7 @@ class AgentGroup:
         fovs: List[str] | None = None,
         actions: List[str] | None = None,
         output: Any = None,
-        memory: bool = True,
-        retrieve_memory: Optional[bool] = None,
-        save_memory: Optional[bool] = None,
-        extract_memory: bool = True,
+        retrieve_memory: bool = True,
         model: Optional[str] = None,
         current_step: Optional[int] = None,
         max_turns: int = 3,
@@ -674,9 +906,7 @@ class AgentGroup:
         top_p: Optional[float] = None,
         timeout: Optional[float] = None,
         llm_options: Optional[Dict[str, Any]] = None,
-        prior_messages_by_agent: Optional[
-            Dict[str, List[Dict[str, Any]]]
-        ] = None,
+        thread_ids_by_agent: Optional[Mapping[str, str]] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
         llm_request_options = _build_llm_request_options(
@@ -689,23 +919,13 @@ class AgentGroup:
         effective_current_step = _resolve_memory_timestamp(
             self.world.step if current_step is None else current_step
         )
-        effective_retrieve_memory = (
-            bool(memory) if retrieve_memory is None else bool(retrieve_memory)
-        )
-        effective_save_memory = (
-            bool(memory) if save_memory is None else bool(save_memory)
-        )
-        effective_extract_memory = bool(
-            effective_save_memory and extract_memory
-        )
+        effective_retrieve_memory = bool(retrieve_memory)
         execution_options = _agent_batch_execution_options(
             max_turns=max_turns,
             output_schema=output_schema,
             reasoning_stages=reasoning_stages,
             memory={
                 "retrieve": effective_retrieve_memory,
-                "save": effective_save_memory,
-                "extract": effective_extract_memory,
                 "top_k": memory_top_k,
             },
             terminal_actions=terminal_actions,
@@ -716,17 +936,41 @@ class AgentGroup:
             required_action_tags=required_action_tags,
             llm_request_options=llm_request_options,
         )
-        continued_agent_count = sum(
-            1
-            for agent_id in self.agent_ids
-            if (prior_messages_by_agent or {}).get(agent_id)
-        )
+        normalized_thread_ids = dict(thread_ids_by_agent or {})
+        unknown_thread_agents = set(normalized_thread_ids) - set(self.agent_ids)
+        if unknown_thread_agents:
+            raise ValueError(
+                "thread_ids_by_agent contains ids outside the AgentGroup: "
+                + ", ".join(sorted(unknown_thread_agents))
+            )
+        invalid_thread_agents = [
+            agent_id
+            for agent_id, value in normalized_thread_ids.items()
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if invalid_thread_agents:
+            raise ValueError(
+                "thread_ids_by_agent values must be non-empty strings: "
+                + ", ".join(sorted(invalid_thread_agents))
+            )
+        continued_agent_count = len(normalized_thread_ids)
         execution_options["continued_agent_count"] = continued_agent_count
         execution_options["current_step"] = effective_current_step
 
         async def call(agent_id: str) -> AgentCallRecord:
             agent_started = time.time()
+            explicit_thread_id = normalized_thread_ids.get(agent_id)
+            log_context = None
+            auto_thread_id: str | None = None
+            call_status = "error"
+            call_error: Optional[str] = None
             try:
+                if explicit_thread_id is None:
+                    log_context, auto_thread_id = self._open_interaction_thread(
+                        agent_id,
+                        interaction_type="instruct",
+                        interaction_name=name,
+                    )
                 result = await self.world.instruct_agent(
                     agent_id,
                     instruction,
@@ -737,8 +981,6 @@ class AgentGroup:
                     output_schema=output_schema,
                     max_turns=max_turns,
                     retrieve_memory=effective_retrieve_memory,
-                    save_memory=effective_save_memory,
-                    extract_memory=effective_extract_memory,
                     memory_top_k=memory_top_k,
                     name=name,
                     reasoning_stages=reasoning_stages,
@@ -749,9 +991,7 @@ class AgentGroup:
                     max_action_calls=max_action_calls,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
-                    prior_messages=(
-                        prior_messages_by_agent or {}
-                    ).get(agent_id),
+                    thread_id=explicit_thread_id or auto_thread_id,
                 )
                 failure_record = _agent_failure_record(
                     agent_id,
@@ -762,7 +1002,10 @@ class AgentGroup:
                 )
                 if failure_record is not None:
                     failure_record.duration_sec = time.time() - agent_started
+                    call_status = "error"
+                    call_error = failure_record.error
                     return failure_record
+                call_status = "success"
                 return AgentCallRecord(
                     agent_id,
                     "success",
@@ -770,13 +1013,25 @@ class AgentGroup:
                     raw=result,
                     duration_sec=time.time() - agent_started,
                 )
+            except asyncio.CancelledError:
+                call_status = "cancelled"
+                raise
             except Exception as exc:
+                call_error = str(exc)
                 return AgentCallRecord(
                     agent_id,
                     "error",
                     error=str(exc),
                     duration_sec=time.time() - agent_started,
                 )
+            finally:
+                if auto_thread_id is not None:
+                    self._close_interaction_thread(
+                        log_context,
+                        auto_thread_id,
+                        status=call_status,
+                        error=call_error,
+                    )
 
         effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
@@ -908,7 +1163,6 @@ class AgentGroup:
         fovs: List[str] | None = None,
         output: Any,
         retrieve_memory: bool = True,
-        save_memory: bool = False,
         model: Optional[str] = None,
         max_turns: int = 2,
         concurrency: Optional[int] = None,
@@ -920,6 +1174,7 @@ class AgentGroup:
         top_p: Optional[float] = None,
         timeout: Optional[float] = None,
         llm_options: Optional[Dict[str, Any]] = None,
+        thread_ids_by_agent: Optional[Mapping[str, str]] = None,
     ) -> AgentBatchResult:
         output_schema = _normalize_output_schema(output)
         llm_request_options = _build_llm_request_options(
@@ -935,16 +1190,43 @@ class AgentGroup:
             reasoning_stages=reasoning_stages,
             memory={
                 "retrieve": retrieve_memory,
-                "save": save_memory,
-                "extract": False,
                 "top_k": memory_top_k,
             },
             llm_request_options=llm_request_options,
         )
+        normalized_thread_ids = dict(thread_ids_by_agent or {})
+        unknown_thread_agents = set(normalized_thread_ids) - set(self.agent_ids)
+        if unknown_thread_agents:
+            raise ValueError(
+                "thread_ids_by_agent contains ids outside the AgentGroup: "
+                + ", ".join(sorted(unknown_thread_agents))
+            )
+        invalid_thread_agents = [
+            agent_id
+            for agent_id, value in normalized_thread_ids.items()
+            if not isinstance(value, str) or not value.strip()
+        ]
+        if invalid_thread_agents:
+            raise ValueError(
+                "thread_ids_by_agent values must be non-empty strings: "
+                + ", ".join(sorted(invalid_thread_agents))
+            )
+        execution_options["continued_agent_count"] = len(normalized_thread_ids)
 
         async def call(agent_id: str) -> AgentCallRecord:
             agent_started = time.time()
+            explicit_thread_id = normalized_thread_ids.get(agent_id)
+            log_context = None
+            auto_thread_id: str | None = None
+            call_status = "error"
+            call_error: Optional[str] = None
             try:
+                if explicit_thread_id is None:
+                    log_context, auto_thread_id = self._open_interaction_thread(
+                        agent_id,
+                        interaction_type="interview",
+                        interaction_name=name,
+                    )
                 result = await self.world.interview_agent(
                     agent_id,
                     question,
@@ -953,12 +1235,12 @@ class AgentGroup:
                     model_id=model,
                     output_schema=output_schema,
                     retrieve_memory=retrieve_memory,
-                    save_memory=save_memory,
                     memory_top_k=memory_top_k,
                     max_turns=max_turns,
                     name=name,
                     reasoning_stages=reasoning_stages,
                     llm_request_options=llm_request_options,
+                    thread_id=explicit_thread_id or auto_thread_id,
                 )
                 failure_record = _agent_failure_record(
                     agent_id,
@@ -967,7 +1249,10 @@ class AgentGroup:
                 )
                 if failure_record is not None:
                     failure_record.duration_sec = time.time() - agent_started
+                    call_status = "error"
+                    call_error = failure_record.error
                     return failure_record
+                call_status = "success"
                 return AgentCallRecord(
                     agent_id,
                     "success",
@@ -975,13 +1260,25 @@ class AgentGroup:
                     raw=result,
                     duration_sec=time.time() - agent_started,
                 )
+            except asyncio.CancelledError:
+                call_status = "cancelled"
+                raise
             except Exception as exc:
+                call_error = str(exc)
                 return AgentCallRecord(
                     agent_id,
                     "error",
                     error=str(exc),
                     duration_sec=time.time() - agent_started,
                 )
+            finally:
+                if auto_thread_id is not None:
+                    self._close_interaction_thread(
+                        log_context,
+                        auto_thread_id,
+                        status=call_status,
+                        error=call_error,
+                    )
 
         effective_concurrency, concurrency_source = _resolve_agent_call_concurrency_info(
             self.world,
@@ -1161,11 +1458,22 @@ class StepContext:
     def capabilities(self) -> CapabilityCatalog:
         return CapabilityCatalog(self.world)
 
-    def activation_pool(self, *, concurrency: Optional[int] = None) -> Any:
+    def activation_pool(
+        self,
+        *,
+        concurrency: Optional[int] = None,
+        max_activations: Optional[int] = None,
+    ) -> Any:
         """Create a temporary dynamic activation pool for this code step."""
         from .activation_pool import ActivationPoolSession
 
-        return ActivationPoolSession(context=self, concurrency=concurrency)
+        kwargs: dict[str, Any] = {
+            "context": self,
+            "concurrency": concurrency,
+        }
+        if max_activations is not None:
+            kwargs["max_activations"] = max_activations
+        return ActivationPoolSession(**kwargs)
 
     async def rule(self, rule_name: str, *, name: Optional[str] = None, **params: Any) -> Any:
         resolved = _resolve_logic_entry(self.world, rule_name, "rule")
@@ -2498,13 +2806,7 @@ def _summarize_memory_diagnostics(rows: Iterable[tuple[Optional[str], Dict[str, 
     summary: Dict[str, Any] = {
         "record_count": 0,
         "retrieve_enabled_count": 0,
-        "save_enabled_count": 0,
-        "extraction_enabled_count": 0,
-        "extraction_success_count": 0,
-        "extraction_error_count": 0,
-        "extracted_memory_count": 0,
         "top_k_values": set(),
-        "error_samples": [],
     }
     for agent_id, payload in rows:
         if not isinstance(payload, dict) or not _has_memory_diagnostics(payload):
@@ -2512,37 +2814,12 @@ def _summarize_memory_diagnostics(rows: Iterable[tuple[Optional[str], Dict[str, 
         summary["record_count"] += 1
         if payload.get("memory_retrieved") is True:
             summary["retrieve_enabled_count"] += 1
-        if payload.get("memory_saved") is True:
-            summary["save_enabled_count"] += 1
-        extraction_enabled = payload.get("memory_extraction_enabled") is True
-        if extraction_enabled:
-            summary["extraction_enabled_count"] += 1
-            if payload.get("memory_extraction_success") is True:
-                summary["extraction_success_count"] += 1
-            else:
-                summary["extraction_error_count"] += 1
-                error = payload.get("memory_extraction_error")
-                if error and len(summary["error_samples"]) < 5:
-                    sample: Dict[str, Any] = {"error": str(error)}
-                    if agent_id:
-                        sample["agent_id"] = str(agent_id)
-                    summary["error_samples"].append(sample)
         top_k = payload.get("memory_top_k")
         if isinstance(top_k, (int, float)) and int(top_k) > 0:
             summary["top_k_values"].add(int(top_k))
-        extracted_count = payload.get("extracted_memory_count")
-        if isinstance(extracted_count, (int, float)):
-            summary["extracted_memory_count"] += int(extracted_count)
-        else:
-            extracted_memories = payload.get("extracted_memories")
-            if isinstance(extracted_memories, list):
-                summary["extracted_memory_count"] += len(extracted_memories)
-
     if not summary["record_count"]:
         return {}
     summary["top_k_values"] = sorted(summary["top_k_values"])
-    if not summary["error_samples"]:
-        summary.pop("error_samples", None)
     return summary
 
 

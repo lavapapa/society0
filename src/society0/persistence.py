@@ -7,11 +7,11 @@ and event replay according to the final integration design document.
 
 from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable
 from pathlib import Path
+import copy
 import json
 import traceback
 import time
 import shutil
-import asyncio
 import logging
 import os
 import uuid
@@ -26,7 +26,6 @@ from .state_proxy import DictProxy, ListProxy
 if TYPE_CHECKING:
     from .core_data import World
     from typing import Any as Schedule
-    from .event_logger import Event
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +53,16 @@ class PersistenceManager:
         self.save_dir = Path(save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
+        # Agent Thread evidence is a separate append-only component.  The
+        # checkpoint stores only immutable references to closed threads.
+        from .agent.thread_store import AgentThreadStore
+
+        self.agent_thread_store = AgentThreadStore(self.save_dir)
+
         # 立即初始化_chroma_client属性为None，确保属性存在
         self._chroma_client = None
         self._restore_failed = False
+        self._close_completed = False
 
         # Create subdirectories according to new design
         self.checkpoints_dir = self.save_dir / "checkpoints"
@@ -266,6 +272,7 @@ class PersistenceManager:
             )
         except Exception as exc:
             logger.warning("Failed to sync Chroma store to primary path: %s", exc)
+            raise
 
     @staticmethod
     def _copy_directory(source: Path, target: Path) -> None:
@@ -329,17 +336,85 @@ class PersistenceManager:
                 handle.flush()
                 os.fsync(handle.fileno())
             temp_path.replace(path)
+            PersistenceManager._fsync_directory(path.parent)
         finally:
             temp_path.unlink(missing_ok=True)
 
+    @staticmethod
+    def _fsync_directory(path: Path) -> None:
+        """Durably publish a newly renamed checkpoint component."""
+
+        try:
+            descriptor = os.open(path, os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    @classmethod
+    def _fsync_tree(cls, root: Path) -> None:
+        """Flush copied component files and directory entries to stable storage."""
+
+        if root.is_symlink() or not root.is_dir():
+            raise ValueError(f"Checkpoint component must be a regular directory: {root}")
+
+        directories: List[Path] = []
+        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
+            if path.is_symlink():
+                raise ValueError(f"Checkpoint component must not contain symlinks: {path}")
+            if path.is_dir():
+                directories.append(path)
+                continue
+            if not path.is_file():
+                raise ValueError(f"Checkpoint component contains unsupported entry: {path}")
+            with path.open("rb") as handle:
+                os.fsync(handle.fileno())
+
+        for directory in sorted(directories, key=lambda item: item.as_posix(), reverse=True):
+            cls._fsync_directory(directory)
+        cls._fsync_directory(root)
+
+    @staticmethod
+    def _normalize_step(step: Any) -> int:
+        """Validate a checkpoint step without coercing caller input."""
+
+        if isinstance(step, bool) or not isinstance(step, int) or step < 0:
+            raise ValueError("step must be a non-negative integer")
+        return step
+
     def _complete_marker_path(self, step: int) -> Path:
+        step = self._normalize_step(step)
         return self.complete_checkpoints_dir / f"step_{step:06d}.json"
 
-    def _checkpoint_file_path(self, step: int) -> Path:
-        return self.checkpoints_dir / f"checkpoint_{step:06d}.json"
+    def _checkpoint_file_path(
+        self,
+        step: int,
+        *,
+        checkpoint_id: Optional[str] = None,
+    ) -> Path:
+        """Return the immutable world component path for a checkpoint.
 
-    def _chroma_backup_path(self, step: int) -> Path:
-        return self.chroma_backup_dir / f"step_{step:06d}"
+        Recoverable checkpoints are published through the step marker.  The
+        component name therefore includes the checkpoint id so a replacement
+        can be built without touching the pair referenced by the currently
+        published marker.
+        """
+        step = self._normalize_step(step)
+        suffix = f".{checkpoint_id}" if checkpoint_id else ""
+        return self.checkpoints_dir / f"checkpoint_{step:06d}{suffix}.json"
+
+    def _chroma_backup_path(
+        self,
+        step: int,
+        *,
+        checkpoint_id: Optional[str] = None,
+    ) -> Path:
+        """Return the immutable Chroma component path for a checkpoint."""
+        step = self._normalize_step(step)
+        suffix = f".{checkpoint_id}" if checkpoint_id else ""
+        return self.chroma_backup_dir / f"step_{step:06d}{suffix}"
 
     @staticmethod
     def _file_sha256(path: Path) -> str:
@@ -393,6 +468,27 @@ class PersistenceManager:
         return digest.hexdigest()
 
     @staticmethod
+    def _validate_memoryless_chroma_backup(directory: Path) -> None:
+        """Ensure a rule-only Chroma component contains metadata only.
+
+        Rule-only checkpoints deliberately do not carry vector data.  Keeping
+        the versioned backup directory (and its manifest) preserves the same
+        marker/hash publication protocol as memory-backed checkpoints, while
+        this validation prevents stale files or directories from crossing the
+        checkpoint boundary.
+        """
+        for entry in directory.iterdir():
+            if entry.name == "_checkpoint.json":
+                if entry.is_symlink() or not entry.is_file():
+                    raise ValueError(
+                        "Memoryless Chroma backup metadata must be a regular file"
+                    )
+                continue
+            raise ValueError(
+                "Chroma backup does not match: memoryless backup must contain metadata only"
+            )
+
+    @staticmethod
     def _world_requires_memory(world: 'World') -> bool:
         return any(
             isinstance(agent_data, dict) and agent_data.get("archetype") == "llm"
@@ -422,23 +518,27 @@ class PersistenceManager:
             schedule: The Schedule instance for progress tracking
         """
         self._assert_usable()
-        step = world.step
-        checkpoint_file = self._checkpoint_file_path(step)
-        marker_file = self._complete_marker_path(step)
+        step = self._normalize_step(world.step)
         checkpoint_id = uuid.uuid4().hex
+        checkpoint_file = self._checkpoint_file_path(step, checkpoint_id=checkpoint_id)
+        marker_file = self._complete_marker_path(step)
         requires_memory = self._world_requires_memory(world)
         if memory_required is not None and bool(memory_required) is not requires_memory:
             raise ValueError("memory_required must match the LLM agents present in World")
         checkpoint_start = time.time()
-        rollback_world: Optional[Path] = None
-        rollback_backup: Optional[Path] = None
-        rollback_marker: Optional[Path] = None
         checkpoint_published = False
-        previous_backup_moved = False
-        previous_had_backup = False
-        
+        chroma_backup: Optional[Path] = None
+        temp_path = checkpoint_file.with_name(
+            f".{checkpoint_file.name}.{uuid.uuid4().hex}.tmp"
+        )
+
         try:
             logger.info(f"Creating checkpoint for step {step}")
+
+            agent_threads = self.agent_thread_store.publish_checkpoint_manifest(
+                checkpoint_id=checkpoint_id,
+                step=step,
+            )
 
             environment = world.get_environment()
             env_snapshot = self._plain_snapshot_value(environment.snapshot())
@@ -460,30 +560,23 @@ class PersistenceManager:
                 "step": step,
                 "memory_required": requires_memory,
                 "agent_types": dict(getattr(world, "_agent_types", {}) or {}),
+                "agent_threads": {
+                    "schema_version": 1,
+                    "manifest": agent_threads["path"],
+                    "manifest_sha256": agent_threads["sha256"],
+                    "thread_count": agent_threads["thread_count"],
+                    "by_agent": agent_threads["by_agent"],
+                    "threads": agent_threads["threads"],
+                },
             }
             resume_identity = getattr(world, "_resume_identity", None)
             if resume_identity is not None:
                 world_metadata["resume_identity"] = dict(resume_identity)
+            checkpoint_annotations = world.checkpoint_annotations()
+            if checkpoint_annotations:
+                world_metadata["annotations"] = checkpoint_annotations
 
-            temp_path = checkpoint_file.with_suffix(".json.tmp")
             current_time = time.time()
-
-            try:
-                previous_record = self.resolve_checkpoint(step)
-            except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError):
-                previous_record = None
-            if previous_record is not None:
-                rollback_token = uuid.uuid4().hex
-                rollback_world = self.checkpoints_dir / f".checkpoint_{step:06d}.{rollback_token}.rollback"
-                rollback_backup = self.chroma_backup_dir / f".step_{step:06d}.{rollback_token}.rollback"
-                rollback_marker = self.complete_checkpoints_dir / f".step_{step:06d}.{rollback_token}.rollback"
-                checkpoint_file.replace(rollback_world)
-                previous_backup = previous_record.get("chroma_backup_dir")
-                if isinstance(previous_backup, Path) and previous_backup.exists():
-                    previous_had_backup = True
-                    previous_backup.replace(rollback_backup)
-                    previous_backup_moved = True
-                shutil.copy2(marker_file, rollback_marker)
 
             def _write_value_field(fp, indent: int, key: str, value: Any, *, last: bool) -> None:
                 fp.write(" " * indent)
@@ -612,7 +705,20 @@ class PersistenceManager:
                 os.fsync(fp.fileno())
 
             temp_path.replace(checkpoint_file)
+            self._fsync_directory(checkpoint_file.parent)
             world_sha256 = self._file_sha256(checkpoint_file)
+
+            # Validate the immutable world component before publishing the
+            # marker.  A marker must never expose a truncated or foreign file.
+            with checkpoint_file.open("r", encoding="utf-8") as fp:
+                persisted_world = json.load(fp)
+            if (
+                persisted_world.get("checkpoint_id") != checkpoint_id
+                or persisted_world.get("step") != step
+                or persisted_world.get("world_metadata", {}).get("checkpoint_id")
+                != checkpoint_id
+            ):
+                raise ValueError("World checkpoint component failed identity validation")
 
             checkpoint_size = checkpoint_file.stat().st_size if checkpoint_file.exists() else None
 
@@ -624,6 +730,15 @@ class PersistenceManager:
             )
             backup_duration = time.time() - backup_start
             chroma_sha256 = self._directory_content_sha256(chroma_backup)
+            chroma_manifest_path = chroma_backup / "_checkpoint.json"
+            with chroma_manifest_path.open("r", encoding="utf-8") as fp:
+                chroma_manifest = json.load(fp)
+            if (
+                chroma_manifest.get("checkpoint_id") != checkpoint_id
+                or chroma_manifest.get("step") != step
+                or chroma_manifest.get("content_sha256") != chroma_sha256
+            ):
+                raise ValueError("Chroma backup component failed identity validation")
 
             marker_payload = {
                 "complete": True,
@@ -637,7 +752,22 @@ class PersistenceManager:
                 "checkpoint_version": "complete_step_v1",
                 "world_sha256": world_sha256,
                 "chroma_sha256": chroma_sha256,
+                "agent_threads_manifest": agent_threads["path"],
+                "agent_threads_sha256": agent_threads["sha256"],
             }
+            # Validate the exact immutable Thread manifest before publishing
+            # the complete marker.  A marker is the commit point; publishing
+            # it with a missing/mismatched Thread reference would make a
+            # checkpoint appear recoverable while its evidence is not.
+            from .agent.thread_store import AgentThreadStore
+
+            AgentThreadStore.validate_checkpoint_manifest(
+                self.save_dir,
+                agent_threads["path"],
+                expected_sha256=agent_threads["sha256"],
+                checkpoint_id=checkpoint_id,
+                step=step,
+            )
             # 5. Update metadata
             self.experiment_metadata.setdefault("total_steps", 0)
             self.experiment_metadata.setdefault("last_checkpoint_step", -1)
@@ -646,19 +776,14 @@ class PersistenceManager:
                 self.experiment_metadata["total_steps"], step)
             self._save_metadata()
 
-            # This is the commit point and the final checkpoint component to be
-            # published. Readers validate every component id after opening it.
+            # This is the commit point.  The old marker and its immutable pair
+            # remain untouched until this single atomic replacement succeeds.
+            # Versioned old components stay available for readers that opened
+            # the previous marker; any garbage collection is a separate task.
             marker_payload["published_at"] = time.time()
             self._atomic_write_json(marker_file, marker_payload)
             checkpoint_published = True
 
-            if rollback_world is not None:
-                rollback_world.unlink(missing_ok=True)
-            if rollback_backup is not None:
-                shutil.rmtree(rollback_backup, ignore_errors=True)
-            if rollback_marker is not None:
-                rollback_marker.unlink(missing_ok=True)
-            
             logger.info(f"Successfully saved checkpoint for step {step}")
 
             log_context = getattr(world, "_log_context", None)
@@ -682,21 +807,23 @@ class PersistenceManager:
             return marker_payload
 
         except Exception as e:
-            if not checkpoint_published and rollback_world is not None and rollback_world.exists():
+            # A failed pre-commit build may leave only an unpublished orphan.
+            # Never touch the component named by the previous marker.  If the
+            # marker replacement itself succeeded but a later durability check
+            # raised, preserve the newly published pair as well.
+            if not checkpoint_published:
+                try:
+                    with marker_file.open("r", encoding="utf-8") as fp:
+                        published_marker = json.load(fp)
+                    checkpoint_published = (
+                        published_marker.get("checkpoint_id") == checkpoint_id
+                    )
+                except (FileNotFoundError, OSError, json.JSONDecodeError):
+                    pass
+            if not checkpoint_published:
                 checkpoint_file.unlink(missing_ok=True)
-                rollback_world.replace(checkpoint_file)
-                current_backup = self._chroma_backup_path(step)
-                if previous_backup_moved and rollback_backup is not None and rollback_backup.exists():
-                    shutil.rmtree(current_backup, ignore_errors=True)
-                    rollback_backup.replace(current_backup)
-                elif not previous_had_backup:
-                    # The previous complete checkpoint legitimately had no
-                    # Chroma component. Remove any component built by this
-                    # failed replacement so the old pairing stays exact.
-                    shutil.rmtree(current_backup, ignore_errors=True)
-                if rollback_marker is not None and rollback_marker.exists():
-                    marker_file.unlink(missing_ok=True)
-                    rollback_marker.replace(marker_file)
+                if chroma_backup is not None:
+                    shutil.rmtree(chroma_backup, ignore_errors=True)
             logger.error(f"Failed to save checkpoint for step {step}: {e}")
             log_context = getattr(world, "_log_context", None)
             if log_context:
@@ -711,13 +838,7 @@ class PersistenceManager:
                 )
             raise
         finally:
-            if checkpoint_published:
-                if rollback_world is not None:
-                    rollback_world.unlink(missing_ok=True)
-                if rollback_backup is not None:
-                    shutil.rmtree(rollback_backup, ignore_errors=True)
-                if rollback_marker is not None:
-                    rollback_marker.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
 
     def _build_observation_data(
         self,
@@ -823,20 +944,26 @@ class PersistenceManager:
         """
         if Path(filename).name != filename:
             raise ValueError("Diagnostic checkpoint filename must be a basename")
+        step = self._normalize_step(world.step)
         environment = world.get_environment()
         environment_payload = dict(world.environment_data)
         environment_payload["state"] = dict(world.environment_data.get("state") or {})
         environment_payload["snapshot"] = self._plain_snapshot_value(
             environment.snapshot()
         )
+        # A diagnostic snapshot can be taken while an activation is still
+        # running.  Keep immutable cursors to every open/closed Agent Thread
+        # so the failure evidence can be resumed by inspection.
+        agent_threads = self.agent_thread_store.snapshot_thread_references()
         path = self.checkpoints_dir / filename
         self._atomic_write_json(
             path,
             {
-                "step": world.step,
+                "step": step,
                 "timestamp": time.time(),
                 "recoverable": False,
                 "diagnostic": True,
+                "agent_threads": agent_threads,
                 "agents_data": self._serialize_agents_data(world.agents_data),
                 "environment_data": environment_payload,
                 "world_state_summary": world.get_state_summary(),
@@ -1028,7 +1155,7 @@ class PersistenceManager:
                     continue
             raise FileNotFoundError(f"No complete checkpoints found in {save_dir}")
 
-        step = int(step)
+        step = cls._normalize_step(step)
         marker_file = complete_dir / f"step_{step:06d}.json"
         if not marker_file.is_file() or marker_file.is_symlink():
             raise FileNotFoundError(f"Complete checkpoint not found for step {step}")
@@ -1037,7 +1164,14 @@ class PersistenceManager:
         if marker.get("complete") is not True or marker.get("recoverable") is not True:
             raise ValueError(f"Checkpoint marker is not complete for step {step}")
         checkpoint_id = marker.get("checkpoint_id")
-        if marker.get("step") != step or not isinstance(checkpoint_id, str) or not checkpoint_id:
+        marker_step = marker.get("step")
+        if (
+            isinstance(marker_step, bool)
+            or not isinstance(marker_step, int)
+            or marker_step != step
+            or not isinstance(checkpoint_id, str)
+            or not checkpoint_id
+        ):
             raise ValueError(f"Invalid checkpoint marker for step {step}")
         if marker.get("checkpoint_version") != "complete_step_v1":
             raise ValueError(f"Unsupported checkpoint version for step {step}")
@@ -1054,7 +1188,13 @@ class PersistenceManager:
             raise ValueError(f"World checkpoint content hash mismatch for step {step}")
         with checkpoint_file.open("r", encoding="utf-8") as handle:
             checkpoint_data = json.load(handle)
-        if checkpoint_data.get("checkpoint_id") != checkpoint_id or checkpoint_data.get("step") != step:
+        checkpoint_step = checkpoint_data.get("step")
+        if (
+            checkpoint_data.get("checkpoint_id") != checkpoint_id
+            or isinstance(checkpoint_step, bool)
+            or not isinstance(checkpoint_step, int)
+            or checkpoint_step != step
+        ):
             raise ValueError(f"World checkpoint does not match complete marker for step {step}")
         agents_data = checkpoint_data.get("agents_data")
         if not isinstance(agents_data, dict):
@@ -1068,6 +1208,8 @@ class PersistenceManager:
             raise ValueError(f"World metadata missing for step {step}")
         if (
             world_metadata.get("checkpoint_id") != checkpoint_id
+            or isinstance(world_metadata.get("step"), bool)
+            or not isinstance(world_metadata.get("step"), int)
             or world_metadata.get("step") != step
             or world_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
             or world_metadata.get("memory_required") is not derived_memory_required
@@ -1086,38 +1228,80 @@ class PersistenceManager:
                 or cls.canonical_sha256(unsigned_identity) != identity_sha256
             ):
                 raise ValueError(f"Checkpoint resume identity hash mismatch for step {step}")
+        checkpoint_annotations = world_metadata.get("annotations")
+        if checkpoint_annotations is not None and not isinstance(
+            checkpoint_annotations,
+            dict,
+        ):
+            raise ValueError(f"Checkpoint annotations are invalid for step {step}")
+
+        agent_threads = world_metadata.get("agent_threads")
+        if not isinstance(agent_threads, dict):
+            raise ValueError(f"Agent Thread references missing for step {step}")
+        manifest_name = marker.get("agent_threads_manifest")
+        manifest_sha256 = marker.get("agent_threads_sha256")
+        if (
+            agent_threads.get("schema_version") != 1
+            or agent_threads.get("manifest") != manifest_name
+            or agent_threads.get("manifest_sha256") != manifest_sha256
+            or not isinstance(manifest_name, str)
+            or not isinstance(manifest_sha256, str)
+        ):
+            raise ValueError(
+                f"Agent Thread references do not match checkpoint marker for step {step}"
+            )
+        from .agent.thread_store import AgentThreadStore
+
+        agent_thread_manifest = AgentThreadStore.validate_checkpoint_manifest(
+            save_dir,
+            manifest_name,
+            expected_sha256=manifest_sha256,
+            checkpoint_id=checkpoint_id,
+            step=step,
+        )
+        if (
+            agent_threads.get("thread_count")
+            != len(agent_thread_manifest["threads"])
+            or agent_threads.get("by_agent") != agent_thread_manifest["by_agent"]
+            or agent_threads.get("threads") != agent_thread_manifest["threads"]
+        ):
+            raise ValueError(
+                f"Agent Thread checkpoint references are inconsistent for step {step}"
+            )
 
         backup_name = marker.get("chroma_backup")
-        backup_dir: Optional[Path] = None
-        if backup_name is not None:
-            backup_dir = cls._safe_child(
-                backup_root,
-                backup_name,
-                component="Chroma backup",
+        if backup_name is None:
+            raise FileNotFoundError(
+                f"Chroma backup missing for complete checkpoint step {step}"
             )
-            if not backup_dir.is_dir() or backup_dir.is_symlink():
-                raise FileNotFoundError(f"Chroma backup missing for complete checkpoint step {step}")
-            backup_manifest = backup_dir / "_checkpoint.json"
-            if not backup_manifest.is_file() or backup_manifest.is_symlink():
-                raise FileNotFoundError(f"Chroma backup manifest missing for step {step}")
-            with backup_manifest.open("r", encoding="utf-8") as handle:
-                chroma_metadata = json.load(handle)
-            expected_chroma_hash = marker.get("chroma_sha256")
-            actual_chroma_hash = cls._directory_content_sha256(backup_dir)
-            if (
-                chroma_metadata.get("checkpoint_id") != checkpoint_id
-                or chroma_metadata.get("step") != step
-                or chroma_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
-                or chroma_metadata.get("memory_required") is not derived_memory_required
-                or not isinstance(expected_chroma_hash, str)
-                or chroma_metadata.get("content_sha256") != expected_chroma_hash
-                or actual_chroma_hash != expected_chroma_hash
-            ):
-                raise ValueError(f"Chroma backup does not match complete marker for step {step}")
-        elif derived_memory_required:
-            raise FileNotFoundError(f"Memory backup missing for complete checkpoint step {step}")
-        elif marker.get("chroma_sha256") is not None:
-            raise ValueError(f"Checkpoint marker references missing Chroma content for step {step}")
+        backup_dir = cls._safe_child(
+            backup_root,
+            backup_name,
+            component="Chroma backup",
+        )
+        if not backup_dir.is_dir() or backup_dir.is_symlink():
+            raise FileNotFoundError(f"Chroma backup missing for complete checkpoint step {step}")
+        backup_manifest = backup_dir / "_checkpoint.json"
+        if not backup_manifest.is_file() or backup_manifest.is_symlink():
+            raise FileNotFoundError(f"Chroma backup manifest missing for step {step}")
+        if not derived_memory_required:
+            cls._validate_memoryless_chroma_backup(backup_dir)
+        with backup_manifest.open("r", encoding="utf-8") as handle:
+            chroma_metadata = json.load(handle)
+        expected_chroma_hash = marker.get("chroma_sha256")
+        actual_chroma_hash = cls._directory_content_sha256(backup_dir)
+        if (
+            chroma_metadata.get("checkpoint_id") != checkpoint_id
+            or isinstance(chroma_metadata.get("step"), bool)
+            or not isinstance(chroma_metadata.get("step"), int)
+            or chroma_metadata.get("step") != step
+            or chroma_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
+            or chroma_metadata.get("memory_required") is not derived_memory_required
+            or not isinstance(expected_chroma_hash, str)
+            or chroma_metadata.get("content_sha256") != expected_chroma_hash
+            or actual_chroma_hash != expected_chroma_hash
+        ):
+            raise ValueError(f"Chroma backup does not match complete marker for step {step}")
 
         return {
             "step": step,
@@ -1127,6 +1311,7 @@ class PersistenceManager:
             "checkpoint_file": checkpoint_file,
             "checkpoint_data": checkpoint_data,
             "chroma_backup_dir": backup_dir,
+            "agent_thread_manifest": agent_thread_manifest,
             "memory_required": derived_memory_required,
         }
 
@@ -1206,7 +1391,7 @@ class PersistenceManager:
     ) -> Tuple['World', 'Schedule']:
         chroma_restored = False
         try:
-            resolved_step = int(record["step"])
+            resolved_step = self._normalize_step(record["step"])
             checkpoint_data = record["checkpoint_data"]
             checkpoint_requires_memory = bool(record["memory_required"])
             if memory_required is True and record["chroma_backup_dir"] is None:
@@ -1243,6 +1428,13 @@ class PersistenceManager:
             )
             if isinstance(resume_identity, dict):
                 world._resume_identity = dict(resume_identity)
+            checkpoint_annotations = (checkpoint_data.get("world_metadata") or {}).get(
+                "annotations"
+            )
+            if checkpoint_annotations is not None:
+                if not isinstance(checkpoint_annotations, dict):
+                    raise ValueError("Checkpoint annotations must be a mapping")
+                world._checkpoint_annotations = copy.deepcopy(checkpoint_annotations)
             
             # Restore environment data
             env_data = checkpoint_data["environment_data"]
@@ -1285,6 +1477,7 @@ class PersistenceManager:
         Returns:
             Updated World object with events replayed
         """
+        checkpoint_step = self._normalize_step(checkpoint_step)
         events_file = self.events_dir / f"events_from_step_{checkpoint_step}.jsonl"
         
         if not events_file.exists():
@@ -1316,23 +1509,26 @@ class PersistenceManager:
         memory_required: bool,
     ) -> Path:
         """Build the Chroma component before the complete marker is published."""
+        step = self._normalize_step(step)
         temp_dir = self.chroma_backup_dir / f".step_{step:06d}.{checkpoint_id}.tmp"
         try:
-            self._sync_chroma_to_store()
-
-            source_dir = (
-                self.chroma_runtime_path
-                if self.chroma_runtime_path and self.chroma_runtime_path.exists()
-                else self.chroma_store_path
-            )
-
-            if not source_dir.exists() and memory_required:
-                raise FileNotFoundError(f"Chroma store directory not found at {source_dir}")
-
             shutil.rmtree(temp_dir, ignore_errors=True)
-            if source_dir.exists():
+            if memory_required:
+                self._sync_chroma_to_store()
+
+                source_dir = (
+                    self.chroma_runtime_path
+                    if self.chroma_runtime_path and self.chroma_runtime_path.exists()
+                    else self.chroma_store_path
+                )
+
+                if not source_dir.exists():
+                    raise FileNotFoundError(f"Chroma store directory not found at {source_dir}")
+
                 self._copy_directory(source_dir, temp_dir)
             else:
+                # Rule-only checkpoints retain only the versioned metadata
+                # container.  Never copy or sync a pre-existing runtime store.
                 temp_dir.mkdir(parents=True, exist_ok=True)
             content_sha256 = self._directory_content_sha256(temp_dir)
             self._atomic_write_json(
@@ -1347,17 +1543,13 @@ class PersistenceManager:
                 },
             )
 
-            backup_dir = self._chroma_backup_path(step)
-            stale_dir = self.chroma_backup_dir / f".step_{step:06d}.{uuid.uuid4().hex}.stale"
-            if backup_dir.exists():
-                backup_dir.replace(stale_dir)
-            try:
-                temp_dir.replace(backup_dir)
-            except Exception:
-                if stale_dir.exists() and not backup_dir.exists():
-                    stale_dir.replace(backup_dir)
-                raise
-            shutil.rmtree(stale_dir, ignore_errors=True)
+            # Flush every copied file and directory entry before exposing the
+            # component name.  The marker is the only publication point for a
+            # complete pair; its parent directory is synced after replacement.
+            self._fsync_tree(temp_dir)
+            backup_dir = self._chroma_backup_path(step, checkpoint_id=checkpoint_id)
+            temp_dir.replace(backup_dir)
+            self._fsync_directory(self.chroma_backup_dir)
             logger.debug("Backed up Chroma store for step %s -> %s", step, backup_dir)
             return backup_dir
 
@@ -1378,31 +1570,30 @@ class PersistenceManager:
     ) -> None:
         """Restore Chroma transactionally, rolling back every destination path."""
         self._assert_usable()
+        step = self._normalize_step(step)
         rollback_paths: Dict[Path, Path] = {}
         staged_paths: Dict[Path, Path] = {}
         replaced_targets: List[Path] = []
         existing_targets: set[Path] = set()
         try:
             if backup_dir is None and not use_default_backup:
-                if memory_required:
-                    raise FileNotFoundError(f"Chroma backup not found for step {step}")
-                return
+                raise FileNotFoundError(f"Chroma backup not found for step {step}")
             backup_dir = backup_dir or self._chroma_backup_path(step)
             if not backup_dir.exists():
-                if memory_required:
-                    raise FileNotFoundError(f"Chroma backup not found for step {step}")
-                return
+                raise FileNotFoundError(f"Chroma backup not found for step {step}")
 
             manifest_path = backup_dir / "_checkpoint.json"
             if not manifest_path.is_file():
-                if memory_required:
-                    raise FileNotFoundError(f"Chroma backup manifest not found for step {step}")
-                return
+                raise FileNotFoundError(f"Chroma backup manifest not found for step {step}")
             with manifest_path.open("r", encoding="utf-8") as handle:
                 manifest = json.load(handle)
+            if not memory_required:
+                self._validate_memoryless_chroma_backup(backup_dir)
             content_sha256 = self._directory_content_sha256(backup_dir)
             if (
                 manifest.get("checkpoint_id") != checkpoint_id
+                or isinstance(manifest.get("step"), bool)
+                or not isinstance(manifest.get("step"), int)
                 or manifest.get("step") != step
                 or manifest.get("checkpoint_version") != "complete_step_v1"
                 or manifest.get("memory_required") is not memory_required
@@ -1412,7 +1603,8 @@ class PersistenceManager:
 
             # Chroma has no explicit close API. Persistent writes already land
             # in its active directory; detach the handle before path swaps.
-            self._sync_chroma_to_store()
+            if memory_required:
+                self._sync_chroma_to_store()
             self._chroma_client = None
 
             targets = [self.chroma_store_path]
@@ -1443,14 +1635,7 @@ class PersistenceManager:
                     replaced_targets.append(target_dir)
                 staged.replace(target_dir)
 
-            # Empty backups for rule-only runs must not import or initialize Chroma.
-            active_dir = (
-                self.chroma_runtime_path
-                if self._using_fallback_runtime
-                else self.chroma_store_path
-            )
-            has_store_data = any(active_dir.iterdir())
-            if memory_required or has_store_data:
+            if memory_required:
                 # Avoid _ensure_chroma_client here: it syncs during the open and
                 # would make rollback span another destructive copy.
                 self._chroma_client = self._create_chroma_client()
@@ -1746,21 +1931,20 @@ class PersistenceManager:
 
     def get_available_chroma_backups(self) -> List[int]:
         """Return list of available Chroma backup steps."""
-        backup_steps: List[int] = []
+        backup_steps: set[int] = set()
 
         for backup_dir in self.chroma_backup_dir.glob("step_*"):
             if not backup_dir.is_dir():
                 continue
-            parts = backup_dir.name.split("_")
-            if len(parts) != 2:
+            step_token = backup_dir.name.split("_", 1)[1].split(".", 1)[0]
+            if not step_token:
                 continue
             try:
-                backup_steps.append(int(parts[1]))
+                backup_steps.add(int(step_token))
             except ValueError:
                 continue
 
-        backup_steps.sort()
-        return backup_steps
+        return sorted(backup_steps)
 
     def close(self) -> None:
         """
@@ -1769,11 +1953,31 @@ class PersistenceManager:
         - 按配置清理 tmpfs 目录
         """
         with self._chroma_init_lock:
-            if not self._restore_failed:
-                try:
-                    self._sync_chroma_to_store()
-                except Exception as exc:
-                    logger.warning("Failed to sync Chroma store during close: %s", exc)
+            if self._close_completed:
+                return
+
+            if self._restore_failed:
+                # The runtime/store pair is already known to be uncertain.
+                # Keep the runtime for forensic inspection or an explicit
+                # recovery attempt; closing must not turn that uncertainty
+                # into data loss.
+                logger.warning(
+                    "PersistenceManager remains open after failed Chroma restore; "
+                    "runtime path retained: %s",
+                    self.chroma_runtime_path,
+                )
+                self._close_completed = True
+                return
+
+            try:
+                self._sync_chroma_to_store()
+            except Exception as exc:
+                # A failed writeback is observable to the caller and leaves
+                # both the client and runtime attached so close() can be
+                # retried after the underlying storage issue is fixed.
+                logger.warning("Failed to sync Chroma store during close: %s", exc)
+                raise
+
             self._chroma_client = None
 
             if (
@@ -1787,3 +1991,5 @@ class PersistenceManager:
                     logger.debug("Cleaned tmpfs Chroma runtime path: %s", self.chroma_runtime_path)
                 except Exception as exc:
                     logger.warning("Failed to cleanup tmpfs runtime path: %s", exc)
+
+            self._close_completed = True

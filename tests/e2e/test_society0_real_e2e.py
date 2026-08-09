@@ -382,7 +382,6 @@ async def test_real_society0_interview_e2e_writes_artifacts(tmp_path):
             "A new city policy will reduce commuting time.",
             output=TrustSurvey,
             retrieve_memory=True,
-            save_memory=False,
             concurrency=1,
             max_turns=3,
         )
@@ -437,17 +436,34 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
                 in_flight -= 1
 
         ctx.world.instruct_agent = counted_instruct
-        seeded = await ctx.agents.all().instruct(
+        group = ctx.agents.all()
+        thread_ids = {
+            agent_id: ctx.log.open_agent_thread(
+                agent_id=agent_id,
+                checkpoint_step=ctx.world.step + 1,
+                scope={"kind": "real_e2e", "tick": ctx.world.step},
+            )
+            for agent_id in group.agent_ids
+        }
+        seeded = await group.instruct(
             "Remember this exact private signal for the later survey: cobalt moon. "
             "Return ok=true and answer='cobalt moon'.",
             output=SaturationAnswer,
-            memory=True,
+            retrieve_memory=True,
+            thread_ids_by_agent=thread_ids,
             max_turns=3,
             name="saturation_seed",
+        )
+        extracted = await group.extract_thread_memories(
+            thread_ids,
+            timestamp=ctx.world.step,
+            idempotency_key=f"real_e2e:saturation:{ctx.world.step}",
+            name="saturation_memory_extract",
         )
         return ctx.result(
             metrics={
                 "seed_errors": seeded.error_count,
+                "memory_extract_errors": extracted.error_count,
                 "max_instruct_in_flight": max_in_flight,
             },
             tables={"seeded": seeded.table()},
@@ -474,7 +490,6 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
             "Return ok=true and answer exactly 'cobalt moon' if you remember it.",
             output=SaturationAnswer,
             retrieve_memory=True,
-            save_memory=False,
             max_turns=3,
             name="saturation_recall",
         )
@@ -518,6 +533,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert "api_key" not in summary["models"]["embedding"]
 
     assert seed_metrics["seed_errors"] == 0
+    assert seed_metrics["memory_extract_errors"] == 0
     assert seed_metrics["max_instruct_in_flight"] == concurrency
     assert recall_metrics["recall_errors"] == 0
     assert recall_metrics["max_interview_in_flight"] == concurrency
@@ -548,15 +564,10 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert seed_batch["concurrency_source_counts"] == {"llm_model": 1}
     assert seed_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert seed_batch["memory_summary"]["record_count"] == concurrency
     assert seed_batch["memory_summary"]["retrieve_enabled_count"] == concurrency
-    assert seed_batch["memory_summary"]["save_enabled_count"] == concurrency
-    assert seed_batch["memory_summary"]["extraction_enabled_count"] == concurrency
-    assert seed_batch["memory_summary"]["extraction_success_count"] >= 1
     assert seed_batch["memory_summary"]["top_k_values"] == [10]
     assert seed_batch["execution_options"]["max_turns"] == 3
     assert seed_batch["execution_options"]["output_schema"] is True
@@ -657,7 +668,7 @@ async def test_real_society0_explicit_agent_group_concurrency_overrides_model_e2
             "Remember this private signal: silver river. "
             "Return ok=true and answer='silver river'.",
             output=SaturationAnswer,
-            memory=True,
+            retrieve_memory=False,
             max_turns=3,
             concurrency=1,
             name="explicit_concurrency_round",
@@ -743,13 +754,29 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
             marker="logic-before-llm",
             concurrency=1,
         )
+        thread_ids = {
+            agent_id: ctx.log.open_agent_thread(
+                agent_id=agent_id,
+                checkpoint_step=ctx.world.step + 1,
+                scope={"kind": "real_e2e", "tick": ctx.world.step},
+            )
+            for agent_id in group.agent_ids
+        }
         seeded = await group.instruct(
             "Remember this private signal for the next question: cobalt moon. "
             "Return remembered=true and answer='cobalt moon'.",
             output=MemoryCheck,
-            memory=True,
+            retrieve_memory=True,
+            thread_ids_by_agent=thread_ids,
             concurrency=1,
             max_turns=3,
+        )
+        extracted = await group.extract_thread_memories(
+            thread_ids,
+            timestamp=ctx.world.step,
+            idempotency_key=f"real_e2e:memory_roundtrip:{ctx.world.step}",
+            concurrency=1,
+            name="memory_roundtrip_extract",
         )
         recalled = await group.interview(
             "Based on your memory, what private signal were you given? "
@@ -757,7 +784,6 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
             output=MemoryCheck,
             retrieve_memory=True,
             memory_top_k=1,
-            save_memory=False,
             concurrency=1,
             max_turns=3,
         )
@@ -767,6 +793,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
                 "logic_behavior_errors": marked.error_count,
                 "logic_behavior_success": marked.success_count,
                 "seed_errors": seeded.error_count,
+                "memory_extract_errors": extracted.error_count,
                 "recall_errors": recalled.error_count,
                 "remembered_count": sum(1 for value in recalled.values("remembered") if value is True),
             },
@@ -780,6 +807,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert metrics[0]["metrics"]["logic_behavior_errors"] == 0
     assert metrics[0]["metrics"]["logic_behavior_success"] == 1
     assert metrics[0]["metrics"]["seed_errors"] == 0
+    assert metrics[0]["metrics"]["memory_extract_errors"] == 0
     assert metrics[0]["metrics"]["recall_errors"] == 0
     assert metrics[0]["metrics"]["remembered_count"] >= 1
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))

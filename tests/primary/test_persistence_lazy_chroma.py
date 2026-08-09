@@ -1,5 +1,7 @@
 import builtins
 
+import pytest
+
 from society0.persistence import PersistenceManager
 
 
@@ -17,3 +19,61 @@ def test_persistence_manager_does_not_import_chromadb_on_init(tmp_path, monkeypa
 
     assert manager._chroma_client is None
     manager.close()
+
+
+def test_close_propagates_sync_failure_and_retains_runtime_for_retry(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "tmpfs")
+    monkeypatch.setenv("CHROMA_TMPFS_ROOT", str(tmp_path / "tmpfs"))
+    manager = PersistenceManager(str(tmp_path / "run"))
+    runtime_path = manager.chroma_runtime_path
+    store_path = manager.chroma_store_path
+    runtime_path.mkdir(parents=True, exist_ok=True)
+    store_path.mkdir(parents=True, exist_ok=True)
+    (runtime_path / "new.txt").write_text("new", encoding="utf-8")
+    (store_path / "old.txt").write_text("old", encoding="utf-8")
+    client = object()
+    manager._chroma_client = client
+
+    def fail_sync():
+        raise OSError("sync failed")
+
+    monkeypatch.setattr(manager, "_sync_chroma_to_store", fail_sync)
+
+    with pytest.raises(OSError, match="sync failed"):
+        manager.close()
+
+    assert runtime_path.exists()
+    assert (runtime_path / "new.txt").read_text(encoding="utf-8") == "new"
+    assert (store_path / "old.txt").read_text(encoding="utf-8") == "old"
+    assert manager._chroma_client is client
+
+    monkeypatch.undo()
+    manager.close()
+    assert not runtime_path.exists()
+    assert (store_path / "new.txt").read_text(encoding="utf-8") == "new"
+    manager.close()
+
+
+def test_close_success_closes_client_and_cleans_runtime(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "tmpfs")
+    monkeypatch.setenv("CHROMA_TMPFS_ROOT", str(tmp_path / "tmpfs"))
+    manager = PersistenceManager(str(tmp_path / "run"))
+    runtime_path = manager.chroma_runtime_path
+    runtime_path.mkdir(parents=True, exist_ok=True)
+    (runtime_path / "new.txt").write_text("new", encoding="utf-8")
+    client = object()
+    manager._chroma_client = client
+    sync_calls = []
+
+    def sync():
+        sync_calls.append(True)
+
+    monkeypatch.setattr(manager, "_sync_chroma_to_store", sync)
+
+    manager.close()
+
+    assert sync_calls == [True]
+    assert manager._chroma_client is None
+    assert not runtime_path.exists()
+    manager.close()
+    assert sync_calls == [True]

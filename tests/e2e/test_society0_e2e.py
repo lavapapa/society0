@@ -155,7 +155,15 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     assert summary["code_steps"] == ["expose", "measure"]
     assert summary["events"]["by_event"]["run_started"] == 1
     assert summary["events"]["by_event"]["run_completed"] == 1
-    assert checkpoint_names == ["checkpoint_000000.json", "checkpoint_000010.json", "checkpoint_final.json"]
+    versioned_worlds = []
+    for step in (0, 10):
+        marker = json.loads(
+            (tmp_path / "checkpoints" / "complete" / f"step_{step:06d}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        versioned_worlds.append(marker["world_file"])
+    assert checkpoint_names == sorted([*versioned_worlds, "checkpoint_final.json"])
 
     final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
     assert final_checkpoint["step"] == 12
@@ -551,7 +559,7 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
         result = await ctx.agents.all().instruct(
             "Publish one seed post.",
             actions=["publish_post"],
-            memory=False,
+            retrieve_memory=False,
             max_turns=3,
             action_call_limits={"publish_post": 1},
             name="publish_seed",
@@ -564,7 +572,7 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
             "Browse the recommended feed. You may read trending posts first; make one real interaction if useful.",
             fovs=["recommended_feed"],
             actions=["get_trending_posts", "comment"],
-            memory=False,
+            retrieve_memory=False,
             max_turns=4,
             completion_action_tags=["social_write"],
             required_action_tags=["social_write"],
@@ -713,7 +721,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
         result = await ctx.agents.all().instruct(
             "Comment on the visible post. If an action result says the id is invalid, correct it.",
             actions=["comment"],
-            memory=False,
+            retrieve_memory=False,
             max_turns=3,
             completion_action_tags=["social_write"],
             required_action_tags=["social_write"],
@@ -796,7 +804,7 @@ async def test_e2e_instruct_rejects_fov_name_in_actions_before_llm_call(tmp_path
         result = await ctx.agents.all().instruct(
             "Try to browse the feed.",
             actions=["recommended_feed"],
-            memory=False,
+            retrieve_memory=False,
             max_turns=1,
             name="bad_action_filter",
         )
@@ -890,7 +898,7 @@ async def test_e2e_instruct_rejects_unsatisfiable_required_actions_before_llm_ca
         result = await ctx.agents.all().instruct(
             "Try to complete a required social action.",
             actions=actions,
-            memory=False,
+            retrieve_memory=False,
             max_turns=1,
             required_actions=required_actions,
             required_action_tags=required_action_tags,

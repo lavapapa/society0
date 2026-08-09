@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -8,6 +9,32 @@ from society0.decorators import action, env_type
 from society0.environment import Environment
 from society0.persistence import PersistenceManager
 from society0.schedule import CodeSchedule
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_step_inputs_reject_bool_float_and_string(tmp_path):
+    manager = PersistenceManager(str(tmp_path))
+    invalid_steps = (True, False, 1.0, "1")
+    for invalid in invalid_steps:
+        with pytest.raises(ValueError, match="step"):
+            manager.resolve_checkpoint(invalid)
+        with pytest.raises(ValueError, match="step"):
+            PersistenceManager.resolve_checkpoint_from(tmp_path, invalid)
+        with pytest.raises(ValueError, match="step"):
+            manager._complete_marker_path(invalid)
+        with pytest.raises(ValueError, match="step"):
+            manager._checkpoint_file_path(invalid)
+        with pytest.raises(ValueError, match="step"):
+            manager._chroma_backup_path(invalid)
+        with pytest.raises(ValueError, match="step"):
+            await manager._restore_chroma_store(
+                invalid,
+                checkpoint_id="checkpoint-test",
+                memory_required=False,
+                backup_dir=None,
+                use_default_backup=False,
+            )
+    manager.close()
 
 
 def _config():
@@ -43,6 +70,58 @@ def _read(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _checkpoint_components(run_dir, step):
+    """Resolve immutable component paths through the published marker."""
+    marker_path = run_dir / "checkpoints" / "complete" / f"step_{step:06d}.json"
+    marker = _read(marker_path)
+    world_path = run_dir / "checkpoints" / marker["world_file"]
+    backup_name = marker.get("chroma_backup")
+    backup_path = (
+        run_dir / "chroma_backups" / backup_name
+        if backup_name is not None
+        else None
+    )
+    return marker_path, world_path, backup_path, marker
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_persists_derived_annotations(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    run_dir = tmp_path / "annotations"
+    engine = Society0(
+        save_dir=str(run_dir),
+        base_config=_config(),
+        checkpoint_every=1,
+    )
+
+    @engine.step(name="annotate")
+    async def annotate(ctx):
+        ctx.world.set_checkpoint_annotation(
+            "industry_tick_memory",
+            {"status": "partial", "memory_records_written": 1},
+        )
+        return ctx.result()
+
+    await engine.run(steps=1)
+
+    _, checkpoint_path, _, _ = _checkpoint_components(run_dir, 1)
+    checkpoint = _read(checkpoint_path)
+    assert checkpoint["world_metadata"]["annotations"] == {
+        "industry_tick_memory": {
+            "status": "partial",
+            "memory_records_written": 1,
+        }
+    }
+
+    restored, _ = await engine.persistence_manager.load_checkpoint(
+        1,
+        restore_chroma=True,
+    )
+    assert restored.checkpoint_annotations() == checkpoint["world_metadata"][
+        "annotations"
+    ]
+
+
 @env_type(type_name="resume_identity_env", config_schema={}, state_schema={})
 class _ResumeIdentityEnvironmentA(Environment):
     pass
@@ -75,9 +154,13 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
 
     await engine.run(steps=1)
 
-    marker = _read(source_run / "checkpoints" / "complete" / "step_000001.json")
-    checkpoint = _read(source_run / "checkpoints" / "checkpoint_000001.json")
-    chroma_manifest = _read(source_run / "chroma_backups" / "step_000001" / "_checkpoint.json")
+    marker_path, checkpoint_path, chroma_path, marker = _checkpoint_components(
+        source_run,
+        1,
+    )
+    checkpoint = _read(checkpoint_path)
+    assert chroma_path is not None
+    chroma_manifest = _read(chroma_path / "_checkpoint.json")
     final_snapshot = _read(source_run / "checkpoints" / "checkpoint_final.json")
 
     assert marker["complete"] is True
@@ -86,7 +169,7 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
     assert marker["checkpoint_id"] == chroma_manifest["checkpoint_id"]
     assert marker["step"] == checkpoint["step"] == chroma_manifest["step"] == 1
     assert marker["world_sha256"] == PersistenceManager._file_sha256(
-        source_run / "checkpoints" / "checkpoint_000001.json"
+        checkpoint_path
     )
     assert marker["chroma_sha256"] == chroma_manifest["content_sha256"]
     assert checkpoint["agents_data"]["participant_0"] == {
@@ -123,7 +206,8 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
     await resumed.run(steps=1)
 
     assert resumed.restored_checkpoint["step"] == 1
-    continued = _read(destination_run / "checkpoints" / "checkpoint_000002.json")
+    _, continued_path, _, _ = _checkpoint_components(destination_run, 2)
+    continued = _read(continued_path)
     assert continued["agents_data"]["participant_0"]["state"]["count"] == 11
 
     explicit = Society0(
@@ -148,7 +232,8 @@ async def test_missing_memory_backup_is_not_recoverable(tmp_path, monkeypatch):
     world.add_agent_data("llm_0", "participant", archetype="llm")
     world.set_environment_type("plain")
     await manager.save_checkpoint(world, CodeSchedule())
-    backup_dir = run_dir / "chroma_backups" / "step_000000"
+    _, _, backup_dir, _ = _checkpoint_components(run_dir, 0)
+    assert backup_dir is not None
     for path in backup_dir.iterdir():
         path.unlink()
     backup_dir.rmdir()
@@ -343,8 +428,7 @@ async def test_memory_requirement_is_recomputed_from_world_agents(tmp_path, monk
     world.set_environment_type("plain")
     await manager.save_checkpoint(world, CodeSchedule())
 
-    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_000000.json"
-    marker_path = tmp_path / "checkpoints" / "complete" / "step_000000.json"
+    marker_path, checkpoint_path, _, _ = _checkpoint_components(tmp_path, 0)
     checkpoint = _read(checkpoint_path)
     checkpoint["agents_data"]["rule_0"]["archetype"] = "llm"
     checkpoint_path.write_text(json.dumps(checkpoint), encoding="utf-8")
@@ -367,9 +451,8 @@ async def test_checkpoint_components_and_hashes_must_match(tmp_path, monkeypatch
     world.set_environment_type("plain")
     await manager.save_checkpoint(world, CodeSchedule())
 
-    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_000000.json"
-    marker_path = tmp_path / "checkpoints" / "complete" / "step_000000.json"
-    backup_dir = tmp_path / "chroma_backups" / "step_000000"
+    marker_path, checkpoint_path, backup_dir, _ = _checkpoint_components(tmp_path, 0)
+    assert backup_dir is not None
     if tamper == "world_metadata":
         checkpoint = _read(checkpoint_path)
         checkpoint["world_metadata"]["checkpoint_id"] = "foreign"
@@ -402,6 +485,7 @@ async def test_destination_chroma_restore_failure_rolls_back_world_and_store(
     source_run = tmp_path / "source"
     source = Society0(save_dir=str(source_run), base_config=_config())
     await source._initialize()
+    source.current_world_state.agents_data["participant_0"]["archetype"] = "llm"
     source.current_world_state.step = 2
     (source.persistence_manager.chroma_store_path / "source.bin").write_bytes(b"source")
     await source.persistence_manager.save_checkpoint(source.current_world_state, source.schedule)
@@ -437,7 +521,7 @@ async def test_destination_chroma_restore_failure_rolls_back_world_and_store(
 
 
 @pytest.mark.asyncio
-async def test_failed_replacement_removes_new_backup_when_old_pair_had_none(
+async def test_memoryless_checkpoint_without_versioned_backup_is_not_recoverable(
     tmp_path,
     monkeypatch,
 ):
@@ -445,35 +529,127 @@ async def test_failed_replacement_removes_new_backup_when_old_pair_had_none(
     engine = Society0(save_dir=str(tmp_path), base_config=_config())
     await engine._initialize()
     manager = engine.persistence_manager
-    first = await manager.save_checkpoint(engine.current_world_state, engine.schedule)
+    await manager.save_checkpoint(engine.current_world_state, engine.schedule)
 
-    backup_dir = tmp_path / "chroma_backups" / "step_000000"
+    _, _, backup_dir, _ = _checkpoint_components(tmp_path, 0)
+    assert backup_dir is not None
     for path in backup_dir.iterdir():
         path.unlink()
     backup_dir.rmdir()
-    marker_path = tmp_path / "checkpoints" / "complete" / "step_000000.json"
+    marker_path, _, _, _ = _checkpoint_components(tmp_path, 0)
     marker = _read(marker_path)
     marker["chroma_backup"] = None
     marker["chroma_sha256"] = None
     marker_path.write_text(json.dumps(marker), encoding="utf-8")
-    assert manager.resolve_checkpoint(0)["chroma_backup_dir"] is None
-
-    real_atomic_write = manager._atomic_write_json
-
-    def fail_marker(path, payload, **kwargs):
-        if path.parent == manager.complete_checkpoints_dir:
-            raise OSError("replacement marker failure")
-        return real_atomic_write(path, payload, **kwargs)
-
-    monkeypatch.setattr(manager, "_atomic_write_json", fail_marker)
-    with pytest.raises(OSError, match="replacement marker failure"):
-        await manager.save_checkpoint(engine.current_world_state, engine.schedule)
-
-    restored = manager.resolve_checkpoint(0)
-    assert restored["checkpoint_id"] == first["checkpoint_id"]
-    assert restored["chroma_backup_dir"] is None
+    with pytest.raises(FileNotFoundError, match="Chroma backup missing"):
+        manager.resolve_checkpoint(0)
+    assert await manager.get_available_checkpoints() == []
     assert not backup_dir.exists()
     engine.event_logger.close()
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_memoryless_checkpoint_drops_stale_chroma_and_restore_stays_lazy(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source = PersistenceManager(str(tmp_path / "source-memoryless"))
+    (source.chroma_store_path / "stale.bin").write_bytes(b"stale source data")
+
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    marker = await source.save_checkpoint(world, CodeSchedule())
+    record = source.resolve_checkpoint(0)
+    backup_dir = record["chroma_backup_dir"]
+    assert backup_dir is not None
+    assert [path.name for path in backup_dir.iterdir()] == ["_checkpoint.json"]
+    assert marker["memory_required"] is False
+
+    destination = PersistenceManager(str(tmp_path / "destination-memoryless"))
+    (destination.chroma_store_path / "stale.bin").write_bytes(b"stale destination data")
+
+    def fail_client_creation():
+        raise AssertionError("memoryless restore must not initialize Chroma")
+
+    monkeypatch.setattr(destination, "_create_chroma_client", fail_client_creation)
+    await destination.load_checkpoint_from(source.save_dir, step=0)
+
+    assert destination._chroma_client is None
+    assert list(destination.chroma_store_path.iterdir()) == []
+    source.close()
+    destination.close()
+
+
+@pytest.mark.asyncio
+async def test_same_step_replacement_publishes_new_pair_without_moving_old_pair(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    first = await manager.save_checkpoint(world, CodeSchedule())
+    old_record = manager.resolve_checkpoint(0)
+    old_world = old_record["checkpoint_file"]
+    old_backup = old_record["chroma_backup_dir"]
+
+    entered_backup = asyncio.Event()
+    release_backup = asyncio.Event()
+    real_backup = manager._backup_chroma_store
+
+    async def delayed_backup(*args, **kwargs):
+        entered_backup.set()
+        await release_backup.wait()
+        return await real_backup(*args, **kwargs)
+
+    monkeypatch.setattr(manager, "_backup_chroma_store", delayed_backup)
+    replacement = asyncio.create_task(manager.save_checkpoint(world, CodeSchedule()))
+    await asyncio.wait_for(entered_backup.wait(), timeout=2)
+
+    during = manager.resolve_checkpoint(0)
+    assert during["checkpoint_id"] == first["checkpoint_id"]
+    assert old_world.is_file()
+    assert old_backup is not None and old_backup.is_dir()
+
+    release_backup.set()
+    second = await replacement
+    after = manager.resolve_checkpoint(0)
+    assert after["checkpoint_id"] == second["checkpoint_id"]
+    assert second["checkpoint_id"] != first["checkpoint_id"]
+    assert after["checkpoint_file"] != old_world
+    assert after["chroma_backup_dir"] != old_backup
+    # Versioned components are retained for readers that opened the old marker
+    # before the atomic marker replacement; garbage collection is separate.
+    assert old_world.is_file()
+    assert old_backup is not None and old_backup.is_dir()
+    manager.close()
+
+
+def test_chroma_backup_parent_is_fsynced_after_component_publish(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    calls = []
+    real_fsync_directory = manager._fsync_directory
+
+    def record_fsync(path):
+        calls.append(path)
+        return real_fsync_directory(path)
+
+    monkeypatch.setattr(manager, "_fsync_directory", record_fsync)
+
+    async def save():
+        world = World(step=0)
+        world.add_agent_data("rule_0", "participant", archetype="rule")
+        world.set_environment_type("plain")
+        await manager.save_checkpoint(world, CodeSchedule())
+
+    asyncio.run(save())
+    assert manager.chroma_backup_dir in calls
     manager.close()
 
 
@@ -592,9 +768,8 @@ async def test_resume_identity_rejects_changed_embedding_before_chroma_restore(
         return ctx.result()
 
     await source.run(steps=0)
-    checkpoint_text = (
-        source_run / "checkpoints" / "checkpoint_000000.json"
-    ).read_text(encoding="utf-8")
+    _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
+    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
     assert "api_key" not in checkpoint_text
     assert "embedding-a" in checkpoint_text
     assert "source-secret" not in checkpoint_text
@@ -639,9 +814,8 @@ async def test_resume_identity_rejects_changed_llm_endpoint_without_leaking_url(
         return ctx.result()
 
     await source.run(steps=0)
-    checkpoint_text = (
-        source_run / "checkpoints" / "checkpoint_000000.json"
-    ).read_text(encoding="utf-8")
+    _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
+    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
     assert "decision-model" in checkpoint_text
     assert "llm-secret" not in checkpoint_text
     assert "token=hidden" not in checkpoint_text
@@ -656,6 +830,187 @@ async def test_resume_identity_rejects_changed_llm_endpoint_without_leaking_url(
             model="decision-model",
             base_url="http://other-llm.invalid/v1",
             api_key="test-secret-key",
+        ),
+    )
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_run)
+    destination.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_resume_identity_rejects_changed_llm_request_options(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source_run = tmp_path / "source-llm-options"
+    source = Society0(
+        save_dir=str(source_run),
+        base_config=_config(),
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            request_options={
+                "max_tokens": 128,
+                "temperature": 0.1,
+                "extra_body": {
+                    "thinking": {"type": "disabled"},
+                    "api_key": "source-secret",
+                },
+            },
+        ),
+    )
+
+    @source.step(name="noop")
+    async def noop(ctx):
+        return ctx.result()
+
+    await source.run(steps=0)
+    _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
+    checkpoint_text = checkpoint_path.read_text(encoding="utf-8")
+    assert "source-secret" not in checkpoint_text
+    assert "max_tokens" in checkpoint_text
+
+    destination = Society0(
+        save_dir=str(tmp_path / "destination-llm-options"),
+        base_config=_config(),
+        source_run=source_run,
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            request_options={
+                "max_tokens": 256,
+                "temperature": 0.1,
+                "extra_body": {
+                    "thinking": {"type": "disabled"},
+                    "api_key": "destination-secret",
+                },
+            },
+        ),
+    )
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_run)
+    destination.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_resume_identity_rejects_changed_agent_concurrency(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source_run = tmp_path / "source-agent-concurrency"
+    model = LLMModel.openai_compatible(
+        model="decision-model",
+        base_url="http://llm.invalid/v1",
+        api_key="test-secret-key",
+        concurrency=2,
+    )
+    source = Society0(
+        save_dir=str(source_run),
+        base_config=_config(),
+        llm=model,
+        agent_concurrency=1,
+    )
+
+    @source.step(name="noop")
+    async def noop(ctx):
+        return ctx.result()
+
+    await source.run(steps=0)
+    destination = Society0(
+        save_dir=str(tmp_path / "destination-agent-concurrency"),
+        base_config=_config(),
+        source_run=source_run,
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            concurrency=2,
+        ),
+        agent_concurrency=2,
+    )
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_run)
+    destination.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_resume_identity_rejects_changed_llm_retry_policy(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source_run = tmp_path / "source-llm-retry-policy"
+    model_kwargs = {
+        "model": "decision-model",
+        "base_url": "http://llm.invalid/v1",
+        "api_key": "test-secret-key",
+    }
+    source = Society0(
+        save_dir=str(source_run),
+        base_config=_config(),
+        llm=LLMModel.openai_compatible(**model_kwargs),
+    )
+
+    @source.step(name="noop")
+    async def noop(ctx):
+        return ctx.result()
+
+    await source.run(steps=0)
+    destination = Society0(
+        save_dir=str(tmp_path / "destination-llm-retry-policy"),
+        base_config=_config(),
+        source_run=source_run,
+        llm=LLMModel.openai_compatible(**model_kwargs),
+    )
+    original_initialize_models = destination._initialize_models
+
+    def initialize_models_with_changed_retry_policy():
+        original_initialize_models()
+        destination._llm_manager._max_retries = 3
+
+    monkeypatch.setattr(
+        destination,
+        "_initialize_models",
+        initialize_models_with_changed_retry_policy,
+    )
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_run)
+    destination.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_resume_identity_rejects_changed_llm_timeout(tmp_path, monkeypatch):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source_run = tmp_path / "source-llm-timeout"
+    source = Society0(
+        save_dir=str(source_run),
+        base_config=_config(),
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            timeout=30.0,
+        ),
+    )
+
+    @source.step(name="noop")
+    async def noop(ctx):
+        return ctx.result()
+
+    await source.run(steps=0)
+    destination = Society0(
+        save_dir=str(tmp_path / "destination-llm-timeout"),
+        base_config=_config(),
+        source_run=source_run,
+        llm=LLMModel.openai_compatible(
+            model="decision-model",
+            base_url="http://llm.invalid/v1",
+            api_key="test-secret-key",
+            timeout=45.0,
         ),
     )
     with pytest.raises(ValueError, match="resume identity does not match"):
@@ -746,7 +1101,8 @@ async def test_external_environment_factory_is_not_rebound_after_restore(
         return ctx.result()
 
     await source.run(steps=0)
-    checkpoint = _read(source_run / "checkpoints" / "checkpoint_000000.json")
+    _, checkpoint_path, _, _ = _checkpoint_components(source_run, 0)
+    checkpoint = _read(checkpoint_path)
     snapshot_text = json.dumps(checkpoint["environment_data"]["snapshot"])
     assert "_target_dict" not in snapshot_text
     destination = Society0(

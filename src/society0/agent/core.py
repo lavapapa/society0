@@ -13,14 +13,18 @@ v3.0 新增功能：
 from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable
 import logging
 import copy
+import asyncio
 import json
+import threading
 import time
 
 # Import proxy system for state management
 from ..state_proxy import DictProxy, AccessContext
 from ..async_utils import invoke_maybe_async
 from ..logging import AgentEvent, LogField, summarize_text
-from .memory_extraction import perform_memory_extraction, build_interaction_summary
+from .memory_extraction import (
+    extract_memories_from_thread,
+)
 
 if TYPE_CHECKING:
     from .memory import Memory
@@ -473,6 +477,14 @@ class LLMAgent(Agent):
     - 认知架构集成
     """
 
+    # 同一个运行世界中的同一 Thread/key 只允许一个提炼提交进入
+    # pending -> vector upsert -> receipt 流程。Future 让并发调用者复用
+    # 首次调用的最终结果，而不同 Thread 或 key 仍可并行执行。
+    _memory_extraction_flights: Dict[
+        tuple[int, int, str, str, str], asyncio.Future
+    ] = {}
+    _memory_extraction_flights_guard = threading.Lock()
+
     def __init__(self, agent_id: str, world: 'World'):
         """
         初始化LLMAgent
@@ -539,6 +551,502 @@ class LLMAgent(Agent):
 
         logger.debug(f"Initialized cognitive system for Agent '{self.id}'")
 
+    def _agent_thread_log_context(self):
+        get_log_context = getattr(self._world, "get_log_context", None)
+        return get_log_context() if callable(get_log_context) else None
+
+    def _read_agent_thread_messages(self, thread_id: str) -> List[Dict[str, Any]]:
+        log_context = self._agent_thread_log_context()
+        read_messages = getattr(log_context, "read_agent_thread_messages", None)
+        if not callable(read_messages):
+            return []
+        messages = read_messages(thread_id)
+        if not isinstance(messages, list):
+            raise RuntimeError("read_agent_thread_messages() must return a list")
+        return copy.deepcopy(messages)
+
+    def _read_agent_thread_events(self, thread_id: str) -> List[Dict[str, Any]]:
+        """读取 Thread 事件；旧的测试替身没有事件接口时返回空列表。"""
+
+        log_context = self._agent_thread_log_context()
+        read_events = getattr(log_context, "read_agent_thread_events", None)
+        if not callable(read_events):
+            return []
+        try:
+            events = read_events(thread_id, materialize_payloads=True)
+        except TypeError:
+            # 兼容只接受 thread_id 的轻量测试替身。
+            events = read_events(thread_id)
+        if not isinstance(events, list):
+            raise RuntimeError("read_agent_thread_events() must return a list")
+        return copy.deepcopy(events)
+
+    @staticmethod
+    def _thread_memory_commit_state(
+        events: List[Dict[str, Any]],
+        idempotency_key: str,
+    ) -> tuple[Dict[str, Any] | None, Dict[str, Any] | None]:
+        """返回同一 key 的 pending intent 和最终 receipt。"""
+
+        pending: Dict[str, Any] | None = None
+        receipt: Dict[str, Any] | None = None
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            if event.get("event_type") not in {
+                "memory_extraction_pending",
+                "memory_extraction_receipt",
+            }:
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            if str(payload.get("idempotency_key") or "") != idempotency_key:
+                continue
+            if event.get("event_type") == "memory_extraction_pending":
+                pending = payload
+            else:
+                receipt = payload
+        return pending, receipt
+
+    @staticmethod
+    def _memory_commit_key(thread_id: str, idempotency_key: str | None) -> str:
+        """没有显式 key 时仍为该 Thread 生成可重试的稳定 key。"""
+
+        if idempotency_key is None:
+            return f"thread:{thread_id}:memory_extract"
+        normalized = str(idempotency_key).strip()
+        if not normalized:
+            raise ValueError("idempotency_key must be a non-empty string")
+        return normalized
+
+    def _append_agent_thread_message(
+        self,
+        thread_id: str | None,
+        message: Dict[str, Any],
+        *,
+        interaction_type: str,
+        interaction_name: str,
+    ) -> None:
+        if not thread_id:
+            return
+        self._append_agent_thread_event(
+            thread_id,
+            "conversation_message",
+            message,
+            interaction_type=interaction_type,
+            interaction_name=interaction_name,
+        )
+
+    def _append_agent_thread_event(
+        self,
+        thread_id: str | None,
+        event_type: str,
+        payload: Dict[str, Any],
+        *,
+        interaction_type: str,
+        interaction_name: str,
+    ) -> None:
+        """Append one complete structured event to the current Agent Thread."""
+
+        if not thread_id:
+            return
+        log_context = self._agent_thread_log_context()
+        append_event = getattr(log_context, "append_agent_thread_event", None)
+        if callable(append_event):
+            append_event(
+                thread_id,
+                event_type,
+                payload=copy.deepcopy(payload),
+                interaction_type=interaction_type,
+                interaction_name=interaction_name,
+            )
+
+    def _agent_thread_reference(self, thread_id: str | None) -> Dict[str, Any] | None:
+        if not thread_id:
+            return None
+        log_context = self._agent_thread_log_context()
+        get_reference = getattr(log_context, "get_agent_thread_reference", None)
+        if not callable(get_reference):
+            return {"thread_id": thread_id, "closed": False}
+        reference = get_reference(thread_id, require_closed=False)
+        return copy.deepcopy(reference) if isinstance(reference, dict) else reference
+
+    async def extract_memories_from_thread(
+        self,
+        *,
+        thread_id: str,
+        timestamp: int,
+        idempotency_key: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+        interaction_name: str = "memory_extract",
+    ) -> Dict[str, Any]:
+        """并发安全地提交一次 Thread 记忆提炼。"""
+
+        normalized_key = self._memory_commit_key(thread_id, idempotency_key)
+        # Future 只在创建它的事件循环内复用；跨 loop 的调用各自读取
+        # durable pending/receipt，避免触发 asyncio 的跨 loop 绑定错误。
+        loop = asyncio.get_running_loop()
+        flight_key = (
+            id(loop),
+            id(self._world),
+            self.id,
+            str(thread_id),
+            normalized_key,
+        )
+        with self._memory_extraction_flights_guard:
+            flight = self._memory_extraction_flights.get(flight_key)
+            if flight is None:
+                flight = loop.create_future()
+                self._memory_extraction_flights[flight_key] = flight
+                owner = True
+            else:
+                owner = False
+
+        if not owner:
+            # shield 防止某个等待者取消时连带取消正在进行的提交。
+            result = await asyncio.shield(flight)
+            return copy.deepcopy(result)
+
+        try:
+            result = await self._extract_memories_from_thread_once(
+                thread_id=thread_id,
+                timestamp=timestamp,
+                idempotency_key=normalized_key,
+                metadata=metadata,
+                interaction_name=interaction_name,
+            )
+        except asyncio.CancelledError:
+            if not flight.done():
+                flight.cancel()
+            raise
+        except BaseException as exc:
+            if not flight.done():
+                flight.set_exception(exc)
+                # 无等待者时也消费异常，避免事件循环报
+                # ``Future exception was never retrieved``。
+                flight.exception()
+            raise
+        else:
+            if not flight.done():
+                flight.set_result(copy.deepcopy(result))
+            return result
+        finally:
+            with self._memory_extraction_flights_guard:
+                if self._memory_extraction_flights.get(flight_key) is flight:
+                    self._memory_extraction_flights.pop(flight_key, None)
+
+    async def _extract_memories_from_thread_once(
+        self,
+        *,
+        thread_id: str,
+        timestamp: int,
+        idempotency_key: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+        interaction_name: str = "memory_extract",
+    ) -> Dict[str, Any]:
+        """在 Agent 自己的完整 Thread 末尾追加记忆提炼回合。
+
+        记忆向量库与 Thread 文件不是同一个事务资源，因此这里采用一个
+        可恢复的两阶段协议：先把带稳定 key 的 pending intent 写入 Thread，
+        再用稳定 memory id 做 upsert，最后写入 receipt。进程若在任一步骤
+        中断，下一次同 key 调用会从 Thread 事件恢复，不会重新调用模型或
+        产生第二组记忆。
+        """
+
+        if self._llm_call is None:
+            raise RuntimeError(f"Agent {self.id} 未初始化 LLM 调用")
+        if self._memory is None:
+            raise RuntimeError(f"Agent {self.id} 未初始化 Memory")
+        if isinstance(timestamp, bool) or not isinstance(timestamp, int) or timestamp < 0:
+            raise ValueError("timestamp must be a non-negative integer")
+
+        normalized_key = self._memory_commit_key(thread_id, idempotency_key)
+        thread_events = self._read_agent_thread_events(thread_id)
+        pending_payload, receipt_payload = self._thread_memory_commit_state(
+            thread_events,
+            normalized_key,
+        )
+
+        thread_ref = self._agent_thread_reference(thread_id)
+        if isinstance(thread_ref, dict):
+            owner = thread_ref.get("agent_id")
+            if owner is not None and str(owner) != self.id:
+                raise ValueError(
+                    f"Agent Thread {thread_id} belongs to {owner}, not {self.id}"
+                )
+            # 已有 receipt 代表记忆提交已经完成；即使 close 在上一次调用
+            # 中已经成功但调用方未拿到返回值，也必须允许同 key 重试确认。
+            if thread_ref.get("closed") is True and receipt_payload is None:
+                raise ValueError(f"Agent Thread {thread_id} is already closed")
+
+        async def finish_from_commit(
+            *,
+            payload: Dict[str, Any],
+            write_memory: bool,
+        ) -> Dict[str, Any]:
+            """从 pending/receipt 恢复一次提交，不重新走 LLM 提炼。"""
+
+            entries = payload.get("entries") or []
+            memories = payload.get("memories") or []
+            memory_ids = [str(item) for item in (payload.get("memory_ids") or [])]
+            if not isinstance(entries, list) or not isinstance(memories, list):
+                raise RuntimeError("memory extraction commit payload is invalid")
+            if write_memory and entries:
+                entry_ids = [str(item.get("memory_id") or "") for item in entries]
+                if any(not memory_id for memory_id in entry_ids):
+                    raise RuntimeError("memory extraction commit entries missing memory_id")
+                if len(set(entry_ids)) != len(entry_ids):
+                    raise RuntimeError("memory extraction commit entries contain duplicate memory_id")
+                if memory_ids and memory_ids != entry_ids:
+                    raise RuntimeError("memory extraction commit memory_ids do not match entries")
+                memory_ids = entry_ids
+
+                # Receipt 可能在写入前失败；pending 中的稳定 ID 不能直接
+                # 再次 upsert。Memory 层读回真实 payload 后，只补缺失项，
+                # 对同 ID 的内容冲突采取硬失败，避免覆盖未知事实。
+                inspect_memory_ids = getattr(self._memory, "inspect_memory_ids", None)
+                if callable(inspect_memory_ids):
+                    state = await inspect_memory_ids(
+                        memory_ids,
+                        entries=copy.deepcopy(entries),
+                    )
+                    if not isinstance(state, dict):
+                        raise RuntimeError("memory ID inspection returned invalid state")
+                    mismatched_ids = [
+                        str(item) for item in (state.get("mismatched_ids") or [])
+                    ]
+                    if mismatched_ids:
+                        raise RuntimeError(
+                            "memory extraction commit payload mismatch for IDs: "
+                            + ", ".join(mismatched_ids)
+                        )
+                    missing_ids = {
+                        str(item) for item in (state.get("missing_ids") or [])
+                    }
+                    unknown_missing_ids = missing_ids.difference(memory_ids)
+                    if unknown_missing_ids:
+                        raise RuntimeError("memory ID inspection returned unknown missing IDs")
+                    entries_to_write = [
+                        entry for entry in entries if str(entry["memory_id"]) in missing_ids
+                    ]
+                else:
+                    # 轻量测试替身或旧扩展没有检查 API 时保持原有写入
+                    # 语义；生产 Memory 始终提供 inspect_memory_ids。
+                    entries_to_write = copy.deepcopy(entries)
+
+                if entries_to_write:
+                    added_ids = await self._memory.add_memories_batch(
+                        copy.deepcopy(entries_to_write),
+                        fire_and_forget=False,
+                        trace={
+                            "step": int(payload.get("timestamp", timestamp)),
+                            "interaction_type": "memory_write",
+                            "interaction_name": interaction_name,
+                            "thread_id": thread_id,
+                            "idempotency_key": normalized_key,
+                        },
+                    )
+                    expected_added_ids = [str(entry["memory_id"]) for entry in entries_to_write]
+                    if [str(item) for item in (added_ids or [])] != expected_added_ids:
+                        raise RuntimeError("memory write returned IDs inconsistent with pending entries")
+
+                    if callable(inspect_memory_ids):
+                        final_state = await inspect_memory_ids(
+                            memory_ids,
+                            entries=copy.deepcopy(entries),
+                        )
+                        if (
+                            final_state.get("missing_ids")
+                            or final_state.get("mismatched_ids")
+                        ):
+                            raise RuntimeError("memory write did not durably match pending entries")
+
+            tool_message = payload.get("tool_message")
+            if not isinstance(tool_message, dict):
+                tool_message = {
+                    "role": "tool",
+                    "tool_call_id": str(payload.get("tool_call_id") or "memory_extract"),
+                    "content": json.dumps(
+                        {"status": "success", "memory_ids": memory_ids},
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    ),
+                }
+
+            if write_memory:
+                receipt_payload = {
+                    **copy.deepcopy(payload),
+                    "memory_ids": list(memory_ids),
+                    "tool_message": copy.deepcopy(tool_message),
+                    "status": "success",
+                }
+                self._append_agent_thread_event(
+                    thread_id,
+                    "memory_extraction_receipt",
+                    receipt_payload,
+                    interaction_type="memory_extract",
+                    interaction_name=interaction_name,
+                )
+
+            # receipt 可能已经落盘但 conversation_message 尚未落盘；
+            # 追加前先检查事件，遇到 fsync 后重试也不会产生重复消息。
+            existing_messages = [
+                event
+                for event in self._read_agent_thread_events(thread_id)
+                if isinstance(event, dict)
+                and event.get("event_type") == "conversation_message"
+                and isinstance(event.get("payload"), dict)
+                and event["payload"].get("message", event["payload"]) == tool_message
+            ]
+            if not existing_messages:
+                self._append_agent_thread_message(
+                    thread_id,
+                    tool_message,
+                    interaction_type="memory_extract",
+                    interaction_name=interaction_name,
+                )
+
+            conversation_messages = payload.get("conversation_messages")
+            if not isinstance(conversation_messages, list):
+                conversation_messages = self._read_agent_thread_messages(thread_id)
+            conversation_messages = copy.deepcopy(conversation_messages)
+            if not conversation_messages or conversation_messages[-1] != tool_message:
+                conversation_messages.append(copy.deepcopy(tool_message))
+            return {
+                "memory_ids": memory_ids,
+                "memories": copy.deepcopy(memories),
+                "conversation_messages": conversation_messages,
+                "full_history": copy.deepcopy(payload.get("full_history") or []),
+                "thread_id": thread_id,
+                "thread_ref": self._agent_thread_reference(thread_id),
+            }
+
+        if receipt_payload is not None:
+            return await finish_from_commit(payload=receipt_payload, write_memory=False)
+        if pending_payload is not None:
+            # pending intent 中保存的是首次 LLM 提炼结果。恢复时只重做
+            # idempotent upsert，禁止再次构造 caller 摘要或启动新 Thread。
+            return await finish_from_commit(payload=pending_payload, write_memory=True)
+
+        messages = self._read_agent_thread_messages(thread_id)
+        if not messages:
+            raise RuntimeError(f"Agent {self.id} Thread {thread_id} 没有可提炼的对话")
+
+        result = await extract_memories_from_thread(
+            conversation_messages=messages,
+            llm_call=self._llm_call,
+            thread_id=thread_id,
+            metadata={
+                "agent_id": self.id,
+                "step": timestamp,
+                "interaction_name": interaction_name,
+            },
+        )
+        if not result.get("success"):
+            raise RuntimeError(
+                f"Agent {self.id} 记忆提炼失败："
+                f"{result.get('error') or 'unknown_error'}"
+            )
+
+        memories = result.get("memories") or []
+        common_metadata = dict(metadata or {})
+        common_metadata.update(
+            {
+                "extraction_method": "structured_extract",
+                "agent_id": self.id,
+            }
+        )
+        entries = []
+        for index, memory in enumerate(memories):
+            entry = {
+                "memory_type": "episodic",
+                "content": memory["content"],
+                "timestamp": timestamp,
+                "importance": memory["importance"],
+                "metadata": dict(common_metadata),
+            }
+            entry["memory_id"] = self._memory.stable_memory_id(
+                f"{normalized_key}:memory:{index}",
+                memory_type="episodic",
+            )
+            entry["metadata"]["idempotency_key"] = normalized_key
+            entries.append(entry)
+
+        tool_message = {
+            "role": "tool",
+            "tool_call_id": result.get("tool_call_id") or "memory_extract",
+            "content": "",
+        }
+        pending_payload = {
+            "idempotency_key": normalized_key,
+            "entries": copy.deepcopy(entries),
+            "memory_ids": [str(entry["memory_id"]) for entry in entries],
+            "memories": copy.deepcopy(memories),
+            "timestamp": timestamp,
+            "tool_call_id": tool_message["tool_call_id"],
+            "conversation_messages": copy.deepcopy(result["conversation_messages"]),
+            "full_history": copy.deepcopy(result["full_history"]),
+        }
+        # Pending intent 是向量写入前的 durable fence。写失败时不会写
+        # vector；若 fsync 在写后报错，下一次仍可从该事件恢复。
+        self._append_agent_thread_event(
+            thread_id,
+            "memory_extraction_pending",
+            pending_payload,
+            interaction_type="memory_extract",
+            interaction_name=interaction_name,
+        )
+
+        memory_ids = []
+        if entries:
+            memory_ids = await self._memory.add_memories_batch(
+                copy.deepcopy(entries),
+                fire_and_forget=False,
+                trace={
+                    "step": timestamp,
+                    "interaction_type": "memory_write",
+                    "interaction_name": interaction_name,
+                    "thread_id": thread_id,
+                    "idempotency_key": normalized_key,
+                },
+            )
+        tool_message["content"] = json.dumps(
+            {"status": "success", "memory_ids": memory_ids},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        receipt_payload = {
+            **pending_payload,
+            "memory_ids": list(memory_ids),
+            "tool_message": copy.deepcopy(tool_message),
+            "status": "success",
+        }
+        # Receipt 也是 Thread 证据的一部分；vector upsert 成功但 receipt
+        # fsync 失败时，pending intent 仍然存在，调用方可用同 key 重试。
+        self._append_agent_thread_event(
+            thread_id,
+            "memory_extraction_receipt",
+            receipt_payload,
+            interaction_type="memory_extract",
+            interaction_name=interaction_name,
+        )
+        result["conversation_messages"].append(tool_message)
+        self._append_agent_thread_message(
+            thread_id,
+            tool_message,
+            interaction_type="memory_extract",
+            interaction_name=interaction_name,
+        )
+        return {
+            "memory_ids": memory_ids,
+            "memories": memories,
+            "conversation_messages": result["conversation_messages"],
+            "full_history": result["full_history"],
+            "thread_id": thread_id,
+            "thread_ref": self._agent_thread_reference(thread_id),
+        }
+
     def _enhance_output_schema(self, original_schema: Dict[str, Any]) -> Dict[str, Any]:
         """
         增强 output_schema，自动添加 required 字段
@@ -582,7 +1090,6 @@ class LLMAgent(Agent):
                       current_step: Optional[int] = None,
                       action_tags: Optional[List[str]] = None,
                       retrieve_memory: bool = True,
-                      save_memory: bool = True,
                       output_schema: Optional[Dict[str, Any]] = None,
                       reasoning_stages: Optional[List[Dict[str, Any]]] = None,
                       llm_call_override: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
@@ -590,7 +1097,6 @@ class LLMAgent(Agent):
                       override_actionset: Optional[Any] = None,
                       max_turns: int = 3,
                       memory_top_k: int = 10,
-                      extract_memory: bool = True,
                       turn_remain_hint: bool = True,
                       hint_on_remain_turn: int = 1,
                       terminal_action_names: Optional[List[str]] = None,
@@ -602,6 +1108,8 @@ class LLMAgent(Agent):
                       prefer_direct_json_output: bool = False,
                       llm_request_options: Optional[Dict[str, Any]] = None,
                       prior_messages: Optional[List[Dict[str, Any]]] = None,
+                      thread_id: Optional[str] = None,
+                      thread_ref: Optional[Dict[str, Any]] = None,
                       trace: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         完整的指令执行方法 - LLMAgent的"大脑中枢"
@@ -620,7 +1128,6 @@ class LLMAgent(Agent):
             current_step: 当前步骤
             action_tags: 用于筛选可用动作的标签
             retrieve_memory: 是否读取/检索记忆
-            save_memory: 是否写入/存储记忆
             output_schema: 强制结构化输出的schema
             reasoning_stages: 覆盖默认的推理阶段配置
             terminal_action_names: 命中后立即结束本次 agent loop 的动作名列表
@@ -633,6 +1140,27 @@ class LLMAgent(Agent):
         if not effective_llm_call:
             raise RuntimeError(f"LLM call function not initialized for Agent '{self.id}'")
         safe_llm_request_options = _sanitize_llm_request_options(llm_request_options)
+        normalized_thread_id = str(thread_id or "").strip() or None
+        if prior_messages is not None and normalized_thread_id is not None:
+            raise ValueError("prior_messages and thread_id cannot be used together")
+        resolved_thread_ref = (
+            self._agent_thread_reference(normalized_thread_id)
+            if normalized_thread_id is not None
+            else None
+        )
+        if isinstance(resolved_thread_ref, dict):
+            owner = resolved_thread_ref.get("agent_id")
+            if owner is not None and str(owner) != self.id:
+                raise ValueError(
+                    f"Agent Thread {normalized_thread_id} belongs to {owner}, not {self.id}"
+                )
+            if resolved_thread_ref.get("closed") is True:
+                raise ValueError(f"Agent Thread {normalized_thread_id} is already closed")
+        thread_messages = (
+            self._read_agent_thread_messages(normalized_thread_id)
+            if normalized_thread_id is not None
+            else None
+        )
 
         context = context or {}
         current_step = current_step or 0
@@ -661,6 +1189,8 @@ class LLMAgent(Agent):
             metadata.setdefault("interaction_name", operation)
             metadata.setdefault("agent_id", self.id)
             metadata.setdefault("step", current_step)
+            if normalized_thread_id is not None:
+                metadata.setdefault("thread_id", normalized_thread_id)
             return metadata
 
         # 1. 处理提醒 - 检查并清空提醒列表
@@ -743,7 +1273,7 @@ class LLMAgent(Agent):
             fov_text = self._format_fov_results(context["fov_results"])
             user_sections.append(self._format_prompt_section("视野信息", fov_text))
 
-        requirements_text = self._build_output_requirements_text(output_schema, save_memory, extract_memory)
+        requirements_text = self._build_output_requirements_text(output_schema)
         if requirements_text:
             user_sections.append(self._format_prompt_section("输出要求", requirements_text))
 
@@ -778,8 +1308,8 @@ class LLMAgent(Agent):
             logger.debug(f"Agent {self.id} filtered actions: {len(available_actionset.actions)} available")
         elif self._actionset:
             # By default expose ordinary environment actions, but keep memory
-            # tools opt-in. `memory=True` already performs framework-managed
-            # retrieval and save; exposing recall/remember by default causes
+            # tools opt-in. Framework-managed retrieval is explicit; exposing
+            # memory tools by default causes
             # redundant LLM turns in structured tasks.
             available_actionset = self._actionset.filter_by_tags(exclude_tags=["memory"])
             # print(f"--- [DEBUG] No action_tags provided, using full ActionSet: {list(available_actionset.actions.keys())}")
@@ -878,6 +1408,8 @@ class LLMAgent(Agent):
                     "agent_id": self.id,
                     "step": current_step,
                 }
+                if normalized_thread_id is not None:
+                    metadata["thread_id"] = normalized_thread_id
                 if trace:
                     metadata.update({k: v for k, v in trace.items() if v is not None})
                 metadata.update({k: v for k, v in payload_metadata.items() if v is not None})
@@ -895,11 +1427,13 @@ class LLMAgent(Agent):
             direct_structured_output = None
             direct_loop_result = None
             preloop_llm_calls = 0
+            preloop_history: List[Dict[str, Any]] = []
             if (
                 prefer_direct_json_output
                 and output_schema
                 and isinstance(enhanced_inner_schema, dict)
                 and not _has_ordinary_actions()
+                and normalized_thread_id is None
             ):
                 try:
                     schema_text = json.dumps(enhanced_inner_schema, ensure_ascii=False, separators=(",", ":"))
@@ -926,7 +1460,28 @@ class LLMAgent(Agent):
                         "tools": None,
                         "tool_choice": None,
                     }
-                    direct_response = await traced_llm_call(direct_request)
+                    try:
+                        direct_response = await traced_llm_call(direct_request)
+                    except Exception as exc:
+                        preloop_history.append(
+                            {
+                                "turn": 1,
+                                "request": copy.deepcopy(direct_request),
+                                "response": None,
+                                "error": str(exc),
+                                "interaction_name": "direct_structured_output",
+                            }
+                        )
+                        preloop_llm_calls = 1
+                        raise
+                    preloop_history.append(
+                        {
+                            "turn": 1,
+                            "request": copy.deepcopy(direct_request),
+                            "response": copy.deepcopy(direct_response),
+                            "interaction_name": "direct_structured_output",
+                        }
+                    )
                     preloop_llm_calls = 1
                     candidate = _parse_structured_json_from_model_text(direct_response.get("content") or "")
                     if candidate is not None and _validate_structured_output_against_schema(candidate, enhanced_inner_schema):
@@ -935,19 +1490,17 @@ class LLMAgent(Agent):
                             status="success",
                             phases={"default": direct_response.get("content") or ""},
                             phases_unknown={},
-                            full_history=[
-                                {
-                                    "turn": 1,
-                                    "request": direct_request,
-                                    "response": direct_response,
-                                }
-                            ],
+                            full_history=copy.deepcopy(preloop_history),
                             parsing_errors=[],
                             total_turns=1,
                             default_stage_name="default",
                             action_calls=[],
                             termination_reason="direct_structured_output",
                             model_type="standard",
+                            conversation_messages=[
+                                *copy.deepcopy(direct_messages),
+                                copy.deepcopy(direct_response),
+                            ],
                         )
                         preloop_llm_calls = 0
                 except Exception:
@@ -985,8 +1538,54 @@ class LLMAgent(Agent):
                         max_action_calls=max_action_calls,
                         action_call_limits=action_call_limits,
                         llm_request_options=safe_llm_request_options,
-                        prior_messages=prior_messages,
+                        prior_messages=(
+                            thread_messages
+                            if normalized_thread_id is not None
+                            else prior_messages
+                        ),
+                        thread_message_recorder=(
+                            (
+                                lambda message: self._append_agent_thread_message(
+                                    normalized_thread_id,
+                                    message,
+                                    interaction_type="instruct",
+                                    interaction_name=str(
+                                        (trace or {}).get("interaction_name")
+                                        or "instruction"
+                                    ),
+                                )
+                            )
+                            if normalized_thread_id is not None
+                            else None
+                        ),
+                        thread_event_recorder=(
+                            (
+                                lambda event_type, payload: self._append_agent_thread_event(
+                                    normalized_thread_id,
+                                    event_type,
+                                    payload,
+                                    interaction_type="instruct",
+                                    interaction_name=str(
+                                        (trace or {}).get("interaction_name")
+                                        or "instruction"
+                                    ),
+                                )
+                            )
+                            if normalized_thread_id is not None
+                            else None
+                        ),
                     )
+                    if preloop_history:
+                        combined_history = [
+                            *copy.deepcopy(preloop_history),
+                            *copy.deepcopy(loop_result.full_history),
+                        ]
+                        for turn_number, item in enumerate(
+                            combined_history,
+                            start=1,
+                        ):
+                            item["turn"] = turn_number
+                        loop_result.full_history = combined_history
             finally:
                 if previous_action_trace is None:
                     try:
@@ -1000,6 +1599,91 @@ class LLMAgent(Agent):
             finish_instruction_called = False  # 保持对外语义：是否调用过提交工具
             structured_output = direct_structured_output
             extra_llm_calls = preloop_llm_calls
+            post_loop_messages = copy.deepcopy(loop_result.conversation_messages)
+
+            async def call_post_loop_model(
+                *,
+                messages: List[Dict[str, Any]],
+                tools: Any,
+                tool_choice: Any,
+                interaction_name: str,
+                strict: bool = False,
+            ) -> Dict[str, Any]:
+                nonlocal extra_llm_calls, post_loop_messages
+                request = {
+                    "messages": copy.deepcopy(messages),
+                    "tools": copy.deepcopy(tools),
+                    "tool_choice": copy.deepcopy(tool_choice),
+                    "metadata": {
+                        "interaction_type": "instruct",
+                        "interaction_name": interaction_name,
+                    },
+                }
+                turn_number = len(loop_result.full_history) + 1
+                try:
+                    response = await (
+                        self._call_with_strict_retry(traced_llm_call, request)
+                        if strict
+                        else traced_llm_call(request)
+                    )
+                except Exception as exc:
+                    loop_result.full_history.append(
+                        {
+                            "turn": turn_number,
+                            "request": request,
+                            "response": None,
+                            "error": str(exc),
+                            "interaction_name": interaction_name,
+                        }
+                    )
+                    raise
+                extra_llm_calls += 1
+                loop_result.full_history.append(
+                    {
+                        "turn": turn_number,
+                        "request": request,
+                        "response": copy.deepcopy(response),
+                        "interaction_name": interaction_name,
+                    }
+                )
+                post_loop_messages = [
+                    *copy.deepcopy(messages),
+                    copy.deepcopy(response),
+                ]
+                loop_result.conversation_messages = copy.deepcopy(post_loop_messages)
+                return response
+
+            def append_post_loop_tool_receipt(
+                response: Dict[str, Any],
+                *,
+                content: str,
+            ) -> None:
+                nonlocal post_loop_messages
+                tool_call = next(
+                    (
+                        item
+                        for item in (response.get("tool_calls") or [])
+                        if isinstance(item, dict)
+                        and isinstance(item.get("function"), dict)
+                        and item["function"].get("name") == "submit_result"
+                    ),
+                    None,
+                )
+                if tool_call is None:
+                    return
+                message = {
+                    "role": "tool",
+                    "tool_call_id": str(tool_call.get("id") or "submit_result"),
+                    "content": content,
+                }
+                post_loop_messages.append(message)
+                loop_result.conversation_messages = copy.deepcopy(post_loop_messages)
+                self._append_agent_thread_message(
+                    normalized_thread_id,
+                    message,
+                    interaction_type="instruct",
+                    interaction_name="submit_result_receipt",
+                )
 
             if finish_instruction_added and structured_output is None:
                 # 检查是否调用了 submit_result（对外仍呈现 finish_instruction_called 语义）
@@ -1038,12 +1722,8 @@ class LLMAgent(Agent):
                 if not finish_instruction_called:
                     # 强制执行轮次 - 静默处理，不输出警告
 
-                    # 从loop_result的full_history重建messages
-                    if loop_result.full_history:
-                        # 获取最后一次LLM调用的messages
-                        last_turn = loop_result.full_history[-1]
-                        messages = last_turn["request"]["messages"].copy()
-
+                    if post_loop_messages:
+                        messages = copy.deepcopy(post_loop_messages)
                         # 添加强制提示
                         messages.append({
                             "role": "user",
@@ -1052,12 +1732,13 @@ class LLMAgent(Agent):
 
                         # 最后一次LLM调用（使用 strict 重试机制）
                         try:
-                            final_response = await self._call_with_strict_retry(traced_llm_call, {
-                                "messages": messages,
-                                "tools": available_actionset.get_openai_actions_schema(),
-                                "tool_choice": {"type": "function", "function": {"name": "submit_result"}},
-                            })
-                            extra_llm_calls += 1
+                            final_response = await call_post_loop_model(
+                                messages=messages,
+                                tools=available_actionset.get_openai_actions_schema(),
+                                tool_choice={"type": "function", "function": {"name": "submit_result"}},
+                                interaction_name="submit_result_enforcement",
+                                strict=True,
+                            )
 
                             # 解析强制调用的结果
                             if final_response.get("tool_calls"):
@@ -1069,6 +1750,10 @@ class LLMAgent(Agent):
                                             structured_output = args.get("result", None)
                                         finish_instruction_called = True
                                         break
+                            append_post_loop_tool_receipt(
+                                final_response,
+                                content="submit_result received for local schema validation.",
+                            )
 
                         except Exception as e:
                             logger.error(f"Error in enforcement round for agent {self.id}: {e}")
@@ -1084,27 +1769,23 @@ class LLMAgent(Agent):
                     if not is_valid:
                         # 纠错轮次：向LLM说明校验失败，请重新提交（仍使用 submit_result 工具）
                         try:
-                            # 基于最后一轮消息重建
-                            if loop_result.full_history:
-                                last_turn = loop_result.full_history[-1]
-                                messages = last_turn["request"]["messages"].copy()
-                            else:
-                                messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+                            messages = copy.deepcopy(post_loop_messages) or [
+                                {"role": "system", "content": system_prompt},
+                                {"role": "user", "content": user_prompt},
+                            ]
 
                             messages.append({
                                 "role": "user",
                                 "content": "你提交的结果与JSON Schema不一致，请重新调用 submit_result 并在 result 中提供完全符合Schema的JSON。只提交工具，不要额外文本。",
                             })
 
-                            retry_response = await self._call_with_strict_retry(
-                                traced_llm_call,
-                                {
-                                    "messages": messages,
-                                    "tools": available_actionset.get_openai_actions_schema(),
-                                    "tool_choice": {"type": "function", "function": {"name": "submit_result"}},
-                                },
+                            retry_response = await call_post_loop_model(
+                                messages=messages,
+                                tools=available_actionset.get_openai_actions_schema(),
+                                tool_choice={"type": "function", "function": {"name": "submit_result"}},
+                                interaction_name="submit_result_schema_correction",
+                                strict=True,
                             )
-                            extra_llm_calls += 1
                             if retry_response.get("tool_calls"):
                                 for tool_call in retry_response["tool_calls"]:
                                     if tool_call["function"]["name"] == "submit_result":
@@ -1114,19 +1795,20 @@ class LLMAgent(Agent):
                                         if candidate is not None and _validate_against_schema(candidate, inner_schema):
                                             structured_output = candidate
                                         break
+                            append_post_loop_tool_receipt(
+                                retry_response,
+                                content="submit_result correction received for local schema validation.",
+                            )
                         except Exception as e:
                             logger.error(f"Error in correction round for agent {self.id}: {e}")
 
                 # 5.4. 若仍无有效结构化结果，进行第二种强制方式（JSON前缀fallback）
                 if output_schema and (structured_output is None or not _validate_against_schema(structured_output, enhanced_inner_schema)):
                     try:
-                        # 不保留第一种强制轮次的历史，只基于现有对话追加两条消息：user+assistant（assistant为JSON前缀）
-                        base_messages = []
-                        if loop_result.full_history:
-                            last_turn = loop_result.full_history[-1]
-                            base_messages = last_turn["request"]["messages"].copy()
-                        else:
-                            base_messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+                        base_messages = copy.deepcopy(post_loop_messages) or [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ]
 
                         # 向用户明确只输出JSON，并附上Schema文本
                         try:
@@ -1145,12 +1827,12 @@ class LLMAgent(Agent):
                             "content": "```json\n{",
                         })
 
-                        fallback_response = await traced_llm_call({
-                            "messages": base_messages,
-                            "tools": None,
-                            "tool_choice": None,
-                        })
-                        extra_llm_calls += 1
+                        fallback_response = await call_post_loop_model(
+                            messages=base_messages,
+                            tools=None,
+                            tool_choice=None,
+                            interaction_name="structured_json_fallback",
+                        )
 
                         # 从响应中提取 JSON。这里要兼容 assistant 已预填 "{" 后，
                         # 模型只返回 '"field": value}' 这种对象续写的情况。
@@ -1167,7 +1849,7 @@ class LLMAgent(Agent):
 
             record_phase("agent_loop", agent_loop_started)
 
-            # 6. 处理结果与写入记忆
+            # 6. 处理结果。长期记忆只允许通过完整 Thread 的显式提炼流程写入。
             assistant_turn_trace = build_assistant_turn_trace(loop_result.full_history)
             visible_assistant_text = "\n\n".join(
                 turn["assistant_text"]
@@ -1195,136 +1877,10 @@ class LLMAgent(Agent):
                         if action_calls:
                             structured_output = action_calls
 
-            has_output = bool(performative_output) or any(bool(v) for v in loop_result.phases.values())
-
-            # 写入记忆（如果启用且可用）
-            if save_memory and self._memory:
-                memory_save_started = time.perf_counter()
-                try:
-
-                    extraction_result = {"success": False, "memories": [], "error": None}
-                    if extract_memory and has_output:
-                        memory_extract_started = time.perf_counter()
-                        try:
-                            extraction_result = await perform_memory_extraction(loop_result, traced_llm_call)
-                        finally:
-                            record_phase("memory_extract", memory_extract_started)
-                        loop_result.memory_extraction_enabled = True
-                        loop_result.memory_extraction_success = extraction_result.get("success", False)
-                        loop_result.extracted_memories = extraction_result.get("memories", [])
-                        loop_result.memory_extraction_error = extraction_result.get("error")
-
-                    if extraction_result.get("success") and extraction_result.get("memories"):
-                        mem_entries = []
-                        for mem in extraction_result["memories"]:
-                            mem_entries.append(
-                                {
-                                    "memory_type": "episodic",
-                                    "content": mem.get("content", ""),
-                                    "timestamp": current_step,
-                                    "importance": mem.get("importance"),
-                                    "metadata": {
-                                        "instruction": instruction,
-                                        "extraction_method": "structured_extract",
-                                        "agent_id": self.id,
-                                        "model_type": loop_result.model_type,
-                                        "has_reasoning": loop_result.has_reasoning,
-                                    },
-                                }
-                            )
-
-                        memory_write_started = time.perf_counter()
-                        try:
-                            memory_ids = await self._memory.add_memories_batch(
-                                mem_entries,
-                                fire_and_forget=False,
-                                trace=build_memory_trace("memory_write"),
-                            )
-                        finally:
-                            record_phase("memory_write", memory_write_started)
-
-                        for mem_id, mem in zip(memory_ids, mem_entries):
-                            memory_summary = summarize_text(mem.get("content", ""))
-                            self._log(
-                                "INFO",
-                                AgentEvent.MEMORY_WRITTEN,
-                                **{
-                                    LogField.STEP.value: current_step,
-                                    LogField.MEMORY_ID.value: mem_id,
-                                    LogField.MEMORY_CONTENT_PREVIEW.value: memory_summary["preview"],
-                                    LogField.MEMORY_CONTENT_LENGTH.value: memory_summary["length"],
-                                },
-                            )
-                    elif has_output:
-                        # 改进的fallback：第一人称+过程描述，长度上限1000字符
-                        def _build_fallback_memory() -> str:
-                            interaction_summary = build_interaction_summary(loop_result)
-                            parts = [
-                                f"我接到的指令：{instruction}",
-                                f"我的过程：{interaction_summary}",
-                                f"最终结果：{performative_output or '无结果'}",
-                            ]
-                            fallback_text = "\n".join([p for p in parts if p])
-                            return fallback_text[:1000]
-
-                        fallback_content = _build_fallback_memory()
-
-                        mem_entries = [
-                            {
-                                "memory_type": "episodic",
-                                "content": fallback_content,
-                                "timestamp": current_step,
-                                "importance": 3.0,
-                                "metadata": {
-                                    "instruction": instruction,
-                                    "extraction_method": "fallback_first_person",
-                                    "agent_id": self.id,
-                                    "model_type": loop_result.model_type,
-                                    "has_reasoning": loop_result.has_reasoning,
-                                },
-                            }
-                        ]
-
-                        memory_write_started = time.perf_counter()
-                        try:
-                            memory_ids = await self._memory.add_memories_batch(
-                                mem_entries,
-                                fire_and_forget=False,
-                                trace=build_memory_trace("memory_write"),
-                            )
-                        finally:
-                            record_phase("memory_write", memory_write_started)
-
-                        memory_summary = summarize_text(fallback_content)
-                        if memory_ids:
-                            self._log(
-                                "INFO",
-                                AgentEvent.MEMORY_WRITTEN,
-                                **{
-                                    LogField.STEP.value: current_step,
-                                    LogField.MEMORY_ID.value: memory_ids[0],
-                                    LogField.MEMORY_CONTENT_PREVIEW.value: memory_summary["preview"],
-                                    LogField.MEMORY_CONTENT_LENGTH.value: memory_summary["length"],
-                                },
-                            )
-                    # 若无输出则跳过记忆写入
-                except Exception as e:
-                    logger.warning(f"Failed to save memory for agent {self.id}: {e}")
-                    instruction_preview = summarize_text(instruction, limit=120)
-                    self._log(
-                        "WARNING",
-                        AgentEvent.ACTION_FAILED,
-                        **{
-                            LogField.STEP.value: current_step,
-                            LogField.ACTION.value: "memory_write",
-                            LogField.ERROR.value: str(e),
-                            LogField.ACTION_PARAMS.value: {
-                                "instruction_preview": instruction_preview["preview"],
-                            },
-                        },
-                    )
-                finally:
-                    record_phase("memory_save", memory_save_started)
+            raw_loop_output["full_history"] = loop_result.full_history
+            raw_loop_output["conversation_messages"] = (
+                loop_result.conversation_messages
+            )
 
             # 情绪模型更新（可选实现）
             # TODO: 将performative_output传递给情绪模型，更新self.state['emotion']
@@ -1358,7 +1914,6 @@ class LLMAgent(Agent):
                 "stages_executed": list(loop_result.phases.keys()),
                 "memory_retrieved": retrieve_memory,
                 "memory_top_k": effective_memory_top_k if retrieve_memory else 0,
-                "memory_saved": save_memory,
                 "actions_available": len(available_actionset.actions) if available_actionset else 0,
                 "has_structured_output": bool(structured_output),
                 "output_schema_provided": output_schema is not None,
@@ -1367,11 +1922,12 @@ class LLMAgent(Agent):
                 "thinking_process": loop_result.thinking_process,
                 "has_reasoning": loop_result.has_reasoning,
                 "model_type": loop_result.model_type,
-                # 记忆提取信息
-                "memory_extraction_enabled": extract_memory and save_memory and has_output,
-                "memory_extraction_success": getattr(loop_result, "memory_extraction_success", False),
-                "extracted_memories": getattr(loop_result, "extracted_memories", []),
-                "memory_extraction_error": getattr(loop_result, "memory_extraction_error", None),
+                "thread_id": normalized_thread_id,
+                "thread_ref": (
+                    self._agent_thread_reference(normalized_thread_id)
+                    if normalized_thread_id is not None
+                    else thread_ref
+                ),
                 "phase_timings": dict(sorted(phase_timings.items())),
             }
 
@@ -1418,7 +1974,6 @@ class LLMAgent(Agent):
                        trace: Optional[Dict[str, Any]] = None,
                        *,
                        retrieve_memory: bool = True,
-                       save_memory: bool = False,
                        prefer_direct_json_output: bool = False,
                        memory_top_k: int = 10,
                        llm_request_options: Optional[Dict[str, Any]] = None,
@@ -1448,7 +2003,6 @@ class LLMAgent(Agent):
             current_step=current_step,
             action_tags=[],  # 禁止所有动作（除了finish_instruction）
             retrieve_memory=retrieve_memory,
-            save_memory=save_memory,
             memory_top_k=memory_top_k,
             output_schema=output_schema,
             reasoning_stages=reasoning_stages,
@@ -1511,10 +2065,8 @@ class LLMAgent(Agent):
     def _build_output_requirements_text(
         self,
         output_schema: Optional[Dict[str, Any]],
-        save_memory: bool,
-        extract_memory: bool,
     ) -> str:
-        """根据输出需求与记忆策略生成文本"""
+        """根据输出需求生成文本。记忆提炼不属于 instruct 回合。"""
         requirements: List[str] = []
 
         if output_schema:
@@ -1526,12 +2078,6 @@ class LLMAgent(Agent):
                 "- 结构化输出：调用 finish_instruction/submit_result，并遵循以下 Schema：\n"
                 f"{schema_text}"
             )
-
-        if save_memory:
-            if extract_memory:
-                requirements.append("- 记忆策略：系统会从你的回答中提取记忆，请使用第一人称，描述具体行为与感受。")
-            else:
-                requirements.append("- 记忆策略：回答将直接写入记忆，请使用第一人称并提供可回溯的细节。")
 
         return "\n".join(requirements)
 

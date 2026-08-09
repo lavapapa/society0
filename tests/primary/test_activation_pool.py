@@ -4,6 +4,7 @@ import pytest
 
 from society0 import (
     ActivationBatch,
+    ActivationLimitError,
     ActivationPool,
     ActivationPoolError,
     ActivationResult,
@@ -168,6 +169,36 @@ async def test_activation_pool_merges_queued_and_running_duplicates_into_one_rou
         (1, ("agenda-a", "message-b")),
         (2, ("contract-c", "payment-d")),
     ]
+
+
+@pytest.mark.asyncio
+async def test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it():
+    pool = ActivationPool(
+        world=object(),
+        capacity=1,
+        concurrency_source="test",
+        max_activations=1,
+    )
+    await pool.start()
+    calls = []
+
+    async def activate(batch):
+        calls.append(batch.round)
+        pool.submit("storm", activate, payload="follow-up")
+
+    pool.submit("storm", activate, payload="initial")
+
+    with pytest.raises(ActivationLimitError) as raised:
+        await pool.drain()
+
+    error = raised.value
+    assert error.maximum == 1
+    assert error.used == 1
+    assert error.pending_keys == ("storm",)
+    assert error.active_keys == ()
+    assert calls == [1]
+    assert [result.batch.round for result in pool.results] == [1]
+    await pool.cancel()
 
 
 @pytest.mark.asyncio

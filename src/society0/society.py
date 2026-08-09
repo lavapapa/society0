@@ -365,28 +365,99 @@ class Society0:
     def _reject_secret_contract_keys(cls, value: Any) -> None:
         if isinstance(value, Mapping):
             for key, item in value.items():
-                normalized = str(key).strip().lower().replace("-", "_")
-                if (
-                    normalized
-                    in {
-                        "api_key",
-                        "token",
-                        "secret",
-                        "password",
-                        "authorization",
-                        "credential",
-                        "credentials",
-                        "private_key",
-                    }
-                    or normalized.endswith(
-                        ("_api_key", "_token", "_secret", "_password")
-                    )
-                ):
+                if cls._is_secret_resume_key(key):
                     raise ValueError("resume_contract must not contain credentials")
                 cls._reject_secret_contract_keys(item)
         elif isinstance(value, (list, tuple)):
             for item in value:
                 cls._reject_secret_contract_keys(item)
+
+    @staticmethod
+    def _is_secret_resume_key(key: Any) -> bool:
+        normalized = str(key).strip().lower().replace("-", "_")
+        return normalized in {
+            "api_key",
+            "token",
+            "secret",
+            "password",
+            "authorization",
+            "credential",
+            "credentials",
+            "private_key",
+        } or normalized.endswith(("_api_key", "_token", "_secret", "_password"))
+
+    @classmethod
+    def _normalize_resume_request_options(cls, value: Any) -> Any:
+        """Canonicalize model options while excluding credential-shaped fields."""
+
+        if isinstance(value, Mapping):
+            return {
+                str(key): cls._normalize_resume_request_options(item)
+                for key, item in sorted(
+                    value.items(),
+                    key=lambda pair: str(pair[0]),
+                )
+                if not cls._is_secret_resume_key(key)
+            }
+        if isinstance(value, (list, tuple)):
+            return [cls._normalize_resume_request_options(item) for item in value]
+        if isinstance(value, (set, frozenset)):
+            normalized = [cls._normalize_resume_request_options(item) for item in value]
+            return sorted(
+                normalized,
+                key=lambda item: json.dumps(
+                    item,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    default=str,
+                ),
+            )
+        if value is None or isinstance(value, (str, int, bool)):
+            return value
+        if isinstance(value, float):
+            return value if value == value and abs(value) != float("inf") else str(value)
+        try:
+            json.dumps(value, ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError):
+            return str(value)
+        return value
+
+    def _build_resume_retry_policy(self) -> Dict[str, Any]:
+        """Capture retry behavior owned by the active resource managers."""
+
+        llm_policy = None
+        if self._llm_manager is not None:
+            timeout_schedule = getattr(
+                self._llm_manager,
+                "_llm_timeout_schedule",
+                (),
+            )
+            llm_policy = {
+                "manager": type(self._llm_manager).__qualname__,
+                "max_attempts": int(getattr(self._llm_manager, "_max_retries", 0)),
+                "timeout_schedule": [float(value) for value in timeout_schedule],
+                "wait": {
+                    "strategy": "random_exponential",
+                    "multiplier": 0.1,
+                    "max": 1.5,
+                },
+            }
+        embedding_policy = None
+        if self._embedding_manager is not None:
+            schedule = getattr(
+                self._embedding_manager,
+                "_embedding_timeout_schedule",
+                (),
+            )
+            embedding_policy = {
+                "manager": type(self._embedding_manager).__qualname__,
+                "timeout_schedule": [float(value) for value in schedule],
+                "max_attempts": len(schedule),
+            }
+        return {
+            "llm": llm_policy,
+            "embedding": embedding_policy,
+        }
 
     def step(
         self,
@@ -726,6 +797,8 @@ class Society0:
                 "provider_type": self.embed_model.provider_type,
                 "model": self.embed_model.model,
                 "dimensions": self.embed_model.dimensions,
+                "concurrency": self.embed_model.concurrency,
+                "timeout": self.embed_model.timeout,
                 "base_url_sha256": PersistenceManager.canonical_sha256(
                     str(self.embed_model.base_url)
                 ),
@@ -737,16 +810,27 @@ class Society0:
                 "id": self.llm_model.id,
                 "provider_type": self.llm_model.provider_type,
                 "model": self.llm_model.model,
+                "concurrency": self.llm_model.concurrency,
+                "timeout": self.llm_model.timeout,
+                "request_options": self._normalize_resume_request_options(
+                    self.llm_model.request_options
+                ),
                 "base_url_sha256": PersistenceManager.canonical_sha256(
                     str(self.llm_model.base_url)
                 ),
                 "api_version": self.llm_model.api_version,
                 "deployment_name": self.llm_model.deployment_name,
             }
+        agent_concurrency, agent_concurrency_source = (
+            self._resolve_default_agent_concurrency()
+        )
         unsigned = {
             "schema_version": 1,
             "llm": llm,
             "embedding": embedding,
+            "agent_concurrency": agent_concurrency,
+            "agent_concurrency_source": agent_concurrency_source,
+            "retry_policy": self._build_resume_retry_policy(),
             "capability_schema_sha256": PersistenceManager.canonical_sha256(
                 capability_schema
             ),
