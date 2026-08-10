@@ -72,6 +72,20 @@ checkpoints/
 chroma_store/
 ```
 
+## Step-local state and recovery
+
+Every executing step owns a `StepRuntimeScope`. Environments can access it through
+`env.step_runtime`, and code steps through `ctx.runtime_scope`. Use it for cursors,
+deduplication sets, and derived indexes that must disappear when the step succeeds,
+fails, or is restored. The scope is never serialized into the World checkpoint.
+
+A complete checkpoint is Society0's recovery boundary. If a step raises an unhandled
+exception, Society0 writes a non-recoverable diagnostic snapshot with a `StepFailure`
+summary and leaves the previous complete marker unchanged. Runners should create a new
+engine and resolve that checkpoint with
+`PersistenceManager.resolve_last_complete_from(source_run)`; they must not continue the
+failed in-memory engine.
+
 ## LLM Agents
 
 LLM-agent experiments require both an LLM provider and an embedding provider:

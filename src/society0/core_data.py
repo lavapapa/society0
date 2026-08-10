@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from .agent import Agent
     from .environment import Environment
     from .logging import ExperimentLogContext
+    from .runtime_scope import StepRuntimeScope
 
 logger = logging.getLogger(__name__)
 
@@ -243,6 +244,7 @@ class ExecutionContext:
     log_context: Optional['ExperimentLogContext'] = None  # Structured logging context
     operator_id: Optional[str] = None  # 当前正在执行的 operator 标识（若有）
     action_call_id: Optional[str] = None  # 当前 LLM 工具调用的内部编号
+    runtime_scope: Optional['StepRuntimeScope'] = None  # 当前 step 的非持久化派生状态
 
     @property
     def step_number(self) -> int:
@@ -395,6 +397,8 @@ class World:
         # FoV 结果缓存：按 step / 按 agent 的临时缓存，避免重复调用
         self._fov_cache_step: Dict[str, Any] = {}
         self._fov_cache_agent: Dict[tuple[str, str], Any] = {}
+        # 只在当前 step 执行期间存在，不进入 canonical state/checkpoint。
+        self._step_runtime_scope: Optional['StepRuntimeScope'] = None
 
     def set_context_stack(self, context_stack: ContextStack):
         """Set the current context stack (called by Schedule/StepFlow)"""
@@ -477,6 +481,7 @@ class World:
             event_logger=self.event_logger,
             log_context=self._log_context,
             action_call_id=current_action_call_id(),
+            runtime_scope=self._step_runtime_scope,
         )
 
     # Agent management methods
@@ -895,10 +900,46 @@ class World:
 
     def advance_step(self):
         """Advance to the next step"""
+        self.invalidate_step_runtime_scope()
         self.step += 1
         # 切换步骤时清理 step 级 FoV 缓存
         self._fov_cache_step = {}
         logger.debug(f"Advanced to step {self.step}")
+
+    def begin_step_runtime_scope(self) -> 'StepRuntimeScope':
+        """为当前 step 创建唯一的临时状态作用域。"""
+
+        from .runtime_scope import StepRuntimeScope
+
+        if self._step_runtime_scope is not None and self._step_runtime_scope.active:
+            raise RuntimeError("当前 step runtime scope 已经存在")
+        scope = StepRuntimeScope(self.step)
+        self._step_runtime_scope = scope
+        return scope
+
+    def get_step_runtime_scope(self) -> Optional['StepRuntimeScope']:
+        """返回当前有效 scope；step 尚未执行时返回 ``None``。"""
+
+        scope = self._step_runtime_scope
+        if scope is None or not scope.active:
+            return None
+        return scope
+
+    def require_step_runtime_scope(self) -> 'StepRuntimeScope':
+        """返回当前有效 scope；生命周期外访问时明确失败。"""
+
+        scope = self.get_step_runtime_scope()
+        if scope is None:
+            raise RuntimeError("当前没有正在执行的 step runtime scope")
+        return scope
+
+    def invalidate_step_runtime_scope(self) -> None:
+        """结束当前 step-local 生命周期。"""
+
+        scope = self._step_runtime_scope
+        if scope is not None:
+            scope.invalidate()
+        self._step_runtime_scope = None
 
     # Utility methods
 

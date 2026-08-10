@@ -16,6 +16,7 @@ from .context_stack import ContextStack
 from .core_data import World
 from .diagnostics import render_runtime_diagnostic_report
 from .environment import Environment, EnvironmentTickContext
+from .recovery import classify_step_failure
 from .function_registry import FunctionRegistry, register_environment_capabilities
 from .logging import ExperimentLogContext
 from .models import EmbedModel, LLMModel
@@ -514,53 +515,71 @@ class Society0:
         try:
             for tick in range(steps):
                 env = world.get_environment()
+                runtime_scope = world.begin_step_runtime_scope()
                 world.set_context_stack(ContextStack().push_step(f"step_{world.step}"))
                 self.event_logger.set_context(step=world.step)
                 tick_started = time.time()
-                hook_ctx = EnvironmentTickContext(step=world.step, world=world, log=self.log_context)
-                await self._run_env_tick_hook(env, "before_tick", hook_ctx)
-                step_entries = await self.schedule.execute_tick(
-                    tick=world.step,
+                hook_ctx = EnvironmentTickContext(
+                    step=world.step,
                     world=world,
                     log=self.log_context,
-                    on_step_event=lambda payload: self._write_jsonl(self.save_dir / "events.jsonl", payload),
+                    runtime_scope=runtime_scope,
                 )
-                await self._run_env_tick_hook(env, "after_tick", hook_ctx)
-                tick_duration = time.time() - tick_started
+                try:
+                    await self._run_env_tick_hook(env, "before_tick", hook_ctx)
+                    step_entries = await self.schedule.execute_tick(
+                        tick=world.step,
+                        world=world,
+                        log=self.log_context,
+                        on_step_event=lambda payload: self._write_jsonl(self.save_dir / "events.jsonl", payload),
+                    )
+                    await self._run_env_tick_hook(env, "after_tick", hook_ctx)
+                    tick_duration = time.time() - tick_started
 
-                for entry in step_entries:
-                    self._write_jsonl(steps_path, entry)
-                    metrics = entry["result"].get("metrics") or {}
-                    if metrics:
-                        self._write_jsonl(
-                            metrics_path,
-                            {
-                                "step": entry["step"],
-                                "step_name": entry["step_name"],
-                                "metrics": metrics,
-                            },
-                        )
+                    for entry in step_entries:
+                        self._write_jsonl(steps_path, entry)
+                        metrics = entry["result"].get("metrics") or {}
+                        if metrics:
+                            self._write_jsonl(
+                                metrics_path,
+                                {
+                                    "step": entry["step"],
+                                    "step_name": entry["step_name"],
+                                    "metrics": metrics,
+                                },
+                            )
 
-                self._write_jsonl(
-                    self.save_dir / "events.jsonl",
-                    {
-                        "event": "tick_completed",
-                        "step": world.step,
-                        "duration_sec": tick_duration,
-                        "code_steps": len(step_entries),
-                    },
-                )
-                world.advance_step()
-                completed_ticks += 1
-                if world.step % self.checkpoint_every == 0:
-                    await self.persistence_manager.save_checkpoint(world, self.schedule)
+                    self._write_jsonl(
+                        self.save_dir / "events.jsonl",
+                        {
+                            "event": "tick_completed",
+                            "step": world.step,
+                            "duration_sec": tick_duration,
+                            "code_steps": len(step_entries),
+                        },
+                    )
+                    world.advance_step()
+                    completed_ticks += 1
+                    if world.step % self.checkpoint_every == 0:
+                        await self.persistence_manager.save_checkpoint(world, self.schedule)
+                finally:
+                    world.invalidate_step_runtime_scope()
         except BaseException as exc:
             failed_exc = exc
-            failure_info = {
-                "failed_step": world.step,
-                "error": str(exc) or repr(exc),
-                "error_type": type(exc).__name__,
-            }
+            try:
+                last_complete_step = int(
+                    self.persistence_manager.resolve_last_complete_from(
+                        self.save_dir
+                    )["step"]
+                )
+            except (FileNotFoundError, ValueError, OSError):
+                last_complete_step = None
+            step_failure = classify_step_failure(
+                exc,
+                failed_step=world.step,
+                last_complete_step=last_complete_step,
+            )
+            failure_info = step_failure.as_dict()
             self._write_jsonl(
                 self.save_dir / "events.jsonl",
                 {
@@ -573,7 +592,10 @@ class Society0:
             )
             raise
         finally:
-            await self._save_checkpoint_file("checkpoint_final.json.gz")
+            await self._save_checkpoint_file(
+                "checkpoint_final.json.gz",
+                failure=failure_info,
+            )
             total_time = time.time() - started
             if failed_exc is None:
                 self._write_jsonl(
@@ -962,13 +984,19 @@ class Society0:
         if env_meta is not None:
             register_environment_capabilities(self.registry, env_meta, environment)
 
-    async def _save_checkpoint_file(self, filename: str) -> None:
+    async def _save_checkpoint_file(
+        self,
+        filename: str,
+        *,
+        failure: Optional[Dict[str, Any]] = None,
+    ) -> None:
         if self.current_world_state is None:
             return
         if filename == "checkpoint_final.json.gz":
             await self.persistence_manager.save_diagnostic_checkpoint(
                 self.current_world_state,
                 filename=filename,
+                failure=failure,
             )
             return
         await self.persistence_manager.save_checkpoint(self.current_world_state, self.schedule)

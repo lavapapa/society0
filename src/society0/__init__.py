@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 __all__ = [
     "Society0",
     "LLMModel",
@@ -26,6 +26,8 @@ __all__ = [
     "World",
     "Environment",
     "EnvironmentTickContext",
+    "StepRuntimeScope",
+    "StepFailure",
     "FunctionRegistry",
     "load_run_summary",
     "render_runtime_diagnostic_report",
@@ -53,6 +55,8 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "World": ("society0.core_data", "World"),
     "Environment": ("society0.environment", "Environment"),
     "EnvironmentTickContext": ("society0.environment", "EnvironmentTickContext"),
+    "StepRuntimeScope": ("society0.runtime_scope", "StepRuntimeScope"),
+    "StepFailure": ("society0.recovery", "StepFailure"),
     "FunctionRegistry": ("society0.function_registry", "FunctionRegistry"),
     "load_run_summary": ("society0.diagnostics", "load_run_summary"),
     "render_runtime_diagnostic_report": ("society0.diagnostics", "render_runtime_diagnostic_report"),
@@ -90,5 +94,7 @@ if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
     )
     from .core_data import World  # noqa: F401
     from .environment import Environment, EnvironmentTickContext  # noqa: F401
+    from .runtime_scope import StepRuntimeScope  # noqa: F401
+    from .recovery import StepFailure  # noqa: F401
     from .function_registry import FunctionRegistry  # noqa: F401
     from .diagnostics import load_run_summary, render_runtime_diagnostic_report  # noqa: F401

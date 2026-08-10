@@ -1458,6 +1458,12 @@ class StepContext:
     def capabilities(self) -> CapabilityCatalog:
         return CapabilityCatalog(self.world)
 
+    @property
+    def runtime_scope(self) -> Any:
+        """当前 step 的非持久化派生状态作用域。"""
+
+        return self.world.require_step_runtime_scope()
+
     def activation_pool(
         self,
         *,
@@ -3054,6 +3060,7 @@ def _dedupe_capability_entries(entries: List[Dict[str, Any]]) -> List[Dict[str, 
 
 
 def _build_direct_execution_context(world: Any, *, caller: Any, operator_id: Optional[str]) -> ExecutionContext:
+    get_runtime_scope = getattr(world, "get_step_runtime_scope", None)
     return ExecutionContext(
         world=world,
         step=None,
@@ -3062,6 +3069,7 @@ def _build_direct_execution_context(world: Any, *, caller: Any, operator_id: Opt
         event_logger=getattr(world, "event_logger", None),
         log_context=getattr(world, "_log_context", None),
         operator_id=operator_id,
+        runtime_scope=get_runtime_scope() if get_runtime_scope is not None else None,
     )
 
 
