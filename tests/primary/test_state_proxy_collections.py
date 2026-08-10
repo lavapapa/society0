@@ -1,4 +1,5 @@
 from collections.abc import MutableMapping, MutableSequence
+from copy import deepcopy
 
 import pytest
 
@@ -42,3 +43,22 @@ def test_list_proxy_is_a_mutable_sequence() -> None:
     proxy.append(2)
     assert target == [{"value": 1}, 2]
     assert isinstance(proxy[0], MutableMapping)
+
+
+def test_deepcopy_detaches_nested_proxies_as_plain_collections() -> None:
+    target = {
+        "lot": {
+            "tax_lineage": [{"source_tax_liability_id": "tax-1"}],
+            "metadata": {"source": "transfer"},
+        }
+    }
+    proxy = _dict_proxy(target)
+
+    snapshot = deepcopy(dict(proxy["lot"]))
+
+    assert type(snapshot) is dict
+    assert type(snapshot["tax_lineage"]) is list
+    assert type(snapshot["tax_lineage"][0]) is dict
+    assert type(snapshot["metadata"]) is dict
+    snapshot["tax_lineage"][0]["source_tax_liability_id"] = "changed"
+    assert target["lot"]["tax_lineage"][0]["source_tax_liability_id"] == "tax-1"
