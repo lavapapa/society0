@@ -292,13 +292,13 @@ class DictProxy(MutableMapping[str, Any]):
         for key, value in other_dict.items():
             self[key] = value  # 使用 __setitem__ 确保每个变更都被记录
     
-    def pop(self, key: str, default: Any = None) -> Any:
-        """弹出并返回值"""
+    def pop(self, key: str, default: Any = _MISSING) -> Any:
+        """弹出并返回值，与内建 ``dict.pop`` 保持相同语义。"""
         if key in self._target_dict:
             value = self._target_dict.pop(key)
             self._record_change("delete", key, None, self._snapshot(value))
             return value
-        elif default is not None:
+        elif default is not _MISSING:
             return default
         else:
             raise KeyError(key)
