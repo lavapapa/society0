@@ -306,7 +306,10 @@ async def test_populated_chroma_backup_restores_with_matching_checkpoint_id(tmp_
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("failure_point", ["backup", "marker"])
+@pytest.mark.parametrize(
+    "failure_point",
+    ["threads", "world", "backup", "marker"],
+)
 async def test_failure_before_complete_marker_never_publishes_recoverable_checkpoint(
     tmp_path,
     monkeypatch,
@@ -317,7 +320,23 @@ async def test_failure_before_complete_marker_never_publishes_recoverable_checkp
     await engine._initialize()
     manager = engine.persistence_manager
 
-    if failure_point == "backup":
+    if failure_point == "threads":
+        def fail_threads(*args, **kwargs):
+            raise OSError("injected thread manifest failure")
+
+        monkeypatch.setattr(
+            manager.agent_thread_store,
+            "publish_checkpoint_manifest",
+            fail_threads,
+        )
+        expected = "injected thread manifest failure"
+    elif failure_point == "world":
+        def fail_world_validation(*args, **kwargs):
+            raise OSError("injected world validation failure")
+
+        monkeypatch.setattr(manager, "_read_world_checkpoint", fail_world_validation)
+        expected = "injected world validation failure"
+    elif failure_point == "backup":
         async def fail_backup(*args, **kwargs):
             raise OSError("injected backup failure")
 

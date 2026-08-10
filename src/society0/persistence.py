@@ -1014,6 +1014,7 @@ class PersistenceManager:
         world: 'World',
         *,
         filename: str = "checkpoint_final.json.gz",
+        failure: Optional[Dict[str, Any]] = None,
     ) -> Path:
         """Write a non-recoverable final snapshot for inspection.
 
@@ -1035,9 +1036,7 @@ class PersistenceManager:
         # so the failure evidence can be resumed by inspection.
         agent_threads = self.agent_thread_store.snapshot_thread_references()
         path = self.checkpoints_dir / filename
-        self._atomic_write_gzip_json(
-            path,
-            {
+        payload = {
                 "step": step,
                 "timestamp": time.time(),
                 "recoverable": False,
@@ -1047,8 +1046,10 @@ class PersistenceManager:
                 "agents_data": self._serialize_agents_data(world.agents_data),
                 "environment_data": environment_payload,
                 "world_state_summary": world.get_state_summary(),
-            },
-        )
+        }
+        if failure is not None:
+            payload["failure"] = dict(failure)
+        self._atomic_write_gzip_json(path, payload)
         return path
 
     def _build_step_node_from_jmespath_snapshot(self, node_id: str, node_snapshot: NodeSnapshot) -> Dict[str, Any]:
@@ -1403,6 +1404,12 @@ class PersistenceManager:
             "agent_thread_manifest": agent_thread_manifest,
             "memory_required": derived_memory_required,
         }
+
+    @classmethod
+    def resolve_last_complete_from(cls, source_run: str | Path) -> Dict[str, Any]:
+        """返回来源运行中最新且完整可恢复的 checkpoint。"""
+
+        return cls.resolve_checkpoint_from(source_run, step=None)
 
     def resolve_checkpoint(self, step: Optional[int] = None) -> Dict[str, Any]:
         """Resolve a checkpoint in this run through the read-only resolver."""

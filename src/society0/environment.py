@@ -15,6 +15,7 @@ from .decorators import CAPABILITY_META_ATTR
 
 if TYPE_CHECKING:
     from .core_data import World
+    from .runtime_scope import StepRuntimeScope
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class EnvironmentTickContext:
     step: int
     world: "World"
     log: Any = None
+    runtime_scope: "StepRuntimeScope | None" = None
 
 
 class Environment:
@@ -106,6 +108,12 @@ class Environment:
         self._world.environment_data["state"] = value
         if hasattr(self._world, "_environment_state_proxy"):
             self._world._environment_state_proxy = None
+
+    @property
+    def step_runtime(self) -> "StepRuntimeScope":
+        """返回当前 step 的临时状态作用域。"""
+
+        return self._world.require_step_runtime_scope()
     
     def get_raw_data(self) -> Dict[str, Any]:
         """

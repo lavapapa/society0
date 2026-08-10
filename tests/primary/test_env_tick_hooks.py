@@ -54,11 +54,27 @@ class FailingBeforeEnv(Environment):
         raise RuntimeError("before hook failed")
 
 
+class RuntimeScopeEnv(Environment):
+    def initialize(self, agents, world):
+        self.state.setdefault("events", [])
+        self.last_scope = None
+
+    def before_tick(self, ctx):
+        assert ctx.runtime_scope is self.step_runtime
+        self.last_scope = ctx.runtime_scope
+        ctx.runtime_scope.namespace("test.env")["ephemeral"] = "not-checkpointed"
+
+    def after_tick(self, ctx):
+        namespace = ctx.runtime_scope.namespace("test.env")
+        assert namespace["ephemeral"] == "not-checkpointed"
+
+
 @pytest.fixture
 def hook_envs(monkeypatch):
     monkeypatch.setitem(BUILTIN_ENVS, "hook_order", HookOrderEnv)
     monkeypatch.setitem(BUILTIN_ENVS, "async_before_sync_after", AsyncBeforeSyncAfterEnv)
     monkeypatch.setitem(BUILTIN_ENVS, "failing_before", FailingBeforeEnv)
+    monkeypatch.setitem(BUILTIN_ENVS, "runtime_scope", RuntimeScopeEnv)
 
 
 @pytest.mark.asyncio
@@ -165,6 +181,9 @@ async def test_after_tick_not_called_when_step_fails(tmp_path, hook_envs):
     events = _jsonl(tmp_path / "events.jsonl")
     assert events[-1]["event"] == "run_failed"
     assert events[-1]["failed_step"] == 0
+    assert events[-1]["last_complete_step"] == 0
+    assert events[-1]["recoverable"] is True
+    assert events[-1]["retryable"] is False
 
 
 @pytest.mark.asyncio
@@ -184,6 +203,8 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
     checkpoint = read_gzip_json(checkpoint_path)
     assert checkpoint["environment_data"]["state"]["events"] == ["before:0"]
     assert checkpoint["step"] == 0
+    assert checkpoint["failure"]["last_complete_step"] == 0
+    assert checkpoint["failure"]["recoverable"] is True
     events = _jsonl(tmp_path / "events.jsonl")
     assert events[-1]["event"] == "run_failed"
     assert events[-1]["error_type"] == "RuntimeError"
@@ -213,3 +234,35 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
         }
     ]
     assert before_hook["by_tick"]["0"]["error_samples"] == before_hook["error_samples"]
+
+
+@pytest.mark.asyncio
+async def test_step_runtime_scope_is_shared_during_step_and_not_checkpointed(
+    tmp_path,
+    hook_envs,
+):
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_hook_config("runtime_scope"),
+    )
+
+    @engine.step(name="read_runtime_scope")
+    async def read_runtime_scope(ctx):
+        namespace = ctx.runtime_scope.namespace("test.env")
+        assert namespace["ephemeral"] == "not-checkpointed"
+        return None
+
+    await engine.run(steps=1)
+
+    world = engine.current_world_state
+    assert world is not None
+    env = world.get_environment()
+    assert isinstance(env, RuntimeScopeEnv)
+    assert world.get_step_runtime_scope() is None
+    with pytest.raises(RuntimeError, match="已失效"):
+        env.last_scope.namespace("test.env")
+
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
+    assert "not-checkpointed" not in json.dumps(checkpoint, ensure_ascii=False)
