@@ -1,5 +1,7 @@
 from collections.abc import MutableMapping, MutableSequence
 
+import pytest
+
 from society0.state_proxy import DictProxy, ListProxy
 
 
@@ -19,6 +21,17 @@ def test_dict_proxy_is_a_mutable_mapping() -> None:
     proxy["added"] = 2
     assert target["added"] == 2
     assert isinstance(proxy["nested"], MutableMapping)
+
+
+def test_dict_proxy_pop_distinguishes_omitted_default_from_explicit_none() -> None:
+    target = {"present": None}
+    proxy = _dict_proxy(target)
+
+    assert proxy.pop("present") is None
+    assert proxy.pop("missing", None) is None
+    assert proxy.pop("also-missing", "fallback") == "fallback"
+    with pytest.raises(KeyError, match="required"):
+        proxy.pop("required")
 
 
 def test_list_proxy_is_a_mutable_sequence() -> None:
