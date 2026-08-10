@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
+from tests import read_gzip_json
 
 
 pytestmark = pytest.mark.skipif(
@@ -819,7 +820,9 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert logic_executions["behavior / mark_memory_participant"]["agent_count_total"] == 1
     assert summary["capabilities"]["by_source"]["experiment"]["rules"] >= 1
     assert summary["capabilities"]["by_source"]["experiment"]["behaviors"] >= 1
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert checkpoint["environment_data"]["state"]["memory_protocol_phase"] == "seed_then_recall"
     alice_state = checkpoint["agents_data"]["alice"]["state"]
     assert alice_state["logic_marker"] == "logic-before-llm"
@@ -910,7 +913,9 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
 
     assert metrics["successful_pairs"] == 1
     assert metrics["logic_behavior_success"] == agent_count
@@ -1008,7 +1013,9 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     posts = checkpoint["environment_data"]["state"].get("posts", {})
     llm_request_count = _count_events(tmp_path, "llm", "llm_request_completed")
     events = _read_jsonl(tmp_path / "events.jsonl")
@@ -1158,7 +1165,9 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
 
     assert metrics["lookup_errors"] == 0
     assert metrics["lookup_success"] == 1
@@ -1596,7 +1605,9 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     events = _read_jsonl(tmp_path / "events.jsonl")

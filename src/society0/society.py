@@ -573,7 +573,7 @@ class Society0:
             )
             raise
         finally:
-            await self._save_checkpoint_file("checkpoint_final.json")
+            await self._save_checkpoint_file("checkpoint_final.json.gz")
             total_time = time.time() - started
             if failed_exc is None:
                 self._write_jsonl(
@@ -965,7 +965,7 @@ class Society0:
     async def _save_checkpoint_file(self, filename: str) -> None:
         if self.current_world_state is None:
             return
-        if filename == "checkpoint_final.json":
+        if filename == "checkpoint_final.json.gz":
             await self.persistence_manager.save_diagnostic_checkpoint(
                 self.current_world_state,
                 filename=filename,

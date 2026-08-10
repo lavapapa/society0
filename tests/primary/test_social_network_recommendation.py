@@ -6,6 +6,7 @@ import pytest
 from society0 import Society0
 from society0.core_data import World
 from society0.persistence import PersistenceManager
+from tests import read_gzip_json
 
 pytestmark = pytest.mark.primary
 
@@ -45,7 +46,7 @@ def _social_config(*, recommendation=None, agents=None):
 
 
 def _read_checkpoint(path: Path):
-    return json.loads((path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    return read_gzip_json(path / "checkpoints" / "checkpoint_final.json.gz")
 
 
 def _post(post_id, *, author_id="author_recent", created_tick=0, likes=0, replies=0, reply_to=None, content=None):

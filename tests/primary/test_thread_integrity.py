@@ -2,6 +2,8 @@ import json
 
 import pytest
 
+from tests import read_gzip_json
+
 from society0.agent.agent_loop import ActionSet, execute_action_loop
 from society0.agent.thread_store import AgentThreadStore
 from society0.resource_managers import redact_credentials
@@ -153,6 +155,6 @@ async def test_diagnostic_checkpoint_keeps_open_thread_reference(tmp_path, monke
     path = await engine.persistence_manager.save_diagnostic_checkpoint(
         engine.current_world_state,
     )
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = read_gzip_json(path)
     assert payload["agent_threads"]["threads"][thread_id]["closed"] is False
     assert payload["agent_threads"]["by_agent"] == {"a": [thread_id]}

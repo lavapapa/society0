@@ -28,6 +28,7 @@ from society0.events import StateChangeEvent
 from society0.schedule import AgentBatchResult, AgentCallRecord, AgentSelector, StepResult
 from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
+from tests import read_gzip_json
 
 pytestmark = pytest.mark.primary
 
@@ -1143,7 +1144,12 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] == (tmp_path / "diagnostics.md").stat().st_size
     assert summary["outputs"]["checkpoints"]["count"] == 2
     assert "env_hooks" not in summary["events"]
-    assert summary["outputs"]["checkpoints"]["files"]["checkpoint_final.json"]["bytes"] > 0
+    assert (
+        summary["outputs"]["checkpoints"]["files"]["checkpoint_final.json.gz"][
+            "bytes"
+        ]
+        > 0
+    )
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
@@ -1155,14 +1161,23 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
             encoding="utf-8"
         )
     )
-    assert checkpoints == sorted([marker["world_file"], "checkpoint_final.json"])
+    assert checkpoints == sorted([marker["world_file"], "checkpoint_final.json.gz"])
 
-    checkpoint_text = (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8")
-    checkpoint_payload = json.loads(checkpoint_text)
-    pretty_checkpoint = json.dumps(checkpoint_payload, ensure_ascii=False, indent=2, default=str) + "\n"
+    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    checkpoint_payload = read_gzip_json(checkpoint_path)
+    raw_checkpoint = (
+        json.dumps(
+            checkpoint_payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
+        + "\n"
+    ).encode("utf-8")
     assert checkpoint_payload["step"] == 3
-    assert checkpoint_text.count("\n") == 1
-    assert len(checkpoint_text) < len(pretty_checkpoint)
+    assert checkpoint_payload["world_encoding"] == "gzip-json"
+    assert checkpoint_path.read_bytes().startswith(b"\x1f\x8b")
+    assert checkpoint_path.stat().st_size < len(raw_checkpoint)
 
 
 def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
@@ -1570,7 +1585,7 @@ async def test_checkpoint_policy(tmp_path):
             )
         )
         versioned_worlds.append(marker["world_file"])
-    assert checkpoints == sorted([*versioned_worlds, "checkpoint_final.json"])
+    assert checkpoints == sorted([*versioned_worlds, "checkpoint_final.json.gz"])
 
 
 @pytest.mark.asyncio
@@ -5695,7 +5710,9 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     }
     assert metrics[1]["step"] == 1
     assert metrics[1]["metrics"] == metrics[0]["metrics"]
-    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    final_checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert final_checkpoint["agents_data"]["alice"]["state"]["trust"] == 0.6
     assert final_checkpoint["agents_data"]["bob"]["state"]["trust"] == 1.0
     assert final_checkpoint["agents_data"]["carol"]["state"]["trust"] == 0.6
@@ -5819,7 +5836,9 @@ async def test_code_step_can_call_llm_with_structured_json_output(tmp_path):
     }
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     assert metrics[0]["metrics"] == {"item_count": 1}
-    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    final_checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert final_checkpoint["environment_data"]["state"]["structured_note"]["note"] == "compact structured result"
 
 
@@ -5847,7 +5866,9 @@ async def test_code_step_llm_parses_json_response_format_with_fallback_call(tmp_
     await engine.run(steps=1)
 
     assert llm_calls[0]["response_format"] == {"type": "json_object"}
-    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    final_checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert final_checkpoint["environment_data"]["state"]["status"] == {"status": "ok"}
 
 
@@ -5913,7 +5934,9 @@ async def test_code_step_llm_selects_registered_model(tmp_path):
 
     assert llm_calls["primary"] == []
     assert len(llm_calls["secondary"]) == 1
-    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    final_checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert final_checkpoint["environment_data"]["state"]["model_id"] == "secondary"
 
 
@@ -5940,7 +5963,9 @@ async def test_code_step_llm_reports_schema_validation_error(tmp_path):
 
     await engine.run(steps=1)
 
-    final_checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    final_checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert "count" in final_checkpoint["environment_data"]["state"]["validation_error"]
 
 
@@ -6016,7 +6041,9 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     assert metrics == {"env_action_ok": 1, "exposure_count": 1}
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert checkpoint["environment_data"]["state"]["exposures"] == [
         {"agent_id": "alice", "intensity": 4, "step": 0}
     ]
