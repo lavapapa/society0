@@ -318,6 +318,22 @@ class DictProxy(MutableMapping[str, Any]):
     def __repr__(self) -> str:
         """字符串表示"""
         return f"DictProxy({self._target_dict!r})"
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> Dict[str, Any]:
+        """生成与代理生命周期脱离的普通字典快照。
+
+        代理只承担运行时访问和变更记录。业务代码使用 ``deepcopy`` 捕获事实
+        快照时，不应把嵌套 ``DictProxy`` / ``ListProxy`` 带入 canonical state。
+        """
+
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        result: Dict[str, Any] = {}
+        memo[id(self)] = result
+        for key, value in self._target_dict.items():
+            result[key] = copy.deepcopy(value, memo)
+        return result
     
     def __str__(self) -> str:
         """字符串表示"""
@@ -456,6 +472,17 @@ class ListProxy(MutableSequence[Any]):
     def __iter__(self):
         """遍历列表（注意：这些值不是代理对象）"""
         return iter(self._target_list)
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> List[Any]:
+        """生成与代理生命周期脱离的普通列表快照。"""
+
+        existing = memo.get(id(self))
+        if existing is not None:
+            return existing
+        result: List[Any] = []
+        memo[id(self)] = result
+        result.extend(copy.deepcopy(value, memo) for value in self._target_list)
+        return result
     
     def append(self, value: Any) -> None:
         """追加元素"""
