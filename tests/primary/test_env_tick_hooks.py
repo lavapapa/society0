@@ -6,6 +6,7 @@ import pytest
 from society0 import Society0
 from society0.env import BUILTIN_ENVS
 from society0.environment import Environment
+from tests import read_gzip_json
 
 pytestmark = pytest.mark.primary
 
@@ -72,7 +73,9 @@ async def test_env_tick_hooks_order(tmp_path, hook_envs):
 
     await engine.run(steps=1)
 
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert checkpoint["environment_data"]["state"]["events"] == ["before:0", "step:0", "after:0"]
     assert checkpoint["step"] == 1
     events = _jsonl(tmp_path / "events.jsonl")
@@ -102,7 +105,9 @@ async def test_env_tick_hooks_support_async_and_sync(tmp_path, hook_envs):
 
     await engine.run(steps=1)
 
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert checkpoint["environment_data"]["state"]["events"] == [
         "async_before:0",
         "step:0",
@@ -153,7 +158,9 @@ async def test_after_tick_not_called_when_step_fails(tmp_path, hook_envs):
     with pytest.raises(RuntimeError, match="step failed"):
         await engine.run(steps=1)
 
-    checkpoint = json.loads((tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    )
     assert checkpoint["environment_data"]["state"]["events"] == ["before:0", "step:0"]
     events = _jsonl(tmp_path / "events.jsonl")
     assert events[-1]["event"] == "run_failed"
@@ -172,9 +179,9 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
     with pytest.raises(RuntimeError, match="before hook failed"):
         await engine.run(steps=1)
 
-    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_final.json"
+    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     assert checkpoint_path.is_file()
-    checkpoint = json.loads(checkpoint_path.read_text(encoding="utf-8"))
+    checkpoint = read_gzip_json(checkpoint_path)
     assert checkpoint["environment_data"]["state"]["events"] == ["before:0"]
     assert checkpoint["step"] == 0
     events = _jsonl(tmp_path / "events.jsonl")

@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from society0 import AgentGroup, Society0
@@ -8,6 +6,7 @@ from society0.core_data import ExecutionContext
 from society0.decorators import action, env_type, fov
 from society0.environment import Environment
 from society0.env import BUILTIN_ENVS
+from tests import read_gzip_json
 
 
 pytestmark = pytest.mark.primary
@@ -113,8 +112,8 @@ async def test_society0_accepts_external_environment_factory_without_global_regi
 
     await engine.run(steps=1)
 
-    checkpoint = json.loads(
-        (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(encoding="utf-8")
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
     assert checkpoint["environment_data"]["state"]["ticks"] == [0]
     assert "external_test" not in BUILTIN_ENVS
@@ -146,10 +145,8 @@ async def test_external_environment_action_receives_runtime_call_id(tmp_path):
 
     await engine.run(steps=1)
 
-    checkpoint = json.loads(
-        (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(
-            encoding="utf-8"
-        )
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
     assert checkpoint["environment_data"]["state"]["action_call_ids"] == [
         "call_external_1"
@@ -308,10 +305,8 @@ async def test_strict_environment_action_rejects_missing_argument_without_execut
 
     await engine.run(steps=1)
 
-    checkpoint = json.loads(
-        (tmp_path / "checkpoints" / "checkpoint_final.json").read_text(
-            encoding="utf-8"
-        )
+    checkpoint = read_gzip_json(
+        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
     assert checkpoint["environment_data"]["state"]["calls"] == []
     assert loop_results[0].action_calls[0]["status"] == "error"

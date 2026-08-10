@@ -346,6 +346,39 @@ class PersistenceManager:
         finally:
             temp_path.unlink(missing_ok=True)
 
+    @classmethod
+    def _atomic_write_gzip_json(cls, path: Path, payload: Dict[str, Any]) -> None:
+        """Stream JSON into a gzip sibling and atomically publish it."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = path.with_name(
+            f".{path.name}.{uuid.uuid4().hex}.tmp.json.gz"
+        )
+        try:
+            with temp_path.open("xb") as raw_handle:
+                with gzip.GzipFile(
+                    filename="",
+                    mode="wb",
+                    compresslevel=cls.WORLD_COMPRESSION_LEVEL,
+                    fileobj=raw_handle,
+                    mtime=0,
+                ) as gzip_handle:
+                    with io.TextIOWrapper(gzip_handle, encoding="utf-8") as handle:
+                        json.dump(
+                            payload,
+                            handle,
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                            default=str,
+                        )
+                        handle.write("\n")
+                        handle.flush()
+                raw_handle.flush()
+                os.fsync(raw_handle.fileno())
+            temp_path.replace(path)
+            cls._fsync_directory(path.parent)
+        finally:
+            temp_path.unlink(missing_ok=True)
+
     @staticmethod
     def _fsync_directory(path: Path) -> None:
         """Durably publish a newly renamed checkpoint component."""
@@ -980,7 +1013,7 @@ class PersistenceManager:
         self,
         world: 'World',
         *,
-        filename: str = "checkpoint_final.json",
+        filename: str = "checkpoint_final.json.gz",
     ) -> Path:
         """Write a non-recoverable final snapshot for inspection.
 
@@ -988,6 +1021,8 @@ class PersistenceManager:
         """
         if Path(filename).name != filename:
             raise ValueError("Diagnostic checkpoint filename must be a basename")
+        if not filename.endswith(".json.gz"):
+            raise ValueError("Diagnostic checkpoint filename must end with .json.gz")
         step = self._normalize_step(world.step)
         environment = world.get_environment()
         environment_payload = dict(world.environment_data)
@@ -1000,13 +1035,14 @@ class PersistenceManager:
         # so the failure evidence can be resumed by inspection.
         agent_threads = self.agent_thread_store.snapshot_thread_references()
         path = self.checkpoints_dir / filename
-        self._atomic_write_json(
+        self._atomic_write_gzip_json(
             path,
             {
                 "step": step,
                 "timestamp": time.time(),
                 "recoverable": False,
                 "diagnostic": True,
+                "world_encoding": self.WORLD_ENCODING,
                 "agent_threads": agent_threads,
                 "agents_data": self._serialize_agents_data(world.agents_data),
                 "environment_data": environment_payload,

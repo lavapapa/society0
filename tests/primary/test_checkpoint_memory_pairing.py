@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+from tests import read_gzip_json
+
 from society0 import EmbedModel, LLMModel, Society0
 from society0.core_data import World
 from society0.decorators import action, env_type
@@ -179,7 +181,9 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
     checkpoint = _read(checkpoint_path)
     assert chroma_path is not None
     chroma_manifest = _read(chroma_path / "_checkpoint.json")
-    final_snapshot = _read(source_run / "checkpoints" / "checkpoint_final.json")
+    final_snapshot = read_gzip_json(
+        source_run / "checkpoints" / "checkpoint_final.json.gz"
+    )
 
     assert marker["complete"] is True
     assert marker["recoverable"] is True
@@ -350,13 +354,46 @@ async def test_checkpoint_final_alone_is_diagnostic_and_cannot_be_loaded(tmp_pat
     await engine._initialize()
     await engine.persistence_manager.save_diagnostic_checkpoint(engine.current_world_state)
 
-    diagnostic_path = tmp_path / "checkpoints" / "checkpoint_final.json"
+    diagnostic_path = tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     assert diagnostic_path.is_file()
-    assert not diagnostic_path.read_bytes().startswith(b"\x1f\x8b")
-    assert _read(diagnostic_path)["diagnostic"] is True
+    assert diagnostic_path.read_bytes().startswith(b"\x1f\x8b")
+    diagnostic = read_gzip_json(diagnostic_path)
+    assert diagnostic["diagnostic"] is True
+    assert diagnostic["recoverable"] is False
+    assert diagnostic["world_encoding"] == "gzip-json"
     assert await engine.persistence_manager.get_available_checkpoints() == []
     with pytest.raises(FileNotFoundError, match="No complete checkpoints"):
         await engine.persistence_manager.load_checkpoint(None)
+    engine.event_logger.close()
+    engine.persistence_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_diagnostic_checkpoint_failure_does_not_publish_partial_gzip(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    engine = Society0(save_dir=str(tmp_path), base_config=_config())
+    await engine._initialize()
+    import society0.persistence as persistence_module
+
+    def fail_dump(_payload, handle, **_kwargs):
+        handle.write("{\"partial\":")
+        handle.flush()
+        raise OSError("injected diagnostic write failure")
+
+    with monkeypatch.context() as patcher:
+        patcher.setattr(persistence_module.json, "dump", fail_dump)
+        with pytest.raises(OSError, match="injected diagnostic write failure"):
+            await engine.persistence_manager.save_diagnostic_checkpoint(
+                engine.current_world_state
+            )
+
+    diagnostic_path = tmp_path / "checkpoints" / "checkpoint_final.json.gz"
+    assert not diagnostic_path.exists()
+    assert not list((tmp_path / "checkpoints").glob(".*.tmp.json.gz"))
+    assert await engine.persistence_manager.get_available_checkpoints() == []
     engine.event_logger.close()
     engine.persistence_manager.close()
 
