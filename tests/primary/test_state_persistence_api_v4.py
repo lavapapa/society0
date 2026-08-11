@@ -15,7 +15,12 @@ from society0 import (
     transient,
 )
 from society0.core_data import World
-from society0.incremental_checkpoint import PersistenceKind, PersistenceSchema, StateDeltaJournal
+from society0.incremental_checkpoint import (
+    PersistenceKind,
+    PersistenceSchema,
+    StateDeltaJournal,
+    V4CheckpointStore,
+)
 
 
 ROOT = ("environment", "state")
@@ -138,6 +143,35 @@ def test_replaceable_map_supports_entry_create_replace_and_delete(tmp_path):
         by_path = {tuple(item["path"]): item for item in delta.replacements}
         assert by_path[(*ROOT, "plans", "new")]["value"]["status"] == "approved"
         assert by_path[(*ROOT, "plans", "old")]["operation"] == "delete"
+    finally:
+        world.event_logger.close()
+
+
+def test_nested_entry_delta_restores_each_tick_without_copying_unchanged_entries(tmp_path):
+    schema = persistent_state_schema(inventories=replaceable_map())
+    compiled = PersistenceSchema.compile(schema, root_path=ROOT)
+    world = _world(
+        tmp_path,
+        {"inventories": {"a": {"qty": 4}, "b": {"qty": 9}}},
+        schema,
+    )
+    store = V4CheckpointStore(tmp_path / "store")
+    try:
+        inventories = world.create_environment_state_proxy()["inventories"]
+        inventories["a"]["qty"] = 3
+        store.publish(world.seal_persistence_tick())
+
+        world.begin_persistence_tick(2)
+        world.create_environment_state_proxy()["inventories"]["b"]["qty"] = 8
+        store.publish(world.seal_persistence_tick())
+
+        assert store.restore(1)["environment"]["state"] == {
+            "inventories": {"a": {"qty": 3}}
+        }
+        assert store.restore(2)["environment"]["state"] == {
+            "inventories": {"a": {"qty": 3}, "b": {"qty": 8}}
+        }
+        assert compiled.resolve((*ROOT, "inventories", "a")).granularity == "entry"
     finally:
         world.event_logger.close()
 

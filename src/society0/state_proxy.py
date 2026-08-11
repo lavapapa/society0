@@ -143,6 +143,17 @@ class DictProxy(MutableMapping[str, Any]):
         if lease is not None:
             lease.ensure_live()
 
+    def _prepare_persistence(self, operation: str, key: Any, value: Any = None) -> Any:
+        if self._persistence_journal is None:
+            return None
+        return self._persistence_journal.prepare_proxy_operation(
+            self._path, operation, key, value
+        )
+
+    def _commit_persistence(self, token: Any) -> None:
+        if token is not None:
+            self._persistence_journal.commit_proxy_operation(token)
+
     @classmethod
     def _is_class_attribute(cls, name: str) -> bool:
         """判断名称是否为类级别已定义的属性/方法。"""
@@ -242,23 +253,19 @@ class DictProxy(MutableMapping[str, Any]):
                     f"\n提示：该字段的 agent_editable 为 false，只能由 Environment 的 rule 修改。"
                 )
 
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "set", key, value
-            )
+        persistence = self._prepare_persistence("set", key, value)
         old_snapshot = self._snapshot(self._target_dict[key]) if key in self._target_dict else _MISSING
         self._target_dict[key] = value
+        self._commit_persistence(persistence)
         self._record_change("set", key, self._snapshot(value), old_snapshot)
     
     def __delitem__(self, key: str) -> None:
         """删除项目"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "delete", key
-            )
+        persistence = self._prepare_persistence("delete", key)
         old_snapshot = self._snapshot(self._target_dict[key])
         del self._target_dict[key]
+        self._commit_persistence(persistence)
         self._record_change("delete", key, None, old_snapshot)
     
     def __contains__(self, key: str) -> bool:
@@ -339,11 +346,9 @@ class DictProxy(MutableMapping[str, Any]):
         """弹出并返回值，与内建 ``dict.pop`` 保持相同语义。"""
         self._ensure_live()
         if key in self._target_dict:
-            if self._persistence_journal is not None:
-                self._persistence_journal.record_proxy_operation(
-                    self._path, "delete", key
-                )
+            persistence = self._prepare_persistence("delete", key)
             value = self._target_dict.pop(key)
+            self._commit_persistence(persistence)
             self._record_change("delete", key, None, self._snapshot(value))
             return value
         elif default is not _MISSING:
@@ -354,12 +359,10 @@ class DictProxy(MutableMapping[str, Any]):
     def clear(self) -> None:
         """清空字典"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "clear", None
-            )
+        persistence = self._prepare_persistence("clear", None)
         previous = self._snapshot(dict(self._target_dict))
         self._target_dict.clear()
+        self._commit_persistence(persistence)
         self._record_change("clear", value={}, old_value=previous)
     
     def setdefault(self, key: str, default: Any = None) -> Any:
@@ -437,6 +440,17 @@ class ListProxy(MutableSequence[Any]):
         lease = self._lease
         if lease is not None:
             lease.ensure_live()
+
+    def _prepare_persistence(self, operation: str, key: Any, value: Any = None) -> Any:
+        if self._persistence_journal is None:
+            return None
+        return self._persistence_journal.prepare_proxy_operation(
+            self._path, operation, key, value
+        )
+
+    def _commit_persistence(self, token: Any) -> None:
+        if token is not None:
+            self._persistence_journal.commit_proxy_operation(token)
     
     def _snapshot(self, value: Any) -> Any:
         """捕获值的快照，确保事件记录的稳定性。"""
@@ -494,6 +508,8 @@ class ListProxy(MutableSequence[Any]):
     
     def __getitem__(self, index: int) -> Any:
         """获取项目，支持递归代理创建"""
+        if isinstance(index, slice):
+            return [self[item] for item in range(*index.indices(len(self._target_list)))]
         value = self._target_list[index]
 
         # 根据值的类型返回相应的代理或原始值
@@ -523,23 +539,19 @@ class ListProxy(MutableSequence[Any]):
     def __setitem__(self, index: int, value: Any) -> None:
         """设置项目，记录变更并立即生效"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "set", index, value
-            )
+        persistence = self._prepare_persistence("set", index, value)
         old_snapshot = self._snapshot(self._target_list[index])
         self._target_list[index] = value
+        self._commit_persistence(persistence)
         self._record_change("set", index, self._snapshot(value), old_snapshot)
     
     def __delitem__(self, index: int) -> None:
         """删除项目"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "delete", index
-            )
+        persistence = self._prepare_persistence("delete", index)
         old_snapshot = self._snapshot(self._target_list[index])
         del self._target_list[index]
+        self._commit_persistence(persistence)
         self._record_change("delete", index, None, old_snapshot)
     
     def __len__(self) -> int:
@@ -564,38 +576,34 @@ class ListProxy(MutableSequence[Any]):
     def append(self, value: Any) -> None:
         """追加元素"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "append", len(self._target_list), value
-            )
+        persistence = self._prepare_persistence("append", len(self._target_list), value)
         index = len(self._target_list)
         self._target_list.append(value)
+        self._commit_persistence(persistence)
         self._record_change("append", index, self._snapshot(value))
     
     def extend(self, values: List[Any]) -> None:
         """扩展列表"""
         self._ensure_live()
+        values = list(values)
         start_index = len(self._target_list)
+        prepared = None
         if self._persistence_journal is not None:
-            self._persistence_journal.validate_proxy_operations(
+            prepared = self._persistence_journal.prepare_proxy_operations(
                 [(self._path, "append", start_index + offset, item) for offset, item in enumerate(values)]
             )
-            for offset, item in enumerate(values):
-                self._persistence_journal.record_proxy_operation(
-                    self._path, "append", start_index + offset, item
-                )
         self._target_list.extend(values)
+        if prepared is not None:
+            self._persistence_journal.commit_proxy_operations(prepared)
         for offset, item in enumerate(values):
             self._record_change("append", start_index + offset, self._snapshot(item))
     
     def insert(self, index: int, value: Any) -> None:
         """插入元素"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "insert", index, value
-            )
+        persistence = self._prepare_persistence("insert", index, value)
         self._target_list.insert(index, value)
+        self._commit_persistence(persistence)
         self._record_change("insert", index, self._snapshot(value))
     
     def remove(self, value: Any) -> None:
@@ -603,33 +611,27 @@ class ListProxy(MutableSequence[Any]):
         self._ensure_live()
         # 找到要移除的元素的索引
         index = self._target_list.index(value)
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "remove", index, value
-            )
+        persistence = self._prepare_persistence("remove", index, value)
         removed = self._target_list.pop(index)
+        self._commit_persistence(persistence)
         self._record_change("remove", index, None, self._snapshot(removed))
     
     def pop(self, index: int = -1) -> Any:
         """弹出元素"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "delete", index
-            )
+        persistence = self._prepare_persistence("delete", index)
         value = self._target_list.pop(index)
+        self._commit_persistence(persistence)
         self._record_change("pop", index, None, self._snapshot(value))
         return value
     
     def clear(self) -> None:
         """清空列表"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "clear", None
-            )
+        persistence = self._prepare_persistence("clear", None)
         previous = self._snapshot(list(self._target_list))
         self._target_list.clear()
+        self._commit_persistence(persistence)
         self._record_change("clear", value=[], old_value=previous)
     
     def index(self, value: Any, start: int = 0, stop: Optional[int] = None) -> int:
@@ -646,23 +648,19 @@ class ListProxy(MutableSequence[Any]):
     def reverse(self) -> None:
         """反转列表"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "reverse", None
-            )
+        persistence = self._prepare_persistence("reverse", None)
         previous = self._snapshot(list(self._target_list))
         self._target_list.reverse()
+        self._commit_persistence(persistence)
         self._record_change("reverse", value=self._snapshot(list(self._target_list)), old_value=previous)
     
     def sort(self, key=None, reverse=False) -> None:
         """排序列表"""
         self._ensure_live()
-        if self._persistence_journal is not None:
-            self._persistence_journal.record_proxy_operation(
-                self._path, "sort", None
-            )
+        persistence = self._prepare_persistence("sort", None)
         previous = self._snapshot(list(self._target_list))
         self._target_list.sort(key=key, reverse=reverse)
+        self._commit_persistence(persistence)
         self._record_change("sort", value=self._snapshot(list(self._target_list)), old_value=previous)
     
     def __repr__(self) -> str:

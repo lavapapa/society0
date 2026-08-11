@@ -31,6 +31,12 @@ __all__ = [
     "FunctionRegistry",
     "load_run_summary",
     "render_runtime_diagnostic_report",
+    "persistent_state_schema",
+    "replaceable",
+    "replaceable_map",
+    "append_only_map",
+    "append_only_list",
+    "transient",
 ]
 
 # 延迟导入映射，避免在包初始化阶段触发重量级依赖
@@ -60,6 +66,12 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "FunctionRegistry": ("society0.function_registry", "FunctionRegistry"),
     "load_run_summary": ("society0.diagnostics", "load_run_summary"),
     "render_runtime_diagnostic_report": ("society0.diagnostics", "render_runtime_diagnostic_report"),
+    "persistent_state_schema": ("society0.state_persistence", "persistent_state_schema"),
+    "replaceable": ("society0.state_persistence", "replaceable"),
+    "replaceable_map": ("society0.state_persistence", "replaceable_map"),
+    "append_only_map": ("society0.state_persistence", "append_only_map"),
+    "append_only_list": ("society0.state_persistence", "append_only_list"),
+    "transient": ("society0.state_persistence", "transient"),
 }
 
 

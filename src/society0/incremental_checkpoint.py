@@ -38,6 +38,26 @@ class PersistenceRule:
     has_default: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _WriteResolution:
+    """一次具体写入命中的声明及其最小持久化锚点。"""
+
+    rule: PersistenceRule
+    anchor: tuple[Any, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedProxyWrite:
+    """代理在修改 canonical state 前完成验证后得到的提交凭据。"""
+
+    kind: PersistenceKind
+    anchor: tuple[Any, ...]
+    affected_path: tuple[Any, ...]
+    operation: str
+    key: Any = None
+    value: Any = None
+
+
 def _json_copy(value: Any) -> Any:
     """复制并检查持久化值，拒绝只能到保存线程才暴露的坏值。"""
 
@@ -271,6 +291,36 @@ class PersistenceSchema:
                 return rule
         return None
 
+    @staticmethod
+    def _prefix_matches(pattern: tuple[Any, ...], path: tuple[Any, ...]) -> bool:
+        return len(pattern) <= len(path) and all(
+            expected is _WILDCARD or expected == actual
+            for expected, actual in zip(pattern, path)
+        )
+
+    def resolve_write(self, path: Iterable[Any]) -> _WriteResolution | None:
+        """解析深层普通 Python 写入应归属的最小持久化锚点。
+
+        ``replaceable`` 对象把整个声明路径作为有界锚点；
+        ``replaceable_map`` 生成的 wildcard 规则把具体动态 key 作为锚点。
+        append-only 与 transient 声明同样覆盖自己的整个子树，用于拒绝或忽略
+        深层写入。解析只遍历声明数量，不触碰 canonical state 或历史事实。
+        """
+
+        concrete = tuple(path)
+        matches: list[tuple[int, tuple[Any, ...], PersistenceRule]] = []
+        for pattern, rule in self.rules.items():
+            if self._prefix_matches(pattern, concrete):
+                anchor = tuple(
+                    concrete[index] if part is _WILDCARD else part
+                    for index, part in enumerate(pattern)
+                )
+                matches.append((len(pattern), anchor, rule))
+        if not matches:
+            return None
+        _, anchor, rule = max(matches, key=lambda item: item[0])
+        return _WriteResolution(rule=rule, anchor=anchor)
+
     def _schema_node(self, path: tuple[Any, ...]) -> Mapping[str, Any] | None:
         if path[: len(self.root_path)] != self.root_path:
             return None
@@ -500,83 +550,165 @@ class StateDeltaJournal:
             }
         )
 
-    def record_proxy_operation(
+    def _resolve_proxy_write(
         self,
-        container_path: Iterable[str],
+        container: tuple[Any, ...],
         operation: str,
-        key: str | int | None,
-        value: Any = None,
-    ) -> None:
-        """接收代理在修改底层容器之前发出的规范化写入。"""
+        key: Any,
+        value: Any,
+    ) -> _PreparedProxyWrite:
+        self._require_active()
+        affected = container + (key,) if key is not None else container
 
-        container = tuple(container_path)
-        child = container + (key,) if key is not None else container
         if self._schema is not None:
-            container_rule = self._schema.resolve(container)
-            child_rule = self._schema.resolve(child) if key is not None else None
-            container_kind = container_rule.kind if container_rule is not None else None
-            child_kind = child_rule.kind if child_rule is not None else None
+            resolution = self._schema.resolve_write(affected)
+            if resolution is None:
+                raise ValueError(f"undeclared persistence path: {affected!r}")
+            rule = resolution.rule
+            anchor = resolution.anchor
         else:
+            # 低层 journal API 仍支持显式精确路径，供独立 store/状态机使用。
             container_kind = self._declarations.get(container)
-            child_kind = self._declarations.get(child)
+            child_kind = self._declarations.get(affected)
+            if container_kind in (
+                PersistenceKind.APPEND_ONLY_MAP,
+                PersistenceKind.APPEND_ONLY_LIST,
+                PersistenceKind.TRANSIENT,
+            ):
+                rule = PersistenceRule(container, container_kind)
+                anchor = container
+            elif child_kind is not None:
+                rule = PersistenceRule(affected, child_kind)
+                anchor = affected
+            else:
+                raise ValueError(f"undeclared persistence path: {affected!r}")
 
-        if container_kind is PersistenceKind.APPEND_ONLY_MAP:
-            if operation != "set" or key is None:
-                raise ValueError("append-only map only accepts new keys")
-            self.record_map_create(container, key, value)
-            return
-        if container_kind is PersistenceKind.APPEND_ONLY_LIST:
-            if operation != "append":
-                raise ValueError("append-only list only accepts append")
-            self.record_append(container, value)
-            return
-        if container_kind is PersistenceKind.TRANSIENT:
-            if operation in ("set", "append", "insert"):
-                _json_copy(value)
-            return
-        if child_kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT):
-            if operation == "set":
-                self.record_set(child, value)
-                return
-            if operation == "delete":
-                self.record_delete(child)
-                return
-        raise ValueError(f"undeclared or unsupported persistence write: {child!r}")
+        kind = rule.kind
+        if operation in ("set", "append", "insert"):
+            _json_copy(value)
 
-    def validate_proxy_operations(self, operations: Sequence[tuple[Iterable[Any], str, Any, Any]]) -> None:
-        """在批量代理操作落到底层前完整预检，避免 extend 部分成功。"""
+        if kind is PersistenceKind.APPEND_ONLY_MAP:
+            if anchor != container or operation != "set" or key is None:
+                raise ValueError(
+                    f"append-only map entry is immutable: {affected!r}"
+                )
+            identity = (anchor, key)
+            target = self._canonical_lookup(anchor) if self._canonical_lookup else None
+            if identity in self._pending_map_ids or (
+                isinstance(target, Mapping) and key in target
+            ):
+                raise ValueError(f"duplicate append-only map id: {key}")
+        elif kind is PersistenceKind.APPEND_ONLY_LIST:
+            if anchor != container or operation != "append":
+                raise ValueError(
+                    f"append-only list only accepts append: {affected!r}"
+                )
+        elif kind is PersistenceKind.REPLACEABLE:
+            if rule.granularity == "entry" and anchor == rule.path:
+                # 对整张动态表做 set/delete/clear 会把历史重新复制进 delta；调用者
+                # 应逐 entry 修改，让 wildcard 规则选出具体 key 锚点。
+                raise ValueError(
+                    f"entry-granularity replaceable map requires per-entry writes: {anchor!r}"
+                )
+        elif kind is not PersistenceKind.TRANSIENT:
+            raise ValueError(f"unsupported persistence write: {affected!r}")
 
+        return _PreparedProxyWrite(
+            kind=kind,
+            anchor=anchor,
+            affected_path=affected,
+            operation=operation,
+            key=key,
+            value=_json_copy(value) if operation in ("set", "append", "insert") else None,
+        )
+
+    def prepare_proxy_operation(
+        self,
+        container_path: Iterable[Any],
+        operation: str,
+        key: Any,
+        value: Any = None,
+    ) -> _PreparedProxyWrite:
+        """在 canonical mutation 前解析声明并完成所有可能失败的持久化校验。"""
+
+        return self._resolve_proxy_write(tuple(container_path), operation, key, value)
+
+    def prepare_proxy_operations(
+        self,
+        operations: Sequence[tuple[Iterable[Any], str, Any, Any]],
+    ) -> tuple[_PreparedProxyWrite, ...]:
+        """原子预检一组操作；目前用于 ``list.extend``。"""
+
+        prepared: list[_PreparedProxyWrite] = []
         pending = set(self._pending_map_ids)
         for container_path, operation, key, value in operations:
-            container = tuple(container_path)
-            if self._schema is not None:
-                container_rule = self._schema.resolve(container)
-                child_rule = self._schema.resolve(container + (key,)) if key is not None else None
-                container_kind = container_rule.kind if container_rule else None
-                child_kind = child_rule.kind if child_rule else None
-            else:
-                container_kind = self._declarations.get(container)
-                child_kind = self._declarations.get(container + (key,)) if key is not None else None
-            if container_kind is PersistenceKind.APPEND_ONLY_LIST and operation == "append":
-                _json_copy(value)
-                continue
-            if container_kind is PersistenceKind.TRANSIENT:
-                if operation in ("set", "append", "insert"):
-                    _json_copy(value)
-                continue
-            if container_kind is PersistenceKind.APPEND_ONLY_MAP and operation == "set" and key is not None:
-                _json_copy(value)
-                identity = (container, key)
-                target = self._canonical_lookup(container) if self._canonical_lookup else None
-                if identity in pending or (isinstance(target, Mapping) and key in target):
-                    raise ValueError(f"duplicate append-only map id: {key}")
+            token = self._resolve_proxy_write(tuple(container_path), operation, key, value)
+            if token.kind is PersistenceKind.APPEND_ONLY_MAP:
+                identity = (token.anchor, token.key)
+                if identity in pending:
+                    raise ValueError(f"duplicate append-only map id: {token.key}")
                 pending.add(identity)
+            prepared.append(token)
+        return tuple(prepared)
+
+    def _commit_proxy_write(self, token: _PreparedProxyWrite) -> None:
+        if token.kind is PersistenceKind.TRANSIENT:
+            return
+        if token.kind is PersistenceKind.APPEND_ONLY_MAP:
+            identity = (token.anchor, token.key)
+            self._pending_map_ids.add(identity)
+            self._appends.append(
+                {
+                    "path": list(token.anchor),
+                    "operation": "map_create",
+                    "id": token.key,
+                    "value": _json_copy(token.value),
+                    "sequence": self._next_sequence(),
+                }
+            )
+            return
+        if token.kind is PersistenceKind.APPEND_ONLY_LIST:
+            self._appends.append(
+                {
+                    "path": list(token.anchor),
+                    "operation": "append",
+                    "value": _json_copy(token.value),
+                    "sequence": self._next_sequence(),
+                }
+            )
+            return
+
+        if token.operation == "delete" and token.anchor == token.affected_path:
+            self.record_delete(token.anchor)
+            return
+        if token.operation == "set" and token.anchor == token.affected_path:
+            self.record_set(token.anchor, token.value)
+            return
+        if self._canonical_lookup is None:
+            raise RuntimeError("canonical state lookup is required for nested replaceable writes")
+        current = self._canonical_lookup(token.anchor)
+        self.record_set(token.anchor, current)
+
+    def commit_proxy_operation(self, token: _PreparedProxyWrite) -> None:
+        """canonical mutation 成功后，仅复制命中的有界锚点或新增事实。"""
+
+        self._commit_proxy_write(token)
+
+    def commit_proxy_operations(self, tokens: Sequence[_PreparedProxyWrite]) -> None:
+        """提交批量操作；同一替换锚点只复制最终值一次。"""
+
+        last_replacement: dict[tuple[Any, ...], int] = {
+            token.anchor: index
+            for index, token in enumerate(tokens)
+            if token.kind is PersistenceKind.REPLACEABLE
+        }
+        for index, token in enumerate(tokens):
+            if (
+                token.kind is PersistenceKind.REPLACEABLE
+                and last_replacement[token.anchor] != index
+            ):
                 continue
-            if child_kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT) and operation in ("set", "delete"):
-                if operation == "set":
-                    _json_copy(value)
-                continue
-            raise ValueError(f"undeclared or unsupported persistence write: {container + (key,)!r}")
+            self._commit_proxy_write(token)
 
     def seal_tick(self) -> SealedTickDelta:
         self._require_active()
