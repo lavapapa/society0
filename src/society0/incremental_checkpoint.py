@@ -339,22 +339,53 @@ class PersistenceSchema:
         return _WriteResolution(rule=rule, anchor=anchor)
 
     def _schema_node(self, path: tuple[Any, ...]) -> Mapping[str, Any] | None:
-        if path[: len(self.root_path)] != self.root_path:
-            return None
-        node: Mapping[str, Any] = self.schema
-        for part in path[len(self.root_path) :]:
-            if not isinstance(node, Mapping):
+        """解析 concrete World path 对应的声明节点。
+
+        merged runtime schema 可能同时包含 Env 与多个 Agent 根；数组索引和动态
+        map key 也属于正常 Python 写入路径，因此这里统一解释 root wildcard、
+        ``additionalProperties`` 与 ``items``，不让 journal 依赖具体 Env 字段。
+        """
+
+        for source in self._source_schemas:
+            root = source.root_path
+            if len(path) < len(root) or not self._prefix_matches(root, path):
+                continue
+            node: Mapping[str, Any] = source.schema
+            for part in path[len(root) :]:
+                if not isinstance(node, Mapping):
+                    return None
+                if not any(
+                    key in node
+                    for key in ("type", "properties", "additionalProperties", "items")
+                ):
+                    # An empty JSON Schema (or a node carrying only the
+                    # persistence annotation) intentionally accepts any JSON
+                    # subtree.  It remains bounded by its persistence anchor.
+                    node = {}
+                    continue
+                properties = node.get("properties") or {}
+                if isinstance(properties, Mapping) and part in properties:
+                    node = properties[part]
+                    continue
+                if node.get("type") == "array":
+                    items = node.get("items")
+                    if isinstance(items, Mapping) and isinstance(part, int):
+                        node = items
+                        continue
+                    if isinstance(items, Mapping) and isinstance(part, slice):
+                        node = {"type": "array", "items": items}
+                        continue
+                    return None
+                additional = node.get("additionalProperties", True)
+                if isinstance(additional, Mapping):
+                    node = additional
+                    continue
+                if additional is True:
+                    node = {}
+                    continue
                 return None
-            properties = node.get("properties") or {}
-            if part in properties:
-                node = properties[part]
-                continue
-            additional = node.get("additionalProperties")
-            if isinstance(additional, Mapping):
-                node = additional
-                continue
-            return None
-        return node
+            return node
+        return None
 
     @staticmethod
     def _validate_type(value: Any, node: Mapping[str, Any], path: tuple[Any, ...]) -> None:
@@ -374,6 +405,42 @@ class PersistenceSchema:
         )
         if not valid:
             raise TypeError(f"state value at {path!r} does not match schema type {expected!r}")
+
+    def validate_write_value(self, path: Iterable[Any], value: Any) -> None:
+        """在 canonical mutation 前验证一次新值及其完整子树。"""
+
+        concrete = tuple(path)
+        node = self._schema_node(concrete)
+        if node is None:
+            raise ValueError(f"undeclared state field at {concrete!r}")
+
+        def validate(current: Any, schema: Mapping[str, Any], current_path: tuple[Any, ...]) -> None:
+            self._validate_type(current, schema, current_path)
+            if not any(
+                key in schema
+                for key in ("type", "properties", "additionalProperties", "items")
+            ):
+                return
+            if isinstance(current, Mapping):
+                properties = schema.get("properties") or {}
+                additional = schema.get("additionalProperties", True)
+                for key, item in current.items():
+                    child_path = current_path + (key,)
+                    if isinstance(properties, Mapping) and key in properties:
+                        validate(item, properties[key], child_path)
+                    elif isinstance(additional, Mapping):
+                        validate(item, additional, child_path)
+                    elif additional is True:
+                        _json_copy(item)
+                    else:
+                        raise ValueError(f"undeclared state field at {child_path!r}")
+            elif isinstance(current, list):
+                items = schema.get("items")
+                if isinstance(items, Mapping):
+                    for index, item in enumerate(current):
+                        validate(item, items, current_path + (index,))
+
+        validate(value, node, concrete)
 
     def validate_initial_state(self, state: Mapping[str, Any]) -> None:
         if not isinstance(state, Mapping):
@@ -439,6 +506,18 @@ class PersistenceSchema:
     @property
     def append_only_map_paths(self) -> tuple[tuple[Any, ...], ...]:
         return tuple(path for path, rule in self.rules.items() if rule.kind is PersistenceKind.APPEND_ONLY_MAP)
+
+    def has_append_only_descendant(self, rule: PersistenceRule) -> bool:
+        """判断一个替换 entry 是否包含必须保留的追加事实子树。"""
+
+        prefix = rule.path
+        return any(
+            len(path) > len(prefix)
+            and path[: len(prefix)] == prefix
+            and child.kind
+            in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST)
+            for path, child in self.rules.items()
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -617,8 +696,11 @@ class StateDeltaJournal:
                 raise ValueError(f"undeclared persistence path: {affected!r}")
 
         kind = rule.kind
+        prepared_value = None
         if operation in ("set", "append", "insert"):
-            _json_copy(value)
+            prepared_value = _json_copy(value)
+            if self._schema is not None:
+                self._schema.validate_write_value(affected, prepared_value)
 
         if kind is PersistenceKind.APPEND_ONLY_MAP:
             if anchor != container or operation != "set" or key is None:
@@ -643,6 +725,18 @@ class StateDeltaJournal:
                 raise ValueError(
                     f"entry-granularity replaceable map requires per-entry writes: {anchor!r}"
                 )
+            if (
+                self._schema is not None
+                and rule.granularity == "entry"
+                and anchor == affected
+                and self._schema.has_append_only_descendant(rule)
+            ):
+                target = self._canonical_lookup(container) if self._canonical_lookup else None
+                if isinstance(target, Mapping) and key in target:
+                    raise ValueError(
+                        "mixed entity with nested append-only history requires "
+                        f"per-field writes and cannot be replaced or deleted: {affected!r}"
+                    )
         elif kind is not PersistenceKind.TRANSIENT:
             raise ValueError(f"unsupported persistence write: {affected!r}")
 
@@ -652,7 +746,7 @@ class StateDeltaJournal:
             affected_path=affected,
             operation=operation,
             key=key,
-            value=_json_copy(value) if operation in ("set", "append", "insert") else None,
+            value=prepared_value,
         )
 
     def prepare_proxy_operation(

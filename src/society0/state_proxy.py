@@ -10,9 +10,9 @@ v3.0 新增功能：
 - agent_editable 权限检查（在 __setitem__ 时）
 """
 
-from collections.abc import MutableMapping, MutableSequence
+from collections.abc import Mapping, MutableMapping, MutableSequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple, Callable, Optional, Union
+from typing import Any, Dict, List, Tuple, Callable, Optional
 import logging
 import copy
 
@@ -332,15 +332,57 @@ class DictProxy(MutableMapping[str, Any]):
             return self[key]  # 使用 __getitem__ 确保返回代理
         return default
     
-    def update(self, other: Union[Dict[str, Any], 'DictProxy']) -> None:
-        """批量更新字典"""
-        if isinstance(other, DictProxy):
-            other_dict = other._target_dict
-        else:
-            other_dict = other
-            
-        for key, value in other_dict.items():
-            self[key] = value  # 使用 __setitem__ 确保每个变更都被记录
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        """按 ``dict.update`` 语义原子预检整批持久化写入。"""
+
+        if len(args) > 1:
+            raise TypeError(f"update expected at most 1 argument, got {len(args)}")
+        updates: Dict[Any, Any] = {}
+        if args:
+            other = args[0]
+            if isinstance(other, DictProxy):
+                updates.update(other._target_dict)
+            elif isinstance(other, Mapping):
+                updates.update(other)
+            else:
+                updates.update(dict(other))
+        updates.update(kwargs)
+        if not updates:
+            return
+
+        self._ensure_live()
+        if self._access_context:
+            for key in updates:
+                if not self._access_context.can_write(key):
+                    raise PermissionError(
+                        f"权限不足：{self._access_context.caller_type} "
+                        f"'{self._access_context.caller_id}' 无法修改字段 '{key}'。"
+                    )
+
+        prepared = None
+        if self._persistence_journal is not None:
+            prepared = self._persistence_journal.prepare_proxy_operations(
+                [
+                    (self._path, "set", key, value)
+                    for key, value in updates.items()
+                ]
+            )
+        previous = {
+            key: self._snapshot(self._target_dict[key])
+            if key in self._target_dict
+            else _MISSING
+            for key in updates
+        }
+        self._target_dict.update(updates)
+        if prepared is not None:
+            self._persistence_journal.commit_proxy_operations(prepared)
+        for key, value in updates.items():
+            self._record_change(
+                "set",
+                key,
+                self._snapshot(value),
+                previous[key],
+            )
     
     def pop(self, key: str, default: Any = _MISSING) -> Any:
         """弹出并返回值，与内建 ``dict.pop`` 保持相同语义。"""
