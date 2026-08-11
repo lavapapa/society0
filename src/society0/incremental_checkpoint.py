@@ -325,7 +325,11 @@ class PersistenceSchema:
                     if not isinstance(value, list):
                         raise TypeError(f"append-only list at {path!r} must be an array")
                     return
-                if rule.kind is PersistenceKind.REPLACEABLE and rule.granularity == "entry":
+                if (
+                    rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                    and node.get("type") == "object"
+                ):
                     if not isinstance(value, Mapping):
                         raise TypeError(f"entry-granularity map at {path!r} must be an object")
                     item_schema = node.get("additionalProperties")
@@ -359,6 +363,7 @@ class SealedTickDelta:
     step: int
     replacements: tuple[Mapping[str, Any], ...]
     appends: tuple[Mapping[str, Any], ...]
+    write_epoch_ids: tuple[str, ...] = ()
 
 
 class StateDeltaJournal:
@@ -378,6 +383,7 @@ class StateDeltaJournal:
         self._pending_map_ids: set[tuple[tuple[str, ...], str]] = set()
         self._committed_map_ids: set[tuple[tuple[str, ...], str]] = set()
         self._canonical_lookup: Callable[[tuple[Any, ...]], Any] | None = None
+        self._write_epoch_id: str | None = None
 
     def bind_canonical_state(self, state_or_lookup: Mapping[str, Any] | Callable[[tuple[Any, ...]], Any]) -> None:
         """绑定 canonical 容器，用实际 membership 检查 append-only map。"""
@@ -400,12 +406,13 @@ class StateDeltaJournal:
                 if isinstance(target, Mapping):
                     self._committed_map_ids.update((path, key) for key in target)
 
-    def begin_tick(self, step: int) -> None:
+    def begin_tick(self, step: int, *, write_epoch_id: str | None = None) -> None:
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
             raise ValueError("step must be a non-negative integer")
         if self._active_step is not None:
             raise RuntimeError("a tick delta is already active")
         self._active_step = step
+        self._write_epoch_id = str(write_epoch_id) if write_epoch_id is not None else None
         self._sequence = 0
         self._replacements = {}
         self._appends = []
@@ -523,6 +530,10 @@ class StateDeltaJournal:
                 raise ValueError("append-only list only accepts append")
             self.record_append(container, value)
             return
+        if container_kind is PersistenceKind.TRANSIENT:
+            if operation in ("set", "append", "insert"):
+                _json_copy(value)
+            return
         if child_kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT):
             if operation == "set":
                 self.record_set(child, value)
@@ -549,6 +560,10 @@ class StateDeltaJournal:
             if container_kind is PersistenceKind.APPEND_ONLY_LIST and operation == "append":
                 _json_copy(value)
                 continue
+            if container_kind is PersistenceKind.TRANSIENT:
+                if operation in ("set", "append", "insert"):
+                    _json_copy(value)
+                continue
             if container_kind is PersistenceKind.APPEND_ONLY_MAP and operation == "set" and key is not None:
                 _json_copy(value)
                 identity = (container, key)
@@ -570,6 +585,7 @@ class StateDeltaJournal:
             step=self._active_step,
             replacements=tuple(_freeze_json(item) for item in sorted(self._replacements.values(), key=lambda item: item["sequence"])),
             appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
+            write_epoch_ids=(self._write_epoch_id,) if self._write_epoch_id else (),
         )
         self._committed_map_ids.update(self._pending_map_ids)
         self._clear_active()
@@ -585,6 +601,7 @@ class StateDeltaJournal:
         self._replacements = {}
         self._appends = []
         self._pending_map_ids = set()
+        self._write_epoch_id = None
 
     def _require_active(self) -> None:
         if self._active_step is None:
@@ -596,13 +613,23 @@ class V4CheckpointStore:
 
     VERSION = "complete_step_v4"
 
-    def __init__(self, root: str | Path):
+    def __init__(self, root: str | Path, *, branch_id: str = "main"):
+        if not isinstance(branch_id, str) or not branch_id or any(
+            part in branch_id for part in ("/", "\\", "..")
+        ):
+            raise ValueError("branch_id must be a non-empty path-safe name")
         self.root = Path(root)
+        self.branch_id = branch_id
         self.base = self.root / "checkpoints" / "v4"
         self.segments_dir = self.base / "segments"
         self.replacements_dir = self.base / "replacements"
         self.manifests_dir = self.base / "manifests"
-        self.complete_dir = self.base / "complete"
+        self.branches_dir = self.base / "branches"
+        self.complete_dir = (
+            self.base / "complete"
+            if branch_id == "main"
+            else self.branches_dir / branch_id / "complete"
+        )
         for directory in (
             self.segments_dir,
             self.replacements_dir,
@@ -618,6 +645,7 @@ class V4CheckpointStore:
         self._latest_step = None
         self._latest_checkpoint_id = None
         self._latest_state_sha256 = "0" * 64
+        self._run_id: str | None = None
         for candidate in reversed(self.available_steps()):
             try:
                 latest = self._read_marker(candidate)
@@ -631,6 +659,9 @@ class V4CheckpointStore:
                 self._latest_step = candidate
                 self._latest_checkpoint_id = latest["checkpoint_id"]
                 self._latest_state_sha256 = latest["state_sha256"]
+                manifest = json.loads(raw_manifest)
+                run_id = manifest.get("run_id")
+                self._run_id = str(run_id) if run_id else None
                 break
             except (OSError, ValueError, KeyError, json.JSONDecodeError):
                 continue
@@ -680,8 +711,20 @@ class V4CheckpointStore:
         written = self._atomic_write(path, compressed)
         return {"path": self._relative(path), "sha256": digest, "bytes": written}
 
-    def publish(self, delta: SealedTickDelta) -> dict[str, Any]:
-        return self._publish_delta(delta)
+    def publish(
+        self,
+        delta: SealedTickDelta,
+        *,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return self._publish_delta(
+            delta,
+            checkpoint_id=checkpoint_id,
+            thread_manifest=thread_manifest,
+            memory_view=memory_view,
+        )
 
     def publish_root(
         self,
@@ -689,6 +732,9 @@ class V4CheckpointStore:
         *,
         metadata: Mapping[str, Any] | None = None,
         step: int = 0,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """发布 step 0 根基点。
 
@@ -704,13 +750,51 @@ class V4CheckpointStore:
             replacements=tuple(_freeze_json(dict(entry)) for entry in entries),
             appends=(),
         )
-        return self._publish_delta(delta, root_metadata=metadata)
+        return self._publish_delta(
+            delta,
+            root_metadata=metadata,
+            checkpoint_id=checkpoint_id,
+            thread_manifest=thread_manifest,
+            memory_view=memory_view,
+        )
+
+    def fork(self, branch_id: str, *, step: int) -> "V4CheckpointStore":
+        """从完整 checkpoint 建立同一 lineage 内的独立分支。
+
+        分支 marker 直接引用已经验证的 immutable manifest；segments、
+        replacements 与 manifests 都留在共享 v4 组件目录，因此创建分支不
+        复制历史字节，也不改写源分支 marker。
+        """
+
+        if branch_id == self.branch_id:
+            raise ValueError("fork branch_id must differ from its source")
+        source = self.resolve(step)
+        branch = type(self)(self.root, branch_id=branch_id)
+        if branch.available_steps():
+            raise ValueError(f"branch already exists: {branch_id}")
+        marker = dict(source["marker"])
+        marker["branch_id"] = branch_id
+        marker["forked_from"] = {
+            "branch_id": self.branch_id,
+            "step": step,
+            "checkpoint_id": source["checkpoint_id"],
+        }
+        marker_path = branch.complete_dir / f"step_{step:06d}.json"
+        branch._atomic_write(marker_path, branch._canonical_bytes(marker))
+        branch._latest_step = step
+        branch._latest_checkpoint_id = source["checkpoint_id"]
+        branch._latest_state_sha256 = marker["state_sha256"]
+        branch._run_id = (source["manifest"].get("run_id") or self._run_id)
+        return branch
 
     def _publish_delta(
         self,
         delta: SealedTickDelta,
         *,
         root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if self._publishing:
             raise RuntimeError("only one unfinished checkpoint is allowed")
@@ -721,11 +805,18 @@ class V4CheckpointStore:
             raise ValueError("checkpoint steps must increase")
 
         self._publishing = True
-        checkpoint_id = uuid.uuid4().hex
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
         bytes_written = 0
         try:
             parent_manifest = None if is_root else self._latest_checkpoint_id
             parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
 
             replacement_payload = {
                 "checkpoint_id": checkpoint_id,
@@ -765,18 +856,31 @@ class V4CheckpointStore:
                 "parent_state_sha256": parent_state_sha256,
                 "replacement_sha256": replacement["sha256"],
                 "segment_sha256": [item["sha256"] for item in segments],
+                "branch_id": self.branch_id,
+                "thread_manifest_sha256": (
+                    str(thread_manifest.get("sha256")) if thread_manifest else None
+                ),
+                "memory_view": _thaw_json(_freeze_json(dict(memory_view or {}))),
             }
             state_sha256 = self._sha256(self._canonical_bytes(state_material))
             manifest = {
                 "checkpoint_version": self.VERSION,
                 "checkpoint_id": checkpoint_id,
                 "step": delta.step,
+                "run_id": run_id,
+                "branch_id": self.branch_id,
                 "parent_checkpoint_id": parent_manifest,
                 "replacement_file": replacement["path"],
                 "replacement_sha256": replacement["sha256"],
                 "new_segments": segments,
                 "state_sha256": state_sha256,
                 "created_at": time.time(),
+                "thread_manifest": (
+                    _thaw_json(_freeze_json(dict(thread_manifest)))
+                    if thread_manifest is not None
+                    else None
+                ),
+                "memory_view": _thaw_json(_freeze_json(dict(memory_view or {}))),
             }
             if root_metadata is not None:
                 # Keep the fixed World metadata on the root only.  It is
@@ -793,6 +897,8 @@ class V4CheckpointStore:
                 "checkpoint_version": self.VERSION,
                 "checkpoint_id": checkpoint_id,
                 "step": delta.step,
+                "run_id": run_id,
+                "branch_id": self.branch_id,
                 "manifest_file": self._relative(manifest_path),
                 "manifest_sha256": manifest_sha256,
                 "state_sha256": state_sha256,
@@ -803,6 +909,7 @@ class V4CheckpointStore:
             self._latest_step = delta.step
             self._latest_checkpoint_id = checkpoint_id
             self._latest_state_sha256 = state_sha256
+            self._run_id = run_id
             return {**marker, "bytes_written": bytes_written}
         finally:
             self._publishing = False
@@ -870,6 +977,7 @@ class V4CheckpointStore:
             marker.get("complete") is not True
             or marker.get("recoverable") is not True
             or marker.get("step") != step
+            or marker.get("branch_id") != self.branch_id
         ):
             raise ValueError(f"invalid complete marker for step {step}")
         return marker
@@ -891,9 +999,14 @@ class V4CheckpointStore:
     def _manifest_chain(self, step: int) -> list[dict[str, Any]]:
         marker = self._read_marker(step)
         chain = []
+        seen: set[str] = set()
         expected_id: str | None = marker["checkpoint_id"]
         expected_state = marker["state_sha256"]
+        child_step: int | None = None
         while expected_id is not None:
+            if expected_id in seen:
+                raise ValueError("checkpoint manifest cycle detected")
+            seen.add(expected_id)
             manifest_path = self.manifests_dir / f"{expected_id}.json"
             if not manifest_path.is_file():
                 raise FileNotFoundError(f"manifest missing: {expected_id}")
@@ -907,6 +1020,12 @@ class V4CheckpointStore:
                 or manifest.get("state_sha256") != expected_state
             ):
                 raise ValueError("checkpoint manifest chain mismatch")
+            manifest_step = manifest.get("step")
+            if isinstance(manifest_step, bool) or not isinstance(manifest_step, int):
+                raise ValueError("checkpoint manifest step is invalid")
+            if child_step is not None and manifest_step >= child_step:
+                raise ValueError("checkpoint manifest parent step must decrease")
+            child_step = manifest_step
             chain.append(manifest)
             expected_id = manifest.get("parent_checkpoint_id")
             if expected_id is not None:
@@ -958,6 +1077,16 @@ class V4CheckpointStore:
         parent_state = "0" * 64
         chain = self._manifest_chain(step)
         for manifest in chain:
+            thread_manifest = manifest.get("thread_manifest")
+            if isinstance(thread_manifest, Mapping):
+                from .agent.thread_store import AgentThreadStore
+
+                AgentThreadStore.validate_tick_manifest_from(
+                    self.root,
+                    thread_manifest,
+                    expected_checkpoint_id=manifest["checkpoint_id"],
+                    expected_step=manifest["step"],
+                )
             replacement = self._read_json_component(
                 manifest["replacement_file"],
                 manifest["replacement_sha256"],
@@ -986,6 +1115,13 @@ class V4CheckpointStore:
                         "parent_state_sha256": parent_state,
                         "replacement_sha256": manifest["replacement_sha256"],
                         "segment_sha256": segment_hashes,
+                        "branch_id": manifest.get("branch_id", "main"),
+                        "thread_manifest_sha256": (
+                            str(manifest["thread_manifest"].get("sha256"))
+                            if isinstance(manifest.get("thread_manifest"), Mapping)
+                            else None
+                        ),
+                        "memory_view": manifest.get("memory_view") or {},
                     }
                 )
             )
@@ -1048,6 +1184,16 @@ class V4CheckpointStore:
                         set_default(path, rule.default)
         return state
 
+    def committed_memory_epoch_ids(self, step: int) -> set[str]:
+        """返回目标 marker 链中已提交的记忆写入 epoch。"""
+
+        committed: set[str] = set()
+        for manifest in self._manifest_chain(step):
+            view = manifest.get("memory_view") or {}
+            for epoch_id in view.get("write_epoch_ids") or ():
+                committed.add(str(epoch_id))
+        return committed
+
     def cleanup_orphans(self) -> list[str]:
         """删除没有被任何完整 marker 引用的 v4 组件。"""
 
@@ -1055,17 +1201,28 @@ class V4CheckpointStore:
             raise RuntimeError("cannot collect orphans while publishing")
         referenced_manifests: set[Path] = set()
         referenced_components: set[Path] = set()
-        for step in self.available_steps():
-            marker = self._read_marker(step)
-            for manifest in self._manifest_chain(step):
-                manifest_path = self.manifests_dir / f"{manifest['checkpoint_id']}.json"
-                referenced_manifests.add(manifest_path)
-                referenced_components.add(self.root / manifest["replacement_file"])
-                referenced_components.update(
-                    self.root / segment["path"]
-                    for segment in manifest["new_segments"]
-                )
-            referenced_manifests.add(self.root / marker["manifest_file"])
+        branch_complete_dirs = [self.base / "complete"] + list(
+            self.branches_dir.glob("*/complete")
+        )
+        seen_checkpoint_ids: set[str] = set()
+        for complete_dir in branch_complete_dirs:
+            branch_id = "main" if complete_dir == self.base / "complete" else complete_dir.parent.name
+            branch_store = type(self)(self.root, branch_id=branch_id)
+            for step in branch_store.available_steps():
+                marker = branch_store._read_marker(step)
+                for manifest in branch_store._manifest_chain(step):
+                    checkpoint_id = manifest["checkpoint_id"]
+                    if checkpoint_id in seen_checkpoint_ids:
+                        continue
+                    seen_checkpoint_ids.add(checkpoint_id)
+                    manifest_path = self.manifests_dir / f"{checkpoint_id}.json"
+                    referenced_manifests.add(manifest_path)
+                    referenced_components.add(self.root / manifest["replacement_file"])
+                    referenced_components.update(
+                        self.root / segment["path"]
+                        for segment in manifest["new_segments"]
+                    )
+                referenced_manifests.add(self.root / marker["manifest_file"])
 
         removed: list[str] = []
         candidates = (

@@ -19,7 +19,7 @@ import threading
 import time
 
 # Import proxy system for state management
-from ..state_proxy import DictProxy, AccessContext
+from ..state_proxy import DictProxy, ListProxy, AccessContext
 from ..async_utils import invoke_maybe_async
 from ..logging import AgentEvent, LogField, summarize_text
 from .memory_extraction import (
@@ -261,21 +261,21 @@ class Agent:
         return self._world.create_agent_state_proxy(self._id, "properties")
 
     @property
-    def reminders(self) -> List[str]:
-        """
-        获取Agent提醒列表
+    def reminders(self) -> ListProxy:
+        """返回 Tick 临时提醒队列的受控代理。"""
 
-        注意：目前返回原始列表，未来可能需要代理化
-        """
-        return self._world.agents_data[self._id]["reminders"]
+        proxy = self._world.create_agent_state_proxy(self._id, "reminders")
+        if not isinstance(proxy, ListProxy):
+            raise TypeError("Agent reminders must be a list")
+        return proxy
 
     def add_reminder(self, reminder: str):
         """添加提醒"""
-        self._world.agents_data[self._id]["reminders"].append(reminder)
+        self.reminders.append(reminder)
 
     def clear_reminders(self):
         """清空提醒"""
-        self._world.agents_data[self._id]["reminders"].clear()
+        self.reminders.clear()
 
     def get_raw_data(self) -> Dict[str, Any]:
         """
@@ -284,7 +284,7 @@ class Agent:
         Returns:
             Agent的原始数据字典
         """
-        return self._world.agents_data[self._id]
+        return copy.deepcopy(self._world.agents_data[self._id])
 
     # =========================================================================
     # v3.0: 新增方法 - 权限控制和可见性过滤
