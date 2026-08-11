@@ -252,3 +252,73 @@ def test_replaceable_map_write_does_not_iterate_unchanged_entries(tmp_path):
         assert tuple(delta.replacements[0]["path"]) == (*ROOT, "entities", "changed")
     finally:
         world.event_logger.close()
+
+
+def test_entity_map_can_split_mutable_projection_from_nested_append_only_history(tmp_path):
+    account_schema = {
+        "type": "object",
+        "properties": {
+            "balance": replaceable(schema={"type": "number"}),
+            "journal_entries": append_only_map(),
+        },
+        "additionalProperties": False,
+    }
+    schema = persistent_state_schema(
+        accounts=replaceable_map(entry_schema=account_schema)
+    )
+    initial = {
+        "accounts": {
+            "actor-1": {
+                "balance": 10,
+                "journal_entries": {"old": {"amount": 1}},
+            }
+        }
+    }
+    world = _world(tmp_path, initial, schema)
+    try:
+        account = world.create_environment_state_proxy()["accounts"]["actor-1"]
+        account["balance"] = 9
+        account["journal_entries"]["new"] = {"amount": 1}
+
+        delta = world.seal_persistence_tick()
+
+        assert [tuple(item["path"]) for item in delta.replacements] == [
+            (*ROOT, "accounts", "actor-1", "balance")
+        ]
+        assert delta.replacements[0]["value"] == 9
+        assert [tuple(item["path"]) for item in delta.appends] == [
+            (*ROOT, "accounts", "actor-1", "journal_entries")
+        ]
+        assert delta.appends[0]["id"] == "new"
+        assert "old" not in repr(delta)
+    finally:
+        world.event_logger.close()
+
+
+def test_entity_map_creation_still_records_one_complete_new_entry(tmp_path):
+    schema = persistent_state_schema(
+        accounts=replaceable_map(
+            entry_schema={
+                "type": "object",
+                "properties": {
+                    "balance": replaceable(),
+                    "journal_entries": append_only_map(),
+                },
+                "additionalProperties": False,
+            }
+        )
+    )
+    world = _world(tmp_path, {"accounts": {}}, schema)
+    try:
+        world.create_environment_state_proxy()["accounts"]["new"] = {
+            "balance": 5,
+            "journal_entries": {},
+        }
+
+        delta = world.seal_persistence_tick()
+
+        assert len(delta.replacements) == 1
+        assert tuple(delta.replacements[0]["path"]) == (*ROOT, "accounts", "new")
+        assert delta.replacements[0]["value"]["balance"] == 5
+    finally:
+        world.event_logger.close()
