@@ -13,7 +13,8 @@ import uuid
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from types import MappingProxyType
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 class PersistenceKind(str, Enum):
@@ -23,26 +24,314 @@ class PersistenceKind(str, Enum):
     TRANSIENT = "transient"
 
 
+_WILDCARD = object()
+
+
+@dataclass(frozen=True, slots=True)
+class PersistenceRule:
+    """编译后的单个持久化声明。"""
+
+    path: tuple[Any, ...]
+    kind: PersistenceKind
+    granularity: str | None = None
+    default: Any = None
+    has_default: bool = False
+
+
+def _json_copy(value: Any) -> Any:
+    """复制并检查持久化值，拒绝只能到保存线程才暴露的坏值。"""
+
+    try:
+        copied = copy.deepcopy(value)
+        json.dumps(copied, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
+    return copied
+
+
+def _freeze_json(value: Any) -> Any:
+    """将 JSON 值转换成递归不可变结构。"""
+
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+def _thaw_json(value: Any) -> Any:
+    """把 sealed delta 转成 json.dumps 可处理的普通容器。"""
+
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_thaw_json(item) for item in value]
+    return value
+
+
+class PersistenceSchema:
+    """JSON Schema 上的 fail-closed 持久化声明编译结果。
+
+    Schema 只负责描述写入语义；它不改变 canonical state。动态 entry 通过
+    ``additionalProperties`` 与 ``granularity=entry`` 生成内部 wildcard 规则。
+    """
+
+    def __init__(self, schema: Mapping[str, Any], root_path: Iterable[Any], rules: Mapping[tuple[Any, ...], PersistenceRule]):
+        self.schema = copy.deepcopy(dict(schema))
+        self.root_path = tuple(root_path)
+        self.rules = MappingProxyType(dict(rules))
+        self._wildcard_rules = tuple(
+            rule for path, rule in self.rules.items() if any(part is _WILDCARD for part in path)
+        )
+
+    @classmethod
+    def compile(cls, schema: Mapping[str, Any], *, root_path: Iterable[Any] = ()) -> "PersistenceSchema":
+        if not isinstance(schema, Mapping):
+            raise TypeError("persistence schema must be an object")
+        root = tuple(root_path)
+        if schema.get("type", "object") != "object":
+            raise ValueError("persistence schema root must have type object")
+        rules: dict[tuple[Any, ...], PersistenceRule] = {}
+
+        def has_nested_declaration(node: Mapping[str, Any]) -> bool:
+            for child in (node.get("properties") or {}).values():
+                if isinstance(child, Mapping) and (
+                    isinstance(child.get("persistence"), Mapping) or has_nested_declaration(child)
+                ):
+                    return True
+            additional = node.get("additionalProperties")
+            return isinstance(additional, Mapping) and (
+                isinstance(additional.get("persistence"), Mapping) or has_nested_declaration(additional)
+            )
+
+        def add_rule(path: tuple[Any, ...], node: Mapping[str, Any]) -> PersistenceRule | None:
+            declaration = node.get("persistence")
+            if declaration is None:
+                return None
+            if not isinstance(declaration, Mapping):
+                raise TypeError(f"invalid persistence declaration at {path!r}")
+            raw_kind = declaration.get("kind")
+            try:
+                kind = PersistenceKind(raw_kind)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"unknown persistence kind at {path!r}: {raw_kind!r}") from exc
+            granularity = declaration.get("granularity")
+            if granularity is not None and granularity != "entry":
+                raise ValueError(f"unknown persistence granularity at {path!r}: {granularity!r}")
+            if kind is not PersistenceKind.REPLACEABLE and granularity is not None:
+                raise ValueError(f"granularity only applies to replaceable declarations at {path!r}")
+            if (
+                kind is PersistenceKind.REPLACEABLE
+                and node.get("type") == "object"
+                and (
+                    isinstance(node.get("additionalProperties"), Mapping)
+                    or node.get("additionalProperties") is True
+                )
+                and granularity != "entry"
+            ):
+                raise ValueError(
+                    f"unbounded replaceable map at {path!r} requires granularity='entry'"
+                )
+            has_default = "default" in node
+            default = _json_copy(node["default"]) if has_default else None
+            rule = PersistenceRule(path, kind, granularity, default, has_default)
+            if path in rules:
+                raise ValueError(f"duplicate persistence declaration at {path!r}")
+            rules[path] = rule
+            return rule
+
+        def walk(node: Mapping[str, Any], path: tuple[Any, ...], *, inside_container: bool = False) -> None:
+            if not isinstance(node, Mapping):
+                raise TypeError(f"schema node at {path!r} must be an object")
+            rule = add_rule(path, node)
+            if rule is not None:
+                if rule.kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT):
+                    if has_nested_declaration(node):
+                        raise ValueError(f"persistence parent/child conflict at {path!r}")
+                    if rule.granularity == "entry":
+                        if node.get("type") != "object":
+                            raise ValueError(f"entry granularity requires object at {path!r}")
+                        # The dynamic child has the scalar/item schema. It intentionally
+                        # carries no second persistence declaration.
+                        rules[path + (_WILDCARD,)] = PersistenceRule(
+                            path + (_WILDCARD,), rule.kind, "entry", None, False
+                        )
+                elif rule.kind in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST):
+                    if has_nested_declaration(node):
+                        raise ValueError(f"persistence parent/child conflict at {path!r}")
+                return
+
+            schema_type = node.get("type")
+            if schema_type in (None, "object"):
+                properties = node.get("properties") or {}
+                if not isinstance(properties, Mapping):
+                    raise TypeError(f"properties at {path!r} must be an object")
+                for name, child in properties.items():
+                    if not isinstance(name, str):
+                        raise TypeError(f"schema property name at {path!r} must be a string")
+                    walk(child, path + (name,), inside_container=inside_container)
+                additional = node.get("additionalProperties", False)
+                if isinstance(additional, Mapping):
+                    walk(additional, path + (_WILDCARD,), inside_container=inside_container)
+                elif additional not in (False, True):
+                    raise TypeError(f"additionalProperties at {path!r} must be boolean or schema")
+            elif schema_type == "array":
+                items = node.get("items")
+                if isinstance(items, Mapping):
+                    walk(items, path + (_WILDCARD,), inside_container=inside_container)
+                elif items is not None:
+                    raise TypeError(f"items at {path!r} must be a schema")
+            else:
+                raise ValueError(f"missing persistence declaration at {path!r}")
+
+        # The root object is a structural node and does not itself need a declaration.
+        walk(schema, root)
+        return cls(schema, root, rules)
+
+    @staticmethod
+    def _matches(pattern: tuple[Any, ...], path: tuple[Any, ...]) -> bool:
+        return len(pattern) == len(path) and all(
+            expected is _WILDCARD or expected == actual for expected, actual in zip(pattern, path)
+        )
+
+    def resolve(self, path: Iterable[Any]) -> PersistenceRule | None:
+        concrete = tuple(path)
+        exact = self.rules.get(concrete)
+        if exact is not None:
+            return exact
+        for pattern, rule in self.rules.items():
+            if any(part is _WILDCARD for part in pattern) and self._matches(pattern, concrete):
+                return rule
+        return None
+
+    def _schema_node(self, path: tuple[Any, ...]) -> Mapping[str, Any] | None:
+        if path[: len(self.root_path)] != self.root_path:
+            return None
+        node: Mapping[str, Any] = self.schema
+        for part in path[len(self.root_path) :]:
+            if not isinstance(node, Mapping):
+                return None
+            properties = node.get("properties") or {}
+            if part in properties:
+                node = properties[part]
+                continue
+            additional = node.get("additionalProperties")
+            if isinstance(additional, Mapping):
+                node = additional
+                continue
+            return None
+        return node
+
+    @staticmethod
+    def _validate_type(value: Any, node: Mapping[str, Any], path: tuple[Any, ...]) -> None:
+        expected = node.get("type")
+        if expected is None:
+            return
+        expected_types = set(expected) if isinstance(expected, list) else {expected}
+        valid = any(
+            (kind == "object" and isinstance(value, Mapping))
+            or (kind == "array" and isinstance(value, list))
+            or (kind == "string" and isinstance(value, str))
+            or (kind == "integer" and isinstance(value, int) and not isinstance(value, bool))
+            or (kind == "number" and isinstance(value, (int, float)) and not isinstance(value, bool))
+            or (kind == "boolean" and isinstance(value, bool))
+            or (kind == "null" and value is None)
+            for kind in expected_types
+        )
+        if not valid:
+            raise TypeError(f"state value at {path!r} does not match schema type {expected!r}")
+
+    def validate_initial_state(self, state: Mapping[str, Any]) -> None:
+        if not isinstance(state, Mapping):
+            raise TypeError("initial state must be an object")
+
+        def validate(node: Mapping[str, Any], value: Any, path: tuple[Any, ...]) -> None:
+            self._validate_type(value, node, path)
+            _json_copy(value)
+            rule = self.resolve(path)
+            if rule is not None:
+                if rule.kind is PersistenceKind.APPEND_ONLY_MAP:
+                    if not isinstance(value, Mapping):
+                        raise TypeError(f"append-only map at {path!r} must be an object")
+                    return
+                if rule.kind is PersistenceKind.APPEND_ONLY_LIST:
+                    if not isinstance(value, list):
+                        raise TypeError(f"append-only list at {path!r} must be an array")
+                    return
+                if rule.kind is PersistenceKind.REPLACEABLE and rule.granularity == "entry":
+                    if not isinstance(value, Mapping):
+                        raise TypeError(f"entry-granularity map at {path!r} must be an object")
+                    item_schema = node.get("additionalProperties")
+                    for key, item in value.items():
+                        if isinstance(item_schema, Mapping):
+                            validate(item_schema, item, path + (key,))
+                    return
+                return
+            if not isinstance(value, Mapping):
+                return
+            properties = node.get("properties") or {}
+            additional = node.get("additionalProperties", False)
+            for key, item in value.items():
+                child_path = path + (key,)
+                if key in properties:
+                    validate(properties[key], item, child_path)
+                elif isinstance(additional, Mapping):
+                    validate(additional, item, child_path)
+                else:
+                    raise ValueError(f"undeclared initial state field at {child_path!r}")
+
+        validate(self.schema, state, self.root_path)
+
+    @property
+    def append_only_map_paths(self) -> tuple[tuple[Any, ...], ...]:
+        return tuple(path for path, rule in self.rules.items() if rule.kind is PersistenceKind.APPEND_ONLY_MAP)
+
+
 @dataclass(frozen=True, slots=True)
 class SealedTickDelta:
     step: int
-    replacements: tuple[dict[str, Any], ...]
-    appends: tuple[dict[str, Any], ...]
+    replacements: tuple[Mapping[str, Any], ...]
+    appends: tuple[Mapping[str, Any], ...]
 
 
 class StateDeltaJournal:
     """在 canonical writer 的调用栈内捕获一个 Tick 的持久化变化。"""
 
-    def __init__(self, declarations: Mapping[tuple[str, ...], PersistenceKind | str]):
-        self._declarations = {
-            tuple(path): PersistenceKind(kind) for path, kind in declarations.items()
-        }
+    def __init__(self, declarations: PersistenceSchema | Mapping[tuple[Any, ...], PersistenceKind | str]):
+        self._schema = declarations if isinstance(declarations, PersistenceSchema) else None
+        self._declarations = (
+            {}
+            if self._schema is not None
+            else {tuple(path): PersistenceKind(kind) for path, kind in declarations.items()}
+        )
         self._active_step: int | None = None
         self._sequence = 0
         self._replacements: dict[tuple[str, ...], dict[str, Any]] = {}
         self._appends: list[dict[str, Any]] = []
         self._pending_map_ids: set[tuple[tuple[str, ...], str]] = set()
         self._committed_map_ids: set[tuple[tuple[str, ...], str]] = set()
+        self._canonical_lookup: Callable[[tuple[Any, ...]], Any] | None = None
+
+    def bind_canonical_state(self, state_or_lookup: Mapping[str, Any] | Callable[[tuple[Any, ...]], Any]) -> None:
+        """绑定 canonical 容器，用实际 membership 检查 append-only map。"""
+
+        if callable(state_or_lookup):
+            self._canonical_lookup = state_or_lookup
+        else:
+            def lookup(path: tuple[Any, ...]) -> Any:
+                current: Any = state_or_lookup
+                for part in path:
+                    if isinstance(current, Mapping) and part in current:
+                        current = current[part]
+                    else:
+                        return None
+                return current
+            self._canonical_lookup = lookup
+        if self._schema is not None:
+            for path in self._schema.append_only_map_paths:
+                target = self._canonical_lookup(path) if self._canonical_lookup else None
+                if isinstance(target, Mapping):
+                    self._committed_map_ids.update((path, key) for key in target)
 
     def begin_tick(self, step: int) -> None:
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
@@ -55,9 +344,14 @@ class StateDeltaJournal:
         self._appends = []
         self._pending_map_ids = set()
 
-    def _kind(self, path: Iterable[str]) -> tuple[tuple[str, ...], PersistenceKind]:
+    def _kind(self, path: Iterable[Any]) -> tuple[tuple[Any, ...], PersistenceKind]:
         self._require_active()
-        normalized = tuple(str(part) for part in path)
+        normalized = tuple(path)
+        if self._schema is not None:
+            rule = self._schema.resolve(normalized)
+            if rule is None:
+                raise ValueError(f"undeclared persistence path: {normalized!r}")
+            return normalized, rule.kind
         try:
             return normalized, self._declarations[normalized]
         except KeyError as exc:
@@ -70,6 +364,7 @@ class StateDeltaJournal:
 
     def record_set(self, path: Iterable[str], value: Any) -> None:
         normalized, kind = self._kind(path)
+        value = _json_copy(value)
         if kind is PersistenceKind.TRANSIENT:
             return
         if kind is not PersistenceKind.REPLACEABLE:
@@ -77,7 +372,7 @@ class StateDeltaJournal:
         self._replacements[normalized] = {
             "path": list(normalized),
             "operation": "set",
-            "value": copy.deepcopy(value),
+            "value": value,
             "sequence": self._next_sequence(),
         }
 
@@ -97,9 +392,15 @@ class StateDeltaJournal:
         normalized, kind = self._kind(path)
         if kind is not PersistenceKind.APPEND_ONLY_MAP:
             raise ValueError(f"map create is not allowed for {kind.value}: {normalized!r}")
-        normalized_id = str(fact_id)
+        normalized_id = fact_id
+        _json_copy(value)
         identity = (normalized, normalized_id)
-        if identity in self._pending_map_ids or identity in self._committed_map_ids:
+        target = self._canonical_lookup(normalized) if self._canonical_lookup else None
+        if (
+            identity in self._pending_map_ids
+            or identity in self._committed_map_ids
+            or (isinstance(target, Mapping) and normalized_id in target)
+        ):
             raise ValueError(f"duplicate append-only map id: {normalized_id}")
         self._pending_map_ids.add(identity)
         self._appends.append(
@@ -107,7 +408,7 @@ class StateDeltaJournal:
                 "path": list(normalized),
                 "operation": "map_create",
                 "id": normalized_id,
-                "value": copy.deepcopy(value),
+                "value": _json_copy(value),
                 "sequence": self._next_sequence(),
             }
         )
@@ -120,7 +421,7 @@ class StateDeltaJournal:
             {
                 "path": list(normalized),
                 "operation": "append",
-                "value": copy.deepcopy(value),
+                "value": _json_copy(value),
                 "sequence": self._next_sequence(),
             }
         )
@@ -134,15 +435,21 @@ class StateDeltaJournal:
     ) -> None:
         """接收代理在修改底层容器之前发出的规范化写入。"""
 
-        container = tuple(str(part) for part in container_path)
-        container_kind = self._declarations.get(container)
-        child = container + (str(key),) if key is not None else container
-        child_kind = self._declarations.get(child)
+        container = tuple(container_path)
+        child = container + (key,) if key is not None else container
+        if self._schema is not None:
+            container_rule = self._schema.resolve(container)
+            child_rule = self._schema.resolve(child) if key is not None else None
+            container_kind = container_rule.kind if container_rule is not None else None
+            child_kind = child_rule.kind if child_rule is not None else None
+        else:
+            container_kind = self._declarations.get(container)
+            child_kind = self._declarations.get(child)
 
         if container_kind is PersistenceKind.APPEND_ONLY_MAP:
             if operation != "set" or key is None:
                 raise ValueError("append-only map only accepts new keys")
-            self.record_map_create(container, str(key), value)
+            self.record_map_create(container, key, value)
             return
         if container_kind is PersistenceKind.APPEND_ONLY_LIST:
             if operation != "append":
@@ -158,15 +465,44 @@ class StateDeltaJournal:
                 return
         raise ValueError(f"undeclared or unsupported persistence write: {child!r}")
 
+    def validate_proxy_operations(self, operations: Sequence[tuple[Iterable[Any], str, Any, Any]]) -> None:
+        """在批量代理操作落到底层前完整预检，避免 extend 部分成功。"""
+
+        pending = set(self._pending_map_ids)
+        for container_path, operation, key, value in operations:
+            container = tuple(container_path)
+            if self._schema is not None:
+                container_rule = self._schema.resolve(container)
+                child_rule = self._schema.resolve(container + (key,)) if key is not None else None
+                container_kind = container_rule.kind if container_rule else None
+                child_kind = child_rule.kind if child_rule else None
+            else:
+                container_kind = self._declarations.get(container)
+                child_kind = self._declarations.get(container + (key,)) if key is not None else None
+            if container_kind is PersistenceKind.APPEND_ONLY_LIST and operation == "append":
+                _json_copy(value)
+                continue
+            if container_kind is PersistenceKind.APPEND_ONLY_MAP and operation == "set" and key is not None:
+                _json_copy(value)
+                identity = (container, key)
+                target = self._canonical_lookup(container) if self._canonical_lookup else None
+                if identity in pending or identity in self._committed_map_ids or (isinstance(target, Mapping) and key in target):
+                    raise ValueError(f"duplicate append-only map id: {key}")
+                pending.add(identity)
+                continue
+            if child_kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT) and operation in ("set", "delete"):
+                if operation == "set":
+                    _json_copy(value)
+                continue
+            raise ValueError(f"undeclared or unsupported persistence write: {container + (key,)!r}")
+
     def seal_tick(self) -> SealedTickDelta:
         self._require_active()
         assert self._active_step is not None
         result = SealedTickDelta(
             step=self._active_step,
-            replacements=tuple(
-                sorted(self._replacements.values(), key=lambda item: item["sequence"])
-            ),
-            appends=tuple(sorted(self._appends, key=lambda item: item["sequence"])),
+            replacements=tuple(_freeze_json(item) for item in sorted(self._replacements.values(), key=lambda item: item["sequence"])),
+            appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
         )
         self._committed_map_ids.update(self._pending_map_ids)
         self._clear_active()
@@ -222,7 +558,7 @@ class V4CheckpointStore:
     @staticmethod
     def _canonical_bytes(value: Any) -> bytes:
         return json.dumps(
-            value,
+            _thaw_json(value),
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),

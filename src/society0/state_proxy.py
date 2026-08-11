@@ -21,6 +21,23 @@ _MISSING = object()
 logger = logging.getLogger(__name__)
 
 
+class _ProxyLease:
+    """共享代理租约；Tick 结束后所有旧代理在写前失效。"""
+
+    __slots__ = ("active", "generation")
+
+    def __init__(self, generation: int = 0) -> None:
+        self.active = True
+        self.generation = generation
+
+    def invalidate(self) -> None:
+        self.active = False
+
+    def ensure_live(self) -> None:
+        if not self.active:
+            raise RuntimeError("stale or expired state proxy from a previous tick")
+
+
 # =============================================================================
 # 访问控制
 # =============================================================================
@@ -87,9 +104,10 @@ class DictProxy(MutableMapping[str, Any]):
         target_dict: Dict[str, Any],
         event_recorder: Callable[[Any], None],
         context_provider: Callable[[], List[Dict[str, Any]]],
-        path: Tuple[str, ...] = (),
+        path: Tuple[Any, ...] = (),
         access_context: Optional[AccessContext] = None,  # 🔑 新增
         persistence_journal: Optional[Any] = None,
+        lease: Optional[_ProxyLease] = None,
     ):
         """
         初始化字典代理
@@ -108,6 +126,7 @@ class DictProxy(MutableMapping[str, Any]):
         object.__setattr__(self, '_path', path)
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
         object.__setattr__(self, '_persistence_journal', persistence_journal)
+        object.__setattr__(self, '_lease', lease)
 
     _PROTECTED_ATTRS = {
         "_target_dict",
@@ -116,7 +135,13 @@ class DictProxy(MutableMapping[str, Any]):
         "_path",
         "_access_context",
         "_persistence_journal",
+        "_lease",
     }
+
+    def _ensure_live(self) -> None:
+        lease = self._lease
+        if lease is not None:
+            lease.ensure_live()
 
     @classmethod
     def _is_class_attribute(cls, name: str) -> bool:
@@ -136,7 +161,7 @@ class DictProxy(MutableMapping[str, Any]):
     def _record_change(
         self,
         operation: str,
-        key: Optional[str] = None,
+        key: Optional[Any] = None,
         value: Any = _MISSING,
         old_value: Any = _MISSING,
     ) -> None:
@@ -144,7 +169,7 @@ class DictProxy(MutableMapping[str, Any]):
         try:
             # 构建变更路径
             if key is not None:
-                change_path = self._path + (str(key),)
+                change_path = self._path + (key,)
             else:
                 change_path = self._path
             
@@ -186,24 +211,27 @@ class DictProxy(MutableMapping[str, Any]):
                 target_dict=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
-                path=self._path + (str(key),),
+                path=self._path + (key,),
                 access_context=self._access_context,  # 🔑 传递访问上下文
                 persistence_journal=self._persistence_journal,
+                lease=self._lease,
             )
         elif isinstance(value, list):
             return ListProxy(
                 target_list=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
-                path=self._path + (str(key),),
+                path=self._path + (key,),
                 access_context=self._access_context,  # 🔑 传递访问上下文
                 persistence_journal=self._persistence_journal,
+                lease=self._lease,
             )
         else:
             return value
 
     def __setitem__(self, key: str, value: Any) -> None:
         """设置项目，记录变更并立即生效"""
+        self._ensure_live()
         # 🔑 权限检查
         if self._access_context:
             if not self._access_context.can_write(key):
@@ -223,6 +251,7 @@ class DictProxy(MutableMapping[str, Any]):
     
     def __delitem__(self, key: str) -> None:
         """删除项目"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "delete", key
@@ -307,6 +336,7 @@ class DictProxy(MutableMapping[str, Any]):
     
     def pop(self, key: str, default: Any = _MISSING) -> Any:
         """弹出并返回值，与内建 ``dict.pop`` 保持相同语义。"""
+        self._ensure_live()
         if key in self._target_dict:
             if self._persistence_journal is not None:
                 self._persistence_journal.record_proxy_operation(
@@ -322,6 +352,7 @@ class DictProxy(MutableMapping[str, Any]):
     
     def clear(self) -> None:
         """清空字典"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "clear", None
@@ -378,9 +409,10 @@ class ListProxy(MutableSequence[Any]):
         target_list: List[Any],
         event_recorder: Callable[[Any], None],
         context_provider: Callable[[], List[Dict[str, Any]]],
-        path: Tuple[str, ...] = (),
+        path: Tuple[Any, ...] = (),
         access_context: Optional[AccessContext] = None,  # 🔑 新增
         persistence_journal: Optional[Any] = None,
+        lease: Optional[_ProxyLease] = None,
     ):
         """
         初始化列表代理
@@ -398,6 +430,12 @@ class ListProxy(MutableSequence[Any]):
         object.__setattr__(self, '_path', path)
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
         object.__setattr__(self, '_persistence_journal', persistence_journal)
+        object.__setattr__(self, '_lease', lease)
+
+    def _ensure_live(self) -> None:
+        lease = self._lease
+        if lease is not None:
+            lease.ensure_live()
     
     @staticmethod
     def _snapshot(value: Any) -> Any:
@@ -420,7 +458,7 @@ class ListProxy(MutableSequence[Any]):
         try:
             # 构建变更路径
             if index is not None:
-                change_path = self._path + (str(index),)
+                change_path = self._path + (index,)
             else:
                 change_path = self._path
             
@@ -462,24 +500,27 @@ class ListProxy(MutableSequence[Any]):
                 target_dict=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
-                path=self._path + (str(index),),
+                path=self._path + (index,),
                 access_context=self._access_context,  # 🔑 传递访问上下文
                 persistence_journal=self._persistence_journal,
+                lease=self._lease,
             )
         elif isinstance(value, list):
             return ListProxy(
                 target_list=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
-                path=self._path + (str(index),),
+                path=self._path + (index,),
                 access_context=self._access_context,  # 🔑 传递访问上下文
                 persistence_journal=self._persistence_journal,
+                lease=self._lease,
             )
         else:
             return value
     
     def __setitem__(self, index: int, value: Any) -> None:
         """设置项目，记录变更并立即生效"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "set", index, value
@@ -490,6 +531,7 @@ class ListProxy(MutableSequence[Any]):
     
     def __delitem__(self, index: int) -> None:
         """删除项目"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "delete", index
@@ -519,6 +561,7 @@ class ListProxy(MutableSequence[Any]):
     
     def append(self, value: Any) -> None:
         """追加元素"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "append", len(self._target_list), value
@@ -529,8 +572,12 @@ class ListProxy(MutableSequence[Any]):
     
     def extend(self, values: List[Any]) -> None:
         """扩展列表"""
+        self._ensure_live()
         start_index = len(self._target_list)
         if self._persistence_journal is not None:
+            self._persistence_journal.validate_proxy_operations(
+                [(self._path, "append", start_index + offset, item) for offset, item in enumerate(values)]
+            )
             for offset, item in enumerate(values):
                 self._persistence_journal.record_proxy_operation(
                     self._path, "append", start_index + offset, item
@@ -541,6 +588,7 @@ class ListProxy(MutableSequence[Any]):
     
     def insert(self, index: int, value: Any) -> None:
         """插入元素"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "insert", index, value
@@ -550,6 +598,7 @@ class ListProxy(MutableSequence[Any]):
     
     def remove(self, value: Any) -> None:
         """移除元素"""
+        self._ensure_live()
         # 找到要移除的元素的索引
         index = self._target_list.index(value)
         if self._persistence_journal is not None:
@@ -561,6 +610,7 @@ class ListProxy(MutableSequence[Any]):
     
     def pop(self, index: int = -1) -> Any:
         """弹出元素"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "delete", index
@@ -571,6 +621,7 @@ class ListProxy(MutableSequence[Any]):
     
     def clear(self) -> None:
         """清空列表"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "clear", None
@@ -592,6 +643,7 @@ class ListProxy(MutableSequence[Any]):
     
     def reverse(self) -> None:
         """反转列表"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "reverse", None
@@ -602,6 +654,7 @@ class ListProxy(MutableSequence[Any]):
     
     def sort(self, key=None, reverse=False) -> None:
         """排序列表"""
+        self._ensure_live()
         if self._persistence_journal is not None:
             self._persistence_journal.record_proxy_operation(
                 self._path, "sort", None
