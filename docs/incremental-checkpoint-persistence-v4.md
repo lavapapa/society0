@@ -39,11 +39,45 @@ v4 不在保存时扫描、复制、比较或散列完整 World 来发现变化�
 }
 ```
 
+Env 作者通常不需要手写上面的 JSON。Society0 提供等价的声明构造器，
+运行时代码仍是普通的 Python `dict` / `list` 操作：
+
+```python
+from society0 import (
+    append_only_list,
+    append_only_map,
+    persistent_state_schema,
+    replaceable,
+    replaceable_map,
+    transient,
+)
+
+INDUSTRY_STATE_SCHEMA = persistent_state_schema(
+    clock=replaceable(),                  # 有界对象整体替换
+    actors=replaceable_map(),             # 每个 actor_id 独立替换
+    trades=append_only_map(),             # trade_id 对应不可变事实
+    audit=append_only_list(),              # 有序不可变事实流
+    runtime_index=transient(default={}),   # 恢复后重置
+)
+
+# Env 业务代码无需调用 checkpoint API 或手工 journal。
+self.state["actors"][actor_id]["cash"] -= amount
+self.state["trades"][trade_id] = trade
+```
+
+`replaceable()` 声明的对象必须是业务上有界的投影；任意深层写入最终只记录
+该对象的 Tick 末值。`replaceable_map()` 表示动态对象表，深层写入
+`table[id][...]` 只记录被改写的 `table[id]`，不会遍历或复制其他 entry。
+整表赋值、删除或 `clear()` 会破坏这一上界，因此在写入前拒绝。需要更严格
+类型校验时，可向构造器传 `schema`、`entry_schema` 或 `item_schema`；构造器
+生成的仍是标准 Env `state_schema`，没有第二套恢复格式。
+
 语义如下：
 
 | 声明 | 允许的写入 | checkpoint 表示 | 恢复结果 |
 | --- | --- | --- | --- |
-| `replaceable` | create/set/delete；map 内部可逐键更新 | 本 Tick 最后一次已提交的值或 tombstone | 目标 Tick 的末值 |
+| `replaceable` | create/set/delete；有界对象允许普通深层写入 | 本 Tick 最后一次已提交的有界锚点或 tombstone | 目标 Tick 的末值 |
+| `replaceable` + `granularity=entry` | 动态 map 的 entry create/set/delete 与 entry 内深层写入；禁止整表改写 | 本 Tick 被修改 entry 的末值 | 目标 Tick 的逐 entry 投影 |
 | `append_only_map` | 仅创建此前不存在的 key；同 Tick 重复 ID 失败 | `{id: fact}` 不可变段 | 合并截至目标 Tick 的所有段 |
 | `append_only_list` | 仅 `append`/`extend` | 按确定顺序保存的不可变数组段 | 连接截至目标 Tick 的所有段 |
 | `transient` | 任意运行时写入 | 不写入 | 新 Tick 或恢复后使用 schema `default`，无默认值时缺省 |
@@ -56,9 +90,9 @@ Agent Thread 继续作为独立、不可变的 JSONL/blob 证据。checkpoint �
 
 ## 3. 写入时捕获变化
 
-`World` 持有一个 `StateDeltaJournal`。每个 Tick 开始时创建未发布 journal；`DictProxy`、`ListProxy` 和少数 canonical writer 在实际修改底层容器的同一调用栈内，把规范化操作写入 journal。journal 根据字段声明立即判定操作是否合法，并复制本次写入值，不读取同字段的完整历史。
+`World` 持有一个 `StateDeltaJournal`。每个 Tick 开始时创建未发布 journal；`DictProxy`、`ListProxy` 和少数 canonical writer 在实际修改底层容器的同一调用栈内，把规范化操作写入 journal。代理在 mutation 前解析声明并完成类型、重复 ID 与操作合法性校验；mutation 成功后，journal 才复制新增事实或命中的有界替换锚点。这样底层 list/dict 操作失败时不会留下幽灵 delta，也能在普通深层写入后捕获对象的最终值。
 
-捕获顺序是单调的 `sequence`。同 Tick 对 replaceable 字段的 create/update/delete 依次记录，发布前可按路径压缩为末值；append-only 操作保持原顺序且不压缩。重复 append-only map ID 在写入时失败，不能等 checkpoint 扫描后才发现。
+捕获顺序是单调的 `sequence`。同 Tick 对 replaceable 锚点的 create/update/delete 依次记录，发布前按锚点压缩为末值；同一个 entry 内多次 dict/list 修改只保留最终 entry。append-only 操作保持原顺序且不压缩。重复 append-only map ID 和对已创建事实的深层修改都在底层 mutation 前失败，不能等 checkpoint 扫描后才发现。
 
 代理只包装已通过公共状态 API 暴露的容器。读操作不建立全树代理、不扫描历史。框架内部确需绕过代理的写入路径必须改为 canonical writer；直接替换 `World.agents_data` 或 `environment_data["state"]` 仅允许在初始化和恢复阶段，并在该阶段关闭 journal。
 
@@ -125,7 +159,7 @@ GC 只在没有 checkpoint writer 时运行。它先从所有 complete marker、
 
 ## 8. 复杂度与空间上界
 
-设本 Tick 新增事实总字节为 `A_t`，被改写的 replaceable 末值总字节为 `R_t`，固定 manifest 大小为 `M`：
+设本 Tick 新增事实总字节为 `A_t`，被改写的有界 replaceable 锚点末值总字节为 `R_t`，固定 manifest 大小为 `M`：
 
 ```text
 写入时间：O(A_t + R_t + M)
@@ -133,7 +167,7 @@ GC 只在没有 checkpoint writer 时运行。它先从所有 complete marker、
 新增磁盘：O(A_t + R_t + M)
 ```
 
-append-only 历史总量 `H_t` 不出现在保存上界中。若一个 replaceable 字段本身是无界大 map，整字段替换仍会使 `R_t` 变大；调用方应把它声明为逐键 replaceable map，或重构为 append-only 事实与紧凑索引。性能门禁构造不断增长的历史和固定 delta，统计 writer 接收的记录数/字节数，并用峰值 RSS 观察是否出现隐藏全量副本；墙钟时间仅作辅助，因为噪声不能单独证明复杂度。
+append-only 历史总量 `H_t` 和 replaceable map 中未修改的 entry 数量不出现在保存上界中。若一个 `replaceable()` 对象自身持续无界增长，`R_t` 仍会变大；调用方应改用 `replaceable_map()`，或拆成 append-only 事实与紧凑投影。性能门禁构造不断增长的历史和固定 delta，统计 writer 接收的记录数/字节数，并用峰值 RSS 观察是否出现隐藏全量副本；墙钟时间仅作辅助，因为噪声不能单独证明复杂度。
 
 ## 9. 实现状态与后续优化
 
