@@ -19,20 +19,20 @@ v4 不在保存时扫描、复制、比较或散列完整 World 来发现变化�
 ```python
 {
     "properties": {
-        "cash": {"type": "number", "persistence": "replaceable"},
+        "cash": {"type": "number", "persistence": {"kind": "replaceable"}},
         "trades": {
             "type": "object",
-            "persistence": "append_only_map",
+            "persistence": {"kind": "append_only_map"},
             "additionalProperties": {"type": "object"},
         },
         "audit_log": {
             "type": "array",
-            "persistence": "append_only_list",
+            "persistence": {"kind": "append_only_list"},
             "items": {"type": "object"},
         },
         "tick_cursor": {
             "type": "integer",
-            "persistence": "transient",
+            "persistence": {"kind": "transient"},
             "default": 0,
         },
     }
@@ -50,7 +50,7 @@ v4 不在保存时扫描、复制、比较或散列完整 World 来发现变化�
 
 未声明字段不能悄悄回退到完整快照。v4 初始化时应报告具体路径并拒绝运行，以免一个新增字段把复杂度重新拖回 O(累计 World)。框架自身的固定小字段（step、环境类型、Agent 身份和类型）由显式的内置声明管理。
 
-Chroma 不属于上述 JSON 状态树。它维持每个 run/branch 一个数据库，记忆记录必须包含 `created_step`、`visible_until_step`（开放区间可为空）、`branch_id` 和 `source_branch_id`。查询条件必须同时约束 Agent、分支可见谱系和目标 Tick。恢复旧 Tick 只改变查询视图，不复制或回滚数据库；从旧 Tick 分叉时，新记忆写入新 `branch_id`，源分支记录保持不可变。
+Chroma 不属于上述 JSON 状态树。每个 run 维持一个逻辑数据库，分支共享该库并通过元数据隔离；可配置的 tmpfs 运行镜像只在启动/关闭同步，不生成 checkpoint 版本。记忆记录必须包含 `created_step`、`visible_until_step`（Chroma 不接受 `None`，实现使用最大整数表示开放区间）、`branch_id`、`source_branch_id` 和写入 epoch。查询条件必须同时约束 Agent、分支可见谱系、目标 Tick 与 complete marker 已提交的 epoch。恢复旧 Tick 只改变查询视图，不复制、删除或回滚数据库；从旧 Tick 分叉时，新记忆写入新 `branch_id`，源分支记录保持不可变。
 
 Agent Thread 继续作为独立、不可变的 JSONL/blob 证据。checkpoint 只引用该 Tick 已关闭 Thread 的不可变 manifest；Thread 正文不进入 World 状态段。
 
@@ -74,7 +74,7 @@ checkpoints/
     manifests/<checkpoint-id>.json
     complete/step_000123.json       # 唯一发布点
 agent_threads/manifests/...
-chroma_store/                       # 每个 branch 单库，不按 checkpoint 复制
+chroma_store/                       # 每个 run 逻辑单库；branch 由元数据隔离
 ```
 
 `manifest` 至少包含：
@@ -97,7 +97,7 @@ chroma_store/                       # 每个 branch 单库，不按 checkpoint �
 }
 ```
 
-`state_sha256 = H(parent.state_sha256, canonical(replacements), ordered(segment hashes), thread manifest hash, memory view)`。它证明发布链没有被重排或替换，不要求保存时重读历史段。每个组件先写临时文件、`fsync`、原子改名；最后才原子写入 complete marker。只有 marker 指向的 manifest 可恢复。
+`state_sha256 = H(parent.state_sha256, canonical(replacements), ordered(segment hashes), thread manifest hash, memory view, annotations)`。它证明发布链没有被重排或替换，不要求保存时重读历史段。每个组件先写临时文件、`fsync`、原子改名；最后才原子写入 complete marker。只有 marker 指向的 manifest 可恢复。
 
 ## 5. Tick、失败、取消和进程中断
 
@@ -117,7 +117,7 @@ chroma_store/                       # 每个 branch 单库，不按 checkpoint �
 
 恢复从目标 complete marker 开始，沿 parent 链向前找到最近的物化基点，校验每个 manifest 与组件哈希，然后按 `(step, sequence)` 应用 replacement 和 append 段。缺段、内容损坏、parent 断裂或链式摘要不一致都使目标 checkpoint 不可恢复；“latest”解析应跳过损坏目标并尝试更早完整点。
 
-分叉创建新的 `run_id/branch_id` 和根 manifest，根 manifest 引用源 checkpoint 的已验证不可变段，不复制段内容。之后只在新分支目录发布 manifest，并把 Chroma 查询谱系记录为“源分支截至 fork step + 新分支自身截至目标 step”。源 complete marker、Thread 和记忆均不可修改。
+分叉在同一 run 内创建新的 `branch_id` 和分支根 marker，引用源 checkpoint 的已验证不可变链，不复制段内容。之后只在新分支目录发布 marker，并把 Chroma 查询谱系记录为“源分支截至 fork step + 新分支自身截至目标 step”。源 complete marker、Thread 和记忆均不可修改。跨 run 恢复仍创建新的运行目录，并从来源 v4 marker 读取已验证状态。
 
 ## 7. GC 与保留策略
 
@@ -135,35 +135,47 @@ GC 只在没有 checkpoint writer 时运行。它先从所有 complete marker、
 
 append-only 历史总量 `H_t` 不出现在保存上界中。若一个 replaceable 字段本身是无界大 map，整字段替换仍会使 `R_t` 变大；调用方应把它声明为逐键 replaceable map，或重构为 append-only 事实与紧凑索引。性能门禁构造不断增长的历史和固定 delta，统计 writer 接收的记录数/字节数，并用峰值 RSS 观察是否出现隐藏全量副本；墙钟时间仅作辅助，因为噪声不能单独证明复杂度。
 
-## 9. 分阶段 TODO
+## 9. 实现状态与后续优化
 
 ### 阶段 A：最小垂直切片
 
-- [ ] 定义声明解析、`StateDeltaJournal` 和确定性操作格式。
-- [ ] 让环境 `DictProxy`/`ListProxy` 在写入点记录 replaceable 与 append-only delta。
-- [ ] 实现 v4 segment、replacement、manifest、complete marker 与任意 Tick 恢复。
-- [ ] 覆盖失败前不发布、临时态丢弃、损坏/缺段检测和固定 delta 性能门禁。
+- [x] 定义声明解析、`StateDeltaJournal` 和确定性操作格式。
+- [x] 让环境 `DictProxy`/`ListProxy` 在写入点记录 replaceable 与 append-only delta。
+- [x] 实现 v4 segment、replacement、manifest、complete marker 与任意 Tick 恢复。
+- [x] 覆盖失败前不发布、临时态丢弃、损坏/缺段检测和固定 delta 性能门禁。
 
 ### 阶段 B：完整 World 与运行时生命周期
 
-- [ ] 覆盖 Agent state/properties/reminders 和框架固定字段。
-- [ ] 在 `Society0.run` 与 `SimEngine` 中接入 begin/seal/abort，保证最多一个 sealed delta。
-- [ ] 接入 Thread immutable manifest，补齐取消、marker 前后故障和背压。
-- [ ] 加入随机多 Tick 状态机测试与恢复等价验证。
+- [x] 覆盖 Agent state/properties/reminders 和框架固定字段。
+- [x] 在 `Society0.run` 与 `SimEngine` 中接入 begin/seal/abort，保证最多一个 sealed delta。
+- [x] 接入 Thread immutable manifest，补齐取消、marker 前后故障和背压。
+- [x] 加入随机多 Tick 状态机测试与恢复等价验证。
 
 ### 阶段 C：记忆与分叉
 
-- [ ] 为 Memory 写入补 `created_step/visible_until_step/branch_id/source_branch_id`。
-- [ ] 所有 retrieve/inspect/export 路径强制目标 Tick 可见性过滤。
-- [ ] 实现从任意完整 checkpoint 分叉、源谱系查询与互不污染测试。
-- [ ] 删除按 checkpoint 复制 Chroma 的 v3 路径。
+- [x] 为 Memory 写入补 `created_step/visible_until_step/branch_id/source_branch_id/write_epoch_id`。
+- [x] 所有 retrieve/inspect/export 路径强制目标 Tick 与已提交 epoch 可见性过滤。
+- [x] 实现从任意完整 checkpoint 分叉、源谱系查询与互不污染测试。
+- [x] 删除按 checkpoint 复制 Chroma 的 v3 路径。
 
 ### 阶段 D：GC、物化与基准
 
-- [ ] 实现孤儿清理和基于可达性的 GC。
-- [ ] 以可配置间隔生成物化基点；物化在后台执行且不改变 checkpoint 写入复杂度门禁。
-- [ ] 运行 unit、primary、恢复、Thread、Chroma、E2E 与历史增长基准，报告耗时、字节数、峰值 RSS 和失败注入结果。
+- [x] 实现跨分支可达性 GC，清理孤儿 manifest、replacement、segment 与 Thread manifest；Chroma 不由 checkpoint GC 删除。
+- [ ] 可选的周期性物化基点留作恢复延迟优化；v4 root 已提供初始物化点，增量写入正确性与复杂度不依赖该优化。
+- [x] 运行 unit、primary、恢复、Thread、Chroma、E2E 与历史增长基准，记录耗时、字节数、峰值 RSS 和失败注入结果。
+
+### 9.1 2026-08-11 历史增长基准
+
+固定每 Tick 三条记录（一个 replacement、一个 append-only map fact、一个 append-only list fact）和 256 字节可替换投影；历史从 100 增至 10,000 Tick，放大 100 倍，每档连续发布 100 次：
+
+| 历史 Tick | 写入字节中位数 | 记录数中位数 | 历史组件读取 | 保存耗时中位数 | 额外 `ru_maxrss` |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 1,632 B | 3 | 0 | 0.902 ms | 416 KiB |
+| 1,000 | 1,635 B | 3 | 0 | 0.756 ms | 48 KiB |
+| 10,000 | 1,637 B | 3 | 0 | 0.891 ms | 0 KiB |
+
+历史放大 100 倍时，写入字节中位数比为 1.003，记录数比为 1.0，保存热路径读取历史组件为零。4,096 字节可替换投影的正向对照把写入中位数从 1,638 B 提高到 2,519 B，说明成本随本 Tick 的 `R_t` 增长。原始报告保存在 `benchmarks/results/v4-history-ab.json`；墙钟最大值仅记录，不作为复杂度证明。
 
 ## 10. 当前设计决定
 
-最小实现先让声明与 journal 成为唯一变化来源，再写 v4 文件格式。不会把整个 state 递归包装为常驻代理，也不会在读取时计算差异。Chroma 的单库多 Tick 视图需要改写现有按 checkpoint 备份/恢复合同，安排在 World 增量链稳定之后，但它属于 v4 完成标准，不能继续把目录复制称为最终实现。
+声明与 journal 已成为 recoverable checkpoint 的唯一变化来源。实现不会把整个 state 递归包装为常驻代理，也不会在读取时计算差异。Chroma 已切换为单库多 Tick/分支视图；诊断 gzip 仍可在运行终止时生成，但标记为不可恢复，不能发布 complete marker。
