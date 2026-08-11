@@ -557,6 +557,14 @@ class ListProxy(MutableSequence[Any]):
     def __len__(self) -> int:
         """获取列表长度"""
         return len(self._target_list)
+
+    def __eq__(self, other: object) -> bool:
+        """按普通 ``list`` 语义比较，避免嵌套代理改变业务判断。"""
+        if isinstance(other, ListProxy):
+            other = other._target_list
+        if isinstance(other, list):
+            return self._target_list == other
+        return NotImplemented
     
     def __iter__(self):
         """遍历递归代理值，避免泄露可写原生容器。"""
