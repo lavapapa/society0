@@ -72,6 +72,11 @@ self.state["trades"][trade_id] = trade
 类型校验时，可向构造器传 `schema`、`entry_schema` 或 `item_schema`；构造器
 生成的仍是标准 Env `state_schema`，没有第二套恢复格式。
 
+类型和闭合字段约束同时作用于初始化与每一次运行时 mutation。`dict.update()`、
+`list.extend()` 与切片赋值会先预检整批输入，任一条非法时底层容器保持不变。
+schema 因而同时承担恢复声明和底层写入合同，不会等到 checkpoint 发布时才
+发现类型错误或未声明字段。
+
 语义如下：
 
 | 声明 | 允许的写入 | checkpoint 表示 | 恢复结果 |
@@ -93,6 +98,10 @@ Agent Thread 继续作为独立、不可变的 JSONL/blob 证据。checkpoint �
 `World` 持有一个 `StateDeltaJournal`。每个 Tick 开始时创建未发布 journal；`DictProxy`、`ListProxy` 和少数 canonical writer 在实际修改底层容器的同一调用栈内，把规范化操作写入 journal。代理在 mutation 前解析声明并完成类型、重复 ID 与操作合法性校验；mutation 成功后，journal 才复制新增事实或命中的有界替换锚点。这样底层 list/dict 操作失败时不会留下幽灵 delta，也能在普通深层写入后捕获对象的最终值。
 
 捕获顺序是单调的 `sequence`。同 Tick 对 replaceable 锚点的 create/update/delete 依次记录，发布前按锚点压缩为末值；同一个 entry 内多次 dict/list 修改只保留最终 entry。append-only 操作保持原顺序且不压缩。重复 append-only map ID 和对已创建事实的深层修改都在底层 mutation 前失败，不能等 checkpoint 扫描后才发现。
+
+当 `replaceable_map` 的 entry 内还声明了 append-only 子树时，完整 entry 只允许
+在新 ID 创建时写入。既有 entry 不能整体替换或删除，避免绕过子树规则抹掉
+JournalEntry、事件等历史；调用方应逐字段更新有界投影，并继续向历史子树追加。
 
 代理只包装已通过公共状态 API 暴露的容器。读操作不建立全树代理、不扫描历史。框架内部确需绕过代理的写入路径必须改为 canonical writer；直接替换 `World.agents_data` 或 `environment_data["state"]` 仅允许在初始化和恢复阶段，并在该阶段关闭 journal。
 
@@ -184,6 +193,8 @@ append-only 历史总量 `H_t` 和 replaceable map 中未修改的 entry 数量�
 - [x] 在 `Society0.run` 与 `SimEngine` 中接入 begin/seal/abort，保证最多一个 sealed delta。
 - [x] 接入 Thread immutable manifest，补齐取消、marker 前后故障和背压。
 - [x] 加入随机多 Tick 状态机测试与恢复等价验证。
+- [x] 真实运行 plain、round-robin、social-network 与外部产业链 Env，并从各自
+  v4 step marker 恢复不同 Tick；核心持久化模块无任何具体 Env 反向依赖。
 
 ### 阶段 C：记忆与分叉
 
