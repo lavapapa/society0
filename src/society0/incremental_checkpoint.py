@@ -76,10 +76,22 @@ class PersistenceSchema:
     ``additionalProperties`` 与 ``granularity=entry`` 生成内部 wildcard 规则。
     """
 
-    def __init__(self, schema: Mapping[str, Any], root_path: Iterable[Any], rules: Mapping[tuple[Any, ...], PersistenceRule]):
+    def __init__(
+        self,
+        schema: Mapping[str, Any],
+        root_path: Iterable[Any],
+        rules: Mapping[tuple[Any, ...], PersistenceRule],
+        *,
+        source_schemas: Sequence["PersistenceSchema"] | None = None,
+    ):
         self.schema = copy.deepcopy(dict(schema))
         self.root_path = tuple(root_path)
         self.rules = MappingProxyType(dict(rules))
+        # A runtime World may contain more than one declared state root (the
+        # environment state plus one or more Agent state schemas).  Keep the
+        # original compiled schemas so callers can validate each root and
+        # serialize the declarations without inventing a second schema DSL.
+        self._source_schemas = tuple(source_schemas or (self,))
         self._wildcard_rules = tuple(
             rule for path, rule in self.rules.items() if any(part is _WILDCARD for part in path)
         )
@@ -187,6 +199,61 @@ class PersistenceSchema:
         # The root object is a structural node and does not itself need a declaration.
         walk(schema, root)
         return cls(schema, root, rules)
+
+    @classmethod
+    def merge(cls, *schemas: "PersistenceSchema") -> "PersistenceSchema":
+        """Merge declarations that describe separate canonical state roots.
+
+        Each input schema is already compiled with its canonical root path,
+        for example ``("environment", "state")`` or
+        ``("agents", _WILDCARD, "state")``.  Rules are combined verbatim so
+        ``StateDeltaJournal`` resolves concrete Agent IDs through the wildcard
+        rule without enumerating the full World during a checkpoint publish.
+        The first schema remains the default validation schema for backwards
+        compatibility; ``source_schemas`` exposes every root to callers that
+        need to validate or restore all state trees.
+        """
+
+        if not schemas:
+            raise ValueError("at least one persistence schema is required")
+        for schema in schemas:
+            if not isinstance(schema, cls):
+                raise TypeError("PersistenceSchema.merge expects compiled schemas")
+
+        rules: dict[tuple[Any, ...], PersistenceRule] = {}
+        for schema in schemas:
+            for path, rule in schema.rules.items():
+                if path in rules and rules[path] != rule:
+                    raise ValueError(f"conflicting persistence declaration at {path!r}")
+                rules[path] = rule
+        return cls(
+            schemas[0].schema,
+            schemas[0].root_path,
+            rules,
+            source_schemas=schemas,
+        )
+
+    @property
+    def source_schemas(self) -> tuple["PersistenceSchema", ...]:
+        """Return the individual root declarations used to build this schema."""
+
+        return self._source_schemas
+
+    def declaration_payloads(self) -> tuple[dict[str, Any], ...]:
+        """Return serializable ``root_path``/schema pairs for checkpoint metadata."""
+
+        return tuple(
+            {
+                # ``_WILDCARD`` is an in-memory matcher object and cannot be
+                # JSON encoded.  ``*`` is reserved for this metadata format
+                # and converted back by the v4 resolver.
+                "root_path": [
+                    "*" if part is _WILDCARD else part for part in schema.root_path
+                ],
+                "schema": copy.deepcopy(schema.schema),
+            }
+            for schema in self._source_schemas
+        )
 
     @staticmethod
     def _matches(pattern: tuple[Any, ...], path: tuple[Any, ...]) -> bool:
@@ -889,7 +956,8 @@ class V4CheckpointStore:
     def restore(self, step: int) -> dict[str, Any]:
         state: dict[str, Any] = {}
         parent_state = "0" * 64
-        for manifest in self._manifest_chain(step):
+        chain = self._manifest_chain(step)
+        for manifest in chain:
             replacement = self._read_json_component(
                 manifest["replacement_file"],
                 manifest["replacement_sha256"],
@@ -924,6 +992,60 @@ class V4CheckpointStore:
             if expected_state != manifest["state_sha256"]:
                 raise ValueError("state hash chain mismatch")
             parent_state = expected_state
+
+        # Transient values are absent from replacement/segment files.  The
+        # root manifest carries their schema defaults so the low-level store
+        # restore remains useful on its own (before PersistenceManager builds a
+        # World and reapplies defaults there as well).
+        if chain and isinstance(chain[0].get("root_metadata"), Mapping):
+            metadata = chain[0]["root_metadata"]
+            payloads = metadata.get("persistence_schemas") or []
+            if not payloads and isinstance(metadata.get("persistence_schema"), Mapping):
+                payloads = [
+                    {
+                        "root_path": metadata.get("persistence_root_path")
+                        or ["environment", "state"],
+                        "schema": metadata["persistence_schema"],
+                    }
+                ]
+
+            def set_default(path: tuple[Any, ...], default: Any) -> None:
+                current: Any = state
+                for part in path[:-1]:
+                    if not isinstance(current, dict):
+                        return
+                    current = current.setdefault(part, {})
+                if isinstance(current, dict):
+                    current.setdefault(path[-1], copy.deepcopy(default))
+
+            for payload in payloads:
+                if not isinstance(payload, Mapping) or not isinstance(payload.get("schema"), Mapping):
+                    continue
+                raw_root = payload.get("root_path") or ["environment", "state"]
+                root = tuple(_WILDCARD if part == "*" else part for part in raw_root)
+                try:
+                    source = PersistenceSchema.compile(payload["schema"], root_path=root)
+                except (TypeError, ValueError):
+                    continue
+                for path, rule in source.rules.items():
+                    if rule.kind is not PersistenceKind.TRANSIENT or not rule.has_default:
+                        continue
+                    if any(part is _WILDCARD for part in path):
+                        index = path.index(_WILDCARD)
+                        prefix = path[:index]
+                        container = state
+                        for part in prefix:
+                            if not isinstance(container, Mapping):
+                                container = None
+                                break
+                            container = container.get(part)
+                        if not isinstance(container, Mapping):
+                            continue
+                        suffix = path[index + 1 :]
+                        for key in container:
+                            set_default(prefix + (key,) + suffix, rule.default)
+                    else:
+                        set_default(path, rule.default)
         return state
 
     def cleanup_orphans(self) -> list[str]:

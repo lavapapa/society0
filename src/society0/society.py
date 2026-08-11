@@ -333,6 +333,7 @@ class Society0:
         self._expected_resume_identity: Optional[Dict[str, Any]] = None
         self.restored_checkpoint: Optional[Dict[str, Any]] = None
         self._restore_unusable_reason: Optional[str] = None
+        self._v4_configured = False
 
     @staticmethod
     def validate_resume_paths(
@@ -494,7 +495,19 @@ class Society0:
         metrics_path.touch(exist_ok=True)
         (self.save_dir / "events.jsonl").touch(exist_ok=True)
 
-        await self.persistence_manager.save_checkpoint(world, self.schedule)
+        # v4 root is the sole recoverable bootstrap point.  The root captures
+        # declared Environment/Agent state once; every later Tick contributes
+        # only its sealed journal delta.
+        if not self._v4_configured:
+            schema = world.compile_runtime_persistence_schema()
+            self.persistence_manager.configure_v4(
+                world,
+                schema,
+                checkpoint_every=self.checkpoint_every,
+            )
+            self._v4_configured = True
+        if not self.persistence_manager._v4_root_published:
+            await self.persistence_manager.publish_root(world, self.schedule)
         self._write_jsonl(
             self.save_dir / "events.jsonl",
             {
@@ -515,6 +528,8 @@ class Society0:
         try:
             for tick in range(steps):
                 env = world.get_environment()
+                world.begin_persistence_tick(world.step + 1)
+                persistence_sealed = False
                 runtime_scope = world.begin_step_runtime_scope()
                 world.set_context_stack(ContextStack().push_step(f"step_{world.step}"))
                 self.event_logger.set_context(step=world.step)
@@ -558,10 +573,22 @@ class Society0:
                             "code_steps": len(step_entries),
                         },
                     )
+                    delta = world.seal_persistence_tick()
+                    persistence_sealed = True
+                    await self.persistence_manager.publish_delta(delta, self.schedule)
                     world.advance_step()
                     completed_ticks += 1
-                    if world.step % self.checkpoint_every == 0:
-                        await self.persistence_manager.save_checkpoint(world, self.schedule)
+                except BaseException:
+                    if not persistence_sealed:
+                        try:
+                            world.abort_persistence_tick()
+                        except RuntimeError:
+                            # A publish failure can arrive after the manager
+                            # has consumed a sealed delta; there is then no
+                            # active journal to abort.
+                            pass
+                    self.persistence_manager.discard_unpublished_epoch()
+                    raise
                 finally:
                     world.invalidate_step_runtime_scope()
         except BaseException as exc:
@@ -730,9 +757,16 @@ class Society0:
 
     async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
         record = PersistenceManager.resolve_checkpoint_from(source_run, step)
-        checkpoint_identity = (record["checkpoint_data"].get("world_metadata") or {}).get(
-            "resume_identity"
-        )
+        marker_version = (record.get("marker") or {}).get("checkpoint_version")
+        if marker_version == "complete_step_v4":
+            root_metadata = PersistenceManager._v4_root_manifest(
+                Path(source_run).resolve(), int(record["step"])
+            )
+            checkpoint_identity = root_metadata.get("resume_identity")
+        else:
+            checkpoint_identity = (record["checkpoint_data"].get("world_metadata") or {}).get(
+                "resume_identity"
+            )
         expected_identity = self._expected_resume_identity
         if expected_identity is None:
             raise RuntimeError("Society0 resume identity was not initialized")
@@ -746,14 +780,22 @@ class Society0:
                 "embedding, capability schema, or application contract"
             )
         try:
-            world, _ = await self.persistence_manager._load_checkpoint_record(
-                record,
-                memory_required=None,
-                restore_chroma=True,
-                event_logger=self.event_logger,
-                event_log_path=str(self.save_dir / "events.jsonl"),
-                environment_factory=self.environment_factory,
-            )
+            if marker_version == "complete_step_v4":
+                world, _ = await self.persistence_manager._load_v4_checkpoint_record(
+                    record,
+                    event_logger=self.event_logger,
+                    event_log_path=str(self.save_dir / "events.jsonl"),
+                    environment_factory=self.environment_factory,
+                )
+            else:
+                world, _ = await self.persistence_manager._load_checkpoint_record(
+                    record,
+                    memory_required=None,
+                    restore_chroma=True,
+                    event_logger=self.event_logger,
+                    event_log_path=str(self.save_dir / "events.jsonl"),
+                    environment_factory=self.environment_factory,
+                )
         except Exception as exc:
             if self.persistence_manager._restore_failed:
                 self._restore_unusable_reason = f"{type(exc).__name__}: {exc}"
