@@ -20,6 +20,7 @@ _RETRYABLE_OS_ERRORS = {
 }
 
 _RETRYABLE_MESSAGE_MARKERS = (
+    "empty_model_response",
     "timeout",
     "timed out",
     "connection reset",
@@ -63,8 +64,9 @@ def classify_step_failure(
 ) -> StepFailure:
     """把异常整理成 runner 可消费的默认失败分类。
 
-    默认只把连接和超时类故障视为可重试候选。schema、领域不变量、
-    checkpoint 校验和磁盘错误保持 fail-closed，由调用方修复后再恢复。
+    默认只把连接、超时和 provider 未返回有效模型消息视为可重试候选。
+    schema、领域不变量、checkpoint 校验和磁盘错误保持 fail-closed，
+    由调用方修复后再恢复。
     """
 
     message = str(exc) or repr(exc)

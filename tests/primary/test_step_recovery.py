@@ -54,6 +54,20 @@ def test_wrapped_provider_timeout_message_remains_retryable() -> None:
     assert failure.recoverable is True
 
 
+def test_wrapped_empty_model_response_remains_retryable() -> None:
+    failure = classify_step_failure(
+        RuntimeError(
+            "Activation pool failed: Agent actor-a activation failed: "
+            "empty_model_response"
+        ),
+        failed_step=5,
+        last_complete_step=4,
+    )
+
+    assert failure.retryable is True
+    assert failure.recoverable is True
+
+
 def test_timeout_hidden_in_exception_cause_remains_retryable() -> None:
     try:
         raise RuntimeError("request timed out")
