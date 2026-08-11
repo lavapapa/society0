@@ -545,15 +545,28 @@ class V4CheckpointStore:
             directory.mkdir(parents=True, exist_ok=True)
         self.metrics = {"history_entries_read_while_publishing": 0}
         self._publishing = False
-        existing_steps = self.available_steps()
-        self._latest_step = existing_steps[-1] if existing_steps else None
-        if self._latest_step is None:
-            self._latest_checkpoint_id = None
-            self._latest_state_sha256 = "0" * 64
-        else:
-            latest = self._read_marker(self._latest_step)
-            self._latest_checkpoint_id = latest["checkpoint_id"]
-            self._latest_state_sha256 = latest["state_sha256"]
+        # A newer marker can be present but damaged.  Do not let one bad
+        # marker prevent the store from opening: the manager's ``latest``
+        # resolver deliberately walks back to the newest valid marker.
+        self._latest_step = None
+        self._latest_checkpoint_id = None
+        self._latest_state_sha256 = "0" * 64
+        for candidate in reversed(self.available_steps()):
+            try:
+                latest = self._read_marker(candidate)
+                # Validate the manifest hash before using it as the publish
+                # parent.  A malformed newest marker must never become the
+                # parent of a newly published chain.
+                manifest_path = self.root / latest["manifest_file"]
+                raw_manifest = manifest_path.read_bytes()
+                if self._sha256(raw_manifest) != latest.get("manifest_sha256"):
+                    continue
+                self._latest_step = candidate
+                self._latest_checkpoint_id = latest["checkpoint_id"]
+                self._latest_state_sha256 = latest["state_sha256"]
+                break
+            except (OSError, ValueError, KeyError, json.JSONDecodeError):
+                continue
 
     @staticmethod
     def _canonical_bytes(value: Any) -> bytes:
@@ -601,8 +614,42 @@ class V4CheckpointStore:
         return {"path": self._relative(path), "sha256": digest, "bytes": written}
 
     def publish(self, delta: SealedTickDelta) -> dict[str, Any]:
+        return self._publish_delta(delta)
+
+    def publish_root(
+        self,
+        entries: Sequence[Mapping[str, Any]],
+        *,
+        metadata: Mapping[str, Any] | None = None,
+        step: int = 0,
+    ) -> dict[str, Any]:
+        """发布 step 0 根基点。
+
+        ``entries`` 是由 manager 根据声明筛出的持久化初始字段操作。根基点
+        走同一 replacement/manifest/marker 提交流程，transient 字段不会进入
+        文件；metadata 只保存固定 World 身份信息，不参与增量状态应用。
+        """
+
+        if isinstance(step, bool) or not isinstance(step, int) or step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        delta = SealedTickDelta(
+            step=0,
+            replacements=tuple(_freeze_json(dict(entry)) for entry in entries),
+            appends=(),
+        )
+        return self._publish_delta(delta, root_metadata=metadata)
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        root_metadata: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
         if self._publishing:
             raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
         if self._latest_step is not None and delta.step <= self._latest_step:
             raise ValueError("checkpoint steps must increase")
 
@@ -610,8 +657,8 @@ class V4CheckpointStore:
         checkpoint_id = uuid.uuid4().hex
         bytes_written = 0
         try:
-            parent_manifest = self._latest_checkpoint_id
-            parent_state_sha256 = self._latest_state_sha256
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
 
             replacement_payload = {
                 "checkpoint_id": checkpoint_id,
@@ -664,6 +711,10 @@ class V4CheckpointStore:
                 "state_sha256": state_sha256,
                 "created_at": time.time(),
             }
+            if root_metadata is not None:
+                # Keep the fixed World metadata on the root only.  It is
+                # immutable and is never copied into subsequent delta files.
+                manifest["root_metadata"] = _thaw_json(_freeze_json(dict(root_metadata)))
             manifest_path = self.manifests_dir / f"{checkpoint_id}.json"
             manifest_bytes = self._canonical_bytes(manifest)
             bytes_written += self._atomic_write(manifest_path, manifest_bytes)
@@ -689,6 +740,47 @@ class V4CheckpointStore:
         finally:
             self._publishing = False
 
+    def resolve(self, step: int | None = None) -> dict[str, Any]:
+        """解析一个 v4 marker，并校验 manifest 链。
+
+        ``step=None`` 按降序跳过损坏 marker；显式 step 则把损坏原因直接
+        抛给调用方，便于区分“没有 checkpoint”和“checkpoint 已损坏”。
+        """
+
+        if step is not None and (isinstance(step, bool) or not isinstance(step, int) or step < 0):
+            raise ValueError("step must be a non-negative integer")
+        candidates = [step] if step is not None else list(reversed(self.available_steps()))
+        if not candidates:
+            raise FileNotFoundError("No complete v4 checkpoints found")
+        last_error: Exception | None = None
+        for candidate in candidates:
+            try:
+                marker = self._read_marker(candidate)
+                chain = self._manifest_chain(candidate)
+                manifest_path = self.root / marker["manifest_file"]
+                manifest_bytes = manifest_path.read_bytes()
+                if self._sha256(manifest_bytes) != marker.get("manifest_sha256"):
+                    raise ValueError("manifest content hash mismatch")
+                manifest = chain[-1]
+                # Resolver validation includes component hashes and the state
+                # hash chain.  This keeps ``latest`` from selecting a marker
+                # whose manifest exists but whose replacement/segment is
+                # already damaged.
+                self.restore(candidate)
+                return {
+                    "step": candidate,
+                    "checkpoint_id": marker["checkpoint_id"],
+                    "marker": marker,
+                    "manifest": manifest,
+                    "marker_file": self.complete_dir / f"step_{candidate:06d}.json",
+                    "manifest_file": manifest_path,
+                }
+            except (FileNotFoundError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+                if step is not None:
+                    raise
+                last_error = exc
+        raise FileNotFoundError("No complete v4 checkpoints found") from last_error
+
     def available_steps(self) -> list[int]:
         result = []
         for path in self.complete_dir.glob("step_*.json"):
@@ -703,10 +795,13 @@ class V4CheckpointStore:
         if not path.is_file():
             raise FileNotFoundError(f"complete checkpoint not found for step {step}")
         marker = json.loads(path.read_text(encoding="utf-8"))
+        if marker.get("checkpoint_version") != self.VERSION:
+            raise ValueError(
+                f"Unsupported checkpoint version: {marker.get('checkpoint_version')!r}"
+            )
         if (
             marker.get("complete") is not True
             or marker.get("recoverable") is not True
-            or marker.get("checkpoint_version") != self.VERSION
             or marker.get("step") != step
         ):
             raise ValueError(f"invalid complete marker for step {step}")
@@ -800,8 +895,7 @@ class V4CheckpointStore:
                 manifest["replacement_sha256"],
                 "replacement",
             )
-            for operation in replacement["entries"]:
-                self._apply(state, operation)
+            operations = list(replacement["entries"])
             segment_hashes = []
             for segment in manifest["new_segments"]:
                 payload = self._read_json_component(
@@ -809,9 +903,15 @@ class V4CheckpointStore:
                 )
                 if len(payload["entries"]) != segment["entry_count"]:
                     raise ValueError("segment entry count mismatch")
-                for operation in payload["entries"]:
-                    self._apply(state, operation)
+                operations.extend(payload["entries"])
                 segment_hashes.append(segment["sha256"])
+            # Delta entries share one monotonic sequence domain, even though
+            # replacements and append segments are stored separately.  Apply
+            # them in that original order when operations from a tick are
+            # interleaved.
+            operations.sort(key=lambda operation: operation.get("sequence", 0))
+            for operation in operations:
+                self._apply(state, operation)
             expected_state = self._sha256(
                 self._canonical_bytes(
                     {
