@@ -327,6 +327,34 @@ async def test_error_after_marker_rename_is_reported_as_committed_success(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_v4_annotations_follow_marker_commit_and_restore(tmp_path):
+    manager = PersistenceManager(str(tmp_path))
+    world = _world(tmp_path)
+    schedule = _configure(manager, world)
+    try:
+        await manager.publish_root(world, schedule)
+        world.begin_persistence_tick(1)
+        world.set_checkpoint_annotation("memory_receipt", {"status": "complete"})
+        state = world.create_environment_state_proxy()
+        state["price"] = 11
+        await manager.publish_delta(world.seal_persistence_tick(), schedule)
+
+        restored, _ = await manager.load_checkpoint(1, restore_chroma=False)
+        assert restored.checkpoint_annotations() == {
+            "memory_receipt": {"status": "complete"}
+        }
+
+        world.begin_persistence_tick(2)
+        world.set_checkpoint_annotation("failed", True)
+        world.abort_persistence_tick()
+        assert manager.resolve_checkpoint()["step"] == 1
+        restored_again, _ = await manager.load_checkpoint(1, restore_chroma=False)
+        assert "failed" not in restored_again.checkpoint_annotations()
+    finally:
+        _close(manager, world)
+
+
+@pytest.mark.asyncio
 async def test_async_writer_applies_backpressure_to_second_publish(tmp_path, monkeypatch):
     manager = PersistenceManager(str(tmp_path))
     world = _world(tmp_path)

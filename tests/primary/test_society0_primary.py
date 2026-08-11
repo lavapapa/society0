@@ -25,10 +25,10 @@ from society0.models import LLMModel as PublicLLMModel
 from society0.resource_managers import EmbeddingManager, LLMManager
 from society0.context_stack import ContextStack
 from society0.events import StateChangeEvent
+from society0.incremental_checkpoint import V4CheckpointStore
 from society0.schedule import AgentBatchResult, AgentCallRecord, AgentSelector, StepResult
 from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
-from tests import read_gzip_json
 
 pytestmark = pytest.mark.primary
 
@@ -55,19 +55,64 @@ def test_strict_normalization_keeps_optional_enum_nullable():
     ]
 
 
-def _base_config():
+def _state_schema(properties):
+    return {
+        "type": "object",
+        "properties": properties,
+        "additionalProperties": False,
+    }
+
+
+def _base_config(*, environment_state_schema=None, environment_state=None):
     return {
         "agent_types": [
-            {"id": "social_user", "archetype": "rule"},
-            {"id": "researcher", "archetype": "rule"},
+            {
+                "id": "social_user",
+                "archetype": "rule",
+                "state_schema": {
+                    "type": "object",
+                    "properties": {
+                        "trust": {"type": "number", "persistence": {"kind": "replaceable"}},
+                        "checked": {"type": "boolean", "persistence": {"kind": "replaceable"}},
+                        "last_exposure_intensity": {
+                            "type": "integer",
+                            "persistence": {"kind": "replaceable"},
+                        },
+                    },
+                    "additionalProperties": False,
+                },
+            },
+            {
+                "id": "researcher",
+                "archetype": "rule",
+                "state_schema": {
+                    "type": "object",
+                    "properties": {
+                        "trust": {"type": "number", "persistence": {"kind": "replaceable"}},
+                    },
+                    "additionalProperties": False,
+                },
+            },
         ],
         "agents": [
             {"id": "alice", "type": "social_user", "state": {"trust": 0.4}},
             {"id": "bob", "type": "social_user", "state": {"trust": 0.8}},
             {"id": "carol", "type": "researcher", "state": {"trust": 1.0}},
         ],
-        "environment": {"type": "plain", "state": {"topic": "misinformation"}},
+        "environment": {
+            "type": "plain",
+            "state": dict(environment_state or {}),
+            **(
+                {"state_schema": environment_state_schema}
+                if environment_state_schema is not None
+                else {}
+            ),
+        },
     }
+
+
+def _v4_state(tmp_path, step):
+    return V4CheckpointStore(tmp_path).restore(step)["environment"]["state"]
 
 
 def _social_network_recommendation_config():
@@ -1142,42 +1187,25 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert summary["outputs"]["files"]["events.jsonl"]["line_count"] >= 1
     assert summary["outputs"]["files"]["steps.jsonl"]["line_count"] == 3
     assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] == (tmp_path / "diagnostics.md").stat().st_size
-    assert summary["outputs"]["checkpoints"]["count"] == 2
     assert "env_hooks" not in summary["events"]
-    assert (
-        summary["outputs"]["checkpoints"]["files"]["checkpoint_final.json.gz"][
-            "bytes"
-        ]
-        > 0
-    )
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
-    checkpoints = sorted(
-        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
-    )
-    marker = json.loads(
-        (tmp_path / "checkpoints" / "complete" / "step_000000.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert checkpoints == sorted([marker["world_file"], "checkpoint_final.json.gz"])
-
-    checkpoint_path = tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    checkpoint_payload = read_gzip_json(checkpoint_path)
-    raw_checkpoint = (
-        json.dumps(
-            checkpoint_payload,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            default=str,
-        )
-        + "\n"
-    ).encode("utf-8")
-    assert checkpoint_payload["step"] == 3
-    assert checkpoint_payload["world_encoding"] == "gzip-json"
-    assert checkpoint_path.read_bytes().startswith(b"\x1f\x8b")
-    assert checkpoint_path.stat().st_size < len(raw_checkpoint)
+    store = V4CheckpointStore(tmp_path)
+    assert store.available_steps() == [0]
+    record = store.resolve(0)
+    marker = record["marker"]
+    manifest = record["manifest"]
+    assert marker["checkpoint_version"] == V4CheckpointStore.VERSION
+    assert marker["complete"] is True
+    assert marker["recoverable"] is True
+    assert marker["manifest_file"].startswith("checkpoints/v4/manifests/")
+    assert manifest["checkpoint_version"] == V4CheckpointStore.VERSION
+    assert manifest["replacement_file"].startswith("checkpoints/v4/replacements/")
+    assert manifest["new_segments"] == []
+    replacement_path = tmp_path / manifest["replacement_file"]
+    assert replacement_path.read_bytes().startswith(b"\x1f\x8b")
+    assert not list((tmp_path / "checkpoints" / "v4" / "segments").glob("*"))
 
 
 def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
@@ -1566,26 +1594,40 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
 
 @pytest.mark.asyncio
 async def test_checkpoint_policy(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "tick": {
+                        "type": "integer",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            ),
+            environment_state={"tick": 0},
+        ),
+    )
 
     @engine.step(name="noop")
     async def noop(ctx):
+        ctx.env.state["tick"] = ctx.step + 1
         return None
 
     await engine.run(steps=25)
 
-    checkpoints = sorted(
-        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
-    )
-    versioned_worlds = []
-    for step in (0, 10, 20):
-        marker = json.loads(
-            (tmp_path / "checkpoints" / "complete" / f"step_{step:06d}.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        versioned_worlds.append(marker["world_file"])
-    assert checkpoints == sorted([*versioned_worlds, "checkpoint_final.json.gz"])
+    store = V4CheckpointStore(tmp_path)
+    assert store.available_steps() == [0, 10, 20]
+    for step in store.available_steps():
+        record = store.resolve(step)
+        marker = record["marker"]
+        manifest = record["manifest"]
+        assert marker["checkpoint_version"] == V4CheckpointStore.VERSION
+        assert marker["complete"] is True
+        assert manifest["checkpoint_version"] == V4CheckpointStore.VERSION
+        assert manifest["replacement_file"].startswith("checkpoints/v4/replacements/")
+        assert manifest["new_segments"] == []
+        assert _v4_state(tmp_path, step)["tick"] == step
 
 
 @pytest.mark.asyncio
@@ -1613,8 +1655,23 @@ async def test_social_network_recommendation_recalls_old_high_engagement_posts(t
 
     @engine.step(name="recommend")
     async def recommend(ctx):
-        posts = ctx.env.state["posts"]
-        posts["post_old"] = {
+        def seed(post):
+            post_id = post["post_id"]
+            ctx.env.state["post_creation_facts"][post_id] = {
+                key: post[key]
+                for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
+                if key in post
+            }
+            ctx.env.state["post_projection"][post_id] = {"view_count": 0, "special_tags": []}
+            ctx.env.state["author_post_facts"].append(
+                {"author_id": post["author_id"], "post_id": post_id}
+            )
+            for reply in post.get("replies", []):
+                ctx.env.state["post_interaction_facts"].append(
+                    {"kind": "comment", "post_id": post_id, "reply": reply}
+                )
+
+        seed({
             "post_id": "post_old",
             "author_id": "author_old",
             "content": "Older but heavily discussed public claim.",
@@ -1625,8 +1682,8 @@ async def test_social_network_recommendation_recalls_old_high_engagement_posts(t
                 {"reply_id": f"reply_{idx}", "author_id": f"commenter_{idx}", "content": "reply", "created_tick": 1}
                 for idx in range(4)
             ],
-        }
-        posts["post_old_repost"] = {
+        })
+        seed({
             "post_id": "post_old_repost",
             "author_id": "reposter",
             "content": "Reposting old claim",
@@ -1635,9 +1692,9 @@ async def test_social_network_recommendation_recalls_old_high_engagement_posts(t
             "likes": [],
             "replies": [],
             "reply_to": "post_old",
-        }
+        })
         for idx in range(25):
-            posts[f"post_recent_{idx}"] = {
+            seed({
                 "post_id": f"post_recent_{idx}",
                 "author_id": "author_recent",
                 "content": f"Recent low-engagement post {idx}",
@@ -1645,11 +1702,12 @@ async def test_social_network_recommendation_recalls_old_high_engagement_posts(t
                 "created_tick": 100 + idx,
                 "likes": [],
                 "replies": [],
-            }
+            })
 
         viewer = ctx.world.get_agent("viewer")
         candidates = ctx.env._get_real_posts_only(viewer)
         ranked = await ctx.env._rank_posts_with_similarity(viewer, candidates)
+        posts = ctx.env._posts_view()
         repost_counts = ctx.env._build_repost_counts(posts)
         observed["candidate_ids"] = [post["post_id"] for post in candidates]
         observed["ranked_ids"] = [post["post_id"] for post in ranked]
@@ -5931,7 +5989,20 @@ def test_json_prefix_fallback_parses_prefilled_object_continuation():
 
 @pytest.mark.asyncio
 async def test_code_step_rule_and_behavior_helpers(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "pressure": {
+                        "type": "number",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            )
+        ),
+    )
 
     @engine.registry.env.rule(name="set_pressure")
     async def set_pressure(env, amount: float, context=None):
@@ -5968,12 +6039,10 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     }
     assert metrics[1]["step"] == 1
     assert metrics[1]["metrics"] == metrics[0]["metrics"]
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["agents_data"]["alice"]["state"]["trust"] == 0.6
-    assert final_checkpoint["agents_data"]["bob"]["state"]["trust"] == 1.0
-    assert final_checkpoint["agents_data"]["carol"]["state"]["trust"] == 0.6
+    final_checkpoint = V4CheckpointStore(tmp_path).restore(2)
+    assert final_checkpoint["agents"]["alice"]["state"]["trust"] == 0.6
+    assert final_checkpoint["agents"]["bob"]["state"]["trust"] == 1.0
+    assert final_checkpoint["agents"]["carol"]["state"]["trust"] == 0.6
     events = _read_jsonl(tmp_path / "events.jsonl")
     logic_events = [event for event in events if event.get("event_type", "").startswith("logic_execution_")]
     assert [event["event_type"] for event in logic_events[:6]] == [
@@ -6030,7 +6099,28 @@ async def test_code_step_can_call_llm_with_structured_json_output(tmp_path):
             "content": "{\"items\":[{\"label\":\"alpha\",\"score\":2}],\"note\":\"compact structured result\"}",
         }
 
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "structured_note": {
+                        "type": "object",
+                        "properties": {
+                            "items": {
+                                "type": "array",
+                                "items": {"type": "object", "additionalProperties": True},
+                            },
+                            "note": {"type": "string"},
+                        },
+                        "additionalProperties": False,
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            )
+        ),
+    )
     engine._model_provider = ModelProvider(
         models={
             "semantic": ModelRuntime(
@@ -6094,10 +6184,7 @@ async def test_code_step_can_call_llm_with_structured_json_output(tmp_path):
     }
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     assert metrics[0]["metrics"] == {"item_count": 1}
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["environment_data"]["state"]["structured_note"]["note"] == "compact structured result"
+    assert _v4_state(tmp_path, 1)["structured_note"]["note"] == "compact structured result"
 
 
 @pytest.mark.asyncio
@@ -6108,7 +6195,22 @@ async def test_code_step_llm_parses_json_response_format_with_fallback_call(tmp_
         llm_calls.append(payload)
         return {"choices": [{"message": {"content": "{\"status\":\"ok\"}"}}]}
 
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "status": {
+                        "type": "object",
+                        "properties": {"status": {"type": "string"}},
+                        "additionalProperties": False,
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            )
+        ),
+    )
     engine._llm_manager = _CallableLLMManager(fake_llm_call)
 
     @engine.step(name="parse_json_object")
@@ -6124,10 +6226,7 @@ async def test_code_step_llm_parses_json_response_format_with_fallback_call(tmp_
     await engine.run(steps=1)
 
     assert llm_calls[0]["response_format"] == {"type": "json_object"}
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["environment_data"]["state"]["status"] == {"status": "ok"}
+    assert _v4_state(tmp_path, 1)["status"] == {"status": "ok"}
 
 
 @pytest.mark.asyncio
@@ -6173,7 +6272,20 @@ async def test_code_step_llm_selects_registered_model(tmp_path):
             llm_call=llm_call,
         )
 
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "model_id": {
+                        "type": "string",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            )
+        ),
+    )
     engine._model_provider = ModelProvider(
         models={
             "primary": runtime("primary", primary_llm_call),
@@ -6192,10 +6304,7 @@ async def test_code_step_llm_selects_registered_model(tmp_path):
 
     assert llm_calls["primary"] == []
     assert len(llm_calls["secondary"]) == 1
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["environment_data"]["state"]["model_id"] == "secondary"
+    assert _v4_state(tmp_path, 1)["model_id"] == "secondary"
 
 
 @pytest.mark.asyncio
@@ -6203,7 +6312,20 @@ async def test_code_step_llm_reports_schema_validation_error(tmp_path):
     async def fake_llm_call(payload):
         return {"role": "assistant", "content": "{\"status\":\"ok\"}"}
 
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "validation_error": {
+                        "type": "string",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                }
+            )
+        ),
+    )
     engine._llm_manager = _CallableLLMManager(fake_llm_call)
 
     @engine.step(name="validate_structured_output")
@@ -6221,10 +6343,7 @@ async def test_code_step_llm_reports_schema_validation_error(tmp_path):
 
     await engine.run(steps=1)
 
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert "count" in final_checkpoint["environment_data"]["state"]["validation_error"]
+    assert "count" in _v4_state(tmp_path, 1)["validation_error"]
 
 
 @pytest.mark.asyncio
@@ -6242,7 +6361,30 @@ async def test_code_step_llm_requires_model_provider(tmp_path):
 
 @pytest.mark.asyncio
 async def test_code_step_experiment_env_action_is_discoverable_and_agent_callable(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_base_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        checkpoint_every=1,
+        base_config=_base_config(
+            environment_state_schema=_state_schema(
+                {
+                    "exposures": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "agent_id": {"type": "string"},
+                                "intensity": {"type": "integer"},
+                                "step": {"type": "integer"},
+                            },
+                            "additionalProperties": False,
+                        },
+                        "persistence": {"kind": "append_only_list"},
+                    }
+                }
+            ),
+            environment_state={"exposures": []},
+        ),
+    )
 
     @engine.registry.env.action(
         name="mark_exposure",
@@ -6299,13 +6441,11 @@ async def test_code_step_experiment_env_action_is_discoverable_and_agent_callabl
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     assert metrics == {"env_action_ok": 1, "exposure_count": 1}
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert checkpoint["environment_data"]["state"]["exposures"] == [
+    checkpoint = V4CheckpointStore(tmp_path).restore(1)
+    assert checkpoint["environment"]["state"]["exposures"] == [
         {"agent_id": "alice", "intensity": 4, "step": 0}
     ]
-    assert checkpoint["agents_data"]["alice"]["state"]["last_exposure_intensity"] == 4
+    assert checkpoint["agents"]["alice"]["state"]["last_exposure_intensity"] == 4
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     experiment_actions = [
         entry for entry in summary["capabilities"]["by_kind"]["actions"] if entry["source"] == "experiment"

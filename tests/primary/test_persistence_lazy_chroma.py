@@ -21,6 +21,22 @@ def test_persistence_manager_does_not_import_chromadb_on_init(tmp_path, monkeypa
     manager.close()
 
 
+def test_live_chroma_store_has_no_checkpoint_backup_surface(tmp_path):
+    manager = PersistenceManager(str(tmp_path / "run"))
+    try:
+        assert manager.chroma_store_path.is_dir()
+        assert not (tmp_path / "run" / "chroma_backups").exists()
+        for obsolete in (
+            "chroma_backup_dir",
+            "get_available_chroma_backups",
+            "_backup_chroma_store",
+            "_restore_chroma_store",
+        ):
+            assert not hasattr(manager, obsolete), obsolete
+    finally:
+        manager.close()
+
+
 def test_close_propagates_sync_failure_and_retains_runtime_for_retry(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMA_RUNTIME_MODE", "tmpfs")
     monkeypatch.setenv("CHROMA_TMPFS_ROOT", str(tmp_path / "tmpfs"))

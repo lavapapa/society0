@@ -10,7 +10,7 @@ v3.0 新增功能：
 - 支持基于 schema 的权限控制
 """
 
-from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable
+from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable, Union
 import logging
 import copy
 import asyncio
@@ -261,10 +261,14 @@ class Agent:
         return self._world.create_agent_state_proxy(self._id, "properties")
 
     @property
-    def reminders(self) -> ListProxy:
+    def reminders(self) -> Union[ListProxy, List[str]]:
         """返回 Tick 临时提醒队列的受控代理。"""
 
-        proxy = self._world.create_agent_state_proxy(self._id, "reminders")
+        creator = getattr(self._world, "create_agent_state_proxy", None)
+        if creator is None:
+            # 轻量单元测试会注入只读 FakeWorld；生产 World 始终提供代理工厂。
+            return self._world.agents_data[self._id]["reminders"]
+        proxy = creator(self._id, "reminders")
         if not isinstance(proxy, ListProxy):
             raise TypeError("Agent reminders must be a list")
         return proxy

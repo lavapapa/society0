@@ -8,7 +8,6 @@ without becoming a "god object". Each component has clear responsibilities.
 from typing import Dict, Any, Optional, Union, List, Callable, Set
 from collections.abc import Iterable
 from pathlib import Path
-import copy
 import logging
 import json
 import yaml
@@ -1283,38 +1282,35 @@ class SimEngine:
             return
 
         initial_step = self.current_world_state.step
-        if self.persistence_manager._v4_enabled:
-            if not self.persistence_manager._v4_root_published:
-                await self.persistence_manager.publish_root(
-                    self.current_world_state,
-                    self.schedule,
-                )
-            return
-        try:
-            self.persistence_manager.resolve_checkpoint(initial_step)
-        except (FileNotFoundError, ValueError, json.JSONDecodeError):
-            await self.persistence_manager.save_checkpoint(
+        if not self.persistence_manager._v4_enabled:
+            raise RuntimeError("SimEngine requires v4 persistence")
+        if not self.persistence_manager._v4_root_published:
+            await self.persistence_manager.publish_root(
                 self.current_world_state,
                 self.schedule,
-                step_metrics=None,
             )
-
         await self._broadcast_latest_snapshot(initial_step)
 
     async def _broadcast_latest_snapshot(self, step_number: int) -> None:
         """在生成新快照后，将其通过 StreamingBridge 推送给监听者。"""
-        # v4 markers reference delta manifests rather than a v3 World gzip;
-        # the legacy streaming payload has no recoverable snapshot file to
-        # publish.  Runtime persistence remains authoritative.
-        if not self.streaming_bridge or self.persistence_manager._v4_enabled:
+        if not self.streaming_bridge:
             return
 
         try:
             checkpoint_record = self.persistence_manager.resolve_checkpoint(step_number)
         except (FileNotFoundError, ValueError, json.JSONDecodeError):
             return
-        checkpoint_path = checkpoint_record["checkpoint_file"]
-        snapshot_data = copy.deepcopy(checkpoint_record["checkpoint_data"])
+        marker = checkpoint_record["marker"]
+        checkpoint_path = checkpoint_record["marker_file"]
+        snapshot_data = {
+            "checkpoint_version": marker["checkpoint_version"],
+            "checkpoint_id": marker["checkpoint_id"],
+            "step": marker["step"],
+            "run_id": marker["run_id"],
+            "branch_id": marker["branch_id"],
+            "manifest_file": marker["manifest_file"],
+            "state_sha256": marker["state_sha256"],
+        }
 
         diff_log_path = self.persistence_manager.diffs_dir / f"diffs_from_step_{step_number:06d}.jsonl"
         diff_exists = diff_log_path.exists()
@@ -1324,17 +1320,13 @@ class SimEngine:
                 diff_log_path = legacy_diff_path
                 diff_exists = True
 
-        snapshot_metrics = snapshot_data.get("metrics") or snapshot_data.get("step_metrics")
-        if snapshot_metrics is not None and "metrics" not in snapshot_data:
-            snapshot_data["metrics"] = snapshot_metrics
-
         self.streaming_bridge.publish_snapshot(
             step_id=step_number,
             snapshot=snapshot_data,
             checkpoint_path=str(checkpoint_path),
             diff_log_file=str(diff_log_path),
             diff_log_exists=diff_exists,
-            metrics=snapshot_metrics,
+            metrics=None,
         )
 
     async def resume(self, from_step: int = -1) -> None:

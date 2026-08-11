@@ -758,15 +758,12 @@ class Society0:
     async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
         record = PersistenceManager.resolve_checkpoint_from(source_run, step)
         marker_version = (record.get("marker") or {}).get("checkpoint_version")
-        if marker_version == "complete_step_v4":
-            root_metadata = PersistenceManager._v4_root_manifest(
-                Path(source_run).resolve(), int(record["step"])
-            )
-            checkpoint_identity = root_metadata.get("resume_identity")
-        else:
-            checkpoint_identity = (record["checkpoint_data"].get("world_metadata") or {}).get(
-                "resume_identity"
-            )
+        if marker_version != "complete_step_v4":
+            raise ValueError("Only complete_step_v4 checkpoints are recoverable")
+        root_metadata = PersistenceManager._v4_root_manifest(
+            Path(source_run).resolve(), int(record["step"])
+        )
+        checkpoint_identity = root_metadata.get("resume_identity")
         expected_identity = self._expected_resume_identity
         if expected_identity is None:
             raise RuntimeError("Society0 resume identity was not initialized")
@@ -780,22 +777,12 @@ class Society0:
                 "embedding, capability schema, or application contract"
             )
         try:
-            if marker_version == "complete_step_v4":
-                world, _ = await self.persistence_manager._load_v4_checkpoint_record(
-                    record,
-                    event_logger=self.event_logger,
-                    event_log_path=str(self.save_dir / "events.jsonl"),
-                    environment_factory=self.environment_factory,
-                )
-            else:
-                world, _ = await self.persistence_manager._load_checkpoint_record(
-                    record,
-                    memory_required=None,
-                    restore_chroma=True,
-                    event_logger=self.event_logger,
-                    event_log_path=str(self.save_dir / "events.jsonl"),
-                    environment_factory=self.environment_factory,
-                )
+            world, _ = await self.persistence_manager._load_v4_checkpoint_record(
+                record,
+                event_logger=self.event_logger,
+                event_log_path=str(self.save_dir / "events.jsonl"),
+                environment_factory=self.environment_factory,
+            )
         except Exception as exc:
             if self.persistence_manager._restore_failed:
                 self._restore_unusable_reason = f"{type(exc).__name__}: {exc}"
@@ -1041,7 +1028,10 @@ class Society0:
                 failure=failure,
             )
             return
-        await self.persistence_manager.save_checkpoint(self.current_world_state, self.schedule)
+        raise ValueError(
+            "recoverable checkpoints are published from sealed v4 Tick deltas; "
+            "only checkpoint_final.json.gz is a supported diagnostic snapshot"
+        )
 
     async def _save_summary(
         self,

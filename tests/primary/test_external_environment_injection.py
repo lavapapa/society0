@@ -65,7 +65,22 @@ def test_agent_group_is_public_for_environment_level_activation():
 @env_type(
     type_name="external_test",
     config_schema={"type": "object", "properties": {}},
-    state_schema={"type": "object", "properties": {}},
+    state_schema={
+        "type": "object",
+        "properties": {
+            "ticks": {
+                "type": "array",
+                "items": {"type": "integer"},
+                "persistence": {"kind": "append_only_list"},
+            },
+            "action_call_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+                "persistence": {"kind": "append_only_list"},
+            },
+        },
+        "additionalProperties": False,
+    },
 )
 class ExternalTestEnvironment(Environment):
     def initialize(self, agents, world):
@@ -234,7 +249,17 @@ async def test_strict_environment_action_rejects_missing_argument_without_execut
     @env_type(
         type_name="strict_validation_test",
         config_schema={"type": "object", "properties": {}},
-        state_schema={"type": "object", "properties": {}},
+        state_schema={
+            "type": "object",
+            "properties": {
+                "calls": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "persistence": {"kind": "append_only_list"},
+                }
+            },
+            "additionalProperties": False,
+        },
     )
     class StrictValidationEnvironment(Environment):
         def initialize(self, agents, world):

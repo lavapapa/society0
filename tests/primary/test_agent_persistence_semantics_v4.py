@@ -92,3 +92,30 @@ def test_context_and_collection_iteration_cannot_bypass_tick_lease(tmp_path):
         context_state["score"] = 3
     with pytest.raises(RuntimeError, match="expired|sealed|lease"):
         properties["cash"] = 13
+
+
+def test_environment_raw_view_is_detached_and_whole_state_replace_is_tick_guarded(tmp_path):
+    world = _world(tmp_path)
+    world.environment_data["schema"] = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "counter": {
+                "type": "integer",
+                "persistence": {"kind": "replaceable"},
+            }
+        },
+    }
+    world.environment_data["state"] = {"counter": 0}
+    world.configure_persistence(world.compile_runtime_persistence_schema())
+    environment = world.get_environment()
+
+    detached = environment.get_raw_data()
+    detached["state"]["counter"] = 99
+    assert world.environment_data["state"]["counter"] == 0
+
+    world.begin_persistence_tick(1)
+    with pytest.raises(RuntimeError, match="cannot be replaced"):
+        environment.state = {"counter": 1}
+    assert world.environment_data["state"] == {"counter": 0}
+    world.abort_persistence_tick()

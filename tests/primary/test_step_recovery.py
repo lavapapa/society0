@@ -3,9 +3,9 @@ import errno
 import pytest
 
 from society0 import Society0
+from society0.incremental_checkpoint import V4CheckpointStore
 from society0.persistence import PersistenceManager
 from society0.recovery import classify_step_failure
-from tests import read_gzip_json
 
 
 pytestmark = pytest.mark.primary
@@ -15,7 +15,20 @@ def _config() -> dict:
     return {
         "agent_types": [{"id": "worker", "archetype": "rule"}],
         "agents": [{"id": "worker-a", "type": "worker", "state": {}}],
-        "environment": {"type": "plain", "state": {"counter": 0}},
+        "environment": {
+            "type": "plain",
+            "state": {"counter": 0},
+            "state_schema": {
+                "type": "object",
+                "properties": {
+                    "counter": {
+                        "type": "integer",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                },
+                "additionalProperties": False,
+            },
+        },
     }
 
 
@@ -159,7 +172,7 @@ def test_resolve_last_complete_is_an_explicit_checkpoint_api(tmp_path) -> None:
     try:
         PersistenceManager.resolve_last_complete_from(tmp_path)
     except FileNotFoundError as exc:
-        assert "No complete checkpoints" in str(exc)
+        assert "No v4 complete checkpoints" in str(exc)
     else:
         raise AssertionError("空目录不应产生可恢复 checkpoint")
 
@@ -188,14 +201,24 @@ async def test_failed_step_restores_from_last_complete_checkpoint_in_new_run(
 
     record = PersistenceManager.resolve_last_complete_from(source_dir)
     assert record["step"] == 1
-    assert record["checkpoint_data"]["environment_data"]["state"]["counter"] == 1
-    assert "never-persist" not in repr(record["checkpoint_data"])
-    diagnostic = read_gzip_json(
-        source_dir / "checkpoints" / "checkpoint_final.json.gz"
+    assert set(record) == {
+        "step",
+        "checkpoint_id",
+        "marker",
+        "manifest",
+        "marker_file",
+        "manifest_file",
+    }
+    assert record["marker"]["checkpoint_version"] == V4CheckpointStore.VERSION
+    assert record["marker"]["complete"] is True
+    assert record["manifest"]["checkpoint_version"] == V4CheckpointStore.VERSION
+    assert record["manifest"]["replacement_file"].startswith(
+        "checkpoints/v4/replacements/"
     )
-    assert diagnostic["environment_data"]["state"]["counter"] == 2
-    assert diagnostic["failure"]["last_complete_step"] == 1
-    assert "never-persist" not in repr(diagnostic)
+    assert record["manifest"]["new_segments"] == []
+    restored = V4CheckpointStore(source_dir).restore(record["step"])
+    assert restored["environment"]["state"]["counter"] == 1
+    assert "never-persist" not in repr(restored)
 
     destination_dir = tmp_path / "recovered-run"
     destination = Society0(
@@ -221,4 +244,32 @@ async def test_failed_step_restores_from_last_complete_checkpoint_in_new_run(
 
     recovered = PersistenceManager.resolve_last_complete_from(destination_dir)
     assert recovered["step"] == 2
-    assert recovered["checkpoint_data"]["environment_data"]["state"]["counter"] == 2
+    assert V4CheckpointStore(destination_dir).restore(2)["environment"]["state"]["counter"] == 2
+
+
+@pytest.mark.asyncio
+async def test_v4_restore_rejects_a_different_application_contract(tmp_path) -> None:
+    source_dir = tmp_path / "identity-source"
+    source = Society0(
+        save_dir=str(source_dir),
+        base_config=_config(),
+        checkpoint_every=1,
+        resume_contract={"experiment": "baseline"},
+    )
+
+    @source.step(name="advance")
+    async def advance(ctx):
+        ctx.env.state["counter"] += 1
+
+    await source.run(steps=1)
+
+    destination = Society0(
+        save_dir=str(tmp_path / "identity-destination"),
+        base_config=_config(),
+        source_run=str(source_dir),
+        source_step=1,
+        resume_contract={"experiment": "different-policy"},
+    )
+
+    with pytest.raises(ValueError, match="resume identity does not match"):
+        await destination.restore(source_dir, step=1)
