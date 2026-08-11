@@ -1,6 +1,9 @@
 import asyncio
+from collections import UserDict
 import gzip
 import json
+import threading
+import time
 
 import pytest
 
@@ -38,6 +41,27 @@ async def test_checkpoint_step_inputs_reject_bool_float_and_string(tmp_path):
                 backup_dir=None,
                 use_default_backup=False,
             )
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_v2_checkpoint_marker_is_rejected_after_v3_schema_cutover(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    await manager.save_checkpoint(world, CodeSchedule())
+
+    marker_path = tmp_path / "checkpoints" / "complete" / "step_000000.json"
+    marker = _read(marker_path)
+    marker["checkpoint_version"] = "complete_step_v2"
+    marker_path.write_text(json.dumps(marker), encoding="utf-8")
+    with pytest.raises(ValueError, match="Unsupported checkpoint version"):
+        manager.resolve_checkpoint(0)
     manager.close()
 
 
@@ -187,7 +211,7 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
 
     assert marker["complete"] is True
     assert marker["recoverable"] is True
-    assert marker["checkpoint_version"] == "complete_step_v2"
+    assert marker["checkpoint_version"] == "complete_step_v3"
     assert marker["world_encoding"] == "gzip-json"
     assert checkpoint_path.name.endswith(".json.gz")
     assert checkpoint_path.read_bytes().startswith(b"\x1f\x8b")
@@ -251,6 +275,188 @@ async def test_complete_checkpoint_pairs_world_chroma_and_marker_and_restores_la
 
 
 @pytest.mark.asyncio
+async def test_world_checkpoint_has_single_authority_and_compresses_off_event_loop(
+    tmp_path,
+    monkeypatch,
+):
+    """World/environment/agents are not copied into derived observations."""
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    worker_threads = []
+    original_writer = manager._write_world_checkpoint_temp
+
+    def record_writer(*args, **kwargs):
+        worker_threads.append(threading.current_thread().name)
+        return original_writer(*args, **kwargs)
+
+    monkeypatch.setattr(manager, "_write_world_checkpoint_temp", record_writer)
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    await manager.save_checkpoint(
+        world,
+        CodeSchedule(),
+        step_metrics={"step_number": 0, "nodes_executed": 1},
+    )
+
+    record = manager.resolve_checkpoint(0)
+    payload = record["checkpoint_data"]
+    observation = payload["observation_data"]
+    assert "agents_data" in payload
+    assert "environment_data" in payload
+    assert "agents_data" not in observation
+    assert "environment_data" not in observation
+    assert "metrics" not in payload
+    assert payload["step_metrics"] == {
+        "step_number": 0,
+        "nodes_executed": 1,
+    }
+    assert worker_threads
+    assert all(name != threading.current_thread().name for name in worker_threads)
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_save_uses_worker_hash_and_resolve_rehashes_published_world(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    calls = []
+    real_file_sha256 = PersistenceManager._file_sha256
+
+    def record_file_sha256(path):
+        calls.append(path)
+        return real_file_sha256(path)
+
+    monkeypatch.setattr(
+        PersistenceManager,
+        "_file_sha256",
+        staticmethod(record_file_sha256),
+    )
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    marker = await manager.save_checkpoint(world, CodeSchedule())
+
+    assert calls == []
+    assert marker["world_sha256"]
+    manager.resolve_checkpoint(0)
+    assert calls
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_does_not_traverse_environment_state_for_derived_snapshot(
+    tmp_path,
+    monkeypatch,
+):
+    """The base Environment snapshot must not build a discarded state copy."""
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+
+    class ReadOnceState(UserDict):
+        def __init__(self, *args, **kwargs):
+            self.reads = 0
+            super().__init__(*args, **kwargs)
+
+        def keys(self):
+            self.reads += 1
+            if self.reads > 1:
+                raise AssertionError("environment state was traversed more than once")
+            return super().keys()
+
+    manager = PersistenceManager(str(tmp_path))
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.environment_data["state"] = ReadOnceState({"large": {"value": 1}})
+    await manager.save_checkpoint(world, CodeSchedule())
+
+    assert world.environment_data["state"].reads == 1
+    checkpoint = manager.resolve_checkpoint(0)["checkpoint_data"]
+    assert "state" not in checkpoint["environment_data"]["snapshot"]
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_checkpoint_compression_cancellation_waits_for_worker_cleanup(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    started = threading.Event()
+    original_writer = manager._write_world_checkpoint_temp
+
+    def slow_writer(*args, **kwargs):
+        started.set()
+        time.sleep(0.05)
+        return original_writer(*args, **kwargs)
+
+    monkeypatch.setattr(manager, "_write_world_checkpoint_temp", slow_writer)
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    save_task = asyncio.create_task(manager.save_checkpoint(world, CodeSchedule()))
+    await asyncio.to_thread(started.wait, 2)
+    save_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await save_task
+
+    assert not list(manager.checkpoints_dir.glob(".*.tmp.json.gz"))
+    assert await manager.get_available_checkpoints() == []
+    manager.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_world_rename_cleans_only_unpublished_replacement(
+    tmp_path,
+    monkeypatch,
+):
+    """Cancellation between component rename and marker keeps old pair intact."""
+
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    manager = PersistenceManager(str(tmp_path))
+    world = World(step=0)
+    world.add_agent_data("rule_0", "participant", archetype="rule")
+    world.set_environment_type("plain")
+    first = await manager.save_checkpoint(world, CodeSchedule())
+    marker_path, old_world, old_backup, _ = _checkpoint_components(tmp_path, 0)
+    old_marker_bytes = marker_path.read_bytes()
+
+    reached_backup = asyncio.Event()
+
+    async def block_replacement_backup(step, *, checkpoint_id, memory_required):
+        del memory_required
+        orphan = manager._chroma_backup_path(step, checkpoint_id=checkpoint_id)
+        orphan.mkdir(parents=True, exist_ok=True)
+        (orphan / "_checkpoint.json").write_text("{}", encoding="utf-8")
+        reached_backup.set()
+        await asyncio.sleep(3600)
+        return orphan
+
+    monkeypatch.setattr(manager, "_backup_chroma_store", block_replacement_backup)
+    task = asyncio.create_task(manager.save_checkpoint(world, CodeSchedule()))
+    await reached_backup.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert marker_path.read_bytes() == old_marker_bytes
+    assert old_world.is_file()
+    assert old_backup is not None and old_backup.is_dir()
+    assert await manager.get_available_checkpoints() == [0]
+    assert sorted(path.name for path in manager.checkpoints_dir.glob("checkpoint_*.json.gz")) == [
+        old_world.name
+    ]
+    assert sorted(path.name for path in manager.chroma_backup_dir.glob("step_*") if path.is_dir()) == [
+        old_backup.name
+    ]
+    assert first["checkpoint_id"] == _read(marker_path)["checkpoint_id"]
+    manager.close()
+
+
+@pytest.mark.asyncio
 async def test_missing_memory_backup_is_not_recoverable(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
     run_dir = tmp_path / "run"
@@ -308,7 +514,7 @@ async def test_populated_chroma_backup_restores_with_matching_checkpoint_id(tmp_
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "failure_point",
-    ["threads", "world", "backup", "marker"],
+    ["threads", "writer", "backup", "marker"],
 )
 async def test_failure_before_complete_marker_never_publishes_recoverable_checkpoint(
     tmp_path,
@@ -330,12 +536,12 @@ async def test_failure_before_complete_marker_never_publishes_recoverable_checkp
             fail_threads,
         )
         expected = "injected thread manifest failure"
-    elif failure_point == "world":
-        def fail_world_validation(*args, **kwargs):
-            raise OSError("injected world validation failure")
+    elif failure_point == "writer":
+        def fail_world_writer(*args, **kwargs):
+            raise OSError("injected world writer failure")
 
-        monkeypatch.setattr(manager, "_read_world_checkpoint", fail_world_validation)
-        expected = "injected world validation failure"
+        monkeypatch.setattr(manager, "_write_world_checkpoint_temp", fail_world_writer)
+        expected = "injected world writer failure"
     elif failure_point == "backup":
         async def fail_backup(*args, **kwargs):
             raise OSError("injected backup failure")
@@ -1293,6 +1499,7 @@ async def test_external_environment_factory_is_not_rebound_after_restore(
     checkpoint = _read(checkpoint_path)
     snapshot_text = json.dumps(checkpoint["environment_data"]["snapshot"])
     assert "_target_dict" not in snapshot_text
+    assert "state" not in checkpoint["environment_data"]["snapshot"]
     destination = Society0(
         save_dir=str(tmp_path / "destination-factory"),
         base_config=config,

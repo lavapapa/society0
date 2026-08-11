@@ -173,7 +173,7 @@ class Environment:
     
     # Default implementation methods
     
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self, *, include_state: bool = True) -> Dict[str, Any]:
         """
         Create a snapshot of environment state for persistence
         
@@ -183,11 +183,18 @@ class Environment:
         
         Returns:
             Dictionary containing environment snapshot data
+
+        Args:
+            include_state: Include the canonical World environment state.  Set
+                to ``False`` when the caller already persists
+                ``World.environment_data["state"]`` separately.
         """
-        snapshot_data = {
-            "type": self.type,
-            "state": dict(self.state),  # Convert proxy to regular dict
-        }
+        snapshot_data = {"type": self.type}
+        if include_state:
+            # World.environment_data["state"] is the canonical state store.
+            # Callers creating a World checkpoint can request only derived
+            # environment data to avoid a second full state traversal.
+            snapshot_data["state"] = dict(self.state)  # Convert proxy to regular dict
         
         # Add any additional default snapshot data
         snapshot_data["snapshot_metadata"] = {

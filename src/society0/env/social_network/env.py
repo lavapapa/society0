@@ -2422,7 +2422,7 @@ class SocialNetworkEnv(Environment):
     # 所有 Action 现在通过 @action 装饰器自动收集
     # World._get_environment_actions() 会自动从 EnvironmentMeta.capabilities 中获取 action
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self, *, include_state: bool = True) -> Dict[str, Any]:
         """
         快照接口：将非状态的复杂对象转换为可序列化字典
 
