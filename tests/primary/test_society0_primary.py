@@ -7212,7 +7212,12 @@ async def test_memory_retrieve_skips_embedding_when_current_agent_has_no_memorie
             assert where == {
                 "$and": [
                     {"agent_id": {"$eq": "alice"}},
-                    {"branch_id": {"$eq": "main"}},
+                    {
+                        "$and": [
+                            {"branch_id": {"$eq": "main"}},
+                            {"created_step": {"$lte": 0}},
+                        ]
+                    },
                 ]
             }
             assert limit == 1

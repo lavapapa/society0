@@ -363,6 +363,7 @@ class World:
 
         # 🔑 方案 A: Environment state 单例代理（确保所有修改都被记录）
         self._environment_state_proxy: Optional[DictProxy] = None
+        self._state_delta_journal: Optional[Any] = None
 
         # Transaction and event management
         self.event_logger = event_logger or EventLogger(event_log_path)
@@ -975,7 +976,8 @@ class World:
             target_dict=target_dict,
             event_recorder=self._create_event_recorder(),
             context_provider=self._create_context_provider(),
-            path=("agents", agent_id, state_key)
+            path=("agents", agent_id, state_key),
+            persistence_journal=self._state_delta_journal,
         )
 
     def create_environment_state_proxy(self) -> DictProxy:
@@ -993,10 +995,17 @@ class World:
                 target_dict=self.environment_data["state"],
                 event_recorder=self._create_event_recorder(),
                 context_provider=self._create_context_provider(),
-                path=("environment", "state")
+                path=("environment", "state"),
+                persistence_journal=self._state_delta_journal,
             )
             logger.debug("Created singleton environment state proxy")
         return self._environment_state_proxy
+
+    def set_state_delta_journal(self, journal: Optional[Any]) -> None:
+        """注入 v4 写入日志；更换后重建环境代理以免保留旧引用。"""
+
+        self._state_delta_journal = journal
+        self._environment_state_proxy = None
 
     # Transaction integration
 
