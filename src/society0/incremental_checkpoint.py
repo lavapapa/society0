@@ -422,6 +422,15 @@ class PersistenceSchema:
                     validate(properties[key], item, child_path)
                 elif isinstance(additional, Mapping):
                     validate(additional, item, child_path)
+                elif (
+                    additional is True
+                    and rule is not None
+                    and rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                ):
+                    # Unknown fields of an explicitly open entity schema use
+                    # the entity wildcard as their bounded fallback anchor.
+                    continue
                 else:
                     raise ValueError(f"undeclared initial state field at {child_path!r}")
 
