@@ -18,7 +18,7 @@ import logging
 import time
 
 # Import new unified state architecture components
-from .state_proxy import DictProxy
+from .state_proxy import DictProxy, _ProxyLease
 from .context_stack import ContextStack
 from .transaction import TransactionManager, EventLogger
 from .async_utils import invoke_maybe_async
@@ -364,6 +364,9 @@ class World:
         # 🔑 方案 A: Environment state 单例代理（确保所有修改都被记录）
         self._environment_state_proxy: Optional[DictProxy] = None
         self._state_delta_journal: Optional[Any] = None
+        self._persistence_schema: Optional[Any] = None
+        self._persistence_proxy_lease: Optional[_ProxyLease] = None
+        self._persistence_lease_generation: int = 0
 
         # Transaction and event management
         self.event_logger = event_logger or EventLogger(event_log_path)
@@ -978,6 +981,7 @@ class World:
             context_provider=self._create_context_provider(),
             path=("agents", agent_id, state_key),
             persistence_journal=self._state_delta_journal,
+            lease=self._persistence_proxy_lease,
         )
 
     def create_environment_state_proxy(self) -> DictProxy:
@@ -997,6 +1001,7 @@ class World:
                 context_provider=self._create_context_provider(),
                 path=("environment", "state"),
                 persistence_journal=self._state_delta_journal,
+                lease=self._persistence_proxy_lease,
             )
             logger.debug("Created singleton environment state proxy")
         return self._environment_state_proxy
@@ -1004,7 +1009,91 @@ class World:
     def set_state_delta_journal(self, journal: Optional[Any]) -> None:
         """注入 v4 写入日志；更换后重建环境代理以免保留旧引用。"""
 
+        old_lease = self._persistence_proxy_lease
+        if old_lease is not None:
+            old_lease.invalidate()
         self._state_delta_journal = journal
+        self._persistence_schema = getattr(journal, "_schema", None)
+        if journal is not None and hasattr(journal, "bind_canonical_state"):
+            journal.bind_canonical_state(self._persistence_lookup)
+        self._environment_state_proxy = None
+
+    def _persistence_lookup(self, path: tuple[Any, ...]) -> Any:
+        """按完整 canonical path 查找容器，不创建或修改底层状态。"""
+
+        if not path:
+            return None
+        if path[0] == "environment":
+            current: Any = self.environment_data
+        elif path[0] == "agents":
+            current = self.agents_data
+        else:
+            return None
+        for part in path[1:]:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+        return current
+
+    def configure_persistence(self, schema: Any) -> Any:
+        """编译并绑定 World 的声明驱动持久化生命周期。"""
+
+        from .incremental_checkpoint import PersistenceSchema, StateDeltaJournal
+
+        compiled = (
+            schema
+            if isinstance(schema, PersistenceSchema)
+            else PersistenceSchema.compile(schema, root_path=("environment", "state"))
+        )
+        state = self.environment_data.get("state", {})
+        compiled.validate_initial_state(state)
+        journal = StateDeltaJournal(compiled)
+        journal.bind_canonical_state(self._persistence_lookup)
+        old_lease = self._persistence_proxy_lease
+        if old_lease is not None:
+            old_lease.invalidate()
+        self._persistence_schema = compiled
+        self._state_delta_journal = journal
+        self._environment_state_proxy = None
+        self._persistence_proxy_lease = None
+        return compiled
+
+    def begin_persistence_tick(self, step: int) -> Any:
+        """开启唯一一个 Tick delta，并生成新的代理租约。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        if self._persistence_proxy_lease is not None and self._persistence_proxy_lease.active:
+            raise RuntimeError("a persistence tick is already active")
+        self._state_delta_journal.bind_canonical_state(self._persistence_lookup)
+        self._state_delta_journal.begin_tick(step)
+        self._persistence_lease_generation += 1
+        self._persistence_proxy_lease = _ProxyLease(self._persistence_lease_generation)
+        self._environment_state_proxy = None
+        return self._state_delta_journal
+
+    def seal_persistence_tick(self) -> Any:
+        """提交当前 Tick delta；提交后旧代理立即失效。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        delta = self._state_delta_journal.seal_tick()
+        if self._persistence_proxy_lease is not None:
+            self._persistence_proxy_lease.invalidate()
+        self._persistence_proxy_lease = None
+        self._environment_state_proxy = None
+        return delta
+
+    def abort_persistence_tick(self) -> None:
+        """丢弃当前 Tick delta，并使该 Tick 的所有代理失效。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        self._state_delta_journal.abort_tick()
+        if self._persistence_proxy_lease is not None:
+            self._persistence_proxy_lease.invalidate()
+        self._persistence_proxy_lease = None
         self._environment_state_proxy = None
 
     # Transaction integration

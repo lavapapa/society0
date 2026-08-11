@@ -118,6 +118,21 @@ def test_schema_compile_resolves_wildcard_dynamic_entry_map():
     assert rule.granularity == "entry"
 
 
+def test_schema_compile_rejects_unbounded_replaceable_map_without_entry_granularity():
+    with pytest.raises((TypeError, ValueError), match="granularity|entry|post_view_count"):
+        _compile(
+            _state_schema(
+                {
+                    "post_view_count_by_id": {
+                        "type": "object",
+                        "additionalProperties": {"type": "integer"},
+                        "persistence": _persistence("replaceable"),
+                    }
+                }
+            )
+        )
+
+
 def test_schema_compile_rejects_missing_persistence_kind_fail_closed():
     with pytest.raises((TypeError, ValueError), match="cash"):
         _compile(
@@ -298,6 +313,8 @@ def test_sealed_delta_is_deeply_immutable():
         delta.replacements[0]["value"]["nested"]["value"] = 2
     with pytest.raises((AttributeError, TypeError)):
         delta.replacements[0]["path"].append("leak")
+    with pytest.raises((AttributeError, TypeError)):
+        delta.replacements[0]["operation"] = "delete"
 
     assert delta.replacements[0]["value"]["nested"]["value"] == 1
     assert tuple(delta.replacements[0]["path"]) == (*_STATE_ROOT, "payload")
