@@ -117,6 +117,8 @@ class PersistenceManager:
         self._v4_epoch: list[SealedTickDelta] = []
         self._v4_publish_lock: Optional[asyncio.Lock] = None
         self._v4_root_published = False
+        self._v4_run_id = uuid.uuid4().hex
+        self._v4_branch_id = "main"
 
         # Paths for Chroma persistence
         self.chroma_store_path = self.save_dir / "chroma_store"
@@ -937,11 +939,14 @@ class PersistenceManager:
         self._v4_enabled = True
         self._v4_world = world
         self._v4_schema = compiled
-        self._v4_store = V4CheckpointStore(self.save_dir)
+        self._v4_store = V4CheckpointStore(self.save_dir, branch_id=self._v4_branch_id)
         self._v4_checkpoint_every = checkpoint_every
         self._v4_epoch = []
         self._v4_publish_lock = asyncio.Lock()
         self._v4_root_published = 0 in self._v4_store.available_steps()
+        if self._v4_root_published:
+            manifest = self._v4_store.resolve(0)["manifest"]
+            self._v4_run_id = str(manifest["run_id"])
         return compiled
 
     def _v4_root_metadata(
@@ -956,6 +961,8 @@ class PersistenceManager:
         environment_data.pop("state", None)
         metadata = {
             "schema_version": 1,
+            "run_id": self._v4_run_id,
+            "branch_id": self._v4_branch_id,
             "agents_data": self._plain_snapshot_value(agents_data),
             "agent_types": self._plain_snapshot_value(agent_types),
             "environment_data": environment_data,
@@ -997,7 +1004,24 @@ class PersistenceManager:
             step=deltas[-1].step,
             replacements=tuple(_freeze_json(item) for item in replacements),
             appends=tuple(_freeze_json(item) for item in appends),
+            write_epoch_ids=tuple(
+                epoch_id
+                for delta in deltas
+                for epoch_id in delta.write_epoch_ids
+            ),
         )
+
+    @staticmethod
+    async def _await_v4_publication(callable_: Any, /, *args: Any, **kwargs: Any) -> Any:
+        """等待发布线程越过唯一提交点，避免取消后后台偷偷发布 marker。"""
+
+        worker = asyncio.create_task(asyncio.to_thread(callable_, *args, **kwargs))
+        try:
+            return await asyncio.shield(worker)
+        except asyncio.CancelledError:
+            # marker rename 前取消：worker 会完成清理并抛错；marker rename 后
+            # 取消：发布已经提交，必须把成功结果交给调用方完成 step 推进。
+            return await worker
 
     async def publish_root(self, world: 'World', schedule: 'Schedule') -> Dict[str, Any]:
         """Publish the immutable step-0 v4 root through a worker thread."""
@@ -1023,6 +1047,8 @@ class PersistenceManager:
             for agent_data in agents_data.values():
                 if isinstance(agent_data, dict):
                     agent_data["state"] = {}
+                    agent_data["properties"] = {}
+                    agent_data["reminders"] = []
             canonical_state = {
                 "environment": {
                     "state": environment_data.get("state") or {},
@@ -1030,6 +1056,8 @@ class PersistenceManager:
                 "agents": {
                     str(agent_id): {
                         "state": (raw_data or {}).get("state") or {},
+                        "properties": (raw_data or {}).get("properties") or {},
+                        "reminders": (raw_data or {}).get("reminders") or [],
                     }
                     for agent_id, raw_data in self._plain_snapshot_value(world.agents_data).items()
                     if isinstance(raw_data, Mapping)
@@ -1042,13 +1070,34 @@ class PersistenceManager:
                 agent_types,
                 resume_identity=getattr(world, "_resume_identity", None),
             )
-            marker = await asyncio.to_thread(
-                self._v4_store.publish_root,
-                entries,
-                metadata=metadata,
-                step=0,
-            )
+            checkpoint_id = uuid.uuid4().hex
+
+            def publish_root_transaction() -> Dict[str, Any]:
+                thread_manifest = self.agent_thread_store.publish_epoch_manifest(
+                    checkpoint_id,
+                    [0],
+                )
+                return self._v4_store.publish_root(
+                    entries,
+                    metadata=metadata,
+                    step=0,
+                    checkpoint_id=checkpoint_id,
+                    thread_manifest=thread_manifest,
+                    memory_view={
+                        "branch_id": self._v4_branch_id,
+                        "target_step": 0,
+                        "write_epoch_ids": [],
+                    },
+                )
+
+            marker = await self._await_v4_publication(publish_root_transaction)
             self._v4_root_published = True
+            world.set_memory_checkpoint_view(
+                target_step=0,
+                branch_id=self._v4_branch_id,
+                branch_lineage=[],
+                committed_write_epoch_ids=set(),
+            )
             return marker
 
     async def publish_delta(
@@ -1071,15 +1120,41 @@ class PersistenceManager:
             self._v4_epoch.append(delta)
             if len(self._v4_epoch) < self._v4_checkpoint_every:
                 return None
-            combined = self._v4_merge_epoch(self._v4_epoch)
+            epoch = tuple(self._v4_epoch)
+            combined = self._v4_merge_epoch(epoch)
+            checkpoint_id = uuid.uuid4().hex
+
+            def publish_epoch_transaction() -> Dict[str, Any]:
+                thread_manifest = self.agent_thread_store.publish_epoch_manifest(
+                    checkpoint_id,
+                    [item.step for item in epoch],
+                )
+                return self._v4_store.publish(
+                    combined,
+                    checkpoint_id=checkpoint_id,
+                    thread_manifest=thread_manifest,
+                    memory_view={
+                        "branch_id": self._v4_branch_id,
+                        "target_step": combined.step,
+                        "write_epoch_ids": list(combined.write_epoch_ids),
+                    },
+                )
             try:
-                marker = await asyncio.to_thread(self._v4_store.publish, combined)
+                marker = await self._await_v4_publication(publish_epoch_transaction)
             except BaseException:
                 # A failed epoch is never recoverable.  The caller may continue
                 # only after explicitly starting a new epoch.
                 self._v4_epoch.clear()
                 raise
             self._v4_epoch.clear()
+            committed = self._v4_store.committed_memory_epoch_ids(combined.step)
+            if self._v4_world is not None:
+                self._v4_world.set_memory_checkpoint_view(
+                    target_step=combined.step,
+                    branch_id=self._v4_branch_id,
+                    branch_lineage=[],
+                    committed_write_epoch_ids=committed,
+                )
             return marker
 
     def discard_unpublished_epoch(self) -> None:
@@ -1103,8 +1178,13 @@ class PersistenceManager:
         return store.resolve(step)
 
     @staticmethod
-    def _v4_root_manifest(root: Path, step: int) -> dict[str, Any]:
-        store = V4CheckpointStore(root)
+    def _v4_root_manifest(
+        root: Path,
+        step: int,
+        *,
+        branch_id: str = "main",
+    ) -> dict[str, Any]:
+        store = V4CheckpointStore(root, branch_id=branch_id)
         chain = store._manifest_chain(step)
         if not chain or not isinstance(chain[0].get("root_metadata"), dict):
             raise ValueError(f"v4 root metadata missing for step {step}")
@@ -1163,10 +1243,26 @@ class PersistenceManager:
         event_log_path: Optional[str],
         environment_factory: Optional[Any],
     ) -> Tuple['World', 'Schedule']:
-        root = Path(record["marker_file"]).resolve().parents[3]
-        store = V4CheckpointStore(root)
+        marker_path = Path(record["marker_file"]).resolve()
+        v4_base = next(
+            (
+                parent
+                for parent in marker_path.parents
+                if parent.name == "v4" and parent.parent.name == "checkpoints"
+            ),
+            None,
+        )
+        if v4_base is None:
+            raise ValueError("v4 marker is outside a checkpoint store")
+        root = v4_base.parent.parent
+        branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
+        store = V4CheckpointStore(root, branch_id=branch_id)
         state_payload = store.restore(record["step"])
-        root_metadata = self._v4_root_manifest(root, record["step"])
+        root_metadata = self._v4_root_manifest(
+            root,
+            record["step"],
+            branch_id=branch_id,
+        )
         schema = self._v4_schema
         raw_schemas = root_metadata.get("persistence_schemas")
         if schema is None and isinstance(raw_schemas, list) and raw_schemas:
@@ -1215,13 +1311,35 @@ class PersistenceManager:
         restored_agents = restored_state_payload.get("agents") or {}
         if isinstance(restored_agents, Mapping):
             for agent_id, agent_data in world.agents_data.items():
-                state_data = restored_agents.get(agent_id, {})
-                if isinstance(state_data, Mapping):
-                    agent_data["state"] = copy.deepcopy(state_data.get("state") or {})
+                dynamic_data = restored_agents.get(agent_id, {})
+                if isinstance(dynamic_data, Mapping):
+                    agent_data["state"] = copy.deepcopy(dynamic_data.get("state") or {})
+                    agent_data["properties"] = copy.deepcopy(
+                        dynamic_data.get("properties") or {}
+                    )
+                    agent_data["reminders"] = copy.deepcopy(
+                        dynamic_data.get("reminders") or []
+                    )
                 else:
                     agent_data["state"] = {}
+                    agent_data["properties"] = {}
+                    agent_data["reminders"] = []
         if schema is not None:
             world.configure_persistence(schema)
+        committed_epochs = store.committed_memory_epoch_ids(int(record["step"]))
+        branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
+        forked_from = (record.get("marker") or {}).get("forked_from") or {}
+        branch_lineage = []
+        if isinstance(forked_from, Mapping) and forked_from.get("branch_id") is not None:
+            branch_lineage.append(
+                (str(forked_from["branch_id"]), int(forked_from.get("step", record["step"])))
+            )
+        world.set_memory_checkpoint_view(
+            target_step=int(record["step"]),
+            branch_id=branch_id,
+            branch_lineage=branch_lineage,
+            committed_write_epoch_ids=committed_epochs,
+        )
         return world, None
     
     async def save_checkpoint(
@@ -1981,9 +2099,36 @@ class PersistenceManager:
     def resolve_checkpoint(self, step: Optional[int] = None) -> Dict[str, Any]:
         """Resolve a checkpoint in this run through the read-only resolver."""
         self._assert_usable()
-        if self._v4_enabled:
-            return self._resolve_v4_checkpoint_from(self.save_dir, step)
+        if self._v4_enabled and self._v4_store is not None:
+            return self._v4_store.resolve(step)
         return self.resolve_checkpoint_from(self.save_dir, step)
+
+    async def create_branch(self, from_step: int, branch_name: str) -> "PersistenceManager":
+        """从任意完整 v4 checkpoint 创建共享 immutable 组件的逻辑分支。"""
+
+        if not self._v4_enabled or self._v4_store is None:
+            raise RuntimeError("v4 persistence must be configured before forking")
+        branch_store = self._v4_store.fork(branch_name, step=from_step)
+        branch = type(self)(str(self.save_dir))
+        branch._v4_enabled = True
+        branch._v4_store = branch_store
+        branch._v4_schema = self._v4_schema
+        branch._v4_checkpoint_every = self._v4_checkpoint_every
+        branch._v4_epoch = []
+        branch._v4_publish_lock = asyncio.Lock()
+        branch._v4_root_published = True
+        branch._v4_run_id = self._v4_run_id
+        branch._v4_branch_id = str(branch_name)
+        record = branch_store.resolve(from_step)
+        world, _ = await branch._load_v4_checkpoint_record(
+            record,
+            event_logger=None,
+            event_log_path=str(branch.events_dir / f"branch_{branch_name}.jsonl"),
+            environment_factory=None,
+        )
+        world.set_persistence_manager(branch)
+        branch._v4_world = world
+        return branch
 
     async def load_checkpoint(
         self,

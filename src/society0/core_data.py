@@ -14,12 +14,12 @@ import importlib
 import contextvars
 from dataclasses import dataclass, field
 import copy
-import json
 import logging
 import time
+import uuid
 
 # Import new unified state architecture components
-from .state_proxy import DictProxy, _ProxyLease
+from .state_proxy import DictProxy, ListProxy, _ProxyLease
 from .context_stack import ContextStack
 from .transaction import TransactionManager, EventLogger
 from .async_utils import invoke_maybe_async
@@ -368,6 +368,11 @@ class World:
         self._persistence_schema: Optional[Any] = None
         self._persistence_proxy_lease: Optional[_ProxyLease] = None
         self._persistence_lease_generation: int = 0
+        self._memory_branch_id = "main"
+        self._memory_branch_lineage: list[tuple[str, int]] = []
+        self._committed_memory_epoch_ids: set[str] = set()
+        self._active_memory_epoch_id: Optional[str] = None
+        self._memory_epoch_sequence = 0
 
         # Transaction and event management
         self.event_logger = event_logger or EventLogger(event_log_path)
@@ -958,7 +963,7 @@ class World:
             "environment_type": self.environment_data["type"]
         }
 
-    def create_agent_state_proxy(self, agent_id: str, state_key: str) -> DictProxy:
+    def create_agent_state_proxy(self, agent_id: str, state_key: str) -> Union[DictProxy, ListProxy]:
         """
         Create a state proxy for a specific agent and state key
 
@@ -972,18 +977,19 @@ class World:
         if agent_id not in self.agents_data:
             raise KeyError(f"Agent '{agent_id}' not found")
 
-        target_dict = self.agents_data[agent_id][state_key]
-        if not isinstance(target_dict, dict):
-            raise ValueError(f"Agent {agent_id}.{state_key} is not a dictionary")
-
-        return DictProxy(
-            target_dict=target_dict,
-            event_recorder=self._create_event_recorder(),
-            context_provider=self._create_context_provider(),
-            path=("agents", agent_id, state_key),
-            persistence_journal=self._state_delta_journal,
-            lease=self._persistence_proxy_lease,
-        )
+        target = self.agents_data[agent_id][state_key]
+        proxy_kwargs = {
+            "event_recorder": self._create_event_recorder(),
+            "context_provider": self._create_context_provider(),
+            "path": ("agents", agent_id, state_key),
+            "persistence_journal": self._state_delta_journal,
+            "lease": self._persistence_proxy_lease,
+        }
+        if isinstance(target, dict):
+            return DictProxy(target_dict=target, **proxy_kwargs)
+        if isinstance(target, list):
+            return ListProxy(target_list=target, **proxy_kwargs)
+        raise ValueError(f"Agent {agent_id}.{state_key} is not a state container")
 
     def create_environment_state_proxy(self) -> DictProxy:
         """
@@ -1061,9 +1067,19 @@ class World:
                 source.validate_initial_state(state)
                 continue
             if root_path[:1] == ("agents",):
-                for agent_id, agent_data in self.agents_data.items():
-                    agent_state = agent_data.get("state", {})
-                    source.validate_initial_state(agent_state)
+                if len(root_path) < 2:
+                    raise ValueError("Agent persistence root must identify an agent")
+                agent_id = root_path[1]
+                if agent_id not in self.agents_data:
+                    raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
+                agent_data = self.agents_data[agent_id]
+                source.validate_initial_state(
+                    {
+                        "state": agent_data.get("state", {}),
+                        "properties": agent_data.get("properties", {}),
+                        "reminders": agent_data.get("reminders", []),
+                    }
+                )
         journal = StateDeltaJournal(compiled)
         journal.bind_canonical_state(self._persistence_lookup)
         old_lease = self._persistence_proxy_lease
@@ -1085,7 +1101,7 @@ class World:
         the same persistence contract.
         """
 
-        from .incremental_checkpoint import PersistenceSchema, _WILDCARD
+        from .incremental_checkpoint import PersistenceSchema
 
         environment_schema = self.environment_data.get("schema")
         if not isinstance(environment_schema, dict) or not environment_schema:
@@ -1106,8 +1122,7 @@ class World:
             )
         ]
 
-        seen_agent_schemas: set[str] = set()
-        for agent_data in self.agents_data.values():
+        for agent_id, agent_data in self.agents_data.items():
             agent_type = agent_data.get("type") if isinstance(agent_data, dict) else None
             raw_schema = self.get_agent_type_schema(str(agent_type or ""))
             if not isinstance(raw_schema, dict):
@@ -1117,14 +1132,31 @@ class World:
             # before compiling the canonical Agent root.
             if isinstance(raw_schema.get("state_schema"), dict):
                 raw_schema = raw_schema["state_schema"]
-            fingerprint = json.dumps(raw_schema, ensure_ascii=False, sort_keys=True, default=str)
-            if fingerprint in seen_agent_schemas:
-                continue
-            seen_agent_schemas.add(fingerprint)
+            agent_container_schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "state": raw_schema,
+                    "properties": {
+                        "type": "object",
+                        "additionalProperties": {},
+                        "persistence": {
+                            "kind": "replaceable",
+                            "granularity": "entry",
+                        },
+                    },
+                    "reminders": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "persistence": {"kind": "transient"},
+                    },
+                },
+            }
             sources.append(
                 PersistenceSchema.compile(
-                    raw_schema,
-                    root_path=("agents", _WILDCARD, "state"),
+                    agent_container_schema,
+                    root_path=("agents", str(agent_id)),
                 )
             )
 
@@ -1138,7 +1170,12 @@ class World:
         if self._persistence_proxy_lease is not None and self._persistence_proxy_lease.active:
             raise RuntimeError("a persistence tick is already active")
         self._state_delta_journal.bind_canonical_state(self._persistence_lookup)
-        self._state_delta_journal.begin_tick(step)
+        epoch_id = f"{self._memory_branch_id}:{step}:{uuid.uuid4().hex}"
+        self._active_memory_epoch_id = epoch_id
+        self._memory_epoch_sequence += 1
+        self._state_delta_journal.begin_tick(step, write_epoch_id=epoch_id)
+        for memory in self._iter_agent_memories():
+            memory.set_write_epoch(epoch_id, self._memory_epoch_sequence)
         self._persistence_lease_generation += 1
         self._persistence_proxy_lease = _ProxyLease(self._persistence_lease_generation)
         self._environment_state_proxy = None
@@ -1150,6 +1187,9 @@ class World:
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
         delta = self._state_delta_journal.seal_tick()
+        for memory in self._iter_agent_memories():
+            memory.clear_write_epoch()
+        self._active_memory_epoch_id = None
         if self._persistence_proxy_lease is not None:
             self._persistence_proxy_lease.invalidate()
         self._persistence_proxy_lease = None
@@ -1162,10 +1202,43 @@ class World:
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
         self._state_delta_journal.abort_tick()
+        failed_epoch = self._active_memory_epoch_id
+        for memory in self._iter_agent_memories():
+            memory.clear_write_epoch()
+            if failed_epoch:
+                memory.discard_write_epoch(failed_epoch)
+        self._active_memory_epoch_id = None
         if self._persistence_proxy_lease is not None:
             self._persistence_proxy_lease.invalidate()
         self._persistence_proxy_lease = None
         self._environment_state_proxy = None
+
+    def _iter_agent_memories(self):
+        for agent in self._agent_cache.values():
+            memory = getattr(agent, "_memory", None)
+            if memory is not None:
+                yield memory
+
+    def set_memory_checkpoint_view(
+        self,
+        *,
+        target_step: int,
+        branch_id: str,
+        branch_lineage: List[Tuple[str, int]],
+        committed_write_epoch_ids: Set[str],
+    ) -> None:
+        """把所有已创建 Memory 切换到 marker 决定的单库视图。"""
+
+        self._memory_branch_id = str(branch_id)
+        self._memory_branch_lineage = list(branch_lineage)
+        self._committed_memory_epoch_ids = set(committed_write_epoch_ids)
+        for memory in self._iter_agent_memories():
+            memory.branch_id = self._memory_branch_id
+            memory.set_memory_view(
+                target_step,
+                self._memory_branch_lineage,
+                self._committed_memory_epoch_ids,
+            )
 
     # Transaction integration
 
@@ -2621,11 +2694,25 @@ class World:
             memory = Memory(
                 agent_id=agent_id,
                 vector_client=vector_client,  # 注入客户端实例
-                branch_id="main",  # Default branch
+                branch_id=self._memory_branch_id,
+                branch_lineage=self._memory_branch_lineage,
+                source_branch_id=self._memory_branch_id,
+                write_epoch_id=self._active_memory_epoch_id,
+                epoch_seq=self._memory_epoch_sequence,
                 embedding_dim=int(getattr(self, "_embedding_dim", 512) or 512),
                 embed_call=getattr(self, '_embed_call', None),  # 注入embed函数
                 llm_call=getattr(self, '_llm_call', None)  # 注入llm函数
             )
+            memory.set_memory_view(
+                self.step,
+                self._memory_branch_lineage,
+                self._committed_memory_epoch_ids,
+            )
+            if self._active_memory_epoch_id:
+                memory.set_write_epoch(
+                    self._active_memory_epoch_id,
+                    self._memory_epoch_sequence,
+                )
 
             logger.debug(f"Created memory system for agent {agent_id} with injected dependencies")
             return memory

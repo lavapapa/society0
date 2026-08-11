@@ -148,11 +148,12 @@ class DictProxy(MutableMapping[str, Any]):
         """判断名称是否为类级别已定义的属性/方法。"""
         return any(name in base.__dict__ for base in cls.__mro__)
     
-    @staticmethod
-    def _snapshot(value: Any) -> Any:
+    def _snapshot(self, value: Any) -> Any:
         """捕获值的快照，确保事件记录使用稳定副本。"""
         if value is _MISSING:
             return _MISSING
+        if self._persistence_journal is not None and isinstance(value, (dict, list)):
+            return {"persistence_audit_summary": type(value).__name__, "size": len(value)}
         try:
             return copy.deepcopy(value)
         except Exception:
@@ -311,12 +312,12 @@ class DictProxy(MutableMapping[str, Any]):
         return self._target_dict.keys()
     
     def values(self):
-        """获取所有值（注意：这些值不是代理对象）"""
-        return self._target_dict.values()
+        """返回递归代理值，避免泄露可写原生容器。"""
+        return (self[key] for key in self._target_dict)
     
     def items(self):
-        """获取所有键值对（注意：值不是代理对象）"""
-        return self._target_dict.items()
+        """返回键和递归代理值。"""
+        return ((key, self[key]) for key in self._target_dict)
     
     def get(self, key: str, default: Any = None) -> Any:
         """安全获取值，支持代理递归"""
@@ -437,11 +438,12 @@ class ListProxy(MutableSequence[Any]):
         if lease is not None:
             lease.ensure_live()
     
-    @staticmethod
-    def _snapshot(value: Any) -> Any:
+    def _snapshot(self, value: Any) -> Any:
         """捕获值的快照，确保事件记录的稳定性。"""
         if value is _MISSING:
             return _MISSING
+        if self._persistence_journal is not None and isinstance(value, (dict, list)):
+            return {"persistence_audit_summary": type(value).__name__, "size": len(value)}
         try:
             return copy.deepcopy(value)
         except Exception:
@@ -545,8 +547,8 @@ class ListProxy(MutableSequence[Any]):
         return len(self._target_list)
     
     def __iter__(self):
-        """遍历列表（注意：这些值不是代理对象）"""
-        return iter(self._target_list)
+        """遍历递归代理值，避免泄露可写原生容器。"""
+        return (self[index] for index in range(len(self._target_list)))
 
     def __deepcopy__(self, memo: Dict[int, Any]) -> List[Any]:
         """生成与代理生命周期脱离的普通列表快照。"""

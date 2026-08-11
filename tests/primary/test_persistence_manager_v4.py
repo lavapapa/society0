@@ -309,14 +309,18 @@ async def test_async_writer_applies_backpressure_to_second_publish(tmp_path, mon
         release = threading.Event()
         real_publish = V4CheckpointStore.publish
 
-        def delayed_publish(store: V4CheckpointStore, delta: Any) -> dict[str, Any]:
+        def delayed_publish(
+            store: V4CheckpointStore,
+            delta: Any,
+            **components: Any,
+        ) -> dict[str, Any]:
             if not entered.is_set():
                 entered.set()
                 # If an implementation incorrectly runs the synchronous writer
                 # on the event loop, the bounded timeout fails the test quickly
                 # rather than hanging the whole primary suite.
                 release.wait(timeout=0.5)
-            return real_publish(store, delta)
+            return real_publish(store, delta, **components)
 
         monkeypatch.setattr(V4CheckpointStore, "publish", delayed_publish)
         first = asyncio.create_task(manager.publish_delta(delta_one, schedule))
@@ -348,6 +352,40 @@ async def test_checkpoint_every_epoch_accumulates_ticks_and_discard_drops_unpubl
             Path(manager.save_dir) / "checkpoints" / "v4" / "complete" / "step_000001.json"
         ).exists()
     finally:
+        _close(manager, world)
+
+
+@pytest.mark.asyncio
+async def test_manager_fork_reuses_history_and_publishes_independent_future(tmp_path):
+    manager = PersistenceManager(str(tmp_path))
+    world = _world(tmp_path)
+    schedule = _configure(manager, world)
+    try:
+        await manager.publish_root(world, schedule)
+        await manager.publish_delta(
+            _seal_delta(world, 1, price=11, fact_id="shared"),
+            schedule,
+        )
+        source_manifest_count = len(list((tmp_path / "checkpoints" / "v4" / "manifests").glob("*.json")))
+
+        branch = await manager.create_branch(1, "policy")
+        branch_world = branch._v4_world
+        assert branch_world is not None
+        assert len(list((tmp_path / "checkpoints" / "v4" / "manifests").glob("*.json"))) == source_manifest_count
+        branch_delta = _seal_delta(branch_world, 2, price=20, fact_id="branch-only")
+        await branch.publish_delta(branch_delta, schedule)
+
+        source_delta = _seal_delta(world, 2, price=12, fact_id="source-only")
+        await manager.publish_delta(source_delta, schedule)
+        source_restored, _ = await manager.load_checkpoint(2, restore_chroma=False)
+        branch_restored, _ = await branch.load_checkpoint(2, restore_chroma=False)
+        assert _state(source_restored)["price"] == 12
+        assert _state(branch_restored)["price"] == 20
+        assert set(_state(source_restored)["facts_by_id"]) == {"shared", "source-only"}
+        assert set(_state(branch_restored)["facts_by_id"]) == {"shared", "branch-only"}
+    finally:
+        if "branch" in locals():
+            branch.close()
         _close(manager, world)
 
     manager = PersistenceManager(str(tmp_path / "commit"))
