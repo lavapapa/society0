@@ -53,6 +53,38 @@ def _declarations() -> PersistenceSchema:
     )
 
 
+@pytest.mark.asyncio
+async def test_root_restore_preserves_empty_replaceable_entry_map(tmp_path):
+    schema = PersistenceSchema.compile(
+        {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "object",
+                    "additionalProperties": {"type": "object"},
+                    "persistence": {
+                        "kind": "replaceable",
+                        "granularity": "entry",
+                    },
+                }
+            },
+            "additionalProperties": False,
+        },
+        root_path=("environment", "state"),
+    )
+    world = World(step=0, event_log_path=str(tmp_path / "world.events.jsonl"))
+    world.environment_data["type"] = "plain"
+    world.environment_data["state"] = {"entities": {}}
+    manager = PersistenceManager(str(tmp_path / "run"))
+    manager.configure_v4(world, schema)
+
+    await manager.publish_root(world, schedule=object())
+
+    assert V4CheckpointStore(tmp_path / "run").restore(0)["environment"]["state"] == {
+        "entities": {}
+    }
+
+
 def _world(tmp_path: Path, *, name: str = "world") -> World:
     world = World(step=0, event_log_path=str(tmp_path / f"{name}.events.jsonl"))
     world.environment_data["type"] = "plain"
