@@ -5,7 +5,7 @@ Handles checkpointing of World state, Chroma vector store data,
 and event replay according to the final integration design document.
 """
 
-from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable
+from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable, Mapping, Sequence
 from pathlib import Path
 import asyncio
 import copy
@@ -26,6 +26,15 @@ import threading
 from .logging import LogField, SystemEvent
 from .jmespath_context import NodeSnapshot, OperatorSnapshot
 from .state_proxy import DictProxy, ListProxy
+from .incremental_checkpoint import (
+    PersistenceSchema,
+    PersistenceKind,
+    SealedTickDelta,
+    V4CheckpointStore,
+    _WILDCARD,
+    _freeze_json,
+    _thaw_json,
+)
 
 if TYPE_CHECKING:
     from .core_data import World
@@ -97,6 +106,19 @@ class PersistenceManager:
 
         self._diff_lock = threading.Lock()
         self._chroma_init_lock = threading.Lock()
+
+        # v4 is opt-in while the existing Society0/SimEngine paths continue to
+        # use their established checkpoint contract.  Once configured, all
+        # incremental state is consumed from sealed deltas; publish_delta never
+        # receives or reads a World.
+        self._v4_enabled = False
+        self._v4_world = None
+        self._v4_schema: Optional[PersistenceSchema] = None
+        self._v4_store: Optional[V4CheckpointStore] = None
+        self._v4_checkpoint_every = 1
+        self._v4_epoch: list[SealedTickDelta] = []
+        self._v4_publish_lock: Optional[asyncio.Lock] = None
+        self._v4_root_published = False
 
         # Paths for Chroma persistence
         self.chroma_store_path = self.save_dir / "chroma_store"
@@ -802,6 +824,297 @@ class PersistenceManager:
             isinstance(agent_data, dict) and agent_data.get("archetype") == "llm"
             for agent_data in world.agents_data.values()
         )
+
+    # ------------------------------------------------------------------
+    # v4 incremental checkpoint path
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _v4_path_value(state: Mapping[str, Any], path: Sequence[Any]) -> tuple[bool, Any]:
+        current: Any = state
+        for part in path:
+            if not isinstance(current, Mapping) or part not in current:
+                return False, None
+            current = current[part]
+        return True, current
+
+    def _v4_root_entries(self, state: Mapping[str, Any]) -> list[dict[str, Any]]:
+        """Build step-0 operations from declared state once.
+
+        The root is the only place where the complete initial state may be
+        inspected.  Every later publish consumes only ``SealedTickDelta``.
+        Transient declarations are intentionally omitted; defaults are applied
+        when a v4 World is restored.
+        """
+
+        assert self._v4_schema is not None
+        state = self._plain_snapshot_value(state)
+        root = self._v4_schema.root_path
+        entries: list[dict[str, Any]] = []
+        sequence = 0
+        for path, rule in self._v4_schema.rules.items():
+            if any(part is _WILDCARD for part in path):
+                continue
+            if path[: len(root)] != root:
+                continue
+            relative = path[len(root) :]
+            if not relative or rule.kind is PersistenceKind.TRANSIENT:
+                continue
+            found, value = self._v4_path_value(state, relative)
+            if not found:
+                continue
+            if rule.granularity == "entry":
+                if not isinstance(value, Mapping):
+                    raise TypeError(f"entry-granularity state must be a mapping: {path!r}")
+                for key, item in value.items():
+                    entries.append(
+                        {
+                            "path": list(path + (key,)),
+                            "operation": "set",
+                            "value": self._plain_snapshot_value(item),
+                            "sequence": sequence,
+                        }
+                    )
+                    sequence += 1
+                continue
+            # Root bootstrap is allowed to materialize an append-only container
+            # once.  Tick writes still enforce append-only operations through
+            # StateDeltaJournal.
+            entries.append(
+                {
+                    "path": list(path),
+                    "operation": "set",
+                    "value": self._plain_snapshot_value(value),
+                    "sequence": sequence,
+                }
+            )
+            sequence += 1
+        return entries
+
+    def configure_v4(
+        self,
+        world: 'World',
+        declarations: PersistenceSchema | Mapping[str, Any],
+        *,
+        checkpoint_every: int = 1,
+    ) -> PersistenceSchema:
+        """Enable v4 persistence for a World and compile its declarations."""
+
+        if isinstance(checkpoint_every, bool) or not isinstance(checkpoint_every, int) or checkpoint_every < 1:
+            raise ValueError("checkpoint_every must be a positive integer")
+        compiled = world.configure_persistence(declarations)
+        if not isinstance(compiled, PersistenceSchema):
+            raise TypeError("World.configure_persistence must return PersistenceSchema")
+        self._v4_enabled = True
+        self._v4_world = world
+        self._v4_schema = compiled
+        self._v4_store = V4CheckpointStore(self.save_dir)
+        self._v4_checkpoint_every = checkpoint_every
+        self._v4_epoch = []
+        self._v4_publish_lock = asyncio.Lock()
+        self._v4_root_published = 0 in self._v4_store.available_steps()
+        return compiled
+
+    def _v4_root_metadata(
+        self,
+        environment_data: Mapping[str, Any],
+        agents_data: Mapping[str, Any],
+        agent_types: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        environment_data = self._plain_snapshot_value(environment_data)
+        environment_data.pop("state", None)
+        return {
+            "schema_version": 1,
+            "agents_data": self._plain_snapshot_value(agents_data),
+            "agent_types": self._plain_snapshot_value(agent_types),
+            "environment_data": environment_data,
+            "persistence_schema": self._plain_snapshot_value(self._v4_schema.schema)
+            if self._v4_schema is not None
+            else None,
+            "persistence_root_path": list(self._v4_schema.root_path)
+            if self._v4_schema is not None
+            else ["environment", "state"],
+        }
+
+    @staticmethod
+    def _v4_merge_epoch(deltas: Sequence[SealedTickDelta]) -> SealedTickDelta:
+        if not deltas:
+            raise ValueError("cannot publish an empty checkpoint epoch")
+        if len(deltas) == 1:
+            return deltas[0]
+        replacements: list[Mapping[str, Any]] = []
+        appends: list[Mapping[str, Any]] = []
+        sequence = 0
+        # Sealed delta mappings are recursively frozen.  Thaw before changing
+        # sequence numbers so the writer never receives MappingProxyType values.
+        for delta in deltas:
+            operations = [
+                ("replacement", _thaw_json(item)) for item in delta.replacements
+            ] + [("append", _thaw_json(item)) for item in delta.appends]
+            operations.sort(key=lambda item: item[1].get("sequence", 0))
+            for kind, operation in operations:
+                operation["sequence"] = sequence
+                (replacements if kind == "replacement" else appends).append(operation)
+                sequence += 1
+        return SealedTickDelta(
+            step=deltas[-1].step,
+            replacements=tuple(_freeze_json(item) for item in replacements),
+            appends=tuple(_freeze_json(item) for item in appends),
+        )
+
+    async def publish_root(self, world: 'World', schedule: 'Schedule') -> Dict[str, Any]:
+        """Publish the immutable step-0 v4 root through a worker thread."""
+
+        del schedule  # schedule progress is not part of v4 state deltas
+        if not self._v4_enabled or self._v4_store is None or self._v4_schema is None:
+            raise RuntimeError("v4 persistence is not configured")
+        if world is not self._v4_world:
+            raise ValueError("publish_root World does not match configure_v4 World")
+        if self._v4_publish_lock is None:
+            self._v4_publish_lock = asyncio.Lock()
+        async with self._v4_publish_lock:
+            if self._v4_root_published:
+                raise RuntimeError("v4 root checkpoint is already published")
+            # Capture canonical World data once, before entering the worker.
+            # No subsequent delta publish has access to this World reference.
+            environment_data = self._plain_snapshot_value(world.environment_data)
+            agents_data = self._plain_snapshot_value(world.agents_data)
+            agent_types = self._plain_snapshot_value(getattr(world, "_agent_types", {}) or {})
+            entries = self._v4_root_entries(environment_data.get("state") or {})
+            metadata = self._v4_root_metadata(environment_data, agents_data, agent_types)
+            marker = await asyncio.to_thread(
+                self._v4_store.publish_root,
+                entries,
+                metadata=metadata,
+                step=0,
+            )
+            self._v4_root_published = True
+            return marker
+
+    async def publish_delta(
+        self,
+        delta: SealedTickDelta,
+        schedule: 'Schedule',
+    ) -> Optional[Dict[str, Any]]:
+        """Queue a sealed delta and publish complete epochs with backpressure."""
+
+        del schedule
+        if not self._v4_enabled or self._v4_store is None:
+            raise RuntimeError("v4 persistence is not configured")
+        if not isinstance(delta, SealedTickDelta):
+            raise TypeError("publish_delta expects a SealedTickDelta")
+        if not self._v4_root_published:
+            raise RuntimeError("publish_root must complete before publish_delta")
+        if self._v4_publish_lock is None:
+            self._v4_publish_lock = asyncio.Lock()
+        async with self._v4_publish_lock:
+            self._v4_epoch.append(delta)
+            if len(self._v4_epoch) < self._v4_checkpoint_every:
+                return None
+            combined = self._v4_merge_epoch(self._v4_epoch)
+            try:
+                marker = await asyncio.to_thread(self._v4_store.publish, combined)
+            except BaseException:
+                # A failed epoch is never recoverable.  The caller may continue
+                # only after explicitly starting a new epoch.
+                self._v4_epoch.clear()
+                raise
+            self._v4_epoch.clear()
+            return marker
+
+    def discard_unpublished_epoch(self) -> None:
+        """Drop all sealed deltas since the previous complete marker."""
+
+        if self._v4_publish_lock is not None and self._v4_publish_lock.locked():
+            raise RuntimeError("cannot discard an epoch while v4 writer is active")
+        self._v4_epoch.clear()
+
+    @classmethod
+    def _resolve_v4_checkpoint_from(
+        cls,
+        source_run: str | Path,
+        step: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        root = Path(source_run).resolve()
+        complete_dir = root / "checkpoints" / "v4" / "complete"
+        if not complete_dir.is_dir():
+            raise FileNotFoundError(f"No v4 complete checkpoints found in {root}")
+        store = V4CheckpointStore(root)
+        return store.resolve(step)
+
+    @staticmethod
+    def _v4_root_manifest(root: Path, step: int) -> dict[str, Any]:
+        store = V4CheckpointStore(root)
+        chain = store._manifest_chain(step)
+        if not chain or not isinstance(chain[0].get("root_metadata"), dict):
+            raise ValueError(f"v4 root metadata missing for step {step}")
+        return chain[0]["root_metadata"]
+
+    @staticmethod
+    def _v4_apply_transient_defaults(
+        state: dict[str, Any],
+        schema: Optional[PersistenceSchema],
+    ) -> None:
+        if schema is None:
+            return
+        root = schema.root_path
+        for path, rule in schema.rules.items():
+            if rule.kind is not PersistenceKind.TRANSIENT or not rule.has_default:
+                continue
+            if any(part is _WILDCARD for part in path):
+                continue
+            relative = path[len(root) :] if path[: len(root)] == root else None
+            if not relative:
+                continue
+            current: Any = state
+            for part in relative[:-1]:
+                if not isinstance(current, dict):
+                    current = None
+                    break
+                child = current.get(part)
+                if child is None:
+                    child = {}
+                    current[part] = child
+                current = child
+            if isinstance(current, dict):
+                current.setdefault(relative[-1], copy.deepcopy(rule.default))
+
+    async def _load_v4_checkpoint_record(
+        self,
+        record: Dict[str, Any],
+        *,
+        event_logger: Optional[Any],
+        event_log_path: Optional[str],
+        environment_factory: Optional[Any],
+    ) -> Tuple['World', 'Schedule']:
+        root = Path(record["marker_file"]).resolve().parents[3]
+        store = V4CheckpointStore(root)
+        state_payload = store.restore(record["step"])
+        root_metadata = self._v4_root_manifest(root, record["step"])
+        schema = self._v4_schema
+        raw_schema = root_metadata.get("persistence_schema")
+        if schema is None and isinstance(raw_schema, dict):
+            root_path = tuple(root_metadata.get("persistence_root_path") or ("environment", "state"))
+            schema = PersistenceSchema.compile(raw_schema, root_path=root_path)
+
+        from .core_data import World
+
+        events_file = event_log_path or str(self.events_dir / f"events_from_step_{record['step']}.jsonl")
+        world = World(step=record["step"], event_log_path=events_file, event_logger=event_logger)
+        if environment_factory is not None:
+            world.set_environment_factory(environment_factory)
+        world.agents_data = copy.deepcopy(root_metadata.get("agents_data") or {})
+        world._agent_types = copy.deepcopy(root_metadata.get("agent_types") or {})
+        world.environment_data = copy.deepcopy(root_metadata.get("environment_data") or {})
+        world.environment_data.setdefault("type", "base")
+        restored_state = copy.deepcopy(
+            ((state_payload.get("environment") or {}).get("state") or {})
+        )
+        self._v4_apply_transient_defaults(restored_state, schema)
+        world.environment_data["state"] = restored_state
+        if schema is not None:
+            world.configure_persistence(schema)
+        return world, None
     
     async def save_checkpoint(
         self,
@@ -1361,6 +1674,9 @@ class PersistenceManager:
         directories, tmpfs runtime, Chroma client, or close-time writeback.
         """
         save_dir = Path(source_run).resolve()
+        v4_complete = save_dir / "checkpoints" / "v4" / "complete"
+        if v4_complete.is_dir() and any(v4_complete.glob("step_*.json")):
+            return cls._resolve_v4_checkpoint_from(save_dir, step)
         checkpoints_dir = save_dir / "checkpoints"
         complete_dir = checkpoints_dir / "complete"
         backup_root = save_dir / "chroma_backups"
@@ -1557,6 +1873,8 @@ class PersistenceManager:
     def resolve_checkpoint(self, step: Optional[int] = None) -> Dict[str, Any]:
         """Resolve a checkpoint in this run through the read-only resolver."""
         self._assert_usable()
+        if self._v4_enabled:
+            return self._resolve_v4_checkpoint_from(self.save_dir, step)
         return self.resolve_checkpoint_from(self.save_dir, step)
 
     async def load_checkpoint(
@@ -1586,6 +1904,13 @@ class PersistenceManager:
             Tuple of (World, Schedule) objects
         """
         record = self.resolve_checkpoint(step)
+        if record.get("marker", {}).get("checkpoint_version") == V4CheckpointStore.VERSION:
+            return await self._load_v4_checkpoint_record(
+                record,
+                event_logger=event_logger,
+                event_log_path=event_log_path,
+                environment_factory=environment_factory,
+            )
         return await self._load_checkpoint_record(
             record,
             memory_required=memory_required,
@@ -1609,6 +1934,13 @@ class PersistenceManager:
         """Load a source checkpoint into this manager without mutating source_run."""
         self._assert_usable()
         record = self.resolve_checkpoint_from(source_run, step)
+        if record.get("marker", {}).get("checkpoint_version") == V4CheckpointStore.VERSION:
+            return await self._load_v4_checkpoint_record(
+                record,
+                event_logger=event_logger,
+                event_log_path=event_log_path,
+                environment_factory=environment_factory,
+            )
         return await self._load_checkpoint_record(
             record,
             memory_required=memory_required,
