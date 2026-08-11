@@ -8,6 +8,7 @@ import pytest
 
 from society0 import EmbedModel, LLMModel, Society0
 from society0.core_data import ExecutionContext
+from society0.incremental_checkpoint import V4CheckpointStore
 from society0.resource_managers import EmbeddingManager
 from tests import read_gzip_json
 
@@ -347,7 +348,11 @@ async def test_e2e_failed_step_records_failed_event_and_final_checkpoint(tmp_pat
 
 @pytest.mark.asyncio
 async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_round_robin_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_round_robin_config(),
+        checkpoint_every=1,
+    )
 
     @engine.step(name="round_robin_logic")
     async def round_robin_logic(ctx):
@@ -454,6 +459,16 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         and message["receiver"] == "participant_1"
         for message in message_facts
     )
+    restored = V4CheckpointStore(tmp_path).restore(1)
+    restored_state = restored["environment"]["state"]
+    assert restored_state["pairing_current_round"] == 1
+    assert len(restored_state["pairing_completed_pairs"]) == 2
+    assert len(restored_state["message_facts"]) == 4
+    assert "active_messages" not in restored_state
+    assert (
+        restored["agents"]["participant_0"]["state"]["conversation_marker"]
+        == "baseline-ready"
+    )
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     rule_entries = summary["capabilities"]["by_kind"]["rules"]
     action_entries = summary["capabilities"]["by_kind"]["actions"]
@@ -468,7 +483,11 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
 
 @pytest.mark.asyncio
 async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_social_network_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_network_config(),
+        checkpoint_every=1,
+    )
     observed = {}
 
     @engine.step(name="social_round")
@@ -515,6 +534,82 @@ async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(
     ]
     assert len(comments) == 1
     assert state["post_creation_facts"]["post_2"]["reply_to"] == "post_1"
+    restored_state = V4CheckpointStore(tmp_path).restore(1)["environment"]["state"]
+    assert restored_state["post_creation_facts"]["post_1"]["content"].startswith(
+        "A public claim"
+    )
+    assert restored_state["post_projection"]["post_1"]["view_count"] == 1
+    assert restored_state["recommended_posts"]["viewer"][0] == "post_1"
+    assert "trending_post_ids" not in restored_state
+
+
+@pytest.mark.asyncio
+async def test_e2e_builtin_envs_restore_distinct_incremental_ticks(tmp_path):
+    round_dir = tmp_path / "round-robin"
+    round_engine = Society0(
+        save_dir=str(round_dir),
+        base_config=_round_robin_config(),
+        checkpoint_every=1,
+    )
+
+    @round_engine.step(name="two_rounds")
+    async def two_rounds(ctx):
+        round_number = ctx.step + 1
+        result = await ctx.rule(
+            "advance_round_robin_with_pairing",
+            round_number=round_number,
+        )
+        assert result["successful_pairs"] == 2
+        sent = await ctx.env.send_message_to_partner(
+            context=_action_context(ctx, "participant_0"),
+            agent=ctx.world.get_agent("participant_0"),
+            content=f"round-{round_number}",
+        )
+        assert sent["status"] == "success"
+        return ctx.result()
+
+    await round_engine.run(steps=2)
+    round_store = V4CheckpointStore(round_dir)
+    round_one = round_store.restore(1)["environment"]["state"]
+    round_two = round_store.restore(2)["environment"]["state"]
+    assert round_one["pairing_current_round"] == 1
+    assert round_two["pairing_current_round"] == 2
+    assert [item["content"] for item in round_one["message_facts"]] == [
+        "round-1"
+    ]
+    assert [item["content"] for item in round_two["message_facts"]] == [
+        "round-1",
+        "round-2",
+    ]
+    assert "active_messages" not in round_one
+    assert "active_messages" not in round_two
+
+    social_dir = tmp_path / "social"
+    social_engine = Society0(
+        save_dir=str(social_dir),
+        base_config=_social_network_config(),
+        checkpoint_every=1,
+    )
+
+    @social_engine.step(name="two_posts")
+    async def two_posts(ctx):
+        post_number = ctx.step + 1
+        await ctx.env.publish_post(
+            context=_action_context(ctx, "author"),
+            content=f"post-at-tick-{post_number}",
+            tags=["checkpoint"],
+        )
+        return ctx.result()
+
+    await social_engine.run(steps=2)
+    social_store = V4CheckpointStore(social_dir)
+    social_one = social_store.restore(1)["environment"]["state"]
+    social_two = social_store.restore(2)["environment"]["state"]
+    assert set(social_one["post_creation_facts"]) == {"post_1"}
+    assert set(social_two["post_creation_facts"]) == {"post_1", "post_2"}
+    assert social_two["post_counter"] == 2
+    assert "trending_post_ids" not in social_one
+    assert "trending_post_ids" not in social_two
 
 
 @pytest.mark.asyncio

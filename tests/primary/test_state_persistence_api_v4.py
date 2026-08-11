@@ -322,3 +322,153 @@ def test_entity_map_creation_still_records_one_complete_new_entry(tmp_path):
         assert delta.replacements[0]["value"]["balance"] == 5
     finally:
         world.event_logger.close()
+
+
+def test_mixed_entity_cannot_replace_or_delete_its_nested_append_history(tmp_path):
+    schema = persistent_state_schema(
+        accounts=replaceable_map(
+            entry_schema={
+                "type": "object",
+                "properties": {
+                    "balance": replaceable(schema={"type": "number"}),
+                    "journal_entries": append_only_map(),
+                },
+                "additionalProperties": False,
+            }
+        )
+    )
+    initial = {
+        "accounts": {
+            "a": {
+                "balance": 10,
+                "journal_entries": {"j-1": {"amount": 1}},
+            }
+        }
+    }
+    world = _world(tmp_path, initial, schema)
+    try:
+        accounts = world.create_environment_state_proxy()["accounts"]
+        before = copy.deepcopy(world.environment_data["state"])
+
+        with pytest.raises(ValueError, match="nested append|history|per-field"):
+            accounts["a"] = {"balance": 9, "journal_entries": {}}
+        with pytest.raises(ValueError, match="nested append|history|delete"):
+            del accounts["a"]
+
+        assert world.environment_data["state"] == before
+    finally:
+        world.abort_persistence_tick()
+        world.event_logger.close()
+
+
+def test_runtime_writes_validate_declared_types_and_closed_nested_fields_before_mutation(
+    tmp_path,
+):
+    schema = persistent_state_schema(
+        accounts=replaceable_map(
+            entry_schema={
+                "type": "object",
+                "properties": {
+                    "balance": replaceable(schema={"type": "number"}),
+                },
+                "additionalProperties": False,
+            }
+        ),
+        facts=append_only_map(
+            entry_schema={
+                "type": "object",
+                "properties": {"amount": {"type": "number"}},
+                "additionalProperties": False,
+            }
+        ),
+        audit=append_only_list(
+            item_schema={
+                "type": "object",
+                "properties": {"kind": {"type": "string"}},
+                "additionalProperties": False,
+            }
+        ),
+        runtime=transient(
+            schema={
+                "type": "object",
+                "properties": {"cursor": {"type": "integer"}},
+                "additionalProperties": False,
+            },
+            default={"cursor": 0},
+        ),
+    )
+    world = _world(
+        tmp_path,
+        {
+            "accounts": {"a": {"balance": 1}},
+            "facts": {},
+            "audit": [],
+            "runtime": {"cursor": 0},
+        },
+        schema,
+    )
+    try:
+        state = world.create_environment_state_proxy()
+        before = copy.deepcopy(world.environment_data["state"])
+
+        with pytest.raises((TypeError, ValueError), match="balance|number"):
+            state["accounts"]["a"]["balance"] = "invalid"
+        with pytest.raises((TypeError, ValueError), match="unknown"):
+            state["accounts"]["a"]["unknown"] = 1
+        with pytest.raises((TypeError, ValueError), match="extra"):
+            state["facts"]["f-1"] = {"amount": 1, "extra": True}
+        with pytest.raises((TypeError, ValueError), match="kind|string"):
+            state["audit"].append({"kind": 3})
+        with pytest.raises((TypeError, ValueError), match="other"):
+            state["runtime"]["other"] = 1
+
+        assert world.environment_data["state"] == before
+    finally:
+        world.abort_persistence_tick()
+        world.event_logger.close()
+
+
+def test_append_only_map_update_preflights_the_whole_batch_before_mutation(tmp_path):
+    schema = persistent_state_schema(facts=append_only_map())
+    world = _world(tmp_path, {"facts": {"existing": {"value": 1}}}, schema)
+    try:
+        facts = world.create_environment_state_proxy()["facts"]
+
+        with pytest.raises(ValueError, match="duplicate|existing"):
+            facts.update(
+                {
+                    "new": {"value": 2},
+                    "existing": {"value": 3},
+                }
+            )
+
+        assert world.environment_data["state"]["facts"] == {
+            "existing": {"value": 1}
+        }
+        assert world.seal_persistence_tick().appends == ()
+    finally:
+        world.event_logger.close()
+
+
+def test_typed_replaceable_list_keeps_normal_slice_and_iadd_semantics(tmp_path):
+    schema = persistent_state_schema(
+        values=replaceable(
+            schema={"type": "array", "items": {"type": "integer"}}
+        )
+    )
+    world = _world(tmp_path, {"values": [1, 2, 3]}, schema)
+    try:
+        values = world.create_environment_state_proxy()["values"]
+        values[1:3] = [8, 9]
+        values += [10]
+        before_invalid = copy.deepcopy(world.environment_data["state"])
+
+        with pytest.raises(TypeError, match="integer"):
+            values[0:2] = [7, "invalid"]
+
+        assert world.environment_data["state"] == before_invalid
+        delta = world.seal_persistence_tick()
+        assert len(delta.replacements) == 1
+        assert list(delta.replacements[0]["value"]) == [1, 8, 9, 10]
+    finally:
+        world.event_logger.close()
