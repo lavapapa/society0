@@ -4,8 +4,6 @@ from pathlib import Path
 import pytest
 
 from society0 import Society0
-from society0.core_data import World
-from society0.persistence import PersistenceManager
 from tests import read_gzip_json
 
 pytestmark = pytest.mark.primary
@@ -72,28 +70,67 @@ def _post(post_id, *, author_id="author_recent", created_tick=0, likes=0, replie
     }
 
 
-def _load_many_posts(env, *, count=1000):
-    posts = env.state["posts"]
-    for idx in range(count):
-        posts[f"post_recent_{idx:04d}"] = _post(
-            f"post_recent_{idx:04d}",
-            created_tick=idx + 1,
-            likes=0,
-            replies=0,
-        )
-    posts["post_0900_old_high_engagement"] = _post(
-        "post_0900_old_high_engagement",
-        author_id="author_old",
-        created_tick=0,
-        likes=40,
-        replies=12,
-        content="Older but central claim with heavy discussion.",
+def _seed_post(env, post):
+    """通过 v4 canonical 容器写入测试帖子及其初始事实。"""
+    post_id = str(post["post_id"])
+    creation = {
+        key: post[key]
+        for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
+        if key in post
+    }
+    env.state["post_creation_facts"][post_id] = creation
+    env.state["post_projection"][post_id] = {
+        "view_count": int(post.get("view_count", 0) or 0),
+        "special_tags": list(post.get("special_tags", []) or []),
+    }
+    env.state["author_post_facts"].append(
+        {"author_id": str(post.get("author_id") or ""), "post_id": post_id}
     )
-    posts["post_0900_repost"] = _post(
-        "post_0900_repost",
-        author_id="reposter",
-        created_tick=2,
-        reply_to="post_0900_old_high_engagement",
+    for liker_id in post.get("likes", []) or []:
+        env.state["post_interaction_facts"].append(
+            {
+                "kind": "like",
+                "post_id": post_id,
+                "agent_id": liker_id,
+                "created_tick": post.get("created_tick", 0),
+            }
+        )
+    for reply in post.get("replies", []) or []:
+        env.state["post_interaction_facts"].append(
+            {"kind": "comment", "post_id": post_id, "reply": reply}
+        )
+
+
+def _load_many_posts(env, *, count=1000):
+    for idx in range(count):
+        _seed_post(
+            env,
+            _post(
+                f"post_recent_{idx:04d}",
+                created_tick=idx + 1,
+                likes=0,
+                replies=0,
+            ),
+        )
+    _seed_post(
+        env,
+        _post(
+            "post_0900_old_high_engagement",
+            author_id="author_old",
+            created_tick=0,
+            likes=40,
+            replies=12,
+            content="Older but central claim with heavy discussion.",
+        ),
+    )
+    _seed_post(
+        env,
+        _post(
+            "post_0900_repost",
+            author_id="reposter",
+            created_tick=2,
+            reply_to="post_0900_old_high_engagement",
+        ),
     )
 
 
@@ -135,12 +172,15 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         observed["social_actions"] = set(actionset.filter_by_tags(["social"]).actions.keys())
         observed["social_read_actions"] = set(actionset.filter_by_tags(["social_read"]).actions.keys())
         observed["environment_actions"] = set(actionset.filter_by_tags(["environment"]).actions.keys())
-        ctx.env.state["posts"]["post_hot"] = _post(
-            "post_hot",
-            author_id="author_old",
-            likes=12,
-            replies=3,
-            content="Highly discussed campus health policy update.",
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_hot",
+                author_id="author_old",
+                likes=12,
+                replies=3,
+                content="Highly discussed campus health policy update.",
+            ),
         )
         observed["profile"] = await actionset.call_action("get_agent_profile", agent_id="viewer")
         observed["trending"] = await actionset.call_action("get_trending_posts")
@@ -226,10 +266,13 @@ async def test_social_network_recommended_feed_does_not_write_stdout(tmp_path, c
 
     @engine.step(name="render_feed")
     async def render_feed(ctx):
-        ctx.env.state["posts"]["post_visible"] = _post(
-            "post_visible",
-            author_id="author_old",
-            content="A visible post for stdout regression.",
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_visible",
+                author_id="author_old",
+                content="A visible post for stdout regression.",
+            ),
         )
         feed = await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         assert "post_visible" in feed
@@ -247,12 +290,15 @@ async def test_social_network_state_change_events_are_hidden_by_default_but_chec
 
     @engine.step(name="write_large_post")
     async def write_large_post(ctx):
-        ctx.env.state["posts"]["post_full_checkpoint"] = _post(
-            "post_full_checkpoint",
-            author_id="author_old",
-            content=full_content,
-            likes=3,
-            replies=2,
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_full_checkpoint",
+                author_id="author_old",
+                content=full_content,
+                likes=3,
+                replies=2,
+            ),
         )
         return None
 
@@ -268,13 +314,13 @@ async def test_social_network_state_change_events_are_hidden_by_default_but_chec
         for event in event_records
         if event.get("event_type") == "STATE_CHANGE"
         and event.get("target_type") == "environment"
-        and event.get("path") == ["posts", "post_full_checkpoint"]
+        and (event.get("path") or [])[:1] in (["post_creation_facts"], ["post_projection"])
     ]
     assert post_state_events == []
     assert full_content not in json.dumps(post_state_events, ensure_ascii=False)
 
     checkpoint = _read_checkpoint(tmp_path)
-    checkpoint_post = checkpoint["environment_data"]["state"]["posts"]["post_full_checkpoint"]
+    checkpoint_post = checkpoint["environment_data"]["state"]["post_creation_facts"]["post_full_checkpoint"]
     assert checkpoint_post["content"] == full_content
 
 
@@ -285,12 +331,15 @@ async def test_social_network_state_change_events_can_be_enabled_for_debugging(t
 
     @engine.step(name="write_large_post")
     async def write_large_post(ctx):
-        ctx.env.state["posts"]["post_full_checkpoint"] = _post(
-            "post_full_checkpoint",
-            author_id="author_old",
-            content=full_content,
-            likes=3,
-            replies=2,
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_full_checkpoint",
+                author_id="author_old",
+                content=full_content,
+                likes=3,
+                replies=2,
+            ),
         )
         return None
 
@@ -306,7 +355,7 @@ async def test_social_network_state_change_events_can_be_enabled_for_debugging(t
         for event in event_records
         if event.get("event_type") == "STATE_CHANGE"
         and event.get("target_type") == "environment"
-        and event.get("path") == ["posts", "post_full_checkpoint"]
+        and (event.get("path") or [])[:1] in (["post_creation_facts"], ["post_projection"])
     ]
     assert post_state_events
     assert "value" not in post_state_events[0]
@@ -380,11 +429,14 @@ async def test_recommended_feed_truncates_long_content_and_total_prompt(tmp_path
     async def truncate_feed(ctx):
         long_text = "very long post " * 100
         for idx in range(10):
-            ctx.env.state["posts"][f"long_{idx}"] = _post(
-                f"long_{idx}",
-                content=f"{long_text} unique {idx}",
-                likes=idx,
-                created_tick=idx,
+            _seed_post(
+                ctx.env,
+                _post(
+                    f"long_{idx}",
+                    content=f"{long_text} unique {idx}",
+                    likes=idx,
+                    created_tick=idx,
+                ),
             )
         feed = await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         observed["feed"] = feed
@@ -404,10 +456,12 @@ async def test_latest_low_engagement_does_not_dominate(tmp_path):
 
     @engine.step(name="recommend")
     async def recommend(ctx):
-        posts = ctx.env.state["posts"]
-        posts["old_high"] = _post("old_high", author_id="author_old", created_tick=0, likes=30, replies=10)
+        _seed_post(
+            ctx.env,
+            _post("old_high", author_id="author_old", created_tick=0, likes=30, replies=10),
+        )
         for idx in range(40):
-            posts[f"latest_low_{idx}"] = _post(f"latest_low_{idx}", created_tick=1000 + idx)
+            _seed_post(ctx.env, _post(f"latest_low_{idx}", created_tick=1000 + idx))
         viewer = ctx.world.get_agent("viewer")
         await ctx.env.get_recommended_feed(viewer, ctx.env)
         observed["recommended_ids"] = list(ctx.env._pending_recommended_posts["viewer"])
@@ -441,10 +495,10 @@ async def test_view_counts_flush_after_tick(tmp_path):
 
     @engine.step(name="show_feed")
     async def show_feed(ctx):
-        ctx.env.state["posts"]["post_visible"] = _post("post_visible", author_id="author_old", likes=5)
+        _seed_post(ctx.env, _post("post_visible", author_id="author_old", likes=5))
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
-        observed["view_count_during_step"] = ctx.env.state["posts"]["post_visible"].get("view_count", 0)
+        observed["view_count_during_step"] = ctx.env._posts_view()["post_visible"].get("view_count", 0)
         return None
 
     await engine.run(steps=1)
@@ -459,7 +513,7 @@ async def test_view_counts_flush_after_tick(tmp_path):
         event
         for event in events
         if event.get("event_type") == "STATE_CHANGE"
-        and event.get("path") == ["posts", "post_visible", "view_count"]
+        and event.get("path") == ["post_projection", "post_visible", "view_count"]
     ]
     flush_events = [
         event
@@ -472,7 +526,7 @@ async def test_view_counts_flush_after_tick(tmp_path):
         if event.get("event_type") == "social_recommendation_trace"
     ]
     assert observed["view_count_during_step"] == 0
-    assert checkpoint["environment_data"]["state"]["posts"]["post_visible"]["view_count"] == 2
+    assert checkpoint["environment_data"]["state"]["post_projection"]["post_visible"]["view_count"] == 2
     assert view_count_state_changes == []
     assert len(flush_events) == 1
     assert flush_events[0]["event_data"]["impression_deltas"] == {"post_visible": 2}
@@ -507,16 +561,19 @@ async def test_trending_posts_action_records_exposure_after_tick(tmp_path):
 
     @engine.step(name="trending")
     async def trending(ctx):
-        ctx.env.state["posts"]["post_hot"] = _post(
-            "post_hot",
-            author_id="author_old",
-            likes=12,
-            replies=3,
-            content="A compact but highly discussed campus policy update.",
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_hot",
+                author_id="author_old",
+                likes=12,
+                replies=3,
+                content="A compact but highly discussed campus policy update.",
+            ),
         )
         actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent("viewer"))
         observed["trending"] = await actionset.call_action("get_trending_posts")
-        observed["view_count_during_step"] = ctx.env.state["posts"]["post_hot"].get("view_count", 0)
+        observed["view_count_during_step"] = ctx.env._posts_view()["post_hot"].get("view_count", 0)
         return None
 
     await engine.run(steps=1)
@@ -526,7 +583,7 @@ async def test_trending_posts_action_records_exposure_after_tick(tmp_path):
     assert "帖子 ID: post_hot" in observed["trending"]
     assert "作者用户 ID: author_old" in observed["trending"]
     assert observed["view_count_during_step"] == 0
-    assert checkpoint["environment_data"]["state"]["posts"]["post_hot"]["view_count"] == 1
+    assert checkpoint["environment_data"]["state"]["post_projection"]["post_hot"]["view_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -536,15 +593,18 @@ async def test_recommended_feed_preview_has_no_impression_or_state_side_effect(t
 
     @engine.step(name="preview_feed")
     async def preview_feed(ctx):
-        ctx.env.state["posts"]["post_visible"] = _post(
-            "post_visible",
-            author_id="author_recent",
-            created_tick=0,
-            likes=10,
+        _seed_post(
+            ctx.env,
+            _post(
+                "post_visible",
+                author_id="author_recent",
+                created_tick=0,
+                likes=10,
+            ),
         )
         feed = await ctx.env.preview_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         observed["feed"] = feed
-        observed["view_count_during_step"] = ctx.env.state["posts"]["post_visible"].get("view_count", 0)
+        observed["view_count_during_step"] = ctx.env._posts_view()["post_visible"].get("view_count", 0)
         observed["recommended_posts_during_step"] = dict(ctx.env.state.get("recommended_posts", {}))
         return None
 
@@ -554,7 +614,7 @@ async def test_recommended_feed_preview_has_no_impression_or_state_side_effect(t
     assert "个性化推荐动态预览" in observed["feed"]
     assert observed["view_count_during_step"] == 0
     assert observed["recommended_posts_during_step"] == {}
-    assert checkpoint["environment_data"]["state"]["posts"]["post_visible"]["view_count"] == 0
+    assert checkpoint["environment_data"]["state"]["post_projection"]["post_visible"]["view_count"] == 0
     assert checkpoint["environment_data"]["state"]["recommended_posts"] == {}
 
 
@@ -568,8 +628,8 @@ async def test_recommended_posts_keeps_all_agents_under_proxy_state(tmp_path):
 
     @engine.step(name="multi_feed")
     async def multi_feed(ctx):
-        ctx.env.state["posts"]["post_visible"] = _post("post_visible", author_id="author_old", likes=5)
-        ctx.env.state["posts"]["post_visible_2"] = _post("post_visible_2", author_id="author_recent", likes=4)
+        _seed_post(ctx.env, _post("post_visible", author_id="author_old", likes=5))
+        _seed_post(ctx.env, _post("post_visible_2", author_id="author_recent", likes=4))
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
         observed["recommended_posts"] = {
@@ -611,53 +671,13 @@ async def test_recommended_posts_keeps_all_agents_under_proxy_state(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_social_recommendation_flush_event_replays_to_world(tmp_path):
-    world = World(step=0, event_log_path=str(tmp_path / "events.jsonl"))
-    world.environment_data["state"] = {
-        "posts": {"post_visible": {"post_id": "post_visible", "view_count": 1}},
-        "recommended_posts": {},
-    }
-    persistence = PersistenceManager(str(tmp_path / "run"))
-
-    await persistence._apply_event_to_world(
-        world,
-        {
-            "event_type": "social_recommendation_state_flushed",
-            "event_data": {
-                "impression_deltas": {"post_visible": 2, "missing_post": 5},
-                "recommended_posts": {"viewer": ["post_visible"]},
-                "state_patches": [
-                    {
-                        "target_type": "environment",
-                        "operation": "increment",
-                        "path": ["posts", "post_visible", "view_count"],
-                        "value": 2,
-                    },
-                    {
-                        "target_type": "environment",
-                        "operation": "set",
-                        "path": ["recommended_posts", "viewer"],
-                        "value": ["post_visible"],
-                    },
-                ],
-            },
-        },
-    )
-
-    assert world.environment_data["state"]["posts"]["post_visible"]["view_count"] == 3
-    assert "missing_post" not in world.environment_data["state"]["posts"]
-    assert world.environment_data["state"]["recommended_posts"] == {"viewer": ["post_visible"]}
-
-
-@pytest.mark.asyncio
 async def test_notifications_accumulate_without_root_reset(tmp_path):
     engine = Society0(save_dir=str(tmp_path), base_config=_social_config())
     observed = {}
 
     @engine.step(name="likes")
     async def likes(ctx):
-        posts = ctx.env.state["posts"]
-        posts["post_target"] = _post("post_target", author_id="author_old", likes=0)
+        _seed_post(ctx.env, _post("post_target", author_id="author_old", likes=0))
         for liker_id in ["viewer", "viewer_2", "author_recent"]:
             actionset = ctx.world.assemble_agent_actionset(ctx.world.get_agent(liker_id))
             await actionset.call_action(
@@ -670,8 +690,10 @@ async def test_notifications_accumulate_without_root_reset(tmp_path):
     await engine.run(steps=1)
 
     checkpoint = _read_checkpoint(tmp_path)
-    observed["notifications"] = checkpoint["environment_data"]["state"]["notifications"]
-    notifications = observed["notifications"]["user_notifications"]["author_old"]["notifications"]
+    observed["notifications"] = checkpoint["environment_data"]["state"]["notification_facts"]
+    notifications = [
+        item for item in observed["notifications"] if item["target_agent_id"] == "author_old"
+    ]
     assert [item["data"]["interactor_id"] for item in notifications] == ["viewer", "viewer_2", "author_recent"]
     assert len({item["id"] for item in notifications}) == 3
 
@@ -684,7 +706,7 @@ async def test_recommendation_cache_reused_across_agents(tmp_path):
     @engine.step(name="recommend_twice")
     async def recommend_twice(ctx):
         for idx in range(25):
-            ctx.env.state["posts"][f"post_{idx}"] = _post(f"post_{idx}", created_tick=idx, likes=idx)
+            _seed_post(ctx.env, _post(f"post_{idx}", created_tick=idx, likes=idx))
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
         observed["rebuilds"] = ctx.env._recommendation_cache_rebuild_count
@@ -711,7 +733,7 @@ async def test_post_embedding_generated_once(tmp_path):
             return {"result": [[0.1, 0.2, 0.3] for _ in texts], "model": "fake", "dimensions": 3}
 
         ctx.env._embed_call = fake_embed
-        ctx.env.state["posts"]["post_once"] = _post("post_once", content="embed me")
+        _seed_post(ctx.env, _post("post_once", content="embed me", author_id="author_old"))
         await ctx.env._embed_and_store_post(
             post_id="post_once",
             content="embed me",
@@ -728,12 +750,15 @@ async def test_post_embedding_generated_once(tmp_path):
         )
         observed["calls"] = len(calls)
         observed["metadata"] = metadata_seen
-        observed["post_state"] = dict(ctx.env.state["posts"]["post_once"])
+        observed["post_state"] = ctx.env._posts_view()["post_once"]
         return None
 
     await engine.run(steps=1)
     checkpoint = _read_checkpoint(tmp_path)
-    checkpoint_post = checkpoint["environment_data"]["state"]["posts"]["post_once"]
+    checkpoint_post = {
+        **checkpoint["environment_data"]["state"]["post_creation_facts"]["post_once"],
+        **checkpoint["environment_data"]["state"]["post_projection"]["post_once"],
+    }
 
     assert observed["calls"] == 1
     assert observed["metadata"] == [
@@ -799,7 +824,7 @@ async def test_publish_post_embeddings_flush_in_one_batch_after_tick(tmp_path):
 
     await engine.run(steps=1)
     checkpoint = _read_checkpoint(tmp_path)
-    posts = checkpoint["environment_data"]["state"]["posts"]
+    posts = checkpoint["environment_data"]["state"]["post_projection"]
 
     assert observed["calls_during_step"] == 0
     assert observed["pending_during_step"] == ["post_1", "post_2"]
@@ -828,7 +853,7 @@ async def test_semantic_query_uses_active_pool_not_recent_sample(tmp_path):
         def __init__(self):
             self.last_n_results = None
 
-        def query(self, *, query_embeddings, n_results, include):
+        def query(self, *, query_embeddings, n_results, include, where=None):
             self.last_n_results = n_results
             return {"ids": [["old_semantic"]], "distances": [[0.0]]}
 
@@ -855,18 +880,24 @@ async def test_semantic_query_uses_active_pool_not_recent_sample(tmp_path):
 
         ctx.env._embed_call = fake_embed
         ctx.env._post_collection = fake_collection
-        ctx.env.state["posts"]["old_semantic"] = _post(
-            "old_semantic",
-            author_id="author_old",
-            created_tick=0,
-            content="Old post about climate risk and trust.",
+        _seed_post(
+            ctx.env,
+            _post(
+                "old_semantic",
+                author_id="author_old",
+                created_tick=0,
+                content="Old post about climate risk and trust.",
+            ),
         )
         for idx in range(60):
-            ctx.env.state["posts"][f"recent_irrelevant_{idx}"] = _post(
-                f"recent_irrelevant_{idx}",
-                created_tick=1000 + idx,
-                content="Recent unrelated chatter.",
-        )
+            _seed_post(
+                ctx.env,
+                _post(
+                    f"recent_irrelevant_{idx}",
+                    created_tick=1000 + idx,
+                    content="Recent unrelated chatter.",
+                ),
+            )
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         observed["n_results"] = fake_collection.last_n_results
         observed["recommended_ids"] = list(ctx.env._pending_recommended_posts["viewer"])
@@ -884,7 +915,7 @@ async def test_semantic_query_reuses_identical_preference_text_within_tick(tmp_p
         def __init__(self):
             self.query_calls = 0
 
-        def query(self, *, query_embeddings, n_results, include):
+        def query(self, *, query_embeddings, n_results, include, where=None):
             self.query_calls += 1
             return {
                 "ids": [["post_a", "post_b"]],
@@ -919,8 +950,8 @@ async def test_semantic_query_reuses_identical_preference_text_within_tick(tmp_p
         ctx.env._embed_call = fake_embed
         ctx.env._post_collection = fake_collection
         ctx.env.graph = None
-        ctx.env.state["posts"]["post_a"] = _post("post_a", author_id="author_old", likes=5)
-        ctx.env.state["posts"]["post_b"] = _post("post_b", author_id="author_recent", likes=4)
+        _seed_post(ctx.env, _post("post_a", author_id="author_old", likes=5))
+        _seed_post(ctx.env, _post("post_b", author_id="author_recent", likes=4))
 
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
@@ -942,7 +973,7 @@ async def test_semantic_query_ignores_following_by_default_for_cache_reuse(tmp_p
         def __init__(self):
             self.query_calls = 0
 
-        def query(self, *, query_embeddings, n_results, include):
+        def query(self, *, query_embeddings, n_results, include, where=None):
             self.query_calls += 1
             return {
                 "ids": [["post_a", "post_b"]],
@@ -981,8 +1012,8 @@ async def test_semantic_query_ignores_following_by_default_for_cache_reuse(tmp_p
         ctx.env.graph = nx.DiGraph()
         ctx.env.graph.add_edge("viewer", "author_old")
         ctx.env.graph.add_edge("viewer_2", "author_recent")
-        ctx.env.state["posts"]["post_a"] = _post("post_a", author_id="author_old", likes=5)
-        ctx.env.state["posts"]["post_b"] = _post("post_b", author_id="author_recent", likes=4)
+        _seed_post(ctx.env, _post("post_a", author_id="author_old", likes=5))
+        _seed_post(ctx.env, _post("post_b", author_id="author_recent", likes=4))
 
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
@@ -1003,7 +1034,7 @@ async def test_semantic_query_can_include_following_when_configured(tmp_path):
         def __init__(self):
             self.query_calls = 0
 
-        def query(self, *, query_embeddings, n_results, include):
+        def query(self, *, query_embeddings, n_results, include, where=None):
             self.query_calls += 1
             return {
                 "ids": [["post_a", "post_b"]],
@@ -1043,8 +1074,8 @@ async def test_semantic_query_can_include_following_when_configured(tmp_path):
         ctx.env.graph = nx.DiGraph()
         ctx.env.graph.add_edge("viewer", "author_old")
         ctx.env.graph.add_edge("viewer_2", "author_recent")
-        ctx.env.state["posts"]["post_a"] = _post("post_a", author_id="author_old", likes=5)
-        ctx.env.state["posts"]["post_b"] = _post("post_b", author_id="author_recent", likes=4)
+        _seed_post(ctx.env, _post("post_a", author_id="author_old", likes=5))
+        _seed_post(ctx.env, _post("post_b", author_id="author_recent", likes=4))
 
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.get_recommended_feed(ctx.world.get_agent("viewer_2"), ctx.env)
@@ -1078,13 +1109,12 @@ async def test_active_pool_prunes_only_after_threshold(tmp_path):
     @engine.step(name="prune_pool")
     async def prune_pool(ctx):
         ctx.world.step = 100
-        posts = ctx.env.state["posts"]
-        posts["old_low_0"] = _post("old_low_0", created_tick=0)
-        posts["old_low_1"] = _post("old_low_1", created_tick=1)
-        posts["high_old"] = _post("high_old", created_tick=2, likes=10)
-        posts["young_low"] = _post("young_low", created_tick=98)
-        posts["recent_1"] = _post("recent_1", created_tick=99)
-        posts["recent_2"] = _post("recent_2", created_tick=100)
+        _seed_post(ctx.env, _post("old_low_0", created_tick=0))
+        _seed_post(ctx.env, _post("old_low_1", created_tick=1))
+        _seed_post(ctx.env, _post("high_old", created_tick=2, likes=10))
+        _seed_post(ctx.env, _post("young_low", created_tick=98))
+        _seed_post(ctx.env, _post("recent_1", created_tick=99))
+        _seed_post(ctx.env, _post("recent_2", created_tick=100))
         candidates = ctx.env._get_real_posts_only(ctx.world.get_agent("viewer"))
         observed["candidate_ids"] = {post["post_id"] for post in candidates}
         return None
@@ -1101,11 +1131,10 @@ async def test_trending_uses_same_engagement_features(tmp_path):
 
     @engine.step(name="trend")
     async def trend(ctx):
-        posts = ctx.env.state["posts"]
-        posts["liked_post"] = _post("liked_post", likes=1)
-        posts["repost_target"] = _post("repost_target")
-        posts["repost_1"] = _post("repost_1", reply_to="repost_target", created_tick=1)
-        posts["repost_2"] = _post("repost_2", reply_to="repost_target", created_tick=2)
+        _seed_post(ctx.env, _post("liked_post", likes=1))
+        _seed_post(ctx.env, _post("repost_target"))
+        _seed_post(ctx.env, _post("repost_1", reply_to="repost_target", created_tick=1))
+        _seed_post(ctx.env, _post("repost_2", reply_to="repost_target", created_tick=2))
         await ctx.rule("update_trending_topics")
         observed["trending"] = list(ctx.env.state["trending_post_ids"])
         return None

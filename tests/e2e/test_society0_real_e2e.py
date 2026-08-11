@@ -204,7 +204,26 @@ def _social_publish_agent_config(agent_count: int) -> dict:
 
 def _round_robin_llm_agent_config(agent_count: int = 2) -> dict:
     return {
-        "agent_types": [{"id": "participant", "archetype": "llm"}],
+        "agent_types": [
+            {
+                "id": "participant",
+                "archetype": "llm",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "cohort": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        },
+                        "conversation_marker": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        },
+                    },
+                },
+            }
+        ],
         "agents": [
             {
                 "id": f"participant_{idx}",
@@ -958,8 +977,8 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     assert checkpoint["environment_data"]["state"]["message_counter"] == agent_count
     for agent_id in ("participant_0", "participant_1"):
         assert checkpoint["agents_data"][agent_id]["state"]["conversation_marker"] == "paired-before-llm"
-    round_messages = checkpoint["environment_data"]["state"]["round_messages"]["1"]
-    assert sum(len(messages) for messages in round_messages.values()) == agent_count
+    message_facts = checkpoint["environment_data"]["state"]["message_facts"]
+    assert len(message_facts) == agent_count
 
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
