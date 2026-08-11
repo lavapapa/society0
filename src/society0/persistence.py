@@ -528,6 +528,22 @@ class PersistenceManager:
                             raise TypeError(
                                 f"entry-granularity state must be a mapping: {concrete_path!r}"
                             )
+                        if not value:
+                            # Empty entity maps still belong to the canonical
+                            # root shape. Without this structural operation a
+                            # restored Env would try to recreate the container
+                            # after the journal was attached but before a Tick
+                            # delta existed.
+                            entries.append(
+                                {
+                                    "path": list(concrete_path),
+                                    "operation": "set",
+                                    "value": {},
+                                    "sequence": sequence,
+                                }
+                            )
+                            sequence += 1
+                            continue
                         for key, item in value.items():
                             entries.append(
                                 {
