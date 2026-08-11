@@ -88,7 +88,8 @@ class DictProxy(MutableMapping[str, Any]):
         event_recorder: Callable[[Any], None],
         context_provider: Callable[[], List[Dict[str, Any]]],
         path: Tuple[str, ...] = (),
-        access_context: Optional[AccessContext] = None  # 🔑 新增
+        access_context: Optional[AccessContext] = None,  # 🔑 新增
+        persistence_journal: Optional[Any] = None,
     ):
         """
         初始化字典代理
@@ -106,6 +107,7 @@ class DictProxy(MutableMapping[str, Any]):
         object.__setattr__(self, '_context_provider', context_provider)
         object.__setattr__(self, '_path', path)
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
+        object.__setattr__(self, '_persistence_journal', persistence_journal)
 
     _PROTECTED_ATTRS = {
         "_target_dict",
@@ -113,6 +115,7 @@ class DictProxy(MutableMapping[str, Any]):
         "_context_provider",
         "_path",
         "_access_context",
+        "_persistence_journal",
     }
 
     @classmethod
@@ -184,7 +187,8 @@ class DictProxy(MutableMapping[str, Any]):
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
                 path=self._path + (str(key),),
-                access_context=self._access_context  # 🔑 传递访问上下文
+                access_context=self._access_context,  # 🔑 传递访问上下文
+                persistence_journal=self._persistence_journal,
             )
         elif isinstance(value, list):
             return ListProxy(
@@ -192,7 +196,8 @@ class DictProxy(MutableMapping[str, Any]):
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
                 path=self._path + (str(key),),
-                access_context=self._access_context  # 🔑 传递访问上下文
+                access_context=self._access_context,  # 🔑 传递访问上下文
+                persistence_journal=self._persistence_journal,
             )
         else:
             return value
@@ -208,12 +213,20 @@ class DictProxy(MutableMapping[str, Any]):
                     f"\n提示：该字段的 agent_editable 为 false，只能由 Environment 的 rule 修改。"
                 )
 
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "set", key, value
+            )
         old_snapshot = self._snapshot(self._target_dict[key]) if key in self._target_dict else _MISSING
         self._target_dict[key] = value
         self._record_change("set", key, self._snapshot(value), old_snapshot)
     
     def __delitem__(self, key: str) -> None:
         """删除项目"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "delete", key
+            )
         old_snapshot = self._snapshot(self._target_dict[key])
         del self._target_dict[key]
         self._record_change("delete", key, None, old_snapshot)
@@ -295,6 +308,10 @@ class DictProxy(MutableMapping[str, Any]):
     def pop(self, key: str, default: Any = _MISSING) -> Any:
         """弹出并返回值，与内建 ``dict.pop`` 保持相同语义。"""
         if key in self._target_dict:
+            if self._persistence_journal is not None:
+                self._persistence_journal.record_proxy_operation(
+                    self._path, "delete", key
+                )
             value = self._target_dict.pop(key)
             self._record_change("delete", key, None, self._snapshot(value))
             return value
@@ -305,6 +322,10 @@ class DictProxy(MutableMapping[str, Any]):
     
     def clear(self) -> None:
         """清空字典"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "clear", None
+            )
         previous = self._snapshot(dict(self._target_dict))
         self._target_dict.clear()
         self._record_change("clear", value={}, old_value=previous)
@@ -358,7 +379,8 @@ class ListProxy(MutableSequence[Any]):
         event_recorder: Callable[[Any], None],
         context_provider: Callable[[], List[Dict[str, Any]]],
         path: Tuple[str, ...] = (),
-        access_context: Optional[AccessContext] = None  # 🔑 新增
+        access_context: Optional[AccessContext] = None,  # 🔑 新增
+        persistence_journal: Optional[Any] = None,
     ):
         """
         初始化列表代理
@@ -375,6 +397,7 @@ class ListProxy(MutableSequence[Any]):
         object.__setattr__(self, '_context_provider', context_provider)
         object.__setattr__(self, '_path', path)
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
+        object.__setattr__(self, '_persistence_journal', persistence_journal)
     
     @staticmethod
     def _snapshot(value: Any) -> Any:
@@ -440,7 +463,8 @@ class ListProxy(MutableSequence[Any]):
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
                 path=self._path + (str(index),),
-                access_context=self._access_context  # 🔑 传递访问上下文
+                access_context=self._access_context,  # 🔑 传递访问上下文
+                persistence_journal=self._persistence_journal,
             )
         elif isinstance(value, list):
             return ListProxy(
@@ -448,19 +472,28 @@ class ListProxy(MutableSequence[Any]):
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
                 path=self._path + (str(index),),
-                access_context=self._access_context  # 🔑 传递访问上下文
+                access_context=self._access_context,  # 🔑 传递访问上下文
+                persistence_journal=self._persistence_journal,
             )
         else:
             return value
     
     def __setitem__(self, index: int, value: Any) -> None:
         """设置项目，记录变更并立即生效"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "set", index, value
+            )
         old_snapshot = self._snapshot(self._target_list[index])
         self._target_list[index] = value
         self._record_change("set", index, self._snapshot(value), old_snapshot)
     
     def __delitem__(self, index: int) -> None:
         """删除项目"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "delete", index
+            )
         old_snapshot = self._snapshot(self._target_list[index])
         del self._target_list[index]
         self._record_change("delete", index, None, old_snapshot)
@@ -486,6 +519,10 @@ class ListProxy(MutableSequence[Any]):
     
     def append(self, value: Any) -> None:
         """追加元素"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "append", len(self._target_list), value
+            )
         index = len(self._target_list)
         self._target_list.append(value)
         self._record_change("append", index, self._snapshot(value))
@@ -493,12 +530,21 @@ class ListProxy(MutableSequence[Any]):
     def extend(self, values: List[Any]) -> None:
         """扩展列表"""
         start_index = len(self._target_list)
+        if self._persistence_journal is not None:
+            for offset, item in enumerate(values):
+                self._persistence_journal.record_proxy_operation(
+                    self._path, "append", start_index + offset, item
+                )
         self._target_list.extend(values)
         for offset, item in enumerate(values):
             self._record_change("append", start_index + offset, self._snapshot(item))
     
     def insert(self, index: int, value: Any) -> None:
         """插入元素"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "insert", index, value
+            )
         self._target_list.insert(index, value)
         self._record_change("insert", index, self._snapshot(value))
     
@@ -506,17 +552,29 @@ class ListProxy(MutableSequence[Any]):
         """移除元素"""
         # 找到要移除的元素的索引
         index = self._target_list.index(value)
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "remove", index, value
+            )
         removed = self._target_list.pop(index)
         self._record_change("remove", index, None, self._snapshot(removed))
     
     def pop(self, index: int = -1) -> Any:
         """弹出元素"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "delete", index
+            )
         value = self._target_list.pop(index)
         self._record_change("pop", index, None, self._snapshot(value))
         return value
     
     def clear(self) -> None:
         """清空列表"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "clear", None
+            )
         previous = self._snapshot(list(self._target_list))
         self._target_list.clear()
         self._record_change("clear", value=[], old_value=previous)
@@ -534,12 +592,20 @@ class ListProxy(MutableSequence[Any]):
     
     def reverse(self) -> None:
         """反转列表"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "reverse", None
+            )
         previous = self._snapshot(list(self._target_list))
         self._target_list.reverse()
         self._record_change("reverse", value=self._snapshot(list(self._target_list)), old_value=previous)
     
     def sort(self, key=None, reverse=False) -> None:
         """排序列表"""
+        if self._persistence_journal is not None:
+            self._persistence_journal.record_proxy_operation(
+                self._path, "sort", None
+            )
         previous = self._snapshot(list(self._target_list))
         self._target_list.sort(key=key, reverse=reverse)
         self._record_change("sort", value=self._snapshot(list(self._target_list)), old_value=previous)

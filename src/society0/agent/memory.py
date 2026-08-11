@@ -150,7 +150,8 @@ class Memory:
         embed_call: Optional[Callable[..., Awaitable[Dict[str, Any]]]] = None,
         llm_call: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
         decay_rate: float = 0.1,
-        embedding_dim: int = 512
+        embedding_dim: int = 512,
+        branch_lineage: Optional[List[Tuple[str, int]]] = None,
     ):
         """
         初始化Memory实例
@@ -167,6 +168,10 @@ class Memory:
         self.agent_id = agent_id
         self.vector_client = vector_client  # 使用注入的客户端（Chroma）
         self.branch_id = branch_id
+        self.branch_lineage = [
+            (str(source_branch), int(fork_step))
+            for source_branch, fork_step in (branch_lineage or [])
+        ]
         self.embed_call = embed_call or ollama_embed  # 可注入embed函数
         self.llm_call = llm_call
         self.decay_rate = decay_rate
@@ -245,16 +250,30 @@ class Memory:
                 exc,
             )
 
-    def _memory_where_filter(self) -> Dict[str, Any]:
-        """当前 agent 在共享 collection 下的过滤条件。"""
-        return {
-            "$and": [
-                {"agent_id": {"$eq": self.agent_id}},
-                {"branch_id": {"$eq": self.branch_id}},
-            ]
-        }
+    def _memory_where_filter(self, visible_step: Optional[int] = None) -> Dict[str, Any]:
+        """构造 Agent、分支谱系和 Tick 可见性过滤条件。"""
 
-    async def _has_retrievable_memories(self) -> bool:
+        branches: List[Dict[str, Any]] = []
+        current_branch = [{"branch_id": {"$eq": self.branch_id}}]
+        if visible_step is not None:
+            current_branch.append({"created_step": {"$lte": int(visible_step)}})
+        branches.append({"$and": current_branch})
+        for source_branch, fork_step in self.branch_lineage:
+            cutoff = fork_step if visible_step is None else min(fork_step, int(visible_step))
+            branches.append(
+                {
+                    "$and": [
+                        {"branch_id": {"$eq": source_branch}},
+                        {"created_step": {"$lte": cutoff}},
+                    ]
+                }
+            )
+        branch_filter = branches[0] if len(branches) == 1 else {"$or": branches}
+        return {"$and": [{"agent_id": {"$eq": self.agent_id}}, branch_filter]}
+
+    async def _has_retrievable_memories(
+        self, visible_step: Optional[int] = None
+    ) -> bool:
         """Return False when a cheap collection check proves recall would be empty."""
         async with self._io_lock:
             collection = self._get_collection()
@@ -270,7 +289,9 @@ class Memory:
             get = getattr(collection, "get", None)
             if callable(get):
                 try:
-                    existing = get(where=self._memory_where_filter(), limit=1)
+                    existing = get(
+                        where=self._memory_where_filter(visible_step), limit=1
+                    )
                     ids = existing.get("ids") if isinstance(existing, dict) else getattr(existing, "ids", None)
                     if ids is not None:
                         return bool(ids)
@@ -454,6 +475,7 @@ class Memory:
             {
                 "memory_type": memory_type,
                 "timestamp": timestamp,
+                "created_step": timestamp,
                 "base_importance": importance,
                 "branch_id": self.branch_id,
                 "agent_id": self.agent_id,
@@ -781,6 +803,7 @@ class Memory:
         *,
         query_embedding: List[float],
         top_k: int,
+        visible_step: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
@@ -795,7 +818,7 @@ class Memory:
                         query_embeddings=[query_embedding],
                         n_results=max(1, top_k * 2),
                         include=["documents", "metadatas", "distances"],
-                        where=self._memory_where_filter(),
+                        where=self._memory_where_filter(visible_step),
                     )
             except Exception as exc:
                 retryable = self._is_retryable_collection_error(exc)
@@ -847,7 +870,7 @@ class Memory:
         try:
             await self._await_pending_writes_before_retrieve()
 
-            if not await self._has_retrievable_memories():
+            if not await self._has_retrievable_memories(current_step):
                 return []
 
             # 生成查询向量
@@ -860,6 +883,7 @@ class Memory:
             search_results = await self._query_collection_with_retry(
                 query_embedding=query_embedding,
                 top_k=top_k,
+                visible_step=current_step,
             )
             if not search_results:
                 return []
