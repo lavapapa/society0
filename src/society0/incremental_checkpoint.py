@@ -905,7 +905,15 @@ class V4CheckpointStore:
             }
             marker_path = self.complete_dir / f"step_{delta.step:06d}.json"
             marker_bytes = self._canonical_bytes(marker)
-            bytes_written += self._atomic_write(marker_path, marker_bytes)
+            try:
+                bytes_written += self._atomic_write(marker_path, marker_bytes)
+            except BaseException:
+                # ``replace`` 是提交点。若故障发生在 rename 之后（例如目录
+                # fsync/通知失败），marker 已经完整可见，调用方必须把该 Tick
+                # 当成已提交，避免随后重试产生两条历史。
+                if not marker_path.is_file() or marker_path.read_bytes() != marker_bytes:
+                    raise
+                bytes_written += len(marker_bytes)
             self._latest_step = delta.step
             self._latest_checkpoint_id = checkpoint_id
             self._latest_state_sha256 = state_sha256
