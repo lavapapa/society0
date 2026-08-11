@@ -293,6 +293,38 @@ def test_append_only_map_rejects_duplicate_id_after_restore_before_mutation(tmp_
         world.event_logger.close()
 
 
+def test_binding_append_only_map_does_not_enumerate_existing_history():
+    class HistoryMap(dict):
+        def __iter__(self):
+            raise AssertionError("binding must not scan append-only history")
+
+        def keys(self):
+            raise AssertionError("binding must not scan append-only history")
+
+        def items(self):
+            raise AssertionError("binding must not scan append-only history")
+
+    schema = _compile(
+        _state_schema(
+            {
+                "facts": {
+                    "type": "object",
+                    "persistence": _persistence("append_only_map"),
+                    "additionalProperties": {"type": "object"},
+                }
+            }
+        )
+    )
+    facts = HistoryMap({"known": {"v": 1}})
+    canonical = {"environment": {"state": {"facts": facts}}}
+    journal = StateDeltaJournal(schema)
+    journal.bind_canonical_state(canonical)
+    journal.begin_tick(1)
+
+    with pytest.raises(ValueError, match="duplicate append-only map id"):
+        journal.record_map_create((*_STATE_ROOT, "facts"), "known", {"v": 2})
+
+
 def test_sealed_delta_is_deeply_immutable():
     schema = _compile(
         _state_schema(

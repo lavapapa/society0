@@ -6,6 +6,7 @@ Environment类定义
 
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
+import copy
 import logging
 import inspect
 
@@ -102,9 +103,15 @@ class Environment:
 
     @state.setter
     def state(self, value: Dict[str, Any]) -> None:
-        """Replace environment state while preserving proxy semantics."""
+        """仅允许在初始化或恢复阶段整体替换环境状态。"""
         if not isinstance(value, dict):
             raise TypeError("Environment.state must be assigned a dict")
+        journal = getattr(self._world, "_state_delta_journal", None)
+        if journal is not None and getattr(journal, "active_step", None) is not None:
+            raise RuntimeError(
+                "Environment.state cannot be replaced during an active persistence Tick; "
+                "write declared fields through the state proxy"
+            )
         self._world.environment_data["state"] = value
         if hasattr(self._world, "_environment_state_proxy"):
             self._world._environment_state_proxy = None
@@ -117,12 +124,12 @@ class Environment:
     
     def get_raw_data(self) -> Dict[str, Any]:
         """
-        获取原始数据（仅用于调试和特殊情况）
+        获取用于调试的脱离副本。
         
         Returns:
-            Environment的原始数据字典
+            Environment 数据的深拷贝；修改它不会写回 canonical state。
         """
-        return self._world.environment_data
+        return copy.deepcopy(self._world.environment_data)
     
     # 依赖倒置接口：提供访问其他能力的方法
     

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from society0.agent.thread_store import AgentThreadStore
 from society0.incremental_checkpoint import (
     PersistenceKind,
     StateDeltaJournal,
@@ -100,6 +101,35 @@ def test_gc_keeps_components_reachable_only_from_a_branch(tmp_path):
     assert branch_manifest.exists()
     assert branch_replacement.exists()
     assert branch_segment.exists()
+
+
+def test_gc_marks_reachable_thread_manifests_and_removes_unpublished_ones(tmp_path):
+    threads = AgentThreadStore(tmp_path)
+    thread_id = threads.open_thread(
+        agent_id="agent-a",
+        checkpoint_step=0,
+        scope={"kind": "test", "id": "root"},
+    )
+    threads.append_event(thread_id, "conversation_message", payload={"content": "kept"})
+    threads.close_thread(thread_id)
+
+    store = V4CheckpointStore(tmp_path)
+    checkpoint_id = "root-with-thread"
+    descriptor = threads.publish_tick_manifest(checkpoint_id, 0)
+    store.publish_root(
+        ({"path": list(PRICE), "operation": "set", "value": 0, "sequence": 0},),
+        metadata={"run_id": "run-a"},
+        checkpoint_id=checkpoint_id,
+        thread_manifest=descriptor,
+    )
+    reachable_thread_manifest = tmp_path / descriptor["relative_path"]
+    orphan_thread_manifest = threads.manifests_dir / "orphan.json"
+    orphan_thread_manifest.write_text("{}", encoding="utf-8")
+
+    removed = store.cleanup_orphans()
+
+    assert reachable_thread_manifest.exists()
+    assert "agent_threads/manifests/orphan.json" in removed
 
 
 def test_manifest_cycle_and_parent_step_regression_fail_closed(tmp_path):

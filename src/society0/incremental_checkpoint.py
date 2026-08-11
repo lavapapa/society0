@@ -364,6 +364,7 @@ class SealedTickDelta:
     replacements: tuple[Mapping[str, Any], ...]
     appends: tuple[Mapping[str, Any], ...]
     write_epoch_ids: tuple[str, ...] = ()
+    annotations: Mapping[str, Any] | None = None
 
 
 class StateDeltaJournal:
@@ -381,9 +382,14 @@ class StateDeltaJournal:
         self._replacements: dict[tuple[str, ...], dict[str, Any]] = {}
         self._appends: list[dict[str, Any]] = []
         self._pending_map_ids: set[tuple[tuple[str, ...], str]] = set()
-        self._committed_map_ids: set[tuple[tuple[str, ...], str]] = set()
         self._canonical_lookup: Callable[[tuple[Any, ...]], Any] | None = None
         self._write_epoch_id: str | None = None
+
+    @property
+    def active_step(self) -> int | None:
+        """当前正在捕获的 Tick；未激活时返回 ``None``。"""
+
+        return self._active_step
 
     def bind_canonical_state(self, state_or_lookup: Mapping[str, Any] | Callable[[tuple[Any, ...]], Any]) -> None:
         """绑定 canonical 容器，用实际 membership 检查 append-only map。"""
@@ -400,11 +406,6 @@ class StateDeltaJournal:
                         return None
                 return current
             self._canonical_lookup = lookup
-        if self._schema is not None:
-            for path in self._schema.append_only_map_paths:
-                target = self._canonical_lookup(path) if self._canonical_lookup else None
-                if isinstance(target, Mapping):
-                    self._committed_map_ids.update((path, key) for key in target)
 
     def begin_tick(self, step: int, *, write_epoch_id: str | None = None) -> None:
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
@@ -472,7 +473,6 @@ class StateDeltaJournal:
         target = self._canonical_lookup(normalized) if self._canonical_lookup else None
         if (
             identity in self._pending_map_ids
-            or identity in self._committed_map_ids
             or (isinstance(target, Mapping) and normalized_id in target)
         ):
             raise ValueError(f"duplicate append-only map id: {normalized_id}")
@@ -568,7 +568,7 @@ class StateDeltaJournal:
                 _json_copy(value)
                 identity = (container, key)
                 target = self._canonical_lookup(container) if self._canonical_lookup else None
-                if identity in pending or identity in self._committed_map_ids or (isinstance(target, Mapping) and key in target):
+                if identity in pending or (isinstance(target, Mapping) and key in target):
                     raise ValueError(f"duplicate append-only map id: {key}")
                 pending.add(identity)
                 continue
@@ -587,7 +587,6 @@ class StateDeltaJournal:
             appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
             write_epoch_ids=(self._write_epoch_id,) if self._write_epoch_id else (),
         )
-        self._committed_map_ids.update(self._pending_map_ids)
         self._clear_active()
         return result
 
@@ -861,6 +860,9 @@ class V4CheckpointStore:
                     str(thread_manifest.get("sha256")) if thread_manifest else None
                 ),
                 "memory_view": _thaw_json(_freeze_json(dict(memory_view or {}))),
+                "annotations": _thaw_json(
+                    _freeze_json(dict(delta.annotations or {}))
+                ),
             }
             state_sha256 = self._sha256(self._canonical_bytes(state_material))
             manifest = {
@@ -881,6 +883,9 @@ class V4CheckpointStore:
                     else None
                 ),
                 "memory_view": _thaw_json(_freeze_json(dict(memory_view or {}))),
+                "annotations": _thaw_json(
+                    _freeze_json(dict(delta.annotations or {}))
+                ),
             }
             if root_metadata is not None:
                 # Keep the fixed World metadata on the root only.  It is
@@ -1130,6 +1135,7 @@ class V4CheckpointStore:
                             else None
                         ),
                         "memory_view": manifest.get("memory_view") or {},
+                        "annotations": manifest.get("annotations") or {},
                     }
                 )
             )
@@ -1202,11 +1208,20 @@ class V4CheckpointStore:
                 committed.add(str(epoch_id))
         return committed
 
+    def checkpoint_annotations(self, step: int) -> dict[str, Any]:
+        """合并目标 marker 链上的有界审计注释。"""
+
+        annotations: dict[str, Any] = {}
+        for manifest in self._manifest_chain(step):
+            annotations.update(copy.deepcopy(manifest.get("annotations") or {}))
+        return annotations
+
     def cleanup_orphans(self) -> list[str]:
         """删除没有被任何完整 marker 引用的 v4 组件。"""
 
         if self._publishing:
             raise RuntimeError("cannot collect orphans while publishing")
+        gc_started_ns = time.time_ns()
         referenced_manifests: set[Path] = set()
         referenced_components: set[Path] = set()
         branch_complete_dirs = [self.base / "complete"] + list(
@@ -1230,6 +1245,13 @@ class V4CheckpointStore:
                         self.root / segment["path"]
                         for segment in manifest["new_segments"]
                     )
+                    thread_manifest = manifest.get("thread_manifest")
+                    if isinstance(thread_manifest, Mapping):
+                        relative_path = thread_manifest.get("relative_path") or thread_manifest.get(
+                            "path"
+                        )
+                        if isinstance(relative_path, str):
+                            referenced_components.add(self.root / relative_path)
                 referenced_manifests.add(self.root / marker["manifest_file"])
 
         removed: list[str] = []
@@ -1237,10 +1259,11 @@ class V4CheckpointStore:
             list(self.manifests_dir.glob("*.json"))
             + list(self.replacements_dir.glob("*.json.gz"))
             + list(self.segments_dir.glob("*.json.gz"))
+            + list((self.root / "agent_threads" / "manifests").glob("*.json"))
         )
         reachable = referenced_manifests | referenced_components
         for path in candidates:
-            if path not in reachable:
+            if path not in reachable and path.stat().st_mtime_ns < gc_started_ns:
                 path.unlink(missing_ok=True)
                 removed.append(self._relative(path))
         return sorted(removed)

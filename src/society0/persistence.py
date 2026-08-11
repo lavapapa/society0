@@ -1,30 +1,21 @@
-"""
-SimEngine V2: PersistenceManager - Unified persistence for the new architecture.
+"""Society0 v4 persistence and live Chroma resource management."""
 
-Handles checkpointing of World state, Chroma vector store data,
-and event replay according to the final integration design document.
-"""
-
-from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable, Mapping, Sequence
+from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Mapping, Sequence
 from pathlib import Path
 import asyncio
 import copy
 import gzip
 import io
 import json
-import traceback
 import time
 import shutil
 import logging
 import os
 import uuid
 import hashlib
-import zlib
 from datetime import datetime
 import threading
 
-from .logging import LogField, SystemEvent
-from .jmespath_context import NodeSnapshot, OperatorSnapshot
 from .state_proxy import DictProxy, ListProxy
 from .incremental_checkpoint import (
     PersistenceSchema,
@@ -47,21 +38,16 @@ class PersistenceManager:
     """
     Unified persistence manager for the new World-based architecture.
 
-    Handles:
-    1. World state snapshots (agents_data, environment_data)
-    2. Chroma vector store backup/restore and client management
-    3. Event log persistence and replay
-    4. Schedule progress tracking
+    Handles v4 replacement/append checkpoint components and one live Chroma
+    database for the run.  Threads and vector records are referenced by v4
+    manifests; neither is copied into a checkpoint.
 
     按照resource_management_design.md，新增向量存储客户端管理职责。
     """
 
-    # v3 removes the heavy World/environment/agents copies from the derived
-    # observation section.  The top-level World fields are the sole recovery
-    # authority; observation_data retains only step-flow diagnostics.
-    CHECKPOINT_VERSION = "complete_step_v3"
-    WORLD_ENCODING = "gzip-json"
-    WORLD_COMPRESSION_LEVEL = 6
+    CHECKPOINT_VERSION = V4CheckpointStore.VERSION
+    DIAGNOSTIC_ENCODING = "gzip-json"
+    DIAGNOSTIC_COMPRESSION_LEVEL = 6
 
     def __init__(self, save_dir: str):
         """
@@ -86,8 +72,6 @@ class PersistenceManager:
 
         # Create subdirectories according to new design
         self.checkpoints_dir = self.save_dir / "checkpoints"
-        self.complete_checkpoints_dir = self.checkpoints_dir / "complete"
-        self.chroma_backup_dir = self.save_dir / "chroma_backups"
         self.metadata_dir = self.save_dir / "metadata"
         self.events_dir = self.save_dir / "events"
         self.diffs_dir = self.save_dir / "diffs"
@@ -105,10 +89,8 @@ class PersistenceManager:
         self._diff_lock = threading.Lock()
         self._chroma_init_lock = threading.Lock()
 
-        # v4 is opt-in while the existing Society0/SimEngine paths continue to
-        # use their established checkpoint contract.  Once configured, all
-        # incremental state is consumed from sealed deltas; publish_delta never
-        # receives or reads a World.
+        # v4 state is consumed only from sealed deltas after the World has been
+        # configured.  The manager never snapshots a World during publish.
         self._v4_enabled = False
         self._v4_world = None
         self._v4_schema: Optional[PersistenceSchema] = None
@@ -141,7 +123,7 @@ class PersistenceManager:
             "event_counter": 0,
             "total_steps": 0,
             "last_checkpoint_step": -1,
-            "architecture_version": "unified_state_v2",
+            "architecture_version": "unified_state_v4",
             "experiment_name": "simulation_experiment",
         }
         metadata_file = self.metadata_dir / "metadata.json"
@@ -338,7 +320,7 @@ class PersistenceManager:
             "experiment_name": "simulation_experiment",
             "total_steps": 0,
             "last_checkpoint_step": -1,
-            "architecture_version": "unified_state_v2"
+            "architecture_version": "unified_state_v4"
         }
     
     def _save_metadata(self) -> None:
@@ -377,8 +359,12 @@ class PersistenceManager:
             temp_path.unlink(missing_ok=True)
 
     @classmethod
-    def _atomic_write_gzip_json(cls, path: Path, payload: Dict[str, Any]) -> None:
-        """Stream JSON into a gzip sibling and atomically publish it."""
+    def _atomic_write_diagnostic_gzip_json(
+        cls,
+        path: Path,
+        payload: Dict[str, Any],
+    ) -> None:
+        """Atomically write the explicitly non-recoverable diagnostic gzip."""
         path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = path.with_name(
             f".{path.name}.{uuid.uuid4().hex}.tmp.json.gz"
@@ -388,7 +374,7 @@ class PersistenceManager:
                 with gzip.GzipFile(
                     filename="",
                     mode="wb",
-                    compresslevel=cls.WORLD_COMPRESSION_LEVEL,
+                    compresslevel=cls.DIAGNOSTIC_COMPRESSION_LEVEL,
                     fileobj=raw_handle,
                     mtime=0,
                 ) as gzip_handle:
@@ -422,29 +408,6 @@ class PersistenceManager:
         finally:
             os.close(descriptor)
 
-    @classmethod
-    def _fsync_tree(cls, root: Path) -> None:
-        """Flush copied component files and directory entries to stable storage."""
-
-        if root.is_symlink() or not root.is_dir():
-            raise ValueError(f"Checkpoint component must be a regular directory: {root}")
-
-        directories: List[Path] = []
-        for path in sorted(root.rglob("*"), key=lambda item: item.as_posix()):
-            if path.is_symlink():
-                raise ValueError(f"Checkpoint component must not contain symlinks: {path}")
-            if path.is_dir():
-                directories.append(path)
-                continue
-            if not path.is_file():
-                raise ValueError(f"Checkpoint component contains unsupported entry: {path}")
-            with path.open("rb") as handle:
-                os.fsync(handle.fileno())
-
-        for directory in sorted(directories, key=lambda item: item.as_posix(), reverse=True):
-            cls._fsync_directory(directory)
-        cls._fsync_directory(root)
-
     @staticmethod
     def _normalize_step(step: Any) -> int:
         """Validate a checkpoint step without coercing caller input."""
@@ -452,293 +415,6 @@ class PersistenceManager:
         if isinstance(step, bool) or not isinstance(step, int) or step < 0:
             raise ValueError("step must be a non-negative integer")
         return step
-
-    def _complete_marker_path(self, step: int) -> Path:
-        step = self._normalize_step(step)
-        return self.complete_checkpoints_dir / f"step_{step:06d}.json"
-
-    def _checkpoint_file_path(
-        self,
-        step: int,
-        *,
-        checkpoint_id: Optional[str] = None,
-    ) -> Path:
-        """Return the immutable world component path for a checkpoint.
-
-        Recoverable checkpoints are published through the step marker.  The
-        component name therefore includes the checkpoint id so a replacement
-        can be built without touching the pair referenced by the currently
-        published marker.
-        """
-        step = self._normalize_step(step)
-        suffix = f".{checkpoint_id}" if checkpoint_id else ""
-        return self.checkpoints_dir / f"checkpoint_{step:06d}{suffix}.json.gz"
-
-    @classmethod
-    def _read_world_checkpoint(cls, path: Path, *, encoding: Any) -> Dict[str, Any]:
-        """Decode one validated world component using its declared encoding."""
-        if encoding != cls.WORLD_ENCODING:
-            raise ValueError(f"Unsupported world checkpoint encoding: {encoding!r}")
-        try:
-            with gzip.open(path, "rt", encoding="utf-8") as handle:
-                payload = json.load(handle)
-        except (
-            OSError,
-            EOFError,
-            UnicodeDecodeError,
-            UnicodeError,
-            json.JSONDecodeError,
-            zlib.error,
-        ) as exc:
-            raise ValueError("World checkpoint gzip JSON is invalid") from exc
-        if not isinstance(payload, dict):
-            raise ValueError("World checkpoint payload must be a mapping")
-        return payload
-
-    @classmethod
-    def _write_world_checkpoint_temp(
-        cls,
-        temp_path: Path,
-        *,
-        checkpoint_id: str,
-        step: int,
-        current_time: float,
-        agents_data: Dict[str, Any],
-        environment_payload: Dict[str, Any],
-        world_metadata: Dict[str, Any],
-        observation_payload: Dict[str, Any],
-        step_metrics: Optional[Dict[str, Any]],
-        json_serializer: Any,
-    ) -> Tuple[str, int]:
-        """Compress one canonical World component into a temporary file.
-
-        This method is deliberately self-contained so ``save_checkpoint`` can
-        run the CPU-heavy JSON/gzip work in ``asyncio.to_thread`` without
-        touching the event loop from the worker thread.  It writes each World
-        field exactly once.  ``observation_data`` is derived metadata only and
-        never contains the authoritative environment or agent collections.
-        """
-
-        def _write_value_field(
-            fp: Any,
-            indent: int,
-            key: str,
-            value: Any,
-            *,
-            last: bool,
-        ) -> None:
-            fp.write(" " * indent)
-            fp.write(json.dumps(key, ensure_ascii=False))
-            fp.write(": ")
-            json.dump(value, fp, ensure_ascii=False, default=json_serializer)
-            if not last:
-                fp.write(",")
-            fp.write("\n")
-
-        def _write_agents_map(fp: Any, indent: int) -> None:
-            fp.write("{")
-            if agents_data:
-                fp.write("\n")
-                for idx, (agent_id, agent_info) in enumerate(agents_data.items()):
-                    if idx:
-                        fp.write(",\n")
-                    fp.write(" " * (indent + 2))
-                    fp.write(json.dumps(agent_id, ensure_ascii=False))
-                    fp.write(": ")
-                    json.dump(
-                        agent_info,
-                        fp,
-                        ensure_ascii=False,
-                        default=json_serializer,
-                    )
-                fp.write("\n")
-                fp.write(" " * indent)
-            fp.write("}")
-
-        def _write_observation_field(fp: Any, indent: int, *, last: bool) -> None:
-            # Observation data is intentionally derived-only.  In particular,
-            # no agents_data/environment_data copies are emitted here.
-            fp.write(" " * indent)
-            fp.write('"observation_data": {\n')
-            fields: List[Tuple[str, Any]] = [
-                ("step", observation_payload["step"]),
-                ("step_flow", observation_payload["step_flow"]),
-            ]
-            if observation_payload.get("metrics") is not None:
-                fields.append(("metrics", observation_payload["metrics"]))
-            for idx, (key, value) in enumerate(fields):
-                fp.write(" " * (indent + 2))
-                fp.write(json.dumps(key, ensure_ascii=False))
-                fp.write(": ")
-                json.dump(value, fp, ensure_ascii=False, default=json_serializer)
-                if idx != len(fields) - 1:
-                    fp.write(",")
-                fp.write("\n")
-            fp.write(" " * indent)
-            fp.write("}")
-            if not last:
-                fp.write(",")
-            fp.write("\n")
-
-        class _HashingRawWriter:
-            """Hash compressed bytes as they are written to the raw file."""
-
-            def __init__(self, raw_file: Any) -> None:
-                self.raw_file = raw_file
-                self.digest = hashlib.sha256()
-                self.size = 0
-
-            def write(self, data: Any) -> int:
-                written = self.raw_file.write(data)
-                if written is None:
-                    written = len(data)
-                if written < 0 or written > len(data):
-                    raise OSError("raw checkpoint writer returned an invalid byte count")
-                self.digest.update(data[:written])
-                self.size += written
-                if written != len(data):
-                    raise OSError("raw checkpoint writer performed a short write")
-                return written
-
-            def flush(self) -> None:
-                self.raw_file.flush()
-
-            def fileno(self) -> int:
-                return self.raw_file.fileno()
-
-        # The temporary file is owned by this worker.  The event-loop caller
-        # atomically renames it only after this function returns successfully.
-        temp_path.parent.mkdir(parents=True, exist_ok=True)
-        with temp_path.open("xb") as raw_fp:
-            hashing_raw = _HashingRawWriter(raw_fp)
-            with gzip.GzipFile(
-                filename="",
-                mode="wb",
-                compresslevel=cls.WORLD_COMPRESSION_LEVEL,
-                fileobj=hashing_raw,
-                mtime=0,
-            ) as gzip_fp:
-                with io.TextIOWrapper(gzip_fp, encoding="utf-8") as fp:
-                    fp.write("{\n")
-                    fields: List[Tuple[str, str]] = [
-                        ("checkpoint_id", "value"),
-                        ("step", "value"),
-                        ("timestamp", "value"),
-                        ("agents_data", "agents"),
-                        ("environment_data", "value"),
-                        ("world_metadata", "value"),
-                        ("observation_data", "observation"),
-                        ("source_step", "value"),
-                    ]
-                    if step_metrics is not None:
-                        # Keep one canonical copy of the full step metrics.
-                        # Consumers already accept ``step_metrics`` and the
-                        # observation section carries only derived metrics.
-                        fields.append(("step_metrics", "value"))
-
-                    values: Dict[str, Any] = {
-                        "checkpoint_id": checkpoint_id,
-                        "step": step,
-                        "timestamp": current_time,
-                        "environment_data": environment_payload,
-                        "world_metadata": world_metadata,
-                        "source_step": step,
-                        "step_metrics": step_metrics,
-                    }
-                    for idx, (field_key, field_type) in enumerate(fields):
-                        last = idx == len(fields) - 1
-                        if field_type == "value":
-                            _write_value_field(
-                                fp,
-                                2,
-                                field_key,
-                                values[field_key],
-                                last=last,
-                            )
-                        elif field_type == "agents":
-                            fp.write("  ")
-                            fp.write('"agents_data": ')
-                            _write_agents_map(fp, 2)
-                            if not last:
-                                fp.write(",")
-                            fp.write("\n")
-                        else:
-                            _write_observation_field(fp, 2, last=last)
-                    fp.write("}\n")
-                    fp.flush()
-            raw_fp.flush()
-            os.fsync(raw_fp.fileno())
-        return hashing_raw.digest.hexdigest(), hashing_raw.size
-
-    @staticmethod
-    async def _await_world_checkpoint_write(
-        writer: Any,
-    ) -> Any:
-        """Await a worker write while allowing safe outer-task cancellation."""
-
-        task = asyncio.create_task(asyncio.to_thread(writer))
-        try:
-            return await asyncio.shield(task)
-        except asyncio.CancelledError:
-            # Do not let save_checkpoint's finally block unlink a file while
-            # the worker still owns it.  Finish the worker, then propagate the
-            # cancellation to the caller.
-            await task
-            raise
-
-    def _chroma_backup_path(
-        self,
-        step: int,
-        *,
-        checkpoint_id: Optional[str] = None,
-    ) -> Path:
-        """Return the immutable Chroma component path for a checkpoint."""
-        step = self._normalize_step(step)
-        suffix = f".{checkpoint_id}" if checkpoint_id else ""
-        return self.chroma_backup_dir / f"step_{step:06d}{suffix}"
-
-    def _cleanup_unpublished_checkpoint(
-        self,
-        *,
-        step: int,
-        checkpoint_id: str,
-        checkpoint_file: Path,
-        temp_path: Path,
-        chroma_backup: Optional[Path],
-    ) -> None:
-        """Remove only components staged by one unpublished save attempt.
-
-        A replacement checkpoint has a fresh id in both component names, so
-        these paths cannot be the pair referenced by an already published
-        marker.  Keep the cleanup deterministic even when an injected failure
-        happens before the local ``chroma_backup`` variable is assigned.
-        """
-
-        temp_path.unlink(missing_ok=True)
-        checkpoint_file.unlink(missing_ok=True)
-        candidates = {
-            self._chroma_backup_path(step, checkpoint_id=checkpoint_id),
-            self.chroma_backup_dir / f".step_{step:06d}.{checkpoint_id}.tmp",
-        }
-        if chroma_backup is not None:
-            candidates.add(chroma_backup)
-        for path in candidates:
-            if path == self.chroma_backup_dir:
-                continue
-            if path.is_dir() and not path.is_symlink():
-                shutil.rmtree(path, ignore_errors=True)
-            else:
-                path.unlink(missing_ok=True)
-        self._fsync_directory(self.checkpoints_dir)
-        self._fsync_directory(self.chroma_backup_dir)
-
-    @staticmethod
-    def _file_sha256(path: Path) -> str:
-        digest = hashlib.sha256()
-        with path.open("rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                digest.update(chunk)
-        return digest.hexdigest()
 
     @staticmethod
     def canonical_sha256(value: Any) -> str:
@@ -773,60 +449,14 @@ class PersistenceManager:
         ``World.environment_data['state']`` is the canonical state store.  The
         default ``Environment.snapshot()`` also exposes that mapping under a
         top-level ``state`` key, which would write the same state twice and
-        make two fields appear authoritative.  v3 snapshots therefore retain
-        only custom environment data; state is restored from the top-level
-        World field before ``restore_from_snapshot`` is called.
+        make two fields appear authoritative.  Diagnostics retain only custom
+        environment data alongside a read-only state summary.
         """
         plain = cls._plain_snapshot_value(snapshot)
         if not isinstance(plain, dict):
             raise ValueError("Environment snapshot must be a mapping")
         plain.pop("state", None)
         return plain
-
-    @classmethod
-    def _directory_content_sha256(cls, directory: Path) -> str:
-        """Hash file names and bytes, excluding the checkpoint manifest itself."""
-        digest = hashlib.sha256()
-        for path in sorted(directory.rglob("*"), key=lambda item: item.as_posix()):
-            if path.is_symlink():
-                raise ValueError(f"Checkpoint backup must not contain symlinks: {path}")
-            if not path.is_file() or path == directory / "_checkpoint.json":
-                continue
-            relative = path.relative_to(directory).as_posix().encode("utf-8")
-            digest.update(len(relative).to_bytes(8, "big"))
-            digest.update(relative)
-            with path.open("rb") as handle:
-                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                    digest.update(chunk)
-        return digest.hexdigest()
-
-    @staticmethod
-    def _validate_memoryless_chroma_backup(directory: Path) -> None:
-        """Ensure a rule-only Chroma component contains metadata only.
-
-        Rule-only checkpoints deliberately do not carry vector data.  Keeping
-        the versioned backup directory (and its manifest) preserves the same
-        marker/hash publication protocol as memory-backed checkpoints, while
-        this validation prevents stale files or directories from crossing the
-        checkpoint boundary.
-        """
-        for entry in directory.iterdir():
-            if entry.name == "_checkpoint.json":
-                if entry.is_symlink() or not entry.is_file():
-                    raise ValueError(
-                        "Memoryless Chroma backup metadata must be a regular file"
-                    )
-                continue
-            raise ValueError(
-                "Chroma backup does not match: memoryless backup must contain metadata only"
-            )
-
-    @staticmethod
-    def _world_requires_memory(world: 'World') -> bool:
-        return any(
-            isinstance(agent_data, dict) and agent_data.get("archetype") == "llm"
-            for agent_data in world.agents_data.values()
-        )
 
     # ------------------------------------------------------------------
     # v4 incremental checkpoint path
@@ -1016,6 +646,13 @@ class PersistenceManager:
                 for delta in deltas
                 for epoch_id in delta.write_epoch_ids
             ),
+            annotations=_freeze_json(
+                {
+                    key: _thaw_json(value)
+                    for delta in deltas
+                    for key, value in (delta.annotations or {}).items()
+                }
+            ),
         )
 
     @staticmethod
@@ -1170,6 +807,9 @@ class PersistenceManager:
             self._v4_committed_memory_epoch_ids = set(committed)
             self._v4_pending_memory_epoch_ids.clear()
             if self._v4_world is not None:
+                self._v4_world._checkpoint_annotations.update(
+                    _thaw_json(combined.annotations or {})
+                )
                 self._v4_world.set_memory_checkpoint_view(
                     target_step=combined.step,
                     branch_id=self._v4_branch_id,
@@ -1179,7 +819,7 @@ class PersistenceManager:
             return marker
 
     def discard_unpublished_epoch(self) -> None:
-        """Drop all sealed deltas since the previous complete marker."""
+        """Drop all sealed deltas since the previous v4 marker."""
 
         if self._v4_publish_lock is not None and self._v4_publish_lock.locked():
             raise RuntimeError("cannot discard an epoch while v4 writer is active")
@@ -1373,357 +1013,9 @@ class PersistenceManager:
             branch_lineage=branch_lineage,
             committed_write_epoch_ids=committed_epochs,
         )
+        world._checkpoint_annotations = store.checkpoint_annotations(int(record["step"]))
         return world, None
     
-    async def save_checkpoint(
-        self,
-        world: 'World',
-        schedule: 'Schedule',
-        *,
-        step_metrics: Optional[Dict[str, Any]] = None,
-        memory_required: Optional[bool] = None,
-    ) -> Dict[str, Any]:
-        """
-        Save a complete checkpoint with World state and 向量存储（Chroma）备份。
-        
-        According to the design document:
-        1. Get current step number
-        2. Call world.environment.snapshot() for custom environment data
-        3. Stream world data directly into checkpoint_{step}.{id}.json.gz
-        4. Backup Chroma vector store
-        5. Update metadata.json
-        
-        Args:
-            world: The World instance to checkpoint
-            schedule: The Schedule instance for progress tracking
-        """
-        self._assert_usable()
-        step = self._normalize_step(world.step)
-        checkpoint_id = uuid.uuid4().hex
-        checkpoint_file = self._checkpoint_file_path(step, checkpoint_id=checkpoint_id)
-        marker_file = self._complete_marker_path(step)
-        requires_memory = self._world_requires_memory(world)
-        if memory_required is not None and bool(memory_required) is not requires_memory:
-            raise ValueError("memory_required must match the LLM agents present in World")
-        checkpoint_start = time.time()
-        checkpoint_published = False
-        chroma_backup: Optional[Path] = None
-        temp_path = checkpoint_file.with_name(
-            f".{checkpoint_file.name}.{uuid.uuid4().hex}.tmp.json.gz"
-        )
-
-        try:
-            logger.info(f"Creating checkpoint for step {step}")
-
-            agent_threads = self.agent_thread_store.publish_checkpoint_manifest(
-                checkpoint_id=checkpoint_id,
-                step=step,
-            )
-
-            environment = world.get_environment()
-            env_snapshot = self._derived_environment_snapshot(
-                environment.snapshot(include_state=False)
-            )
-
-            environment_payload = dict(world.environment_data)
-            environment_payload["state"] = dict(world.environment_data.get("state") or {})
-            environment_payload["snapshot"] = env_snapshot
-            observation_payload = self._build_observation_data(
-                world,
-                schedule,
-                step_metrics,
-                include_agents=False,
-                include_environment=False,
-            )
-
-            world_metadata = {
-                "checkpoint_version": self.CHECKPOINT_VERSION,
-                "world_encoding": self.WORLD_ENCODING,
-                "created_by": "PersistenceManager.save_checkpoint",
-                "checkpoint_id": checkpoint_id,
-                "step": step,
-                "memory_required": requires_memory,
-                "agent_types": dict(getattr(world, "_agent_types", {}) or {}),
-                "agent_threads": {
-                    "schema_version": 1,
-                    "manifest": agent_threads["path"],
-                    "manifest_sha256": agent_threads["sha256"],
-                    "thread_count": agent_threads["thread_count"],
-                    "by_agent": agent_threads["by_agent"],
-                    "threads": agent_threads["threads"],
-                },
-            }
-            resume_identity = getattr(world, "_resume_identity", None)
-            if resume_identity is not None:
-                world_metadata["resume_identity"] = dict(resume_identity)
-            checkpoint_annotations = world.checkpoint_annotations()
-            if checkpoint_annotations:
-                world_metadata["annotations"] = checkpoint_annotations
-
-            current_time = time.time()
-
-            # Convert proxy-backed world data before entering the worker.  The
-            # worker then performs only pure JSON/gzip I/O and never touches
-            # World, Environment, Schedule, or the event loop.
-            serialized_agents = self._serialize_agents_data(world.agents_data)
-            world_sha256, checkpoint_size = await self._await_world_checkpoint_write(
-                lambda: self._write_world_checkpoint_temp(
-                    temp_path,
-                    checkpoint_id=checkpoint_id,
-                    step=step,
-                    current_time=current_time,
-                    agents_data=serialized_agents,
-                    environment_payload=environment_payload,
-                    world_metadata=world_metadata,
-                    observation_payload=observation_payload,
-                    step_metrics=step_metrics,
-                    json_serializer=self._json_serializer,
-                )
-            )
-
-            temp_path.replace(checkpoint_file)
-            self._fsync_directory(checkpoint_file.parent)
-
-            # Identity is assembled into the payload and marker before the
-            # atomic rename.  Full gzip decoding is intentionally deferred to
-            # resolve/load (the recovery validation path), so saving does not
-            # decompress or re-read the entire World just to re-check id/step
-            # or calculate its hash.  The worker returned both values while
-            # writing the compressed bytes; stat only confirms rename fidelity.
-            if (
-                not checkpoint_file.is_file()
-                or checkpoint_file.stat().st_size <= 0
-                or checkpoint_file.stat().st_size != checkpoint_size
-            ):
-                raise ValueError("World checkpoint component size changed during publish")
-
-            backup_start = time.time()
-            chroma_backup = await self._backup_chroma_store(
-                step,
-                checkpoint_id=checkpoint_id,
-                memory_required=requires_memory,
-            )
-            backup_duration = time.time() - backup_start
-            chroma_sha256 = self._directory_content_sha256(chroma_backup)
-            chroma_manifest_path = chroma_backup / "_checkpoint.json"
-            with chroma_manifest_path.open("r", encoding="utf-8") as fp:
-                chroma_manifest = json.load(fp)
-            if (
-                chroma_manifest.get("checkpoint_id") != checkpoint_id
-                or chroma_manifest.get("step") != step
-                or chroma_manifest.get("content_sha256") != chroma_sha256
-            ):
-                raise ValueError("Chroma backup component failed identity validation")
-
-            marker_payload = {
-                "complete": True,
-                "recoverable": True,
-                "checkpoint_id": checkpoint_id,
-                "step": step,
-                "world_file": checkpoint_file.name,
-                "world_encoding": self.WORLD_ENCODING,
-                "chroma_backup": chroma_backup.name if chroma_backup is not None else None,
-                "memory_required": requires_memory,
-                "published_at": time.time(),
-                "checkpoint_version": self.CHECKPOINT_VERSION,
-                "world_sha256": world_sha256,
-                "chroma_sha256": chroma_sha256,
-                "agent_threads_manifest": agent_threads["path"],
-                "agent_threads_sha256": agent_threads["sha256"],
-            }
-            # Validate the exact immutable Thread manifest before publishing
-            # the complete marker.  A marker is the commit point; publishing
-            # it with a missing/mismatched Thread reference would make a
-            # checkpoint appear recoverable while its evidence is not.
-            from .agent.thread_store import AgentThreadStore
-
-            AgentThreadStore.validate_checkpoint_manifest(
-                self.save_dir,
-                agent_threads["path"],
-                expected_sha256=agent_threads["sha256"],
-                checkpoint_id=checkpoint_id,
-                step=step,
-            )
-            # 5. Update metadata
-            self.experiment_metadata.setdefault("total_steps", 0)
-            self.experiment_metadata.setdefault("last_checkpoint_step", -1)
-            self.experiment_metadata["last_checkpoint_step"] = step
-            self.experiment_metadata["total_steps"] = max(
-                self.experiment_metadata["total_steps"], step)
-            self._save_metadata()
-
-            # This is the commit point.  The old marker and its immutable pair
-            # remain untouched until this single atomic replacement succeeds.
-            # Versioned old components stay available for readers that opened
-            # the previous marker; any garbage collection is a separate task.
-            marker_payload["published_at"] = time.time()
-            self._atomic_write_json(marker_file, marker_payload)
-            checkpoint_published = True
-
-            logger.info(f"Successfully saved checkpoint for step {step}")
-
-            log_context = getattr(world, "_log_context", None)
-            if log_context:
-                duration = time.time() - checkpoint_start
-                payload = {
-                    LogField.CHECKPOINT_STEP.value: step,
-                    LogField.FILE_PATH.value: str(checkpoint_file),
-                    LogField.DURATION_SEC.value: duration,
-                }
-                if checkpoint_size is not None:
-                    payload[LogField.CHECKPOINT_SIZE_BYTES.value] = checkpoint_size
-                payload[LogField.BACKUP_DURATION_SEC.value] = backup_duration
-                payload[LogField.BACKUP_PATH.value] = str(self.chroma_store_path)
-                log_context.log_system(
-                    "INFO",
-                    SystemEvent.CHECKPOINT_SAVED.value,
-                    **payload,
-                )
-
-            return marker_payload
-
-        except BaseException as e:
-            # Cancellation is a valid failure boundary too.  It can arrive at
-            # the await immediately after the World rename, before the
-            # complete marker is published, so the unpublished pair must be
-            # removed just like an injected I/O failure.
-            # Never touch the component named by the previous marker.  If the
-            # marker replacement itself succeeded but a later durability check
-            # raised, preserve the newly published pair as well.
-            if not checkpoint_published:
-                try:
-                    with marker_file.open("r", encoding="utf-8") as fp:
-                        published_marker = json.load(fp)
-                    checkpoint_published = (
-                        published_marker.get("checkpoint_id") == checkpoint_id
-                    )
-                except (FileNotFoundError, OSError, json.JSONDecodeError):
-                    pass
-            if not checkpoint_published:
-                self._cleanup_unpublished_checkpoint(
-                    step=step,
-                    checkpoint_id=checkpoint_id,
-                    checkpoint_file=checkpoint_file,
-                    temp_path=temp_path,
-                    chroma_backup=chroma_backup,
-                )
-            if isinstance(e, asyncio.CancelledError):
-                logger.info("Checkpoint save cancelled before publication for step %s", step)
-            else:
-                logger.error(f"Failed to save checkpoint for step {step}: {e}")
-            log_context = getattr(world, "_log_context", None)
-            if log_context:
-                log_context.log_system(
-                    "ERROR",
-                    SystemEvent.CHECKPOINT_SAVED.value,
-                    **{
-                        LogField.CHECKPOINT_STEP.value: step,
-                        LogField.ERROR.value: str(e),
-                        LogField.TRACEBACK.value: traceback.format_exc(),
-                    },
-                )
-            raise
-        finally:
-            temp_path.unlink(missing_ok=True)
-
-    def _build_observation_data(
-        self,
-        world: 'World',
-        schedule: 'Schedule',
-        step_metrics: Optional[Dict[str, Any]] = None,
-        *,
-        include_agents: bool = True,
-        include_environment: bool = True,
-    ) -> Dict[str, Any]:
-        """构建用于快照的观察数据。
-
-        Args:
-            world: 当前世界状态
-            schedule: 调度实例
-            step_metrics: 当步指标
-            include_agents: 是否包含 agents_data（流式写入时可禁用以减少内存峰值）
-            include_environment: 是否包含 environment_data。恢复权威的
-                checkpoint 已在顶层保存环境；保存派生 observation 时应关闭，
-                避免再次复制完整环境 state。
-        """
-
-        # Extract metrics from last node's converter if available
-        metrics = {}
-        if hasattr(schedule, 'step_context') and schedule.step_context:
-            # Get last node in execution order
-            node_ids = list(schedule.step_context.keys())
-            if node_ids:
-                last_node_id = node_ids[-1]
-                last_node_context = schedule.step_context[last_node_id]
-
-                # Extract metrics from converter output
-                if isinstance(last_node_context, dict) and 'converter_output' in last_node_context:
-                    converter_output = last_node_context['converter_output']
-                    if isinstance(converter_output, dict):
-                        # Extract only top-level string->number fields
-                        for key, value in converter_output.items():
-                            if isinstance(key, str) and isinstance(value, (int, float)):
-                                metrics[key] = value
-
-        # Build step flow data with preserved order
-        step_flow_nodes: List[Dict[str, Any]] = []
-        step_execution_summary = {
-            "total_nodes": 0,
-            "successful_nodes": 0,
-            "step_start_time": getattr(schedule, 'step_start_time', time.time()),
-            "step_end_time": time.time(),
-            "world_step": world.step
-        }
-
-        step_flow_nodes_source = (
-            (step_metrics or {}).get("step_flow_nodes") if isinstance(step_metrics, dict) else None
-        )
-
-        if isinstance(step_flow_nodes_source, dict) and step_flow_nodes_source:
-            step_execution_summary["total_nodes"] = len(step_flow_nodes_source)
-            step_execution_summary["successful_nodes"] = len(step_flow_nodes_source)
-            for node_id, node_payload in step_flow_nodes_source.items():
-                if isinstance(node_payload, dict):
-                    entry = {"id": node_id}
-                    entry.update(node_payload)
-                    step_flow_nodes.append(entry)
-        elif hasattr(schedule, '_context_builder') and schedule._context_builder._nodes:
-            step_execution_summary["total_nodes"] = len(schedule._context_builder._nodes)
-
-            # Preserve execution order using the order in JmespathContextBuilder._nodes
-            for node_id, node_snapshot in schedule._context_builder._nodes.items():
-                if isinstance(node_snapshot, NodeSnapshot):
-                    step_execution_summary["successful_nodes"] += 1
-                    step_node = self._build_step_node_from_jmespath_snapshot(node_id, node_snapshot)
-                    step_flow_nodes.append(step_node)
-
-        # Build observation data structure
-        observation_data: Dict[str, Any] = {
-            "step": {
-                "number": world.step,
-                "timestamp": time.time(),
-            },
-            "step_flow": {
-                "nodes": step_flow_nodes,
-                "execution_summary": step_execution_summary
-            },
-        }
-
-        if include_environment:
-            observation_data["environment_data"] = {
-                "type": world.environment_data["type"],
-                "state": dict(world.environment_data["state"]),
-            }
-
-        if include_agents:
-            observation_data["agents_data"] = self._serialize_agents_data(world.agents_data)
-
-        # Add metrics if available
-        if metrics:
-            observation_data["metrics"] = metrics
-
-        return observation_data
-
     async def save_diagnostic_checkpoint(
         self,
         world: 'World',
@@ -1733,7 +1025,8 @@ class PersistenceManager:
     ) -> Path:
         """Write a non-recoverable final snapshot for inspection.
 
-        This intentionally does not create a Chroma backup or a complete marker.
+        This intentionally does not create a Chroma checkpoint copy or a
+        recoverable marker.
         """
         if Path(filename).name != filename:
             raise ValueError("Diagnostic checkpoint filename must be a basename")
@@ -1756,7 +1049,7 @@ class PersistenceManager:
                 "timestamp": time.time(),
                 "recoverable": False,
                 "diagnostic": True,
-                "world_encoding": self.WORLD_ENCODING,
+                "encoding": self.DIAGNOSTIC_ENCODING,
                 "agent_threads": agent_threads,
                 "agents_data": self._serialize_agents_data(world.agents_data),
                 "environment_data": environment_payload,
@@ -1764,129 +1057,8 @@ class PersistenceManager:
         }
         if failure is not None:
             payload["failure"] = dict(failure)
-        self._atomic_write_gzip_json(path, payload)
+        self._atomic_write_diagnostic_gzip_json(path, payload)
         return path
-
-    def _build_step_node_from_jmespath_snapshot(self, node_id: str, node_snapshot: NodeSnapshot) -> Dict[str, Any]:
-        """从 JmespathContextBuilder 的 NodeSnapshot 构建步骤节点数据"""
-        step_node = {
-            "id": node_id,
-            "inputs": getattr(node_snapshot, 'inputs', {}),
-        }
-
-        # Selector 信息
-        if hasattr(node_snapshot, 'selector') and node_snapshot.selector:
-            selector = node_snapshot.selector
-            step_node["selector"] = {
-                "params": getattr(selector, 'params', {}),
-                "matched_ids": getattr(selector, 'matched_ids', []),
-                "match_count": getattr(selector, 'match_count', 0)
-            }
-
-        # Operator 执行信息
-        if hasattr(node_snapshot, 'operators') and node_snapshot.operators:
-            operators = []
-            for operator_id, operator_snapshot in node_snapshot.operators.items():
-                operator_data = self._build_operator_from_jmespath_snapshot(operator_id, operator_snapshot)
-                operators.append(operator_data)
-            step_node["operators"] = operators
-
-        # Converter 输出
-        if hasattr(node_snapshot, 'converter_output') and node_snapshot.converter_output is not None:
-            step_node["converter"] = {
-                "output": node_snapshot.converter_output,
-                # Note: converter expression is not stored in NodeSnapshot, so we'll omit it
-            }
-
-        return step_node
-
-    def _build_operator_from_jmespath_snapshot(self, operator_id: str, operator_snapshot: OperatorSnapshot) -> Dict[str, Any]:
-        """从 JmespathContextBuilder 的 OperatorSnapshot 构建操作员数据"""
-        executions = []
-        if hasattr(operator_snapshot, 'executions') and operator_snapshot.executions:
-            for execution in operator_snapshot.executions:
-                execution_data = {
-                    "agent_id": execution.agent_id,
-                    "status": execution.status,
-                    "output": execution.output,
-                    "structured_output": execution.structured_output,
-                    "execution_time": execution.execution_time,
-                    "inputs": execution.inputs,
-                    "error_message": execution.error_message
-                }
-                executions.append(execution_data)
-
-        return {
-            "id": operator_id,
-            "type": operator_snapshot.type,
-            "executions": executions
-        }
-
-    def _build_step_node_snapshot(self, node_id: str, node_context: Dict[str, Any]) -> Dict[str, Any]:
-        """Build a snapshot for a single step node."""
-        node_snapshot = {
-            "id": node_id,
-            "inputs": node_context.get("inputs", {}),
-        }
-
-        # Add selector information if available
-        if "selector_result" in node_context:
-            selector_result = node_context["selector_result"]
-            if isinstance(selector_result, dict):
-                node_snapshot["selector"] = {
-                    "params": node_context.get("selector_params", {}),
-                    "matched_ids": selector_result.get("matched_ids", []),
-                    "match_count": len(selector_result.get("matched_ids", []))
-                }
-
-        # Add operator executions
-        if "operators" in node_context:
-            operators = []
-            operators_data = node_context["operators"]
-
-            if isinstance(operators_data, dict):
-                for operator_id, operator_data in operators_data.items():
-                    if isinstance(operator_data, dict):
-                        operator_snapshot = self._build_operator_snapshot(operator_id, operator_data)
-                        operators.append(operator_snapshot)
-
-            node_snapshot["operators"] = operators
-
-        # Add converter output if available
-        if "converter_output" in node_context:
-            node_snapshot["converter"] = {
-                "output": node_context["converter_output"],
-                "expression": node_context.get("converter_expression")
-            }
-
-        return node_snapshot
-
-    def _build_operator_snapshot(self, operator_id: str, operator_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Build a snapshot for a single operator."""
-        operator_snapshot = {
-            "id": operator_id,
-            "type": operator_data.get("type", "unknown"),
-            "executions": []
-        }
-
-        # Add executions if available
-        if "executions" in operator_data:
-            executions = operator_data["executions"]
-            if isinstance(executions, list):
-                for execution in executions:
-                    if isinstance(execution, dict):
-                        execution_snapshot = {
-                            "agent_id": execution.get("agent_id", "unknown"),
-                            "status": execution.get("status", "unknown"),
-                            "output": execution.get("output", {}),
-                            "structured_output": execution.get("structured_output", {}),
-                            "execution_time": execution.get("execution_time"),
-                            "inputs": execution.get("inputs", {}),
-                            "error_message": execution.get("error_message")
-                        }
-                        operator_snapshot["executions"].append(execution_snapshot)
-
-        return operator_snapshot
 
     def append_node_diff(
         self,
@@ -1910,218 +1082,15 @@ class PersistenceManager:
         with self._diff_lock, diff_file.open("a", encoding="utf-8") as fp:
             fp.write(serialized + "\n")
     
-    @staticmethod
-    def _safe_child(directory: Path, name: Any, *, component: str) -> Path:
-        """Resolve one named checkpoint component without permitting path escape."""
-        if not isinstance(name, str) or not name or Path(name).name != name:
-            raise ValueError(f"Invalid {component} name")
-        directory = directory.resolve()
-        candidate = (directory / name).resolve()
-        if candidate.parent != directory:
-            raise ValueError(f"Invalid {component} path")
-        return candidate
-
     @classmethod
     def resolve_checkpoint_from(
         cls,
         source_run: str | Path,
         step: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Read and validate a checkpoint without initializing its source run.
+        """Read and validate a v4 checkpoint without opening its Chroma store."""
+        return cls._resolve_v4_checkpoint_from(Path(source_run).resolve(), step)
 
-        This method deliberately performs path-only reads: it creates no source
-        directories, tmpfs runtime, Chroma client, or close-time writeback.
-        """
-        save_dir = Path(source_run).resolve()
-        v4_complete = save_dir / "checkpoints" / "v4" / "complete"
-        if v4_complete.is_dir() and any(v4_complete.glob("step_*.json")):
-            return cls._resolve_v4_checkpoint_from(save_dir, step)
-        checkpoints_dir = save_dir / "checkpoints"
-        complete_dir = checkpoints_dir / "complete"
-        backup_root = save_dir / "chroma_backups"
-
-        if step is None:
-            candidates: List[int] = []
-            for marker_path in complete_dir.glob("step_*.json"):
-                try:
-                    candidates.append(int(marker_path.stem.split("_", 1)[1]))
-                except (IndexError, ValueError):
-                    continue
-            for candidate_step in sorted(set(candidates), reverse=True):
-                try:
-                    return cls.resolve_checkpoint_from(save_dir, candidate_step)
-                except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError):
-                    continue
-            raise FileNotFoundError(f"No complete checkpoints found in {save_dir}")
-
-        step = cls._normalize_step(step)
-        marker_file = complete_dir / f"step_{step:06d}.json"
-        if not marker_file.is_file() or marker_file.is_symlink():
-            raise FileNotFoundError(f"Complete checkpoint not found for step {step}")
-        with marker_file.open("r", encoding="utf-8") as handle:
-            marker = json.load(handle)
-        if marker.get("complete") is not True or marker.get("recoverable") is not True:
-            raise ValueError(f"Checkpoint marker is not complete for step {step}")
-        checkpoint_id = marker.get("checkpoint_id")
-        marker_step = marker.get("step")
-        if (
-            isinstance(marker_step, bool)
-            or not isinstance(marker_step, int)
-            or marker_step != step
-            or not isinstance(checkpoint_id, str)
-            or not checkpoint_id
-        ):
-            raise ValueError(f"Invalid checkpoint marker for step {step}")
-        if marker.get("checkpoint_version") != cls.CHECKPOINT_VERSION:
-            raise ValueError(f"Unsupported checkpoint version for step {step}")
-
-        checkpoint_file = cls._safe_child(
-            checkpoints_dir,
-            marker.get("world_file"),
-            component="world checkpoint",
-        )
-        expected_world_name = f"checkpoint_{step:06d}.{checkpoint_id}.json.gz"
-        if marker.get("world_file") != expected_world_name:
-            raise ValueError(f"World checkpoint filename does not match marker for step {step}")
-        world_encoding = marker.get("world_encoding")
-        if world_encoding != cls.WORLD_ENCODING:
-            raise ValueError(f"Unsupported world checkpoint encoding for step {step}")
-        if not checkpoint_file.is_file() or checkpoint_file.is_symlink():
-            raise FileNotFoundError(f"World checkpoint component missing for step {step}")
-        expected_world_hash = marker.get("world_sha256")
-        if not isinstance(expected_world_hash, str) or cls._file_sha256(checkpoint_file) != expected_world_hash:
-            raise ValueError(f"World checkpoint content hash mismatch for step {step}")
-        checkpoint_data = cls._read_world_checkpoint(
-            checkpoint_file,
-            encoding=world_encoding,
-        )
-        checkpoint_step = checkpoint_data.get("step")
-        if (
-            checkpoint_data.get("checkpoint_id") != checkpoint_id
-            or isinstance(checkpoint_step, bool)
-            or not isinstance(checkpoint_step, int)
-            or checkpoint_step != step
-        ):
-            raise ValueError(f"World checkpoint does not match complete marker for step {step}")
-        agents_data = checkpoint_data.get("agents_data")
-        if not isinstance(agents_data, dict):
-            raise ValueError(f"World checkpoint agents_data is invalid for step {step}")
-        derived_memory_required = any(
-            isinstance(agent, dict) and agent.get("archetype") == "llm"
-            for agent in agents_data.values()
-        )
-        world_metadata = checkpoint_data.get("world_metadata")
-        if not isinstance(world_metadata, dict):
-            raise ValueError(f"World metadata missing for step {step}")
-        if (
-            world_metadata.get("checkpoint_id") != checkpoint_id
-            or isinstance(world_metadata.get("step"), bool)
-            or not isinstance(world_metadata.get("step"), int)
-            or world_metadata.get("step") != step
-            or world_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
-            or world_metadata.get("world_encoding") != world_encoding
-            or world_metadata.get("memory_required") is not derived_memory_required
-            or marker.get("memory_required") is not derived_memory_required
-        ):
-            raise ValueError(f"Checkpoint metadata does not match world data for step {step}")
-        resume_identity = world_metadata.get("resume_identity")
-        if resume_identity is not None:
-            if not isinstance(resume_identity, dict):
-                raise ValueError(f"Checkpoint resume identity is invalid for step {step}")
-            unsigned_identity = dict(resume_identity)
-            identity_sha256 = unsigned_identity.pop("identity_sha256", None)
-            if (
-                unsigned_identity.get("schema_version") != 1
-                or not isinstance(identity_sha256, str)
-                or cls.canonical_sha256(unsigned_identity) != identity_sha256
-            ):
-                raise ValueError(f"Checkpoint resume identity hash mismatch for step {step}")
-        checkpoint_annotations = world_metadata.get("annotations")
-        if checkpoint_annotations is not None and not isinstance(
-            checkpoint_annotations,
-            dict,
-        ):
-            raise ValueError(f"Checkpoint annotations are invalid for step {step}")
-
-        agent_threads = world_metadata.get("agent_threads")
-        if not isinstance(agent_threads, dict):
-            raise ValueError(f"Agent Thread references missing for step {step}")
-        manifest_name = marker.get("agent_threads_manifest")
-        manifest_sha256 = marker.get("agent_threads_sha256")
-        if (
-            agent_threads.get("schema_version") != 1
-            or agent_threads.get("manifest") != manifest_name
-            or agent_threads.get("manifest_sha256") != manifest_sha256
-            or not isinstance(manifest_name, str)
-            or not isinstance(manifest_sha256, str)
-        ):
-            raise ValueError(
-                f"Agent Thread references do not match checkpoint marker for step {step}"
-            )
-        from .agent.thread_store import AgentThreadStore
-
-        agent_thread_manifest = AgentThreadStore.validate_checkpoint_manifest(
-            save_dir,
-            manifest_name,
-            expected_sha256=manifest_sha256,
-            checkpoint_id=checkpoint_id,
-            step=step,
-        )
-        if (
-            agent_threads.get("thread_count")
-            != len(agent_thread_manifest["threads"])
-            or agent_threads.get("by_agent") != agent_thread_manifest["by_agent"]
-            or agent_threads.get("threads") != agent_thread_manifest["threads"]
-        ):
-            raise ValueError(
-                f"Agent Thread checkpoint references are inconsistent for step {step}"
-            )
-
-        backup_name = marker.get("chroma_backup")
-        if backup_name is None:
-            raise FileNotFoundError(
-                f"Chroma backup missing for complete checkpoint step {step}"
-            )
-        backup_dir = cls._safe_child(
-            backup_root,
-            backup_name,
-            component="Chroma backup",
-        )
-        if not backup_dir.is_dir() or backup_dir.is_symlink():
-            raise FileNotFoundError(f"Chroma backup missing for complete checkpoint step {step}")
-        backup_manifest = backup_dir / "_checkpoint.json"
-        if not backup_manifest.is_file() or backup_manifest.is_symlink():
-            raise FileNotFoundError(f"Chroma backup manifest missing for step {step}")
-        if not derived_memory_required:
-            cls._validate_memoryless_chroma_backup(backup_dir)
-        with backup_manifest.open("r", encoding="utf-8") as handle:
-            chroma_metadata = json.load(handle)
-        expected_chroma_hash = marker.get("chroma_sha256")
-        actual_chroma_hash = cls._directory_content_sha256(backup_dir)
-        if (
-            chroma_metadata.get("checkpoint_id") != checkpoint_id
-            or isinstance(chroma_metadata.get("step"), bool)
-            or not isinstance(chroma_metadata.get("step"), int)
-            or chroma_metadata.get("step") != step
-            or chroma_metadata.get("checkpoint_version") != marker.get("checkpoint_version")
-            or chroma_metadata.get("memory_required") is not derived_memory_required
-            or not isinstance(expected_chroma_hash, str)
-            or chroma_metadata.get("content_sha256") != expected_chroma_hash
-            or actual_chroma_hash != expected_chroma_hash
-        ):
-            raise ValueError(f"Chroma backup does not match complete marker for step {step}")
-
-        return {
-            "step": step,
-            "checkpoint_id": checkpoint_id,
-            "marker": marker,
-            "marker_file": marker_file,
-            "checkpoint_file": checkpoint_file,
-            "checkpoint_data": checkpoint_data,
-            "chroma_backup_dir": backup_dir,
-            "agent_thread_manifest": agent_thread_manifest,
-            "memory_required": derived_memory_required,
-        }
 
     @classmethod
     def resolve_last_complete_from(cls, source_run: str | Path) -> Dict[str, Any]:
@@ -2132,9 +1101,8 @@ class PersistenceManager:
     def resolve_checkpoint(self, step: Optional[int] = None) -> Dict[str, Any]:
         """Resolve a checkpoint in this run through the read-only resolver."""
         self._assert_usable()
-        if self._v4_enabled and self._v4_store is not None:
-            return self._v4_store.resolve(step)
-        return self.resolve_checkpoint_from(self.save_dir, step)
+        store = self._v4_store or V4CheckpointStore(self.save_dir)
+        return store.resolve(step)
 
     async def create_branch(self, from_step: int, branch_name: str) -> "PersistenceManager":
         """从任意完整 v4 checkpoint 创建共享 immutable 组件的逻辑分支。"""
@@ -2173,39 +1141,22 @@ class PersistenceManager:
         step: Optional[int] = None,
         *,
         memory_required: Optional[bool] = None,
-        restore_chroma: bool = True,
+        restore_chroma: bool = False,
         event_logger: Optional[Any] = None,
         event_log_path: Optional[str] = None,
         environment_factory: Optional[Any] = None,
     ) -> Tuple['World', 'Schedule']:
+        """Restore a v4 checkpoint and switch the Chroma visibility view.
+
+        ``memory_required`` and ``restore_chroma`` are accepted only as an
+        explicit v4 call-site guard; v4 never copies or restores a database.
         """
-        Load checkpoint and reconstruct World and Schedule objects.
-        
-        According to the design document:
-        1. Find checkpoint files and Chroma backup for step
-        2. Restore Chroma vector store
-        3. Deserialize checkpoint data and rebuild World
-        4. Create Schedule object with correct internal state
-        5. Return reconstructed objects
-        
-        Args:
-            step: Step number to load. ``None`` selects the latest complete step.
-            
-        Returns:
-            Tuple of (World, Schedule) objects
-        """
+        del memory_required
+        if restore_chroma:
+            raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
         record = self.resolve_checkpoint(step)
-        if record.get("marker", {}).get("checkpoint_version") == V4CheckpointStore.VERSION:
-            return await self._load_v4_checkpoint_record(
-                record,
-                event_logger=event_logger,
-                event_log_path=event_log_path,
-                environment_factory=environment_factory,
-            )
-        return await self._load_checkpoint_record(
+        return await self._load_v4_checkpoint_record(
             record,
-            memory_required=memory_required,
-            restore_chroma=restore_chroma,
             event_logger=event_logger,
             event_log_path=event_log_path,
             environment_factory=environment_factory,
@@ -2217,483 +1168,24 @@ class PersistenceManager:
         step: Optional[int] = None,
         *,
         memory_required: Optional[bool] = None,
-        restore_chroma: bool = True,
+        restore_chroma: bool = False,
         event_logger: Optional[Any] = None,
         event_log_path: Optional[str] = None,
         environment_factory: Optional[Any] = None,
     ) -> Tuple['World', 'Schedule']:
-        """Load a source checkpoint into this manager without mutating source_run."""
+        """Restore a v4 checkpoint from another run without mutating it."""
+        del memory_required
+        if restore_chroma:
+            raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
         self._assert_usable()
         record = self.resolve_checkpoint_from(source_run, step)
-        if record.get("marker", {}).get("checkpoint_version") == V4CheckpointStore.VERSION:
-            return await self._load_v4_checkpoint_record(
-                record,
-                event_logger=event_logger,
-                event_log_path=event_log_path,
-                environment_factory=environment_factory,
-            )
-        return await self._load_checkpoint_record(
+        return await self._load_v4_checkpoint_record(
             record,
-            memory_required=memory_required,
-            restore_chroma=restore_chroma,
             event_logger=event_logger,
             event_log_path=event_log_path,
             environment_factory=environment_factory,
         )
 
-    async def _load_checkpoint_record(
-        self,
-        record: Dict[str, Any],
-        *,
-        memory_required: Optional[bool],
-        restore_chroma: bool,
-        event_logger: Optional[Any],
-        event_log_path: Optional[str],
-        environment_factory: Optional[Any],
-    ) -> Tuple['World', 'Schedule']:
-        chroma_restored = False
-        try:
-            resolved_step = self._normalize_step(record["step"])
-            checkpoint_data = record["checkpoint_data"]
-            checkpoint_requires_memory = bool(record["memory_required"])
-            if memory_required is True and record["chroma_backup_dir"] is None:
-                raise FileNotFoundError(
-                    f"Memory backup missing for complete checkpoint step {resolved_step}"
-                )
-
-            if restore_chroma:
-                await self._restore_chroma_store(
-                    resolved_step,
-                    checkpoint_id=record["checkpoint_id"],
-                    memory_required=checkpoint_requires_memory,
-                    backup_dir=record["chroma_backup_dir"],
-                    use_default_backup=False,
-                )
-                chroma_restored = True
-            
-            # 3. Reconstruct World object
-            from .core_data import World
-            
-            # Create World with same event log path pattern
-            events_file = event_log_path or str(self.events_dir / f"events_from_step_{resolved_step}.jsonl")
-            world = World(step=resolved_step, event_log_path=events_file, event_logger=event_logger)
-            if environment_factory is not None:
-                world.set_environment_factory(environment_factory)
-            
-            # Restore agents data
-            world.agents_data = self._deserialize_agents_data(checkpoint_data["agents_data"])
-            world._agent_types = dict(
-                (checkpoint_data.get("world_metadata") or {}).get("agent_types") or {}
-            )
-            resume_identity = (checkpoint_data.get("world_metadata") or {}).get(
-                "resume_identity"
-            )
-            if isinstance(resume_identity, dict):
-                world._resume_identity = dict(resume_identity)
-            checkpoint_annotations = (checkpoint_data.get("world_metadata") or {}).get(
-                "annotations"
-            )
-            if checkpoint_annotations is not None:
-                if not isinstance(checkpoint_annotations, dict):
-                    raise ValueError("Checkpoint annotations must be a mapping")
-                world._checkpoint_annotations = copy.deepcopy(checkpoint_annotations)
-            
-            # Restore environment data
-            env_data = checkpoint_data["environment_data"]
-            world.environment_data = {
-                key: value
-                for key, value in env_data.items()
-                if key != "snapshot"
-            }
-            world.environment_data.setdefault("type", "base")
-            world.environment_data.setdefault("state", {})
-            
-            # Restore environment from snapshot if available
-            if "snapshot" in env_data:
-                environment = world.get_environment()
-                environment.restore_from_snapshot(env_data["snapshot"])
-            
-            # 4. Create Schedule object
-            # Note: Schedule creation requires configuration, which we don't have here
-            # The caller needs to provide the schedule configuration
-            # For now, return None for schedule - this should be handled by SimEngine
-            schedule = None
-            
-            logger.info(f"Loaded checkpoint for step {resolved_step}")
-            return world, schedule
-            
-        except Exception as e:
-            if chroma_restored:
-                self.disable_after_restore_failure()
-            logger.error(f"Failed to load checkpoint for step {record.get('step')}: {e}")
-            raise
-    
-    async def replay_events_from_checkpoint(self, world: 'World', checkpoint_step: int) -> 'World':
-        """
-        Replay events from the last checkpoint to bring World to latest state.
-        
-        Args:
-            world: World object loaded from checkpoint
-            checkpoint_step: Step number of the checkpoint
-            
-        Returns:
-            Updated World object with events replayed
-        """
-        checkpoint_step = self._normalize_step(checkpoint_step)
-        events_file = self.events_dir / f"events_from_step_{checkpoint_step}.jsonl"
-        
-        if not events_file.exists():
-            logger.info(f"No event log found for replay from step {checkpoint_step}")
-            return world
-        
-        try:
-            events_replayed = 0
-            with open(events_file, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        event_data = json.loads(line)
-                        # Apply event to world state
-                        await self._apply_event_to_world(world, event_data)
-                        events_replayed += 1
-            
-            logger.info(f"Replayed {events_replayed} events from checkpoint step {checkpoint_step}")
-            return world
-            
-        except Exception as e:
-            logger.error(f"Failed to replay events from step {checkpoint_step}: {e}")
-            raise
-    
-    async def _backup_chroma_store(
-        self,
-        step: int,
-        *,
-        checkpoint_id: str,
-        memory_required: bool,
-    ) -> Path:
-        """Build the Chroma component before the complete marker is published."""
-        step = self._normalize_step(step)
-        temp_dir = self.chroma_backup_dir / f".step_{step:06d}.{checkpoint_id}.tmp"
-        try:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            if memory_required:
-                self._sync_chroma_to_store()
-
-                source_dir = (
-                    self.chroma_runtime_path
-                    if self.chroma_runtime_path and self.chroma_runtime_path.exists()
-                    else self.chroma_store_path
-                )
-
-                if not source_dir.exists():
-                    raise FileNotFoundError(f"Chroma store directory not found at {source_dir}")
-
-                self._copy_directory(source_dir, temp_dir)
-            else:
-                # Rule-only checkpoints retain only the versioned metadata
-                # container.  Never copy or sync a pre-existing runtime store.
-                temp_dir.mkdir(parents=True, exist_ok=True)
-            content_sha256 = self._directory_content_sha256(temp_dir)
-            self._atomic_write_json(
-                temp_dir / "_checkpoint.json",
-                {
-                    "checkpoint_id": checkpoint_id,
-                    "step": step,
-                    "checkpoint_version": self.CHECKPOINT_VERSION,
-                    "memory_required": memory_required,
-                    "content_sha256": content_sha256,
-                    "created_at": time.time(),
-                },
-            )
-
-            # Flush every copied file and directory entry before exposing the
-            # component name.  The marker is the only publication point for a
-            # complete pair; its parent directory is synced after replacement.
-            self._fsync_tree(temp_dir)
-            backup_dir = self._chroma_backup_path(step, checkpoint_id=checkpoint_id)
-            temp_dir.replace(backup_dir)
-            self._fsync_directory(self.chroma_backup_dir)
-            logger.debug("Backed up Chroma store for step %s -> %s", step, backup_dir)
-            return backup_dir
-
-        except Exception as e:
-            logger.error(f"Failed to backup Chroma store for step {step}: {e}")
-            raise
-        finally:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-
-    async def _restore_chroma_store(
-        self,
-        step: int,
-        *,
-        checkpoint_id: str,
-        memory_required: bool,
-        backup_dir: Optional[Path] = None,
-        use_default_backup: bool = True,
-    ) -> None:
-        """Restore Chroma transactionally, rolling back every destination path."""
-        self._assert_usable()
-        step = self._normalize_step(step)
-        rollback_paths: Dict[Path, Path] = {}
-        staged_paths: Dict[Path, Path] = {}
-        replaced_targets: List[Path] = []
-        existing_targets: set[Path] = set()
-        try:
-            if backup_dir is None and not use_default_backup:
-                raise FileNotFoundError(f"Chroma backup not found for step {step}")
-            backup_dir = backup_dir or self._chroma_backup_path(step)
-            if not backup_dir.exists():
-                raise FileNotFoundError(f"Chroma backup not found for step {step}")
-
-            manifest_path = backup_dir / "_checkpoint.json"
-            if not manifest_path.is_file():
-                raise FileNotFoundError(f"Chroma backup manifest not found for step {step}")
-            with manifest_path.open("r", encoding="utf-8") as handle:
-                manifest = json.load(handle)
-            if not memory_required:
-                self._validate_memoryless_chroma_backup(backup_dir)
-            content_sha256 = self._directory_content_sha256(backup_dir)
-            if (
-                manifest.get("checkpoint_id") != checkpoint_id
-                or isinstance(manifest.get("step"), bool)
-                or not isinstance(manifest.get("step"), int)
-                or manifest.get("step") != step
-                or manifest.get("checkpoint_version") != self.CHECKPOINT_VERSION
-                or manifest.get("memory_required") is not memory_required
-                or manifest.get("content_sha256") != content_sha256
-            ):
-                raise ValueError(f"Chroma backup does not match checkpoint {checkpoint_id}")
-
-            # Chroma has no explicit close API. Persistent writes already land
-            # in its active directory; detach the handle before path swaps.
-            if memory_required:
-                self._sync_chroma_to_store()
-            self._chroma_client = None
-
-            targets = [self.chroma_store_path]
-            if self._using_fallback_runtime and self.chroma_runtime_path != self.chroma_store_path:
-                targets.insert(0, self.chroma_runtime_path)
-            unique_targets = list(dict.fromkeys(targets))
-
-            token = uuid.uuid4().hex
-            for target_dir in unique_targets:
-                target_dir.parent.mkdir(parents=True, exist_ok=True)
-                staged = target_dir.parent / f".{target_dir.name}.{token}.restore"
-                rollback = target_dir.parent / f".{target_dir.name}.{token}.rollback"
-                shutil.rmtree(staged, ignore_errors=True)
-                shutil.rmtree(rollback, ignore_errors=True)
-                self._copy_directory(backup_dir, staged)
-                (staged / "_checkpoint.json").unlink(missing_ok=True)
-                staged_paths[target_dir] = staged
-                rollback_paths[target_dir] = rollback
-
-            for target_dir in unique_targets:
-                rollback = rollback_paths[target_dir]
-                staged = staged_paths[target_dir]
-                if target_dir.exists():
-                    existing_targets.add(target_dir)
-                    target_dir.replace(rollback)
-                    replaced_targets.append(target_dir)
-                else:
-                    replaced_targets.append(target_dir)
-                staged.replace(target_dir)
-
-            if memory_required:
-                # Avoid _ensure_chroma_client here: it syncs during the open and
-                # would make rollback span another destructive copy.
-                self._chroma_client = self._create_chroma_client()
-
-            for rollback in rollback_paths.values():
-                shutil.rmtree(rollback, ignore_errors=True)
-
-            logger.debug("Restored Chroma store from step %s", step)
-
-        except Exception as e:
-            self._chroma_client = None
-            rollback_errors: List[Exception] = []
-            for target_dir in reversed(replaced_targets):
-                try:
-                    rollback = rollback_paths[target_dir]
-                    shutil.rmtree(target_dir, ignore_errors=True)
-                    if target_dir in existing_targets and rollback.exists():
-                        rollback.replace(target_dir)
-                except Exception as rollback_exc:
-                    rollback_errors.append(rollback_exc)
-            if rollback_errors:
-                self._restore_failed = True
-                logger.critical(
-                    "Chroma restore rollback failed; persistence manager disabled: %s",
-                    rollback_errors,
-                )
-            logger.error(f"Failed to restore Chroma store for step {step}: {e}")
-            raise
-        finally:
-            for staged in staged_paths.values():
-                shutil.rmtree(staged, ignore_errors=True)
-    
-    async def _apply_event_to_world(self, world: 'World', event_data: Dict[str, Any]) -> None:
-        """Apply a single event to world state (event replay)."""
-        event_type = (event_data.get("event_type") or "").upper()
-
-        if event_type == "STATE_CHANGE":
-            target_type = event_data.get("target_type")
-            target_id = event_data.get("target_id")
-            path = event_data.get("path") or []
-            value = event_data.get("value")
-
-            if target_type is not None:
-                self._apply_state_change_event(world, target_type, target_id, path, value)
-                logger.debug("Applied STATE_CHANGE event to %s:%s path=%s", target_type, target_id, path)
-                return
-
-            # legacy fallback
-            agent_id = event_data.get("agent_id")
-            if agent_id and agent_id in world.agents_data:
-                changes = event_data.get("changes", {})
-                for key, change_value in changes.items():
-                    agent_state = world.agents_data[agent_id].get("state", {})
-                    if isinstance(change_value, dict):
-                        agent_state.setdefault(key, {}).update(change_value)
-                    else:
-                        agent_state[key] = change_value
-                logger.debug("Applied legacy STATE_CHANGE for agent %s", agent_id)
-                return
-
-        elif event_type == "MEMORY_CHANGE":
-            # 记忆事件暂不重放（向量存储在快照与备份中恢复）
-            logger.debug("Skipping MEMORY_CHANGE replay (handled via Chroma restore)")
-
-        payload = event_data.get("event_data") or {}
-        state_patches = payload.get("state_patches")
-        if isinstance(state_patches, list):
-            self._apply_state_patches(world, state_patches)
-            logger.debug("Applied %s generic state patch(es)", len(state_patches))
-
-    def _apply_state_change_event(
-        self,
-        world: 'World',
-        target_type: Optional[str],
-        target_id: Optional[str],
-        path: Iterable[str],
-        value: Any
-    ) -> None:
-        if target_type == "agent":
-            if not target_id or target_id not in world.agents_data:
-                return
-            agent_entry = world.agents_data[target_id]
-            container = agent_entry.setdefault("state", {})
-        elif target_type == "environment":
-            container = world.environment_data.setdefault("state", {})
-        else:
-            return
-
-        path_segments = [segment for segment in path if segment is not None]
-        self._set_nested_value(container, path_segments, value)
-
-    @staticmethod
-    def _set_nested_value(target: Dict[str, Any], path: Iterable[str], value: Any) -> None:
-        current = target
-        segments = list(path)
-        if not segments:
-            if isinstance(current, dict):
-                current.clear()
-                if isinstance(value, dict):
-                    current.update(value)
-            return
-
-        for segment in segments[:-1]:
-            current = current.setdefault(segment, {})
-        current[segments[-1]] = value
-
-    def _apply_state_patches(self, world: 'World', patches: Iterable[Dict[str, Any]]) -> None:
-        """Apply generic state patches carried by an event payload."""
-        for patch in patches:
-            if not isinstance(patch, dict):
-                continue
-            target_type = patch.get("target_type")
-            target_id = patch.get("target_id")
-            operation = str(patch.get("operation") or "set").lower()
-            path = patch.get("path") or []
-            value = patch.get("value")
-
-            if operation == "set":
-                self._apply_state_change_event(world, target_type, target_id, path, value)
-            elif operation == "increment":
-                self._apply_increment_patch(world, target_type, target_id, path, value)
-            elif operation == "merge":
-                self._apply_merge_patch(world, target_type, target_id, path, value)
-            else:
-                logger.debug("Skipping unsupported state patch operation: %s", operation)
-
-    def _get_patch_root(
-        self,
-        world: 'World',
-        target_type: Optional[str],
-        target_id: Optional[str],
-    ) -> Optional[Dict[str, Any]]:
-        if target_type == "agent":
-            if not target_id or target_id not in world.agents_data:
-                return None
-            return world.agents_data[target_id].setdefault("state", {})
-        if target_type == "environment":
-            return world.environment_data.setdefault("state", {})
-        return None
-
-    def _get_patch_parent(
-        self,
-        world: 'World',
-        target_type: Optional[str],
-        target_id: Optional[str],
-        path: Iterable[str],
-    ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-        root = self._get_patch_root(world, target_type, target_id)
-        if root is None:
-            return None, None
-        segments = [segment for segment in path if segment is not None]
-        if not segments:
-            return None, None
-        parent = root
-        for segment in segments[:-1]:
-            current = parent.setdefault(segment, {})
-            if not isinstance(current, dict):
-                current = {}
-                parent[segment] = current
-            parent = current
-        return parent, segments[-1]
-
-    def _apply_increment_patch(
-        self,
-        world: 'World',
-        target_type: Optional[str],
-        target_id: Optional[str],
-        path: Iterable[str],
-        value: Any,
-    ) -> None:
-        parent, key = self._get_patch_parent(world, target_type, target_id, path)
-        if parent is None or key is None:
-            return
-        try:
-            delta = int(value)
-        except (TypeError, ValueError):
-            return
-        parent[key] = int(parent.get(key, 0) or 0) + delta
-
-    def _apply_merge_patch(
-        self,
-        world: 'World',
-        target_type: Optional[str],
-        target_id: Optional[str],
-        path: Iterable[str],
-        value: Any,
-    ) -> None:
-        if not isinstance(value, dict):
-            return
-        parent, key = self._get_patch_parent(world, target_type, target_id, path)
-        if parent is None or key is None:
-            return
-        target = parent.setdefault(key, {})
-        if isinstance(target, dict):
-            target.update(value)
-    
     @staticmethod
     def _serialize_agent_entry(agent_info: Dict[str, Any]) -> Dict[str, Any]:
         """Serialize all persistent Agent fields, including identity and model selection."""
@@ -2719,51 +1211,20 @@ class PersistenceManager:
             serialized[agent_id] = entry
         return serialized
     
-    def _deserialize_agents_data(self, serialized_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Deserialize agents data from checkpoint."""
-        deserialized = {}
-        for agent_id, agent_info in serialized_data.items():
-            entry = dict(agent_info)
-            entry["id"] = str(agent_info.get("id") or agent_id)
-            entry["type"] = agent_info.get("type", "unknown")
-            entry["archetype"] = agent_info.get("archetype", "rule")
-            entry["state"] = dict(agent_info.get("state") or {})
-            entry["properties"] = dict(agent_info.get("properties") or {})
-            entry["reminders"] = list(agent_info.get("reminders") or [])
-            entry.setdefault("persona", "")
-            entry.setdefault("persona_instance", "")
-            entry.setdefault("persona_type", "")
-            deserialized[agent_id] = entry
-        return deserialized
-    
     async def get_available_checkpoints(self) -> List[int]:
         """Get complete, recoverable checkpoint step numbers."""
         return self._get_available_checkpoints_sync()
 
     def _get_available_checkpoints_sync(self) -> List[int]:
-        if self._v4_enabled:
-            steps: list[int] = []
-            store = self._v4_store or V4CheckpointStore(self.save_dir)
-            for step in store.available_steps():
-                try:
-                    store.resolve(step)
-                except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError):
-                    continue
-                steps.append(step)
-            return steps
-
-        steps = []
-
-        for marker_file in self.complete_checkpoints_dir.glob("step_*.json"):
+        steps: list[int] = []
+        store = self._v4_store or V4CheckpointStore(self.save_dir)
+        for step in store.available_steps():
             try:
-                step_str = marker_file.stem.split('_')[1]
-                step = int(step_str)
-                self.resolve_checkpoint(step)
+                store.resolve(step)
                 steps.append(step)
             except (IndexError, ValueError, OSError, json.JSONDecodeError) as exc:
-                logger.warning("Ignoring incomplete checkpoint marker %s: %s", marker_file.name, exc)
+                logger.warning("Ignoring invalid v4 checkpoint step %s: %s", step, exc)
                 continue
-
         return sorted(steps)
     
     def get_experiment_info(self) -> Dict[str, Any]:
@@ -2777,7 +1238,7 @@ class PersistenceManager:
             "available_checkpoints": available_checkpoints,
             "total_checkpoints": len(available_checkpoints),
             "disk_usage_mb": self._calculate_disk_usage(),
-            "architecture_version": "unified_state_v2"
+            "architecture_version": "unified_state_v4"
         }
     
     def _calculate_disk_usage(self) -> float:
@@ -2801,23 +1262,6 @@ class PersistenceManager:
             return obj.__dict__
         else:
             return str(obj)
-
-    def get_available_chroma_backups(self) -> List[int]:
-        """Return list of available Chroma backup steps."""
-        backup_steps: set[int] = set()
-
-        for backup_dir in self.chroma_backup_dir.glob("step_*"):
-            if not backup_dir.is_dir():
-                continue
-            step_token = backup_dir.name.split("_", 1)[1].split(".", 1)[0]
-            if not step_token:
-                continue
-            try:
-                backup_steps.add(int(step_token))
-            except ValueError:
-                continue
-
-        return sorted(backup_steps)
 
     def close(self) -> None:
         """

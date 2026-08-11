@@ -12,7 +12,7 @@ This module defines the fundamental data structures:
 from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Callable, Set, Tuple
 import importlib
 import contextvars
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import copy
 import logging
 import time
@@ -402,6 +402,7 @@ class World:
         # 由已提交步骤派生的审计结果。它们随 checkpoint 留证，
         # 但不进入 Environment 的 canonical 运行状态。
         self._checkpoint_annotations: Dict[str, Any] = {}
+        self._tick_checkpoint_annotations: Optional[Dict[str, Any]] = None
         # 状态版本号：每次状态写入都会递增，用于缓存控制
         self._state_version: int = 0
         # FoV 结果缓存：按 step / 按 agent 的临时缓存，避免重复调用
@@ -421,12 +422,19 @@ class World:
         normalized = str(name or "").strip()
         if not normalized:
             raise ValueError("checkpoint annotation name must be non-empty")
-        self._checkpoint_annotations[normalized] = copy.deepcopy(value)
+        copied = copy.deepcopy(value)
+        if self._tick_checkpoint_annotations is not None:
+            self._tick_checkpoint_annotations[normalized] = copied
+        else:
+            self._checkpoint_annotations[normalized] = copied
 
     def checkpoint_annotations(self) -> Dict[str, Any]:
         """返回当前待持久化的派生审计结果。"""
 
-        return copy.deepcopy(self._checkpoint_annotations)
+        combined = copy.deepcopy(self._checkpoint_annotations)
+        if self._tick_checkpoint_annotations is not None:
+            combined.update(copy.deepcopy(self._tick_checkpoint_annotations))
+        return combined
 
     def get_context_stack(self) -> ContextStack:
         """Get the current context stack"""
@@ -1174,6 +1182,7 @@ class World:
         self._active_memory_epoch_id = epoch_id
         self._memory_epoch_sequence += 1
         self._state_delta_journal.begin_tick(step, write_epoch_id=epoch_id)
+        self._tick_checkpoint_annotations = {}
         for memory in self._iter_agent_memories():
             memory.set_write_epoch(epoch_id, self._memory_epoch_sequence)
         self._persistence_lease_generation += 1
@@ -1187,6 +1196,13 @@ class World:
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
         delta = self._state_delta_journal.seal_tick()
+        from .incremental_checkpoint import _freeze_json
+
+        delta = replace(
+            delta,
+            annotations=_freeze_json(self._tick_checkpoint_annotations or {}),
+        )
+        self._tick_checkpoint_annotations = None
         for memory in self._iter_agent_memories():
             memory.clear_write_epoch()
         self._active_memory_epoch_id = None
@@ -1202,6 +1218,7 @@ class World:
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
         self._state_delta_journal.abort_tick()
+        self._tick_checkpoint_annotations = None
         failed_epoch = self._active_memory_epoch_id
         for memory in self._iter_agent_memories():
             memory.clear_write_epoch()
