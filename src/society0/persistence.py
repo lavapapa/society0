@@ -119,6 +119,9 @@ class PersistenceManager:
         self._v4_root_published = False
         self._v4_run_id = uuid.uuid4().hex
         self._v4_branch_id = "main"
+        self._v4_branch_lineage: list[tuple[str, int]] = []
+        self._v4_committed_memory_epoch_ids: set[str] = set()
+        self._v4_pending_memory_epoch_ids: set[str] = set()
 
         # Paths for Chroma persistence
         self.chroma_store_path = self.save_dir / "chroma_store"
@@ -947,6 +950,10 @@ class PersistenceManager:
         if self._v4_root_published:
             manifest = self._v4_store.resolve(0)["manifest"]
             self._v4_run_id = str(manifest["run_id"])
+            latest_step = self._v4_store.resolve()["step"]
+            self._v4_committed_memory_epoch_ids = (
+                self._v4_store.committed_memory_epoch_ids(latest_step)
+            )
         return compiled
 
     def _v4_root_metadata(
@@ -1095,7 +1102,7 @@ class PersistenceManager:
             world.set_memory_checkpoint_view(
                 target_step=0,
                 branch_id=self._v4_branch_id,
-                branch_lineage=[],
+                branch_lineage=self._v4_branch_lineage,
                 committed_write_epoch_ids=set(),
             )
             return marker
@@ -1118,7 +1125,18 @@ class PersistenceManager:
             self._v4_publish_lock = asyncio.Lock()
         async with self._v4_publish_lock:
             self._v4_epoch.append(delta)
+            self._v4_pending_memory_epoch_ids.update(delta.write_epoch_ids)
             if len(self._v4_epoch) < self._v4_checkpoint_every:
+                if self._v4_world is not None:
+                    self._v4_world.set_memory_checkpoint_view(
+                        target_step=delta.step,
+                        branch_id=self._v4_branch_id,
+                        branch_lineage=self._v4_branch_lineage,
+                        committed_write_epoch_ids=(
+                            self._v4_committed_memory_epoch_ids
+                            | self._v4_pending_memory_epoch_ids
+                        ),
+                    )
                 return None
             epoch = tuple(self._v4_epoch)
             combined = self._v4_merge_epoch(epoch)
@@ -1145,14 +1163,17 @@ class PersistenceManager:
                 # A failed epoch is never recoverable.  The caller may continue
                 # only after explicitly starting a new epoch.
                 self._v4_epoch.clear()
+                self._v4_pending_memory_epoch_ids.clear()
                 raise
             self._v4_epoch.clear()
             committed = self._v4_store.committed_memory_epoch_ids(combined.step)
+            self._v4_committed_memory_epoch_ids = set(committed)
+            self._v4_pending_memory_epoch_ids.clear()
             if self._v4_world is not None:
                 self._v4_world.set_memory_checkpoint_view(
                     target_step=combined.step,
                     branch_id=self._v4_branch_id,
-                    branch_lineage=[],
+                    branch_lineage=self._v4_branch_lineage,
                     committed_write_epoch_ids=committed,
                 )
             return marker
@@ -1163,6 +1184,18 @@ class PersistenceManager:
         if self._v4_publish_lock is not None and self._v4_publish_lock.locked():
             raise RuntimeError("cannot discard an epoch while v4 writer is active")
         self._v4_epoch.clear()
+        self._v4_pending_memory_epoch_ids.clear()
+        if self._v4_store is not None and self._v4_world is not None:
+            latest = self._v4_store.resolve()
+            self._v4_committed_memory_epoch_ids = (
+                self._v4_store.committed_memory_epoch_ids(latest["step"])
+            )
+            self._v4_world.set_memory_checkpoint_view(
+                target_step=int(latest["step"]),
+                branch_id=self._v4_branch_id,
+                branch_lineage=self._v4_branch_lineage,
+                committed_write_epoch_ids=self._v4_committed_memory_epoch_ids,
+            )
 
     @classmethod
     def _resolve_v4_checkpoint_from(
@@ -2119,6 +2152,11 @@ class PersistenceManager:
         branch._v4_root_published = True
         branch._v4_run_id = self._v4_run_id
         branch._v4_branch_id = str(branch_name)
+        branch._v4_branch_lineage = [(self._v4_branch_id, int(from_step))]
+        branch._v4_committed_memory_epoch_ids = (
+            branch_store.committed_memory_epoch_ids(from_step)
+        )
+        branch._v4_pending_memory_epoch_ids = set()
         record = branch_store.resolve(from_step)
         world, _ = await branch._load_v4_checkpoint_record(
             record,

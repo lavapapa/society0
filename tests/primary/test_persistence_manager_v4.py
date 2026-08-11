@@ -296,6 +296,37 @@ async def test_marker_failure_keeps_previous_checkpoint_and_does_not_publish_new
 
 
 @pytest.mark.asyncio
+async def test_error_after_marker_rename_is_reported_as_committed_success(tmp_path, monkeypatch):
+    manager = PersistenceManager(str(tmp_path))
+    world = _world(tmp_path)
+    schedule = _configure(manager, world)
+    try:
+        await manager.publish_root(world, schedule)
+        real_atomic_write = V4CheckpointStore._atomic_write
+
+        def raise_after_marker_rename(path: Path, data: bytes) -> int:
+            written = real_atomic_write(path, data)
+            if path.parent.name == "complete" and path.name == "step_000001.json":
+                raise OSError("post-rename directory notification failed")
+            return written
+
+        monkeypatch.setattr(
+            V4CheckpointStore,
+            "_atomic_write",
+            staticmethod(raise_after_marker_rename),
+        )
+        marker = await manager.publish_delta(
+            _seal_delta(world, 1, price=11, fact_id="f1"),
+            schedule,
+        )
+
+        assert marker is not None and marker["step"] == 1
+        assert manager.resolve_checkpoint()["step"] == 1
+    finally:
+        _close(manager, world)
+
+
+@pytest.mark.asyncio
 async def test_async_writer_applies_backpressure_to_second_publish(tmp_path, monkeypatch):
     manager = PersistenceManager(str(tmp_path))
     world = _world(tmp_path)
