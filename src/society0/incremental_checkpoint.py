@@ -178,7 +178,11 @@ class PersistenceSchema:
             rule = add_rule(path, node)
             if rule is not None:
                 if rule.kind in (PersistenceKind.REPLACEABLE, PersistenceKind.TRANSIENT):
-                    if has_nested_declaration(node):
+                    nested = has_nested_declaration(node)
+                    if nested and not (
+                        rule.kind is PersistenceKind.REPLACEABLE
+                        and rule.granularity == "entry"
+                    ):
                         raise ValueError(f"persistence parent/child conflict at {path!r}")
                     if rule.granularity == "entry":
                         if node.get("type") != "object":
@@ -188,10 +192,23 @@ class PersistenceSchema:
                         rules[path + (_WILDCARD,)] = PersistenceRule(
                             path + (_WILDCARD,), rule.kind, "entry", None, False
                         )
+                        # Entity maps may refine unbounded nested histories
+                        # (for example account.journal_entries) without losing
+                        # the ability to create one complete new entity.
+                        additional = node.get("additionalProperties")
+                        if nested and isinstance(additional, Mapping):
+                            walk(additional, path + (_WILDCARD,), inside_container=True)
                 elif rule.kind in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST):
                     if has_nested_declaration(node):
                         raise ValueError(f"persistence parent/child conflict at {path!r}")
-                return
+                if not (
+                    rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                    and node.get("type") == "object"
+                    and isinstance(node.get("properties"), Mapping)
+                    and node.get("properties")
+                ):
+                    return
 
             schema_type = node.get("type")
             if schema_type in (None, "object"):
@@ -379,6 +396,7 @@ class PersistenceSchema:
                     rule.kind is PersistenceKind.REPLACEABLE
                     and rule.granularity == "entry"
                     and node.get("type") == "object"
+                    and isinstance(node.get("additionalProperties"), Mapping)
                 ):
                     if not isinstance(value, Mapping):
                         raise TypeError(f"entry-granularity map at {path!r} must be an object")
@@ -387,7 +405,13 @@ class PersistenceSchema:
                         if isinstance(item_schema, Mapping):
                             validate(item_schema, item, path + (key,))
                     return
-                return
+                if not (
+                    rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                    and node.get("type") == "object"
+                    and bool(node.get("properties"))
+                ):
+                    return
             if not isinstance(value, Mapping):
                 return
             properties = node.get("properties") or {}
