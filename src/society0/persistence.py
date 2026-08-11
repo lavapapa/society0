@@ -95,8 +95,6 @@ class PersistenceManager:
 
         for dir_path in [
             self.checkpoints_dir,
-            self.complete_checkpoints_dir,
-            self.chroma_backup_dir,
             self.metadata_dir,
             self.events_dir,
             self.diffs_dir,
@@ -849,52 +847,81 @@ class PersistenceManager:
 
         assert self._v4_schema is not None
         state = self._plain_snapshot_value(state)
-        root = self._v4_schema.root_path
         entries: list[dict[str, Any]] = []
         sequence = 0
-        for path, rule in self._v4_schema.rules.items():
-            if any(part is _WILDCARD for part in path):
-                continue
-            if path[: len(root)] != root:
-                continue
-            relative = path[len(root) :]
-            if not relative or rule.kind is PersistenceKind.TRANSIENT:
-                continue
-            found, value = self._v4_path_value(state, relative)
-            if not found:
-                continue
-            if rule.granularity == "entry":
-                if not isinstance(value, Mapping):
-                    raise TypeError(f"entry-granularity state must be a mapping: {path!r}")
-                for key, item in value.items():
+        # A merged schema contains one source declaration per canonical root.
+        # Expand only the Agent-id wildcard against the already-captured root
+        # state.  This is bootstrap-only work; later publishes consume sealed
+        # journal entries and never inspect the complete World.
+        source_schemas = getattr(self._v4_schema, "source_schemas", (self._v4_schema,))
+        for source in source_schemas:
+            root = tuple(source.root_path)
+            concrete_roots: list[tuple[tuple[Any, ...], tuple[Any, ...]]] = []
+            if _WILDCARD not in root:
+                concrete_roots.append((root, root))
+            else:
+                wildcard_index = root.index(_WILDCARD)
+                prefix = root[:wildcard_index]
+                suffix = root[wildcard_index + 1 :]
+                found, container = self._v4_path_value(state, prefix)
+                if not found or not isinstance(container, Mapping):
+                    continue
+                for key in sorted(container, key=lambda item: str(item)):
+                    concrete = prefix + (key,) + suffix
+                    concrete_roots.append((concrete, root))
+
+            for concrete_root, _ in concrete_roots:
+                for path, rule in source.rules.items():
+                    # The Agent-id wildcard belongs to this source root and
+                    # has already been expanded above.  Only skip wildcards
+                    # in the relative path (nested dynamic containers cannot
+                    # be materialized without concrete keys).
+                    relative_start = len(root)
+                    if any(part is _WILDCARD for part in path[relative_start:]):
+                        continue
+                    if path[: len(root)] != root:
+                        continue
+                    relative = path[len(root) :]
+                    concrete_path = concrete_root + relative
+                    if rule.kind is PersistenceKind.TRANSIENT:
+                        continue
+                    found, value = self._v4_path_value(state, concrete_path)
+                    if not found:
+                        continue
+                    if rule.granularity == "entry":
+                        if not isinstance(value, Mapping):
+                            raise TypeError(
+                                f"entry-granularity state must be a mapping: {concrete_path!r}"
+                            )
+                        for key, item in value.items():
+                            entries.append(
+                                {
+                                    "path": list(concrete_path + (key,)),
+                                    "operation": "set",
+                                    "value": self._plain_snapshot_value(item),
+                                    "sequence": sequence,
+                                }
+                            )
+                            sequence += 1
+                        continue
+                    # Root bootstrap is allowed to materialize an append-only
+                    # container once. Tick writes still enforce append-only
+                    # operations through StateDeltaJournal.
                     entries.append(
                         {
-                            "path": list(path + (key,)),
+                            "path": list(concrete_path),
                             "operation": "set",
-                            "value": self._plain_snapshot_value(item),
+                            "value": self._plain_snapshot_value(value),
                             "sequence": sequence,
                         }
                     )
                     sequence += 1
-                continue
-            # Root bootstrap is allowed to materialize an append-only container
-            # once.  Tick writes still enforce append-only operations through
-            # StateDeltaJournal.
-            entries.append(
-                {
-                    "path": list(path),
-                    "operation": "set",
-                    "value": self._plain_snapshot_value(value),
-                    "sequence": sequence,
-                }
-            )
-            sequence += 1
         return entries
 
     def configure_v4(
         self,
         world: 'World',
-        declarations: PersistenceSchema | Mapping[str, Any],
+        declarations: PersistenceSchema | Sequence[PersistenceSchema] | Mapping[str, Any],
         *,
         checkpoint_every: int = 1,
     ) -> PersistenceSchema:
@@ -902,6 +929,8 @@ class PersistenceManager:
 
         if isinstance(checkpoint_every, bool) or not isinstance(checkpoint_every, int) or checkpoint_every < 1:
             raise ValueError("checkpoint_every must be a positive integer")
+        if isinstance(declarations, (list, tuple)):
+            declarations = PersistenceSchema.merge(*declarations)
         compiled = world.configure_persistence(declarations)
         if not isinstance(compiled, PersistenceSchema):
             raise TypeError("World.configure_persistence must return PersistenceSchema")
@@ -920,10 +949,12 @@ class PersistenceManager:
         environment_data: Mapping[str, Any],
         agents_data: Mapping[str, Any],
         agent_types: Mapping[str, Any],
+        *,
+        resume_identity: Optional[Mapping[str, Any]] = None,
     ) -> dict[str, Any]:
         environment_data = self._plain_snapshot_value(environment_data)
         environment_data.pop("state", None)
-        return {
+        metadata = {
             "schema_version": 1,
             "agents_data": self._plain_snapshot_value(agents_data),
             "agent_types": self._plain_snapshot_value(agent_types),
@@ -934,7 +965,13 @@ class PersistenceManager:
             "persistence_root_path": list(self._v4_schema.root_path)
             if self._v4_schema is not None
             else ["environment", "state"],
+            "persistence_schemas": list(self._v4_schema.declaration_payloads())
+            if self._v4_schema is not None
+            else [],
         }
+        if resume_identity is not None:
+            metadata["resume_identity"] = self._plain_snapshot_value(resume_identity)
+        return metadata
 
     @staticmethod
     def _v4_merge_epoch(deltas: Sequence[SealedTickDelta]) -> SealedTickDelta:
@@ -980,8 +1017,31 @@ class PersistenceManager:
             environment_data = self._plain_snapshot_value(world.environment_data)
             agents_data = self._plain_snapshot_value(world.agents_data)
             agent_types = self._plain_snapshot_value(getattr(world, "_agent_types", {}) or {})
-            entries = self._v4_root_entries(environment_data.get("state") or {})
-            metadata = self._v4_root_metadata(environment_data, agents_data, agent_types)
+            # Agent identity/type metadata is immutable bootstrap metadata; the
+            # declared Agent state itself is represented by root operations so
+            # subsequent deltas can replace it without copying the World.
+            for agent_data in agents_data.values():
+                if isinstance(agent_data, dict):
+                    agent_data["state"] = {}
+            canonical_state = {
+                "environment": {
+                    "state": environment_data.get("state") or {},
+                },
+                "agents": {
+                    str(agent_id): {
+                        "state": (raw_data or {}).get("state") or {},
+                    }
+                    for agent_id, raw_data in self._plain_snapshot_value(world.agents_data).items()
+                    if isinstance(raw_data, Mapping)
+                },
+            }
+            entries = self._v4_root_entries(canonical_state)
+            metadata = self._v4_root_metadata(
+                environment_data,
+                agents_data,
+                agent_types,
+                resume_identity=getattr(world, "_resume_identity", None),
+            )
             marker = await asyncio.to_thread(
                 self._v4_store.publish_root,
                 entries,
@@ -1057,27 +1117,43 @@ class PersistenceManager:
     ) -> None:
         if schema is None:
             return
-        root = schema.root_path
-        for path, rule in schema.rules.items():
-            if rule.kind is not PersistenceKind.TRANSIENT or not rule.has_default:
-                continue
-            if any(part is _WILDCARD for part in path):
-                continue
-            relative = path[len(root) :] if path[: len(root)] == root else None
-            if not relative:
-                continue
+        source_schemas = getattr(schema, "source_schemas", (schema,))
+
+        def apply_at(path: tuple[Any, ...], rule: Any) -> None:
             current: Any = state
-            for part in relative[:-1]:
+            for part in path[:-1]:
                 if not isinstance(current, dict):
-                    current = None
-                    break
+                    return
                 child = current.get(part)
                 if child is None:
                     child = {}
                     current[part] = child
                 current = child
             if isinstance(current, dict):
-                current.setdefault(relative[-1], copy.deepcopy(rule.default))
+                current.setdefault(path[-1], copy.deepcopy(rule.default))
+
+        for source in source_schemas:
+            root = tuple(source.root_path)
+            for path, rule in source.rules.items():
+                if rule.kind is not PersistenceKind.TRANSIENT or not rule.has_default:
+                    continue
+                # Rules generated for dynamic entry maps are not transient
+                # defaults; their concrete keys are runtime data.
+                if any(part is _WILDCARD for part in path):
+                    wildcard_index = path.index(_WILDCARD)
+                    prefix = path[:wildcard_index]
+                    found, container = PersistenceManager._v4_path_value(state, prefix)
+                    if not found or not isinstance(container, Mapping):
+                        continue
+                    suffix = path[wildcard_index + 1 :]
+                    for key in container:
+                        # A transient wildcard child is only meaningful when a
+                        # concrete entry already exists; do not invent IDs.
+                        apply_at(prefix + (key,) + suffix, rule)
+                    continue
+                if path[: len(root)] != root or not path[len(root) :]:
+                    continue
+                apply_at(path, rule)
 
     async def _load_v4_checkpoint_record(
         self,
@@ -1092,10 +1168,30 @@ class PersistenceManager:
         state_payload = store.restore(record["step"])
         root_metadata = self._v4_root_manifest(root, record["step"])
         schema = self._v4_schema
-        raw_schema = root_metadata.get("persistence_schema")
-        if schema is None and isinstance(raw_schema, dict):
+        raw_schemas = root_metadata.get("persistence_schemas")
+        if schema is None and isinstance(raw_schemas, list) and raw_schemas:
+            compiled_sources = []
+            for payload in raw_schemas:
+                if not isinstance(payload, Mapping) or not isinstance(payload.get("schema"), Mapping):
+                    raise ValueError("invalid v4 persistence schema metadata")
+                root_path_raw = payload.get("root_path") or ("environment", "state")
+                root_path = tuple(
+                    _WILDCARD if part == "*" else part for part in root_path_raw
+                )
+                compiled_sources.append(
+                    PersistenceSchema.compile(
+                        payload["schema"],
+                        root_path=root_path,
+                    )
+                )
+            schema = (
+                PersistenceSchema.merge(*compiled_sources)
+                if len(compiled_sources) > 1
+                else compiled_sources[0]
+            )
+        if schema is None and isinstance(root_metadata.get("persistence_schema"), dict):
             root_path = tuple(root_metadata.get("persistence_root_path") or ("environment", "state"))
-            schema = PersistenceSchema.compile(raw_schema, root_path=root_path)
+            schema = PersistenceSchema.compile(root_metadata["persistence_schema"], root_path=root_path)
 
         from .core_data import World
 
@@ -1106,12 +1202,24 @@ class PersistenceManager:
         world.agents_data = copy.deepcopy(root_metadata.get("agents_data") or {})
         world._agent_types = copy.deepcopy(root_metadata.get("agent_types") or {})
         world.environment_data = copy.deepcopy(root_metadata.get("environment_data") or {})
+        resume_identity = root_metadata.get("resume_identity")
+        if isinstance(resume_identity, Mapping):
+            world._resume_identity = copy.deepcopy(dict(resume_identity))
         world.environment_data.setdefault("type", "base")
+        restored_state_payload = copy.deepcopy(state_payload)
+        self._v4_apply_transient_defaults(restored_state_payload, schema)
         restored_state = copy.deepcopy(
-            ((state_payload.get("environment") or {}).get("state") or {})
+            ((restored_state_payload.get("environment") or {}).get("state") or {})
         )
-        self._v4_apply_transient_defaults(restored_state, schema)
         world.environment_data["state"] = restored_state
+        restored_agents = restored_state_payload.get("agents") or {}
+        if isinstance(restored_agents, Mapping):
+            for agent_id, agent_data in world.agents_data.items():
+                state_data = restored_agents.get(agent_id, {})
+                if isinstance(state_data, Mapping):
+                    agent_data["state"] = copy.deepcopy(state_data.get("state") or {})
+                else:
+                    agent_data["state"] = {}
         if schema is not None:
             world.configure_persistence(schema)
         return world, None
@@ -2450,6 +2558,17 @@ class PersistenceManager:
         return self._get_available_checkpoints_sync()
 
     def _get_available_checkpoints_sync(self) -> List[int]:
+        if self._v4_enabled:
+            steps: list[int] = []
+            store = self._v4_store or V4CheckpointStore(self.save_dir)
+            for step in store.available_steps():
+                try:
+                    store.resolve(step)
+                except (FileNotFoundError, ValueError, OSError, json.JSONDecodeError):
+                    continue
+                steps.append(step)
+            return steps
+
         steps = []
 
         for marker_file in self.complete_checkpoints_dir.glob("step_*.json"):

@@ -320,7 +320,13 @@ class Agent:
             event_recorder=self._world._create_event_recorder(),
             context_provider=self._world._create_context_provider(),
             path=("agents", self._id, "state"),
-            access_context=access_context
+            access_context=access_context,
+            # Context-restricted Agent views must use the same journal and
+            # lease as the ordinary ``Agent.state`` proxy.  Otherwise an
+            # action/behavior can mutate canonical state without entering the
+            # v4 delta, or keep writing after the Tick has been sealed.
+            persistence_journal=self._world._state_delta_journal,
+            lease=self._world._persistence_proxy_lease,
         )
 
     def get_llm_visible_state(self) -> Dict[str, Any]:

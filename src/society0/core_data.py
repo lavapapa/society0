@@ -14,6 +14,7 @@ import importlib
 import contextvars
 from dataclasses import dataclass, field
 import copy
+import json
 import logging
 import time
 
@@ -1041,13 +1042,28 @@ class World:
 
         from .incremental_checkpoint import PersistenceSchema, StateDeltaJournal
 
+        if isinstance(schema, (list, tuple)):
+            schema = PersistenceSchema.merge(*schema)
         compiled = (
             schema
             if isinstance(schema, PersistenceSchema)
             else PersistenceSchema.compile(schema, root_path=("environment", "state"))
         )
         state = self.environment_data.get("state", {})
-        compiled.validate_initial_state(state)
+        # Validate every declared root at bootstrap.  A merged schema keeps
+        # environment and Agent declarations in one journal, while each source
+        # schema still validates its own state object against its own JSON
+        # Schema.  The legacy single-root path remains unchanged.
+        source_schemas = getattr(compiled, "source_schemas", (compiled,))
+        for source in source_schemas:
+            root_path = tuple(getattr(source, "root_path", ()))
+            if root_path[:2] == ("environment", "state"):
+                source.validate_initial_state(state)
+                continue
+            if root_path[:1] == ("agents",):
+                for agent_id, agent_data in self.agents_data.items():
+                    agent_state = agent_data.get("state", {})
+                    source.validate_initial_state(agent_state)
         journal = StateDeltaJournal(compiled)
         journal.bind_canonical_state(self._persistence_lookup)
         old_lease = self._persistence_proxy_lease
@@ -1058,6 +1074,61 @@ class World:
         self._environment_state_proxy = None
         self._persistence_proxy_lease = None
         return compiled
+
+    def compile_runtime_persistence_schema(self) -> Any:
+        """Compile Environment and Agent state declarations for v4 runtime.
+
+        Environment metadata supplies the authoritative environment state
+        schema; each Agent type contributes a schema under the dynamic
+        ``agents.<id>.state`` root.  The resulting merged schema is consumed by
+        one StateDeltaJournal so context-restricted Agent proxies cannot bypass
+        the same persistence contract.
+        """
+
+        from .incremental_checkpoint import PersistenceSchema, _WILDCARD
+
+        environment_schema = self.environment_data.get("schema")
+        if not isinstance(environment_schema, dict) or not environment_schema:
+            environment = self.get_environment()
+            env_meta = getattr(environment.__class__, "__env_meta__", None)
+            environment_schema = getattr(env_meta, "state_schema", None)
+        if not isinstance(environment_schema, dict) or not environment_schema:
+            environment_schema = {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            }
+
+        sources = [
+            PersistenceSchema.compile(
+                environment_schema,
+                root_path=("environment", "state"),
+            )
+        ]
+
+        seen_agent_schemas: set[str] = set()
+        for agent_data in self.agents_data.values():
+            agent_type = agent_data.get("type") if isinstance(agent_data, dict) else None
+            raw_schema = self.get_agent_type_schema(str(agent_type or ""))
+            if not isinstance(raw_schema, dict):
+                continue
+            # Configurations historically used either the state schema itself
+            # or a wrapper containing ``state_schema``.  Normalize both forms
+            # before compiling the canonical Agent root.
+            if isinstance(raw_schema.get("state_schema"), dict):
+                raw_schema = raw_schema["state_schema"]
+            fingerprint = json.dumps(raw_schema, ensure_ascii=False, sort_keys=True, default=str)
+            if fingerprint in seen_agent_schemas:
+                continue
+            seen_agent_schemas.add(fingerprint)
+            sources.append(
+                PersistenceSchema.compile(
+                    raw_schema,
+                    root_path=("agents", _WILDCARD, "state"),
+                )
+            )
+
+        return PersistenceSchema.merge(*sources) if len(sources) > 1 else sources[0]
 
     def begin_persistence_tick(self, step: int) -> Any:
         """开启唯一一个 Tick delta，并生成新的代理租约。"""

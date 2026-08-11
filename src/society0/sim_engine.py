@@ -14,7 +14,6 @@ import json
 import yaml
 import time
 import traceback
-import inspect
 
 from .core_data import World
 from .environment import Environment
@@ -74,6 +73,10 @@ class SimEngine:
         enable_streaming_bridge = kwargs_configs.pop("enable_streaming_bridge", None)
 
         extra_configs = dict(kwargs_configs)
+        raw_checkpoint_every = extra_configs.pop("checkpoint_every", 1)
+        if isinstance(raw_checkpoint_every, bool) or not isinstance(raw_checkpoint_every, int) or raw_checkpoint_every < 1:
+            raise ValueError("checkpoint_every must be a positive integer")
+        self.checkpoint_every = raw_checkpoint_every
         self._schedule_path = self._pop_optional_path(extra_configs, "schedule_path")
         self._agent_set_path = self._pop_optional_path(extra_configs, "agent_set_path")
         self._environment_path = self._pop_optional_path(extra_configs, "environment_path")
@@ -142,6 +145,7 @@ class SimEngine:
         self.agent_set_data: Optional[Dict[str, Any]] = None
         self.environment_data: Optional[Dict[str, Any]] = None
         self._schedule_dependencies: Dict[str, Any] = {}
+        self._v4_configured = False
 
         # Runtime state
         self.is_initialized = False
@@ -382,6 +386,17 @@ class SimEngine:
 
         # Set persistence manager to world for memory operations
         self.current_world_state.set_persistence_manager(self.persistence_manager)
+
+        # Configure one merged v4 journal before any schedule code can obtain
+        # Environment/Agent state proxies.  The root is published by
+        # ``_ensure_initial_snapshot``; subsequent steps publish sealed deltas.
+        schema = self.current_world_state.compile_runtime_persistence_schema()
+        self.persistence_manager.configure_v4(
+            self.current_world_state,
+            schema,
+            checkpoint_every=self.checkpoint_every,
+        )
+        self._v4_configured = True
 
         # Inject resource managers if available
         if hasattr(self, '_llm_manager') or hasattr(self, '_embedding_manager'):
@@ -839,6 +854,8 @@ class SimEngine:
                 from .context_stack import ContextStack
                 step_context = ContextStack().push_step(f"step_{self.current_world_state.step}")
                 self.current_world_state.set_context_stack(step_context)
+                self.current_world_state.begin_persistence_tick(self.current_world_state.step + 1)
+                persistence_sealed = False
 
                 # Execute step within transaction for atomicity
                 try:
@@ -930,17 +947,12 @@ class SimEngine:
                             node_id="step_summary"
                         )
 
-                        # Advance step counter directly (within transaction)
-                        self.current_world_state.advance_step()
-
                         # Transaction commits automatically here
 
-                    # Save checkpoint after successful step execution
-                    await self.persistence_manager.save_checkpoint(
-                        self.current_world_state,
-                        self.schedule,
-                        step_metrics=step_metrics_payload,
-                    )
+                    delta = self.current_world_state.seal_persistence_tick()
+                    persistence_sealed = True
+                    await self.persistence_manager.publish_delta(delta, self.schedule)
+                    self.current_world_state.advance_step()
                     await self._broadcast_latest_snapshot(self.current_world_state.step)
 
                     logger.info(f"Step {self.current_world_state.step} completed successfully")
@@ -966,7 +978,13 @@ class SimEngine:
                         estimated_remaining_seconds=estimated_remaining,
                     )
 
-                except Exception as e:
+                except BaseException as e:
+                    if not persistence_sealed:
+                        try:
+                            self.current_world_state.abort_persistence_tick()
+                        except RuntimeError:
+                            pass
+                    self.persistence_manager.discard_unpublished_epoch()
                     logger.error(f"Error in step {self.current_world_state.step}: {e}")
                     # 只更新错误信息，不更新状态（在 finally 块统一处理）
                     self.log_context.log_runtime(
@@ -1265,6 +1283,13 @@ class SimEngine:
             return
 
         initial_step = self.current_world_state.step
+        if self.persistence_manager._v4_enabled:
+            if not self.persistence_manager._v4_root_published:
+                await self.persistence_manager.publish_root(
+                    self.current_world_state,
+                    self.schedule,
+                )
+            return
         try:
             self.persistence_manager.resolve_checkpoint(initial_step)
         except (FileNotFoundError, ValueError, json.JSONDecodeError):
@@ -1278,7 +1303,10 @@ class SimEngine:
 
     async def _broadcast_latest_snapshot(self, step_number: int) -> None:
         """在生成新快照后，将其通过 StreamingBridge 推送给监听者。"""
-        if not self.streaming_bridge:
+        # v4 markers reference delta manifests rather than a v3 World gzip;
+        # the legacy streaming payload has no recoverable snapshot file to
+        # publish.  Runtime persistence remains authoritative.
+        if not self.streaming_bridge or self.persistence_manager._v4_enabled:
             return
 
         try:
