@@ -1843,6 +1843,64 @@ async def test_agent_group_instruct_required_actions_turn_missing_action_into_er
 
 
 @pytest.mark.asyncio
+async def test_agent_group_keeps_one_provider_activation_error_local_to_the_subject(tmp_path):
+    events_path = tmp_path / "events.jsonl"
+    event_logger = EventLogger(str(events_path))
+
+    class FakeWorld:
+        step = 1
+        _current_code_step_name = "provider_retry_check"
+        _default_agent_concurrency = 2
+        _model_provider = None
+        agents_data = {
+            "alice": {"id": "alice", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+            "bob": {"id": "bob", "type": "participant", "archetype": "llm", "state": {}, "properties": {}},
+        }
+
+        def __init__(self, event_logger):
+            self.event_logger = event_logger
+
+        async def instruct_agent(self, agent_id, instruction, **kwargs):
+            if agent_id == "alice":
+                return {
+                    "status": "error",
+                    "error": "TimeoutError: provider request exhausted",
+                    "termination_reason": "provider_request_exhausted",
+                    "failure_class": "provider_timeout",
+                    "retry_scope": "agent_activation",
+                    "retry_attempts": 2,
+                    "actions": [],
+                    "total_turns": 1,
+                    "llm_calls": 2,
+                }
+            return {
+                "status": "success",
+                "actions": [],
+                "total_turns": 1,
+                "llm_calls": 1,
+            }
+
+        def get_context_stack(self):
+            return ContextStack().push_step("step_1")
+
+        def get_agent(self, agent_id):
+            return type("Agent", (), {"id": agent_id})()
+
+    result = await AgentSelector(FakeWorld(event_logger)).all().instruct(
+        "经营当前主体。",
+        retrieve_memory=False,
+        name="provider_retry_round",
+    )
+    event_logger.close()
+
+    assert result.success_count == 1
+    assert result.error_count == 1
+    assert result.by_agent("alice").status == "error"
+    assert result.by_agent("alice").error == "TimeoutError: provider request exhausted"
+    assert result.by_agent("bob").status == "success"
+
+
+@pytest.mark.asyncio
 async def test_agent_group_instruct_required_action_tags_turn_missing_tag_into_error(tmp_path):
     events_path = tmp_path / "events.jsonl"
     event_logger = EventLogger(str(events_path))
@@ -2451,6 +2509,199 @@ async def test_blank_assistant_turn_is_retried_before_accepting_a_visible_decisi
 
 
 @pytest.mark.asyncio
+async def test_empty_activation_retry_can_use_explicit_temperature_bump_and_audit_event():
+    calls = []
+    events = []
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return {"role": "assistant", "content": "", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "本轮无需调整。",
+            "tool_calls": [],
+        }
+
+    result = await execute_action_loop(
+        instruction="经营当前主体。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        llm_request_options={
+            "temperature": 0.1,
+            "empty_response_retry_max": 1,
+            "empty_response_retry_temperature_delta": 0.2,
+            "empty_response_retry_temperature_max": 0.5,
+        },
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "success"
+    assert len(calls) == 2
+    assert calls[0].get("temperature") == 0.1
+    assert calls[1].get("temperature") == 0.3
+    assert "empty_response_retry_max" not in calls[1]
+    assert [event_type for event_type, _ in events] == [
+        "provider_empty_response",
+        "provider_empty_response_retry",
+    ]
+    assert events[1][1]["retry_scope"] == "agent_activation"
+
+
+@pytest.mark.asyncio
+async def test_provider_transport_retry_repeats_only_the_current_model_request():
+    calls = []
+    events = []
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            raise asyncio.TimeoutError()
+        return {
+            "role": "assistant",
+            "content": "当前主体保持原方案。",
+            "tool_calls": [],
+        }
+
+    result = await execute_action_loop(
+        instruction="经营当前主体。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        llm_request_options={"provider_request_retry_max": 1},
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "success"
+    assert len(calls) == 2
+    assert result.total_turns == 1
+    retries = [payload for event_type, payload in events if event_type == "provider_request_retry"]
+    assert retries == [
+        {
+            "attempt": 1,
+            "next_attempt": 2,
+            "max_retries": 1,
+            "failure_class": "provider_timeout",
+            "retry_scope": "agent_activation",
+            "error_type": "TimeoutError",
+            "error": "TimeoutError()",
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_exhausted_provider_retry_preserves_activation_failure_scope():
+    events = []
+
+    async def fake_llm_call(_payload):
+        raise ConnectionError("provider connection reset")
+
+    result = await execute_action_loop(
+        instruction="经营当前主体。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        llm_request_options={"provider_request_retry_max": 1},
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "provider_request_exhausted"
+    assert result.failure_class == "provider_transport_error"
+    assert result.retry_scope == "agent_activation"
+    assert result.retry_attempts == 2
+    assert result.error.startswith("ConnectionError")
+    failed = [payload for event_type, payload in events if event_type == "provider_request_failed"]
+    assert failed[0]["exhausted"] is True
+    assert failed[0]["retry_scope"] == "agent_activation"
+
+
+@pytest.mark.asyncio
+async def test_tool_schema_error_returns_to_same_activation_without_replaying_successful_actions():
+    calls = []
+    executed = []
+    events = []
+    action_set = ActionSet()
+
+    async def record(value: int):
+        executed.append(value)
+        return {"ok": True, "value": value}
+
+    action_set.add_action(
+        name="record",
+        func=record,
+        description="Record one value.",
+        parameters={
+            "type": "object",
+            "properties": {"value": {"type": "integer"}},
+            "required": ["value"],
+            "additionalProperties": False,
+        },
+        tags=["write"],
+        strict=True,
+    )
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            arguments = "[]"
+        else:
+            arguments = '{"value": 7}'
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(calls)}",
+                    "type": "function",
+                    "function": {"name": "record", "arguments": arguments},
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="记录一个值。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        terminal_action_names=["record"],
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert executed == [7]
+    assert len(calls) == 2
+    assert result.status == "success"
+    assert result.termination_reason == "terminal_action"
+    assert [call["status"] for call in result.action_calls] == ["error", "success"]
+    assert result.action_calls[0]["failure_class"] == "tool_schema_error"
+    assert "Tool schema error" in calls[1]["messages"][-1]["content"]
+    failed_events = [
+        payload
+        for event_type, payload in events
+        if event_type == "tool_execution_failed"
+    ]
+    assert failed_events[0]["failure_class"] == "tool_schema_error"
+    assert failed_events[0]["retry_scope"] == "agent_activation"
+
+
+@pytest.mark.asyncio
 async def test_repeated_blank_assistant_turns_fail_the_instruction():
     async def fake_llm_call(payload):
         return {"role": "assistant", "content": None, "tool_calls": []}
@@ -2466,6 +2717,8 @@ async def test_repeated_blank_assistant_turns_fail_the_instruction():
 
     assert result.status == "error"
     assert result.termination_reason == "empty_model_response"
+    assert result.failure_class == "provider_empty_response"
+    assert result.retry_scope == "agent_activation"
     assert result.total_turns == 2
 
 
@@ -2517,6 +2770,8 @@ async def test_llm_agent_propagates_repeated_blank_turns_as_an_error():
     assert result["status"] == "error"
     assert result["error"] == "empty_model_response"
     assert result["termination_reason"] == "empty_model_response"
+    assert result["failure_class"] == "provider_empty_response"
+    assert result["retry_scope"] == "agent_activation"
 
 
 @pytest.mark.asyncio
@@ -2572,6 +2827,9 @@ async def test_llm_agent_error_keeps_exception_type_for_blank_timeout_message():
     assert result["error"]
     assert "request=" in result["error"]
     assert "timeout=12.0" in result["error"]
+    assert result["failure_class"] == "provider_timeout"
+    assert result["retry_scope"] == "agent_activation"
+    assert result["retry_attempts"] == 2
     assert result["performative_output"].endswith(result["error"])
 
 

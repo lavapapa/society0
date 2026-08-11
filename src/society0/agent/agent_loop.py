@@ -220,6 +220,105 @@ def _action_reported_no_change(result: Any) -> bool:
         and result.get("change_applied") is False
     )
 
+
+def _is_tool_schema_error(error: BaseException | str) -> bool:
+    """识别本地 Action 参数校验错误，避免把它升级为 step 失败。"""
+
+    text = str(error).casefold()
+    error_type = (
+        type(error).__name__.casefold()
+        if isinstance(error, BaseException)
+        else ""
+    )
+    direct_marker = any(
+        marker in text
+        for marker in (
+            "tool schema error",
+            "tool_schema_error",
+            "invalid action arguments",
+            "invalid arguments for action",
+        )
+    )
+    schema_phrase = any(
+        marker in text for marker in ("additional properties", "required property")
+    ) and any(marker in text for marker in ("tool", "action"))
+    return direct_marker or schema_phrase or error_type in {
+        "validationerror",
+        "jsonschemaexception",
+    }
+
+
+_PROVIDER_TRANSPORT_MESSAGE_MARKERS = (
+    "timeout",
+    "timed out",
+    "connection reset",
+    "connection refused",
+    "connection aborted",
+    "temporarily unavailable",
+    "service unavailable",
+    "transport error",
+    "network error",
+    "http 429",
+    "http 502",
+    "http 503",
+    "http 504",
+)
+
+
+def _provider_transport_failure_class(error: BaseException) -> str | None:
+    """Return a fine-grained provider failure class for one physical request."""
+
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError):
+            return "provider_timeout"
+        if isinstance(current, ConnectionError):
+            return "provider_transport_error"
+        lowered = str(current).casefold()
+        if any(marker in lowered for marker in _PROVIDER_TRANSPORT_MESSAGE_MARKERS):
+            return (
+                "provider_timeout"
+                if "timeout" in lowered or "timed out" in lowered
+                else "provider_transport_error"
+            )
+        cause = current.__cause__
+        if isinstance(cause, BaseException):
+            current = cause
+            continue
+        context = current.__context__
+        current = context if isinstance(context, BaseException) else None
+    return None
+
+
+def _format_provider_error(error: BaseException) -> str:
+    """Format exhausted provider diagnostics without exposing request secrets."""
+
+    detail = str(error).strip() or repr(error)
+    message = f"{type(error).__name__}: {detail}"
+    context: list[str] = []
+    request = getattr(error, "request", None)
+    if request is not None:
+        if isinstance(request, dict):
+            method = request.get("method")
+            url = request.get("url")
+        else:
+            method = getattr(request, "method", None)
+            url = getattr(request, "url", None)
+        if method is not None or url is not None:
+            context.append(
+                "request="
+                + " ".join(str(part) for part in (method, url) if part is not None)
+            )
+    timeout = getattr(error, "timeout", None)
+    if timeout is not None:
+        context.append(f"timeout={timeout!r}")
+    if context:
+        message += f" ({', '.join(context)})"
+    return message
+
+
 @dataclass
 class ActionSet:
     """Container for available actions that can be called by the LLM."""
@@ -430,6 +529,10 @@ class LoopResult:
     action_calls: List[Dict[str, Any]] = field(default_factory=list)
     termination_reason: Optional[str] = None
     termination_action: Optional[str] = None
+    error: Optional[str] = None
+    failure_class: Optional[str] = None
+    retry_scope: Optional[str] = None
+    retry_attempts: Optional[int] = None
 
     # 新增字段 - 支持OpenAI推理模型
     reasoning_content: Optional[str] = None  # 原始推理内容
@@ -679,9 +782,58 @@ async def execute_action_loop(
 
     # Normalize stages to unified dict format
     normalized_stages = normalize_reasoning_stages(stages)
+    raw_llm_request_options = dict(llm_request_options or {})
+    try:
+        provider_request_retry_max = int(
+            raw_llm_request_options.pop("provider_request_retry_max", 1) or 0
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("provider_request_retry_max must be an integer") from exc
+    if provider_request_retry_max < 0:
+        raise ValueError("provider_request_retry_max must be non-negative")
+    try:
+        empty_response_retry_max = int(
+            raw_llm_request_options.pop("empty_response_retry_max", 0) or 0
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError("empty_response_retry_max must be an integer") from exc
+    if empty_response_retry_max < 0:
+        raise ValueError("empty_response_retry_max must be non-negative")
+    raw_temperature_delta = raw_llm_request_options.pop(
+        "empty_response_retry_temperature_delta",
+        None,
+    )
+    if raw_temperature_delta is None:
+        empty_response_retry_temperature_delta = None
+    else:
+        try:
+            empty_response_retry_temperature_delta = float(raw_temperature_delta)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "empty_response_retry_temperature_delta must be numeric"
+            ) from exc
+        if empty_response_retry_temperature_delta <= 0:
+            raise ValueError(
+                "empty_response_retry_temperature_delta must be positive"
+            )
+    raw_temperature_cap = raw_llm_request_options.pop(
+        "empty_response_retry_temperature_max",
+        1.0,
+    )
+    try:
+        empty_response_retry_temperature_max = float(raw_temperature_cap)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "empty_response_retry_temperature_max must be numeric"
+        ) from exc
+    if empty_response_retry_temperature_max <= 0:
+        raise ValueError(
+            "empty_response_retry_temperature_max must be positive"
+        )
+
     safe_llm_request_options = {
         str(key): value
-        for key, value in dict(llm_request_options or {}).items()
+        for key, value in raw_llm_request_options.items()
         if key not in {"messages", "tools", "tool_choice", "metadata", "agent_id", "model"}
         and value is not None
     }
@@ -806,6 +958,8 @@ async def execute_action_loop(
     action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
     oversized_batch_rejections = 0
+    empty_response_count = 0
+    schema_error_count = 0
 
     def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
         tags = {str(tag).lower() for tag in (action_info.get("tags", []) or [])}
@@ -929,12 +1083,43 @@ async def execute_action_loop(
         logger.debug("Action loop turn %s/%s", total_turns, max_turns)
 
         # Call LLM with current message history and actions
+        turn_request_options = dict(safe_llm_request_options)
+        if (
+            empty_response_count > 0
+            and empty_response_retry_temperature_delta is not None
+            and empty_response_count <= empty_response_retry_max
+        ):
+            previous_temperature = turn_request_options.get("temperature")
+            if previous_temperature is None:
+                previous_temperature = 0.0
+            try:
+                previous_temperature = float(previous_temperature)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("temperature must be numeric") from exc
+            next_temperature = round(
+                min(
+                    previous_temperature + empty_response_retry_temperature_delta,
+                    empty_response_retry_temperature_max,
+                ),
+                12,
+            )
+            turn_request_options["temperature"] = next_temperature
+            _append_thread_event(
+                "provider_empty_response_retry",
+                {
+                    "attempt": empty_response_count,
+                    "temperature_before": previous_temperature,
+                    "temperature_after": next_temperature,
+                    "retry_scope": "agent_activation",
+                    "reason": "empty_model_response",
+                },
+            )
         llm_payload = {
             "messages": copy.deepcopy(messages),
             "tools": copy.deepcopy(actions_schema) if actions_schema else None,
             "tool_choice": _default_tool_choice()
         }
-        llm_payload.update(safe_llm_request_options)
+        llm_payload.update(turn_request_options)
 
         # --- 调试点：注释掉旧的调试信息 ---
         # print(f"--- [DEBUG] LLM Payload for Turn {turn + 1} ---")
@@ -942,9 +1127,85 @@ async def execute_action_loop(
         # print(json.dumps(llm_payload, indent=2, ensure_ascii=False))
         # --- 结束 ---
 
-        response = await llm_call(llm_payload)
+        provider_attempt = 1
+        provider_error: BaseException | None = None
+        provider_failure_class: str | None = None
+        while True:
+            try:
+                # Each attempt uses the same logical payload and happens before
+                # any tool call from this turn, so a transport retry cannot
+                # replay a successful domain action.
+                response = await llm_call(llm_payload)
+                break
+            except Exception as exc:
+                failure_class = _provider_transport_failure_class(exc)
+                if (
+                    failure_class is None
+                    or provider_attempt > provider_request_retry_max
+                ):
+                    _append_thread_event(
+                        "provider_request_failed",
+                        {
+                            "attempt": provider_attempt,
+                            "max_retries": provider_request_retry_max,
+                            "failure_class": failure_class or "provider_request_error",
+                            "retry_scope": "agent_activation",
+                            "exhausted": failure_class is not None,
+                            "error_type": type(exc).__name__,
+                            "error": str(exc) or repr(exc),
+                        },
+                    )
+                    if failure_class is None:
+                        raise
+                    try:
+                        setattr(exc, "failure_class", failure_class)
+                        setattr(exc, "retry_scope", "agent_activation")
+                        setattr(exc, "retry_attempts", provider_attempt)
+                    except Exception:
+                        pass
+                    provider_error = exc
+                    provider_failure_class = failure_class
+                    break
+                _append_thread_event(
+                    "provider_request_retry",
+                    {
+                        "attempt": provider_attempt,
+                        "next_attempt": provider_attempt + 1,
+                        "max_retries": provider_request_retry_max,
+                        "failure_class": failure_class,
+                        "retry_scope": "agent_activation",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc) or repr(exc),
+                    },
+                )
+                provider_attempt += 1
+        if provider_error is not None:
+            loop_result.termination_reason = "provider_request_exhausted"
+            loop_result.error = _format_provider_error(provider_error)
+            loop_result.failure_class = provider_failure_class
+            loop_result.retry_scope = "agent_activation"
+            loop_result.retry_attempts = provider_attempt
+            full_history.append(
+                {
+                    "turn": total_turns,
+                    "request": llm_payload,
+                    "response": None,
+                    "error": loop_result.error,
+                    "failure_class": provider_failure_class,
+                    "retry_scope": "agent_activation",
+                    "provider_request_attempts": provider_attempt,
+                }
+            )
+            break
         # print(f"[DEBUG] {response}")  # 注释掉详细响应调试
-        full_history.append({"turn": total_turns, "request": llm_payload, "response": response})
+        full_history.append(
+            {
+                "turn": total_turns,
+                "request": llm_payload,
+                "response": response,
+                "provider_request_attempts": provider_attempt,
+            }
+        )
 
         # Extract reasoning content, final content and action calls using new function
         reasoning_content, final_content_part, response_metadata = _extract_reasoning_content(response)
@@ -996,12 +1257,27 @@ async def execute_action_loop(
         # Execute action calls if present
         if not action_calls:
             if not str(final_content_part or "").strip():
+                empty_response_count += 1
                 if turn + 1 < max_turns:
+                    _append_thread_event(
+                        "provider_empty_response",
+                        {
+                            "attempt": empty_response_count,
+                            "retry_scope": "agent_activation",
+                            "configured_temperature_retry": (
+                                empty_response_retry_temperature_delta is not None
+                                and empty_response_count <= empty_response_retry_max
+                            ),
+                        },
+                    )
                     _append_runtime_message(
                         {"role": "user", "content": _empty_response_reminder()}
                     )
                     continue
                 loop_result.termination_reason = "empty_model_response"
+                loop_result.failure_class = "provider_empty_response"
+                loop_result.retry_scope = "agent_activation"
+                loop_result.retry_attempts = empty_response_count
                 break
             missing_names, missing_tags = _missing_loop_requirements()
             if (missing_names or missing_tags) and turn + 1 < max_turns:
@@ -1017,11 +1293,46 @@ async def execute_action_loop(
 
         # print(f"[ActionCalls] {len(action_calls)} action calls")
         # print(action_calls)
-        action_calls = [ActionCall(
-            call_id=action_call['id'],
-            action_name=action_call["function"]["name"],
-            arguments=json_repair.loads(action_call["function"]["arguments"] if str(action_call["function"]["arguments"]).strip() else {})
-        ) for action_call in action_calls]
+        parsed_action_calls: List[ActionCall] = []
+        for raw_action_call in action_calls:
+            if not isinstance(raw_action_call, dict):
+                action_call = ActionCall(
+                    call_id="",
+                    action_name="",
+                    arguments={},
+                )
+                action_call.status = "error"
+                action_call.error = (
+                    "Tool schema error: action call must be an object"
+                )
+                schema_error_count += 1
+                parsed_action_calls.append(action_call)
+                continue
+            function = raw_action_call.get("function")
+            if not isinstance(function, dict):
+                function = {}
+            raw_arguments = function.get("arguments")
+            action_call = ActionCall(
+                call_id=str(raw_action_call.get("id") or ""),
+                action_name=str(function.get("name") or ""),
+                arguments={},
+            )
+            try:
+                parsed_arguments = json_repair.loads(
+                    raw_arguments if str(raw_arguments or "").strip() else {}
+                )
+                if not isinstance(parsed_arguments, dict):
+                    raise TypeError("tool arguments must be a JSON object")
+                action_call.arguments = parsed_arguments
+            except Exception as exc:
+                action_call.status = "error"
+                action_call.error = (
+                    f"Tool schema error for {action_call.action_name}: "
+                    f"invalid arguments ({exc})"
+                )
+                schema_error_count += 1
+            parsed_action_calls.append(action_call)
+        action_calls = parsed_action_calls
         unique_action_calls = []
         duplicate_call_ids: set[str] = set()
         seen_action_payloads: set[tuple[str, str]] = set()
@@ -1258,6 +1569,37 @@ async def execute_action_loop(
                     break
                 continue
 
+            # Malformed JSON arguments never reach the environment. Return a
+            # structured tool error through the same conversation so the Agent
+            # can correct the call on its next turn.
+            if action_call.error is not None and action_call.status == "error":
+                action_attempt_counts[action_key] += 1
+                error_msg = action_call.error
+                _append_thread_event(
+                    "tool_execution_failed",
+                    {
+                        "call_id": action_call.call_id,
+                        "action_name": action_call.action_name,
+                        "arguments": copy.deepcopy(action_call.arguments),
+                        "error": error_msg,
+                        "failure_class": "tool_schema_error",
+                        "retry_scope": "agent_activation",
+                        "status": "error",
+                        "duration_sec": 0.0,
+                    },
+                )
+                tool_message = {
+                    "role": "tool",
+                    "content": error_msg,
+                    "tool_call_id": action_call.call_id,
+                }
+                _append_runtime_message(tool_message)
+                turn_tool_messages.append(dict(tool_message))
+                action_call.result = error_msg
+                action_call.duration_sec = 0.0
+                executed_action_calls.append(action_call)
+                continue
+
             action_attempt_counts[action_key] += 1
             action_started = time.perf_counter()
             _append_thread_event_best_effort(
@@ -1311,10 +1653,18 @@ async def execute_action_loop(
                 )
 
             if action_exception is not None:
-                error_msg = (
-                    f"Error executing action {action_call.action_name}: "
-                    f"{action_exception}"
-                )
+                schema_failure = _is_tool_schema_error(action_exception)
+                if schema_failure:
+                    schema_error_count += 1
+                    error_msg = (
+                        f"Tool schema error for {action_call.action_name}: "
+                        f"{action_exception}"
+                    )
+                else:
+                    error_msg = (
+                        f"Error executing action {action_call.action_name}: "
+                        f"{action_exception}"
+                    )
                 _append_thread_event(
                     "tool_execution_failed",
                     {
@@ -1322,6 +1672,14 @@ async def execute_action_loop(
                         "action_name": action_call.action_name,
                         "arguments": copy.deepcopy(action_call.arguments),
                         "error": error_msg,
+                        **(
+                            {
+                                "failure_class": "tool_schema_error",
+                                "retry_scope": "agent_activation",
+                            }
+                            if schema_failure
+                            else {}
+                        ),
                         "status": "error",
                         "duration_sec": action_call.duration_sec,
                     },
@@ -1473,6 +1831,11 @@ async def execute_action_loop(
                 loop_result.termination_reason = "missing_required_action"
             elif missing_tags:
                 loop_result.termination_reason = "missing_required_action_tag"
+            elif schema_error_count:
+                loop_result.termination_reason = "tool_schema_error_exhausted"
+                loop_result.failure_class = "tool_schema_error"
+                loop_result.retry_scope = "agent_activation"
+                loop_result.retry_attempts = schema_error_count
             else:
                 loop_result.termination_reason = "max_turns"
 
@@ -1562,6 +1925,14 @@ async def execute_action_loop(
             "tags": _action_trace_tags(action_call.action_name),
             **({"duration_sec": action_call.duration_sec} if action_call.duration_sec is not None else {}),
             **({"error": action_call.error} if action_call.error else {}),
+            **(
+                {
+                    "failure_class": "tool_schema_error",
+                    "retry_scope": "agent_activation",
+                }
+                if action_call.error and _is_tool_schema_error(action_call.error)
+                else {}
+            ),
         }
         for action_call in all_action_calls
     ]
@@ -1593,6 +1964,8 @@ async def execute_action_loop(
     error_termination_reasons = {
         "empty_model_response",
         "action_batch_exceeds_action_limit",
+        "tool_schema_error_exhausted",
+        "provider_request_exhausted",
     }
     status = (
         "error"
@@ -1614,6 +1987,10 @@ async def execute_action_loop(
         action_calls=action_call_entries,
         termination_reason=loop_result.termination_reason,
         termination_action=loop_result.termination_action,
+        error=loop_result.error,
+        failure_class=loop_result.failure_class,
+        retry_scope=loop_result.retry_scope,
+        retry_attempts=loop_result.retry_attempts,
         reasoning_content=loop_result.reasoning_content,
         thinking_process=loop_result.thinking_process,
         has_reasoning=loop_result.has_reasoning,

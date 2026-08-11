@@ -7,6 +7,7 @@ and event replay according to the final integration design document.
 
 from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING, Iterable
 from pathlib import Path
+import asyncio
 import copy
 import gzip
 import io
@@ -18,6 +19,7 @@ import logging
 import os
 import uuid
 import hashlib
+import zlib
 from datetime import datetime
 import threading
 
@@ -45,7 +47,10 @@ class PersistenceManager:
     按照resource_management_design.md，新增向量存储客户端管理职责。
     """
 
-    CHECKPOINT_VERSION = "complete_step_v2"
+    # v3 removes the heavy World/environment/agents copies from the derived
+    # observation section.  The top-level World fields are the sole recovery
+    # authority; observation_data retains only step-flow diagnostics.
+    CHECKPOINT_VERSION = "complete_step_v3"
     WORLD_ENCODING = "gzip-json"
     WORLD_COMPRESSION_LEVEL = 6
 
@@ -452,11 +457,209 @@ class PersistenceManager:
         try:
             with gzip.open(path, "rt", encoding="utf-8") as handle:
                 payload = json.load(handle)
-        except (OSError, EOFError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            EOFError,
+            UnicodeDecodeError,
+            UnicodeError,
+            json.JSONDecodeError,
+            zlib.error,
+        ) as exc:
             raise ValueError("World checkpoint gzip JSON is invalid") from exc
         if not isinstance(payload, dict):
             raise ValueError("World checkpoint payload must be a mapping")
         return payload
+
+    @classmethod
+    def _write_world_checkpoint_temp(
+        cls,
+        temp_path: Path,
+        *,
+        checkpoint_id: str,
+        step: int,
+        current_time: float,
+        agents_data: Dict[str, Any],
+        environment_payload: Dict[str, Any],
+        world_metadata: Dict[str, Any],
+        observation_payload: Dict[str, Any],
+        step_metrics: Optional[Dict[str, Any]],
+        json_serializer: Any,
+    ) -> Tuple[str, int]:
+        """Compress one canonical World component into a temporary file.
+
+        This method is deliberately self-contained so ``save_checkpoint`` can
+        run the CPU-heavy JSON/gzip work in ``asyncio.to_thread`` without
+        touching the event loop from the worker thread.  It writes each World
+        field exactly once.  ``observation_data`` is derived metadata only and
+        never contains the authoritative environment or agent collections.
+        """
+
+        def _write_value_field(
+            fp: Any,
+            indent: int,
+            key: str,
+            value: Any,
+            *,
+            last: bool,
+        ) -> None:
+            fp.write(" " * indent)
+            fp.write(json.dumps(key, ensure_ascii=False))
+            fp.write(": ")
+            json.dump(value, fp, ensure_ascii=False, default=json_serializer)
+            if not last:
+                fp.write(",")
+            fp.write("\n")
+
+        def _write_agents_map(fp: Any, indent: int) -> None:
+            fp.write("{")
+            if agents_data:
+                fp.write("\n")
+                for idx, (agent_id, agent_info) in enumerate(agents_data.items()):
+                    if idx:
+                        fp.write(",\n")
+                    fp.write(" " * (indent + 2))
+                    fp.write(json.dumps(agent_id, ensure_ascii=False))
+                    fp.write(": ")
+                    json.dump(
+                        agent_info,
+                        fp,
+                        ensure_ascii=False,
+                        default=json_serializer,
+                    )
+                fp.write("\n")
+                fp.write(" " * indent)
+            fp.write("}")
+
+        def _write_observation_field(fp: Any, indent: int, *, last: bool) -> None:
+            # Observation data is intentionally derived-only.  In particular,
+            # no agents_data/environment_data copies are emitted here.
+            fp.write(" " * indent)
+            fp.write('"observation_data": {\n')
+            fields: List[Tuple[str, Any]] = [
+                ("step", observation_payload["step"]),
+                ("step_flow", observation_payload["step_flow"]),
+            ]
+            if observation_payload.get("metrics") is not None:
+                fields.append(("metrics", observation_payload["metrics"]))
+            for idx, (key, value) in enumerate(fields):
+                fp.write(" " * (indent + 2))
+                fp.write(json.dumps(key, ensure_ascii=False))
+                fp.write(": ")
+                json.dump(value, fp, ensure_ascii=False, default=json_serializer)
+                if idx != len(fields) - 1:
+                    fp.write(",")
+                fp.write("\n")
+            fp.write(" " * indent)
+            fp.write("}")
+            if not last:
+                fp.write(",")
+            fp.write("\n")
+
+        class _HashingRawWriter:
+            """Hash compressed bytes as they are written to the raw file."""
+
+            def __init__(self, raw_file: Any) -> None:
+                self.raw_file = raw_file
+                self.digest = hashlib.sha256()
+                self.size = 0
+
+            def write(self, data: Any) -> int:
+                written = self.raw_file.write(data)
+                if written is None:
+                    written = len(data)
+                if written < 0 or written > len(data):
+                    raise OSError("raw checkpoint writer returned an invalid byte count")
+                self.digest.update(data[:written])
+                self.size += written
+                if written != len(data):
+                    raise OSError("raw checkpoint writer performed a short write")
+                return written
+
+            def flush(self) -> None:
+                self.raw_file.flush()
+
+            def fileno(self) -> int:
+                return self.raw_file.fileno()
+
+        # The temporary file is owned by this worker.  The event-loop caller
+        # atomically renames it only after this function returns successfully.
+        temp_path.parent.mkdir(parents=True, exist_ok=True)
+        with temp_path.open("xb") as raw_fp:
+            hashing_raw = _HashingRawWriter(raw_fp)
+            with gzip.GzipFile(
+                filename="",
+                mode="wb",
+                compresslevel=cls.WORLD_COMPRESSION_LEVEL,
+                fileobj=hashing_raw,
+                mtime=0,
+            ) as gzip_fp:
+                with io.TextIOWrapper(gzip_fp, encoding="utf-8") as fp:
+                    fp.write("{\n")
+                    fields: List[Tuple[str, str]] = [
+                        ("checkpoint_id", "value"),
+                        ("step", "value"),
+                        ("timestamp", "value"),
+                        ("agents_data", "agents"),
+                        ("environment_data", "value"),
+                        ("world_metadata", "value"),
+                        ("observation_data", "observation"),
+                        ("source_step", "value"),
+                    ]
+                    if step_metrics is not None:
+                        # Keep one canonical copy of the full step metrics.
+                        # Consumers already accept ``step_metrics`` and the
+                        # observation section carries only derived metrics.
+                        fields.append(("step_metrics", "value"))
+
+                    values: Dict[str, Any] = {
+                        "checkpoint_id": checkpoint_id,
+                        "step": step,
+                        "timestamp": current_time,
+                        "environment_data": environment_payload,
+                        "world_metadata": world_metadata,
+                        "source_step": step,
+                        "step_metrics": step_metrics,
+                    }
+                    for idx, (field_key, field_type) in enumerate(fields):
+                        last = idx == len(fields) - 1
+                        if field_type == "value":
+                            _write_value_field(
+                                fp,
+                                2,
+                                field_key,
+                                values[field_key],
+                                last=last,
+                            )
+                        elif field_type == "agents":
+                            fp.write("  ")
+                            fp.write('"agents_data": ')
+                            _write_agents_map(fp, 2)
+                            if not last:
+                                fp.write(",")
+                            fp.write("\n")
+                        else:
+                            _write_observation_field(fp, 2, last=last)
+                    fp.write("}\n")
+                    fp.flush()
+            raw_fp.flush()
+            os.fsync(raw_fp.fileno())
+        return hashing_raw.digest.hexdigest(), hashing_raw.size
+
+    @staticmethod
+    async def _await_world_checkpoint_write(
+        writer: Any,
+    ) -> Any:
+        """Await a worker write while allowing safe outer-task cancellation."""
+
+        task = asyncio.create_task(asyncio.to_thread(writer))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Do not let save_checkpoint's finally block unlink a file while
+            # the worker still owns it.  Finish the worker, then propagate the
+            # cancellation to the caller.
+            await task
+            raise
 
     def _chroma_backup_path(
         self,
@@ -468,6 +671,41 @@ class PersistenceManager:
         step = self._normalize_step(step)
         suffix = f".{checkpoint_id}" if checkpoint_id else ""
         return self.chroma_backup_dir / f"step_{step:06d}{suffix}"
+
+    def _cleanup_unpublished_checkpoint(
+        self,
+        *,
+        step: int,
+        checkpoint_id: str,
+        checkpoint_file: Path,
+        temp_path: Path,
+        chroma_backup: Optional[Path],
+    ) -> None:
+        """Remove only components staged by one unpublished save attempt.
+
+        A replacement checkpoint has a fresh id in both component names, so
+        these paths cannot be the pair referenced by an already published
+        marker.  Keep the cleanup deterministic even when an injected failure
+        happens before the local ``chroma_backup`` variable is assigned.
+        """
+
+        temp_path.unlink(missing_ok=True)
+        checkpoint_file.unlink(missing_ok=True)
+        candidates = {
+            self._chroma_backup_path(step, checkpoint_id=checkpoint_id),
+            self.chroma_backup_dir / f".step_{step:06d}.{checkpoint_id}.tmp",
+        }
+        if chroma_backup is not None:
+            candidates.add(chroma_backup)
+        for path in candidates:
+            if path == self.chroma_backup_dir:
+                continue
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path, ignore_errors=True)
+            else:
+                path.unlink(missing_ok=True)
+        self._fsync_directory(self.checkpoints_dir)
+        self._fsync_directory(self.chroma_backup_dir)
 
     @staticmethod
     def _file_sha256(path: Path) -> str:
@@ -502,6 +740,23 @@ class PersistenceManager:
         if isinstance(value, (list, tuple)):
             return [cls._plain_snapshot_value(item) for item in value]
         return value
+
+    @classmethod
+    def _derived_environment_snapshot(cls, snapshot: Any) -> Dict[str, Any]:
+        """Return environment-only snapshot data.
+
+        ``World.environment_data['state']`` is the canonical state store.  The
+        default ``Environment.snapshot()`` also exposes that mapping under a
+        top-level ``state`` key, which would write the same state twice and
+        make two fields appear authoritative.  v3 snapshots therefore retain
+        only custom environment data; state is restored from the top-level
+        World field before ``restore_from_snapshot`` is called.
+        """
+        plain = cls._plain_snapshot_value(snapshot)
+        if not isinstance(plain, dict):
+            raise ValueError("Environment snapshot must be a mapping")
+        plain.pop("state", None)
+        return plain
 
     @classmethod
     def _directory_content_sha256(cls, directory: Path) -> str:
@@ -594,7 +849,9 @@ class PersistenceManager:
             )
 
             environment = world.get_environment()
-            env_snapshot = self._plain_snapshot_value(environment.snapshot())
+            env_snapshot = self._derived_environment_snapshot(
+                environment.snapshot(include_state=False)
+            )
 
             environment_payload = dict(world.environment_data)
             environment_payload["state"] = dict(world.environment_data.get("state") or {})
@@ -604,6 +861,7 @@ class PersistenceManager:
                 schedule,
                 step_metrics,
                 include_agents=False,
+                include_environment=False,
             )
 
             world_metadata = {
@@ -632,171 +890,40 @@ class PersistenceManager:
 
             current_time = time.time()
 
-            def _write_value_field(fp, indent: int, key: str, value: Any, *, last: bool) -> None:
-                fp.write(" " * indent)
-                fp.write(json.dumps(key, ensure_ascii=False))
-                fp.write(": ")
-                json.dump(value, fp, ensure_ascii=False, default=self._json_serializer)
-                if not last:
-                    fp.write(",")
-                fp.write("\n")
-
-            def _write_agents_map(fp, indent: int, agents_data: Dict[str, Any]) -> None:
-                fp.write("{")
-                if agents_data:
-                    fp.write("\n")
-                    for idx, (agent_id, agent_info) in enumerate(agents_data.items()):
-                        if idx:
-                            fp.write(",\n")
-                        fp.write(" " * (indent + 2))
-                        fp.write(json.dumps(agent_id, ensure_ascii=False))
-                        fp.write(": ")
-                        json.dump(
-                            self._serialize_agent_entry(agent_info),
-                            fp,
-                            ensure_ascii=False,
-                            default=self._json_serializer,
-                        )
-                    fp.write("\n")
-                    fp.write(" " * indent)
-                fp.write("}")
-
-            def _write_agents_field(fp, indent: int, key: str, agents_data: Dict[str, Any], *, last: bool) -> None:
-                fp.write(" " * indent)
-                fp.write(json.dumps(key, ensure_ascii=False))
-                fp.write(": ")
-                _write_agents_map(fp, indent, agents_data)
-                if not last:
-                    fp.write(",")
-                fp.write("\n")
-
-            def _write_observation_field(fp, indent: int, key: str, payload: Dict[str, Any], agents_data: Dict[str, Any], *, last: bool) -> None:
-                fp.write(" " * indent)
-                fp.write(json.dumps(key, ensure_ascii=False))
-                fp.write(": {\n")
-                inner_fields: List[Tuple[str, str]] = [
-                    ("step", "value"),
-                    ("environment_data", "value"),
-                    ("agents_data", "agents"),
-                    ("step_flow", "value"),
-                ]
-                if payload.get("metrics") is not None:
-                    inner_fields.append(("metrics", "value"))
-
-                for idx, (inner_key, inner_type) in enumerate(inner_fields):
-                    inner_last = idx == len(inner_fields) - 1
-                    fp.write(" " * (indent + 2))
-                    fp.write(json.dumps(inner_key, ensure_ascii=False))
-                    fp.write(": ")
-                    if inner_type == "agents":
-                        _write_agents_map(fp, indent + 2, agents_data)
-                    else:
-                        json.dump(
-                            payload[inner_key],
-                            fp,
-                            ensure_ascii=False,
-                            default=self._json_serializer,
-                        )
-                    if not inner_last:
-                        fp.write(",")
-                    fp.write("\n")
-
-                fp.write(" " * indent)
-                fp.write("}")
-                if not last:
-                    fp.write(",")
-                fp.write("\n")
-
-            with temp_path.open("xb") as raw_fp:
-                with gzip.GzipFile(
-                    filename="",
-                    mode="wb",
-                    compresslevel=self.WORLD_COMPRESSION_LEVEL,
-                    fileobj=raw_fp,
-                    mtime=0,
-                ) as gzip_fp:
-                    with io.TextIOWrapper(gzip_fp, encoding="utf-8") as fp:
-                        fp.write("{\n")
-                        top_level_fields: List[Tuple[str, str]] = [
-                            ("checkpoint_id", "value"),
-                            ("step", "value"),
-                            ("timestamp", "value"),
-                            ("agents_data", "agents"),
-                            ("environment_data", "value"),
-                            ("world_metadata", "value"),
-                            ("observation_data", "observation"),
-                            ("source_step", "value"),
-                        ]
-                        include_metrics = step_metrics is not None
-                        if include_metrics:
-                            top_level_fields.extend(
-                                [("metrics", "value"), ("step_metrics", "value")]
-                            )
-
-                        for idx, (field_key, field_type) in enumerate(top_level_fields):
-                            last_field = idx == len(top_level_fields) - 1
-                            if field_type == "value":
-                                value_mapping = {
-                                    "checkpoint_id": checkpoint_id,
-                                    "step": step,
-                                    "timestamp": current_time,
-                                    "environment_data": environment_payload,
-                                    "world_metadata": world_metadata,
-                                    "source_step": step,
-                                }
-                                if include_metrics and field_key in {
-                                    "metrics",
-                                    "step_metrics",
-                                }:
-                                    value_mapping[field_key] = step_metrics  # type: ignore[assignment]
-                                _write_value_field(
-                                    fp,
-                                    2,
-                                    field_key,
-                                    value_mapping[field_key],
-                                    last=last_field,
-                                )
-                            elif field_type == "agents":
-                                _write_agents_field(
-                                    fp,
-                                    2,
-                                    field_key,
-                                    world.agents_data,
-                                    last=last_field,
-                                )
-                            elif field_type == "observation":
-                                _write_observation_field(
-                                    fp,
-                                    2,
-                                    field_key,
-                                    observation_payload,
-                                    world.agents_data,
-                                    last=last_field,
-                                )
-                        fp.write("}\n")
-                        fp.flush()
-                raw_fp.flush()
-                os.fsync(raw_fp.fileno())
+            # Convert proxy-backed world data before entering the worker.  The
+            # worker then performs only pure JSON/gzip I/O and never touches
+            # World, Environment, Schedule, or the event loop.
+            serialized_agents = self._serialize_agents_data(world.agents_data)
+            world_sha256, checkpoint_size = await self._await_world_checkpoint_write(
+                lambda: self._write_world_checkpoint_temp(
+                    temp_path,
+                    checkpoint_id=checkpoint_id,
+                    step=step,
+                    current_time=current_time,
+                    agents_data=serialized_agents,
+                    environment_payload=environment_payload,
+                    world_metadata=world_metadata,
+                    observation_payload=observation_payload,
+                    step_metrics=step_metrics,
+                    json_serializer=self._json_serializer,
+                )
+            )
 
             temp_path.replace(checkpoint_file)
             self._fsync_directory(checkpoint_file.parent)
-            world_sha256 = self._file_sha256(checkpoint_file)
 
-            # Validate the immutable world component before publishing the
-            # marker.  A marker must never expose a truncated or foreign file.
-            persisted_world = self._read_world_checkpoint(
-                checkpoint_file,
-                encoding=self.WORLD_ENCODING,
-            )
+            # Identity is assembled into the payload and marker before the
+            # atomic rename.  Full gzip decoding is intentionally deferred to
+            # resolve/load (the recovery validation path), so saving does not
+            # decompress or re-read the entire World just to re-check id/step
+            # or calculate its hash.  The worker returned both values while
+            # writing the compressed bytes; stat only confirms rename fidelity.
             if (
-                persisted_world.get("checkpoint_id") != checkpoint_id
-                or persisted_world.get("step") != step
-                or persisted_world.get("world_metadata", {}).get("checkpoint_id")
-                != checkpoint_id
+                not checkpoint_file.is_file()
+                or checkpoint_file.stat().st_size <= 0
+                or checkpoint_file.stat().st_size != checkpoint_size
             ):
-                raise ValueError("World checkpoint component failed identity validation")
-
-            checkpoint_size = checkpoint_file.stat().st_size if checkpoint_file.exists() else None
+                raise ValueError("World checkpoint component size changed during publish")
 
             backup_start = time.time()
             chroma_backup = await self._backup_chroma_store(
@@ -883,8 +1010,11 @@ class PersistenceManager:
 
             return marker_payload
 
-        except Exception as e:
-            # A failed pre-commit build may leave only an unpublished orphan.
+        except BaseException as e:
+            # Cancellation is a valid failure boundary too.  It can arrive at
+            # the await immediately after the World rename, before the
+            # complete marker is published, so the unpublished pair must be
+            # removed just like an injected I/O failure.
             # Never touch the component named by the previous marker.  If the
             # marker replacement itself succeeded but a later durability check
             # raised, preserve the newly published pair as well.
@@ -898,10 +1028,17 @@ class PersistenceManager:
                 except (FileNotFoundError, OSError, json.JSONDecodeError):
                     pass
             if not checkpoint_published:
-                checkpoint_file.unlink(missing_ok=True)
-                if chroma_backup is not None:
-                    shutil.rmtree(chroma_backup, ignore_errors=True)
-            logger.error(f"Failed to save checkpoint for step {step}: {e}")
+                self._cleanup_unpublished_checkpoint(
+                    step=step,
+                    checkpoint_id=checkpoint_id,
+                    checkpoint_file=checkpoint_file,
+                    temp_path=temp_path,
+                    chroma_backup=chroma_backup,
+                )
+            if isinstance(e, asyncio.CancelledError):
+                logger.info("Checkpoint save cancelled before publication for step %s", step)
+            else:
+                logger.error(f"Failed to save checkpoint for step {step}: {e}")
             log_context = getattr(world, "_log_context", None)
             if log_context:
                 log_context.log_system(
@@ -924,6 +1061,7 @@ class PersistenceManager:
         step_metrics: Optional[Dict[str, Any]] = None,
         *,
         include_agents: bool = True,
+        include_environment: bool = True,
     ) -> Dict[str, Any]:
         """构建用于快照的观察数据。
 
@@ -932,6 +1070,9 @@ class PersistenceManager:
             schedule: 调度实例
             step_metrics: 当步指标
             include_agents: 是否包含 agents_data（流式写入时可禁用以减少内存峰值）
+            include_environment: 是否包含 environment_data。恢复权威的
+                checkpoint 已在顶层保存环境；保存派生 observation 时应关闭，
+                避免再次复制完整环境 state。
         """
 
         # Extract metrics from last node's converter if available
@@ -990,15 +1131,17 @@ class PersistenceManager:
                 "number": world.step,
                 "timestamp": time.time(),
             },
-            "environment_data": {
-                "type": world.environment_data["type"],
-                "state": dict(world.environment_data["state"]),
-            },
             "step_flow": {
                 "nodes": step_flow_nodes,
                 "execution_summary": step_execution_summary
             },
         }
+
+        if include_environment:
+            observation_data["environment_data"] = {
+                "type": world.environment_data["type"],
+                "state": dict(world.environment_data["state"]),
+            }
 
         if include_agents:
             observation_data["agents_data"] = self._serialize_agents_data(world.agents_data)
@@ -1028,8 +1171,8 @@ class PersistenceManager:
         environment = world.get_environment()
         environment_payload = dict(world.environment_data)
         environment_payload["state"] = dict(world.environment_data.get("state") or {})
-        environment_payload["snapshot"] = self._plain_snapshot_value(
-            environment.snapshot()
+        environment_payload["snapshot"] = self._derived_environment_snapshot(
+            environment.snapshot(include_state=False)
         )
         # A diagnostic snapshot can be taken while an activation is still
         # running.  Keep immutable cursors to every open/closed Agent Thread

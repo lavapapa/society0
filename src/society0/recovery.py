@@ -34,6 +34,23 @@ _RETRYABLE_MESSAGE_MARKERS = (
     "http 504",
 )
 
+_SCHEMA_MESSAGE_MARKERS = (
+    "tool schema error",
+    "tool_schema_error",
+    "invalid action arguments",
+    "invalid arguments for action",
+)
+
+_WORLD_FAILURE_MARKERS = (
+    "world writer",
+    "state invariant",
+    "state corruption",
+    "checkpoint",
+    "persistence",
+    "failed to persist",
+    "thread event",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class StepFailure:
@@ -45,6 +62,8 @@ class StepFailure:
     error: str
     error_fingerprint: str
     retryable: bool
+    failure_class: str = "unknown"
+    retry_scope: str = "step"
 
     @property
     def recoverable(self) -> bool:
@@ -64,9 +83,9 @@ def classify_step_failure(
 ) -> StepFailure:
     """把异常整理成 runner 可消费的默认失败分类。
 
-    默认只把连接、超时和 provider 未返回有效模型消息视为可重试候选。
-    schema、领域不变量、checkpoint 校验和磁盘错误保持 fail-closed，
-    由调用方修复后再恢复。
+    返回失败类型和重试粒度：provider 传输/空响应只属于当前 Agent 激活，
+    工具参数 schema 错误由同一 Agent 收到结构化工具错误，World writer、
+    checkpoint 和状态不变量错误才属于整步恢复边界。
     """
 
     message = str(exc) or repr(exc)
@@ -85,6 +104,60 @@ def classify_step_failure(
     retryable = retryable or any(
         marker in lowered for marker in _RETRYABLE_MESSAGE_MARKERS
     )
+    explicit_failure_class = str(getattr(exc, "failure_class", "") or "")
+    explicit_retry_scope = str(getattr(exc, "retry_scope", "") or "")
+    is_world_failure = any(marker in lowered for marker in _WORLD_FAILURE_MARKERS)
+    is_schema_error = explicit_failure_class == "tool_schema_error" or any(
+        marker in lowered for marker in _SCHEMA_MESSAGE_MARKERS
+    )
+    if not is_schema_error and any(
+        marker in lowered for marker in ("additional properties", "required property")
+    ):
+        # These JSON-schema phrases are only useful when the diagnostic also
+        # identifies the Action/tool boundary; bare schema diagnostics remain
+        # fail-closed at the step boundary.
+        is_schema_error = "tool" in lowered or "action" in lowered
+    is_empty_response = "empty_model_response" in lowered
+    is_timeout = (
+        retryable
+        and not is_empty_response
+        and (
+            isinstance(exc, (TimeoutError, ConnectionError))
+            or "timeout" in lowered
+            or "timed out" in lowered
+        )
+    )
+    if is_world_failure:
+        # Persistence/checkpoint/state failures are step boundaries even when
+        # an implementation happens to mention a schema in its diagnostics.
+        failure_class = "world_writer_error"
+        retry_scope = "step"
+        retryable = False
+    elif explicit_failure_class in {
+        "provider_timeout",
+        "provider_transport_error",
+        "provider_empty_response",
+    }:
+        failure_class = explicit_failure_class
+        retry_scope = explicit_retry_scope or "agent_activation"
+    elif is_schema_error:
+        failure_class = "tool_schema_error"
+        retry_scope = "agent_activation"
+        # The ActionLoop sends this back to the same Agent as a structured
+        # tool error. It must never trigger a step replay.
+        retryable = False
+    elif is_empty_response:
+        failure_class = "provider_empty_response"
+        retry_scope = "agent_activation"
+    elif is_timeout:
+        failure_class = "provider_timeout"
+        retry_scope = "agent_activation"
+    elif retryable:
+        failure_class = "provider_transport_error"
+        retry_scope = "agent_activation"
+    else:
+        failure_class = "unclassified"
+        retry_scope = "step"
     payload = {
         "error_type": type(exc).__name__,
         "error": message,
@@ -100,4 +173,6 @@ def classify_step_failure(
         error=message,
         error_fingerprint=fingerprint,
         retryable=retryable,
+        failure_class=failure_class,
+        retry_scope=retry_scope,
     )

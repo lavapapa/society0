@@ -38,7 +38,10 @@ def test_step_failure_only_marks_transient_transport_errors_retryable() -> None:
 
     assert timeout.retryable is True
     assert timeout.recoverable is True
+    assert timeout.failure_class == "provider_timeout"
+    assert timeout.retry_scope == "agent_activation"
     assert disk_full.retryable is False
+    assert disk_full.retry_scope == "step"
     assert invariant.retryable is False
     assert len(timeout.error_fingerprint) == 64
 
@@ -52,6 +55,8 @@ def test_wrapped_provider_timeout_message_remains_retryable() -> None:
 
     assert failure.retryable is True
     assert failure.recoverable is True
+    assert failure.failure_class == "provider_timeout"
+    assert failure.retry_scope == "agent_activation"
 
 
 def test_wrapped_empty_model_response_remains_retryable() -> None:
@@ -66,6 +71,57 @@ def test_wrapped_empty_model_response_remains_retryable() -> None:
 
     assert failure.retryable is True
     assert failure.recoverable is True
+    assert failure.failure_class == "provider_empty_response"
+    assert failure.retry_scope == "agent_activation"
+
+
+def test_tool_schema_error_stays_with_the_agent_activation() -> None:
+    failure = classify_step_failure(
+        ValueError("Tool schema error for query_inventory: additional properties"),
+        failed_step=5,
+        last_complete_step=4,
+    )
+
+    assert failure.retryable is False
+    assert failure.recoverable is True
+    assert failure.failure_class == "tool_schema_error"
+    assert failure.retry_scope == "agent_activation"
+
+
+def test_world_writer_failure_remains_a_step_recovery_boundary() -> None:
+    failure = classify_step_failure(
+        RuntimeError("world writer failed to persist checkpoint"),
+        failed_step=5,
+        last_complete_step=4,
+    )
+
+    assert failure.retryable is False
+    assert failure.failure_class == "world_writer_error"
+    assert failure.retry_scope == "step"
+
+
+def test_world_writer_schema_diagnostic_is_not_downgraded_to_tool_schema() -> None:
+    failure = classify_step_failure(
+        RuntimeError("world writer schema mismatch while persisting checkpoint"),
+        failed_step=5,
+        last_complete_step=4,
+    )
+
+    assert failure.failure_class == "world_writer_error"
+    assert failure.retry_scope == "step"
+    assert failure.retryable is False
+
+
+def test_generic_schema_message_stays_fail_closed_at_step_boundary() -> None:
+    failure = classify_step_failure(
+        ValueError("state schema mismatch"),
+        failed_step=5,
+        last_complete_step=4,
+    )
+
+    assert failure.failure_class == "unclassified"
+    assert failure.retry_scope == "step"
+    assert failure.retryable is False
 
 
 def test_timeout_hidden_in_exception_cause_remains_retryable() -> None:

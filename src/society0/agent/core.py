@@ -1401,7 +1401,15 @@ class LLMAgent(Agent):
 
             async def traced_llm_call(payload: Dict[str, Any]) -> Dict[str, Any]:
                 request_payload = dict(payload)
+                agent_loop_control_options = {
+                    "provider_request_retry_max",
+                    "empty_response_retry_max",
+                    "empty_response_retry_temperature_delta",
+                    "empty_response_retry_temperature_max",
+                }
                 for key, value in safe_llm_request_options.items():
+                    if key in agent_loop_control_options:
+                        continue
                     request_payload.setdefault(key, value)
                 payload_metadata = dict(request_payload.get("metadata") or {})
                 metadata = {
@@ -1685,7 +1693,11 @@ class LLMAgent(Agent):
                     interaction_name="submit_result_receipt",
                 )
 
-            if finish_instruction_added and structured_output is None:
+            if (
+                finish_instruction_added
+                and structured_output is None
+                and loop_result.status != "error"
+            ):
                 # 检查是否调用了 submit_result（对外仍呈现 finish_instruction_called 语义）
                 # 优先从 loop_result.action_calls 提取；回退到 phases 中的 action_call 列表。
                 action_items: List[Dict[str, Any]] = []
@@ -1890,12 +1902,17 @@ class LLMAgent(Agent):
             instruction_status = (
                 "error" if loop_result.status == "error" else "success"
             )
+            loop_error = loop_result.error or loop_result.termination_reason
 
             return {
                 "status": instruction_status,
                 "agent_id": self.id,
                 "instruction": instruction,
-                "performative_output": performative_output,
+                "performative_output": (
+                    performative_output
+                    if instruction_status != "error"
+                    else f"执行指令时发生错误: {loop_error or 'agent_loop_error'}"
+                ),
                 "visible_assistant_text": visible_assistant_text,
                 "assistant_turn_trace": assistant_turn_trace,
                 "structured_output": structured_output,
@@ -1905,8 +1922,17 @@ class LLMAgent(Agent):
                 "termination_reason": loop_result.termination_reason,
                 "termination_action": loop_result.termination_action,
                 **(
-                    {"error": loop_result.termination_reason or "agent_loop_error"}
+                    {"error": loop_error or "agent_loop_error"}
                     if instruction_status == "error"
+                    else {}
+                ),
+                **(
+                    {
+                        "failure_class": loop_result.failure_class,
+                        "retry_scope": loop_result.retry_scope,
+                        "retry_attempts": loop_result.retry_attempts,
+                    }
+                    if loop_result.failure_class is not None
                     else {}
                 ),
                 "llm_calls": total_llm_calls,
@@ -1956,6 +1982,15 @@ class LLMAgent(Agent):
                 "finish_instruction_called": False,
                 "has_structured_output": False,
                 "output_schema_provided": output_schema is not None,
+                **(
+                    {
+                        "failure_class": str(getattr(e, "failure_class")),
+                        "retry_scope": str(getattr(e, "retry_scope")),
+                        "retry_attempts": int(getattr(e, "retry_attempts")),
+                    }
+                    if getattr(e, "failure_class", None) is not None
+                    else {}
+                ),
                 # 推理相关信息 - 错误情况下为空
                 "reasoning_content": None,
                 "thinking_process": [],

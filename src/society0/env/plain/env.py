@@ -74,7 +74,7 @@ class PlainEnvironment(Environment):
         agent_count = len(agents)
         logger.info(f"PlainEnvironment initialized with {agent_count} agents at step {world.step}")
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self, *, include_state: bool = True) -> Dict[str, Any]:
         """
         创建环境快照
 
