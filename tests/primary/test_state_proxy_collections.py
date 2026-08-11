@@ -45,6 +45,14 @@ def test_list_proxy_is_a_mutable_sequence() -> None:
     assert isinstance(proxy[0], MutableMapping)
 
 
+def test_list_proxy_compares_like_a_normal_python_list() -> None:
+    proxy = _list_proxy([{"id": "a"}, [1, 2]])
+
+    assert proxy == [{"id": "a"}, [1, 2]]
+    assert [{"id": "a"}, [1, 2]] == proxy
+    assert proxy != [{"id": "b"}]
+
+
 def test_deepcopy_detaches_nested_proxies_as_plain_collections() -> None:
     target = {
         "lot": {
