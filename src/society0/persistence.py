@@ -300,6 +300,33 @@ class PersistenceManager:
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(source, target)
+
+    def seed_chroma_store_from(self, source_run: str | Path) -> bool:
+        """用来源运行的逻辑记忆库初始化一个新的恢复目录。
+
+        这是跨目录恢复时的一次性分支初始化，不属于逐 Tick checkpoint。
+        后续可见性仍由 v4 的目标 Tick、分支谱系和已提交写入 epoch 限定。
+        """
+
+        self._assert_usable()
+        with self._chroma_init_lock:
+            if self._chroma_client is not None:
+                raise RuntimeError("Chroma client 已初始化，不能再导入来源记忆库")
+            source_store = Path(source_run).resolve() / "chroma_store"
+            if not source_store.is_dir() or not any(source_store.iterdir()):
+                return False
+            if any(self.chroma_store_path.iterdir()):
+                raise ValueError("恢复目标的 Chroma store 必须为空")
+            if source_store.resolve() == self.chroma_store_path.resolve():
+                raise ValueError("恢复来源与目标不能使用同一个 Chroma store")
+
+            self._copy_directory(source_store, self.chroma_store_path)
+            if self._using_fallback_runtime:
+                self._copy_directory(
+                    self.chroma_store_path,
+                    self.chroma_runtime_path,
+                )
+            return True
     
     def _load_metadata(self) -> Dict[str, Any]:
         """Load experiment metadata from disk."""
@@ -600,6 +627,18 @@ class PersistenceManager:
             self._v4_committed_memory_epoch_ids = (
                 self._v4_store.committed_memory_epoch_ids(latest_step)
             )
+        else:
+            # 跨目录恢复会把来源 checkpoint 的记忆视图挂在新 World 上。
+            # 新运行的 root 必须继承该提交边界，不能把已恢复记忆重置为空。
+            self._v4_branch_id = str(
+                getattr(world, "_memory_branch_id", self._v4_branch_id)
+            )
+            self._v4_branch_lineage = list(
+                getattr(world, "_memory_branch_lineage", ()) or ()
+            )
+            self._v4_committed_memory_epoch_ids = set(
+                getattr(world, "_committed_memory_epoch_ids", set()) or set()
+            )
         return compiled
 
     def _v4_root_metadata(
@@ -731,6 +770,10 @@ class PersistenceManager:
                 resume_identity=getattr(world, "_resume_identity", None),
             )
             checkpoint_id = uuid.uuid4().hex
+            memory_target_step = int(world.step)
+            inherited_memory_epochs = set(
+                self._v4_committed_memory_epoch_ids
+            )
 
             def publish_root_transaction() -> Dict[str, Any]:
                 thread_manifest = self.agent_thread_store.publish_epoch_manifest(
@@ -745,18 +788,18 @@ class PersistenceManager:
                     thread_manifest=thread_manifest,
                     memory_view={
                         "branch_id": self._v4_branch_id,
-                        "target_step": 0,
-                        "write_epoch_ids": [],
+                        "target_step": memory_target_step,
+                        "write_epoch_ids": sorted(inherited_memory_epochs),
                     },
                 )
 
             marker = await self._await_v4_publication(publish_root_transaction)
             self._v4_root_published = True
             world.set_memory_checkpoint_view(
-                target_step=0,
+                target_step=memory_target_step,
                 branch_id=self._v4_branch_id,
                 branch_lineage=self._v4_branch_lineage,
-                committed_write_epoch_ids=set(),
+                committed_write_epoch_ids=inherited_memory_epochs,
             )
             return marker
 
