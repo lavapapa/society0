@@ -2003,7 +2003,7 @@ wheels = [
 
 [[package]]
 name = "society0"
-version = "4.0.0"
+version = "4.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },

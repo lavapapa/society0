@@ -776,6 +776,9 @@ class Society0:
                 "Checkpoint resume identity does not match the current LLM, "
                 "embedding, capability schema, or application contract"
             )
+        # 新目录恢复需要继承来源运行中已经提交的长期记忆。这里只在
+        # 身份校验通过后做一次分支初始化；逐 Tick checkpoint 不复制 Chroma。
+        self.persistence_manager.seed_chroma_store_from(source_run)
         try:
             world, _ = await self.persistence_manager._load_v4_checkpoint_record(
                 record,
