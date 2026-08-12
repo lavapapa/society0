@@ -917,7 +917,7 @@ class SocialNetworkEnv(Environment):
         for source_branch, fork_step in view["branch_lineage"]:
             branches.append(branch_clause(source_branch, min(int(fork_step), target_step)))
         branch_filter = branches[0] if len(branches) == 1 else {"$or": branches}
-        return {"$and": [branch_filter]}
+        return branch_filter
 
     @staticmethod
     def _filter_query_payload(payload: Dict[str, Any], keep: List[int]) -> Dict[str, Any]:

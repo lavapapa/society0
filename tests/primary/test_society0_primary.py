@@ -6619,6 +6619,12 @@ def test_model_declaration_builds_endpoint_configs():
     assert EmbedModel.openai(id="embed", model="text-embedding-3-small", dimensions=1536).endpoint_config()[
         "dimensions"
     ] == 1536
+    assert EmbedModel.openai_compatible(
+        model="bge-m3",
+        base_url="https://example.invalid/v1",
+        dimensions=1024,
+        send_dimensions=False,
+    ).endpoint_config()["send_dimensions"] is False
 
 
 @pytest.mark.asyncio

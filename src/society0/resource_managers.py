@@ -265,6 +265,7 @@ class EndpointConfig:
     deployment_name: Optional[str] = None  # Azure部署名称
     trust_env: bool = True  # 是否继承系统代理等运行环境配置
     tool_choice_policy: str = "native"
+    send_dimensions: bool = True
 
     def __post_init__(self) -> None:
         self.tool_choice_policy = str(self.tool_choice_policy).strip().lower()
@@ -1670,6 +1671,7 @@ class EmbeddingManager:
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
             trust_env=bool(config.get("trust_env", True)),
+            send_dimensions=bool(config.get("send_dimensions", True)),
         )
 
         # 创建异步客户端
@@ -2033,9 +2035,10 @@ class EmbeddingManager:
                             request_params = {
                                 "model": endpoint.model,
                                 "input": batch_texts,
-                                "dimensions": dimensions,
                                 "timeout": request_deadline,
                             }
+                            if endpoint.send_dimensions:
+                                request_params["dimensions"] = dimensions
                             self._append_agent_thread_event_best_effort(
                                 trace_fields,
                                 "embedding_provider_request",
@@ -2044,12 +2047,7 @@ class EmbeddingManager:
                                 attempt_number=attempt_number,
                                 endpoint=endpoint,
                             )
-                            response = await client.embeddings.create(
-                                model=endpoint.model,
-                                input=batch_texts,
-                                dimensions=dimensions,
-                                timeout=request_deadline,
-                            )
+                            response = await client.embeddings.create(**request_params)
                             response_embeddings = []
                             for embedding_obj in response.data:
                                 response_embeddings.append(embedding_obj.embedding)
