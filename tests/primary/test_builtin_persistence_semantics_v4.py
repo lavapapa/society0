@@ -199,6 +199,6 @@ async def test_social_post_vectors_use_tick_branch_epoch_view_and_shadow(tmp_pat
         [{"post_id": "post-1"}],
     )
     assert scores == {"post-1": 1.0}
-    assert collection.where["$and"]
+    assert len(collection.where["$or"]) == 2
     where_text = str(collection.where)
     assert "created_step" in where_text and "visible_until_step" in where_text

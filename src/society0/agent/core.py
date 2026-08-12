@@ -851,6 +851,9 @@ class LLMAgent(Agent):
                         fire_and_forget=False,
                         trace={
                             "step": int(payload.get("timestamp", timestamp)),
+                            "step_name": getattr(
+                                self._world, "_current_code_step_name", None
+                            ),
                             "interaction_type": "memory_write",
                             "interaction_name": interaction_name,
                             "thread_id": thread_id,
@@ -1015,6 +1018,9 @@ class LLMAgent(Agent):
                 fire_and_forget=False,
                 trace={
                     "step": timestamp,
+                    "step_name": getattr(
+                        self._world, "_current_code_step_name", None
+                    ),
                     "interaction_type": "memory_write",
                     "interaction_name": interaction_name,
                     "thread_id": thread_id,

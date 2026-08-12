@@ -172,6 +172,7 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
         observed["social_actions"] = set(actionset.filter_by_tags(["social"]).actions.keys())
         observed["social_read_actions"] = set(actionset.filter_by_tags(["social_read"]).actions.keys())
         observed["environment_actions"] = set(actionset.filter_by_tags(["environment"]).actions.keys())
+        observed["post_vector_where"] = ctx.env._post_vector_where()
         _seed_post(
             ctx.env,
             _post(
@@ -235,6 +236,13 @@ async def test_social_network_recommended_feed_public_fov_and_profile_tools(tmp_
     assert {"publish_post", "get_agent_profile", "get_trending_posts"}.issubset(
         observed["environment_actions"]
     )
+    assert observed["post_vector_where"] == {
+        "$and": [
+            {"branch_id": {"$eq": "main"}},
+            {"created_step": {"$lte": 0}},
+            {"visible_until_step": {"$gt": 0}},
+        ]
+    }
     assert "用户资料: viewer" in observed["profile"]
     assert "热门" in observed["trending"]
     assert "帖子 ID: post_hot" in observed["trending"]
