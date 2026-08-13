@@ -508,7 +508,6 @@ class PersistenceManager:
         """
 
         assert self._v4_schema is not None
-        state = self._plain_snapshot_value(state)
         entries: list[dict[str, Any]] = []
         sequence = 0
         # A merged schema contains one source declaration per canonical root.
@@ -576,7 +575,7 @@ class PersistenceManager:
                                 {
                                     "path": list(concrete_path + (key,)),
                                     "operation": "set",
-                                    "value": self._plain_snapshot_value(item),
+                                    "value": item,
                                     "sequence": sequence,
                                 }
                             )
@@ -589,7 +588,7 @@ class PersistenceManager:
                         {
                             "path": list(concrete_path),
                             "operation": "set",
-                            "value": self._plain_snapshot_value(value),
+                            "value": value,
                             "sequence": sequence,
                         }
                     )
@@ -649,16 +648,16 @@ class PersistenceManager:
         *,
         resume_identity: Optional[Mapping[str, Any]] = None,
     ) -> dict[str, Any]:
-        environment_data = self._plain_snapshot_value(environment_data)
+        environment_data = dict(environment_data)
         environment_data.pop("state", None)
         metadata = {
             "schema_version": 1,
             "run_id": self._v4_run_id,
             "branch_id": self._v4_branch_id,
-            "agents_data": self._plain_snapshot_value(agents_data),
-            "agent_types": self._plain_snapshot_value(agent_types),
+            "agents_data": dict(agents_data),
+            "agent_types": dict(agent_types),
             "environment_data": environment_data,
-            "persistence_schema": self._plain_snapshot_value(self._v4_schema.schema)
+            "persistence_schema": self._v4_schema.schema
             if self._v4_schema is not None
             else None,
             "persistence_root_path": list(self._v4_schema.root_path)
@@ -669,7 +668,7 @@ class PersistenceManager:
             else [],
         }
         if resume_identity is not None:
-            metadata["resume_identity"] = self._plain_snapshot_value(resume_identity)
+            metadata["resume_identity"] = dict(resume_identity)
         return metadata
 
     @staticmethod
@@ -743,11 +742,15 @@ class PersistenceManager:
             # Agent identity/type metadata is immutable bootstrap metadata; the
             # declared Agent state itself is represented by root operations so
             # subsequent deltas can replace it without copying the World.
-            for agent_data in agents_data.values():
-                if isinstance(agent_data, dict):
-                    agent_data["state"] = {}
-                    agent_data["properties"] = {}
-                    agent_data["reminders"] = []
+            metadata_agents_data = {
+                str(agent_id): {
+                    key: value
+                    for key, value in agent_data.items()
+                    if key not in {"state", "properties", "reminders"}
+                }
+                for agent_id, agent_data in agents_data.items()
+                if isinstance(agent_data, Mapping)
+            }
             canonical_state = {
                 "environment": {
                     "state": environment_data.get("state") or {},
@@ -758,14 +761,14 @@ class PersistenceManager:
                         "properties": (raw_data or {}).get("properties") or {},
                         "reminders": (raw_data or {}).get("reminders") or [],
                     }
-                    for agent_id, raw_data in self._plain_snapshot_value(world.agents_data).items()
+                    for agent_id, raw_data in agents_data.items()
                     if isinstance(raw_data, Mapping)
                 },
             }
             entries = self._v4_root_entries(canonical_state)
             metadata = self._v4_root_metadata(
                 environment_data,
-                agents_data,
+                metadata_agents_data,
                 agent_types,
                 resume_identity=getattr(world, "_resume_identity", None),
             )

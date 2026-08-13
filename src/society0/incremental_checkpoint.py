@@ -69,6 +69,17 @@ def _json_copy(value: Any) -> Any:
     return copied
 
 
+def _validate_json_value(value: Any) -> None:
+    """只检查 JSON 兼容性，不为只读校验额外复制整棵子树。"""
+
+    raw = getattr(value, "_target_dict", value)
+    raw = getattr(raw, "_target_list", raw)
+    try:
+        json.dumps(raw, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
+
+
 def _freeze_json(value: Any) -> Any:
     """将 JSON 值转换成递归不可变结构。"""
 
@@ -482,7 +493,7 @@ class PersistenceSchema:
                     elif isinstance(additional, Mapping):
                         validate(item, additional, child_path)
                     elif additional is True:
-                        _json_copy(item)
+                        _validate_json_value(item)
                     else:
                         raise ValueError(f"undeclared state field at {child_path!r}")
             elif isinstance(current, list):
@@ -496,10 +507,10 @@ class PersistenceSchema:
     def validate_initial_state(self, state: Mapping[str, Any]) -> None:
         if not isinstance(state, Mapping):
             raise TypeError("initial state must be an object")
+        _validate_json_value(state)
 
         def validate(node: Mapping[str, Any], value: Any, path: tuple[Any, ...]) -> None:
             self._validate_type(value, node, path)
-            _json_copy(value)
             rule = self.resolve(path)
             if rule is not None:
                 if rule.kind is PersistenceKind.APPEND_ONLY_MAP:
