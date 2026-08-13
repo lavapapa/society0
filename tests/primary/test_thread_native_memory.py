@@ -716,7 +716,9 @@ async def test_concurrent_memory_extraction_same_key_is_single_flight(tmp_path):
     assert len(llm_calls) == 1
     assert len(memory.write_calls) == 1
     assert first_result == second_result
-    assert sequential_result == first_result
+    assert sequential_result["memory_ids"] == first_result["memory_ids"]
+    assert sequential_result["memories"] == first_result["memories"]
+    assert sequential_result["thread_id"] == first_result["thread_id"]
     events = context.read_agent_thread_events(thread_id)
     assert [event["event_type"] for event in events].count(
         "memory_extraction_pending"

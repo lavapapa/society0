@@ -2567,6 +2567,31 @@ async def test_blank_assistant_turn_is_retried_before_accepting_a_visible_decisi
 
 
 @pytest.mark.asyncio
+async def test_output_token_limit_is_not_accepted_as_a_completed_no_action_turn():
+    async def fake_llm_call(_payload):
+        return {
+            "role": "assistant",
+            "content": "我将继续分析库存、订单和产能……",
+            "tool_calls": [],
+            "finish_reason": "length",
+        }
+
+    result = await execute_action_loop(
+        instruction="经营你负责的企业。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "output_token_limit"
+    assert result.failure_class == "provider_output_truncated"
+    assert result.retry_scope == "agent_activation"
+
+
+@pytest.mark.asyncio
 async def test_empty_activation_retry_can_use_explicit_temperature_bump_and_audit_event():
     calls = []
     events = []

@@ -667,6 +667,16 @@ def _extract_reasoning_content(response: Dict[str, Any]) -> tuple:
 
     return reasoning_content, final_content, metadata
 
+
+def _conversation_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """移除 provider 结束原因，避免把非 message 字段发回接口。"""
+
+    return {
+        key: value
+        for key, value in response.items()
+        if key != "finish_reason"
+    }
+
 def _parse_stages(content: str, defined_stages: List[str], default_stage_name: str = "default") -> tuple:
     """
     Parse LLM output into stages using robust stage marking.
@@ -873,6 +883,11 @@ async def execute_action_loop(
             },
             {"role": "user", "content": instruction}
         ]
+
+    if thread_message_recorder is not None:
+        new_messages = messages[-1:] if prior_messages else messages
+        for message in new_messages:
+            thread_message_recorder(copy.deepcopy(message))
 
     def _append_runtime_message(message: Dict[str, Any]) -> None:
         messages.append(message)
@@ -1207,7 +1222,20 @@ async def execute_action_loop(
             }
         )
 
+        finish_reason = str(response.get("finish_reason") or "").lower()
+        response_message = _conversation_response(response)
+        if finish_reason == "length":
+            # 已被 provider 截断的文字不代表主体完成了经营判断。继续把它
+            # 计作 no_action_calls 会确认 Inbox，并把半截叙述写入长期记忆。
+            _append_runtime_message(response_message)
+            loop_result.termination_reason = "output_token_limit"
+            loop_result.error = "model output reached the configured token limit"
+            loop_result.failure_class = "provider_output_truncated"
+            loop_result.retry_scope = "agent_activation"
+            break
+
         # Extract reasoning content, final content and action calls using new function
+        response = response_message
         reasoning_content, final_content_part, response_metadata = _extract_reasoning_content(response)
         action_calls = response.get("tool_calls", [])
 
@@ -1252,7 +1280,7 @@ async def execute_action_loop(
                 final_content += "\n\n" + final_content_part
 
         # Add assistant message to history
-        messages.append(response)
+        _append_runtime_message(response)
 
         # Execute action calls if present
         if not action_calls:
@@ -1907,7 +1935,7 @@ async def execute_action_loop(
                     final_content = final_content_part
                 else:
                     final_content += "\n\n" + final_content_part
-            messages.append(response)
+            _append_runtime_message(_conversation_response(response))
 
     # Parse the final response content into stages
     phases, phases_unknown, parsing_errors = _parse_stages(
@@ -1966,6 +1994,7 @@ async def execute_action_loop(
         "action_batch_exceeds_action_limit",
         "tool_schema_error_exhausted",
         "provider_request_exhausted",
+        "output_token_limit",
     }
     status = (
         "error"
