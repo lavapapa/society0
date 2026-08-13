@@ -352,6 +352,64 @@ def test_sealed_delta_is_deeply_immutable():
     assert tuple(delta.replacements[0]["path"]) == (*_STATE_ROOT, "payload")
 
 
+def test_nested_replaceable_record_is_materialized_once_at_tick_seal(tmp_path):
+    schema = _compile(
+        _state_schema(
+            {
+                "inventories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "persistence": _persistence(
+                        "replaceable",
+                        granularity="entry",
+                    ),
+                }
+            }
+        )
+    )
+    world = _world_with_state(
+        tmp_path,
+        schema,
+        {"inventories": {"lot-1": {"quantity": 10, "reserved": 0}}},
+    )
+    try:
+        world.begin_persistence_tick(1)
+        lot = world.create_environment_state_proxy()["inventories"]["lot-1"]
+        lot["quantity"] = 8
+        lot["reserved"] = 2
+        lot["quantity"] = 7
+
+        delta = world.seal_persistence_tick()
+
+        assert len(delta.replacements) == 1
+        replacement = delta.replacements[0]
+        assert replacement["operation"] == "set"
+        assert tuple(replacement["path"]) == (
+            *_STATE_ROOT,
+            "inventories",
+            "lot-1",
+        )
+        assert dict(replacement["value"]) == {"quantity": 7, "reserved": 2}
+    finally:
+        world.event_logger.close()
+
+
+def test_disabled_state_change_log_keeps_version_without_building_events(tmp_path):
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    world.environment_data["state"] = {"counter": 0}
+    world.set_state_change_event_recording(False)
+    version_before = world.get_state_version()
+
+    world.create_environment_state_proxy()["counter"] = 1
+    world.event_logger.close()
+
+    assert world.get_state_version() == version_before + 1
+    assert not (tmp_path / "events.jsonl").exists()
+
+
 def test_nested_proxy_from_previous_tick_is_invalidated_before_new_mutation(tmp_path):
     schema = _compile(
         _state_schema(
