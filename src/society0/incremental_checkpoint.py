@@ -146,6 +146,7 @@ class PersistenceSchema:
             tuple[Any, ...],
             _WriteResolution | None,
         ] = {}
+        self._append_descendant_cache: dict[tuple[Any, ...], bool] = {}
         self._resolution_cache_limit = 32_768
 
     @staticmethod
@@ -512,7 +513,13 @@ class PersistenceSchema:
         if not valid:
             raise TypeError(f"state value at {path!r} does not match schema type {expected!r}")
 
-    def validate_write_value(self, path: Iterable[Any], value: Any) -> None:
+    def validate_write_value(
+        self,
+        path: Iterable[Any],
+        value: Any,
+        *,
+        require_complete: bool = False,
+    ) -> None:
         """在 canonical mutation 前验证一次新值及其完整子树。"""
 
         concrete = tuple(path)
@@ -530,6 +537,13 @@ class PersistenceSchema:
             if isinstance(current, Mapping):
                 properties = schema.get("properties") or {}
                 additional = schema.get("additionalProperties", True)
+                if require_complete:
+                    required = schema.get("required") or ()
+                    missing = [key for key in required if key not in current]
+                    if missing:
+                        raise ValueError(
+                            f"state value at {current_path!r} is missing required fields: {missing!r}"
+                        )
                 for key, item in current.items():
                     child_path = current_path + (key,)
                     if isinstance(properties, Mapping) and key in properties:
@@ -617,13 +631,18 @@ class PersistenceSchema:
         """判断一个替换 entry 是否包含必须保留的追加事实子树。"""
 
         prefix = rule.path
-        return any(
+        cached = self._append_descendant_cache.get(prefix)
+        if cached is not None:
+            return cached
+        result = any(
             len(path) > len(prefix)
             and path[: len(prefix)] == prefix
             and child.kind
             in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST)
             for path, child in self.rules.items()
         )
+        self._append_descendant_cache[prefix] = result
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -774,6 +793,9 @@ class StateDeltaJournal:
         operation: str,
         key: Any,
         value: Any,
+        *,
+        validate_value: bool = True,
+        allow_mixed_field_anchor: bool = False,
     ) -> _PreparedProxyWrite:
         self._require_active()
         affected = container + (key,) if key is not None else container
@@ -819,11 +841,22 @@ class StateDeltaJournal:
             else:
                 raise ValueError(f"undeclared persistence path: {affected!r}")
 
+        if (
+            allow_mixed_field_anchor
+            and self._schema is not None
+            and rule.kind is PersistenceKind.REPLACEABLE
+            and rule.granularity == "entry"
+            and anchor != affected
+            and self._schema.has_append_only_descendant(rule)
+        ):
+            rule = PersistenceRule(affected, PersistenceKind.REPLACEABLE)
+            anchor = affected
+
         kind = rule.kind
         prepared_value = None
         if operation in ("set", "append", "insert"):
             prepared_value = _json_copy(value)
-            if self._schema is not None:
+            if self._schema is not None and validate_value:
                 self._schema.validate_write_value(affected, prepared_value)
 
         if kind is PersistenceKind.APPEND_ONLY_MAP:
@@ -879,21 +912,39 @@ class StateDeltaJournal:
         operation: str,
         key: Any,
         value: Any = None,
+        *,
+        validate_value: bool = True,
+        allow_mixed_field_anchor: bool = False,
     ) -> _PreparedProxyWrite:
         """在 canonical mutation 前解析声明并完成所有可能失败的持久化校验。"""
 
-        return self._resolve_proxy_write(tuple(container_path), operation, key, value)
+        return self._resolve_proxy_write(
+            tuple(container_path),
+            operation,
+            key,
+            value,
+            validate_value=validate_value,
+            allow_mixed_field_anchor=allow_mixed_field_anchor,
+        )
 
     def prepare_proxy_operations(
         self,
         operations: Sequence[tuple[Iterable[Any], str, Any, Any]],
+        *,
+        allow_mixed_field_anchor: bool = False,
     ) -> tuple[_PreparedProxyWrite, ...]:
         """原子预检一组操作；目前用于 ``list.extend``。"""
 
         prepared: list[_PreparedProxyWrite] = []
         pending = set(self._pending_map_ids)
         for container_path, operation, key, value in operations:
-            token = self._resolve_proxy_write(tuple(container_path), operation, key, value)
+            token = self._resolve_proxy_write(
+                tuple(container_path),
+                operation,
+                key,
+                value,
+                allow_mixed_field_anchor=allow_mixed_field_anchor,
+            )
             if token.kind is PersistenceKind.APPEND_ONLY_MAP:
                 identity = (token.anchor, token.key)
                 if identity in pending:

@@ -269,17 +269,50 @@ class Agent:
             # 轻量单元测试会注入只读 FakeWorld；生产 World 始终提供代理工厂。
             return self._world.agents_data[self._id]["reminders"]
         proxy = creator(self._id, "reminders")
-        if not isinstance(proxy, ListProxy):
+        if not isinstance(proxy, (ListProxy, list, tuple)) and not hasattr(proxy, "append"):
             raise TypeError("Agent reminders must be a list")
         return proxy
 
     def add_reminder(self, reminder: str):
         """添加提醒"""
+        mode = getattr(self._world, "state_access_mode", None)
+        if getattr(mode, "value", mode) == "explicit_transactions":
+            with self._world.write_agent_transaction(self._id, "reminders") as tx:
+                tx.state.append(reminder)
+            return
         self.reminders.append(reminder)
 
     def clear_reminders(self):
         """清空提醒"""
+        mode = getattr(self._world, "state_access_mode", None)
+        if getattr(mode, "value", mode) == "explicit_transactions":
+            with self._world.write_agent_transaction(self._id, "reminders") as tx:
+                tx.state.clear()
+            return
         self.reminders.clear()
+
+    def write_transaction(
+        self,
+        state_key: str = "state",
+        *,
+        caller_type: str = "system",
+        caller_id: Optional[str] = None,
+    ):
+        """开启 Agent 状态写事务，可携带行为/动作字段权限上下文。"""
+
+        access_context = None
+        if caller_type != "system":
+            merged_schema = self._world.get_merged_agent_state_schema(self.type)
+            access_context = AccessContext(
+                caller_type=caller_type,
+                caller_id=caller_id or caller_type,
+                state_schema=merged_schema,
+            )
+        return self._world.write_agent_transaction(
+            self._id,
+            state_key,
+            access_context=access_context,
+        )
 
     def get_raw_data(self) -> Dict[str, Any]:
         """
@@ -317,6 +350,9 @@ class Agent:
             caller_id=caller_id,
             state_schema=merged_schema
         )
+
+        if getattr(getattr(self._world, "state_access_mode", None), "value", None) == "explicit_transactions":
+            return self._world.create_agent_state_view(self._id, "state")
 
         # 创建带权限控制的 DictProxy
         return DictProxy(

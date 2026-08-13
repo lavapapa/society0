@@ -101,6 +101,11 @@ class Environment:
         """
         return self._world.create_environment_state_proxy()
 
+    def write_transaction(self):
+        """在 explicit_transactions 模式下开启环境状态写事务。"""
+
+        return self._world.write_environment_transaction()
+
     @state.setter
     def state(self, value: Dict[str, Any]) -> None:
         """仅允许在初始化或恢复阶段整体替换环境状态。"""
@@ -223,9 +228,9 @@ class Environment:
             snapshot_data: Dictionary containing snapshot data
         """
         if "state" in snapshot_data:
-            # Clear current state and restore from snapshot
-            self.state.clear()
-            self.state.update(snapshot_data["state"])
+            # 恢复阶段直接整体替换 canonical state，避免 explicit 模式的只读视图
+            # 走业务写路径；active Tick 仍由 state setter 拒绝。
+            self.state = copy.deepcopy(snapshot_data["state"])
         
         if "type" in snapshot_data:
             self._world.set_environment_type(snapshot_data["type"])

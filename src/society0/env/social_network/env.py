@@ -8,7 +8,7 @@ v3.0 更新：
 """
 from __future__ import annotations
 from typing import List, Dict, Any, TYPE_CHECKING, Optional
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 import uuid
 import math
 import time
@@ -377,19 +377,29 @@ class SocialNetworkEnv(Environment):
         self._pending_impressions.clear()
         self._pending_recommended_posts.clear()
 
+    def _explicit_transactions_enabled(self) -> bool:
+        mode = getattr(self._world, "state_access_mode", None)
+        return getattr(mode, "value", mode) == "explicit_transactions"
+
     # --- v4 canonical state helpers ---
 
     @staticmethod
     def _plain(value: Any) -> Any:
         if isinstance(value, Mapping):
             return {key: SocialNetworkEnv._plain(item) for key, item in value.items()}
-        if isinstance(value, (list, tuple)):
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
             return [SocialNetworkEnv._plain(item) for item in value]
         return value
 
-    def _ensure_social_state(self) -> None:
+    def _ensure_social_state(self, state=None) -> None:
         """建立 v4 分层状态容器；每个容器都有明确声明。"""
-        state = self._state_store()
+        read_only = state is None and self._explicit_transactions_enabled() and (
+            getattr(getattr(self._world, "_state_delta_journal", None), "active_step", None)
+            is not None
+        )
+        state = self._state_store() if state is None else state
+        if read_only:
+            return
         defaults = {
             "post_creation_facts": {},
             "post_interaction_facts": [],
@@ -409,14 +419,15 @@ class SocialNetworkEnv(Environment):
     def _state_store(self):
         """返回当前 Tick 的 canonical proxy，或初始化阶段的原始状态。"""
         journal = getattr(self._world, "_state_delta_journal", None)
-        active_tick = getattr(journal, "_active_step", None) is not None
+        active_tick = getattr(journal, "active_step", None) is not None
         return self.state if active_tick else self._world.environment_data.setdefault("state", {})
 
-    def _posts_view(self) -> Dict[str, Dict[str, Any]]:
+    def _posts_view(self, state=None) -> Dict[str, Dict[str, Any]]:
         """由不可变帖子/互动事实和有界投影构建只读业务视图。"""
-        self._ensure_social_state()
-        facts = self.state.get("post_creation_facts", {})
-        projections = self.state.get("post_projection", {})
+        self._ensure_social_state(state)
+        state = self._state_store() if state is None else state
+        facts = state.get("post_creation_facts", {})
+        projections = state.get("post_projection", {})
         result: Dict[str, Dict[str, Any]] = {}
         for fallback_id, raw_fact in facts.items():
             fact = self._plain(raw_fact)
@@ -440,7 +451,7 @@ class SocialNetworkEnv(Environment):
                 post.update(self._plain(projection))
             result[post_id] = post
 
-        for raw_event in self.state.get("post_interaction_facts", []) or []:
+        for raw_event in state.get("post_interaction_facts", []) or []:
             event = self._plain(raw_event)
             if not isinstance(event, Mapping):
                 continue
@@ -473,16 +484,17 @@ class SocialNetworkEnv(Environment):
                 )
         return result
 
-    def _append_post_creation(self, post: Mapping[str, Any]) -> None:
-        self._ensure_social_state()
+    def _append_post_creation(self, post: Mapping[str, Any], state=None) -> None:
+        self._ensure_social_state(state)
+        state = self._state_store() if state is None else state
         post_id = str(post.get("post_id"))
         fact = {
             key: self._plain(post.get(key))
             for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
             if key in post
         }
-        self.state["post_creation_facts"][post_id] = fact
-        self.state["post_projection"][post_id] = {
+        state["post_creation_facts"][post_id] = fact
+        state["post_projection"][post_id] = {
             "view_count": int(post.get("view_count", 0) or 0),
             "embedding_ref": post.get("embedding_ref"),
             "embedding_model": post.get("embedding_model"),
@@ -490,37 +502,41 @@ class SocialNetworkEnv(Environment):
             "embedding_indexed": bool(post.get("embedding_indexed", False)),
             "special_tags": list(post.get("special_tags", []) or []),
         }
-        self.state["author_post_facts"].append(
+        state["author_post_facts"].append(
             {"author_id": str(post.get("author_id") or ""), "post_id": post_id}
         )
 
-    def _append_post_interaction(self, event: Mapping[str, Any]) -> None:
-        self._ensure_social_state()
-        self.state["post_interaction_facts"].append(self._plain(dict(event)))
+    def _append_post_interaction(self, event: Mapping[str, Any], state=None) -> None:
+        self._ensure_social_state(state)
+        state = self._state_store() if state is None else state
+        state["post_interaction_facts"].append(self._plain(dict(event)))
 
-    def _set_post_projection(self, post_id: str, **updates: Any) -> None:
-        self._ensure_social_state()
-        projections = self.state["post_projection"]
+    def _set_post_projection(self, post_id: str, state=None, **updates: Any) -> None:
+        self._ensure_social_state(state)
+        state = self._state_store() if state is None else state
+        projections = state["post_projection"]
         current = self._plain(projections.get(post_id, {}))
         if not isinstance(current, dict):
             current = {}
         current.update({key: self._plain(value) for key, value in updates.items()})
         projections[post_id] = current
 
-    def _author_post_index(self) -> Dict[str, List[str]]:
+    def _author_post_index(self, state=None) -> Dict[str, List[str]]:
         index: Dict[str, List[str]] = {}
-        for raw_fact in self.state.get("author_post_facts", []) or []:
+        state = self._state_store() if state is None else state
+        for raw_fact in state.get("author_post_facts", []) or []:
             fact = self._plain(raw_fact)
             if not isinstance(fact, Mapping):
                 continue
             index.setdefault(str(fact.get("author_id") or ""), []).append(str(fact.get("post_id")))
         return index
 
-    def _notification_view(self) -> Dict[str, Dict[str, Any]]:
-        self._ensure_social_state()
-        states = self.state.get("notification_state", {})
+    def _notification_view(self, state=None) -> Dict[str, Dict[str, Any]]:
+        self._ensure_social_state(state)
+        state = self._state_store() if state is None else state
+        states = state.get("notification_state", {})
         result: Dict[str, Dict[str, Any]] = {}
-        for raw_fact in self.state.get("notification_facts", []) or []:
+        for raw_fact in state.get("notification_facts", []) or []:
             fact = self._plain(raw_fact)
             if not isinstance(fact, Mapping):
                 continue
@@ -536,8 +552,15 @@ class SocialNetworkEnv(Environment):
         await self._flush_pending_post_embeddings()
         if not self._pending_impressions and not self._pending_recommended_posts:
             return
-        self._ensure_social_state()
-        posts = self._posts_view()
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                self._apply_after_tick_state(ctx, state=tx.state)
+        else:
+            self._apply_after_tick_state(ctx, state=self.state)
+
+    def _apply_after_tick_state(self, ctx: EnvironmentTickContext, *, state) -> None:
+        self._ensure_social_state(state)
+        posts = self._posts_view(state)
         if not isinstance(posts, Mapping):
             self._pending_impressions.clear()
             self._pending_recommended_posts.clear()
@@ -549,6 +572,7 @@ class SocialNetworkEnv(Environment):
             post_state = posts[post_id]
             self._set_post_projection(
                 post_id,
+                state=state,
                 view_count=int(post_state.get("view_count", 0) or 0) + delta,
             )
             applied_impressions[post_id] = delta
@@ -559,7 +583,7 @@ class SocialNetworkEnv(Environment):
         if applied_impressions or recommended_updates:
             state_patches: List[Dict[str, Any]] = []
             if recommended_updates:
-                recommended_state = self.state.setdefault("recommended_posts", {})
+                recommended_state = state.setdefault("recommended_posts", {})
                 for agent_id, post_ids in recommended_updates.items():
                     recommended_state[agent_id] = list(post_ids)
                     state_patches.append(
@@ -615,9 +639,10 @@ class SocialNetworkEnv(Environment):
         except Exception:
             logger.debug("Failed to write social recommendation trace", exc_info=True)
 
-    def _derive_post_counter(self) -> int:
+    def _derive_post_counter(self, state=None) -> int:
         """Derive the numeric post counter from existing post ids."""
-        posts = self.state.get("post_creation_facts", {})
+        state = self._state_store() if state is None else state
+        posts = state.get("post_creation_facts", {})
         max_counter = 0
         if not _mapping_like(posts):
             return max_counter
@@ -652,11 +677,11 @@ class SocialNetworkEnv(Environment):
         # 2. 初始化社交媒体状态（如果启用）
         if self._config.social_media.enabled:
             state = self._state_store()
-            self._ensure_social_state()
+            self._ensure_social_state(state)
             if not state.get("post_counter"):
-                state["post_counter"] = self._derive_post_counter()
-            self._ensure_notifications_state()
-            self._ensure_recommended_posts_state()
+                state["post_counter"] = self._derive_post_counter(state)
+            self._ensure_notifications_state(state=state)
+            self._ensure_recommended_posts_state(state=state)
 
         logger.info(f"社交网络已初始化: {self.graph.number_of_nodes()} 个节点, "
                    f"{self.graph.number_of_edges()} 条边, "
@@ -737,6 +762,24 @@ class SocialNetworkEnv(Environment):
     )
     async def publish_post(self, context: ExecutionContext, content: str, tags: List[str] = None,
                      reply_to: Optional[str] = None) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._publish_post_impl(
+                    context, content, tags=tags, reply_to=reply_to, state=tx.state
+                )
+        return await self._publish_post_impl(
+            context, content, tags=tags, reply_to=reply_to, state=self.state
+        )
+
+    async def _publish_post_impl(
+        self,
+        context: ExecutionContext,
+        content: str,
+        *,
+        tags: List[str] = None,
+        reply_to: Optional[str] = None,
+        state,
+    ) -> str:
         """
         发布帖子Action（适配新架构）
 
@@ -751,7 +794,7 @@ class SocialNetworkEnv(Environment):
 
         agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
-        post_counter = self.state.get("post_counter", 0)
+        post_counter = state.get("post_counter", 0)
         new_post_id = f"post_{post_counter + 1}"
 
         # 创建帖子对象
@@ -774,10 +817,10 @@ class SocialNetworkEnv(Environment):
         context.log_event("publish_post", source=agent.id, data=event_data)
 
         # 创建事实、作者索引事实和当前投影分别写入各自的 canonical 容器。
-        self._append_post_creation(new_post.model_dump())
+        self._append_post_creation(new_post.model_dump(), state=state)
 
         # 更新计数器
-        self.state["post_counter"] = post_counter + 1
+        state["post_counter"] = post_counter + 1
 
         content_summary = summarize_text(content)
 
@@ -1138,19 +1181,20 @@ class SocialNetworkEnv(Environment):
 
     # --- 通知与摘要工具 ---
 
-    def _ensure_notifications_state(self) -> None:
+    def _ensure_notifications_state(self, *, state=None) -> None:
         """确保通知事实和消费投影容器存在。"""
-        self._ensure_social_state()
+        self._ensure_social_state(state)
 
-    def _ensure_recommended_posts_state(self) -> None:
+    def _ensure_recommended_posts_state(self, *, state=None) -> None:
         """Ensure per-agent recommendation trace state exists without resetting proxies."""
-        self._ensure_social_state()
+        self._ensure_social_state(state)
 
-    def _push_notification(self, target_agent_id: str, notification_type: str, data: Dict[str, Any], created_tick: int) -> None:
+    def _push_notification(self, target_agent_id: str, notification_type: str, data: Dict[str, Any], created_tick: int, *, state=None) -> None:
         """向指定用户推送一条通知（不做去重，消费时聚合）"""
-        self._ensure_notifications_state()
-        counter = int(self.state.get("notification_counter", 0) or 0) + 1
-        self.state["notification_counter"] = counter
+        self._ensure_notifications_state(state=state)
+        state = self._state_store() if state is None else state
+        counter = int(state.get("notification_counter", 0) or 0) + 1
+        state["notification_counter"] = counter
         notification = {
             "id": f"notif_{counter}",
             "target_agent_id": target_agent_id,
@@ -1158,8 +1202,8 @@ class SocialNetworkEnv(Environment):
             "created_tick": created_tick,
             "data": data,
         }
-        self.state["notification_facts"].append(notification)
-        self.state["notification_state"][notification["id"]] = {"consumed": False}
+        state["notification_facts"].append(notification)
+        state["notification_state"][notification["id"]] = {"consumed": False}
 
     @staticmethod
     def _short_content(text: str, limit: int = 80) -> str:
@@ -1305,19 +1349,29 @@ class SocialNetworkEnv(Environment):
             return
 
         # 写回轻量索引元数据；大向量只放在 Chroma，避免 checkpoint 膨胀。
-        for entry, embedding in zip(entries, embeddings):
-            post_id = str(entry["post_id"])
-            try:
-                if post_id in self._posts_view():
-                    self._set_post_projection(
-                        post_id,
-                        embedding_ref=post_id,
-                        embedding_model=result.get("model"),
-                        embedding_dimensions=result.get("dimensions") or len(embedding),
-                        embedding_indexed=True,
-                    )
-            except Exception as exc:
-                logger.warning(f"Failed to store embedding metadata in state for post {post_id}: {exc}")
+        metadata_updates = [
+            (
+                str(entry["post_id"]),
+                {
+                    "embedding_ref": str(entry["post_id"]),
+                    "embedding_model": result.get("model"),
+                    "embedding_dimensions": result.get("dimensions") or len(embedding),
+                    "embedding_indexed": True,
+                },
+            )
+            for entry, embedding in zip(entries, embeddings)
+            if str(entry["post_id"]) in self._posts_view()
+        ]
+        try:
+            if self._explicit_transactions_enabled():
+                with self.write_transaction() as tx:
+                    for post_id, updates in metadata_updates:
+                        self._set_post_projection(post_id, state=tx.state, **updates)
+            else:
+                for post_id, updates in metadata_updates:
+                    self._set_post_projection(post_id, **updates)
+        except Exception as exc:
+            logger.warning("Failed to store embedding metadata in state: %s", exc)
 
         # 向量库 upsert
         collection = self._ensure_post_collection()
@@ -1589,10 +1643,11 @@ class SocialNetworkEnv(Environment):
 
     # --- 通知聚合与视野 ---
 
-    def _format_notifications(self, agent: Agent) -> str:
+    def _format_notifications(self, agent: Agent, *, state=None) -> str:
         """将未读通知聚合并格式化输出，消费后标记为已读"""
-        self._ensure_notifications_state()
-        user_notifs = self._notification_view().get(agent.id, {})
+        self._ensure_notifications_state(state=state)
+        state = self._state_store() if state is None else state
+        user_notifs = self._notification_view(state).get(agent.id, {})
         notifications = user_notifs.get("notifications", [])
         unread = [n for n in notifications if not n.get("consumed")]
 
@@ -1647,7 +1702,7 @@ class SocialNetworkEnv(Environment):
                 if follower_id:
                     followers.append(follower_id)
 
-        posts = self._posts_view()
+        posts = self._posts_view(state)
 
         def _post_preview(pid: str) -> str:
             post = posts.get(pid, {})
@@ -1718,7 +1773,7 @@ class SocialNetworkEnv(Environment):
 
         # 标记已读
         for notif in unread:
-            self.state["notification_state"][notif["id"]] = {"consumed": True}
+            state["notification_state"][notif["id"]] = {"consumed": True}
 
         # 如果超过行数上限，补充省略提示
         if len(lines) > max_lines:
@@ -1729,18 +1784,27 @@ class SocialNetworkEnv(Environment):
     @fov(description="获取与你相关的互动通知（点赞、评论、转发、关注）")
     async def get_notifications(self, agent: Agent, env) -> str:
         """消费未读通知并返回聚合摘要"""
-        return self._format_notifications(agent)
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return self._format_notifications(agent, state=tx.state)
+        return self._format_notifications(agent, state=self.state)
 
     @action(
         description="点赞指定的帖子（post_id 必须来自 FoV 或系统明确提示）",
         tags=["social", "social_write", "engagement"],
     )
     def like_post(self, context: ExecutionContext, post_id: str) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return self._like_post_impl(context, post_id, state=tx.state)
+        return self._like_post_impl(context, post_id, state=self.state)
+
+    def _like_post_impl(self, context: ExecutionContext, post_id: str, *, state) -> str:
         """点赞帖子Action（适配新架构）"""
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
 
-        posts = self._posts_view()
+        posts = self._posts_view(state)
         post = posts.get(post_id)
 
         if not post:
@@ -1781,7 +1845,7 @@ class SocialNetworkEnv(Environment):
         context.log_event("like_post", source=agent.id, data={"post_id": post_id})
 
         # 确保特定帖子仍存在于 canonical 创建事实中。
-        if post_id not in self.state.get("post_creation_facts", {}):
+        if post_id not in state.get("post_creation_facts", {}):
             logger.debug("Post %s disappeared before like mutation", post_id)
             return f"Post {post_id} not found in state"
 
@@ -1791,7 +1855,8 @@ class SocialNetworkEnv(Environment):
                 "post_id": post_id,
                 "agent_id": agent.id,
                 "created_tick": context.world.step,
-            }
+            },
+            state=state,
         )
 
         current_likes = len(posts[post_id].get("likes", [])) + 1
@@ -1824,6 +1889,7 @@ class SocialNetworkEnv(Environment):
                 notification_type="post_like",
                 data={"post_id": post_id, "interactor_id": agent.id},
                 created_tick=context.world.step,
+                state=state,
             )
 
         return f"Successfully liked post {post_id}"
@@ -1833,6 +1899,16 @@ class SocialNetworkEnv(Environment):
         tags=["social", "social_write", "engagement"],
     )
     async def comment(self, context: ExecutionContext, post_id: str, content: str) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._comment_impl(
+                    context, post_id, content, state=tx.state
+                )
+        return await self._comment_impl(
+            context, post_id, content, state=self.state
+        )
+
+    async def _comment_impl(self, context: ExecutionContext, post_id: str, content: str, *, state) -> str:
         """发表评论的Action"""
         is_valid, msg = self._validate_content_length(content, "comment", context.caller.id)
         if not is_valid:
@@ -1840,7 +1916,7 @@ class SocialNetworkEnv(Environment):
 
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
-        posts = self._posts_view()
+        posts = self._posts_view(state)
         post = posts.get(post_id)
 
         if not post:
@@ -1860,7 +1936,8 @@ class SocialNetworkEnv(Environment):
                 "kind": "comment",
                 "post_id": post_id,
                 "reply": reply.model_dump(),
-            }
+            },
+            state=state,
         )
 
         content_summary = summarize_text(content)
@@ -1894,6 +1971,7 @@ class SocialNetworkEnv(Environment):
                 notification_type="post_comment",
                 data={"post_id": post_id, "comment_preview": content_summary["preview"], "interactor_id": agent.id},
                 created_tick=context.world.step,
+                state=state,
             )
 
         return f"Successfully commented on post {post_id}"
@@ -1903,8 +1981,25 @@ class SocialNetworkEnv(Environment):
         tags=["social", "social_write", "engagement", "publish"],
     )
     async def repost(self, context: ExecutionContext, post_id: str, commentary: str = "") -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._repost_impl(
+                    context, post_id, commentary, state=tx.state
+                )
+        return await self._repost_impl(
+            context, post_id, commentary, state=self.state
+        )
+
+    async def _repost_impl(
+        self,
+        context: ExecutionContext,
+        post_id: str,
+        commentary: str = "",
+        *,
+        state,
+    ) -> str:
         """转发帖子Action"""
-        posts = self._posts_view()
+        posts = self._posts_view(state)
         original = posts.get(post_id)
         if not original:
             logger.warning(f"Agent {context.caller.id} 尝试转发不存在的帖子 {post_id}")
@@ -1919,12 +2014,23 @@ class SocialNetworkEnv(Environment):
         combined_content = f"{commentary}\n\n--- 原帖 {post_id} ---\n{parent_content}"
         original_tags = list(original.get("tags", []))
 
-        result = await self.publish_post(
-            context=context,
-            content=combined_content,
-            tags=original_tags,
-            reply_to=post_id,
-        )
+        if self._explicit_transactions_enabled():
+            # 复用 repost 外层事务，避免再次开启 publish_post 事务。
+            result = await self._publish_post_impl(
+                context=context,
+                content=combined_content,
+                tags=original_tags,
+                reply_to=post_id,
+                state=state,
+            )
+        else:
+            # 保留 transparent_proxy 的原调用链（包括可覆写的 publish_post）。
+            result = await self.publish_post(
+                context=context,
+                content=combined_content,
+                tags=original_tags,
+                reply_to=post_id,
+            )
         content_summary = summarize_text(commentary)
         context.log_event("repost_post", source=context.caller.id, data={"post_id": post_id})
         log_ctx = context.log_context or context.world.get_log_context()
@@ -1955,6 +2061,7 @@ class SocialNetworkEnv(Environment):
                 notification_type="post_repost",
                 data={"post_id": post_id, "commentary_preview": content_summary["preview"], "interactor_id": context.caller.id},
                 created_tick=context.world.step,
+                state=state,
             )
 
         return f"Reposted {post_id}: {result}"
@@ -1964,6 +2071,12 @@ class SocialNetworkEnv(Environment):
         tags=["social", "social_write", "follow"],
     )
     def follow(self, context: ExecutionContext, target_agent_id: str) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return self._follow_impl(context, target_agent_id, state=tx.state)
+        return self._follow_impl(context, target_agent_id, state=self.state)
+
+    def _follow_impl(self, context: ExecutionContext, target_agent_id: str, *, state) -> str:
         """关注其他Agent的Action（适配新架构）"""
         agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
@@ -2093,6 +2206,7 @@ class SocialNetworkEnv(Environment):
                 notification_type="new_follower",
                 data={"follower_id": agent.id},
                 created_tick=context.world.step,
+                state=state,
             )
 
         return f"Successfully followed {target_agent_id}"
@@ -2102,6 +2216,12 @@ class SocialNetworkEnv(Environment):
         tags=["social", "social_write", "follow"],
     )
     def unfollow(self, context: ExecutionContext, target_agent_id: str) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return self._unfollow_impl(context, target_agent_id, state=tx.state)
+        return self._unfollow_impl(context, target_agent_id, state=self.state)
+
+    def _unfollow_impl(self, context: ExecutionContext, target_agent_id: str, *, state) -> str:
         """取消关注Action"""
         agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
@@ -2840,9 +2960,15 @@ class SocialNetworkEnv(Environment):
 
     @rule(description="基于真实数据更新热门话题")
     def update_trending_topics(self, context: ExecutionContext) -> str:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return self._update_trending_topics_impl(context, state=tx.state)
+        return self._update_trending_topics_impl(context, state=self.state)
+
+    def _update_trending_topics_impl(self, context: ExecutionContext, *, state) -> str:
         """更新热门话题的规则（基于真实数据）"""
         # 基于真实帖子计算热门话题，而不是使用模拟数据
-        posts = self._posts_view()
+        posts = self._posts_view(state)
         if not posts:
             context.log_event("update_trending_topics", source="environment", data={"trending_ids": []})
             return "No real posts available for trending calculation"
@@ -2861,7 +2987,7 @@ class SocialNetworkEnv(Environment):
         )
         trending_post_ids = [post_id for post_id, _ in sorted_posts[:3]]  # 取前3个
 
-        self.state["trending_post_ids"] = trending_post_ids
+        state["trending_post_ids"] = trending_post_ids
         context.log_event("update_trending_topics", source="environment", data={"trending_ids": trending_post_ids})
         return f"Updated trending topics from real data: {trending_post_ids}"
 
@@ -3071,6 +3197,32 @@ class SocialNetworkEnv(Environment):
                                    target_hashtag: str,
                                    intervention_rate: float = 0.5,
                                    tag_to_apply: str = "flagged") -> dict:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._test_intervention_rule_impl(
+                    world,
+                    target_hashtag,
+                    intervention_rate=intervention_rate,
+                    tag_to_apply=tag_to_apply,
+                    state=tx.state,
+                )
+        return await self._test_intervention_rule_impl(
+            world,
+            target_hashtag,
+            intervention_rate=intervention_rate,
+            tag_to_apply=tag_to_apply,
+            state=self.state,
+        )
+
+    async def _test_intervention_rule_impl(
+        self,
+        world,
+        target_hashtag: str,
+        intervention_rate: float = 0.5,
+        tag_to_apply: str = "flagged",
+        *,
+        state,
+    ) -> dict:
         """复杂的测试规则 - 测试智能参数映射和实际干预"""
         logger.debug(
             "Intervention rule: hashtag=%s, rate=%s, tag=%s",
@@ -3083,7 +3235,7 @@ class SocialNetworkEnv(Environment):
         total_posts = 0
 
         # 遍历所有帖子，查找包含目标hashtag的帖子
-        all_posts = self._posts_view()
+        all_posts = self._posts_view(state)
         for post_id, post_data in all_posts.items():
             total_posts += 1
             content = post_data.get("content", "")
@@ -3093,7 +3245,7 @@ class SocialNetworkEnv(Environment):
                 import random
                 if random.random() < intervention_rate:
                     # 确保特定帖子存在于 canonical 创建事实中。
-                    if post_id not in self.state.get("post_creation_facts", {}):
+                    if post_id not in state.get("post_creation_facts", {}):
                         logger.debug("Post %s disappeared before intervention mutation", post_id)
                         continue
 
@@ -3101,7 +3253,11 @@ class SocialNetworkEnv(Environment):
                     current_tags = list(all_posts[post_id].get("special_tags", []) or [])
                     if tag_to_apply not in current_tags:
                         current_tags.append(tag_to_apply)
-                        self._set_post_projection(post_id, special_tags=current_tags)
+                        self._set_post_projection(
+                            post_id,
+                            state=state,
+                            special_tags=current_tags,
+                        )
                         posts_to_flag.append(post_id)
                         logger.debug("Tagged post %s with special tag %s", post_id, tag_to_apply)
 
