@@ -761,7 +761,11 @@ class Society0:
         return self.current_world_state.step
 
     async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
-        record = PersistenceManager.resolve_checkpoint_from(source_run, step)
+        record = PersistenceManager._resolve_v4_checkpoint_from(
+            source_run,
+            step,
+            include_restored_state=True,
+        )
         marker_version = (record.get("marker") or {}).get("checkpoint_version")
         if marker_version != "complete_step_v4":
             raise ValueError("Only complete_step_v4 checkpoints are recoverable")
