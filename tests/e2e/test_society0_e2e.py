@@ -8,10 +8,42 @@ import pytest
 
 from society0 import EmbedModel, LLMModel, Society0
 from society0.core_data import ExecutionContext
+from society0.incremental_checkpoint import V4CheckpointStore
 from society0.resource_managers import EmbeddingManager
 from tests import read_gzip_json
 
 pytestmark = pytest.mark.e2e
+
+
+_MISINFORMATION_AGENT_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "trust": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "exposure": {
+            "type": "integer",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
+
+_MISINFORMATION_ENV_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "misinformation_pressure": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "correction_strength": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
 
 
 def _config(agent_count=4, *, archetype="rule"):
@@ -25,10 +57,17 @@ def _config(agent_count=4, *, archetype="rule"):
             }
         )
     return {
-        "agent_types": [{"id": "social_user", "archetype": archetype}],
+        "agent_types": [
+            {
+                "id": "social_user",
+                "archetype": archetype,
+                "state_schema": _MISINFORMATION_AGENT_STATE_SCHEMA,
+            }
+        ],
         "agents": agents,
         "environment": {
             "type": "plain",
+            "state_schema": _MISINFORMATION_ENV_STATE_SCHEMA,
             "state": {"misinformation_pressure": 0.1, "correction_strength": 0.03},
         },
     }
@@ -46,7 +85,22 @@ def _fake_embed_model(*, dimensions=512):
 
 def _round_robin_config():
     return {
-        "agent_types": [{"id": "participant", "archetype": "rule"}],
+        "agent_types": [
+            {
+                "id": "participant",
+                "archetype": "rule",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "conversation_marker": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        }
+                    },
+                },
+            }
+        ],
         "agents": [
             {"id": f"participant_{idx}", "type": "participant", "state": {}}
             for idx in range(4)
@@ -145,10 +199,6 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     metrics = _jsonl(tmp_path / "metrics.jsonl")
     events = _jsonl(tmp_path / "events.jsonl")
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint_names = sorted(
-        path.name for path in (tmp_path / "checkpoints").glob("checkpoint*.json*")
-    )
-
     assert len(steps) == 24
     assert len(metrics) == 12
     assert events[0]["event"] == "run_started"
@@ -158,15 +208,24 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     assert summary["code_steps"] == ["expose", "measure"]
     assert summary["events"]["by_event"]["run_started"] == 1
     assert summary["events"]["by_event"]["run_completed"] == 1
-    versioned_worlds = []
+    complete_dir = tmp_path / "checkpoints" / "v4" / "complete"
+    assert sorted(path.name for path in complete_dir.glob("step_*.json")) == [
+        "step_000000.json",
+        "step_000010.json",
+    ]
     for step in (0, 10):
         marker = json.loads(
-            (tmp_path / "checkpoints" / "complete" / f"step_{step:06d}.json").read_text(
+            (complete_dir / f"step_{step:06d}.json").read_text(
                 encoding="utf-8"
             )
         )
-        versioned_worlds.append(marker["world_file"])
-    assert checkpoint_names == sorted([*versioned_worlds, "checkpoint_final.json.gz"])
+        assert marker["checkpoint_version"] == "complete_step_v4"
+        manifest_path = tmp_path / marker["manifest_file"]
+        assert manifest_path.is_file()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["checkpoint_id"] == marker["checkpoint_id"]
+        assert manifest["step"] == step
+    assert (tmp_path / "checkpoints" / "checkpoint_final.json.gz").is_file()
 
     final_checkpoint = read_gzip_json(
         tmp_path / "checkpoints" / "checkpoint_final.json.gz"
@@ -289,7 +348,11 @@ async def test_e2e_failed_step_records_failed_event_and_final_checkpoint(tmp_pat
 
 @pytest.mark.asyncio
 async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_round_robin_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_round_robin_config(),
+        checkpoint_every=1,
+    )
 
     @engine.step(name="round_robin_logic")
     async def round_robin_logic(ctx):
@@ -382,17 +445,29 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
     assert final_checkpoint["agents_data"]["participant_0"]["state"]["conversation_marker"] == "baseline-ready"
-    assert final_checkpoint["environment_data"]["state"]["pairing_status"]["current_round"] == 1
-    assert len(final_checkpoint["environment_data"]["state"]["pairing_status"]["completed_pairs"]) == 2
+    assert final_checkpoint["environment_data"]["state"]["pairing_current_round"] == 1
+    assert len(final_checkpoint["environment_data"]["state"]["pairing_completed_pairs"]) == 2
     assert final_checkpoint["environment_data"]["state"]["message_counter"] == 4
-    round_messages = final_checkpoint["environment_data"]["state"]["round_messages"]["1"]
+    message_facts = final_checkpoint["environment_data"]["state"]["message_facts"]
     assert any(
         message["content"] == "Hello from participant_0."
-        for message in round_messages["participant_3"]
+        and message["receiver"] == "participant_3"
+        for message in message_facts
     )
     assert any(
         message["content"] == "Round 1 group update."
-        for message in round_messages["participant_1"]
+        and message["receiver"] == "participant_1"
+        for message in message_facts
+    )
+    restored = V4CheckpointStore(tmp_path).restore(1)
+    restored_state = restored["environment"]["state"]
+    assert restored_state["pairing_current_round"] == 1
+    assert len(restored_state["pairing_completed_pairs"]) == 2
+    assert len(restored_state["message_facts"]) == 4
+    assert "active_messages" not in restored_state
+    assert (
+        restored["agents"]["participant_0"]["state"]["conversation_marker"]
+        == "baseline-ready"
     )
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     rule_entries = summary["capabilities"]["by_kind"]["rules"]
@@ -408,7 +483,11 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
 
 @pytest.mark.asyncio
 async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(tmp_path):
-    engine = Society0(save_dir=str(tmp_path), base_config=_social_network_config())
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_network_config(),
+        checkpoint_every=1,
+    )
     observed = {}
 
     @engine.step(name="social_round")
@@ -431,7 +510,7 @@ async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(
         feed = await ctx.env.recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         observed["recommended"] = list(ctx.env._pending_recommended_posts["viewer"])
         observed["state_recommended_during_step"] = dict(ctx.env.state.get("recommended_posts", {}))
-        observed["view_count_during_step"] = ctx.env.state["posts"]["post_1"].get("view_count", 0)
+        observed["view_count_during_step"] = ctx.env.state["post_projection"]["post_1"].get("view_count", 0)
         return ctx.result(
             metrics={"recommended_count": len(observed["recommended"])},
             observations={"feed_has_post_1": "post_1" in feed},
@@ -445,11 +524,92 @@ async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(
     final_checkpoint = read_gzip_json(
         tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
-    posts = final_checkpoint["environment_data"]["state"]["posts"]
-    assert posts["post_1"]["view_count"] == 1
+    state = final_checkpoint["environment_data"]["state"]
+    assert state["post_projection"]["post_1"]["view_count"] == 1
     assert final_checkpoint["environment_data"]["state"]["recommended_posts"]["viewer"][0] == "post_1"
-    assert len(posts["post_1"]["replies"]) == 1
-    assert posts["post_2"]["reply_to"] == "post_1"
+    comments = [
+        event
+        for event in state["post_interaction_facts"]
+        if event["kind"] == "comment" and event["post_id"] == "post_1"
+    ]
+    assert len(comments) == 1
+    assert state["post_creation_facts"]["post_2"]["reply_to"] == "post_1"
+    restored_state = V4CheckpointStore(tmp_path).restore(1)["environment"]["state"]
+    assert restored_state["post_creation_facts"]["post_1"]["content"].startswith(
+        "A public claim"
+    )
+    assert restored_state["post_projection"]["post_1"]["view_count"] == 1
+    assert restored_state["recommended_posts"]["viewer"][0] == "post_1"
+    assert "trending_post_ids" not in restored_state
+
+
+@pytest.mark.asyncio
+async def test_e2e_builtin_envs_restore_distinct_incremental_ticks(tmp_path):
+    round_dir = tmp_path / "round-robin"
+    round_engine = Society0(
+        save_dir=str(round_dir),
+        base_config=_round_robin_config(),
+        checkpoint_every=1,
+    )
+
+    @round_engine.step(name="two_rounds")
+    async def two_rounds(ctx):
+        round_number = ctx.step + 1
+        result = await ctx.rule(
+            "advance_round_robin_with_pairing",
+            round_number=round_number,
+        )
+        assert result["successful_pairs"] == 2
+        sent = await ctx.env.send_message_to_partner(
+            context=_action_context(ctx, "participant_0"),
+            agent=ctx.world.get_agent("participant_0"),
+            content=f"round-{round_number}",
+        )
+        assert sent["status"] == "success"
+        return ctx.result()
+
+    await round_engine.run(steps=2)
+    round_store = V4CheckpointStore(round_dir)
+    round_one = round_store.restore(1)["environment"]["state"]
+    round_two = round_store.restore(2)["environment"]["state"]
+    assert round_one["pairing_current_round"] == 1
+    assert round_two["pairing_current_round"] == 2
+    assert [item["content"] for item in round_one["message_facts"]] == [
+        "round-1"
+    ]
+    assert [item["content"] for item in round_two["message_facts"]] == [
+        "round-1",
+        "round-2",
+    ]
+    assert "active_messages" not in round_one
+    assert "active_messages" not in round_two
+
+    social_dir = tmp_path / "social"
+    social_engine = Society0(
+        save_dir=str(social_dir),
+        base_config=_social_network_config(),
+        checkpoint_every=1,
+    )
+
+    @social_engine.step(name="two_posts")
+    async def two_posts(ctx):
+        post_number = ctx.step + 1
+        await ctx.env.publish_post(
+            context=_action_context(ctx, "author"),
+            content=f"post-at-tick-{post_number}",
+            tags=["checkpoint"],
+        )
+        return ctx.result()
+
+    await social_engine.run(steps=2)
+    social_store = V4CheckpointStore(social_dir)
+    social_one = social_store.restore(1)["environment"]["state"]
+    social_two = social_store.restore(2)["environment"]["state"]
+    assert set(social_one["post_creation_facts"]) == {"post_1"}
+    assert set(social_two["post_creation_facts"]) == {"post_1", "post_2"}
+    assert social_two["post_counter"] == 2
+    assert "trending_post_ids" not in social_one
+    assert "trending_post_ids" not in social_two
 
 
 @pytest.mark.asyncio
@@ -608,7 +768,7 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
     final_checkpoint = read_gzip_json(
         tmp_path / "checkpoints" / "checkpoint_final.json.gz"
     )
-    posts = final_checkpoint["environment_data"]["state"]["posts"]
+    state = final_checkpoint["environment_data"]["state"]
 
     assert browse_metrics["browse_errors"] == 0
     assert browse_metrics["browse_success"] == 3
@@ -634,7 +794,11 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
     assert summary["events"]["agent_batches"]["instruct / browse_round"]["execution_options"][
         "required_action_tags"
     ] == ["social_write"]
-    assert len(posts["post_1"]["replies"]) == 3
+    assert sum(
+        1
+        for event in state["post_interaction_facts"]
+        if event["kind"] == "comment" and event["post_id"] == "post_1"
+    ) == 3
 
 
 @pytest.mark.asyncio
@@ -708,21 +872,36 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
         "environment": {
             "type": "social_network",
             "config": {"social_media": {"recommendation": {"use_embedding_similarity": False}}},
-            "state": {
-                "posts": {
-                    "post_1": {
-                        "post_id": "post_1",
-                        "author_id": "author_1",
-                        "content": "Visible seed post.",
-                        "tags": [],
-                        "created_tick": 0,
-                        "likes": [],
-                        "like_events": [],
-                        "replies": [],
-                        "view_count": 0,
-                    }
-                }
-            },
+                "state": {
+                    "post_creation_facts": {
+                        "post_1": {
+                            "post_id": "post_1",
+                            "author_id": "author_1",
+                            "content": "Visible seed post.",
+                            "tags": [],
+                            "created_tick": 0,
+                            "reply_to": None,
+                        }
+                    },
+                    "post_interaction_facts": [],
+                    "post_projection": {
+                        "post_1": {
+                            "view_count": 0,
+                            "embedding_ref": None,
+                            "embedding_model": None,
+                            "embedding_dimensions": None,
+                            "embedding_indexed": False,
+                            "special_tags": [],
+                        }
+                    },
+                    "author_post_facts": [{"author_id": "author_1", "post_id": "post_1"}],
+                    "post_counter": 1,
+                    "notification_facts": [],
+                    "notification_state": {},
+                    "notification_counter": 0,
+                    "recommended_posts": {},
+                    "trending_post_ids": [],
+                },
         },
     }
     engine = Society0(save_dir=str(tmp_path), base_config=config, llm=llm, embed=_fake_embed_model())
@@ -771,7 +950,12 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     assert "Action error samples: 1; inspect tool arguments before weakening actions." in diagnostics
     assert "Sample: agent_id=user_0, action_name=comment, status=error; error=Post user_0 not found." in diagnostics
     assert "Arguments: content=I used the author id by mistake., post_id=user_0." in diagnostics
-    assert len(final_checkpoint["environment_data"]["state"]["posts"]["post_1"]["replies"]) == 1
+    state = final_checkpoint["environment_data"]["state"]
+    assert sum(
+        1
+        for event in state["post_interaction_facts"]
+        if event["kind"] == "comment" and event["post_id"] == "post_1"
+    ) == 1
 
 
 @pytest.mark.asyncio

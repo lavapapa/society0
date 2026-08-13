@@ -265,6 +265,7 @@ class EndpointConfig:
     deployment_name: Optional[str] = None  # Azure部署名称
     trust_env: bool = True  # 是否继承系统代理等运行环境配置
     tool_choice_policy: str = "native"
+    send_dimensions: bool = True
 
     def __post_init__(self) -> None:
         self.tool_choice_policy = str(self.tool_choice_policy).strip().lower()
@@ -1670,6 +1671,7 @@ class EmbeddingManager:
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
             trust_env=bool(config.get("trust_env", True)),
+            send_dimensions=bool(config.get("send_dimensions", True)),
         )
 
         # 创建异步客户端
@@ -1746,11 +1748,13 @@ class EmbeddingManager:
         model = endpoint.model
         trace_metadata = dict(metadata or {})
         bucket_key = self._make_microbatch_bucket_key(model, requested_dimensions)
-        # Keep Thread-attached writes in separate physical batches.  A shared
-        # batch would either leak one Thread's text into another ThreadStore
-        # or lose the per-thread evidence association.
+        # 普通 Thread 内请求仍各自成批，避免一条对话的原文出现在另一条
+        # Thread 的 provider 证据里。记忆写入是例外：待提交的记忆内容和
+        # 稳定 ID 已分别落入原 Thread，底层向量计算可以安全地跨 Thread
+        # 合批；合批日志只保存 thread_ids/agent_ids，不归属于单个 Thread。
         thread_id = trace_metadata.get("thread_id")
-        if thread_id is not None:
+        interaction_type = trace_metadata.get("interaction_type")
+        if thread_id is not None and interaction_type != "memory_write":
             bucket_key = f"{bucket_key}|thread:{thread_id}"
         loop = asyncio.get_running_loop()
         results: List[Optional[List[float]]] = [None] * len(texts)
@@ -2033,9 +2037,10 @@ class EmbeddingManager:
                             request_params = {
                                 "model": endpoint.model,
                                 "input": batch_texts,
-                                "dimensions": dimensions,
                                 "timeout": request_deadline,
                             }
+                            if endpoint.send_dimensions:
+                                request_params["dimensions"] = dimensions
                             self._append_agent_thread_event_best_effort(
                                 trace_fields,
                                 "embedding_provider_request",
@@ -2044,12 +2049,7 @@ class EmbeddingManager:
                                 attempt_number=attempt_number,
                                 endpoint=endpoint,
                             )
-                            response = await client.embeddings.create(
-                                model=endpoint.model,
-                                input=batch_texts,
-                                dimensions=dimensions,
-                                timeout=request_deadline,
-                            )
+                            response = await client.embeddings.create(**request_params)
                             response_embeddings = []
                             for embedding_obj in response.data:
                                 response_embeddings.append(embedding_obj.embedding)

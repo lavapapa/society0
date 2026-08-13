@@ -14,11 +14,45 @@ from society0 import Society0
 
 RUN_DIR = Path("runs/misinformation_trust_demo")
 
+AGENT_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "trust": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "exposure": {
+            "type": "integer",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
+
+ENVIRONMENT_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "misinformation_pressure": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "correction_strength": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
+
 
 def build_config():
     return {
         "agent_types": [
-            {"id": "social_user", "archetype": "rule"},
+            {
+                "id": "social_user",
+                "archetype": "rule",
+                "state_schema": AGENT_STATE_SCHEMA,
+            },
         ],
         "agents": [
             {"id": "alice", "type": "social_user", "state": {"trust": 0.72, "exposure": 0}},
@@ -28,6 +62,7 @@ def build_config():
         ],
         "environment": {
             "type": "plain",
+            "state_schema": ENVIRONMENT_STATE_SCHEMA,
             "state": {
                 "misinformation_pressure": 0.12,
                 "correction_strength": 0.05,

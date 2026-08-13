@@ -137,6 +137,158 @@ def test_checkpoint_manifest_names_agents_and_rejects_tampering(tmp_path):
         )
 
 
+def test_v4_tick_manifest_references_only_closed_threads_for_that_tick(tmp_path):
+    store = AgentThreadStore(tmp_path)
+    open_thread = store.open_thread(
+        agent_id="a",
+        checkpoint_step=4,
+        scope={"kind": "tick", "id": "4"},
+    )
+    with pytest.raises(ValueError, match="open agent thread"):
+        store.publish_tick_manifest(checkpoint_id="checkpoint-4-open", step=4)
+    assert not (tmp_path / "agent_threads" / "manifests" / "checkpoint-4-open.json").exists()
+
+    store.append_event(open_thread, "conversation_message", payload={"role": "user"})
+    closed_ref = store.close_thread(open_thread)
+    descriptor = store.publish_tick_manifest(checkpoint_id="checkpoint-4", step=4)
+
+    assert descriptor["relative_path"] == descriptor["path"]
+    assert descriptor["count"] == descriptor["thread_count"] == 1
+    assert descriptor["threads"][open_thread] == closed_ref
+    manifest_text = (tmp_path / descriptor["relative_path"]).read_text(encoding="utf-8")
+    assert "conversation_message" not in manifest_text
+    assert '"payload"' not in manifest_text
+    assert store.validate_tick_manifest(descriptor)["checkpoint_id"] == "checkpoint-4"
+
+
+def test_v4_thread_append_and_manifest_use_incremental_tail_index(tmp_path):
+    store = AgentThreadStore(tmp_path)
+    thread_id = store.open_thread(
+        agent_id="a",
+        checkpoint_step=5,
+        scope={"kind": "tick", "id": "5"},
+    )
+    for index in range(20):
+        store.append_event(thread_id, "conversation_message", payload={"index": index})
+
+    store.reset_metrics()
+    store.append_event(thread_id, "conversation_message", payload={"index": 20})
+    store.close_thread(thread_id)
+    descriptor = store.publish_tick_manifest(checkpoint_id="checkpoint-5", step=5)
+
+    assert store.metrics["jsonl_full_reads"] == 0
+    assert store.metrics["jsonl_bytes_read"] == 0
+    assert store.metrics["jsonl_append_bytes"] > 0
+    assert descriptor["count"] == 1
+
+
+def test_v4_epoch_manifest_collects_closed_threads_across_ticks_atomically(tmp_path):
+    store = AgentThreadStore(tmp_path)
+    first = store.open_thread(
+        agent_id="a",
+        checkpoint_step=8,
+        scope={"kind": "tick", "id": "8"},
+    )
+    second = store.open_thread(
+        agent_id="a",
+        checkpoint_step=9,
+        scope={"kind": "tick", "id": "9"},
+    )
+    store.close_thread(first)
+    store.close_thread(second)
+    store.reset_metrics()
+    descriptor = store.publish_epoch_manifest(
+        checkpoint_id="checkpoint-epoch-9",
+        steps=[8, 9],
+    )
+    assert descriptor["step"] == 9
+    assert descriptor["steps"] == [8, 9]
+    assert descriptor["count"] == 2
+    assert descriptor["threads"][first]["checkpoint_step"] == 8
+    assert descriptor["threads"][second]["checkpoint_step"] == 9
+    assert store.metrics["jsonl_full_reads"] == 0
+    assert store.metrics["jsonl_full_hashes"] == 0
+    store.validate_tick_manifest(
+        descriptor,
+        expected_checkpoint_id="checkpoint-epoch-9",
+        expected_step=9,
+    )
+
+    third = store.open_thread(
+        agent_id="a",
+        checkpoint_step=10,
+        scope={"kind": "tick", "id": "10"},
+    )
+    with pytest.raises(ValueError, match="open agent thread"):
+        store.publish_epoch_manifest(
+            checkpoint_id="checkpoint-epoch-10-open",
+            steps=[8, 9, 10],
+        )
+    assert not (
+        tmp_path / "agent_threads" / "manifests" / "checkpoint-epoch-10-open.json"
+    ).exists()
+    store.close_thread(third)
+
+
+def test_v4_tick_manifest_validation_rejects_missing_blob_and_broken_chain(tmp_path):
+    store = AgentThreadStore(tmp_path, inline_payload_max_bytes=1)
+    thread_id = store.open_thread(
+        agent_id="a",
+        checkpoint_step=6,
+        scope={"kind": "tick", "id": "6"},
+    )
+    store.append_event(thread_id, "provider_response", payload={"body": "large"})
+    store.close_thread(thread_id)
+    descriptor = store.publish_tick_manifest(checkpoint_id="checkpoint-6", step=6)
+
+    thread_path = tmp_path / descriptor["threads"][thread_id]["path"]
+    events = [json.loads(line) for line in thread_path.read_text(encoding="utf-8").splitlines()]
+    blob_path = tmp_path / events[1]["payload_ref"]["path"]
+    blob_path.unlink()
+    with pytest.raises(FileNotFoundError, match="blob"):
+        store.validate_tick_manifest(descriptor)
+
+    # Restore the blob and then damage a complete JSONL record.  The immutable
+    # reference hash is checked before the chain, so a broken chain is rejected
+    # as a content-integrity failure rather than silently repaired.
+    blob_path.parent.mkdir(parents=True, exist_ok=True)
+    blob_path.write_text('{"body":"large"}', encoding="utf-8")
+    events[1]["previous_event_sha256"] = "0" * 64
+    thread_path.write_text(
+        "\n".join(json.dumps(event, ensure_ascii=False, separators=(",", ":")) for event in events)
+        + "\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="content hash|hash chain|event hash"):
+        store.validate_tick_manifest(descriptor)
+
+
+def test_v4_fork_tick_manifest_reuses_immutable_thread_references(tmp_path):
+    store = AgentThreadStore(tmp_path)
+    thread_id = store.open_thread(
+        agent_id="a",
+        checkpoint_step=7,
+        scope={"kind": "tick", "id": "7"},
+    )
+    store.append_event(thread_id, "conversation_message", payload={"role": "user"})
+    store.close_thread(thread_id)
+    source = store.publish_tick_manifest(checkpoint_id="checkpoint-7", step=7)
+    thread_files_before = sorted((tmp_path / "agent_threads" / "threads").rglob("*.jsonl"))
+
+    fork = store.fork_tick_manifest(
+        source,
+        checkpoint_id="fork-root",
+        step=0,
+        branch_id="branch-b",
+    )
+    thread_files_after = sorted((tmp_path / "agent_threads" / "threads").rglob("*.jsonl"))
+
+    assert thread_files_after == thread_files_before
+    assert fork["threads"] == source["threads"]
+    assert fork["forked_from"]["checkpoint_id"] == "checkpoint-7"
+    assert store.validate_tick_manifest(fork)["forked_from"]["branch_id"] == "branch-b"
+
+
 def test_read_messages_replays_latest_request_response_and_runtime_messages(tmp_path):
     store = AgentThreadStore(tmp_path)
     thread_id = store.open_thread(
@@ -254,17 +406,22 @@ async def test_complete_checkpoint_contains_named_thread_references(tmp_path, mo
 
     await engine.run(steps=1)
 
-    marker = _read_json(tmp_path / "checkpoints" / "complete" / "step_000001.json")
-    checkpoint = _read_json(tmp_path / "checkpoints" / marker["world_file"])
-    refs = checkpoint["world_metadata"]["agent_threads"]
+    marker = _read_json(tmp_path / "checkpoints" / "v4" / "complete" / "step_000001.json")
+    manifest = _read_json(tmp_path / marker["manifest_file"])
+    refs = manifest["thread_manifest"]
     assert refs["thread_count"] == 1
     assert refs["by_agent"] == {
         "enterprise-a": [next(iter(refs["threads"]))]
     }
-    assert marker["agent_threads_manifest"] == refs["manifest"]
-    assert marker["agent_threads_sha256"] == refs["manifest_sha256"]
     resolved = engine.persistence_manager.resolve_checkpoint(1)
-    assert resolved["agent_thread_manifest"]["by_agent"] == refs["by_agent"]
+    assert resolved["manifest"]["thread_manifest"]["by_agent"] == refs["by_agent"]
+    validated = AgentThreadStore.validate_tick_manifest_from(
+        tmp_path,
+        refs,
+        expected_checkpoint_id=marker["checkpoint_id"],
+        expected_step=1,
+    )
+    assert validated["by_agent"] == refs["by_agent"]
 
 
 class _FakeResponse:

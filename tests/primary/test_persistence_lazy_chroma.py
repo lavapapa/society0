@@ -21,6 +21,41 @@ def test_persistence_manager_does_not_import_chromadb_on_init(tmp_path, monkeypa
     manager.close()
 
 
+def test_live_chroma_store_has_no_checkpoint_backup_surface(tmp_path):
+    manager = PersistenceManager(str(tmp_path / "run"))
+    try:
+        assert manager.chroma_store_path.is_dir()
+        assert not (tmp_path / "run" / "chroma_backups").exists()
+        for obsolete in (
+            "chroma_backup_dir",
+            "get_available_chroma_backups",
+            "_backup_chroma_store",
+            "_restore_chroma_store",
+        ):
+            assert not hasattr(manager, obsolete), obsolete
+    finally:
+        manager.close()
+
+
+def test_cross_run_resume_seeds_chroma_once_before_client_initialization(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("CHROMA_RUNTIME_MODE", "disk")
+    source = tmp_path / "source"
+    source_store = source / "chroma_store"
+    source_store.mkdir(parents=True)
+    (source_store / "chroma.sqlite3").write_bytes(b"source-memory")
+    manager = PersistenceManager(str(tmp_path / "destination"))
+    try:
+        assert manager.seed_chroma_store_from(source) is True
+        assert (manager.chroma_store_path / "chroma.sqlite3").read_bytes() == b"source-memory"
+        with pytest.raises(ValueError, match="必须为空"):
+            manager.seed_chroma_store_from(source)
+    finally:
+        manager.close()
+
+
 def test_close_propagates_sync_failure_and_retains_runtime_for_retry(tmp_path, monkeypatch):
     monkeypatch.setenv("CHROMA_RUNTIME_MODE", "tmpfs")
     monkeypatch.setenv("CHROMA_TMPFS_ROOT", str(tmp_path / "tmpfs"))
