@@ -110,8 +110,15 @@ engine = Society0(save_dir="runs/demo", base_config=config, llm=llm, embed=embed
 ```
 
 Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-style measurement.
-For LLM agents, `memory=True` retrieves memory and saves extractive memory by default.
+Memory retrieval is enabled by default. Durable memory writes are explicit: open an Agent
+Thread, pass its ID to the interaction, then call `extract_thread_memories(...)` after the
+interaction. This keeps the complete Thread, the extraction turn, and the committed memory
+receipt in one recoverable sequence.
 If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
+
+Some OpenAI-compatible embedding models use a fixed output size and reject the optional
+`dimensions` request field. Declare those models with `send_dimensions=False` while keeping
+`dimensions` set to the vector size Society0 should validate and report.
 
 Some OpenAI-compatible reasoning endpoints accept tools but reject `required` or a named
 `tool_choice`. For those endpoints, set `tool_choice_policy="auto_restrict"`. Society0 then

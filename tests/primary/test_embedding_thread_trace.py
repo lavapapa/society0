@@ -72,7 +72,7 @@ class _MemoryVectorClient:
         return self.collection
 
 
-def _manager(context):
+def _manager(context, *, send_dimensions: bool = True):
     manager = EmbeddingManager(
         [
             {
@@ -82,6 +82,7 @@ def _manager(context):
                 "model": "embed-test",
                 "concurrency": 1,
                 "provider_type": "openai",
+                "send_dimensions": send_dimensions,
             }
         ],
         log_context=context,
@@ -143,6 +144,29 @@ async def test_embedding_provider_calls_are_persisted_on_agent_thread(tmp_path):
         assert event["metadata"]["provider_request_id"].startswith("emb_")
     serialized = json.dumps(events, ensure_ascii=False)
     assert "embedding-secret" not in serialized
+    assert result["result"] == [[0.1, 0.2, 0.3]]
+
+    await manager.close()
+    context.close()
+
+
+@pytest.mark.asyncio
+async def test_openai_compatible_endpoint_can_omit_dimensions_parameter(tmp_path):
+    context = ExperimentLogContext(tmp_path / "logs")
+    manager = _manager(context, send_dimensions=False)
+    client = _EmbeddingClient(response=_EmbeddingResponse([[0.1, 0.2, 0.3]]))
+    manager.clients["fake"] = SimpleNamespace(embeddings=client, close=lambda: None)
+
+    result = await manager.request(["固定维度模型"], dimensions=3)
+
+    assert client.requests == [
+        {
+            "model": "embed-test",
+            "input": ["固定维度模型"],
+            "timeout": 30.0,
+        }
+    ]
+    assert result["dimensions"] == 3
     assert result["result"] == [[0.1, 0.2, 0.3]]
 
     await manager.close()

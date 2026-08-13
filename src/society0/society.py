@@ -16,6 +16,7 @@ from .context_stack import ContextStack
 from .core_data import World
 from .diagnostics import render_runtime_diagnostic_report
 from .environment import Environment, EnvironmentTickContext
+from .incremental_checkpoint import V4CheckpointStore
 from .recovery import classify_step_failure
 from .function_registry import FunctionRegistry, register_environment_capabilities
 from .logging import ExperimentLogContext
@@ -298,12 +299,18 @@ class Society0:
         log_hooks: Optional[Iterable[Callable[[str, Dict[str, Any]], None]]] = None,
         source_run: Optional[Union[str, Path]] = None,
         source_step: Optional[int] = None,
+        fork_run: Optional[Union[str, Path]] = None,
+        fork_step: Optional[int] = None,
         resume_contract: Optional[Mapping[str, Any]] = None,
     ) -> None:
         self.save_dir = Path(save_dir)
         self.source_run = Path(source_run).resolve() if source_run is not None else None
-        if self.source_run is not None:
-            self.validate_resume_paths(self.save_dir, self.source_run)
+        self.fork_run = Path(fork_run).resolve() if fork_run is not None else None
+        if self.source_run is not None and self.fork_run is not None:
+            raise ValueError("source_run and fork_run are mutually exclusive")
+        source_path = self.source_run or self.fork_run
+        if source_path is not None:
+            self.validate_resume_paths(self.save_dir, source_path)
         self._resume_contract_sha256 = self._resume_contract_hash(resume_contract)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config(base_config)
@@ -330,9 +337,16 @@ class Society0:
         self._embedding_manager = None
         self._model_provider = None
         self.source_step = int(source_step) if source_step is not None else None
+        self.fork_step = int(fork_step) if fork_step is not None else None
+        if self.source_run is None and self.source_step is not None:
+            raise ValueError("source_step requires source_run")
+        if self.fork_run is None and self.fork_step is not None:
+            raise ValueError("fork_step requires fork_run")
         self._expected_resume_identity: Optional[Dict[str, Any]] = None
         self.restored_checkpoint: Optional[Dict[str, Any]] = None
+        self.forked_checkpoint: Optional[Dict[str, Any]] = None
         self._restore_unusable_reason: Optional[str] = None
+        self._v4_configured = False
 
     @staticmethod
     def validate_resume_paths(
@@ -494,7 +508,19 @@ class Society0:
         metrics_path.touch(exist_ok=True)
         (self.save_dir / "events.jsonl").touch(exist_ok=True)
 
-        await self.persistence_manager.save_checkpoint(world, self.schedule)
+        # v4 root is the sole recoverable bootstrap point.  The root captures
+        # declared Environment/Agent state once; every later Tick contributes
+        # only its sealed journal delta.
+        if not self._v4_configured:
+            schema = world.compile_runtime_persistence_schema()
+            self.persistence_manager.configure_v4(
+                world,
+                schema,
+                checkpoint_every=self.checkpoint_every,
+            )
+            self._v4_configured = True
+        if not self.persistence_manager._v4_root_published:
+            await self.persistence_manager.publish_root(world, self.schedule)
         self._write_jsonl(
             self.save_dir / "events.jsonl",
             {
@@ -515,6 +541,8 @@ class Society0:
         try:
             for tick in range(steps):
                 env = world.get_environment()
+                world.begin_persistence_tick(world.step + 1)
+                persistence_sealed = False
                 runtime_scope = world.begin_step_runtime_scope()
                 world.set_context_stack(ContextStack().push_step(f"step_{world.step}"))
                 self.event_logger.set_context(step=world.step)
@@ -558,10 +586,22 @@ class Society0:
                             "code_steps": len(step_entries),
                         },
                     )
+                    delta = world.seal_persistence_tick()
+                    persistence_sealed = True
+                    await self.persistence_manager.publish_delta(delta, self.schedule)
                     world.advance_step()
                     completed_ticks += 1
-                    if world.step % self.checkpoint_every == 0:
-                        await self.persistence_manager.save_checkpoint(world, self.schedule)
+                except BaseException:
+                    if not persistence_sealed:
+                        try:
+                            world.abort_persistence_tick()
+                        except RuntimeError:
+                            # A publish failure can arrive after the manager
+                            # has consumed a sealed delta; there is then no
+                            # active journal to abort.
+                            pass
+                    self.persistence_manager.discard_unpublished_epoch()
+                    raise
                 finally:
                     world.invalidate_step_runtime_scope()
         except BaseException as exc:
@@ -676,6 +716,9 @@ class Society0:
         if self.source_run is not None:
             world = await self._load_source_world(self.source_run, self.source_step)
             restored = True
+        elif self.fork_run is not None:
+            world = self._load_fork_cognition(world, self.fork_run, self.fork_step)
+            restored = True
         try:
             self._bind_world_runtime(world)
             self._prepare_world_environment(world)
@@ -688,6 +731,69 @@ class Society0:
         self.current_world_state = world
         self.event_logger.open()
         self.is_initialized = True
+
+    def _load_fork_cognition(
+        self,
+        world: World,
+        source_run: Path,
+        step: Optional[int],
+    ) -> World:
+        """在保留目标 World 的前提下继承已提交的认知历史。"""
+
+        record = PersistenceManager.resolve_checkpoint_from(source_run, step)
+        marker = record.get("marker") or {}
+        if marker.get("checkpoint_version") != "complete_step_v4":
+            raise ValueError("Only complete_step_v4 checkpoints can seed a fork")
+        source_step = int(record["step"])
+        root_metadata = PersistenceManager._v4_root_manifest(source_run, source_step)
+        checkpoint_identity = root_metadata.get("resume_identity")
+        expected_identity = self._expected_resume_identity
+        if expected_identity is None:
+            raise RuntimeError("Society0 fork identity was not initialized")
+        if not isinstance(checkpoint_identity, Mapping) or (
+            checkpoint_identity.get("embedding") != expected_identity.get("embedding")
+        ):
+            raise ValueError(
+                "Fork checkpoint embedding identity does not match the target run"
+            )
+
+        source_agents = root_metadata.get("agents_data")
+        if not isinstance(source_agents, Mapping):
+            raise ValueError("Fork checkpoint has no Agent population")
+        target_agents = world.agents_data
+        if set(source_agents) != set(target_agents):
+            raise ValueError("Fork checkpoint Agent population does not match")
+        identity_fields = ("type", "archetype", "persona")
+        for agent_id, target in target_agents.items():
+            source = source_agents[agent_id]
+            if not isinstance(source, Mapping) or any(
+                source.get(field) != target.get(field) for field in identity_fields
+            ):
+                raise ValueError(
+                    f"Fork checkpoint Agent identity differs for {agent_id}"
+                )
+
+        self.persistence_manager.seed_chroma_store_from(source_run)
+        branch_id = str(marker.get("branch_id") or "main")
+        committed_epochs = V4CheckpointStore(
+            source_run,
+            branch_id=branch_id,
+        ).committed_memory_epoch_ids(source_step)
+        world.step = source_step
+        world.set_memory_checkpoint_view(
+            target_step=source_step,
+            branch_id=branch_id,
+            branch_lineage=[],
+            committed_write_epoch_ids=committed_epochs,
+        )
+        world._resume_identity = dict(expected_identity)
+        self.forked_checkpoint = {
+            "source_run": str(source_run),
+            "step": source_step,
+            "checkpoint_id": str(record["checkpoint_id"]),
+            "marker": dict(marker),
+        }
+        return world
 
     async def restore(
         self,
@@ -730,9 +836,13 @@ class Society0:
 
     async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
         record = PersistenceManager.resolve_checkpoint_from(source_run, step)
-        checkpoint_identity = (record["checkpoint_data"].get("world_metadata") or {}).get(
-            "resume_identity"
+        marker_version = (record.get("marker") or {}).get("checkpoint_version")
+        if marker_version != "complete_step_v4":
+            raise ValueError("Only complete_step_v4 checkpoints are recoverable")
+        root_metadata = PersistenceManager._v4_root_manifest(
+            Path(source_run).resolve(), int(record["step"])
         )
+        checkpoint_identity = root_metadata.get("resume_identity")
         expected_identity = self._expected_resume_identity
         if expected_identity is None:
             raise RuntimeError("Society0 resume identity was not initialized")
@@ -745,11 +855,12 @@ class Society0:
                 "Checkpoint resume identity does not match the current LLM, "
                 "embedding, capability schema, or application contract"
             )
+        # 新目录恢复需要继承来源运行中已经提交的长期记忆。这里只在
+        # 身份校验通过后做一次分支初始化；逐 Tick checkpoint 不复制 Chroma。
+        self.persistence_manager.seed_chroma_store_from(source_run)
         try:
-            world, _ = await self.persistence_manager._load_checkpoint_record(
+            world, _ = await self.persistence_manager._load_v4_checkpoint_record(
                 record,
-                memory_required=None,
-                restore_chroma=True,
                 event_logger=self.event_logger,
                 event_log_path=str(self.save_dir / "events.jsonl"),
                 environment_factory=self.environment_factory,
@@ -999,7 +1110,10 @@ class Society0:
                 failure=failure,
             )
             return
-        await self.persistence_manager.save_checkpoint(self.current_world_state, self.schedule)
+        raise ValueError(
+            "recoverable checkpoints are published from sealed v4 Tick deltas; "
+            "only checkpoint_final.json.gz is a supported diagnostic snapshot"
+        )
 
     async def _save_summary(
         self,

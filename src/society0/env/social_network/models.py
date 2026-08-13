@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 from typing import List, Dict, Any, Union, Literal, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field
 from enum import Enum
 
 # --- 网络拓扑配置 ---

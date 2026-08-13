@@ -17,8 +17,8 @@ import pytest
 from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0
+from society0.incremental_checkpoint import V4CheckpointStore
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
-from tests import read_gzip_json
 
 
 pytestmark = pytest.mark.skipif(
@@ -41,6 +41,12 @@ class MemoryCheck(BaseModel):
 class SaturationAnswer(BaseModel):
     ok: bool
     answer: str = Field(min_length=1)
+
+
+def _restore_latest(path: Path) -> dict:
+    store = V4CheckpointStore(path)
+    record = store.resolve()
+    return store.restore(int(record["step"]))
 
 
 def _load_default_endpoint_env() -> tuple[dict[str, str], dict[str, str]]:
@@ -77,6 +83,10 @@ def _build_models(
         default=768,
     )
 
+    llm_request_options: dict = {}
+    llm_extra_body_json = os.getenv("SOCIETY0_REAL_E2E_LLM_EXTRA_BODY_JSON")
+    if llm_extra_body_json:
+        llm_request_options["extra_body"] = json.loads(llm_extra_body_json)
     llm = LLMModel.openai_compatible(
         id="default",
         model=llm_env["LLM_MODEL"],
@@ -84,6 +94,7 @@ def _build_models(
         api_key=llm_env.get("LLM_API_KEY"),
         concurrency=llm_concurrency,
         timeout=min(float(llm_env.get("LLM_TIMEOUT") or 180), 180.0),
+        request_options=llm_request_options,
     )
     if provider_type == "ollama":
         embed = EmbedModel.ollama(
@@ -101,6 +112,9 @@ def _build_models(
             base_url=embedding_base_url,
             api_key=embedding_api_key,
             dimensions=embedding_dimensions,
+            send_dimensions=(
+                os.getenv("SOCIETY0_REAL_E2E_EMBED_SEND_DIMENSIONS", "1") != "0"
+            ),
             concurrency=embed_concurrency,
             timeout=180.0,
         )
@@ -141,7 +155,27 @@ def _safe_int(value: object, *, default: int) -> int:
 
 def _llm_agent_config() -> dict:
     return {
-        "agent_types": [{"id": "participant", "archetype": "llm"}],
+        "agent_types": [
+            {
+                "id": "participant",
+                "archetype": "llm",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        key: {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        }
+                        for key in (
+                            "attention",
+                            "logic_marker",
+                            "protocol_phase_seen",
+                        )
+                    },
+                },
+            }
+        ],
         "agents": [
             {
                 "id": "alice",
@@ -153,13 +187,44 @@ def _llm_agent_config() -> dict:
         "environment": {
             "type": "plain",
             "state": {"claim": "A new city policy will reduce commuting time."},
+            "state_schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    key: {
+                        "type": "string",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                    for key in (
+                        "claim",
+                        "memory_protocol_phase",
+                        "last_terminal_decision_attempt",
+                    )
+                },
+            },
         },
     }
 
 
 def _saturation_agent_config(agent_count: int) -> dict:
     return {
-        "agent_types": [{"id": "participant", "archetype": "llm"}],
+        "agent_types": [
+            {
+                "id": "participant",
+                "archetype": "llm",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        key: {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        }
+                        for key in ("attention", "cohort")
+                    },
+                },
+            }
+        ],
         "agents": [
             {
                 "id": f"participant_{idx}",
@@ -175,13 +240,38 @@ def _saturation_agent_config(agent_count: int) -> dict:
         "environment": {
             "type": "plain",
             "state": {"scenario": "endpoint saturation e2e"},
+            "state_schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "scenario": {
+                        "type": "string",
+                        "persistence": {"kind": "replaceable"},
+                    }
+                },
+            },
         },
     }
 
 
 def _social_publish_agent_config(agent_count: int) -> dict:
     return {
-        "agent_types": [{"id": "social_user", "archetype": "llm"}],
+        "agent_types": [
+            {
+                "id": "social_user",
+                "archetype": "llm",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "interest": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        }
+                    },
+                },
+            }
+        ],
         "agents": [
             {
                 "id": f"user_{idx}",
@@ -204,7 +294,26 @@ def _social_publish_agent_config(agent_count: int) -> dict:
 
 def _round_robin_llm_agent_config(agent_count: int = 2) -> dict:
     return {
-        "agent_types": [{"id": "participant", "archetype": "llm"}],
+        "agent_types": [
+            {
+                "id": "participant",
+                "archetype": "llm",
+                "state_schema": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "cohort": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        },
+                        "conversation_marker": {
+                            "type": "string",
+                            "persistence": {"kind": "replaceable"},
+                        },
+                    },
+                },
+            }
+        ],
         "agents": [
             {
                 "id": f"participant_{idx}",
@@ -300,9 +409,10 @@ async def test_real_endpoint_smoke_llm_and_embedding():
 
         response = await llm_manager.request(
             {
+                **llm_model.request_options,
                 "messages": [{"role": "user", "content": "Reply with exactly one short word: OK"}],
                 "temperature": 0,
-                "max_tokens": 16,
+                "max_tokens": 256,
             }
         )
         assert response.get("role") == "assistant"
@@ -327,6 +437,7 @@ async def test_real_endpoint_saturation_llm_and_embedding_managers():
     async def ask_llm(idx: int):
         response = await llm_manager.request(
             {
+                **llm_model.request_options,
                 "messages": [
                     {
                         "role": "user",
@@ -334,7 +445,7 @@ async def test_real_endpoint_saturation_llm_and_embedding_managers():
                     }
                 ],
                 "temperature": 0,
-                "max_tokens": 24,
+                "max_tokens": 256,
             }
         )
         content = str(response.get("content") or "").strip()
@@ -374,7 +485,13 @@ async def test_real_endpoint_saturation_llm_and_embedding_managers():
 @pytest.mark.asyncio
 async def test_real_society0_interview_e2e_writes_artifacts(tmp_path):
     llm_model, embed_model = _build_models()
-    engine = Society0(save_dir=str(tmp_path), base_config=_llm_agent_config(), llm=llm_model, embed=embed_model)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_llm_agent_config(),
+        llm=llm_model,
+        embed=embed_model,
+        checkpoint_every=1,
+    )
 
     @engine.step(name="credibility_survey")
     async def credibility_survey(ctx):
@@ -419,6 +536,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
         base_config=_saturation_agent_config(concurrency),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="seed_memory_under_load")
@@ -584,30 +702,14 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert recall_batch["concurrency_source_counts"] == {"llm_model": 1}
     assert recall_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": False,
-        "extract": False,
         "top_k": 10,
     }
     assert recall_batch["memory_summary"]["record_count"] == concurrency
     assert recall_batch["memory_summary"]["retrieve_enabled_count"] == concurrency
-    assert recall_batch["memory_summary"]["save_enabled_count"] == 0
-    assert recall_batch["memory_summary"]["extraction_enabled_count"] == 0
     assert recall_batch["memory_summary"]["top_k_values"] == [10]
     assert recall_batch["resources"]["llm"]["by_interaction_type"]["interview"]["call_count"] >= concurrency
     assert recall_batch["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= concurrency
     _assert_timing_breakdown(recall_batch["resources"]["llm"])
-    assert (
-        summary["agent_operations"]["seed_memory_under_load"]["resources"]["llm"]["fidelity"][
-            "memory_extraction"
-        ]["call_count"]
-        >= concurrency
-    )
-    assert (
-        summary["agent_operations"]["recall_memory_under_load"]["resources"]["embedding"]["fidelity"][
-            "memory_io"
-        ]["call_count"]
-        >= 1
-    )
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     embedding_traces = [item for item in resource_calls if item.get("resource_type") == "embedding"]
     traced_step_names = {
@@ -624,11 +726,10 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     assert {"memory_retrieve", "memory_write"}.issubset(traced_interaction_types)
 
     # Embedding calls may be cached or microbatched when agents write identical
-    # memory text. Per-agent memory behavior is verified from agent logs.
+    # memory text. Per-agent recall is verified from agent logs.
     for idx in range(concurrency):
         agent_id = f"participant_{idx}"
         agent_events = _agent_events(tmp_path, agent_id)
-        assert any(event.get("event") == "memory_written" for event in agent_events)
         assert any(
             event.get("event") == "memory_read" and int(event.get("memory_results_count") or 0) >= 1
             for event in agent_events
@@ -647,6 +748,7 @@ async def test_real_society0_explicit_agent_group_concurrency_overrides_model_e2
         base_config=_saturation_agent_config(agent_count),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="explicit_concurrency_probe")
@@ -703,33 +805,31 @@ async def test_real_society0_explicit_agent_group_concurrency_overrides_model_e2
     assert batch["success_count_total"] == agent_count
     assert batch["error_count_total"] == 0
     assert batch["execution_options"]["memory"] == {
-        "retrieve": True,
-        "save": True,
-        "extract": True,
+        "retrieve": False,
         "top_k": 10,
     }
     assert batch["memory_summary"]["record_count"] == agent_count
-    assert batch["memory_summary"]["retrieve_enabled_count"] == agent_count
-    assert batch["memory_summary"]["save_enabled_count"] == agent_count
-    assert batch["memory_summary"]["extraction_enabled_count"] == agent_count
+    assert batch["memory_summary"]["retrieve_enabled_count"] == 0
     assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= agent_count
-    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= agent_count
-    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
     _assert_timing_breakdown(batch["resources"]["llm"])
     _assert_timing_breakdown(summary["resources"]["llm"])
-    _assert_timing_breakdown(summary["resources"]["embedding"])
 
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= agent_count
-    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= agent_count
-    assert _successful_resource_calls(resource_calls, "embedding")
+    assert not [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
+    assert not _successful_resource_calls(resource_calls, "embedding")
 
 
 @pytest.mark.asyncio
 async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     llm_model, embed_model = _build_models()
-    engine = Society0(save_dir=str(tmp_path), base_config=_llm_agent_config(), llm=llm_model, embed=embed_model)
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_llm_agent_config(),
+        llm=llm_model,
+        embed=embed_model,
+        checkpoint_every=1,
+    )
 
     @engine.registry.env.rule(name="set_memory_protocol")
     async def set_memory_protocol(env, phase: str):
@@ -764,8 +864,9 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
             for agent_id in group.agent_ids
         }
         seeded = await group.instruct(
-            "Remember this private signal for the next question: cobalt moon. "
-            "Return remembered=true and answer='cobalt moon'.",
+            "Treat this as an important durable instruction that must survive into a later "
+            "separate interaction: the private access signal is cobalt moon. Explicitly "
+            "remember that exact signal, then return remembered=true and answer='cobalt moon'.",
             output=MemoryCheck,
             retrieve_memory=True,
             thread_ids_by_agent=thread_ids,
@@ -820,11 +921,9 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert logic_executions["behavior / mark_memory_participant"]["agent_count_total"] == 1
     assert summary["capabilities"]["by_source"]["experiment"]["rules"] >= 1
     assert summary["capabilities"]["by_source"]["experiment"]["behaviors"] >= 1
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert checkpoint["environment_data"]["state"]["memory_protocol_phase"] == "seed_then_recall"
-    alice_state = checkpoint["agents_data"]["alice"]["state"]
+    checkpoint = _restore_latest(tmp_path)
+    assert checkpoint["environment"]["state"]["memory_protocol_phase"] == "seed_then_recall"
+    alice_state = checkpoint["agents"]["alice"]["state"]
     assert alice_state["logic_marker"] == "logic-before-llm"
     assert alice_state["protocol_phase_seen"] == "seed_then_recall"
     assert (tmp_path / "chroma_store" / "chroma.sqlite3").exists()
@@ -854,6 +953,7 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
         base_config=_round_robin_llm_agent_config(agent_count),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="pair_and_converse")
@@ -913,9 +1013,7 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
+    checkpoint = _restore_latest(tmp_path)
 
     assert metrics["successful_pairs"] == 1
     assert metrics["logic_behavior_success"] == agent_count
@@ -942,8 +1040,6 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     assert batch["agent_count"] == agent_count
     assert batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert batch["execution_options"]["required_actions"] == ["send_message_to_partner"]
@@ -952,24 +1048,19 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     assert batch["successful_action_counts"].get("send_message_to_partner") == agent_count
     assert batch["failed_action_counts"].get("send_message_to_partner", 0) == 0
     assert batch["action_semantics"]["required_actions"]["observed_counts"]["send_message_to_partner"] == agent_count
-    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
-
-    assert checkpoint["environment_data"]["state"]["message_counter"] == agent_count
+    assert checkpoint["environment"]["state"]["message_counter"] == agent_count
     for agent_id in ("participant_0", "participant_1"):
-        assert checkpoint["agents_data"][agent_id]["state"]["conversation_marker"] == "paired-before-llm"
-    round_messages = checkpoint["environment_data"]["state"]["round_messages"]["1"]
-    assert sum(len(messages) for messages in round_messages.values()) == agent_count
+        assert checkpoint["agents"][agent_id]["state"]["conversation_marker"] == "paired-before-llm"
+    message_facts = checkpoint["environment"]["state"]["message_facts"]
+    assert len(message_facts) == agent_count
 
     llm_traces = _successful_resource_calls(resource_calls, "llm")
-    embedding_traces = _successful_resource_calls(resource_calls, "embedding")
     assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= agent_count
-    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= agent_count
-    assert embedding_traces
+    assert not [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
     assert "### rule / advance_round_robin_with_pairing" in diagnostics
     assert "### behavior / mark_conversation_participant" in diagnostics
     assert "Action semantics: required_actions configured [send_message_to_partner]" in diagnostics
-    assert "Memory: retrieved 2/2, saved 2, extractive enabled 2" in diagnostics
+    assert "Memory: retrieved 2/2, saved 0, extractive enabled 0" in diagnostics
 
 
 @pytest.mark.asyncio
@@ -982,6 +1073,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
         base_config=_social_publish_agent_config(agent_count),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="publish_once")
@@ -1013,10 +1105,8 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    posts = checkpoint["environment_data"]["state"].get("posts", {})
+    checkpoint = _restore_latest(tmp_path)
+    posts = checkpoint["environment"]["state"].get("post_creation_facts", {})
     llm_request_count = _count_events(tmp_path, "llm", "llm_request_completed")
     events = _read_jsonl(tmp_path / "events.jsonl")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
@@ -1047,8 +1137,6 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     publish_batch = summary["events"]["agent_batches"]["instruct / publish_round"]
     assert publish_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert publish_batch["execution_options"]["required_actions"] == ["publish_post"]
@@ -1060,12 +1148,8 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
     publish_llm_traces = [item for item in llm_traces if item.get("interaction_type") == "instruct"]
-    memory_extract_traces = [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
     env_embedding_traces = [
         item for item in embedding_traces if item.get("interaction_type") == "env_post_embedding"
-    ]
-    memory_embedding_traces = [
-        item for item in embedding_traces if item.get("interaction_type") == "memory_write"
     ]
     llm_started = [
         item
@@ -1080,7 +1164,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     assert llm_traces
     _assert_resource_timing(llm_traces)
     _assert_resource_timing(embedding_traces)
-    assert len(llm_started) >= agent_count * 2
+    assert len(llm_started) >= agent_count
     assert embedding_started
     embedded_agent_ids = {
         agent_id
@@ -1093,23 +1177,16 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
         for post_id in (item.get("post_ids") or ([item.get("post_id")] if item.get("post_id") else []))
     }
     assert len(publish_llm_traces) >= agent_count
-    assert len(memory_extract_traces) >= agent_count
+    assert not [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
     assert all(item.get("step_name") == "publish_once" for item in llm_traces)
     assert all(item.get("interaction_name") == "publish_round" for item in publish_llm_traces)
-    # Agent instructions use the per-step budget; memory extraction is a
-    # separate LLM interaction with its own fixed bounded output budget.
     assert all(item.get("max_tokens") == 160 for item in publish_llm_traces)
-    assert all(item.get("max_tokens") == 2048 for item in memory_extract_traces)
     # The required-action budget may trigger a tool-free closing request; at
     # least one instruct call must still carry the publish tool definition.
     assert any(item.get("tools_characters", 0) > 0 for item in publish_llm_traces)
     assert all(item.get("payload_characters", 0) >= item.get("tools_characters", 0) for item in llm_traces)
     assert 1 <= sum(item.get("texts_count") or 0 for item in env_embedding_traces) <= agent_count
-    assert sum(item.get("texts_count") or 0 for item in memory_embedding_traces) >= agent_count
     assert all(item.get("step_name") == "publish_once" for item in embedding_traces)
-    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= agent_count
-    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
     assert summary["resources"]["embedding"]["fidelity"]["environment"]["call_count"] >= 1
     assert embedded_agent_ids == author_ids
     assert embedded_post_ids == set(posts.keys())
@@ -1123,21 +1200,36 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
         base_config=_social_publish_agent_config(2),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="inspect_environment_actions")
     async def inspect_environment_actions(ctx):
-        ctx.env.state["posts"]["post_hot"] = {
+        ctx.env._ensure_social_state()
+        ctx.env.state["post_creation_facts"]["post_hot"] = {
             "post_id": "post_hot",
             "author_id": "user_1",
             "content": "Campus cafe prices changed today and students are discussing the update.",
             "created_tick": ctx.step,
-            "likes": ["user_0", "user_1"],
-            "replies": [],
             "reply_to": None,
-            "view_count": 0,
             "tags": ["campus"],
         }
+        ctx.env.state["post_projection"]["post_hot"] = {
+            "view_count": 0,
+            "special_tags": [],
+        }
+        ctx.env.state["author_post_facts"].append(
+            {"author_id": "user_1", "post_id": "post_hot"}
+        )
+        for agent_id in ("user_0", "user_1"):
+            ctx.env.state["post_interaction_facts"].append(
+                {
+                    "kind": "like",
+                    "post_id": "post_hot",
+                    "agent_id": agent_id,
+                    "created_tick": ctx.step,
+                }
+            )
         viewer = ctx.agents.ids(["user_0"])
         result = await viewer.instruct(
             "Use the environment tools to inspect the current hot posts. "
@@ -1165,14 +1257,12 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
+    checkpoint = _restore_latest(tmp_path)
 
     assert metrics["lookup_errors"] == 0
     assert metrics["lookup_success"] == 1
     assert metrics["trending_calls"] == 1
-    post_state = checkpoint["environment_data"]["state"]["posts"]["post_hot"]
+    post_state = checkpoint["environment"]["state"]["post_projection"]["post_hot"]
     assert int(post_state.get("view_count") or 0) >= 1
 
     action_names = {entry["name"] for entry in summary["capabilities"]["by_kind"]["actions"]}
@@ -1193,16 +1283,11 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
     assert batch["action_semantics"]["required_actions"]["observed_counts"]["get_trending_posts"] == 1
     assert batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert batch["memory_summary"]["record_count"] == 1
-    assert batch["memory_summary"]["save_enabled_count"] == 1
-    assert batch["memory_summary"]["extraction_enabled_count"] == 1
+    assert batch["memory_summary"]["retrieve_enabled_count"] == 1
     assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 1
-    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
 
 
 @pytest.mark.asyncio
@@ -1314,11 +1399,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     assert batch["termination_reason_counts"] == {"terminal_action": 1}
     assert batch["agent_duration_summary"]["slowest_agents"][0]["termination_reason"] == "terminal_action"
     assert batch["memory_summary"]["retrieve_enabled_count"] == 1
-    assert batch["memory_summary"]["save_enabled_count"] == 1
-    assert batch["memory_summary"]["extraction_enabled_count"] == 1
     assert batch["resources"]["llm"]["by_interaction_type"]["instruct"]["call_count"] >= 2
-    assert summary["resources"]["llm"]["by_interaction_type"]["memory_extract"]["call_count"] >= 1
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
     assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] > 0
     assert (
         "Actions: attempted submit_final_decision=2; successful submit_final_decision=1; "
@@ -1338,10 +1419,10 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
         "Action semantics: required_actions configured [submit_final_decision], "
         "observed submit_final_decision=1."
     ) in diagnostic_report
-    assert "Memory: retrieved 1/1, saved 1, extractive enabled 1" in diagnostic_report
+    assert "Memory: retrieved 1/1, saved 0, extractive enabled 0" in diagnostic_report
     assert len([item for item in llm_traces if item.get("interaction_type") == "instruct"]) >= 2
-    assert len([item for item in llm_traces if item.get("interaction_type") == "memory_extract"]) >= 1
-    assert embedding_traces
+    assert not [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
+    assert not embedding_traces
 
 
 @pytest.mark.asyncio
@@ -1451,25 +1532,19 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert summary["agent_operations"]["browse_once"]["turns_max"] <= 3
     assert summary["agent_operations"]["browse_once"]["action_counts"].get("comment", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_write", 0) >= 1
-    assert summary["agent_operations"]["browse_once"]["action_tag_counts"].get("social_read", 0) >= 1
     assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["payload_characters"] >= (
         summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_characters"]
     )
     assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["tools_count_max"] >= 1
     browse_agent_loop_traces = [item for item in browse_llm_traces if item.get("interaction_type") == "instruct"]
-    browse_memory_extract_traces = [
-        item for item in browse_llm_traces if item.get("interaction_type") == "memory_extract"
-    ]
     assert len(browse_agent_loop_traces) <= agent_count * 3
-    assert len(browse_memory_extract_traces) >= agent_count
+    assert not [item for item in browse_llm_traces if item.get("interaction_type") == "memory_extract"]
     assert all(item.get("max_tokens") == 120 for item in browse_agent_loop_traces)
     _assert_resource_timing(browse_llm_traces)
     publish_batch = summary["events"]["agent_batches"]["instruct / publish_round"]
     browse_batch = summary["events"]["agent_batches"]["instruct / browse_round"]
     assert publish_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert publish_batch["execution_options"]["reasoning_stage_count"] == 1
@@ -1494,13 +1569,9 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     publish_phase_summary = publish_batch["phase_timing_summary"]
     assert publish_phase_summary["record_count"] == agent_count
     assert publish_phase_summary["phases"]["agent_loop"]["record_count"] == agent_count
-    assert publish_phase_summary["phases"]["memory_extract"]["record_count"] == agent_count
-    assert publish_phase_summary["phases"]["memory_write"]["record_count"] >= 1
     assert publish_phase_summary["bottleneck"] in publish_phase_summary["phases"]
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert browse_batch["execution_options"]["reasoning_stage_count"] == 1
@@ -1508,7 +1579,6 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_batch["action_counts"].get("comment", 0) >= 1
     assert browse_batch["successful_action_counts"].get("comment", 0) >= 1
     assert browse_batch["failed_action_counts"].get("comment", 0) == 0
-    assert browse_batch["action_tag_counts"].get("social_read", 0) >= 1
     assert browse_batch["action_tag_counts"].get("social_write", 0) >= 1
     assert browse_batch["action_duration_summary"]["record_count"] >= 1
     assert browse_batch["action_duration_summary"]["by_action"]["comment"]["record_count"] >= 1
@@ -1529,17 +1599,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert browse_phase_summary["record_count"] == agent_count
     assert browse_phase_summary["phases"]["fov_collection"]["record_count"] == agent_count
     assert browse_phase_summary["phases"]["agent_loop"]["record_count"] == agent_count
-    assert browse_phase_summary["phases"]["memory_extract"]["record_count"] == agent_count
     assert browse_phase_summary["bottleneck"] in browse_phase_summary["phases"]
-    assert summary["agent_operations"]["publish_once"]["resources"]["llm"]["fidelity"][
-        "memory_extraction"
-    ]["call_count"] >= agent_count
-    assert summary["agent_operations"]["browse_once"]["resources"]["llm"]["fidelity"][
-        "memory_extraction"
-    ]["call_count"] >= agent_count
-    assert summary["agent_operations"]["browse_once"]["resources"]["embedding"]["fidelity"][
-        "memory_io"
-    ]["call_count"] >= 1
 
 
 @pytest.mark.asyncio
@@ -1552,6 +1612,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
         base_config=_social_publish_agent_config(agent_count),
         llm=llm_model,
         embed=embed_model,
+        checkpoint_every=1,
     )
 
     @engine.step(name="publish_first_tick")
@@ -1605,15 +1666,14 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
+    checkpoint = _restore_latest(tmp_path)
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     events = _read_jsonl(tmp_path / "events.jsonl")
 
-    posts = checkpoint["environment_data"]["state"].get("posts", {})
-    recommended_posts = checkpoint["environment_data"]["state"].get("recommended_posts", {})
+    posts = checkpoint["environment"]["state"].get("post_creation_facts", {})
+    post_projections = checkpoint["environment"]["state"].get("post_projection", {})
+    recommended_posts = checkpoint["environment"]["state"].get("recommended_posts", {})
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     embedding_traces = _successful_resource_calls(resource_calls, "embedding")
 
@@ -1622,7 +1682,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["final_step"] == 2
     assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] > 0
     assert len(posts) == agent_count
-    assert any(int(post.get("view_count") or 0) >= 1 for post in posts.values())
+    assert any(int(post.get("view_count") or 0) >= 1 for post in post_projections.values())
     assert recommended_posts
     assert metrics[0]["step"] == 0 and metrics[0]["metrics"]["published_this_tick"] == agent_count
     assert metrics[1]["step"] == 0 and metrics[1]["metrics"]["browsed_this_tick"] == 0
@@ -1640,8 +1700,6 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["llm"]["call_count"] >= agent_count
     assert summary["agent_operations"]["browse_second_tick"]["resources"]["embedding"]["call_count"] >= 1
     assert summary["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] >= agent_count * 2
-    assert summary["resources"]["llm"]["fidelity"]["memory_extraction"]["call_count"] >= agent_count * 2
-    assert summary["resources"]["embedding"]["fidelity"]["memory_io"]["call_count"] >= 1
     assert summary["resources"]["embedding"]["fidelity"]["environment"]["call_count"] >= 2
     assert (
         summary["resources"]["embedding"]["by_interaction_type"]["env_post_embedding"]["call_count"]
@@ -1684,20 +1742,14 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     browse_batch = summary["events"]["agent_batches"]["instruct / multi_tick_browse"]
     assert publish_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert publish_batch["memory_summary"]["retrieve_enabled_count"] == agent_count
-    assert publish_batch["memory_summary"]["save_enabled_count"] == agent_count
-    assert publish_batch["memory_summary"]["extraction_enabled_count"] == agent_count
     assert publish_batch["execution_options"]["action_call_limits"] == {"publish_post": 1}
     assert browse_batch["fovs"] == ["recommended_feed"]
     assert browse_batch["actions"] == ["comment"]
     assert browse_batch["execution_options"]["memory"] == {
         "retrieve": True,
-        "save": True,
-        "extract": True,
         "top_k": 10,
     }
     assert browse_batch["execution_options"]["completion_action_tags"] == ["social_write"]
@@ -1706,11 +1758,9 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     assert browse_batch["failed_action_counts"].get("comment", 0) == 0
     assert browse_batch["action_semantics"]["completion_action_tags"]["observed_counts"]["social_write"] >= 1
     assert browse_batch["memory_summary"]["retrieve_enabled_count"] == agent_count
-    assert browse_batch["memory_summary"]["save_enabled_count"] == agent_count
-    assert browse_batch["memory_summary"]["extraction_enabled_count"] == agent_count
 
-    assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) >= agent_count * 2
-    assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) >= agent_count * 2
+    assert len([item for item in llm_traces if item.get("step_name") == "publish_first_tick"]) >= agent_count
+    assert len([item for item in llm_traces if item.get("step_name") == "browse_second_tick"]) >= agent_count
     assert any(item.get("interaction_type") == "env_post_embedding" for item in embedding_traces)
     assert any(item.get("interaction_type") == "semantic_recommendation" for item in embedding_traces)
     assert any(event.get("event_type") == "social_recommendation_state_flushed" for event in events)

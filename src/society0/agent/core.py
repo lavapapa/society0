@@ -10,7 +10,7 @@ v3.0 新增功能：
 - 支持基于 schema 的权限控制
 """
 
-from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable
+from typing import Dict, Any, List, Optional, TYPE_CHECKING, Callable, Awaitable, Union
 import logging
 import copy
 import asyncio
@@ -19,7 +19,7 @@ import threading
 import time
 
 # Import proxy system for state management
-from ..state_proxy import DictProxy, AccessContext
+from ..state_proxy import DictProxy, ListProxy, AccessContext
 from ..async_utils import invoke_maybe_async
 from ..logging import AgentEvent, LogField, summarize_text
 from .memory_extraction import (
@@ -261,21 +261,25 @@ class Agent:
         return self._world.create_agent_state_proxy(self._id, "properties")
 
     @property
-    def reminders(self) -> List[str]:
-        """
-        获取Agent提醒列表
+    def reminders(self) -> Union[ListProxy, List[str]]:
+        """返回 Tick 临时提醒队列的受控代理。"""
 
-        注意：目前返回原始列表，未来可能需要代理化
-        """
-        return self._world.agents_data[self._id]["reminders"]
+        creator = getattr(self._world, "create_agent_state_proxy", None)
+        if creator is None:
+            # 轻量单元测试会注入只读 FakeWorld；生产 World 始终提供代理工厂。
+            return self._world.agents_data[self._id]["reminders"]
+        proxy = creator(self._id, "reminders")
+        if not isinstance(proxy, ListProxy):
+            raise TypeError("Agent reminders must be a list")
+        return proxy
 
     def add_reminder(self, reminder: str):
         """添加提醒"""
-        self._world.agents_data[self._id]["reminders"].append(reminder)
+        self.reminders.append(reminder)
 
     def clear_reminders(self):
         """清空提醒"""
-        self._world.agents_data[self._id]["reminders"].clear()
+        self.reminders.clear()
 
     def get_raw_data(self) -> Dict[str, Any]:
         """
@@ -284,7 +288,7 @@ class Agent:
         Returns:
             Agent的原始数据字典
         """
-        return self._world.agents_data[self._id]
+        return copy.deepcopy(self._world.agents_data[self._id])
 
     # =========================================================================
     # v3.0: 新增方法 - 权限控制和可见性过滤
@@ -320,7 +324,13 @@ class Agent:
             event_recorder=self._world._create_event_recorder(),
             context_provider=self._world._create_context_provider(),
             path=("agents", self._id, "state"),
-            access_context=access_context
+            access_context=access_context,
+            # Context-restricted Agent views must use the same journal and
+            # lease as the ordinary ``Agent.state`` proxy.  Otherwise an
+            # action/behavior can mutate canonical state without entering the
+            # v4 delta, or keep writing after the Tick has been sealed.
+            persistence_journal=self._world._state_delta_journal,
+            lease=self._world._persistence_proxy_lease,
         )
 
     def get_llm_visible_state(self) -> Dict[str, Any]:
@@ -841,6 +851,9 @@ class LLMAgent(Agent):
                         fire_and_forget=False,
                         trace={
                             "step": int(payload.get("timestamp", timestamp)),
+                            "step_name": getattr(
+                                self._world, "_current_code_step_name", None
+                            ),
                             "interaction_type": "memory_write",
                             "interaction_name": interaction_name,
                             "thread_id": thread_id,
@@ -1005,6 +1018,9 @@ class LLMAgent(Agent):
                 fire_and_forget=False,
                 trace={
                     "step": timestamp,
+                    "step_name": getattr(
+                        self._world, "_current_code_step_name", None
+                    ),
                     "interaction_type": "memory_write",
                     "interaction_name": interaction_name,
                     "thread_id": thread_id,

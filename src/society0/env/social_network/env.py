@@ -8,6 +8,7 @@ v3.0 更新：
 """
 from __future__ import annotations
 from typing import List, Dict, Any, TYPE_CHECKING, Optional
+from collections.abc import Mapping
 import uuid
 import math
 import time
@@ -25,8 +26,6 @@ from .models import (
     SocialNetworkConfig,
     Post,
     Reply,
-    Vote,
-    LikeEvent,
     NetworkDistributionType,
     CVTargetedParams,
 )
@@ -35,6 +34,8 @@ if TYPE_CHECKING:
     from ...core_data import World
 
 logger = logging.getLogger(__name__)
+
+_POST_OPEN_VISIBLE_UNTIL = 2**63 - 1
 
 
 def _mapping_like(value: Any) -> bool:
@@ -64,8 +65,69 @@ _RECOMMENDATION_TRACE_SCORE_LIMIT = 20
 SOCIAL_NETWORK_STATE_SCHEMA = {
     "type": "object",
     "title": "SocialNetworkEnvExtraState",
-    "description": "环境的额外声明状态（不含内置核心状态，如 posts 等）。",
-    "properties": {},
+    "description": "社交网络的声明状态；事实、投影与运行时缓存分层保存。",
+    "properties": {
+        "post_creation_facts": {
+            "type": "object",
+            "additionalProperties": {"type": "object"},
+            "persistence": {"kind": "append_only_map"},
+            "description": "不可变帖子创建事实。",
+        },
+        "post_interaction_facts": {
+            "type": "array",
+            "items": {"type": "object"},
+            "persistence": {"kind": "append_only_list"},
+            "description": "点赞、评论、投票等不可变互动事实。",
+        },
+        "post_projection": {
+            "type": "object",
+            "additionalProperties": {"type": "object"},
+            "persistence": {"kind": "replaceable", "granularity": "entry"},
+            "description": "每个帖子当前计数与向量元数据投影。",
+        },
+        "author_post_facts": {
+            "type": "array",
+            "items": {"type": "object"},
+            "persistence": {"kind": "append_only_list"},
+            "description": "作者到帖子关系事实。",
+        },
+        "post_counter": {
+            "type": "integer",
+            "persistence": {"kind": "replaceable"},
+            "default": 0,
+            "description": "帖子 ID 生成计数器。",
+        },
+        "notification_facts": {
+            "type": "array",
+            "items": {"type": "object"},
+            "persistence": {"kind": "append_only_list"},
+            "description": "不可变通知事实。",
+        },
+        "notification_state": {
+            "type": "object",
+            "additionalProperties": {"type": "object"},
+            "persistence": {"kind": "replaceable", "granularity": "entry"},
+            "description": "通知 consumed/read 等当前投影。",
+        },
+        "notification_counter": {
+            "type": "integer",
+            "persistence": {"kind": "replaceable"},
+            "default": 0,
+            "description": "通知 ID 生成计数器。",
+        },
+        "recommended_posts": {
+            "type": "object",
+            "additionalProperties": {"type": "array", "items": {"type": "string"}},
+            "persistence": {"kind": "replaceable", "granularity": "entry"},
+            "description": "按 Agent 保存的推荐结果投影。",
+        },
+        "trending_post_ids": {
+            "type": "array",
+            "items": {"type": "string"},
+            "persistence": {"kind": "transient"},
+            "description": "可由帖子事实重算的热门缓存。",
+        },
+    },
     "additionalProperties": False,
 }
 
@@ -205,24 +267,44 @@ SOCIAL_NETWORK_CONFIG_SCHEMA = {
     },
     builtin_state_fields=[
         {
-            "name": "posts",
+            "name": "post_creation_facts",
             "type": "Dict[str, Dict[str, Any]]",
-            "description": "社交网络中的帖子字典，键为 post_id，值为帖子详情（内容、作者、互动数据等）。",
+            "description": "不可变帖子创建事实。",
         },
         {
-            "name": "author_to_post_ids",
+            "name": "post_interaction_facts",
+            "type": "List[Dict[str, Any]]",
+            "description": "点赞、评论、投票等不可变互动事实。",
+        },
+        {
+            "name": "post_projection",
+            "type": "Dict[str, Dict[str, Any]]",
+            "description": "帖子当前计数与向量元数据投影。",
+        },
+        {
+            "name": "author_post_facts",
+            "type": "List[Dict[str, Any]]",
+            "description": "作者到帖子关系事实。",
+        },
+        {
+            "name": "notification_facts",
+            "type": "List[Dict[str, Any]]",
+            "description": "不可变通知事实。",
+        },
+        {
+            "name": "notification_state",
+            "type": "Dict[str, Dict[str, Any]]",
+            "description": "通知消费状态投影。",
+        },
+        {
+            "name": "recommended_posts",
             "type": "Dict[str, List[str]]",
-            "description": "按作者聚合的帖子 ID 列表，便于快速查询某个智能体发布的内容。",
-        },
-        {
-            "name": "post_counter",
-            "type": "int",
-            "description": "累积的帖子计数器，用于生成新的 post_id。",
+            "description": "按 Agent 保存的推荐结果投影。",
         },
         {
             "name": "trending_post_ids",
             "type": "List[str]",
-            "description": "当前识别出的热门帖子 ID 列表，由环境规则动态计算。",
+            "description": "运行时热门缓存。",
         },
     ],
     display_name="Social Network",
@@ -255,12 +337,7 @@ class SocialNetworkEnv(Environment):
         # SimEngine 会把 environment.yaml 的 config 放在 world.environment_data["config"]。
         # 之前错误地读取 world.environment_data["state"]["config"] 会导致始终回退到默认配置，
         # 且 environment.yaml 的推荐参数完全不生效。
-        raw_config = world.environment_data.get("config")
-        if raw_config is None:
-            # 兼容旧数据格式（若有）
-            raw_config = world.environment_data.get("state", {}).get("config", {})
-        if raw_config is None:
-            raw_config = {}
+        raw_config = world.environment_data.get("config") or {}
 
         # 使用pydantic进行严格的配置解析和验证
         if isinstance(raw_config, SocialNetworkConfig):
@@ -300,23 +377,180 @@ class SocialNetworkEnv(Environment):
         self._pending_impressions.clear()
         self._pending_recommended_posts.clear()
 
+    # --- v4 canonical state helpers ---
+
+    @staticmethod
+    def _plain(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {key: SocialNetworkEnv._plain(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [SocialNetworkEnv._plain(item) for item in value]
+        return value
+
+    def _ensure_social_state(self) -> None:
+        """建立 v4 分层状态容器；每个容器都有明确声明。"""
+        state = self._state_store()
+        defaults = {
+            "post_creation_facts": {},
+            "post_interaction_facts": [],
+            "post_projection": {},
+            "author_post_facts": [],
+            "post_counter": 0,
+            "notification_facts": [],
+            "notification_state": {},
+            "notification_counter": 0,
+            "recommended_posts": {},
+            "trending_post_ids": [],
+        }
+        for key, value in defaults.items():
+            if key not in state:
+                state[key] = value
+
+    def _state_store(self):
+        """返回当前 Tick 的 canonical proxy，或初始化阶段的原始状态。"""
+        journal = getattr(self._world, "_state_delta_journal", None)
+        active_tick = getattr(journal, "_active_step", None) is not None
+        return self.state if active_tick else self._world.environment_data.setdefault("state", {})
+
+    def _posts_view(self) -> Dict[str, Dict[str, Any]]:
+        """由不可变帖子/互动事实和有界投影构建只读业务视图。"""
+        self._ensure_social_state()
+        facts = self.state.get("post_creation_facts", {})
+        projections = self.state.get("post_projection", {})
+        result: Dict[str, Dict[str, Any]] = {}
+        for fallback_id, raw_fact in facts.items():
+            fact = self._plain(raw_fact)
+            if not isinstance(fact, dict):
+                continue
+            post_id = str(fact.get("post_id") or fallback_id)
+            post = dict(fact)
+            post.setdefault("tags", [])
+            post.setdefault("special_tags", [])
+            post.setdefault("likes", [])
+            post.setdefault("like_events", [])
+            post.setdefault("replies", [])
+            post.setdefault("votes", [])
+            post.setdefault("view_count", 0)
+            post.setdefault("embedding_ref", None)
+            post.setdefault("embedding_model", None)
+            post.setdefault("embedding_dimensions", None)
+            post.setdefault("embedding_indexed", False)
+            projection = projections.get(post_id, {}) if isinstance(projections, Mapping) else {}
+            if isinstance(projection, Mapping):
+                post.update(self._plain(projection))
+            result[post_id] = post
+
+        for raw_event in self.state.get("post_interaction_facts", []) or []:
+            event = self._plain(raw_event)
+            if not isinstance(event, Mapping):
+                continue
+            post_id = str(event.get("post_id") or event.get("original_post_id") or "")
+            post = result.get(post_id)
+            if post is None:
+                continue
+            kind = event.get("kind")
+            if kind == "like":
+                agent_id = event.get("agent_id")
+                if agent_id not in post["likes"]:
+                    post["likes"].append(agent_id)
+                post["like_events"].append(
+                    {"agent_id": agent_id, "created_tick": event.get("created_tick", 0)}
+                )
+            elif kind == "comment":
+                reply = event.get("reply") or {
+                    key: event.get(key)
+                    for key in ("reply_id", "author_id", "original_post_id", "content", "created_tick")
+                    if key in event
+                }
+                post["replies"].append(reply)
+            elif kind == "vote":
+                post["votes"].append(
+                    {
+                        key: event.get(key)
+                        for key in ("vote_id", "voter_id", "original_post_id", "vote", "created_tick")
+                        if key in event
+                    }
+                )
+        return result
+
+    def _append_post_creation(self, post: Mapping[str, Any]) -> None:
+        self._ensure_social_state()
+        post_id = str(post.get("post_id"))
+        fact = {
+            key: self._plain(post.get(key))
+            for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
+            if key in post
+        }
+        self.state["post_creation_facts"][post_id] = fact
+        self.state["post_projection"][post_id] = {
+            "view_count": int(post.get("view_count", 0) or 0),
+            "embedding_ref": post.get("embedding_ref"),
+            "embedding_model": post.get("embedding_model"),
+            "embedding_dimensions": post.get("embedding_dimensions"),
+            "embedding_indexed": bool(post.get("embedding_indexed", False)),
+            "special_tags": list(post.get("special_tags", []) or []),
+        }
+        self.state["author_post_facts"].append(
+            {"author_id": str(post.get("author_id") or ""), "post_id": post_id}
+        )
+
+    def _append_post_interaction(self, event: Mapping[str, Any]) -> None:
+        self._ensure_social_state()
+        self.state["post_interaction_facts"].append(self._plain(dict(event)))
+
+    def _set_post_projection(self, post_id: str, **updates: Any) -> None:
+        self._ensure_social_state()
+        projections = self.state["post_projection"]
+        current = self._plain(projections.get(post_id, {}))
+        if not isinstance(current, dict):
+            current = {}
+        current.update({key: self._plain(value) for key, value in updates.items()})
+        projections[post_id] = current
+
+    def _author_post_index(self) -> Dict[str, List[str]]:
+        index: Dict[str, List[str]] = {}
+        for raw_fact in self.state.get("author_post_facts", []) or []:
+            fact = self._plain(raw_fact)
+            if not isinstance(fact, Mapping):
+                continue
+            index.setdefault(str(fact.get("author_id") or ""), []).append(str(fact.get("post_id")))
+        return index
+
+    def _notification_view(self) -> Dict[str, Dict[str, Any]]:
+        self._ensure_social_state()
+        states = self.state.get("notification_state", {})
+        result: Dict[str, Dict[str, Any]] = {}
+        for raw_fact in self.state.get("notification_facts", []) or []:
+            fact = self._plain(raw_fact)
+            if not isinstance(fact, Mapping):
+                continue
+            item = dict(fact)
+            item.update(self._plain(states.get(item.get("id"), {})) if isinstance(states, Mapping) else {})
+            item.setdefault("consumed", False)
+            target = str(item.get("target_agent_id") or "")
+            result.setdefault(target, {}).setdefault("notifications", []).append(item)
+        return result
+
     async def after_tick(self, ctx: EnvironmentTickContext) -> None:
         """Flush deferred recommendation side effects after all code steps succeed."""
         await self._flush_pending_post_embeddings()
         if not self._pending_impressions and not self._pending_recommended_posts:
             return
-        raw_state = self._world.environment_data.setdefault("state", {})
-        raw_posts = raw_state.get("posts", {})
-        if not _mapping_like(raw_posts):
+        self._ensure_social_state()
+        posts = self._posts_view()
+        if not isinstance(posts, Mapping):
             self._pending_impressions.clear()
             self._pending_recommended_posts.clear()
             return
         applied_impressions: Dict[str, int] = {}
         for post_id, delta in list(self._pending_impressions.items()):
-            if delta <= 0 or post_id not in raw_posts:
+            if delta <= 0 or post_id not in posts:
                 continue
-            post_state = raw_posts[post_id]
-            post_state["view_count"] = int(post_state.get("view_count", 0) or 0) + delta
+            post_state = posts[post_id]
+            self._set_post_projection(
+                post_id,
+                view_count=int(post_state.get("view_count", 0) or 0) + delta,
+            )
             applied_impressions[post_id] = delta
         recommended_updates = {
             agent_id: list(post_ids)
@@ -325,7 +559,7 @@ class SocialNetworkEnv(Environment):
         if applied_impressions or recommended_updates:
             state_patches: List[Dict[str, Any]] = []
             if recommended_updates:
-                recommended_state = raw_state.setdefault("recommended_posts", {})
+                recommended_state = self.state.setdefault("recommended_posts", {})
                 for agent_id, post_ids in recommended_updates.items():
                     recommended_state[agent_id] = list(post_ids)
                     state_patches.append(
@@ -338,12 +572,12 @@ class SocialNetworkEnv(Environment):
                     )
             for post_id, delta in applied_impressions.items():
                 state_patches.append(
-                    {
-                        "target_type": "environment",
-                        "operation": "increment",
-                        "path": ["posts", post_id, "view_count"],
-                        "value": delta,
-                    }
+                        {
+                            "target_type": "environment",
+                            "operation": "increment",
+                            "path": ["post_projection", post_id, "view_count"],
+                            "value": delta,
+                        }
                 )
             if hasattr(self._world, "_bump_state_version"):
                 self._world._bump_state_version()
@@ -383,7 +617,7 @@ class SocialNetworkEnv(Environment):
 
     def _derive_post_counter(self) -> int:
         """Derive the numeric post counter from existing post ids."""
-        posts = self.state.get("posts", {})
+        posts = self.state.get("post_creation_facts", {})
         max_counter = 0
         if not _mapping_like(posts):
             return max_counter
@@ -397,23 +631,8 @@ class SocialNetworkEnv(Environment):
         return max_counter
 
     def _rebuild_author_post_index_if_empty(self) -> None:
-        """Build author_to_post_ids from preloaded posts when no index is present."""
-        author_index = self.state.get("author_to_post_ids", {})
-        if _mapping_like(author_index) and len(author_index) > 0:
-            return
-        posts = self.state.get("posts", {})
-        if not _mapping_like(posts):
-            return
-        rebuilt: Dict[str, List[str]] = {}
-        for post_id, post in posts.items():
-            if not _mapping_like(post):
-                continue
-            author_id = post.get("author_id")
-            if not author_id:
-                continue
-            rebuilt.setdefault(str(author_id), []).append(str(post.get("post_id", post_id)))
-        for author_id, post_ids in rebuilt.items():
-            self.state["author_to_post_ids"][author_id] = post_ids
+        """保留显式事实索引；读取时通过 ``_author_post_index`` 重建。"""
+        self._ensure_social_state()
 
     # --- 1. 初始化 (由框架调用) ---
 
@@ -432,13 +651,10 @@ class SocialNetworkEnv(Environment):
 
         # 2. 初始化社交媒体状态（如果启用）
         if self._config.social_media.enabled:
-            if "posts" not in self.state or not _mapping_like(self.state.get("posts")):
-                self.state["posts"] = {}
-            if "author_to_post_ids" not in self.state or not _mapping_like(self.state.get("author_to_post_ids")):
-                self.state["author_to_post_ids"] = {}
-            self._rebuild_author_post_index_if_empty()
-            if "post_counter" not in self.state:
-                self.state["post_counter"] = self._derive_post_counter()
+            state = self._state_store()
+            self._ensure_social_state()
+            if not state.get("post_counter"):
+                state["post_counter"] = self._derive_post_counter()
             self._ensure_notifications_state()
             self._ensure_recommended_posts_state()
 
@@ -557,15 +773,8 @@ class SocialNetworkEnv(Environment):
         }
         context.log_event("publish_post", source=agent.id, data=event_data)
 
-        # 直接修改状态（通过代理机制）
-        self.state["posts"][new_post_id] = new_post.model_dump()
-
-        # 更新作者帖子索引
-        if "author_to_post_ids" not in self.state:
-            self.state["author_to_post_ids"] = {}
-        if agent.id not in self.state["author_to_post_ids"]:
-            self.state["author_to_post_ids"][agent.id] = []
-        self.state["author_to_post_ids"][agent.id].append(new_post_id)
+        # 创建事实、作者索引事实和当前投影分别写入各自的 canonical 容器。
+        self._append_post_creation(new_post.model_dump())
 
         # 更新计数器
         self.state["post_counter"] = post_counter + 1
@@ -647,6 +856,130 @@ class SocialNetworkEnv(Environment):
             logger.warning(f"Failed to get_or_create_collection for posts: {exc}")
             return None
 
+    def _post_memory_view(self) -> Dict[str, Any]:
+        """读取 World 当前的 Tick/分支视图，供帖子向量读写共用。"""
+        world = self._world
+        branch_id = str(getattr(world, "_memory_branch_id", "main") or "main")
+        lineage = []
+        for source_branch, fork_step in getattr(world, "_memory_branch_lineage", []) or []:
+            lineage.append((str(source_branch), int(fork_step)))
+        target_step = int(getattr(world, "step", 0) or 0)
+        active_epoch = getattr(world, "_active_memory_epoch_id", None)
+        active_epoch = str(active_epoch) if active_epoch else None
+        committed = getattr(world, "_committed_memory_epoch_ids", None)
+        committed_epochs = None if committed is None else {str(epoch) for epoch in committed}
+        source_branch = getattr(world, "_memory_source_branch_id", None)
+        if source_branch is None:
+            source_branch = lineage[0][0] if lineage else branch_id
+        return {
+            "branch_id": branch_id,
+            "branch_lineage": lineage,
+            "source_branch_id": str(source_branch),
+            "target_step": target_step,
+            "active_epoch": active_epoch,
+            "committed_epochs": committed_epochs,
+        }
+
+    def _post_vector_metadata(self, entry: Mapping[str, Any]) -> Dict[str, Any]:
+        """生成帖子向量记录的完整 v4 可见性元数据。"""
+        view = self._post_memory_view()
+        return {
+            "author_id": str(entry.get("author_id") or ""),
+            "tags": ", ".join(list(entry.get("tags") or [])),
+            "created_tick": int(entry.get("created_tick", 0) or 0),
+            "env": "social_network",
+            "post_id": str(entry.get("post_id") or ""),
+            "logical_post_id": str(entry.get("post_id") or ""),
+            "created_step": view["target_step"],
+            "visible_until_step": _POST_OPEN_VISIBLE_UNTIL,
+            "branch_id": view["branch_id"],
+            "source_branch_id": view["source_branch_id"],
+            # Metadata cannot contain None; use a deterministic legacy marker
+            # only for direct non-Tick callers that have no active epoch.
+            "write_epoch_id": view["active_epoch"] or f"legacy:{view['branch_id']}",
+        }
+
+    def _post_vector_where(self) -> Dict[str, Any]:
+        """构造与 Memory 相同的 branch/created/visible Chroma 过滤器。"""
+        view = self._post_memory_view()
+        target_step = view["target_step"]
+
+        def branch_clause(branch_id: str, cutoff: int) -> Dict[str, Any]:
+            return {
+                "$and": [
+                    {"branch_id": {"$eq": branch_id}},
+                    {"created_step": {"$lte": int(cutoff)}},
+                    {"visible_until_step": {"$gt": int(cutoff)}},
+                ]
+            }
+
+        branches = [branch_clause(view["branch_id"], target_step)]
+        for source_branch, fork_step in view["branch_lineage"]:
+            branches.append(branch_clause(source_branch, min(int(fork_step), target_step)))
+        branch_filter = branches[0] if len(branches) == 1 else {"$or": branches}
+        return branch_filter
+
+    @staticmethod
+    def _filter_query_payload(payload: Dict[str, Any], keep: List[int]) -> Dict[str, Any]:
+        filtered = dict(payload)
+        for key in ("ids", "documents", "metadatas", "distances", "embeddings"):
+            values = filtered.get(key)
+            if values is None:
+                continue
+            if isinstance(values, list) and values and isinstance(values[0], list):
+                filtered[key] = [[values[0][index] for index in keep]]
+            elif isinstance(values, list):
+                filtered[key] = [values[index] for index in keep]
+        return filtered
+
+    def _filter_post_query_results(self, payload: Any) -> Any:
+        """按已提交/当前 epoch 过滤并执行分支 shadow。"""
+        if not isinstance(payload, dict):
+            return payload
+        raw_metadatas = payload.get("metadatas")
+        raw_ids = payload.get("ids")
+        if not isinstance(raw_metadatas, list) or not raw_metadatas:
+            # Some lightweight test/fake collections omit metadata entirely.
+            # The server-side where clause still applies; without metadata there
+            # is no safe client-side epoch/shadow decision to make.
+            return payload
+        metadatas = raw_metadatas[0] if isinstance(raw_metadatas[0], list) else raw_metadatas
+        ids = raw_ids[0] if isinstance(raw_ids, list) and raw_ids and isinstance(raw_ids[0], list) else raw_ids or []
+        view = self._post_memory_view()
+        committed = view["committed_epochs"]
+        active = view["active_epoch"]
+        epoch_filter_enabled = committed is not None
+        lineage = view["branch_lineage"]
+        branch_ranks = {view["branch_id"]: 0}
+        branch_ranks.update({source: index + 1 for index, (source, _step) in enumerate(lineage)})
+        chosen: Dict[str, tuple[int, int, int, int]] = {}
+        for index, metadata in enumerate(metadatas):
+            if not isinstance(metadata, Mapping):
+                continue
+            if epoch_filter_enabled:
+                epoch = str(metadata.get("write_epoch_id", ""))
+                if epoch not in (committed or set()) and epoch != active:
+                    continue
+            branch = str(metadata.get("branch_id", ""))
+            if branch not in branch_ranks:
+                continue
+            logical_id = str(
+                metadata.get("logical_post_id")
+                or metadata.get("post_id")
+                or (ids[index] if index < len(ids) else index)
+            )
+            candidate = (
+                branch_ranks[branch],
+                0 if active and str(metadata.get("write_epoch_id", "")) == active else 1,
+                -int(metadata.get("created_step", 0) or 0),
+                index,
+            )
+            previous = chosen.get(logical_id)
+            if previous is None or candidate < previous:
+                chosen[logical_id] = candidate
+        keep = sorted(item[3] for item in chosen.values())
+        return self._filter_query_payload(payload, keep)
+
     def _build_post_text(self, content: str, tags: List[str]) -> str:
         """组合内容和标签用于向量化"""
         if not tags:
@@ -680,7 +1013,7 @@ class SocialNetworkEnv(Environment):
 
     def _recommendation_cache_signature(self) -> tuple:
         """Build a cache key from post-derived recommendation inputs."""
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         post_parts = []
         for post_id, post in posts.items():
             if not _mapping_like(post):
@@ -714,7 +1047,7 @@ class SocialNetworkEnv(Environment):
 
         cfg = self._config.social_media.recommendation
         current_tick = int(getattr(self._world, "step", 0))
-        state_posts = self.state.get("posts", {})
+        state_posts = self._posts_view()
         posts_by_id: Dict[str, Dict[str, Any]] = {}
         for fallback_id, post in state_posts.items():
             if not _mapping_like(post):
@@ -806,37 +1139,27 @@ class SocialNetworkEnv(Environment):
     # --- 通知与摘要工具 ---
 
     def _ensure_notifications_state(self) -> None:
-        """确保通知状态结构存在"""
-        notifications = self.state.get("notifications")
-        if "notifications" not in self.state or not _mapping_like(notifications):
-            self.state["notifications"] = {"user_notifications": {}}
-            notifications = self.state["notifications"]
-        if "user_notifications" not in notifications or not _mapping_like(notifications.get("user_notifications")):
-            self.state["notifications"]["user_notifications"] = {}
+        """确保通知事实和消费投影容器存在。"""
+        self._ensure_social_state()
 
     def _ensure_recommended_posts_state(self) -> None:
         """Ensure per-agent recommendation trace state exists without resetting proxies."""
-        recommended = self.state.get("recommended_posts")
-        if "recommended_posts" not in self.state or not _mapping_like(recommended):
-            self.state["recommended_posts"] = {}
+        self._ensure_social_state()
 
     def _push_notification(self, target_agent_id: str, notification_type: str, data: Dict[str, Any], created_tick: int) -> None:
         """向指定用户推送一条通知（不做去重，消费时聚合）"""
         self._ensure_notifications_state()
-        user_notifs = self.state["notifications"]["user_notifications"]
-        if target_agent_id not in user_notifs or not _mapping_like(user_notifs.get(target_agent_id)):
-            user_notifs[target_agent_id] = {"notifications": []}
-        if "notifications" not in user_notifs[target_agent_id]:
-            user_notifs[target_agent_id]["notifications"] = []
-
+        counter = int(self.state.get("notification_counter", 0) or 0) + 1
+        self.state["notification_counter"] = counter
         notification = {
-            "id": f"notif_{len(user_notifs[target_agent_id]['notifications']) + 1}",
+            "id": f"notif_{counter}",
+            "target_agent_id": target_agent_id,
             "type": notification_type,
             "created_tick": created_tick,
-            "consumed": False,
             "data": data,
         }
-        user_notifs[target_agent_id]["notifications"].append(notification)
+        self.state["notification_facts"].append(notification)
+        self.state["notification_state"][notification["id"]] = {"consumed": False}
 
     @staticmethod
     def _short_content(text: str, limit: int = 80) -> str:
@@ -847,7 +1170,7 @@ class SocialNetworkEnv(Environment):
 
     def _count_reposts(self, post_id: str) -> int:
         """统计被转发次数（通过 reply_to 追踪）"""
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         return sum(1 for p in posts.values() if p.get("reply_to") == post_id)
 
     @staticmethod
@@ -863,8 +1186,8 @@ class SocialNetworkEnv(Environment):
 
     def _get_agent_recent_posts(self, agent_id: str, limit: int = 5) -> List[Dict[str, Any]]:
         """获取指定用户最近的帖子（按时间倒序）"""
-        author_posts = self.state.get("author_to_post_ids", {}).get(agent_id, [])
-        posts = self.state.get("posts", {})
+        author_posts = self._author_post_index().get(agent_id, [])
+        posts = self._posts_view()
         recent = []
         for pid in author_posts[-limit:]:
             if pid in posts:
@@ -875,7 +1198,7 @@ class SocialNetworkEnv(Environment):
     def _post_needs_embedding(self, post_id: str) -> bool:
         """Return whether a post still needs vector indexing."""
         try:
-            existing = self.state.get("posts", {}).get(post_id, {})
+            existing = self._posts_view().get(post_id, {})
             if not _mapping_like(existing):
                 return False
             return not (
@@ -985,14 +1308,14 @@ class SocialNetworkEnv(Environment):
         for entry, embedding in zip(entries, embeddings):
             post_id = str(entry["post_id"])
             try:
-                if "posts" in self.state and post_id in self.state["posts"]:
-                    post_state = self.state["posts"][post_id]
-                    if "embedding" in post_state:
-                        del post_state["embedding"]
-                    post_state["embedding_ref"] = post_id
-                    post_state["embedding_model"] = result.get("model")
-                    post_state["embedding_dimensions"] = result.get("dimensions") or len(embedding)
-                    post_state["embedding_indexed"] = True
+                if post_id in self._posts_view():
+                    self._set_post_projection(
+                        post_id,
+                        embedding_ref=post_id,
+                        embedding_model=result.get("model"),
+                        embedding_dimensions=result.get("dimensions") or len(embedding),
+                        embedding_indexed=True,
+                    )
             except Exception as exc:
                 logger.warning(f"Failed to store embedding metadata in state for post {post_id}: {exc}")
 
@@ -1004,15 +1327,7 @@ class SocialNetworkEnv(Environment):
             collection.upsert(
                 ids=post_ids,
                 embeddings=embeddings,
-                metadatas=[
-                    {
-                        "author_id": str(entry.get("author_id") or ""),
-                        "tags": ", ".join(list(entry.get("tags") or [])),
-                        "created_tick": int(entry.get("created_tick", 0) or 0),
-                        "env": "social_network",
-                    }
-                    for entry in entries
-                ],
+                metadatas=[self._post_vector_metadata(entry) for entry in entries],
                 documents=texts,
             )
             logger.debug("Upserted %s posts into vector store", len(entries))
@@ -1075,8 +1390,10 @@ class SocialNetworkEnv(Environment):
             query_res = collection.query(
                 query_embeddings=[q_emb],
                 n_results=n_results,
-                include=["distances"],
+                include=["distances", "metadatas"],
+                where=self._post_vector_where(),
             )
+            query_res = self._filter_post_query_results(query_res)
         except Exception as exc:
             logger.warning(f"Similarity query failed for agent {agent.id}: {exc}")
             return {}
@@ -1186,9 +1503,9 @@ class SocialNetworkEnv(Environment):
         """获取Agent最近发布的帖子"""
         if limit <= 0:
             return []
-        author_index = self.state.get("author_to_post_ids", {})
+        author_index = self._author_post_index()
         post_ids = author_index.get(agent.id, [])
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
 
         recent_posts: List[Dict[str, Any]] = []
         for pid in reversed(post_ids):
@@ -1202,7 +1519,7 @@ class SocialNetworkEnv(Environment):
         """收集Agent最近的点赞和评论"""
         if limit <= 0:
             return []
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         interactions: List[Dict[str, Any]] = []
         for post in posts.values():
             for like_event in post.get("like_events", []):
@@ -1275,7 +1592,7 @@ class SocialNetworkEnv(Environment):
     def _format_notifications(self, agent: Agent) -> str:
         """将未读通知聚合并格式化输出，消费后标记为已读"""
         self._ensure_notifications_state()
-        user_notifs = self.state["notifications"]["user_notifications"].get(agent.id, {})
+        user_notifs = self._notification_view().get(agent.id, {})
         notifications = user_notifs.get("notifications", [])
         unread = [n for n in notifications if not n.get("consumed")]
 
@@ -1330,7 +1647,7 @@ class SocialNetworkEnv(Environment):
                 if follower_id:
                     followers.append(follower_id)
 
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
 
         def _post_preview(pid: str) -> str:
             post = posts.get(pid, {})
@@ -1401,7 +1718,7 @@ class SocialNetworkEnv(Environment):
 
         # 标记已读
         for notif in unread:
-            notif["consumed"] = True
+            self.state["notification_state"][notif["id"]] = {"consumed": True}
 
         # 如果超过行数上限，补充省略提示
         if len(lines) > max_lines:
@@ -1423,7 +1740,7 @@ class SocialNetworkEnv(Environment):
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
 
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         post = posts.get(post_id)
 
         if not post:
@@ -1463,27 +1780,21 @@ class SocialNetworkEnv(Environment):
 
         context.log_event("like_post", source=agent.id, data={"post_id": post_id})
 
-        # 确保posts字典存在
-        if "posts" not in self.state:
-            self.state["posts"] = {}
-
-        # 确保特定帖子存在
-        if post_id not in self.state["posts"]:
+        # 确保特定帖子仍存在于 canonical 创建事实中。
+        if post_id not in self.state.get("post_creation_facts", {}):
             logger.debug("Post %s disappeared before like mutation", post_id)
             return f"Post {post_id} not found in state"
 
-        # 确保likes字段存在
-        if "likes" not in self.state["posts"][post_id]:
-            self.state["posts"][post_id]["likes"] = []
-        if "like_events" not in self.state["posts"][post_id]:
-            self.state["posts"][post_id]["like_events"] = []
+        self._append_post_interaction(
+            {
+                "kind": "like",
+                "post_id": post_id,
+                "agent_id": agent.id,
+                "created_tick": context.world.step,
+            }
+        )
 
-        # 添加点赞
-        self.state["posts"][post_id]["likes"].append(agent.id)
-        like_event = LikeEvent(agent_id=agent.id, created_tick=context.world.step)
-        self.state["posts"][post_id]["like_events"].append(like_event.model_dump())
-
-        current_likes = len(self.state["posts"][post_id]["likes"])
+        current_likes = len(posts[post_id].get("likes", [])) + 1
         logger.debug("Agent %s liked post %s (total_likes=%s)", agent.id, post_id, current_likes)
 
         if log_ctx:
@@ -1529,7 +1840,7 @@ class SocialNetworkEnv(Environment):
 
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         post = posts.get(post_id)
 
         if not post:
@@ -1544,9 +1855,13 @@ class SocialNetworkEnv(Environment):
             content=content,
             created_tick=context.world.step,
         )
-        if "replies" not in self.state["posts"][post_id]:
-            self.state["posts"][post_id]["replies"] = []
-        self.state["posts"][post_id]["replies"].append(reply.model_dump())
+        self._append_post_interaction(
+            {
+                "kind": "comment",
+                "post_id": post_id,
+                "reply": reply.model_dump(),
+            }
+        )
 
         content_summary = summarize_text(content)
         context.log_event("comment_post", source=agent.id, data={"post_id": post_id, "reply_id": reply_id})
@@ -1589,7 +1904,7 @@ class SocialNetworkEnv(Environment):
     )
     async def repost(self, context: ExecutionContext, post_id: str, commentary: str = "") -> str:
         """转发帖子Action"""
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         original = posts.get(post_id)
         if not original:
             logger.warning(f"Agent {context.caller.id} 尝试转发不存在的帖子 {post_id}")
@@ -1923,7 +2238,7 @@ class SocialNetworkEnv(Environment):
                 if len(other_agents) > 5:
                     agents_list += '...'
 
-                feed_text = f"📭 暂无推荐内容,你可以等待，或者发表你的帖子 "
+                feed_text = "📭 暂无推荐内容,你可以等待，或者发表你的帖子 "
             else:
                 feed_text = "📭 暂无推荐内容"
             self._log_recommendation_trace(
@@ -1963,10 +2278,7 @@ class SocialNetworkEnv(Environment):
 
             likes_count = len(post.get("likes", []))
             replies_count = len(post.get("replies", []))
-            try:
-                view_count = self.state["posts"][post_id].get("view_count", 0)
-            except Exception:
-                view_count = post.get("view_count", 0)
+            view_count = post.get("view_count", 0)
             repost_count = self._count_reposts(post_id)
             reply_to = post.get("reply_to")
 
@@ -2066,7 +2378,7 @@ class SocialNetworkEnv(Environment):
 
     def _record_impression(self, post_id: str) -> None:
         """Record a view for after_tick batch flush."""
-        if post_id and "posts" in self.state and post_id in self.state["posts"]:
+        if post_id and post_id in self._posts_view():
             self._pending_impressions[post_id] = self._pending_impressions.get(post_id, 0) + 1
 
     def _increment_view_count(self, post_id: str) -> None:
@@ -2278,7 +2590,7 @@ class SocialNetworkEnv(Environment):
     )
     async def get_post_details(self, agent, post_id: str) -> str:
         """返回帖子的完整详情（无权限限制，聚合显示）"""
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         post = posts.get(post_id)
         if not post:
             return f"❌ 帖子 {post_id} 不存在"
@@ -2385,7 +2697,7 @@ class SocialNetworkEnv(Environment):
             following_count = len(list(self.graph.successors(agent_id)))
 
         # 如果有帖子数据，计算真实的帖子数量
-        author_posts = self.state.get("author_to_post_ids", {}).get(agent_id, [])
+        author_posts = self._author_post_index().get(agent_id, [])
         posts_count = len(author_posts)
 
         profile_sections.extend([
@@ -2530,7 +2842,7 @@ class SocialNetworkEnv(Environment):
     def update_trending_topics(self, context: ExecutionContext) -> str:
         """更新热门话题的规则（基于真实数据）"""
         # 基于真实帖子计算热门话题，而不是使用模拟数据
-        posts = self.state.get("posts", {})
+        posts = self._posts_view()
         if not posts:
             context.log_event("update_trending_topics", source="environment", data={"trending_ids": []})
             return "No real posts available for trending calculation"
@@ -2740,7 +3052,7 @@ class SocialNetworkEnv(Environment):
         logger.debug("Simple rule executed with message: %s", message)
 
         # 获取当前状态信息
-        posts_count = len(self.state.get("posts", {}))
+        posts_count = len(self._posts_view())
         agents_count = len(self._world.agents_data)
 
         result = {
@@ -2771,7 +3083,7 @@ class SocialNetworkEnv(Environment):
         total_posts = 0
 
         # 遍历所有帖子，查找包含目标hashtag的帖子
-        all_posts = self.state.get("posts", {})
+        all_posts = self._posts_view()
         for post_id, post_data in all_posts.items():
             total_posts += 1
             content = post_data.get("content", "")
@@ -2780,22 +3092,16 @@ class SocialNetworkEnv(Environment):
                 # 根据干预率决定是否标记
                 import random
                 if random.random() < intervention_rate:
-                    # 确保posts字典存在
-                    if "posts" not in self.state:
-                        self.state["posts"] = {}
-
-                    # 确保特定帖子存在
-                    if post_id not in self.state["posts"]:
+                    # 确保特定帖子存在于 canonical 创建事实中。
+                    if post_id not in self.state.get("post_creation_facts", {}):
                         logger.debug("Post %s disappeared before intervention mutation", post_id)
                         continue
 
-                    # 确保special_tags字段存在
-                    if "special_tags" not in self.state["posts"][post_id]:
-                        self.state["posts"][post_id]["special_tags"] = []
-
-                    # 添加特殊标记到special_tags而不是普通tags
-                    if tag_to_apply not in self.state["posts"][post_id]["special_tags"]:
-                        self.state["posts"][post_id]["special_tags"].append(tag_to_apply)
+                    # 特殊标记属于有界当前投影，逐帖子替换。
+                    current_tags = list(all_posts[post_id].get("special_tags", []) or [])
+                    if tag_to_apply not in current_tags:
+                        current_tags.append(tag_to_apply)
+                        self._set_post_projection(post_id, special_tags=current_tags)
                         posts_to_flag.append(post_id)
                         logger.debug("Tagged post %s with special tag %s", post_id, tag_to_apply)
 
