@@ -115,6 +115,28 @@ class PersistenceSchema:
         self._wildcard_rules = tuple(
             rule for path, rule in self.rules.items() if any(part is _WILDCARD for part in path)
         )
+        # 同一批业务写入会反复命中相同的 concrete path。声明本身在编译后
+        # 不再变化，因此可以直接复用解析结果，避免每次字段写入都重新遍历
+        # 全部持久化规则。缓存达到上限时整代清空，空间不会随长期运行增长。
+        self._resolve_cache: dict[tuple[Any, ...], PersistenceRule | None] = {}
+        self._resolve_write_cache: dict[
+            tuple[Any, ...],
+            _WriteResolution | None,
+        ] = {}
+        self._resolution_cache_limit = 32_768
+
+    @staticmethod
+    def _cache_resolution(
+        cache: dict[tuple[Any, ...], Any],
+        key: tuple[Any, ...],
+        value: Any,
+        *,
+        limit: int,
+    ) -> Any:
+        if len(cache) >= limit:
+            cache.clear()
+        cache[key] = value
+        return value
 
     @classmethod
     def compile(cls, schema: Mapping[str, Any], *, root_path: Iterable[Any] = ()) -> "PersistenceSchema":
@@ -300,13 +322,30 @@ class PersistenceSchema:
 
     def resolve(self, path: Iterable[Any]) -> PersistenceRule | None:
         concrete = tuple(path)
+        if concrete in self._resolve_cache:
+            return self._resolve_cache[concrete]
         exact = self.rules.get(concrete)
         if exact is not None:
-            return exact
+            return self._cache_resolution(
+                self._resolve_cache,
+                concrete,
+                exact,
+                limit=self._resolution_cache_limit,
+            )
         for pattern, rule in self.rules.items():
             if any(part is _WILDCARD for part in pattern) and self._matches(pattern, concrete):
-                return rule
-        return None
+                return self._cache_resolution(
+                    self._resolve_cache,
+                    concrete,
+                    rule,
+                    limit=self._resolution_cache_limit,
+                )
+        return self._cache_resolution(
+            self._resolve_cache,
+            concrete,
+            None,
+            limit=self._resolution_cache_limit,
+        )
 
     @staticmethod
     def _prefix_matches(pattern: tuple[Any, ...], path: tuple[Any, ...]) -> bool:
@@ -325,6 +364,8 @@ class PersistenceSchema:
         """
 
         concrete = tuple(path)
+        if concrete in self._resolve_write_cache:
+            return self._resolve_write_cache[concrete]
         matches: list[tuple[int, tuple[Any, ...], PersistenceRule]] = []
         for pattern, rule in self.rules.items():
             if self._prefix_matches(pattern, concrete):
@@ -334,9 +375,19 @@ class PersistenceSchema:
                 )
                 matches.append((len(pattern), anchor, rule))
         if not matches:
-            return None
+            return self._cache_resolution(
+                self._resolve_write_cache,
+                concrete,
+                None,
+                limit=self._resolution_cache_limit,
+            )
         _, anchor, rule = max(matches, key=lambda item: item[0])
-        return _WriteResolution(rule=rule, anchor=anchor)
+        return self._cache_resolution(
+            self._resolve_write_cache,
+            concrete,
+            _WriteResolution(rule=rule, anchor=anchor),
+            limit=self._resolution_cache_limit,
+        )
 
     def _schema_node(self, path: tuple[Any, ...]) -> Mapping[str, Any] | None:
         """解析 concrete World path 对应的声明节点。
