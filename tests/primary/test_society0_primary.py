@@ -1192,7 +1192,7 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
     store = V4CheckpointStore(tmp_path)
-    assert store.available_steps() == [0]
+    assert store.available_steps() == [0, 3]
     record = store.resolve(0)
     marker = record["marker"]
     manifest = record["manifest"]
@@ -1617,7 +1617,7 @@ async def test_checkpoint_policy(tmp_path):
     await engine.run(steps=25)
 
     store = V4CheckpointStore(tmp_path)
-    assert store.available_steps() == [0, 10, 20]
+    assert store.available_steps() == [0, 10, 20, 25]
     for step in store.available_steps():
         record = store.resolve(step)
         marker = record["marker"]

@@ -807,6 +807,8 @@ class PersistenceManager:
         self,
         delta: SealedTickDelta,
         schedule: 'Schedule',
+        *,
+        force: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Queue a sealed delta and publish complete epochs with backpressure."""
 
@@ -822,7 +824,7 @@ class PersistenceManager:
         async with self._v4_publish_lock:
             self._v4_epoch.append(delta)
             self._v4_pending_memory_epoch_ids.update(delta.write_epoch_ids)
-            if len(self._v4_epoch) < self._v4_checkpoint_every:
+            if len(self._v4_epoch) < self._v4_checkpoint_every and not force:
                 if self._v4_world is not None:
                     self._v4_world.set_memory_checkpoint_view(
                         target_step=delta.step,

@@ -10,7 +10,7 @@ from society0 import EmbedModel, LLMModel, Society0
 from society0.core_data import ExecutionContext
 from society0.incremental_checkpoint import V4CheckpointStore
 from society0.resource_managers import EmbeddingManager
-from tests import read_gzip_json
+from tests import read_gzip_json, read_last_v4_checkpoint
 
 pytestmark = pytest.mark.e2e
 
@@ -167,7 +167,7 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
         pressure = ctx.world.environment_data["state"]["misinformation_pressure"]
         correction = ctx.world.environment_data["state"]["correction_strength"]
         for agent_id in ctx.agents.where(type="social_user").ids():
-            state = ctx.world.agents_data[agent_id]["state"]
+            state = ctx.world.get_agent(agent_id).state
             state["exposure"] += 1
             state["trust"] = max(0.0, min(1.0, state["trust"] + pressure - correction))
         return ctx.result(observations={"pressure": pressure})
@@ -175,10 +175,10 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     @engine.step(name="measure")
     async def measure(ctx):
         rows = [
-            {
-                "agent_id": agent_id,
-                "trust": round(ctx.world.agents_data[agent_id]["state"]["trust"], 4),
-                "exposure": ctx.world.agents_data[agent_id]["state"]["exposure"],
+                {
+                    "agent_id": agent_id,
+                    "trust": round(ctx.world.get_agent(agent_id).state["trust"], 4),
+                    "exposure": ctx.world.get_agent(agent_id).state["exposure"],
             }
             for agent_id in ctx.agents.where(type="social_user").ids()
         ]
@@ -212,8 +212,9 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     assert sorted(path.name for path in complete_dir.glob("step_*.json")) == [
         "step_000000.json",
         "step_000010.json",
+        "step_000012.json",
     ]
-    for step in (0, 10):
+    for step in (0, 10, 12):
         marker = json.loads(
             (complete_dir / f"step_{step:06d}.json").read_text(
                 encoding="utf-8"
@@ -225,13 +226,10 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["checkpoint_id"] == marker["checkpoint_id"]
         assert manifest["step"] == step
-    assert (tmp_path / "checkpoints" / "checkpoint_final.json.gz").is_file()
+    assert not (tmp_path / "checkpoints" / "checkpoint_final.json.gz").exists()
 
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["step"] == 12
-    assert final_checkpoint["agents_data"]["user_0"]["state"]["exposure"] == 12
+    final_checkpoint = read_last_v4_checkpoint(tmp_path)
+    assert final_checkpoint["agents"]["user_0"]["state"]["exposure"] == 12
 
 
 @pytest.mark.asyncio
@@ -264,7 +262,7 @@ async def test_e2e_llm_model_declaration_initializes_llm_agents_without_network_
 
     metrics = _jsonl(tmp_path / "metrics.jsonl")
     assert metrics[0]["metrics"] == {"has_memory": 1, "has_llm_call": 1}
-    assert (tmp_path / "checkpoints" / "checkpoint_final.json.gz").is_file()
+    assert not (tmp_path / "checkpoints" / "checkpoint_final.json.gz").exists()
 
 
 @pytest.mark.asyncio
@@ -441,14 +439,12 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         "behavior_errors": 0,
         "messages_sent": 4,
     }
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert final_checkpoint["agents_data"]["participant_0"]["state"]["conversation_marker"] == "baseline-ready"
-    assert final_checkpoint["environment_data"]["state"]["pairing_current_round"] == 1
-    assert len(final_checkpoint["environment_data"]["state"]["pairing_completed_pairs"]) == 2
-    assert final_checkpoint["environment_data"]["state"]["message_counter"] == 4
-    message_facts = final_checkpoint["environment_data"]["state"]["message_facts"]
+    final_checkpoint = read_last_v4_checkpoint(tmp_path)
+    assert final_checkpoint["agents"]["participant_0"]["state"]["conversation_marker"] == "baseline-ready"
+    assert final_checkpoint["environment"]["state"]["pairing_current_round"] == 1
+    assert len(final_checkpoint["environment"]["state"]["pairing_completed_pairs"]) == 2
+    assert final_checkpoint["environment"]["state"]["message_counter"] == 4
+    message_facts = final_checkpoint["environment"]["state"]["message_facts"]
     assert any(
         message["content"] == "Hello from participant_0."
         and message["receiver"] == "participant_3"
@@ -521,12 +517,10 @@ async def test_e2e_social_network_recommendation_flushes_impressions_after_tick(
     assert observed["recommended"][0] == "post_1"
     assert observed["state_recommended_during_step"] == {}
     assert observed["view_count_during_step"] == 0
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    state = final_checkpoint["environment_data"]["state"]
+    final_checkpoint = read_last_v4_checkpoint(tmp_path)
+    state = final_checkpoint["environment"]["state"]
     assert state["post_projection"]["post_1"]["view_count"] == 1
-    assert final_checkpoint["environment_data"]["state"]["recommended_posts"]["viewer"][0] == "post_1"
+    assert final_checkpoint["environment"]["state"]["recommended_posts"]["viewer"][0] == "post_1"
     comments = [
         event
         for event in state["post_interaction_facts"]
@@ -765,10 +759,8 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
     browse_metrics = browse_step["result"]["metrics"]
     browse_actions = browse_step["result"]["tables"]["browse_actions"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    state = final_checkpoint["environment_data"]["state"]
+    final_checkpoint = read_last_v4_checkpoint(tmp_path)
+    state = final_checkpoint["environment"]["state"]
 
     assert browse_metrics["browse_errors"] == 0
     assert browse_metrics["browse_success"] == 3
@@ -925,9 +917,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     browse_actions = steps[0]["result"]["tables"]["browse_actions"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
-    final_checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
+    final_checkpoint = read_last_v4_checkpoint(tmp_path)
 
     assert len(llm_calls) == 2
     assert [action["status"] for action in browse_actions] == ["error", "success"]
@@ -950,7 +940,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
     assert "Action error samples: 1; inspect tool arguments before weakening actions." in diagnostics
     assert "Sample: agent_id=user_0, action_name=comment, status=error; error=Post user_0 not found." in diagnostics
     assert "Arguments: content=I used the author id by mistake., post_id=user_0." in diagnostics
-    state = final_checkpoint["environment_data"]["state"]
+    state = final_checkpoint["environment"]["state"]
     assert sum(
         1
         for event in state["post_interaction_facts"]
@@ -1143,4 +1133,5 @@ def test_e2e_public_example_script_runs_from_user_perspective(tmp_path, script_n
     assert summary["final_step"] > 0
     assert (run_dir / "steps.jsonl").is_file()
     assert (run_dir / "metrics.jsonl").is_file()
-    assert (run_dir / "checkpoints" / "checkpoint_final.json.gz").is_file()
+    assert not (run_dir / "checkpoints" / "checkpoint_final.json.gz").exists()
+    assert read_last_v4_checkpoint(run_dir)["environment"]["state"]
