@@ -646,6 +646,7 @@ class PersistenceManager:
         agent_types: Mapping[str, Any],
         *,
         resume_identity: Optional[Mapping[str, Any]] = None,
+        state_access_mode: Optional[str] = None,
     ) -> dict[str, Any]:
         environment_data = dict(environment_data)
         environment_data.pop("state", None)
@@ -668,6 +669,8 @@ class PersistenceManager:
         }
         if resume_identity is not None:
             metadata["resume_identity"] = dict(resume_identity)
+        if state_access_mode == "explicit_transactions":
+            metadata["state_access_mode"] = state_access_mode
         return metadata
 
     @staticmethod
@@ -766,6 +769,9 @@ class PersistenceManager:
                 metadata_agents_data,
                 agent_types,
                 resume_identity=getattr(world, "_resume_identity", None),
+                state_access_mode=getattr(
+                    getattr(world, "state_access_mode", None), "value", None
+                ),
             )
             checkpoint_id = uuid.uuid4().hex
             memory_target_step = int(world.step)
@@ -1029,15 +1035,26 @@ class PersistenceManager:
             schema = PersistenceSchema.compile(root_metadata["persistence_schema"], root_path=root_path)
 
         from .core_data import World
+        from .state_transactions import StateAccessMode
 
         events_file = event_log_path or str(self.events_dir / f"events_from_step_{record['step']}.jsonl")
-        world = World(step=record["step"], event_log_path=events_file, event_logger=event_logger)
+        resume_identity = root_metadata.get("resume_identity")
+        restored_mode = root_metadata.get("state_access_mode")
+        if restored_mode is None and isinstance(resume_identity, Mapping):
+            restored_mode = resume_identity.get("state_access_mode")
+        if restored_mode is None:
+            restored_mode = StateAccessMode.TRANSPARENT_PROXY
+        world = World(
+            step=record["step"],
+            event_log_path=events_file,
+            event_logger=event_logger,
+            state_access_mode=restored_mode,
+        )
         if environment_factory is not None:
             world.set_environment_factory(environment_factory)
         world.agents_data = copy.deepcopy(root_metadata.get("agents_data") or {})
         world._agent_types = copy.deepcopy(root_metadata.get("agent_types") or {})
         world.environment_data = copy.deepcopy(root_metadata.get("environment_data") or {})
-        resume_identity = root_metadata.get("resume_identity")
         if isinstance(resume_identity, Mapping):
             world._resume_identity = copy.deepcopy(dict(resume_identity))
         world.environment_data.setdefault("type", "base")
