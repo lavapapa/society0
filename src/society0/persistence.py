@@ -23,7 +23,6 @@ from .incremental_checkpoint import (
     SealedTickDelta,
     V4CheckpointStore,
     _WILDCARD,
-    _freeze_json,
     _thaw_json,
 )
 
@@ -680,12 +679,10 @@ class PersistenceManager:
         replacements: list[Mapping[str, Any]] = []
         appends: list[Mapping[str, Any]] = []
         sequence = 0
-        # Sealed delta mappings are recursively frozen.  Thaw before changing
-        # sequence numbers so the writer never receives MappingProxyType values.
         for delta in deltas:
             operations = [
-                ("replacement", _thaw_json(item)) for item in delta.replacements
-            ] + [("append", _thaw_json(item)) for item in delta.appends]
+                ("replacement", dict(item)) for item in delta.replacements
+            ] + [("append", dict(item)) for item in delta.appends]
             operations.sort(key=lambda item: item[1].get("sequence", 0))
             for kind, operation in operations:
                 operation["sequence"] = sequence
@@ -693,20 +690,18 @@ class PersistenceManager:
                 sequence += 1
         return SealedTickDelta(
             step=deltas[-1].step,
-            replacements=tuple(_freeze_json(item) for item in replacements),
-            appends=tuple(_freeze_json(item) for item in appends),
+            replacements=tuple(replacements),
+            appends=tuple(appends),
             write_epoch_ids=tuple(
                 epoch_id
                 for delta in deltas
                 for epoch_id in delta.write_epoch_ids
             ),
-            annotations=_freeze_json(
-                {
-                    key: _thaw_json(value)
-                    for delta in deltas
-                    for key, value in (delta.annotations or {}).items()
-                }
-            ),
+            annotations={
+                key: value
+                for delta in deltas
+                for key, value in (delta.annotations or {}).items()
+            },
         )
 
     @staticmethod

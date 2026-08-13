@@ -45,6 +45,35 @@ def test_list_proxy_is_a_mutable_sequence() -> None:
     assert isinstance(proxy[0], MutableMapping)
 
 
+def test_nested_proxy_is_reused_while_container_identity_is_unchanged() -> None:
+    target = {"nested": {"rows": [{"value": 1}]}}
+    proxy = _dict_proxy(target)
+
+    nested = proxy["nested"]
+    rows = nested["rows"]
+    row = rows[0]
+
+    assert proxy["nested"] is nested
+    assert proxy["nested"]["rows"] is rows
+    assert proxy["nested"]["rows"][0] is row
+
+
+def test_nested_proxy_is_replaced_when_container_identity_changes() -> None:
+    target = {"nested": {"value": 1}, "rows": [{"value": 1}]}
+    proxy = _dict_proxy(target)
+    nested = proxy["nested"]
+    rows = proxy["rows"]
+    row = rows[0]
+
+    proxy["nested"] = {"value": 2}
+    rows[0] = {"value": 2}
+
+    assert proxy["nested"] is not nested
+    assert proxy["nested"]["value"] == 2
+    assert rows[0] is not row
+    assert rows[0]["value"] == 2
+
+
 def test_list_proxy_compares_like_a_normal_python_list() -> None:
     proxy = _list_proxy([{"id": "a"}, [1, 2]])
 
