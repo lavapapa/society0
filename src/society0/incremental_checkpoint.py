@@ -1434,19 +1434,21 @@ class V4CheckpointStore:
         parent, key = cls._parent(state, operation["path"], create=True)
         kind = operation["operation"]
         if kind == "set":
-            parent[key] = copy.deepcopy(operation["value"])
+            # operation 来自本次 json.loads 的私有对象树，恢复后的 state 可
+            # 直接接管其 value；逐条 deepcopy 会把大型根检查点再复制一遍。
+            parent[key] = operation["value"]
         elif kind == "delete":
             parent.pop(key, None)
         elif kind == "map_create":
             target = parent.setdefault(key, {})
             if not isinstance(target, dict) or operation["id"] in target:
                 raise ValueError("duplicate or invalid append-only map entry during restore")
-            target[operation["id"]] = copy.deepcopy(operation["value"])
+            target[operation["id"]] = operation["value"]
         elif kind == "append":
             target = parent.setdefault(key, [])
             if not isinstance(target, list):
                 raise ValueError("invalid append-only list during restore")
-            target.append(copy.deepcopy(operation["value"]))
+            target.append(operation["value"])
         else:
             raise ValueError(f"unsupported state operation: {kind}")
 
