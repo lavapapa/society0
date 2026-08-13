@@ -2592,6 +2592,70 @@ async def test_output_token_limit_is_not_accepted_as_a_completed_no_action_turn(
 
 
 @pytest.mark.asyncio
+async def test_output_token_limit_with_complete_tool_call_executes_without_saving_text():
+    action_set = ActionSet()
+    called = []
+    recorded_messages = []
+    events = []
+
+    async def query_inventory(product_id: str):
+        called.append(product_id)
+        return {"quantity": 12}
+
+    action_set.add_action(
+        name="query_inventory",
+        func=query_inventory,
+        description="Query inventory",
+        parameters={
+            "type": "object",
+            "properties": {"product_id": {"type": "string"}},
+            "required": ["product_id"],
+        },
+    )
+
+    async def fake_llm_call(_payload):
+        return {
+            "role": "assistant",
+            "content": "这是不应写入记忆的截断正文……",
+            "reasoning_content": "这是不应写入记忆的截断推理……",
+            "tool_calls": [
+                {
+                    "id": "call_inventory",
+                    "type": "function",
+                    "function": {
+                        "name": "query_inventory",
+                        "arguments": '{"product_id":"cell"}',
+                    },
+                }
+            ],
+            "finish_reason": "length",
+        }
+
+    result = await execute_action_loop(
+        instruction="查看库存。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=1,
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "success"
+    assert called == ["cell"]
+    assert [call["status"] for call in result.action_calls] == ["success"]
+    assistant = next(
+        message for message in recorded_messages if message.get("role") == "assistant"
+    )
+    assert assistant["content"] == ""
+    assert "reasoning_content" not in assistant
+    assert ("provider_output_truncated_with_tool_calls", {"tool_call_count": 1}) in events
+
+
+@pytest.mark.asyncio
 async def test_empty_activation_retry_can_use_explicit_temperature_bump_and_audit_event():
     calls = []
     events = []

@@ -1225,14 +1225,27 @@ async def execute_action_loop(
         finish_reason = str(response.get("finish_reason") or "").lower()
         response_message = _conversation_response(response)
         if finish_reason == "length":
-            # 已被 provider 截断的文字不代表主体完成了经营判断。继续把它
-            # 计作 no_action_calls 会确认 Inbox，并把半截叙述写入长期记忆。
-            _append_runtime_message(response_message)
-            loop_result.termination_reason = "output_token_limit"
-            loop_result.error = "model output reached the configured token limit"
-            loop_result.failure_class = "provider_output_truncated"
-            loop_result.retry_scope = "agent_activation"
-            break
+            raw_tool_calls = response_message.get("tool_calls")
+            if not isinstance(raw_tool_calls, list) or not raw_tool_calls:
+                # 已被 provider 截断的文字不代表主体完成了经营判断。
+                # 继续把它计作 no_action_calls 会确认 Inbox，并把半截叙述
+                # 写入长期记忆。
+                _append_runtime_message(response_message)
+                loop_result.termination_reason = "output_token_limit"
+                loop_result.error = "model output reached the configured token limit"
+                loop_result.failure_class = "provider_output_truncated"
+                loop_result.retry_scope = "agent_activation"
+                break
+            # OpenAI 兼容端点可能在内部输出用尽时仍返回完整的
+            # 结构化工具调用。工具调用仍按下方的 schema 与 action
+            # 边界验证；截断正文和推理内容不进入对话或长期记忆。
+            response_message = dict(response_message)
+            response_message["content"] = ""
+            response_message.pop("reasoning_content", None)
+            _append_thread_event(
+                "provider_output_truncated_with_tool_calls",
+                {"tool_call_count": len(raw_tool_calls)},
+            )
 
         # Extract reasoning content, final content and action calls using new function
         response = response_message
