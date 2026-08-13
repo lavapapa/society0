@@ -96,6 +96,44 @@ def test_recursive_schema_compile_emits_rules_for_nested_properties():
     assert audit is not None and audit.kind is PersistenceKind.APPEND_ONLY_LIST
 
 
+def test_persistence_schema_reuses_concrete_write_resolution(monkeypatch):
+    schema = _compile(
+        _state_schema(
+            {
+                "inventories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "persistence": _persistence(
+                        "replaceable",
+                        granularity="entry",
+                    ),
+                }
+            }
+        )
+    )
+    calls = 0
+    original = schema._prefix_matches
+
+    def counted(pattern, path):
+        nonlocal calls
+        calls += 1
+        return original(pattern, path)
+
+    monkeypatch.setattr(schema, "_prefix_matches", counted)
+    path = (*_STATE_ROOT, "inventories", "lot-1", "quantity")
+
+    first = schema.resolve_write(path)
+    first_call_count = calls
+    second = schema.resolve_write(path)
+
+    assert first is second
+    assert first_call_count > 0
+    assert calls == first_call_count
+
+
 def test_schema_compile_resolves_wildcard_dynamic_entry_map():
     schema = _compile(
         _state_schema(
