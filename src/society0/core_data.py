@@ -12,13 +12,14 @@ This module defines the fundamental data structures:
 from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Callable, Set, Tuple
 import importlib
 import contextvars
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import copy
 import logging
 import time
+import uuid
 
 # Import new unified state architecture components
-from .state_proxy import DictProxy
+from .state_proxy import DictProxy, ListProxy, _ProxyLease
 from .context_stack import ContextStack
 from .transaction import TransactionManager, EventLogger
 from .async_utils import invoke_maybe_async
@@ -363,6 +364,15 @@ class World:
 
         # 🔑 方案 A: Environment state 单例代理（确保所有修改都被记录）
         self._environment_state_proxy: Optional[DictProxy] = None
+        self._state_delta_journal: Optional[Any] = None
+        self._persistence_schema: Optional[Any] = None
+        self._persistence_proxy_lease: Optional[_ProxyLease] = None
+        self._persistence_lease_generation: int = 0
+        self._memory_branch_id = "main"
+        self._memory_branch_lineage: list[tuple[str, int]] = []
+        self._committed_memory_epoch_ids: set[str] = set()
+        self._active_memory_epoch_id: Optional[str] = None
+        self._memory_epoch_sequence = 0
 
         # Transaction and event management
         self.event_logger = event_logger or EventLogger(event_log_path)
@@ -392,6 +402,7 @@ class World:
         # 由已提交步骤派生的审计结果。它们随 checkpoint 留证，
         # 但不进入 Environment 的 canonical 运行状态。
         self._checkpoint_annotations: Dict[str, Any] = {}
+        self._tick_checkpoint_annotations: Optional[Dict[str, Any]] = None
         # 状态版本号：每次状态写入都会递增，用于缓存控制
         self._state_version: int = 0
         # FoV 结果缓存：按 step / 按 agent 的临时缓存，避免重复调用
@@ -411,12 +422,19 @@ class World:
         normalized = str(name or "").strip()
         if not normalized:
             raise ValueError("checkpoint annotation name must be non-empty")
-        self._checkpoint_annotations[normalized] = copy.deepcopy(value)
+        copied = copy.deepcopy(value)
+        if self._tick_checkpoint_annotations is not None:
+            self._tick_checkpoint_annotations[normalized] = copied
+        else:
+            self._checkpoint_annotations[normalized] = copied
 
     def checkpoint_annotations(self) -> Dict[str, Any]:
         """返回当前待持久化的派生审计结果。"""
 
-        return copy.deepcopy(self._checkpoint_annotations)
+        combined = copy.deepcopy(self._checkpoint_annotations)
+        if self._tick_checkpoint_annotations is not None:
+            combined.update(copy.deepcopy(self._tick_checkpoint_annotations))
+        return combined
 
     def get_context_stack(self) -> ContextStack:
         """Get the current context stack"""
@@ -953,7 +971,7 @@ class World:
             "environment_type": self.environment_data["type"]
         }
 
-    def create_agent_state_proxy(self, agent_id: str, state_key: str) -> DictProxy:
+    def create_agent_state_proxy(self, agent_id: str, state_key: str) -> Union[DictProxy, ListProxy]:
         """
         Create a state proxy for a specific agent and state key
 
@@ -967,16 +985,19 @@ class World:
         if agent_id not in self.agents_data:
             raise KeyError(f"Agent '{agent_id}' not found")
 
-        target_dict = self.agents_data[agent_id][state_key]
-        if not isinstance(target_dict, dict):
-            raise ValueError(f"Agent {agent_id}.{state_key} is not a dictionary")
-
-        return DictProxy(
-            target_dict=target_dict,
-            event_recorder=self._create_event_recorder(),
-            context_provider=self._create_context_provider(),
-            path=("agents", agent_id, state_key)
-        )
+        target = self.agents_data[agent_id][state_key]
+        proxy_kwargs = {
+            "event_recorder": self._create_event_recorder(),
+            "context_provider": self._create_context_provider(),
+            "path": ("agents", agent_id, state_key),
+            "persistence_journal": self._state_delta_journal,
+            "lease": self._persistence_proxy_lease,
+        }
+        if isinstance(target, dict):
+            return DictProxy(target_dict=target, **proxy_kwargs)
+        if isinstance(target, list):
+            return ListProxy(target_list=target, **proxy_kwargs)
+        raise ValueError(f"Agent {agent_id}.{state_key} is not a state container")
 
     def create_environment_state_proxy(self) -> DictProxy:
         """
@@ -993,10 +1014,248 @@ class World:
                 target_dict=self.environment_data["state"],
                 event_recorder=self._create_event_recorder(),
                 context_provider=self._create_context_provider(),
-                path=("environment", "state")
+                path=("environment", "state"),
+                persistence_journal=self._state_delta_journal,
+                lease=self._persistence_proxy_lease,
             )
             logger.debug("Created singleton environment state proxy")
         return self._environment_state_proxy
+
+    def set_state_delta_journal(self, journal: Optional[Any]) -> None:
+        """注入 v4 写入日志；更换后重建环境代理以免保留旧引用。"""
+
+        old_lease = self._persistence_proxy_lease
+        if old_lease is not None:
+            old_lease.invalidate()
+        self._state_delta_journal = journal
+        self._persistence_schema = getattr(journal, "_schema", None)
+        if journal is not None and hasattr(journal, "bind_canonical_state"):
+            journal.bind_canonical_state(self._persistence_lookup)
+        self._environment_state_proxy = None
+
+    def _persistence_lookup(self, path: tuple[Any, ...]) -> Any:
+        """按完整 canonical path 查找容器，不创建或修改底层状态。"""
+
+        if not path:
+            return None
+        if path[0] == "environment":
+            current: Any = self.environment_data
+        elif path[0] == "agents":
+            current = self.agents_data
+        else:
+            return None
+        for part in path[1:]:
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                return None
+        return current
+
+    def configure_persistence(self, schema: Any) -> Any:
+        """编译并绑定 World 的声明驱动持久化生命周期。"""
+
+        from .incremental_checkpoint import PersistenceSchema, StateDeltaJournal
+
+        if isinstance(schema, (list, tuple)):
+            schema = PersistenceSchema.merge(*schema)
+        compiled = (
+            schema
+            if isinstance(schema, PersistenceSchema)
+            else PersistenceSchema.compile(schema, root_path=("environment", "state"))
+        )
+        state = self.environment_data.get("state", {})
+        # Validate every declared root at bootstrap.  A merged schema keeps
+        # environment and Agent declarations in one journal, while each source
+        # schema still validates its own state object against its own JSON
+        # Schema.  The legacy single-root path remains unchanged.
+        source_schemas = getattr(compiled, "source_schemas", (compiled,))
+        for source in source_schemas:
+            root_path = tuple(getattr(source, "root_path", ()))
+            if root_path[:2] == ("environment", "state"):
+                source.validate_initial_state(state)
+                continue
+            if root_path[:1] == ("agents",):
+                if len(root_path) < 2:
+                    raise ValueError("Agent persistence root must identify an agent")
+                agent_id = root_path[1]
+                if agent_id not in self.agents_data:
+                    raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
+                agent_data = self.agents_data[agent_id]
+                source.validate_initial_state(
+                    {
+                        "state": agent_data.get("state", {}),
+                        "properties": agent_data.get("properties", {}),
+                        "reminders": agent_data.get("reminders", []),
+                    }
+                )
+        journal = StateDeltaJournal(compiled)
+        journal.bind_canonical_state(self._persistence_lookup)
+        old_lease = self._persistence_proxy_lease
+        if old_lease is not None:
+            old_lease.invalidate()
+        self._persistence_schema = compiled
+        self._state_delta_journal = journal
+        self._environment_state_proxy = None
+        self._persistence_proxy_lease = None
+        return compiled
+
+    def compile_runtime_persistence_schema(self) -> Any:
+        """Compile Environment and Agent state declarations for v4 runtime.
+
+        Environment metadata supplies the authoritative environment state
+        schema; each Agent type contributes a schema under the dynamic
+        ``agents.<id>.state`` root.  The resulting merged schema is consumed by
+        one StateDeltaJournal so context-restricted Agent proxies cannot bypass
+        the same persistence contract.
+        """
+
+        from .incremental_checkpoint import PersistenceSchema
+
+        environment_schema = self.environment_data.get("schema")
+        if not isinstance(environment_schema, dict) or not environment_schema:
+            environment = self.get_environment()
+            env_meta = getattr(environment.__class__, "__env_meta__", None)
+            environment_schema = getattr(env_meta, "state_schema", None)
+        if not isinstance(environment_schema, dict) or not environment_schema:
+            environment_schema = {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": False,
+            }
+
+        sources = [
+            PersistenceSchema.compile(
+                environment_schema,
+                root_path=("environment", "state"),
+            )
+        ]
+
+        for agent_id, agent_data in self.agents_data.items():
+            agent_type = agent_data.get("type") if isinstance(agent_data, dict) else None
+            raw_schema = self.get_agent_type_schema(str(agent_type or ""))
+            if not isinstance(raw_schema, dict):
+                continue
+            # Configurations historically used either the state schema itself
+            # or a wrapper containing ``state_schema``.  Normalize both forms
+            # before compiling the canonical Agent root.
+            if isinstance(raw_schema.get("state_schema"), dict):
+                raw_schema = raw_schema["state_schema"]
+            agent_container_schema = {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "state": raw_schema,
+                    "properties": {
+                        "type": "object",
+                        "additionalProperties": {},
+                        "persistence": {
+                            "kind": "replaceable",
+                            "granularity": "entry",
+                        },
+                    },
+                    "reminders": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "default": [],
+                        "persistence": {"kind": "transient"},
+                    },
+                },
+            }
+            sources.append(
+                PersistenceSchema.compile(
+                    agent_container_schema,
+                    root_path=("agents", str(agent_id)),
+                )
+            )
+
+        return PersistenceSchema.merge(*sources) if len(sources) > 1 else sources[0]
+
+    def begin_persistence_tick(self, step: int) -> Any:
+        """开启唯一一个 Tick delta，并生成新的代理租约。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        if self._persistence_proxy_lease is not None and self._persistence_proxy_lease.active:
+            raise RuntimeError("a persistence tick is already active")
+        self._state_delta_journal.bind_canonical_state(self._persistence_lookup)
+        epoch_id = f"{self._memory_branch_id}:{step}:{uuid.uuid4().hex}"
+        self._active_memory_epoch_id = epoch_id
+        self._memory_epoch_sequence += 1
+        self._state_delta_journal.begin_tick(step, write_epoch_id=epoch_id)
+        self._tick_checkpoint_annotations = {}
+        for memory in self._iter_agent_memories():
+            memory.set_write_epoch(epoch_id, self._memory_epoch_sequence)
+        self._persistence_lease_generation += 1
+        self._persistence_proxy_lease = _ProxyLease(self._persistence_lease_generation)
+        self._environment_state_proxy = None
+        return self._state_delta_journal
+
+    def seal_persistence_tick(self) -> Any:
+        """提交当前 Tick delta；提交后旧代理立即失效。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        delta = self._state_delta_journal.seal_tick()
+        from .incremental_checkpoint import _freeze_json
+
+        delta = replace(
+            delta,
+            annotations=_freeze_json(self._tick_checkpoint_annotations or {}),
+        )
+        self._tick_checkpoint_annotations = None
+        for memory in self._iter_agent_memories():
+            memory.clear_write_epoch()
+        self._active_memory_epoch_id = None
+        if self._persistence_proxy_lease is not None:
+            self._persistence_proxy_lease.invalidate()
+        self._persistence_proxy_lease = None
+        self._environment_state_proxy = None
+        return delta
+
+    def abort_persistence_tick(self) -> None:
+        """丢弃当前 Tick delta，并使该 Tick 的所有代理失效。"""
+
+        if self._state_delta_journal is None:
+            raise RuntimeError("persistence is not configured")
+        self._state_delta_journal.abort_tick()
+        self._tick_checkpoint_annotations = None
+        failed_epoch = self._active_memory_epoch_id
+        for memory in self._iter_agent_memories():
+            memory.clear_write_epoch()
+            if failed_epoch:
+                memory.discard_write_epoch(failed_epoch)
+        self._active_memory_epoch_id = None
+        if self._persistence_proxy_lease is not None:
+            self._persistence_proxy_lease.invalidate()
+        self._persistence_proxy_lease = None
+        self._environment_state_proxy = None
+
+    def _iter_agent_memories(self):
+        for agent in self._agent_cache.values():
+            memory = getattr(agent, "_memory", None)
+            if memory is not None:
+                yield memory
+
+    def set_memory_checkpoint_view(
+        self,
+        *,
+        target_step: int,
+        branch_id: str,
+        branch_lineage: List[Tuple[str, int]],
+        committed_write_epoch_ids: Set[str],
+    ) -> None:
+        """把所有已创建 Memory 切换到 marker 决定的单库视图。"""
+
+        self._memory_branch_id = str(branch_id)
+        self._memory_branch_lineage = list(branch_lineage)
+        self._committed_memory_epoch_ids = set(committed_write_epoch_ids)
+        for memory in self._iter_agent_memories():
+            memory.branch_id = self._memory_branch_id
+            memory.set_memory_view(
+                target_step,
+                self._memory_branch_lineage,
+                self._committed_memory_epoch_ids,
+            )
 
     # Transaction integration
 
@@ -2452,11 +2711,25 @@ class World:
             memory = Memory(
                 agent_id=agent_id,
                 vector_client=vector_client,  # 注入客户端实例
-                branch_id="main",  # Default branch
+                branch_id=self._memory_branch_id,
+                branch_lineage=self._memory_branch_lineage,
+                source_branch_id=self._memory_branch_id,
+                write_epoch_id=self._active_memory_epoch_id,
+                epoch_seq=self._memory_epoch_sequence,
                 embedding_dim=int(getattr(self, "_embedding_dim", 512) or 512),
                 embed_call=getattr(self, '_embed_call', None),  # 注入embed函数
                 llm_call=getattr(self, '_llm_call', None)  # 注入llm函数
             )
+            memory.set_memory_view(
+                self.step,
+                self._memory_branch_lineage,
+                self._committed_memory_epoch_ids,
+            )
+            if self._active_memory_epoch_id:
+                memory.set_write_epoch(
+                    self._active_memory_epoch_id,
+                    self._memory_epoch_sequence,
+                )
 
             logger.debug(f"Created memory system for agent {agent_id} with injected dependencies")
             return memory

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from society0 import Society0
+from society0.decorators import env_type
 from society0.env import BUILTIN_ENVS
 from society0.environment import Environment
 from tests import read_gzip_json
@@ -23,6 +24,25 @@ def _jsonl(path: Path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+_HOOK_CONFIG_SCHEMA = {"type": "object", "properties": {}, "additionalProperties": False}
+_HOOK_STATE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "events": {
+            "type": "array",
+            "items": {"type": "string"},
+            "persistence": {"kind": "append_only_list"},
+        }
+    },
+    "additionalProperties": False,
+}
+
+
+@env_type(
+    type_name="hook_order",
+    config_schema=_HOOK_CONFIG_SCHEMA,
+    state_schema=_HOOK_STATE_SCHEMA,
+)
 class HookOrderEnv(Environment):
     def initialize(self, agents, world):
         self.state.setdefault("events", [])
@@ -34,6 +54,11 @@ class HookOrderEnv(Environment):
         self.state["events"].append(f"after:{ctx.step}")
 
 
+@env_type(
+    type_name="async_before_sync_after",
+    config_schema=_HOOK_CONFIG_SCHEMA,
+    state_schema=_HOOK_STATE_SCHEMA,
+)
 class AsyncBeforeSyncAfterEnv(Environment):
     def initialize(self, agents, world):
         self.state.setdefault("events", [])
@@ -45,6 +70,11 @@ class AsyncBeforeSyncAfterEnv(Environment):
         self.state["events"].append(f"sync_after:{ctx.step}")
 
 
+@env_type(
+    type_name="failing_before",
+    config_schema=_HOOK_CONFIG_SCHEMA,
+    state_schema=_HOOK_STATE_SCHEMA,
+)
 class FailingBeforeEnv(Environment):
     def initialize(self, agents, world):
         self.state.setdefault("events", [])
@@ -54,6 +84,11 @@ class FailingBeforeEnv(Environment):
         raise RuntimeError("before hook failed")
 
 
+@env_type(
+    type_name="runtime_scope",
+    config_schema=_HOOK_CONFIG_SCHEMA,
+    state_schema=_HOOK_STATE_SCHEMA,
+)
 class RuntimeScopeEnv(Environment):
     def initialize(self, agents, world):
         self.state.setdefault("events", [])

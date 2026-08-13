@@ -60,6 +60,7 @@ def _extraction_prompt() -> str:
         "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，"
         "由你自己判断哪些经验会影响今后的决策。"
         "只调用 extract_memories 工具。每条记忆用第一人称表达，"
+        "如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。"
         "importance 取 0 到 5。如果没有值得形成长期记忆的内容，"
         "返回 {\"memories\": []}。"
     )
