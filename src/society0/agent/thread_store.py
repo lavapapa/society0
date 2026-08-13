@@ -21,7 +21,7 @@ import uuid
 
 
 _THREAD_ID_PATTERN = re.compile(r"^thr_[0-9a-f]{32}$")
-_THREAD_SCHEMA_VERSION = 1
+_THREAD_SCHEMA_VERSION = 2
 # v4 manifests are per-Tick immutable references.  They intentionally do not
 # carry Thread bodies or a cumulative list from earlier checkpoints.
 _MANIFEST_SCHEMA_VERSION = 2
@@ -62,7 +62,7 @@ class _ThreadIndex:
     path: Path
     event_count: int
     next_sequence: int
-    tail_event_sha256: str | None
+    tail_event_id: str | None
     file_digest: Any
     byte_offset: int
     closed: bool
@@ -159,6 +159,18 @@ def _json_value(value: Any) -> Any:
 def _canonical_bytes(value: Any) -> bytes:
     return json.dumps(
         _json_value(value),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def _canonical_normalized_bytes(value: Any) -> bytes:
+    """序列化已经经过 ``_json_value`` 归一化的值。"""
+
+    return json.dumps(
+        value,
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -340,14 +352,12 @@ class AgentThreadStore:
             opened = self._materialize_payload(events[0])
             if isinstance(opened, Mapping):
                 opened_payload = dict(opened)
-        tail_event_sha256 = (
-            str(events[-1].get("event_sha256")) if events else None
-        )
+        tail_event_id = str(events[-1].get("event_id")) if events else None
         index = _ThreadIndex(
             path=path,
             event_count=len(events),
             next_sequence=len(events) + 1,
-            tail_event_sha256=tail_event_sha256,
+            tail_event_id=tail_event_id,
             file_digest=digest,
             byte_offset=len(raw),
             closed=bool(events and events[-1].get("event_type") == "thread_closed"),
@@ -410,7 +420,7 @@ class AgentThreadStore:
                 "sequence": int(index.event_count),
                 "byte_offset": int(index.byte_offset),
             },
-            "tail_event_sha256": str(index.tail_event_sha256),
+            "tail_event_id": str(index.tail_event_id),
             "file_sha256": index.file_digest.copy().hexdigest(),
             "closed": bool(index.closed),
         }
@@ -484,7 +494,7 @@ class AgentThreadStore:
                 path=path,
                 event_count=0,
                 next_sequence=1,
-                tail_event_sha256=None,
+                tail_event_id=None,
                 file_digest=hashlib.sha256(),
                 byte_offset=0,
                 closed=False,
@@ -554,8 +564,7 @@ class AgentThreadStore:
         payload_value = _json_value(payload)
         if not had_events and normalized_event_type == "thread_opened" and isinstance(payload_value, Mapping):
             opened_payload = payload_value
-        payload_bytes = _canonical_bytes(payload_value)
-        payload_sha256 = _sha256_bytes(payload_bytes)
+        payload_bytes = _canonical_normalized_bytes(payload_value)
         if len(payload_bytes) > self.inline_payload_max_bytes:
             inline_payload = None
             payload_ref = self._write_blob(payload_bytes)
@@ -578,8 +587,6 @@ class AgentThreadStore:
             "recorded_at": datetime.now().astimezone().isoformat(),
             "payload": inline_payload,
             "payload_ref": payload_ref,
-            "payload_sha256": payload_sha256,
-            "previous_event_sha256": index.tail_event_sha256,
         }
         optional = {
             "interaction_id": interaction_id,
@@ -589,7 +596,6 @@ class AgentThreadStore:
             "metadata": dict(metadata or {}) or None,
         }
         event.update({key: _json_value(value) for key, value in optional.items() if value is not None})
-        event["event_sha256"] = _sha256_bytes(_canonical_bytes(event))
         serialized = json.dumps(
             event,
             ensure_ascii=False,
@@ -607,16 +613,21 @@ class AgentThreadStore:
             index.byte_offset += after_size - before_size
             self.metrics["jsonl_append_bytes"] += after_size - before_size
         serialized_bytes = (serialized + "\n").encode("utf-8")
+        durable_fence = normalized_event_type in {
+            "memory_extraction_pending",
+            "memory_extraction_receipt",
+            "thread_closed",
+        }
         with path.open("ab") as handle:
             handle.write(serialized_bytes)
-            handle.flush()
-            os.fsync(handle.fileno())
-        self._fsync_directory(path.parent)
+            if durable_fence:
+                handle.flush()
+                os.fsync(handle.fileno())
         index.file_digest.update(serialized_bytes)
         index.byte_offset += len(serialized_bytes)
         index.event_count += 1
         index.next_sequence += 1
-        index.tail_event_sha256 = str(event["event_sha256"])
+        index.tail_event_id = str(event["event_id"])
         index.last_event_type = normalized_event_type
         index.closed = normalized_event_type == "thread_closed"
         if not had_events and isinstance(opened_payload, Mapping):
@@ -646,8 +657,6 @@ class AgentThreadStore:
             if reference.get("bytes") != len(payload_bytes):
                 raise ValueError("agent thread blob byte count mismatch")
             payload = json.loads(payload_bytes.decode("utf-8"))
-        if _sha256_bytes(payload_bytes) != event.get("payload_sha256"):
-            raise ValueError("agent thread payload hash mismatch")
         return payload
 
     def _read_thread_bytes_with_tail_recovery(self, path: Path) -> bytes:
@@ -708,7 +717,6 @@ class AgentThreadStore:
         raw: bytes | None = None,
     ) -> list[dict[str, Any]]:
         events: list[dict[str, Any]] = []
-        previous_hash: str | None = None
         normalized_expected_thread_id = self._validate_thread_id(
             expected_thread_id or path.stem
         )
@@ -736,21 +744,11 @@ class AgentThreadStore:
                 or event.get("sequence") != len(events) + 1
             ):
                 raise ValueError("agent thread sequence mismatch")
-            if event.get("previous_event_sha256") != previous_hash:
-                raise ValueError("agent thread hash chain mismatch")
             if events and events[-1].get("event_type") == "thread_closed":
                 raise ValueError("agent thread has events after close")
-            expected_event_hash = event.get("event_sha256")
-            unsigned = dict(event)
-            unsigned.pop("event_sha256", None)
-            if _sha256_bytes(_canonical_bytes(unsigned)) != expected_event_hash:
-                raise ValueError(
-                    f"agent thread event hash mismatch at line {line_number}"
-                )
             self._materialize_payload(event)
             checkpoint_step = event.get("checkpoint_step")
             self._normalize_checkpoint_step(checkpoint_step)
-            previous_hash = str(expected_event_hash)
             if materialize_payloads:
                 event["payload"] = self._materialize_payload(event)
                 event["payload_ref"] = None
@@ -777,6 +775,19 @@ class AgentThreadStore:
         """Rebuild the provider-compatible conversation at the thread tail."""
 
         events = self.read_events(thread_id, materialize_payloads=True)
+        recorded_messages = []
+        for event in events:
+            if event.get("event_type") != "conversation_message":
+                continue
+            payload = event.get("payload")
+            if not isinstance(payload, Mapping):
+                continue
+            message = payload.get("message", payload)
+            if isinstance(message, Mapping):
+                recorded_messages.append(_json_value(message))
+        if recorded_messages and recorded_messages[0].get("role") == "system":
+            return recorded_messages
+
         last_request_index: int | None = None
         messages: list[dict[str, Any]] = []
         for index, event in enumerate(events):
@@ -1301,7 +1312,7 @@ class AgentThreadStore:
                 "sequence": int(events[-1]["sequence"]),
                 "byte_offset": len(raw),
             },
-            "tail_event_sha256": str(events[-1]["event_sha256"]),
+            "tail_event_id": str(events[-1]["event_id"]),
             "file_sha256": _sha256_bytes(raw),
             "closed": True,
         }

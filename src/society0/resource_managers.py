@@ -884,13 +884,27 @@ class LLMManager:
                                 else:
                                     request_params["model"] = endpoint.model
 
+                                trace_request = self._traceable_provider_request(
+                                    request_params
+                                )
+                                trace_messages = trace_request.pop("messages", None)
+                                trace_tools = trace_request.pop("tools", None)
+                                if isinstance(trace_messages, list):
+                                    trace_request["messages_count"] = len(trace_messages)
+                                if isinstance(trace_tools, list):
+                                    trace_request["tool_names"] = [
+                                        str(
+                                            tool.get("function", {}).get("name")
+                                            or ""
+                                        )
+                                        for tool in trace_tools
+                                        if isinstance(tool, dict)
+                                    ]
                                 self._append_agent_thread_event_best_effort(
                                     dict(metadata or {}) if isinstance(metadata, dict) else {},
                                     "provider_request",
                                     payload={
-                                        "request": self._traceable_provider_request(
-                                            request_params
-                                        ),
+                                        "request": trace_request,
                                         **(
                                             {"tool_choice_resolution": tool_choice_resolution}
                                             if tool_choice_resolution is not None
@@ -937,14 +951,6 @@ class LLMManager:
                                             secrets=(endpoint.api_key,),
                                         ),
                                     }
-                                self._append_agent_thread_event_best_effort(
-                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
-                                    "provider_response_raw",
-                                    payload={"response": raw_response},
-                                    provider_request_id=request_id,
-                                    attempt_number=attempt_number,
-                                    endpoint=endpoint,
-                                )
                                 try:
                                     result = self._convert_response(response)
                                 except Exception as decode_exc:
@@ -973,7 +979,6 @@ class LLMManager:
                                     dict(metadata or {}) if isinstance(metadata, dict) else {},
                                     "provider_response",
                                     payload={
-                                        "response": raw_response,
                                         "message": result,
                                         "finish_reason": getattr(
                                             choice,
@@ -1126,6 +1131,7 @@ class LLMManager:
             result = {
                 "role": message.role,
                 "content": message.content or "",
+                "finish_reason": getattr(choice, "finish_reason", None),
             }
 
             # 处理reasoning_content（推理模型）

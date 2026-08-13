@@ -200,7 +200,13 @@ async def extract_memories_from_thread(
                     "interaction_type": "memory_extract",
                 }
             )
-            messages.append(copy.deepcopy(response))
+            messages.append(
+                {
+                    key: copy.deepcopy(value)
+                    for key, value in response.items()
+                    if key != "finish_reason"
+                }
+            )
             parsed, tool_call_id, parse_error = _parse_memories_from_response(
                 response
             )
