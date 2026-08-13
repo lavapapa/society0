@@ -789,7 +789,8 @@ class StateDeltaJournal:
                     "path": list(token.anchor),
                     "operation": "map_create",
                     "id": token.key,
-                    "value": _json_copy(token.value),
+                    # prepare 阶段已经复制并检查过；journal 直接取得该副本。
+                    "value": token.value,
                     "sequence": self._next_sequence(),
                 }
             )
@@ -799,7 +800,7 @@ class StateDeltaJournal:
                 {
                     "path": list(token.anchor),
                     "operation": "append",
-                    "value": _json_copy(token.value),
+                    "value": token.value,
                     "sequence": self._next_sequence(),
                 }
             )
@@ -809,12 +810,23 @@ class StateDeltaJournal:
             self.record_delete(token.anchor)
             return
         if token.operation == "set" and token.anchor == token.affected_path:
-            self.record_set(token.anchor, token.value)
+            self._replacements[token.anchor] = {
+                "path": list(token.anchor),
+                "operation": "set",
+                "value": token.value,
+                "sequence": self._next_sequence(),
+            }
             return
         if self._canonical_lookup is None:
             raise RuntimeError("canonical state lookup is required for nested replaceable writes")
-        current = self._canonical_lookup(token.anchor)
-        self.record_set(token.anchor, current)
+        # 同一条可替换记录在一个 Tick 内往往会更新多个字段。这里只标记
+        # 最终需要保存的锚点；seal_tick 再读取一次最终值，避免每个字段写入
+        # 都深拷贝并 JSON 序列化整条记录。
+        self._replacements[token.anchor] = {
+            "path": list(token.anchor),
+            "operation": "deferred_set",
+            "sequence": self._next_sequence(),
+        }
 
     def commit_proxy_operation(self, token: _PreparedProxyWrite) -> None:
         """canonical mutation 成功后，仅复制命中的有界锚点或新增事实。"""
@@ -840,9 +852,31 @@ class StateDeltaJournal:
     def seal_tick(self) -> SealedTickDelta:
         self._require_active()
         assert self._active_step is not None
+        replacements: list[dict[str, Any]] = []
+        for item in sorted(
+            self._replacements.values(),
+            key=lambda candidate: candidate["sequence"],
+        ):
+            if item["operation"] != "deferred_set":
+                replacements.append(item)
+                continue
+            if self._canonical_lookup is None:
+                raise RuntimeError(
+                    "canonical state lookup is required for deferred replacements"
+                )
+            path = tuple(item["path"])
+            value = self._canonical_lookup(path)
+            replacements.append(
+                {
+                    "path": list(path),
+                    "operation": "set",
+                    "value": _json_copy(value),
+                    "sequence": item["sequence"],
+                }
+            )
         result = SealedTickDelta(
             step=self._active_step,
-            replacements=tuple(_freeze_json(item) for item in sorted(self._replacements.values(), key=lambda item: item["sequence"])),
+            replacements=tuple(_freeze_json(item) for item in replacements),
             appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
             write_epoch_ids=(self._write_epoch_id,) if self._write_epoch_id else (),
         )

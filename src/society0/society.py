@@ -900,6 +900,7 @@ class Society0:
         default_concurrency, concurrency_source = self._resolve_default_agent_concurrency()
         world._default_agent_concurrency = default_concurrency
         world._default_agent_concurrency_source = concurrency_source
+        world.set_state_change_event_recording(self.log_state_changes)
         world.set_log_context(self.log_context)
         world.set_function_registry(self.registry)
         world.set_persistence_manager(self.persistence_manager)

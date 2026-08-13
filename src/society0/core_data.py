@@ -387,6 +387,10 @@ class World:
             default=None,
         )
         self._log_context: Optional['ExperimentLogContext'] = None
+        # ``Society0(log_state_changes=False)`` 不保存逐字段状态事件。此时仍需
+        # 递增 state_version 以使 FoV 缓存失效，但无需构造随后会被丢弃的
+        # StateChangeEvent。
+        self._record_state_change_events: bool = True
 
         # Dependency injection - these will be set by SimEngine
         self._persistence_manager: Optional[Any] = None
@@ -442,6 +446,13 @@ class World:
 
     def _create_event_recorder(self):
         """Create event recorder callback for proxies"""
+        if not self._record_state_change_events:
+            def record_version_only(_event_dict):
+                self._bump_state_version()
+
+            record_version_only._society0_records_state_changes = False
+            return record_version_only
+
         def record_event(event_dict):
             # Convert simple event dict to proper event object
             from .events import StateChangeEvent
@@ -466,7 +477,14 @@ class World:
                 # Direct logging if no transaction (should be rare)
                 self.event_logger.write_event(event)
 
+        record_event._society0_records_state_changes = True
         return record_event
+
+    def set_state_change_event_recording(self, enabled: bool) -> None:
+        """选择是否为每次代理写入构造可审计状态事件。"""
+
+        self._record_state_change_events = bool(enabled)
+        self._environment_state_proxy = None
 
     def _create_context_provider(self):
         """Create context provider callback for proxies"""

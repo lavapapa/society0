@@ -178,6 +178,15 @@ class DictProxy(MutableMapping[str, Any]):
         old_value: Any = _MISSING,
     ) -> None:
         """记录状态变更事件"""
+        if self._event_recorder is None:
+            return
+        if not getattr(
+            self._event_recorder,
+            "_society0_records_state_changes",
+            True,
+        ):
+            self._event_recorder(None)
+            return
         try:
             # 构建变更路径
             if key is not None:
@@ -513,6 +522,15 @@ class ListProxy(MutableSequence[Any]):
         old_value: Any = _MISSING,
     ):
         """记录状态变更事件"""
+        if self._event_recorder is None:
+            return
+        if not getattr(
+            self._event_recorder,
+            "_society0_records_state_changes",
+            True,
+        ):
+            self._event_recorder(None)
+            return
         try:
             # 构建变更路径
             if index is not None:
