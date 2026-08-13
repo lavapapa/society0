@@ -906,13 +906,18 @@ class PersistenceManager:
         cls,
         source_run: str | Path,
         step: Optional[int] = None,
+        *,
+        include_restored_state: bool = False,
     ) -> Dict[str, Any]:
         root = Path(source_run).resolve()
         complete_dir = root / "checkpoints" / "v4" / "complete"
         if not complete_dir.is_dir():
             raise FileNotFoundError(f"No v4 complete checkpoints found in {root}")
         store = V4CheckpointStore(root)
-        return store.resolve(step)
+        return store.resolve(
+            step,
+            include_restored_state=include_restored_state,
+        )
 
     @staticmethod
     def _v4_root_manifest(
@@ -994,7 +999,9 @@ class PersistenceManager:
         root = v4_base.parent.parent
         branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
         store = V4CheckpointStore(root, branch_id=branch_id)
-        state_payload = store.restore(record["step"])
+        state_payload = record.get("_restored_state")
+        if not isinstance(state_payload, dict):
+            state_payload = store.restore(record["step"])
         root_metadata = self._v4_root_manifest(
             root,
             record["step"],
@@ -1039,10 +1046,10 @@ class PersistenceManager:
         if isinstance(resume_identity, Mapping):
             world._resume_identity = copy.deepcopy(dict(resume_identity))
         world.environment_data.setdefault("type", "base")
-        restored_state_payload = copy.deepcopy(state_payload)
+        restored_state_payload = state_payload
         self._v4_apply_transient_defaults(restored_state_payload, schema)
-        restored_state = copy.deepcopy(
-            ((restored_state_payload.get("environment") or {}).get("state") or {})
+        restored_state = (
+            (restored_state_payload.get("environment") or {}).get("state") or {}
         )
         world.environment_data["state"] = restored_state
         restored_agents = restored_state_payload.get("agents") or {}
@@ -1050,13 +1057,9 @@ class PersistenceManager:
             for agent_id, agent_data in world.agents_data.items():
                 dynamic_data = restored_agents.get(agent_id, {})
                 if isinstance(dynamic_data, Mapping):
-                    agent_data["state"] = copy.deepcopy(dynamic_data.get("state") or {})
-                    agent_data["properties"] = copy.deepcopy(
-                        dynamic_data.get("properties") or {}
-                    )
-                    agent_data["reminders"] = copy.deepcopy(
-                        dynamic_data.get("reminders") or []
-                    )
+                    agent_data["state"] = dynamic_data.get("state") or {}
+                    agent_data["properties"] = dynamic_data.get("properties") or {}
+                    agent_data["reminders"] = dynamic_data.get("reminders") or []
                 else:
                     agent_data["state"] = {}
                     agent_data["properties"] = {}
@@ -1189,7 +1192,10 @@ class PersistenceManager:
             branch_store.committed_memory_epoch_ids(from_step)
         )
         branch._v4_pending_memory_epoch_ids = set()
-        record = branch_store.resolve(from_step)
+        record = branch_store.resolve(
+            from_step,
+            include_restored_state=True,
+        )
         world, _ = await branch._load_v4_checkpoint_record(
             record,
             event_logger=None,
@@ -1218,7 +1224,8 @@ class PersistenceManager:
         del memory_required
         if restore_chroma:
             raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
-        record = self.resolve_checkpoint(step)
+        store = self._v4_store or V4CheckpointStore(self.save_dir)
+        record = store.resolve(step, include_restored_state=True)
         return await self._load_v4_checkpoint_record(
             record,
             event_logger=event_logger,
@@ -1242,7 +1249,11 @@ class PersistenceManager:
         if restore_chroma:
             raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
         self._assert_usable()
-        record = self.resolve_checkpoint_from(source_run, step)
+        record = self._resolve_v4_checkpoint_from(
+            Path(source_run).resolve(),
+            step,
+            include_restored_state=True,
+        )
         return await self._load_v4_checkpoint_record(
             record,
             event_logger=event_logger,

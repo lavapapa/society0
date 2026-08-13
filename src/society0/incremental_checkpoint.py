@@ -1292,7 +1292,12 @@ class V4CheckpointStore:
         finally:
             self._publishing = False
 
-    def resolve(self, step: int | None = None) -> dict[str, Any]:
+    def resolve(
+        self,
+        step: int | None = None,
+        *,
+        include_restored_state: bool = False,
+    ) -> dict[str, Any]:
         """解析一个 v4 marker，并校验 manifest 链。
 
         ``step=None`` 按降序跳过损坏 marker；显式 step 则把损坏原因直接
@@ -1318,8 +1323,8 @@ class V4CheckpointStore:
                 # hash chain.  This keeps ``latest`` from selecting a marker
                 # whose manifest exists but whose replacement/segment is
                 # already damaged.
-                self.restore(candidate)
-                return {
+                restored_state = self.restore(candidate)
+                result = {
                     "step": candidate,
                     "checkpoint_id": marker["checkpoint_id"],
                     "marker": marker,
@@ -1327,6 +1332,9 @@ class V4CheckpointStore:
                     "marker_file": self.complete_dir / f"step_{candidate:06d}.json",
                     "manifest_file": manifest_path,
                 }
+                if include_restored_state:
+                    result["_restored_state"] = restored_state
+                return result
             except (FileNotFoundError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 if step is not None:
                     raise
