@@ -575,7 +575,11 @@ class Society0:
                     )
                     delta = world.seal_persistence_tick()
                     persistence_sealed = True
-                    await self.persistence_manager.publish_delta(delta, self.schedule)
+                    await self.persistence_manager.publish_delta(
+                        delta,
+                        self.schedule,
+                        force=tick == steps - 1,
+                    )
                     world.advance_step()
                     completed_ticks += 1
                 except BaseException:
@@ -619,10 +623,11 @@ class Society0:
             )
             raise
         finally:
-            await self._save_checkpoint_file(
-                "checkpoint_final.json.gz",
-                failure=failure_info,
-            )
+            if failure_info is not None:
+                await self._save_checkpoint_file(
+                    "checkpoint_final.json.gz",
+                    failure=failure_info,
+                )
             total_time = time.time() - started
             if failed_exc is None:
                 self._write_jsonl(

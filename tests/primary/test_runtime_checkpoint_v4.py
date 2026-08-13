@@ -218,10 +218,10 @@ async def test_society0_tick_lifecycle_calls_begin_seal_publish_delta_without_wo
     monkeypatch.setattr(World, "begin_persistence_tick", begin)
     monkeypatch.setattr(World, "seal_persistence_tick", seal)
 
-    async def publish_delta(delta, schedule):
+    async def publish_delta(delta, schedule, *, force=False):
         lifecycle.append("publish")
         assert not hasattr(delta, "environment_data")
-        return await real_publish_delta(delta, schedule)
+        return await real_publish_delta(delta, schedule, force=force)
 
     real_publish_delta = engine.persistence_manager.publish_delta
     monkeypatch.setattr(engine.persistence_manager, "publish_delta", publish_delta)
@@ -287,7 +287,7 @@ async def test_society0_checkpoint_publish_failure_stops_run_without_new_marker(
 ):
     engine = _engine(tmp_path)
 
-    async def fail_publish(delta, schedule):
+    async def fail_publish(delta, schedule, *, force=False):
         raise OSError("checkpoint publish failed")
 
     monkeypatch.setattr(engine.persistence_manager, "publish_delta", fail_publish)
@@ -337,11 +337,11 @@ async def test_society0_checkpoint_every_two_publish_failure_discards_epoch(tmp_
     real_publish_delta = engine.persistence_manager.publish_delta
     publish_steps: list[int] = []
 
-    async def fail_epoch_publish(delta, schedule):
+    async def fail_epoch_publish(delta, schedule, *, force=False):
         publish_steps.append(delta.step)
         if delta.step >= 2:
             raise OSError("epoch publish failed")
-        return await real_publish_delta(delta, schedule)
+        return await real_publish_delta(delta, schedule, force=force)
 
     monkeypatch.setattr(engine.persistence_manager, "publish_delta", fail_epoch_publish)
 
