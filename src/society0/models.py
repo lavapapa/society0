@@ -194,6 +194,7 @@ class EmbedModel:
     concurrency: int = 5
     timeout: float = 30.0
     dimensions: int = 512
+    send_dimensions: bool = True
     trust_env: bool = True
     metadata: Dict[str, Any] = field(default_factory=dict)
 
@@ -232,6 +233,7 @@ class EmbedModel:
         base_url: str,
         api_key: Optional[str] = None,
         dimensions: int = 512,
+        send_dimensions: bool = True,
         concurrency: int = 5,
         timeout: float = 30.0,
     ) -> "EmbedModel":
@@ -242,6 +244,7 @@ class EmbedModel:
             base_url=base_url,
             provider_type="openai",
             dimensions=dimensions,
+            send_dimensions=send_dimensions,
             concurrency=concurrency,
             timeout=timeout,
         )
@@ -280,6 +283,7 @@ class EmbedModel:
             "timeout": self.timeout,
             "provider_type": self.provider_type,
             "dimensions": self.dimensions,
+            "send_dimensions": self.send_dimensions,
             "trust_env": self.trust_env,
         }
 

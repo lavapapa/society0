@@ -12,8 +12,45 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from society0 import Society0
 
 
+AGENT_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "trust": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "exposures": {
+            "type": "integer",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
+
+ENVIRONMENT_STATE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "misinformation_pressure": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+        "correction_strength": {
+            "type": "number",
+            "persistence": {"kind": "replaceable"},
+        },
+    },
+}
+
+
 CONFIG = {
-    "agent_types": [{"id": "participant", "archetype": "rule"}],
+    "agent_types": [
+        {
+            "id": "participant",
+            "archetype": "rule",
+            "state_schema": AGENT_STATE_SCHEMA,
+        }
+    ],
     "agents": [
         {"id": "alice", "type": "participant", "state": {"trust": 0.45, "exposures": 0}},
         {"id": "bob", "type": "participant", "state": {"trust": 0.7, "exposures": 0}},
@@ -21,6 +58,7 @@ CONFIG = {
     ],
     "environment": {
         "type": "plain",
+        "state_schema": ENVIRONMENT_STATE_SCHEMA,
         "state": {"misinformation_pressure": 0.04, "correction_strength": 0.02},
     },
 }
