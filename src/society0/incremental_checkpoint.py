@@ -1021,9 +1021,9 @@ class V4CheckpointStore:
                 continue
 
     @staticmethod
-    def _canonical_bytes(value: Any) -> bytes:
+    def _canonical_bytes(value: Any, *, thaw: bool = True) -> bytes:
         return json.dumps(
-            _thaw_json(value),
+            _thaw_json(value) if thaw else value,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -1057,8 +1057,15 @@ class V4CheckpointStore:
             temporary.unlink(missing_ok=True)
         return len(data)
 
-    def _write_gzip_component(self, directory: Path, payload: Any, name: str) -> dict[str, Any]:
-        canonical = self._canonical_bytes(payload)
+    def _write_gzip_component(
+        self,
+        directory: Path,
+        payload: Any,
+        name: str,
+        *,
+        thaw: bool = True,
+    ) -> dict[str, Any]:
+        canonical = self._canonical_bytes(payload, thaw=thaw)
         compressed = gzip.compress(canonical, compresslevel=6, mtime=0)
         digest = self._sha256(compressed)
         path = directory / name
@@ -1101,7 +1108,9 @@ class V4CheckpointStore:
             raise ValueError("root checkpoint step must be 0")
         delta = SealedTickDelta(
             step=0,
-            replacements=tuple(_freeze_json(dict(entry)) for entry in entries),
+            # 根条目来自 manager 已经脱离 World 的普通快照，发布调用又在
+            # 当前 worker 内同步消费；这里无需再冻结、解冻整棵初始状态。
+            replacements=tuple(dict(entry) for entry in entries),
             appends=(),
         )
         return self._publish_delta(
@@ -1181,6 +1190,7 @@ class V4CheckpointStore:
                 self.replacements_dir,
                 replacement_payload,
                 f"{checkpoint_id}.json.gz",
+                thaw=not is_root,
             )
             bytes_written += replacement["bytes"]
 
@@ -1245,7 +1255,7 @@ class V4CheckpointStore:
             if root_metadata is not None:
                 # Keep the fixed World metadata on the root only.  It is
                 # immutable and is never copied into subsequent delta files.
-                manifest["root_metadata"] = _thaw_json(_freeze_json(dict(root_metadata)))
+                manifest["root_metadata"] = dict(root_metadata)
             manifest_path = self.manifests_dir / f"{checkpoint_id}.json"
             manifest_bytes = self._canonical_bytes(manifest)
             bytes_written += self._atomic_write(manifest_path, manifest_bytes)
