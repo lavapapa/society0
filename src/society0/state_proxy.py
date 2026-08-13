@@ -127,6 +127,11 @@ class DictProxy(MutableMapping[str, Any]):
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
         object.__setattr__(self, '_persistence_journal', persistence_journal)
         object.__setattr__(self, '_lease', lease)
+        object.__setattr__(
+            self,
+            '_child_proxy_cache',
+            {} if len(path) <= 3 else None,
+        )
 
     _PROTECTED_ATTRS = {
         "_target_dict",
@@ -136,6 +141,7 @@ class DictProxy(MutableMapping[str, Any]):
         "_access_context",
         "_persistence_journal",
         "_lease",
+        "_child_proxy_cache",
     }
 
     def _ensure_live(self) -> None:
@@ -228,7 +234,11 @@ class DictProxy(MutableMapping[str, Any]):
 
         # 根据值的类型返回相应的代理或原始值
         if isinstance(value, dict):
-            return DictProxy(
+            cache = self._child_proxy_cache
+            cached = cache.get(key) if cache is not None else None
+            if isinstance(cached, DictProxy) and cached._target_dict is value:
+                return cached
+            proxy = DictProxy(
                 target_dict=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
@@ -237,8 +247,15 @@ class DictProxy(MutableMapping[str, Any]):
                 persistence_journal=self._persistence_journal,
                 lease=self._lease,
             )
+            if cache is not None:
+                cache[key] = proxy
+            return proxy
         elif isinstance(value, list):
-            return ListProxy(
+            cache = self._child_proxy_cache
+            cached = cache.get(key) if cache is not None else None
+            if isinstance(cached, ListProxy) and cached._target_list is value:
+                return cached
+            proxy = ListProxy(
                 target_list=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
@@ -247,6 +264,9 @@ class DictProxy(MutableMapping[str, Any]):
                 persistence_journal=self._persistence_journal,
                 lease=self._lease,
             )
+            if cache is not None:
+                cache[key] = proxy
+            return proxy
         else:
             return value
 
@@ -486,6 +506,11 @@ class ListProxy(MutableSequence[Any]):
         object.__setattr__(self, '_access_context', access_context)  # 🔑 新增
         object.__setattr__(self, '_persistence_journal', persistence_journal)
         object.__setattr__(self, '_lease', lease)
+        object.__setattr__(
+            self,
+            '_child_proxy_cache',
+            {} if len(path) <= 3 else None,
+        )
 
     def _ensure_live(self) -> None:
         lease = self._lease
@@ -574,7 +599,11 @@ class ListProxy(MutableSequence[Any]):
 
         # 根据值的类型返回相应的代理或原始值
         if isinstance(value, dict):
-            return DictProxy(
+            cache = self._child_proxy_cache
+            cached = cache.get(index) if cache is not None else None
+            if isinstance(cached, DictProxy) and cached._target_dict is value:
+                return cached
+            proxy = DictProxy(
                 target_dict=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
@@ -583,8 +612,15 @@ class ListProxy(MutableSequence[Any]):
                 persistence_journal=self._persistence_journal,
                 lease=self._lease,
             )
+            if cache is not None:
+                cache[index] = proxy
+            return proxy
         elif isinstance(value, list):
-            return ListProxy(
+            cache = self._child_proxy_cache
+            cached = cache.get(index) if cache is not None else None
+            if isinstance(cached, ListProxy) and cached._target_list is value:
+                return cached
+            proxy = ListProxy(
                 target_list=value,
                 event_recorder=self._event_recorder,
                 context_provider=self._context_provider,
@@ -593,6 +629,9 @@ class ListProxy(MutableSequence[Any]):
                 persistence_journal=self._persistence_journal,
                 lease=self._lease,
             )
+            if cache is not None:
+                cache[index] = proxy
+            return proxy
         else:
             return value
     

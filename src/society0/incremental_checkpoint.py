@@ -25,6 +25,7 @@ class PersistenceKind(str, Enum):
 
 
 _WILDCARD = object()
+_RULE_NODE = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,8 +125,19 @@ class PersistenceSchema:
         # serialize the declarations without inventing a second schema DSL.
         self._source_schemas = tuple(source_schemas or (self,))
         self._wildcard_rules = tuple(
-            rule for path, rule in self.rules.items() if any(part is _WILDCARD for part in path)
+            rule
+            for path, rule in self.rules.items()
+            if any(part is _WILDCARD for part in path)
         )
+        # 持久化规则会在每个业务字段写入时被查询。规则数量不大，但事实 ID
+        # 几乎都不同，缓存具体路径仍会不断失效。把声明编译成前缀树后，解析
+        # 成本只随路径深度变化，不再随规则数量和历史事实数量变化。
+        self._rule_trie: dict[Any, Any] = {}
+        for pattern, rule in self.rules.items():
+            node = self._rule_trie
+            for part in pattern:
+                node = node.setdefault(part, {})
+            node[_RULE_NODE] = rule
         # 同一批业务写入会反复命中相同的 concrete path。声明本身在编译后
         # 不再变化，因此可以直接复用解析结果，避免每次字段写入都重新遍历
         # 全部持久化规则。缓存达到上限时整代清空，空间不会随长期运行增长。
@@ -343,14 +355,32 @@ class PersistenceSchema:
                 exact,
                 limit=self._resolution_cache_limit,
             )
-        for pattern, rule in self.rules.items():
-            if any(part is _WILDCARD for part in pattern) and self._matches(pattern, concrete):
-                return self._cache_resolution(
-                    self._resolve_cache,
-                    concrete,
-                    rule,
-                    limit=self._resolution_cache_limit,
-                )
+        active: list[tuple[Mapping[Any, Any], int]] = [(self._rule_trie, 0)]
+        for actual in concrete:
+            following: list[tuple[Mapping[Any, Any], int]] = []
+            for node, exact_count in active:
+                exact_node = node.get(actual)
+                if isinstance(exact_node, Mapping):
+                    following.append((exact_node, exact_count + 1))
+                wildcard_node = node.get(_WILDCARD)
+                if isinstance(wildcard_node, Mapping):
+                    following.append((wildcard_node, exact_count))
+            active = following
+            if not active:
+                break
+        matches = [
+            (exact_count, node[_RULE_NODE])
+            for node, exact_count in active
+            if _RULE_NODE in node
+        ]
+        if matches:
+            _, rule = max(matches, key=lambda item: item[0])
+            return self._cache_resolution(
+                self._resolve_cache,
+                concrete,
+                rule,
+                limit=self._resolution_cache_limit,
+            )
         return self._cache_resolution(
             self._resolve_cache,
             concrete,
@@ -377,22 +407,36 @@ class PersistenceSchema:
         concrete = tuple(path)
         if concrete in self._resolve_write_cache:
             return self._resolve_write_cache[concrete]
-        matches: list[tuple[int, tuple[Any, ...], PersistenceRule]] = []
-        for pattern, rule in self.rules.items():
-            if self._prefix_matches(pattern, concrete):
-                anchor = tuple(
-                    concrete[index] if part is _WILDCARD else part
-                    for index, part in enumerate(pattern)
-                )
-                matches.append((len(pattern), anchor, rule))
-        if not matches:
+        active: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = [
+            (self._rule_trie, (), 0)
+        ]
+        best: tuple[int, int, tuple[Any, ...], PersistenceRule] | None = None
+        for depth, actual in enumerate(concrete, start=1):
+            following: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = []
+            for node, anchor, exact_count in active:
+                exact_node = node.get(actual)
+                if isinstance(exact_node, Mapping):
+                    following.append((exact_node, anchor + (actual,), exact_count + 1))
+                wildcard_node = node.get(_WILDCARD)
+                if isinstance(wildcard_node, Mapping):
+                    following.append((wildcard_node, anchor + (actual,), exact_count))
+            active = following
+            for node, anchor, exact_count in active:
+                rule = node.get(_RULE_NODE)
+                if isinstance(rule, PersistenceRule):
+                    candidate = (depth, exact_count, anchor, rule)
+                    if best is None or candidate[:2] > best[:2]:
+                        best = candidate
+            if not active:
+                break
+        if best is None:
             return self._cache_resolution(
                 self._resolve_write_cache,
                 concrete,
                 None,
                 limit=self._resolution_cache_limit,
             )
-        _, anchor, rule = max(matches, key=lambda item: item[0])
+        _, _, anchor, rule = best
         return self._cache_resolution(
             self._resolve_write_cache,
             concrete,
@@ -735,11 +779,29 @@ class StateDeltaJournal:
         affected = container + (key,) if key is not None else container
 
         if self._schema is not None:
-            resolution = self._schema.resolve_write(affected)
-            if resolution is None:
-                raise ValueError(f"undeclared persistence path: {affected!r}")
-            rule = resolution.rule
-            anchor = resolution.anchor
+            # 产业环境绝大多数写入都是“已声明容器的直接子项”：向事实表
+            # 新增一条记录，或修改 replaceable_map 中的一个实体。容器路径
+            # 是稳定且可缓存的，动态业务 ID 却几乎不会重复。先从容器声明
+            # 直接得到锚点，避免为每个新 ID 扫描整张规则表并污染解析缓存。
+            # 这里只能命中容器本身的精确声明。若用 ``resolve``，
+            # ``inventories/<lot_id>`` 这样的实体路径也会命中 wildcard
+            # 条目规则，继而把字段写入误判为新的实体写入。
+            container_rule = self._schema.rules.get(container)
+            direct_child = key is not None and affected == container + (key,)
+            if direct_child and container_rule is not None:
+                rule = container_rule
+                anchor = (
+                    affected
+                    if rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                    else container
+                )
+            else:
+                resolution = self._schema.resolve_write(affected)
+                if resolution is None:
+                    raise ValueError(f"undeclared persistence path: {affected!r}")
+                rule = resolution.rule
+                anchor = resolution.anchor
         else:
             # 低层 journal API 仍支持显式精确路径，供独立 store/状态机使用。
             container_kind = self._declarations.get(container)
@@ -938,8 +1000,13 @@ class StateDeltaJournal:
             )
         result = SealedTickDelta(
             step=self._active_step,
-            replacements=tuple(_freeze_json(item) for item in replacements),
-            appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
+            # prepare/commit 已把业务值复制进 journal；seal 后 journal 立即
+            # 清空，delta 也只交给发布器消费。保留普通 JSON 容器，避免对
+            # 整批增量先递归冻结、写盘前又递归解冻。
+            replacements=tuple(replacements),
+            appends=tuple(
+                sorted(self._appends, key=lambda item: item["sequence"])
+            ),
             write_epoch_ids=(self._write_epoch_id,) if self._write_epoch_id else (),
         )
         self._clear_active()
@@ -1021,9 +1088,9 @@ class V4CheckpointStore:
                 continue
 
     @staticmethod
-    def _canonical_bytes(value: Any, *, thaw: bool = True) -> bytes:
+    def _canonical_bytes(value: Any) -> bytes:
         return json.dumps(
-            _thaw_json(value) if thaw else value,
+            value,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -1062,10 +1129,8 @@ class V4CheckpointStore:
         directory: Path,
         payload: Any,
         name: str,
-        *,
-        thaw: bool = True,
     ) -> dict[str, Any]:
-        canonical = self._canonical_bytes(payload, thaw=thaw)
+        canonical = self._canonical_bytes(payload)
         compressed = gzip.compress(canonical, compresslevel=6, mtime=0)
         digest = self._sha256(compressed)
         path = directory / name
@@ -1190,7 +1255,6 @@ class V4CheckpointStore:
                 self.replacements_dir,
                 replacement_payload,
                 f"{checkpoint_id}.json.gz",
-                thaw=not is_root,
             )
             bytes_written += replacement["bytes"]
 
