@@ -85,6 +85,14 @@ async def test_memory_extraction_appends_to_original_agent_thread():
         "function": {"name": "extract_memories"},
     }
     assert requests[0]["metadata"]["thread_id"] == "thread-12-a"
+    schema = requests[0]["tools"][0]["function"]["parameters"]
+    assert schema["properties"]["memories"]["maxItems"] == 5
+    assert (
+        schema["properties"]["memories"]["items"]["properties"]["content"][
+            "maxLength"
+        ]
+        == 500
+    )
     assert result["conversation_messages"][: len(original_messages)] == original_messages
     assert result["conversation_messages"][-1]["tool_calls"][0]["id"] == "memory_call"
     assert result["full_history"][0]["request"] == requests[0]
@@ -117,15 +125,71 @@ async def test_memory_extraction_retry_continues_the_same_thread():
     assert len(requests) == 2
     retry_messages = requests[1]["messages"]
     assert retry_messages[: len(original_messages)] == original_messages
-    assert retry_messages[-2] == {
+    assert retry_messages[-1]["role"] == "user"
+    assert "extract_memories" in retry_messages[-1]["content"]
+    assert "JSON 数组" in retry_messages[-1]["content"]
+    assert all(
+        message.get("content") != "我会继续处理经营任务。"
+        for message in retry_messages[len(original_messages) :]
+    )
+    assert requests[1]["metadata"]["thread_id"] == "thread-9-a"
+    assert len(result["full_history"]) == 2
+    assert result["full_history"][0]["response"] == {
         "role": "assistant",
         "content": "我会继续处理经营任务。",
     }
-    assert retry_messages[-1]["role"] == "user"
-    assert "extract_memories" in retry_messages[-1]["content"]
-    assert requests[1]["metadata"]["thread_id"] == "thread-9-a"
-    assert len(result["full_history"]) == 2
     assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_memory_extraction_retry_does_not_replay_truncated_tool_arguments():
+    original_messages = [
+        {"role": "system", "content": "你负责经营企业。"},
+        {"role": "user", "content": "处理本 Tick 经营事项。"},
+        {"role": "assistant", "content": "本期经营完成。"},
+    ]
+    requests = []
+    malformed_arguments = '{"memories": "[{\\"content\\": \\"政策变化' + " " * 8000
+
+    async def llm_call(payload):
+        requests.append(json.loads(json.dumps(payload, ensure_ascii=False)))
+        if len(requests) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "finish_reason": "length",
+                "tool_calls": [
+                    {
+                        "id": "broken_memory",
+                        "type": "function",
+                        "function": {
+                            "name": "extract_memories",
+                            "arguments": malformed_arguments,
+                        },
+                    }
+                ],
+            }
+        return _extract_response(
+            [{"content": "我需要记住消费税政策的生效时间。", "importance": 5}],
+            call_id="recovered_memory",
+        )
+
+    result = await extract_memories_from_thread(
+        conversation_messages=original_messages,
+        llm_call=llm_call,
+        thread_id="thread-truncated-memory",
+    )
+
+    retry_messages = requests[1]["messages"]
+    assert result["success"] is True
+    assert len(result["full_history"]) == 2
+    assert not any(
+        malformed_arguments
+        == ((call.get("function") or {}).get("arguments"))
+        for message in retry_messages
+        for call in message.get("tool_calls", [])
+    )
+    assert "不能把数组再次编码成字符串" in retry_messages[-1]["content"]
 
 
 @pytest.mark.asyncio
