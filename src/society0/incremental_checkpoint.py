@@ -1016,13 +1016,41 @@ class StateDeltaJournal:
             for index, token in enumerate(tokens)
             if token.kind is PersistenceKind.REPLACEABLE
         }
-        for index, token in enumerate(tokens):
-            if (
+        committed_tokens = tuple(
+            token
+            for index, token in enumerate(tokens)
+            if not (
                 token.kind is PersistenceKind.REPLACEABLE
                 and last_replacement[token.anchor] != index
-            ):
-                continue
-            self._commit_proxy_write(token)
+            )
+        )
+        missing = object()
+        previous_replacements = {
+            token.anchor: self._replacements.get(token.anchor, missing)
+            for token in committed_tokens
+            if token.kind is PersistenceKind.REPLACEABLE
+        }
+        append_length = len(self._appends)
+        sequence = self._sequence
+        pending_identities = tuple(
+            (token.anchor, token.key)
+            for token in committed_tokens
+            if token.kind is PersistenceKind.APPEND_ONLY_MAP
+        )
+        try:
+            for token in committed_tokens:
+                self._commit_proxy_write(token)
+        except Exception:
+            self._sequence = sequence
+            del self._appends[append_length:]
+            for identity in pending_identities:
+                self._pending_map_ids.discard(identity)
+            for anchor, previous in previous_replacements.items():
+                if previous is missing:
+                    self._replacements.pop(anchor, None)
+                else:
+                    self._replacements[anchor] = previous
+            raise
 
     def seal_tick(self) -> SealedTickDelta:
         self._require_active()
