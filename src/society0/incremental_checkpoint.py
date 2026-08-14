@@ -57,6 +57,7 @@ class _PreparedProxyWrite:
     operation: str
     key: Any = None
     value: Any = None
+    validated: bool = True
 
 
 def _json_copy(value: Any) -> Any:
@@ -855,7 +856,10 @@ class StateDeltaJournal:
         kind = rule.kind
         prepared_value = None
         if operation in ("set", "append", "insert"):
-            prepared_value = _json_copy(value)
+            # 显式事务在暂存阶段只需要解析持久化锚点和操作权限，终态值会在
+            # commit 的统一预检中复制并校验。这里重复 JSON copy 会让一次
+            # 业务事务中的每次中间写都承担序列化成本。
+            prepared_value = _json_copy(value) if validate_value else value
             if self._schema is not None and validate_value:
                 self._schema.validate_write_value(affected, prepared_value)
 
@@ -904,6 +908,7 @@ class StateDeltaJournal:
             operation=operation,
             key=key,
             value=prepared_value,
+            validated=validate_value,
         )
 
     def prepare_proxy_operation(
@@ -954,6 +959,10 @@ class StateDeltaJournal:
         return tuple(prepared)
 
     def _commit_proxy_write(self, token: _PreparedProxyWrite) -> None:
+        if not token.validated:
+            raise RuntimeError(
+                "unvalidated proxy operation cannot be committed directly"
+            )
         if token.kind is PersistenceKind.TRANSIENT:
             return
         if token.kind is PersistenceKind.APPEND_ONLY_MAP:
@@ -982,7 +991,14 @@ class StateDeltaJournal:
             return
 
         if token.operation == "delete" and token.anchor == token.affected_path:
-            self.record_delete(token.anchor)
+            # token 已经通过 resolve_write 确认是可替换锚点。开放 mixed
+            # entity 的动态字段可能只由 wildcard 规则声明，重新走 _kind()
+            # 会把这个合法锚点误报为未声明路径。
+            self._replacements[token.anchor] = {
+                "path": list(token.anchor),
+                "operation": "delete",
+                "sequence": self._next_sequence(),
+            }
             return
         if token.operation == "set" and token.anchor == token.affected_path:
             self._replacements[token.anchor] = {

@@ -14,6 +14,7 @@ from society0 import (
     StateAccessMode,
     StateTransactionConflict,
     append_only_map,
+    append_only_list,
     persistent_state_schema,
     replaceable,
     replaceable_map,
@@ -48,6 +49,19 @@ def _append_schema() -> dict[str, Any]:
                 "properties": {"value": {"type": "integer"}},
             }
         )
+    )
+
+
+def _mixed_dynamic_schema() -> dict[str, Any]:
+    account_schema = {
+        "type": "object",
+        "properties": {
+            "journal": append_only_map(),
+        },
+        "additionalProperties": True,
+    }
+    return persistent_state_schema(
+        accounts=replaceable_map(entry_schema=account_schema)
     )
 
 
@@ -458,5 +472,466 @@ def test_transparent_proxy_mode_rejects_explicit_transaction_same_tick(
         delta = world.seal_persistence_tick()
         assert world.environment_data["state"] == {"value": 2}
         assert [item["value"] for item in delta.replacements] == [2]
+    finally:
+        _close_world(world)
+
+
+def test_mutation_anchor_fast_path_preserves_canonical_and_overlay_reads(
+    tmp_path: Path,
+) -> None:
+    """修改一个顶层记录不应遮蔽另一个记录，根 overlay 仍须支持 RYW。"""
+
+    world = _world(
+        tmp_path,
+        _two_scalar_schema(),
+        {"left": 1, "right": 2},
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            tx.state["left"] = 3
+            assert tx.state["right"] == 2
+            tx.state["right"] = 4
+            assert tx.state["right"] == 4
+        assert world.environment_data["state"] == {"left": 3, "right": 4}
+    finally:
+        _close_world(world)
+
+    no_journal_world = World(
+        event_log_path=str(tmp_path / "no-journal-events.jsonl"),
+        state_access_mode=StateAccessMode.EXPLICIT_TRANSACTIONS,
+    )
+    no_journal_world.environment_data["state"] = {
+        "left": {"value": 1},
+        "right": {"value": 2},
+    }
+    try:
+        with no_journal_world.write_environment_transaction() as tx:
+            tx.state["left"] = {"value": 3}
+            assert tx.state["left"]["value"] == 3
+            assert tx.state["right"]["value"] == 2
+            tx.state["right"] = {"value": 4}
+            assert tx.state["right"]["value"] == 4
+    finally:
+        no_journal_world.event_logger.close()
+
+
+def test_mixed_dynamic_field_delete_preserves_nested_history(tmp_path: Path) -> None:
+    """开放 mixed entity 的动态字段可删除，历史事实仍保持原样。"""
+
+    world = _world(
+        tmp_path,
+        _mixed_dynamic_schema(),
+        {
+            "accounts": {
+                "a": {
+                    "journal": {"old": {"amount": 1}},
+                    "label": "before",
+                }
+            }
+        },
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            del tx.state["accounts"]["a"]["label"]
+        assert world.environment_data["state"] == {
+            "accounts": {"a": {"journal": {"old": {"amount": 1}}}}
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == (
+            {
+                "path": [*ROOT, "accounts", "a", "label"],
+                "operation": "delete",
+                "sequence": 0,
+            },
+        )
+        assert delta.appends == ()
+    finally:
+        _close_world(world)
+
+
+def test_mixed_dynamic_field_delete_exception_leaves_canonical_and_journal_clean(
+    tmp_path: Path,
+) -> None:
+    """动态字段删除在事务体异常时不应留下 canonical/journal 改动。"""
+
+    original = {
+        "accounts": {
+            "a": {
+                "journal": {"old": {"amount": 1}},
+                "label": "before",
+            }
+        }
+    }
+    world = _world(tmp_path, _mixed_dynamic_schema(), original)
+    journal = world._state_delta_journal
+    assert journal is not None
+    try:
+        with pytest.raises(RuntimeError, match="business failure"):
+            with world.write_environment_transaction() as tx:
+                del tx.state["accounts"]["a"]["label"]
+                raise RuntimeError("business failure")
+        assert world.environment_data["state"] == original
+        assert journal._replacements == {}
+        assert journal._appends == []
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        _close_world(world)
+
+
+def test_mixed_dynamic_field_delete_conflict_does_not_append_journal_delta(
+    tmp_path: Path,
+) -> None:
+    """动态字段删除冲突时，失败事务不能污染已有 journal。"""
+
+    world = _world(
+        tmp_path,
+        _mixed_dynamic_schema(),
+        {
+            "accounts": {
+                "a": {
+                    "journal": {"old": {"amount": 1}},
+                    "label": "before",
+                }
+            }
+        },
+    )
+    first = world.write_environment_transaction()
+    second = world.write_environment_transaction()
+    first_context = contextvars.Context()
+    second_context = contextvars.Context()
+    first_context.run(first.__enter__)
+    second_context.run(second.__enter__)
+    try:
+        first_context.run(
+            lambda: first.state["accounts"]["a"].__delitem__("label")
+        )
+        second_context.run(
+            lambda: second.state["accounts"]["a"].__delitem__("label")
+        )
+        first.commit()
+        with pytest.raises(StateTransactionConflict):
+            second.commit()
+        assert world.environment_data["state"] == {
+            "accounts": {"a": {"journal": {"old": {"amount": 1}}}}
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == (
+            {
+                "path": [*ROOT, "accounts", "a", "label"],
+                "operation": "delete",
+                "sequence": 0,
+            },
+        )
+        assert delta.appends == ()
+    finally:
+        _close_world(world)
+
+
+def test_transaction_deepcopy_reflects_mixed_append_and_delete(tmp_path: Path) -> None:
+    """根/子树 deepcopy 必须合成事务 overlay、追加缓冲和删除结果。"""
+
+    account_schema = {
+        "type": "object",
+        "properties": {
+            "balance": replaceable(schema={"type": "number"}),
+            "journal": append_only_map(),
+            "history": append_only_list(),
+        },
+        "additionalProperties": True,
+    }
+    schema = persistent_state_schema(
+        accounts=replaceable_map(entry_schema=account_schema)
+    )
+    world = _world(
+        tmp_path,
+        schema,
+        {
+            "accounts": {
+                "a": {
+                    "balance": 10,
+                    "journal": {"old": {"amount": 1}},
+                    "history": ["old"],
+                }
+            }
+        },
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            account = tx.state["accounts"]["a"]
+            del account["balance"]
+            account["journal"]["new"] = {"amount": 2}
+            account["history"].append("new")
+
+            expected = {
+                "accounts": {
+                    "a": {
+                        "journal": {
+                            "old": {"amount": 1},
+                            "new": {"amount": 2},
+                        },
+                        "history": ["old", "new"],
+                    }
+                }
+            }
+            assert copy.deepcopy(tx.state) == expected
+            assert copy.deepcopy(tx.state["accounts"]) == expected["accounts"]
+
+        assert world.environment_data["state"] == expected
+        delta = world.seal_persistence_tick()
+        assert [tuple(item["path"]) for item in delta.replacements] == [
+            (*ROOT, "accounts", "a", "balance"),
+        ]
+        assert delta.replacements[0]["operation"] == "delete"
+        assert [tuple(item["path"]) for item in delta.appends] == [
+            (*ROOT, "accounts", "a", "journal"),
+            (*ROOT, "accounts", "a", "history"),
+        ]
+    finally:
+        _close_world(world)
+
+
+def test_explicit_transaction_without_journal_commits_and_blocks_root_replace(
+    tmp_path: Path,
+) -> None:
+    """无 journal 的显式事务仍可提交，活动事务期间不能整体替换根状态。"""
+
+    world = World(
+        event_log_path=str(tmp_path / "events.jsonl"),
+        state_access_mode=StateAccessMode.EXPLICIT_TRANSACTIONS,
+    )
+    world.environment_data["state"] = {"value": 1}
+    environment = world.get_environment()
+    try:
+        with world.write_environment_transaction() as tx:
+            tx.state["value"] = 2
+            with pytest.raises(RuntimeError, match="active .*transaction"):
+                environment.state = {"value": 100}
+        assert world.environment_data["state"] == {"value": 2}
+
+        environment.state = {"value": 3}
+        assert world.environment_data["state"] == {"value": 3}
+    finally:
+        world.event_logger.close()
+
+
+def test_no_journal_root_replace_sees_transaction_from_other_context(
+    tmp_path: Path,
+) -> None:
+    """根替换检查必须覆盖不在当前 context 中的活动事务。"""
+
+    world = World(
+        event_log_path=str(tmp_path / "events.jsonl"),
+        state_access_mode=StateAccessMode.EXPLICIT_TRANSACTIONS,
+    )
+    world.environment_data["state"] = {"value": 1}
+    environment = world.get_environment()
+    transaction = world.write_environment_transaction()
+    owner_context = contextvars.Context()
+    owner_context.run(transaction.__enter__)
+    try:
+        with pytest.raises(RuntimeError, match="active .*transaction"):
+            environment.state = {"value": 100}
+        owner_context.run(transaction.rollback)
+        assert world.environment_data["state"] == {"value": 1}
+    finally:
+        if transaction.active:
+            owner_context.run(transaction.rollback)
+        world.event_logger.close()
+
+
+def test_unvalidated_dry_token_cannot_be_committed_directly(tmp_path: Path) -> None:
+    """事务内部的 dry token 不得绕过 journal 的最终值校验。"""
+
+    world = _world(tmp_path, _scalar_schema(), {"value": 1})
+    journal = world._state_delta_journal
+    assert journal is not None
+    try:
+        token = journal.prepare_proxy_operation(
+            ROOT,
+            "set",
+            "value",
+            "invalid",
+            validate_value=False,
+        )
+        with pytest.raises(RuntimeError, match="unvalidated"):
+            journal.commit_proxy_operation(token)
+        assert world.environment_data["state"] == {"value": 1}
+        assert journal._replacements == {}
+        assert journal._appends == []
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == ()
+        assert delta.appends == ()
+    finally:
+        _close_world(world)
+
+
+def _list_pop_schema() -> dict[str, Any]:
+    return persistent_state_schema(
+        items=replaceable(
+            schema={
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {"value": {"type": "integer"}},
+                },
+            }
+        )
+    )
+
+
+def test_list_pop_detaches_result_before_rollback(tmp_path: Path) -> None:
+    """pop 返回值脱离 canonical 后，事务异常不能泄漏原始可变对象。"""
+
+    world = _world(
+        tmp_path,
+        _list_pop_schema(),
+        {"items": [{"value": 1}, {"value": 2}]},
+    )
+    try:
+        with pytest.raises(RuntimeError, match="rollback"):
+            with world.write_environment_transaction() as tx:
+                popped = tx.state["items"].pop(0)
+                assert popped == {"value": 1}
+                popped["value"] = 99
+                raise RuntimeError("rollback")
+        assert world.environment_data["state"] == {
+            "items": [{"value": 1}, {"value": 2}]
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == ()
+    finally:
+        _close_world(world)
+
+
+def test_list_pop_commit_does_not_retain_mutated_return_alias(tmp_path: Path) -> None:
+    """pop 提交后返回值的后续修改不能改写已提交列表。"""
+
+    world = _world(
+        tmp_path,
+        _list_pop_schema(),
+        {"items": [{"value": 1}, {"value": 2}]},
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            popped = tx.state["items"].pop(0)
+            popped["value"] = 99
+
+        assert world.environment_data["state"] == {
+            "items": [{"value": 2}]
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == (
+            {
+                "path": [*ROOT, "items"],
+                "operation": "set",
+                "value": [{"value": 2}],
+                "sequence": 0,
+            },
+        )
+    finally:
+        _close_world(world)
+
+
+def test_list_pop_detaches_nested_list_result(tmp_path: Path) -> None:
+    """pop 返回列表值时，列表本身及其后续修改也不能越过事务隔离。"""
+
+    schema = persistent_state_schema(
+        items=replaceable(
+            schema={
+                "type": "array",
+                "items": {"type": "array", "items": {"type": "integer"}},
+            }
+        )
+    )
+    world = _world(tmp_path, schema, {"items": [[1, 2], [3]]})
+    try:
+        with pytest.raises(RuntimeError, match="rollback"):
+            with world.write_environment_transaction() as tx:
+                popped = tx.state["items"].pop(0)
+                assert popped == [1, 2]
+                popped.append(99)
+                assert popped == [1, 2, 99]
+                raise RuntimeError("rollback")
+        assert world.environment_data["state"] == {"items": [[1, 2], [3]]}
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        _close_world(world)
+
+
+def test_popitem_returns_detached_value_after_delete_and_rollback(tmp_path: Path) -> None:
+    """popitem 返回值在删除后仍可读写，回滚不污染 canonical。"""
+
+    schema = persistent_state_schema(entities=replaceable_map())
+    world = _world(
+        tmp_path,
+        schema,
+        {"entities": {"a": {"value": 1}, "b": {"value": 2}}},
+    )
+    try:
+        with pytest.raises(RuntimeError, match="rollback"):
+            with world.write_environment_transaction() as tx:
+                key, popped = tx.state["entities"].popitem()
+                assert key == "b"
+                assert popped == {"value": 2}
+                popped["value"] = 99
+                assert popped == {"value": 99}
+                raise RuntimeError("rollback")
+        assert world.environment_data["state"] == {
+            "entities": {"a": {"value": 1}, "b": {"value": 2}}
+        }
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        _close_world(world)
+
+
+def test_popitem_commit_does_not_retain_mutated_return_alias(tmp_path: Path) -> None:
+    """popitem 提交后返回值的后续修改不能恢复已删除记录。"""
+
+    schema = persistent_state_schema(entities=replaceable_map())
+    world = _world(
+        tmp_path,
+        schema,
+        {"entities": {"a": {"value": 1}, "b": {"value": 2}}},
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            key, popped = tx.state["entities"].popitem()
+            assert key == "b"
+            popped["value"] = 99
+
+        assert world.environment_data["state"] == {
+            "entities": {"a": {"value": 1}}
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == (
+            {
+                "path": [*ROOT, "entities", "b"],
+                "operation": "delete",
+                "sequence": 0,
+            },
+        )
+    finally:
+        _close_world(world)
+
+
+def test_append_only_map_popitem_rejects_canonical_entry_delete(tmp_path: Path) -> None:
+    """append-only map 的 canonical ID 不能通过 popitem 删除。"""
+
+    world = _world(
+        tmp_path,
+        _append_schema(),
+        {"facts": {"existing": {"value": 1}}},
+    )
+    try:
+        with world.write_environment_transaction() as tx:
+            with pytest.raises(ValueError, match="immutable"):
+                tx.state["facts"].popitem()
+        assert world.environment_data["state"] == {
+            "facts": {"existing": {"value": 1}}
+        }
+        delta = world.seal_persistence_tick()
+        assert delta.replacements == ()
+        assert delta.appends == ()
     finally:
         _close_world(world)

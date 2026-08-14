@@ -112,10 +112,17 @@ class Environment:
         if not isinstance(value, dict):
             raise TypeError("Environment.state must be assigned a dict")
         journal = getattr(self._world, "_state_delta_journal", None)
-        if journal is not None and getattr(journal, "active_step", None) is not None:
+        active_tick = (
+            journal is not None
+            and getattr(journal, "active_step", None) is not None
+        )
+        active_transaction = self._world._has_active_state_transaction(
+            ("environment", "state")
+        )
+        if active_tick or active_transaction:
             raise RuntimeError(
-                "Environment.state cannot be replaced during an active persistence Tick; "
-                "write declared fields through the state proxy"
+                "Environment.state cannot be replaced during an active Tick or state "
+                "transaction; use the selected state write API"
             )
         self._world.environment_data["state"] = value
         if hasattr(self._world, "_environment_state_proxy"):

@@ -419,6 +419,7 @@ class World:
         self._tick_checkpoint_annotations: Optional[Dict[str, Any]] = None
         # 状态版本号：每次状态写入都会递增，用于缓存控制
         self._state_version: int = 0
+        self._state_transaction_epoch: int = 0
         self._state_record_versions: Dict[Any, int] = {}
         self._state_transaction_lock = threading.RLock()
         self._state_transactions: set[Any] = set()
@@ -1122,6 +1123,22 @@ class World:
             return None
         return tx
 
+    def _has_active_state_transaction(
+        self,
+        root_path: Optional[tuple[Any, ...]] = None,
+    ) -> bool:
+        """判断任一执行上下文中是否存在指定状态根的活动事务。"""
+
+        with self._state_transaction_lock:
+            return any(
+                tx.active
+                and (
+                    root_path is None
+                    or tuple(tx.root_path) == tuple(root_path)
+                )
+                for tx in self._state_transactions
+            )
+
     def write_agent_transaction(
         self,
         agent_id: str,
@@ -1148,6 +1165,7 @@ class World:
                 active = getattr(self._state_delta_journal, "active_step", None)
                 if active is None:
                     raise RuntimeError("state transactions require an active persistence Tick")
+            tx._start_version_epoch = self._state_transaction_epoch
             self._state_transactions.add(tx)
             self._state_transaction_var.set(tx)
 
@@ -1158,8 +1176,6 @@ class World:
                 self._state_transaction_var.set(None)
 
     def _commit_state_transaction(self, tx: StateTransaction) -> None:
-        from .incremental_checkpoint import PersistenceKind
-
         with self._state_transaction_lock:
             if tx not in self._state_transactions:
                 raise RuntimeError("state transaction is not active")
@@ -1168,7 +1184,7 @@ class World:
                 raise RuntimeError("state transaction cannot cross persistence Tick boundaries")
             for conflict_key, base in tx._base_versions.items():
                 current = int(self._state_record_versions.get(conflict_key, 0))
-                if current != base:
+                if current > base:
                     raise StateTransactionConflict(
                         "state transaction conflict; canonical state changed"
                     )
@@ -1206,7 +1222,7 @@ class World:
                 backups[op.anchor] = (present, copy.deepcopy(current))
 
             try:
-                touched = tx.apply_canonical(plan)
+                tx.apply_canonical(plan)
                 if journal is not None and getattr(journal, "active_step", None) is not None:
                     journal.commit_proxy_operations(plan.tokens)
             except Exception:
@@ -1222,10 +1238,10 @@ class World:
                         del target[length:]
                 raise
 
+            self._state_transaction_epoch += 1
+            commit_epoch = self._state_transaction_epoch
             for conflict_key in tx._base_versions:
-                self._state_record_versions[conflict_key] = int(
-                    self._state_record_versions.get(conflict_key, 0)
-                ) + 1
+                self._state_record_versions[conflict_key] = commit_epoch
             self._record_explicit_state_commit(plan)
 
     def _record_explicit_state_commit(self, plan: Any) -> None:
