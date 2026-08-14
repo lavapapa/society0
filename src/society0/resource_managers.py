@@ -1754,12 +1754,6 @@ class EmbeddingManager:
         model = endpoint.model
         trace_metadata = dict(metadata or {})
         bucket_key = self._make_microbatch_bucket_key(model, requested_dimensions)
-        # Keep Thread-attached writes in separate physical batches.  A shared
-        # batch would either leak one Thread's text into another ThreadStore
-        # or lose the per-thread evidence association.
-        thread_id = trace_metadata.get("thread_id")
-        if thread_id is not None:
-            bucket_key = f"{bucket_key}|thread:{thread_id}"
         loop = asyncio.get_running_loop()
         results: List[Optional[List[float]]] = [None] * len(texts)
         cache_keys: List[str] = []

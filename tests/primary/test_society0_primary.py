@@ -6927,6 +6927,81 @@ async def test_embedding_microbatch_preserves_plural_trace_metadata(monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_embedding_microbatch_coalesces_distinct_agent_threads(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_TEXTS", "20")
+    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_WAIT_MS", "5")
+
+    manager = EmbeddingManager(
+        [
+            {
+                "id": "default_embed",
+                "api_key": "test",
+                "base_url": "http://localhost:9999/v1",
+                "model": "embed-test",
+                "concurrency": 10,
+                "provider_type": "openai",
+            }
+        ]
+    )
+    physical_calls = []
+
+    async def fake_execute_request(endpoint, texts, dimensions, metadata=None):
+        physical_calls.append(
+            {
+                "texts": list(texts),
+                "metadata": dict(metadata or {}),
+            }
+        )
+        return {
+            "result": [
+                [float(index), float(len(text))]
+                for index, text in enumerate(texts)
+            ],
+            "model": endpoint.model,
+            "dimensions": dimensions,
+        }
+
+    manager._execute_request = fake_execute_request  # type: ignore[method-assign]
+
+    try:
+        results = await asyncio.gather(
+            *(
+                manager.request(
+                    [f"actor {index} memory"],
+                    dimensions=2,
+                    metadata={
+                        "step": 7,
+                        "thread_id": f"thread-{index}",
+                        "agent_id": f"actor-{index}",
+                        "memory_ids": [f"memory-{index}"],
+                        "interaction_type": "memory_write",
+                    },
+                )
+                for index in range(20)
+            )
+        )
+    finally:
+        await manager.close()
+
+    assert len(physical_calls) == 1
+    assert physical_calls[0]["texts"] == [
+        f"actor {index} memory" for index in range(20)
+    ]
+    assert physical_calls[0]["metadata"] == {
+        "step": 7,
+        "thread_ids": [f"thread-{index}" for index in range(20)],
+        "agent_ids": [f"actor-{index}" for index in range(20)],
+        "memory_ids": [f"memory-{index}" for index in range(20)],
+        "interaction_type": "memory_write",
+        "interaction_types": ["memory_write"],
+    }
+    assert [result["result"][0] for result in results] == [
+        [float(index), float(len(f"actor {index} memory"))]
+        for index in range(20)
+    ]
+
+
+@pytest.mark.asyncio
 async def test_society0_injects_model_concurrency_into_runtime(tmp_path):
     engine = Society0(
         save_dir=str(tmp_path),
