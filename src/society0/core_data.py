@@ -1141,7 +1141,8 @@ class World:
 
     def _register_state_transaction(self, tx: StateTransaction) -> None:
         with self._state_transaction_lock:
-            if self._state_transaction_var.get() is not None:
+            current = self._state_transaction_var.get()
+            if current is not None and current.active:
                 raise RuntimeError("nested state transactions are not supported")
             if self._state_delta_journal is not None:
                 active = getattr(self._state_delta_journal, "active_step", None)

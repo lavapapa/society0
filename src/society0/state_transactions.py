@@ -590,6 +590,54 @@ class StateTransaction:
             versions = getattr(self.world, "_state_record_versions", {})
             self._base_versions[conflict_key] = int(versions.get(conflict_key, 0))
 
+    def _cancel_buffered_map_create(
+        self,
+        path: tuple[Any, ...],
+        key: Any,
+    ) -> None:
+        """取消当前事务中新建、尚未提交的 append-only map 记录。"""
+
+        lock = getattr(self.world, "_state_transaction_lock", None)
+        if lock is None:
+            self._cancel_buffered_map_create_locked(path, key)
+            return
+        with lock:
+            self._cancel_buffered_map_create_locked(path, key)
+
+    def _cancel_buffered_map_create_locked(
+        self,
+        path: tuple[Any, ...],
+        key: Any,
+    ) -> None:
+        self._ensure_live()
+        self._check_access(path, key)
+        buffered = self._append_maps.get(path)
+        if buffered is None or key not in buffered:
+            if key in self._base_append_map(path):
+                raise ValueError("append-only map entry is immutable")
+            raise KeyError(key)
+
+        del buffered[key]
+        if not buffered:
+            self._append_maps.pop(path, None)
+        self._append_ids.discard((path, key))
+        conflict_key = _conflict_key(path, "append_only_map", key)
+        self._operations = [
+            operation
+            for operation in self._operations
+            if not (
+                getattr(operation.kind, "value", operation.kind)
+                == "append_only_map"
+                and operation.anchor == path
+                and operation.key == key
+            )
+        ]
+        if not any(
+            operation.conflict_key == conflict_key
+            for operation in self._operations
+        ):
+            self._base_versions.pop(conflict_key, None)
+
     def _stage_overlay_write(
         self,
         anchor: tuple[Any, ...],
@@ -655,6 +703,9 @@ class StateTransaction:
         self._stage(path, "set", key, value)
 
     def dict_delete(self, path: tuple[Any, ...], key: Any) -> None:
+        if key in self._append_maps.get(path, {}):
+            self._cancel_buffered_map_create(path, key)
+            return
         self._stage(path, "delete", key)
 
     def dict_clear(self, path: tuple[Any, ...]) -> None:
@@ -1015,6 +1066,18 @@ class _TxDict(_TxBase, MutableMapping):
 
     def clear(self) -> None:
         self._tx.dict_clear(self._path)
+
+    def pop(self, key: Any, *default: Any) -> Any:
+        if len(default) > 1:
+            raise TypeError(f"pop expected at most 2 arguments, got {len(default) + 1}")
+        try:
+            value = _plain(self[key])
+        except KeyError:
+            if default:
+                return default[0]
+            raise
+        del self[key]
+        return value
 
     def setdefault(self, key: Any, default: Any = None) -> Any:
         try:

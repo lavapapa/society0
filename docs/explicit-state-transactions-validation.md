@@ -21,8 +21,9 @@
   tests/primary tests/e2e -q --disable-warnings --maxfail=1
 ```
 
-结果：420 项通过，13 项真实端点测试按既有条件跳过；墙钟 72.44 秒；最大 RSS
-201,965,568 bytes。默认透明模式的 Society0 E2E、Social 推荐和持久化回归均在该集合中，
+初次结果为 420 项通过。第二轮故障注入和并发审查新增 12 项测试后，最终结果为 432 项
+通过，13 项真实端点测试按既有条件跳过；墙钟 71.98 秒；最大 RSS 193,757,184 bytes。
+默认透明模式的 Society0 E2E、Social 推荐和持久化回归均在该集合中，
 因此旧模式保持原行为的结论来自同一份修改后代码，而非只来自改造前基线。
 
 只读热路径另用同一锂电状态做 5 轮、每轮 20 万次循环（每次读取 5 个深层叶值）。中位数：
@@ -43,13 +44,20 @@
 显式模式在第 3 日注入后置异常时，canonical state 只保留前两日，失败日的生产、分配和
 探针写入均未出现。该组 2 项测试墙钟 2.08 秒，最大 RSS 159,367,168 bytes。
 
-产业链最终离线全仓回归为 630 项通过、17 项按既有条件跳过；墙钟 38.97 秒；最大 RSS
-299,335,680 bytes。该轮在产业链新 worktree 的隔离虚拟环境中，从本地 Git 安装精确的
+产业链初次离线全仓回归为 630 项通过。加入写入器矩阵、失败通知和跨资源恢复测试后，
+最终为 656 项通过、17 项按既有条件跳过；墙钟 40.97 秒；最大 RSS 299,991,040 bytes。
+初次隔离回归在产业链新 worktree 的虚拟环境中，从本地 Git 安装精确的
 Society0 提交，依赖身份门禁也包含在全绿结果中。
 
 Action 层额外覆盖直接消息、延迟通知、失败零修改、Agenda 返回值脱离事务，以及完整 Agent
 Tick 的日度写入和 Inbox watermark。锂电首次候选据此发现并修复了 Action 返回事务视图的
 生命周期问题；修复后的回归为 4 项通过。
+
+第二轮把产业链写入分成 10 类真实夹具：Inventory/Allocation、Production、Shipment、
+Transfer、Payment/Accounting、Tax、Capital/Finance、Contract/Agreement、SubmitTrade
+和 DailyMarket。每类都在真实 `INDUSTRY_STATE_SCHEMA` 下验证成功提交生成正确根路径的
+增量，并在业务已完成 staged 写入后注入异常，确认 canonical state 不变且 seal 得到空
+delta。矩阵和日度市场专门回归共 22 项通过。
 
 ## 3. 同一 checkpoint 三路结果与性能
 
@@ -72,6 +80,13 @@ Tick 的日度写入和 Inbox watermark。锂电首次候选据此发现并修�
 显式模式持久化/恢复/fork 及失败事务恢复共 2 项通过，墙钟 0.57 秒，最大 RSS
 56,770,560 bytes。Memory visibility、receipt recovery、Agent Thread manifest 和 runtime
 checkpoint 共 33 项通过，墙钟 2.78 秒，最大 RSS 163,332,096 bytes。
+
+第二轮另把 Environment Action、真实 Agent Memory/Chroma、Agent ThreadStore、V4 marker
+和 fork 放入同一故障链路。Memory 提炼失败后，诊断用 World 仍能看到本 Tick 的未发布
+状态，但 complete marker 停在 step 0，失败 epoch 在 `retrieve()`/`export_memories()` 中均
+不可见；从 step 0 恢复后重放结果与 clean run 一致。成功 step 的 manifest 同时包含 closed
+Thread 引用和 Memory write epoch；fork 能读取继承的 World、Memory 和 Thread，分支新增
+状态不会改变源分支。这组与既有机制恢复测试合计 5 项通过。
 
 历史增长 benchmark 在 100、1,000、10,000 条既有历史上各运行 50 Tick：两种模式每 Tick
 中位数始终为 6 条 delta、约 1,737 bytes、历史读取为 0。1000 Tick 长跑结果：
@@ -104,6 +119,28 @@ Society0 step 至 2026-05-07：
 首次候选虽写出 `complete`，日志包含失效事务返回值，因此没有被计为通过；修复并使用全新
 目录重跑后才形成上述结论。该证据只覆盖一个 7 日候选 step，不等于多年度正式消费税实验。
 
+第二轮最终源码完成后尝试重跑同一真实端点测试；当前进程没有配置 provider-neutral 端点变量
+或 `SOCIETY0_PLATFORM_ROOT`，测试按既有条件跳过。没有读取旧密钥，也没有启动替代服务。
+因此本节的真实端点与锂电候选数字来自第一轮已完成运行；第二轮新增的日志回滚、ContextVar
+生命周期和未提交 append 取消逻辑，由全量离线回归及真实 Chroma/ThreadStore 组合测试验证。
+
+## 6. 第二轮故障注入发现与修复
+
+- 日志提交第二条记录时抛错，原实现能恢复 canonical state，却会留下第一条 journal
+  replacement。现在 `commit_proxy_operations()` 只备份本事务触及的有界锚点、append 尾部
+  长度和 sequence；失败时恢复本事务前的 journal 内容。同 Tick 已成功事务的旧增量保持不变。
+- 在一个 `contextvars.Context` 进入事务、另一个 context 提交后，原 context 曾保留 inactive
+  事务并拒绝下一笔写入。注册逻辑现在只拒绝仍 active 的事务；跨 context 提交后可重新开始。
+- 日度处理回滚 World state 前曾立即通知 Agent，失败日会留下不存在事实对应的激活请求。
+  日度通知现在先缓冲，只有状态事务提交成功才交给激活协调器；测试同时确认回调观察到的
+  Calendar 与 Inbox 已经进入 canonical state。
+- DailyMarket 失败时需要取消本事务刚创建的 append-only gate。原实现把未提交记录也当成
+  immutable，掩盖了原始业务异常。显式事务现在允许删除本事务缓冲区中新建的 map ID，支持
+  `del`、`pop()`、读己写消失和同 ID 重新创建；任何已存在于 canonical state 的 ID 仍拒绝删除。
+- 共享记录并发使用乐观版本检查和串行 commit：两个 asyncio task 修改同一记录时一方提交、
+  一方得到 `StateTransactionConflict`；新事务重试成功。不同 append ID 可同时提交。该并发文件
+  12 项连续重复 20 次均通过。
+
 ## 残余风险
 
 - 显式整日事务的写密集成本仍显著高于代理模式；默认模式继续是 `transparent_proxy`。
@@ -112,6 +149,8 @@ Society0 step 至 2026-05-07：
 - 显式模式把旧的 Agent/Env 直接写法变成只读错误；自定义 Behavior/Action 必须迁移到
   `write_transaction()`。环境事务和 Agent 状态事务不嵌套，跨根原子写需要重新划定为一个
   World 根或提交后动作。
-- 事务是同步上下文能力，不支持在另一个 `contextvars.Context` 中提交；异步外部调用不应
-  放在事务体内。
+- 事务允许在另一个 `contextvars.Context` 中提交，但事务体内等待 provider 或其他外部 I/O
+  会延长冲突窗口；内置 Action 仍采用同步短事务，外部调用放在提交之后。
 - 历史恢复仍按 checkpoint 链读取；本工作只证明增量发布不扫描历史。
+- 第二轮最终源码没有重新取得真实 LLM/Embedding 端点；真实网络故障时序仍以第一轮 E2E
+  和离线可控 provider 的组合测试为证，尚缺最终源码上的再次联网复跑。
