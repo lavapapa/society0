@@ -12,12 +12,10 @@ at commit time.
 from __future__ import annotations
 
 import copy
-import contextvars
-import threading
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Iterable, Iterator, Optional
+from typing import Any, Iterable, Iterator
 
 
 class StateAccessMode(str, Enum):
@@ -260,9 +258,13 @@ class StateTransaction:
         self._deleted_children: dict[tuple[Any, ...], set[Any]] = {}
         self._append_maps: dict[tuple[Any, ...], dict[Any, Any]] = {}
         self._append_lists: dict[tuple[Any, ...], list[Any]] = {}
+        self._mutation_anchors: set[tuple[Any, ...]] = set()
+        self._mutated_root_keys: set[Any] = set()
+        self._root_mutated = False
         self._operations: list[_StagedOperation] = []
         self._base_versions: dict[tuple[Any, ...], int] = {}
         self._append_ids: set[tuple[tuple[Any, ...], Any]] = set()
+        self._start_version_epoch = 0
         self._start_tick = None
 
     # ------------------------------------------------------------------
@@ -333,10 +335,6 @@ class StateTransaction:
         if not self._active:
             reason = getattr(self, "_invalid_reason", "state transaction has expired")
             raise RuntimeError(reason)
-        journal = getattr(self.world, "_state_delta_journal", None)
-        active_tick = getattr(journal, "active_step", None)
-        if active_tick != self._start_tick:
-            raise RuntimeError("state transaction cannot cross persistence Tick boundaries")
 
     # ------------------------------------------------------------------
     # zero-copy transactional reads
@@ -353,47 +351,76 @@ class StateTransaction:
 
     def _lookup(self, path: tuple[Any, ...]) -> Any:
         self._ensure_live()
-        anchor = self._longest_ancestor(path, self._deleted_anchors)
-        if anchor is not None:
-            raise KeyError(path[len(anchor) - 1] if anchor else path)
+        if (
+            not self._root_mutated
+            and len(path) > len(self.root_path)
+            and path[len(self.root_path)] not in self._mutated_root_keys
+        ):
+            return self._canonical_value(path)
+        deleted_anchor = None
+        append_map_anchor = None
+        append_list_anchor = None
+        overlay_anchor = None
+        for size in range(len(path), len(self.root_path) - 1, -1):
+            candidate = path[:size]
+            if candidate not in self._mutation_anchors:
+                continue
+            if deleted_anchor is None and candidate in self._deleted_anchors:
+                deleted_anchor = candidate
+            if append_map_anchor is None and candidate in self._append_maps:
+                append_map_anchor = candidate
+            if append_list_anchor is None and candidate in self._append_lists:
+                append_list_anchor = candidate
+            if overlay_anchor is None and candidate in self._overlays:
+                overlay_anchor = candidate
+
+        if deleted_anchor is not None:
+            raise KeyError(
+                path[len(deleted_anchor) - 1] if deleted_anchor else path
+            )
 
         # 新增事实缓冲优先于可能包含它的父记录 overlay。新建 mixed entity
         # 后继续追加其 journal 时，父记录候选只保留空历史容器，新增事实仍
         # 必须能在事务内立即读到。
-        anchor = self._longest_ancestor(path, self._append_maps)
-        if anchor is not None:
-            remainder = path[len(anchor) :]
+        if append_map_anchor is not None:
+            remainder = path[len(append_map_anchor) :]
             if not remainder:
-                return _OverlayMap(self, anchor)
+                return _OverlayMap(self, append_map_anchor)
             key = remainder[0]
-            buffered = self._append_maps[anchor]
+            buffered = self._append_maps[append_map_anchor]
             if key in buffered:
                 return _walk(buffered[key], remainder[1:])
 
-        anchor = self._longest_ancestor(path, self._append_lists)
-        if anchor is not None:
-            remainder = path[len(anchor) :]
+        if append_list_anchor is not None:
+            remainder = path[len(append_list_anchor) :]
             if not remainder:
-                return _OverlayList(self, anchor)
+                return _OverlayList(self, append_list_anchor)
             index = remainder[0]
             if isinstance(index, int):
                 try:
-                    canonical = self._canonical_value(anchor)
+                    canonical = self._canonical_value(append_list_anchor)
                 except KeyError:
-                    canonical = _walk(self._overlays[self._covering_overlay(anchor)], anchor[len(self._covering_overlay(anchor)) :])
+                    covering = self._covering_overlay(append_list_anchor)
+                    canonical = _walk(
+                        self._overlays[covering],
+                        append_list_anchor[len(covering) :],
+                    )
                 if index < 0:
-                    index += len(canonical) + len(self._append_lists[anchor])
+                    index += len(canonical) + len(
+                        self._append_lists[append_list_anchor]
+                    )
                 if index >= len(canonical):
-                    value = self._append_lists[anchor][index - len(canonical)]
+                    value = self._append_lists[append_list_anchor][
+                        index - len(canonical)
+                    ]
                     return _walk(value, remainder[1:])
 
         # Longest staged replacement wins.
-        anchor = self._longest_ancestor(path, self._overlays)
-        if anchor is not None:
-            if anchor in self._deleted_anchors:
-                raise KeyError(path[-1] if path else anchor)
-            value = self._overlays[anchor]
-            return _walk(value, path[len(anchor) :])
+        if overlay_anchor is not None:
+            if overlay_anchor in self._deleted_anchors:
+                raise KeyError(path[-1] if path else overlay_anchor)
+            value = self._overlays[overlay_anchor]
+            return _walk(value, path[len(overlay_anchor) :])
 
         return self._canonical_value(path)
 
@@ -461,21 +488,36 @@ class StateTransaction:
         value = self._lookup(path)
         if not isinstance(value, Mapping):
             raise TypeError(f"state value at {path!r} is not a mapping")
+        overlay_children = self._overlay_children.get(path)
+        deleted_children = self._deleted_children.get(path)
+        if not overlay_children and not deleted_children:
+            return value.keys()
+
         keys = list(value.keys())
         seen = set(keys)
-        for key in self._overlay_children.get(path, ()):
+        for key in overlay_children or ():
             anchor = path + (key,)
             if key not in seen and anchor not in self._deleted_anchors:
                 keys.append(key)
                 seen.add(key)
-        for key in self._deleted_children.get(path, ()):
+        for key in deleted_children or ():
             if key in seen:
                 keys.remove(key)
                 seen.remove(key)
         return keys
 
     def _plain_at(self, path: tuple[Any, ...]) -> Any:
-        return _plain(self._lookup(path))
+        value = self._lookup(path)
+        if isinstance(value, Mapping):
+            return {
+                key: self._plain_at(path + (key,))
+                for key in self._mapping_keys(path)
+            }
+        if isinstance(value, Sequence) and not isinstance(
+            value, (str, bytes, bytearray)
+        ):
+            return [self._plain_at(path + (index,)) for index in range(len(value))]
+        return copy.deepcopy(value)
 
     # ------------------------------------------------------------------
     # staging writes
@@ -522,9 +564,17 @@ class StateTransaction:
 
         kind_value = getattr(kind, "value", kind)
         conflict_key = _conflict_key(anchor, kind_value, key)
-        # 先取得版本，再读取或复制 canonical。若并发提交发生在两者之间，
-        # commit 会检测到版本变化并拒绝旧事务；反向顺序会让旧副本错误地
-        # 绑定到新版本，造成丢失更新。
+        # 绝大多数事务读取不会落在已修改记录下。先维护一个只增的锚点
+        # 集合，让读取路径只在真正可能命中 overlay/append/delete 时再查
+        # 四类暂存结构；取消操作留下的假阳性只增加一次查询，不影响语义。
+        self._mutation_anchors.add(anchor)
+        if len(anchor) == len(self.root_path):
+            self._root_mutated = True
+        elif len(anchor) > len(self.root_path):
+            self._mutated_root_keys.add(anchor[len(self.root_path)])
+        # 写冲突基线固定在事务进入时。即使调用方先读、await，随后才首次
+        # 写入，同一记录在此期间已有提交也会让 commit 拒绝旧事务，避免
+        # 把旧读值重新写回并造成丢失更新。
         self._remember_version(conflict_key)
         if kind_value == "append_only_map":
             identity = (anchor, key)
@@ -587,8 +637,7 @@ class StateTransaction:
         if conflict_key is None:
             return
         if conflict_key not in self._base_versions:
-            versions = getattr(self.world, "_state_record_versions", {})
-            self._base_versions[conflict_key] = int(versions.get(conflict_key, 0))
+            self._base_versions[conflict_key] = self._start_version_epoch
 
     def _cancel_buffered_map_create(
         self,
@@ -729,7 +778,7 @@ class StateTransaction:
         self._stage(path, "remove", self._lookup(path).index(value), value)
 
     def list_pop(self, path: tuple[Any, ...], index: int = -1) -> Any:
-        value = self._lookup(path)[index]
+        value = _plain(self._lookup(path)[index])
         self._stage(path, "pop", index)
         return value
 
@@ -880,9 +929,14 @@ class StateTransaction:
             if value is None:
                 value = self._bounded_final_value(anchor)
             created_final_values[anchor] = copy.deepcopy(value)
-        journal_operations_list: list[tuple[tuple[Any, ...], str, Any, Any]] = []
-        for op in self._operations:
+        journal_candidates: list[
+            tuple[int, _StagedOperation, tuple[Any, ...] | None]
+        ] = []
+        last_journal_replacement: dict[tuple[Any, ...], int] = {}
+        for index, op in enumerate(self._operations):
             kind_value = getattr(op.kind, "value", op.kind)
+            if kind_value == "transient":
+                continue
             created_parent = None
             if op.anchor in deleted_without_canonical:
                 continue
@@ -896,15 +950,24 @@ class StateTransaction:
                     and op.affected == created_parent
                 ):
                     continue
-            value = (
+            journal_candidates.append((index, op, created_parent))
+            if kind_value == "replaceable":
+                last_journal_replacement[op.anchor] = index
+        journal_operations = tuple(
+            (
+                op.container,
+                op.operation,
+                op.key,
                 copy.deepcopy(created_final_values[created_parent])
                 if created_parent is not None and op.operation == "set"
-                else self._commit_value(op)
+                else self._commit_value(op),
             )
-            journal_operations_list.append(
-                (op.container, op.operation, op.key, value)
+            for index, op, created_parent in journal_candidates
+            if (
+                getattr(op.kind, "value", op.kind) != "replaceable"
+                or last_journal_replacement[op.anchor] == index
             )
-        journal_operations = tuple(journal_operations_list)
+        )
         schema = getattr(self.world, "_persistence_schema", None)
         if schema is not None:
             for anchor, value in final_by_anchor.items():
@@ -989,13 +1052,15 @@ class StateTransaction:
         if plan is None:
             plan = self.prepare_for_commit()
         touched: list[tuple[Any, ...]] = []
+        touched_set: set[tuple[Any, ...]] = set()
         for container, operation, key, value in plan.operations:
             target = self.world._persistence_lookup(container)
             if target is None:
                 raise KeyError(container)
             self._apply_operation(target, operation, key, value)
             affected = container + (key,) if key is not None else container
-            if affected not in touched:
+            if affected not in touched_set:
+                touched_set.add(affected)
                 touched.append(affected)
         return touched
 
@@ -1078,6 +1143,15 @@ class _TxDict(_TxBase, MutableMapping):
             raise
         del self[key]
         return value
+
+    def popitem(self) -> tuple[Any, Any]:
+        keys = self._tx._mapping_keys(self._path)
+        if not keys:
+            raise KeyError("popitem(): dictionary is empty")
+        key = next(reversed(keys)) if isinstance(keys, Sequence) else list(keys)[-1]
+        value = _plain(self[key])
+        del self[key]
+        return key, value
 
     def setdefault(self, key: Any, default: Any = None) -> Any:
         try:
