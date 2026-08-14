@@ -273,3 +273,43 @@ async def test_v4_restore_rejects_a_different_application_contract(tmp_path) -> 
 
     with pytest.raises(ValueError, match="resume identity does not match"):
         await destination.restore(source_dir, step=1)
+
+
+@pytest.mark.asyncio
+async def test_v4_restore_accepts_frozen_application_contract_digest(tmp_path) -> None:
+    source_dir = tmp_path / "identity-digest-source"
+    source = Society0(
+        save_dir=str(source_dir),
+        base_config=_config(),
+        checkpoint_every=1,
+        resume_contract={"experiment": "baseline"},
+    )
+
+    @source.step(name="advance")
+    async def advance(ctx):
+        ctx.env.state["counter"] += 1
+
+    await source.run(steps=1)
+    root = PersistenceManager._v4_root_manifest(source_dir, 1)
+    digest = root["resume_identity"]["application_contract_sha256"]
+
+    destination = Society0(
+        save_dir=str(tmp_path / "identity-digest-destination"),
+        base_config=_config(),
+        source_run=str(source_dir),
+        source_step=1,
+        resume_contract_sha256=digest,
+    )
+
+    restored_step = await destination.restore(source_dir, step=1)
+    assert restored_step == 1
+
+
+def test_resume_contract_and_digest_are_mutually_exclusive(tmp_path) -> None:
+    with pytest.raises(ValueError, match="只能提供一个"):
+        Society0(
+            save_dir=str(tmp_path / "identity-invalid"),
+            base_config=_config(),
+            resume_contract={"experiment": "baseline"},
+            resume_contract_sha256="0" * 64,
+        )

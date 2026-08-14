@@ -299,12 +299,21 @@ class Society0:
         source_run: Optional[Union[str, Path]] = None,
         source_step: Optional[int] = None,
         resume_contract: Optional[Mapping[str, Any]] = None,
+        resume_contract_sha256: Optional[str] = None,
     ) -> None:
         self.save_dir = Path(save_dir)
         self.source_run = Path(source_run).resolve() if source_run is not None else None
         if self.source_run is not None:
             self.validate_resume_paths(self.save_dir, self.source_run)
-        self._resume_contract_sha256 = self._resume_contract_hash(resume_contract)
+        if resume_contract is not None and resume_contract_sha256 is not None:
+            raise ValueError(
+                "resume_contract 与 resume_contract_sha256 只能提供一个"
+            )
+        self._resume_contract_sha256 = (
+            self._validate_resume_contract_sha256(resume_contract_sha256)
+            if resume_contract_sha256 is not None
+            else self._resume_contract_hash(resume_contract)
+        )
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config(base_config)
         self.llm_model = llm
@@ -362,6 +371,17 @@ class Society0:
             return None
         cls._reject_secret_contract_keys(contract)
         return PersistenceManager.canonical_sha256(dict(contract))
+
+    @staticmethod
+    def _validate_resume_contract_sha256(value: str) -> str:
+        """接受来源检查点已经冻结的应用合同摘要。"""
+
+        normalized = str(value).strip().lower()
+        if len(normalized) != 64 or any(
+            character not in "0123456789abcdef" for character in normalized
+        ):
+            raise ValueError("resume_contract_sha256 必须是 64 位十六进制摘要")
+        return normalized
 
     @classmethod
     def _reject_secret_contract_keys(cls, value: Any) -> None:
