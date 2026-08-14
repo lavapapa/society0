@@ -1016,29 +1016,25 @@ class StateDeltaJournal:
             for index, token in enumerate(tokens)
             if token.kind is PersistenceKind.REPLACEABLE
         }
-        committed_tokens = tuple(
-            token
-            for index, token in enumerate(tokens)
-            if not (
-                token.kind is PersistenceKind.REPLACEABLE
-                and last_replacement[token.anchor] != index
-            )
-        )
         missing = object()
-        previous_replacements = {
-            token.anchor: self._replacements.get(token.anchor, missing)
-            for token in committed_tokens
-            if token.kind is PersistenceKind.REPLACEABLE
-        }
+        previous_replacements: dict[tuple[Any, ...], Any] = {}
         append_length = len(self._appends)
         sequence = self._sequence
-        pending_identities = tuple(
-            (token.anchor, token.key)
-            for token in committed_tokens
-            if token.kind is PersistenceKind.APPEND_ONLY_MAP
-        )
+        pending_identities: list[tuple[tuple[Any, ...], Any]] = []
         try:
-            for token in committed_tokens:
+            for index, token in enumerate(tokens):
+                if (
+                    token.kind is PersistenceKind.REPLACEABLE
+                    and last_replacement[token.anchor] != index
+                ):
+                    continue
+                if token.kind is PersistenceKind.REPLACEABLE:
+                    previous_replacements[token.anchor] = self._replacements.get(
+                        token.anchor,
+                        missing,
+                    )
+                elif token.kind is PersistenceKind.APPEND_ONLY_MAP:
+                    pending_identities.append((token.anchor, token.key))
                 self._commit_proxy_write(token)
         except Exception:
             self._sequence = sequence
