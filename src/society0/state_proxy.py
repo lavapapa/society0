@@ -176,6 +176,13 @@ class DictProxy(MutableMapping[str, Any]):
         except Exception:
             return value
 
+    def _records_state_changes(self) -> bool:
+        return self._event_recorder is not None and getattr(
+            self._event_recorder,
+            "_society0_records_state_changes",
+            True,
+        )
+
     def _record_change(
         self,
         operation: str,
@@ -186,11 +193,7 @@ class DictProxy(MutableMapping[str, Any]):
         """记录状态变更事件"""
         if self._event_recorder is None:
             return
-        if not getattr(
-            self._event_recorder,
-            "_society0_records_state_changes",
-            True,
-        ):
+        if not self._records_state_changes():
             self._event_recorder(None)
             return
         try:
@@ -283,16 +286,30 @@ class DictProxy(MutableMapping[str, Any]):
                 )
 
         persistence = self._prepare_persistence("set", key, value)
-        old_snapshot = self._snapshot(self._target_dict[key]) if key in self._target_dict else _MISSING
+        records_state_changes = self._records_state_changes()
+        old_snapshot = (
+            self._snapshot(self._target_dict[key])
+            if records_state_changes and key in self._target_dict
+            else _MISSING
+        )
         self._target_dict[key] = value
         self._commit_persistence(persistence)
-        self._record_change("set", key, self._snapshot(value), old_snapshot)
+        self._record_change(
+            "set",
+            key,
+            self._snapshot(value) if records_state_changes else _MISSING,
+            old_snapshot,
+        )
     
     def __delitem__(self, key: str) -> None:
         """删除项目"""
         self._ensure_live()
         persistence = self._prepare_persistence("delete", key)
-        old_snapshot = self._snapshot(self._target_dict[key])
+        old_snapshot = (
+            self._snapshot(self._target_dict[key])
+            if self._records_state_changes()
+            else _MISSING
+        )
         del self._target_dict[key]
         self._commit_persistence(persistence)
         self._record_change("delete", key, None, old_snapshot)
@@ -396,12 +413,17 @@ class DictProxy(MutableMapping[str, Any]):
                     for key, value in updates.items()
                 ]
             )
-        previous = {
-            key: self._snapshot(self._target_dict[key])
-            if key in self._target_dict
-            else _MISSING
-            for key in updates
-        }
+        records_state_changes = self._records_state_changes()
+        previous = (
+            {
+                key: self._snapshot(self._target_dict[key])
+                if key in self._target_dict
+                else _MISSING
+                for key in updates
+            }
+            if records_state_changes
+            else {}
+        )
         self._target_dict.update(updates)
         if prepared is not None:
             self._persistence_journal.commit_proxy_operations(prepared)
@@ -409,8 +431,8 @@ class DictProxy(MutableMapping[str, Any]):
             self._record_change(
                 "set",
                 key,
-                self._snapshot(value),
-                previous[key],
+                self._snapshot(value) if records_state_changes else _MISSING,
+                previous.get(key, _MISSING),
             )
     
     def pop(self, key: str, default: Any = _MISSING) -> Any:
@@ -420,7 +442,12 @@ class DictProxy(MutableMapping[str, Any]):
             persistence = self._prepare_persistence("delete", key)
             value = self._target_dict.pop(key)
             self._commit_persistence(persistence)
-            self._record_change("delete", key, None, self._snapshot(value))
+            self._record_change(
+                "delete",
+                key,
+                None,
+                self._snapshot(value) if self._records_state_changes() else _MISSING,
+            )
             return value
         elif default is not _MISSING:
             return default
@@ -431,7 +458,11 @@ class DictProxy(MutableMapping[str, Any]):
         """清空字典"""
         self._ensure_live()
         persistence = self._prepare_persistence("clear", None)
-        previous = self._snapshot(dict(self._target_dict))
+        previous = (
+            self._snapshot(dict(self._target_dict))
+            if self._records_state_changes()
+            else _MISSING
+        )
         self._target_dict.clear()
         self._commit_persistence(persistence)
         self._record_change("clear", value={}, old_value=previous)
@@ -539,6 +570,13 @@ class ListProxy(MutableSequence[Any]):
         except Exception:
             return value
 
+    def _records_state_changes(self) -> bool:
+        return self._event_recorder is not None and getattr(
+            self._event_recorder,
+            "_society0_records_state_changes",
+            True,
+        )
+
     def _record_change(
         self,
         operation: str,
@@ -549,11 +587,7 @@ class ListProxy(MutableSequence[Any]):
         """记录状态变更事件"""
         if self._event_recorder is None:
             return
-        if not getattr(
-            self._event_recorder,
-            "_society0_records_state_changes",
-            True,
-        ):
+        if not self._records_state_changes():
             self._event_recorder(None)
             return
         try:
@@ -639,16 +673,30 @@ class ListProxy(MutableSequence[Any]):
         """设置项目，记录变更并立即生效"""
         self._ensure_live()
         persistence = self._prepare_persistence("set", index, value)
-        old_snapshot = self._snapshot(self._target_list[index])
+        records_state_changes = self._records_state_changes()
+        old_snapshot = (
+            self._snapshot(self._target_list[index])
+            if records_state_changes
+            else _MISSING
+        )
         self._target_list[index] = value
         self._commit_persistence(persistence)
-        self._record_change("set", index, self._snapshot(value), old_snapshot)
+        self._record_change(
+            "set",
+            index,
+            self._snapshot(value) if records_state_changes else _MISSING,
+            old_snapshot,
+        )
     
     def __delitem__(self, index: int) -> None:
         """删除项目"""
         self._ensure_live()
         persistence = self._prepare_persistence("delete", index)
-        old_snapshot = self._snapshot(self._target_list[index])
+        old_snapshot = (
+            self._snapshot(self._target_list[index])
+            if self._records_state_changes()
+            else _MISSING
+        )
         del self._target_list[index]
         self._commit_persistence(persistence)
         self._record_change("delete", index, None, old_snapshot)
@@ -687,7 +735,11 @@ class ListProxy(MutableSequence[Any]):
         index = len(self._target_list)
         self._target_list.append(value)
         self._commit_persistence(persistence)
-        self._record_change("append", index, self._snapshot(value))
+        self._record_change(
+            "append",
+            index,
+            self._snapshot(value) if self._records_state_changes() else _MISSING,
+        )
     
     def extend(self, values: List[Any]) -> None:
         """扩展列表"""
@@ -703,7 +755,11 @@ class ListProxy(MutableSequence[Any]):
         if prepared is not None:
             self._persistence_journal.commit_proxy_operations(prepared)
         for offset, item in enumerate(values):
-            self._record_change("append", start_index + offset, self._snapshot(item))
+            self._record_change(
+                "append",
+                start_index + offset,
+                self._snapshot(item) if self._records_state_changes() else _MISSING,
+            )
     
     def insert(self, index: int, value: Any) -> None:
         """插入元素"""
@@ -711,7 +767,11 @@ class ListProxy(MutableSequence[Any]):
         persistence = self._prepare_persistence("insert", index, value)
         self._target_list.insert(index, value)
         self._commit_persistence(persistence)
-        self._record_change("insert", index, self._snapshot(value))
+        self._record_change(
+            "insert",
+            index,
+            self._snapshot(value) if self._records_state_changes() else _MISSING,
+        )
     
     def remove(self, value: Any) -> None:
         """移除元素"""
@@ -721,7 +781,12 @@ class ListProxy(MutableSequence[Any]):
         persistence = self._prepare_persistence("remove", index, value)
         removed = self._target_list.pop(index)
         self._commit_persistence(persistence)
-        self._record_change("remove", index, None, self._snapshot(removed))
+        self._record_change(
+            "remove",
+            index,
+            None,
+            self._snapshot(removed) if self._records_state_changes() else _MISSING,
+        )
     
     def pop(self, index: int = -1) -> Any:
         """弹出元素"""
@@ -729,14 +794,23 @@ class ListProxy(MutableSequence[Any]):
         persistence = self._prepare_persistence("delete", index)
         value = self._target_list.pop(index)
         self._commit_persistence(persistence)
-        self._record_change("pop", index, None, self._snapshot(value))
+        self._record_change(
+            "pop",
+            index,
+            None,
+            self._snapshot(value) if self._records_state_changes() else _MISSING,
+        )
         return value
     
     def clear(self) -> None:
         """清空列表"""
         self._ensure_live()
         persistence = self._prepare_persistence("clear", None)
-        previous = self._snapshot(list(self._target_list))
+        previous = (
+            self._snapshot(list(self._target_list))
+            if self._records_state_changes()
+            else _MISSING
+        )
         self._target_list.clear()
         self._commit_persistence(persistence)
         self._record_change("clear", value=[], old_value=previous)
@@ -756,19 +830,45 @@ class ListProxy(MutableSequence[Any]):
         """反转列表"""
         self._ensure_live()
         persistence = self._prepare_persistence("reverse", None)
-        previous = self._snapshot(list(self._target_list))
+        records_state_changes = self._records_state_changes()
+        previous = (
+            self._snapshot(list(self._target_list))
+            if records_state_changes
+            else _MISSING
+        )
         self._target_list.reverse()
         self._commit_persistence(persistence)
-        self._record_change("reverse", value=self._snapshot(list(self._target_list)), old_value=previous)
+        self._record_change(
+            "reverse",
+            value=(
+                self._snapshot(list(self._target_list))
+                if records_state_changes
+                else _MISSING
+            ),
+            old_value=previous,
+        )
     
     def sort(self, key=None, reverse=False) -> None:
         """排序列表"""
         self._ensure_live()
         persistence = self._prepare_persistence("sort", None)
-        previous = self._snapshot(list(self._target_list))
+        records_state_changes = self._records_state_changes()
+        previous = (
+            self._snapshot(list(self._target_list))
+            if records_state_changes
+            else _MISSING
+        )
         self._target_list.sort(key=key, reverse=reverse)
         self._commit_persistence(persistence)
-        self._record_change("sort", value=self._snapshot(list(self._target_list)), old_value=previous)
+        self._record_change(
+            "sort",
+            value=(
+                self._snapshot(list(self._target_list))
+                if records_state_changes
+                else _MISSING
+            ),
+            old_value=previous,
+        )
     
     def __repr__(self) -> str:
         """字符串表示"""
