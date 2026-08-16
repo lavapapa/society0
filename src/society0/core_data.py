@@ -1312,7 +1312,12 @@ class World:
                 return None
         return current
 
-    def configure_persistence(self, schema: Any) -> Any:
+    def configure_persistence(
+        self,
+        schema: Any,
+        *,
+        validate_initial_state: bool = True,
+    ) -> Any:
         """编译并绑定 World 的声明驱动持久化生命周期。"""
 
         from .incremental_checkpoint import PersistenceSchema, StateDeltaJournal
@@ -1329,26 +1334,27 @@ class World:
         # environment and Agent declarations in one journal, while each source
         # schema still validates its own state object against its own JSON
         # Schema.  The legacy single-root path remains unchanged.
-        source_schemas = getattr(compiled, "source_schemas", (compiled,))
-        for source in source_schemas:
-            root_path = tuple(getattr(source, "root_path", ()))
-            if root_path[:2] == ("environment", "state"):
-                source.validate_initial_state(state)
-                continue
-            if root_path[:1] == ("agents",):
-                if len(root_path) < 2:
-                    raise ValueError("Agent persistence root must identify an agent")
-                agent_id = root_path[1]
-                if agent_id not in self.agents_data:
-                    raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
-                agent_data = self.agents_data[agent_id]
-                source.validate_initial_state(
-                    {
-                        "state": agent_data.get("state", {}),
-                        "properties": agent_data.get("properties", {}),
-                        "reminders": agent_data.get("reminders", []),
-                    }
-                )
+        if validate_initial_state:
+            source_schemas = getattr(compiled, "source_schemas", (compiled,))
+            for source in source_schemas:
+                root_path = tuple(getattr(source, "root_path", ()))
+                if root_path[:2] == ("environment", "state"):
+                    source.validate_initial_state(state)
+                    continue
+                if root_path[:1] == ("agents",):
+                    if len(root_path) < 2:
+                        raise ValueError("Agent persistence root must identify an agent")
+                    agent_id = root_path[1]
+                    if agent_id not in self.agents_data:
+                        raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
+                    agent_data = self.agents_data[agent_id]
+                    source.validate_initial_state(
+                        {
+                            "state": agent_data.get("state", {}),
+                            "properties": agent_data.get("properties", {}),
+                            "reminders": agent_data.get("reminders", []),
+                        }
+                    )
         journal = StateDeltaJournal(compiled)
         journal.bind_canonical_state(self._persistence_lookup)
         old_lease = self._persistence_proxy_lease
