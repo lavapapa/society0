@@ -14,6 +14,7 @@ import yaml
 from .async_utils import invoke_maybe_async
 from .context_stack import ContextStack
 from .core_data import World
+from .state_transactions import StateAccessMode
 from .diagnostics import render_runtime_diagnostic_report
 from .environment import Environment, EnvironmentTickContext
 from .recovery import classify_step_failure
@@ -300,8 +301,10 @@ class Society0:
         source_step: Optional[int] = None,
         resume_contract: Optional[Mapping[str, Any]] = None,
         resume_contract_sha256: Optional[str] = None,
+        state_access_mode: StateAccessMode | str = StateAccessMode.TRANSPARENT_PROXY,
     ) -> None:
         self.save_dir = Path(save_dir)
+        self.state_access_mode = StateAccessMode.coerce(state_access_mode)
         self.source_run = Path(source_run).resolve() if source_run is not None else None
         if self.source_run is not None:
             self.validate_resume_paths(self.save_dir, self.source_run)
@@ -920,6 +923,10 @@ class Society0:
             ),
             "application_contract_sha256": self._resume_contract_sha256,
         }
+        # 默认代理模式沿用既有恢复身份字节，已有运行不会因为升级本功能而
+        # 改变 identity；显式事务作为新合同才写入所选模式。
+        if self.state_access_mode is StateAccessMode.EXPLICIT_TRANSACTIONS:
+            unsigned["state_access_mode"] = self.state_access_mode.value
         return {
             **unsigned,
             "identity_sha256": PersistenceManager.canonical_sha256(unsigned),
@@ -1003,6 +1010,7 @@ class Society0:
             step=0,
             event_log_path=str(self.save_dir / "events.jsonl"),
             event_logger=self.event_logger,
+            state_access_mode=self.state_access_mode,
         )
         if self.environment_factory is not None:
             world.set_environment_factory(self.environment_factory)

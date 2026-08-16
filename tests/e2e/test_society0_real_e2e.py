@@ -16,7 +16,7 @@ import asyncio
 import pytest
 from pydantic import BaseModel, Field
 
-from society0 import EmbedModel, LLMModel, Society0
+from society0 import EmbedModel, LLMModel, Society0, StateAccessMode
 from society0.incremental_checkpoint import V4CheckpointStore
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
 
@@ -942,6 +942,98 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
         for interaction_type in _trace_values(item, "interaction_type", "interaction_types")
     }
     assert {"memory_retrieve", "memory_write"}.issubset(interaction_types)
+
+
+@pytest.mark.asyncio
+async def test_real_explicit_transactions_memory_roundtrip_e2e(tmp_path):
+    llm_model, embed_model = _build_models()
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_llm_agent_config(),
+        llm=llm_model,
+        embed=embed_model,
+        checkpoint_every=1,
+        state_access_mode=StateAccessMode.EXPLICIT_TRANSACTIONS,
+    )
+
+    @engine.step(name="explicit_memory_roundtrip")
+    async def explicit_memory_roundtrip(ctx):
+        with ctx.env.write_transaction() as transaction:
+            transaction.state["memory_protocol_phase"] = "explicit_seed_then_recall"
+        alice = ctx.world.get_agent("alice")
+        with alice.write_transaction() as transaction:
+            transaction.state["logic_marker"] = "explicit-before-llm"
+            transaction.state["protocol_phase_seen"] = ctx.env.state[
+                "memory_protocol_phase"
+            ]
+
+        group = ctx.agents.all()
+        thread_id = ctx.log.open_agent_thread(
+            agent_id="alice",
+            checkpoint_step=ctx.world.step + 1,
+            scope={"kind": "real_explicit_e2e", "tick": ctx.world.step},
+        )
+        seeded = await group.instruct(
+            "Remember this exact private signal for a later separate interaction: "
+            "cobalt moon. Return remembered=true and answer='cobalt moon'.",
+            output=MemoryCheck,
+            retrieve_memory=True,
+            thread_ids_by_agent={"alice": thread_id},
+            concurrency=1,
+            max_turns=3,
+        )
+        extracted = await group.extract_thread_memories(
+            {"alice": thread_id},
+            timestamp=ctx.world.step,
+            idempotency_key=f"real_e2e:explicit_memory:{ctx.world.step}",
+            concurrency=1,
+            name="explicit_memory_extract",
+        )
+        recalled = await group.interview(
+            "Using only your memory, state the private signal from the previous "
+            "interaction. Return remembered=true if found.",
+            output=MemoryCheck,
+            retrieve_memory=True,
+            memory_top_k=1,
+            concurrency=1,
+            max_turns=3,
+        )
+        return ctx.result(
+            metrics={
+                "seed_errors": seeded.error_count,
+                "memory_extract_errors": extracted.error_count,
+                "recall_errors": recalled.error_count,
+                "remembered_count": sum(
+                    value is True for value in recalled.values("remembered")
+                ),
+            }
+        )
+
+    await engine.run(steps=1)
+    metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
+    assert metrics == {
+        "seed_errors": 0,
+        "memory_extract_errors": 0,
+        "recall_errors": 0,
+        "remembered_count": 1,
+    }
+    checkpoint = _restore_latest(tmp_path)
+    assert engine.current_world_state is not None
+    assert engine.current_world_state.state_access_mode is (
+        StateAccessMode.EXPLICIT_TRANSACTIONS
+    )
+    assert checkpoint["environment"]["state"]["memory_protocol_phase"] == (
+        "explicit_seed_then_recall"
+    )
+    assert checkpoint["agents"]["alice"]["state"] == {
+        "attention": "high",
+        "logic_marker": "explicit-before-llm",
+        "protocol_phase_seen": "explicit_seed_then_recall",
+    }
+    assert (tmp_path / "chroma_store" / "chroma.sqlite3").is_file()
+    resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    assert _successful_resource_calls(resource_calls, "llm")
+    assert _successful_resource_calls(resource_calls, "embedding")
 
 
 @pytest.mark.asyncio
