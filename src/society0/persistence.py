@@ -607,7 +607,12 @@ class PersistenceManager:
             raise ValueError("checkpoint_every must be a positive integer")
         if isinstance(declarations, (list, tuple)):
             declarations = PersistenceSchema.merge(*declarations)
-        compiled = world.configure_persistence(declarations)
+        compiled = world.configure_persistence(
+            declarations,
+            validate_initial_state=(
+                getattr(world, "_persistence_schema", None) is None
+            ),
+        )
         if not isinstance(compiled, PersistenceSchema):
             raise TypeError("World.configure_persistence must return PersistenceSchema")
         self._v4_enabled = True
@@ -1077,7 +1082,9 @@ class PersistenceManager:
                     agent_data["properties"] = {}
                     agent_data["reminders"] = []
         if schema is not None:
-            world.configure_persistence(schema)
+            # state_payload 已由 JSON checkpoint 解码并按声明重放；再次对整个
+            # 恢复世界执行 json.dumps 会制造一份与状态同量级的临时字符串。
+            world.configure_persistence(schema, validate_initial_state=False)
         committed_epochs = store.committed_memory_epoch_ids(int(record["step"]))
         branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
         forked_from = (record.get("marker") or {}).get("forked_from") or {}

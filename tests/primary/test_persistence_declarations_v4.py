@@ -96,6 +96,41 @@ def test_recursive_schema_compile_emits_rules_for_nested_properties():
     assert audit is not None and audit.kind is PersistenceKind.APPEND_ONLY_LIST
 
 
+def test_restored_world_can_bind_persistence_without_revalidating_full_state(
+    tmp_path,
+    monkeypatch,
+):
+    schema = _compile(
+        _state_schema(
+            {
+                "counter": {
+                    "type": "integer",
+                    "persistence": _persistence("replaceable"),
+                }
+            }
+        )
+    )
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    world.environment_data["state"] = {"counter": 1}
+
+    def unexpected_validation(_self, _state):
+        raise AssertionError("恢复检查点不应再次序列化并校验完整世界")
+
+    monkeypatch.setattr(
+        checkpoint.PersistenceSchema,
+        "validate_initial_state",
+        unexpected_validation,
+    )
+
+    world.configure_persistence(schema, validate_initial_state=False)
+    world.begin_persistence_tick(1)
+    world.create_environment_state_proxy()["counter"] = 2
+    delta = world.seal_persistence_tick()
+
+    assert len(delta.replacements) == 1
+    world.event_logger.close()
+
+
 def test_persistence_schema_reuses_concrete_write_resolution():
     schema = _compile(
         _state_schema(
