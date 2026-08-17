@@ -2243,6 +2243,128 @@ async def test_action_loop_bounds_request_history_without_truncating_thread() ->
 
 
 @pytest.mark.asyncio
+async def test_repeated_read_with_same_result_ends_as_no_progress() -> None:
+    action_set = ActionSet()
+    requests = []
+    events = []
+
+    async def query_plan(section: str):
+        return {"section": section, "items": ["same-plan"]}
+
+    action_set.add_action(
+        name="query_plan",
+        func=query_plan,
+        description="Query one plan section.",
+        parameters={
+            "type": "object",
+            "properties": {"section": {"type": "string"}},
+            "required": ["section"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_plan",
+                        "arguments": '{"section":"sales"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=32,
+        no_progress_action_tags=["industry_query"],
+        thread_event_recorder=lambda name, payload: events.append((name, payload)),
+    )
+
+    assert len(requests) == 2
+    assert result.status == "success"
+    assert result.termination_reason == "repeated_read_no_progress"
+    assert result.termination_action == "query_plan"
+    assert [call["status"] for call in result.action_calls] == ["success", "success"]
+    assert any(name == "agent_loop_no_progress" for name, _ in events)
+
+
+@pytest.mark.asyncio
+async def test_successful_write_resets_repeated_read_detection() -> None:
+    action_set = ActionSet()
+    plan_version = 0
+    requests = []
+
+    async def query_plan(section: str):
+        return {"section": section, "version": plan_version}
+
+    async def update_plan():
+        nonlocal plan_version
+        plan_version += 1
+        return {"change_applied": True, "version": plan_version}
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {
+            "type": "object",
+            "properties": {"section": {"type": "string"}},
+            "required": ["section"],
+        },
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "update_plan",
+        update_plan,
+        "Update the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+    sequence = ["query_plan", "update_plan", "query_plan", "query_plan"]
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        name = sequence[len(requests) - 1]
+        arguments = '{"section":"sales"}' if name == "query_plan" else "{}"
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {"name": name, "arguments": arguments},
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect and update the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=32,
+        no_progress_action_tags=["industry_query"],
+    )
+
+    assert len(requests) == 4
+    assert result.termination_reason == "repeated_read_no_progress"
+    assert [call["action_name"] for call in result.action_calls] == sequence
+
+
+@pytest.mark.asyncio
 async def test_concurrent_action_call_ids_do_not_leak_between_tasks():
     action_set = ActionSet()
     world = World()
