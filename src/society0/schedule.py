@@ -898,6 +898,7 @@ class AgentGroup:
         terminal_actions: Optional[List[str]] = None,
         completion_action_tags: Optional[List[str]] = None,
         max_action_calls: Optional[int] = None,
+        max_request_messages: Optional[int] = None,
         action_call_limits: Optional[Dict[str, int]] = None,
         required_actions: Optional[List[str]] = None,
         required_action_tags: Optional[List[str]] = None,
@@ -931,6 +932,7 @@ class AgentGroup:
             terminal_actions=terminal_actions,
             completion_action_tags=completion_action_tags,
             max_action_calls=max_action_calls,
+            max_request_messages=max_request_messages,
             action_call_limits=action_call_limits,
             required_actions=required_actions,
             required_action_tags=required_action_tags,
@@ -989,6 +991,7 @@ class AgentGroup:
                     required_action_names=required_actions,
                     required_action_tags=required_action_tags,
                     max_action_calls=max_action_calls,
+                    max_request_messages=max_request_messages,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
                     thread_id=explicit_thread_id or auto_thread_id,
@@ -2229,6 +2232,7 @@ def _agent_batch_execution_options(
     terminal_actions: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
     max_action_calls: Optional[int] = None,
+    max_request_messages: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     required_actions: Optional[List[str]] = None,
     required_action_tags: Optional[List[str]] = None,
@@ -2248,6 +2252,8 @@ def _agent_batch_execution_options(
         options["completion_action_tags"] = list(completion_action_tags)
     if max_action_calls is not None:
         options["max_action_calls"] = int(max_action_calls)
+    if max_request_messages is not None:
+        options["max_request_messages"] = int(max_request_messages)
     if action_call_limits is not None:
         options["action_call_limits"] = {str(key): int(value) for key, value in action_call_limits.items()}
     if required_actions is not None:

@@ -1169,6 +1169,7 @@ class LLMAgent(Agent):
                       required_action_names: Optional[List[str]] = None,
                       required_action_tags: Optional[List[str]] = None,
                       max_action_calls: Optional[int] = None,
+                      max_request_messages: Optional[int] = None,
                       action_call_limits: Optional[Dict[str, int]] = None,
                       prefer_direct_json_output: bool = False,
                       llm_request_options: Optional[Dict[str, Any]] = None,
@@ -1609,6 +1610,7 @@ class LLMAgent(Agent):
                         turn_remain_hint=turn_remain_hint,
                         hint_on_remain_turn=hint_on_remain_turn,
                         max_action_calls=max_action_calls,
+                        max_request_messages=max_request_messages,
                         action_call_limits=action_call_limits,
                         llm_request_options=safe_llm_request_options,
                         prior_messages=(

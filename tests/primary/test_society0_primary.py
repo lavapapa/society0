@@ -2181,6 +2181,68 @@ async def test_action_call_id_is_available_in_execution_context():
 
 
 @pytest.mark.asyncio
+async def test_action_loop_bounds_request_history_without_truncating_thread() -> None:
+    action_set = ActionSet()
+    requests = []
+    recorded_messages = []
+    recorded_events = []
+
+    async def inspect(sequence: int):
+        return {"change_applied": True, "sequence": sequence, "detail": "x" * 2000}
+
+    action_set.add_action(
+        name="inspect",
+        func=inspect,
+        description="Inspect one sequence.",
+        parameters={
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        sequence = len(requests)
+        if sequence > 5:
+            return {"role": "assistant", "content": "done", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{sequence}",
+                    "type": "function",
+                    "function": {
+                        "name": "inspect",
+                        "arguments": json.dumps({"sequence": sequence}),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect several records.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=6,
+        max_request_messages=6,
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda name, payload: recorded_events.append(
+            (name, payload)
+        ),
+    )
+
+    assert len(requests) == 6
+    assert max(len(request["messages"]) for request in requests) <= 6
+    assert len(result.conversation_messages) == 13
+    assert len(recorded_messages) == 13
+    assert any(name == "request_history_compacted" for name, _ in recorded_events)
+
+
+@pytest.mark.asyncio
 async def test_concurrent_action_call_ids_do_not_leak_between_tasks():
     action_set = ActionSet()
     world = World()
@@ -5032,6 +5094,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
         terminal_actions=["submit_final_decision"],
         completion_action_tags=["social_write"],
         max_action_calls=3,
+        max_request_messages=20,
         action_call_limits={"publish_post": 1},
         memory_top_k=7,
         max_tokens=90,
@@ -5066,6 +5129,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     assert instruct_options["terminal_actions"] == ["submit_final_decision"]
     assert instruct_options["completion_action_tags"] == ["social_write"]
     assert instruct_options["max_action_calls"] == 3
+    assert instruct_options["max_request_messages"] == 20
     assert instruct_options["action_call_limits"] == {"publish_post": 1}
     assert instruct_options["llm_request_options"] == {
         "max_tokens": 90,

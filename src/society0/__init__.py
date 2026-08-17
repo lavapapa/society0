@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
-__version__ = "4.1.7"
+__version__ = "4.1.8"
 __all__ = [
     "Society0",
     "LLMModel",
