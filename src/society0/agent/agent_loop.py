@@ -757,6 +757,7 @@ async def execute_action_loop(
     turn_remain_hint: bool = True,
     hint_on_remain_turn: int = 1,
     max_action_calls: Optional[int] = None,
+    max_request_messages: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     llm_request_options: Optional[Dict[str, Any]] = None,
     prior_messages: Optional[List[Dict[str, Any]]] = None,
@@ -792,6 +793,14 @@ async def execute_action_loop(
 
     # Normalize stages to unified dict format
     normalized_stages = normalize_reasoning_stages(stages)
+    if max_request_messages is not None:
+        if isinstance(max_request_messages, bool) or not isinstance(
+            max_request_messages,
+            int,
+        ):
+            raise ValueError("max_request_messages must be an integer")
+        if max_request_messages < 4:
+            raise ValueError("max_request_messages must be at least 4")
     raw_llm_request_options = dict(llm_request_options or {})
     try:
         provider_request_retry_max = int(
@@ -893,6 +902,26 @@ async def execute_action_loop(
         messages.append(message)
         if thread_message_recorder is not None:
             thread_message_recorder(copy.deepcopy(message))
+
+    def _request_messages() -> List[Dict[str, Any]]:
+        """保留完整 Thread，只压缩发给模型的本次请求视图。"""
+
+        if max_request_messages is None or len(messages) <= max_request_messages:
+            return copy.deepcopy(messages)
+        recent_count = max_request_messages - 2
+        start = len(messages) - recent_count
+        while start > 2 and messages[start].get("role") == "tool":
+            start -= 1
+        projected = [*messages[:2], *messages[start:]]
+        _append_thread_event(
+            "request_history_compacted",
+            {
+                "full_message_count": len(messages),
+                "request_message_count": len(projected),
+                "omitted_message_count": len(messages) - len(projected),
+            },
+        )
+        return copy.deepcopy(projected)
 
     def _append_thread_event(event_type: str, payload: Dict[str, Any]) -> None:
         """Persist a structured Thread event without converting failures to actions.
@@ -1130,7 +1159,7 @@ async def execute_action_loop(
                 },
             )
         llm_payload = {
-            "messages": copy.deepcopy(messages),
+            "messages": _request_messages(),
             "tools": copy.deepcopy(actions_schema) if actions_schema else None,
             "tool_choice": _default_tool_choice()
         }
