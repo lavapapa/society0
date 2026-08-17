@@ -752,6 +752,7 @@ async def execute_action_loop(
     *,
     terminal_action_names: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
+    no_progress_action_tags: Optional[List[str]] = None,
     required_action_names: Optional[List[str]] = None,
     required_action_tags: Optional[List[str]] = None,
     turn_remain_hint: bool = True,
@@ -781,6 +782,10 @@ async def execute_action_loop(
         completion_action_tags: Action tags that mark a successful action as
             completing this instruction. This is useful for workflows such as
             "read tools may continue, but a social_write action ends the round".
+        no_progress_action_tags: Tags identifying read-only actions. Repeating
+            the same tagged action with the same arguments and visible result,
+            without a successful non-tagged action in between, ends the loop
+            normally because the agent has learned nothing new.
         required_action_names: Action names that must succeed before the loop
             can be considered complete. If the model stops early and turns
             remain, the loop asks it to correct the missing action.
@@ -983,6 +988,8 @@ async def execute_action_loop(
 
     terminal_action_name_set = _normalize_name_set(terminal_action_names)
     completion_action_tag_set = _normalize_name_set(completion_action_tags)
+    no_progress_action_tag_set = _normalize_name_set(no_progress_action_tags)
+    no_progress_observations: Dict[tuple[str, str], str] = {}
     required_action_name_set = _normalize_name_set(required_action_names)
     required_action_tag_set = _normalize_name_set(required_action_tags)
     if submit_result_only:
@@ -1078,6 +1085,17 @@ async def execute_action_loop(
             merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
         merged_tags.update(str(tag).lower() for tag in explicit_tags)
         return any(tag in merged_tags for tag in completion_action_tag_set)
+
+    def _action_matches_no_progress_tags(action_name: str) -> bool:
+        if not no_progress_action_tag_set:
+            return False
+        action_info = action_set.actions.get(action_name) or {}
+        explicit_tags = action_info.get("tags", []) or []
+        merged_tags = {str(action_name).lower()}
+        if "." in action_name:
+            merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
+        merged_tags.update(str(tag).lower() for tag in explicit_tags)
+        return any(tag in merged_tags for tag in no_progress_action_tag_set)
 
     def _action_trace_tags(action_name: str) -> List[str]:
         action_info = action_set.actions.get(action_name) or {}
@@ -1824,6 +1842,35 @@ async def execute_action_loop(
                     )
 
                 logger.debug("Action result: %s", str(action_result)[:100])
+
+            if action_succeeded:
+                if _action_matches_no_progress_tags(action_call.action_name):
+                    observation_key = (
+                        action_key,
+                        json.dumps(
+                            action_call.arguments,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                    )
+                    visible_result = str(action_call.result)
+                    if no_progress_observations.get(observation_key) == visible_result:
+                        terminate_loop = True
+                        loop_result.termination_reason = "repeated_read_no_progress"
+                        loop_result.termination_action = action_call.action_name
+                        _append_thread_event(
+                            "agent_loop_no_progress",
+                            {
+                                "action_name": action_call.action_name,
+                                "arguments": copy.deepcopy(action_call.arguments),
+                                "reason": "repeated_read_same_result_without_state_change",
+                            },
+                        )
+                    else:
+                        no_progress_observations[observation_key] = visible_result
+                else:
+                    no_progress_observations.clear()
 
             if action_succeeded and action_reported_no_change:
                 terminate_loop = True
