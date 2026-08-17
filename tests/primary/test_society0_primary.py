@@ -2529,9 +2529,9 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
     )
 
     assert called == ["Campus is lively today."]
-    assert len(llm_payloads) == 3
+    assert len(llm_payloads) == 2
     assert "Required action name(s): publish_post" in llm_payloads[1]["messages"][-1]["content"]
-    assert llm_payloads[-1]["tools"] is None
+    assert llm_payloads[-1]["tools"]
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
     assert result.termination_reason == "action_budget_exhausted"
 
@@ -2644,7 +2644,8 @@ async def test_output_token_limit_with_complete_tool_call_executes_without_savin
         ),
     )
 
-    assert result.status == "success"
+    assert result.status == "error"
+    assert result.termination_reason == "max_turns"
     assert called == ["cell"]
     assert [call["status"] for call in result.action_calls] == ["success"]
     assistant = next(
@@ -3898,10 +3899,9 @@ async def test_action_call_limits_stop_when_all_available_actions_exhausted_with
     )
 
     assert published == ["post 1"]
-    assert len(llm_calls) == 2
+    assert len(llm_calls) == 1
     assert llm_calls[0]["tool_choice"] == "auto"
-    assert llm_calls[-1]["tools"] is None
-    assert result.total_turns == 2
+    assert result.total_turns == 1
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
 
 
@@ -4076,9 +4076,9 @@ async def test_action_call_limits_continue_when_other_actions_remain_available()
     )
 
     assert called == [("publish_post", "post 1"), ("like_post", "post_1")]
-    assert len(llm_calls) == 3
-    assert llm_calls[-1]["tools"] is None
-    assert result.total_turns == 3
+    assert len(llm_calls) == 2
+    assert llm_calls[-1]["tools"]
+    assert result.total_turns == 2
     assert [call["action_name"] for call in result.action_calls] == ["publish_post", "like_post"]
 
 
@@ -4285,8 +4285,7 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     assert result.action_calls[0]["result"] == expected_error
     assert result.status == "success"
     assert result.termination_reason == "action_budget_exhausted"
-    assert len(llm_payloads) == 2
-    assert llm_payloads[-1]["tools"] is None
+    assert len(llm_payloads) == 1
     assert result.full_history[0]["batch_termination_reason"] == (
         "action_batch_exceeds_budget"
     )
@@ -4614,7 +4613,7 @@ async def test_failed_action_attempts_consume_the_action_budget():
         max_action_calls=2,
     )
 
-    assert llm_calls == 3
+    assert llm_calls == 2
     assert action_attempts == 2
     assert [item["status"] for item in result.action_calls] == [
         "error",
@@ -4624,7 +4623,7 @@ async def test_failed_action_attempts_consume_the_action_budget():
 
 
 @pytest.mark.asyncio
-async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decision():
+async def test_action_budget_exhaustion_does_not_issue_a_tool_free_closing_request():
     action_set = ActionSet()
     llm_payloads = []
 
@@ -4640,30 +4639,12 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
 
     async def fake_llm(payload):
         llm_payloads.append(json.loads(json.dumps(payload)))
-        if len(llm_payloads) <= 2:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": f"call_{len(llm_payloads)}",
-                        "type": "function",
-                        "function": {
-                            "name": "inspect_world",
-                            "arguments": "{}",
-                        },
-                    }
-                ],
-            }
         return {
             "role": "assistant",
-            "content": (
-                "No supplier is available this month, so I will keep the "
-                "current plan unchanged and review it next month."
-            ),
+            "content": "",
             "tool_calls": [
                 {
-                    "id": "ignored_closing_call",
+                    "id": f"call_{len(llm_payloads)}",
                     "type": "function",
                     "function": {
                         "name": "inspect_world",
@@ -4683,21 +4664,14 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
         max_action_calls=2,
     )
 
-    assert len(llm_payloads) == 3
-    assert llm_payloads[-1]["tools"] is None
-    assert llm_payloads[-1]["tool_choice"] is None
-    assert "No further actions can be called" in (
-        llm_payloads[-1]["messages"][-1]["content"]
-    )
-    assert "keep the current plan unchanged" in (
-        result.full_history[-1]["response"]["content"]
-    )
+    assert len(llm_payloads) == 2
+    assert llm_payloads[-1]["tools"]
     assert len(result.action_calls) == 2
     assert result.termination_reason == "action_budget_exhausted"
 
 
 @pytest.mark.asyncio
-async def test_tool_free_final_decision_failure_does_not_retry_completed_actions():
+async def test_action_budget_exhaustion_does_not_retry_completed_actions():
     action_set = ActionSet()
     executed = []
     llm_calls = 0
@@ -4716,8 +4690,6 @@ async def test_tool_free_final_decision_failure_does_not_retry_completed_actions
     async def fake_llm(payload):
         nonlocal llm_calls
         llm_calls += 1
-        if payload.get("tools") is None:
-            raise ConnectionError("closing request unavailable")
         return {
             "role": "assistant",
             "content": "",
@@ -4744,15 +4716,55 @@ async def test_tool_free_final_decision_failure_does_not_retry_completed_actions
     )
 
     assert executed == ["order"]
-    assert llm_calls == 2
+    assert llm_calls == 1
     assert [item["action_name"] for item in result.action_calls] == [
         "place_order"
     ]
     assert result.termination_reason == "action_budget_exhausted"
     assert result.status == "success"
-    assert result.full_history[-1]["closing_error"] == (
-        "closing request unavailable"
+
+
+@pytest.mark.asyncio
+async def test_max_turns_is_reported_as_an_activation_failure():
+    action_set = ActionSet()
+    calls = []
+
+    async def ping():
+        return "ok"
+
+    action_set.add_action(
+        "ping",
+        ping,
+        "ping the environment",
+        {"type": "object", "properties": {}},
     )
+
+    async def fake_llm(_payload):
+        calls.append(True)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"ping_{len(calls)}",
+                    "type": "function",
+                    "function": {"name": "ping", "arguments": "{}"},
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Keep checking the environment.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=2,
+    )
+
+    assert len(calls) == 2
+    assert result.termination_reason == "max_turns"
+    assert result.status == "error"
 
 
 @pytest.mark.asyncio
