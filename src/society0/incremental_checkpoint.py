@@ -11,7 +11,6 @@ import tempfile
 import time
 import uuid
 from dataclasses import dataclass
-from functools import lru_cache
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
@@ -26,6 +25,7 @@ class PersistenceKind(str, Enum):
 
 
 _WILDCARD = object()
+_RULE_NODE = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +57,7 @@ class _PreparedProxyWrite:
     operation: str
     key: Any = None
     value: Any = None
+    validated: bool = True
 
 
 def _json_copy(value: Any) -> Any:
@@ -68,6 +69,17 @@ def _json_copy(value: Any) -> Any:
     except (TypeError, ValueError, OverflowError) as exc:
         raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
     return copied
+
+
+def _validate_json_value(value: Any) -> None:
+    """只检查 JSON 兼容性，不为只读校验额外复制整棵子树。"""
+
+    raw = getattr(value, "_target_dict", value)
+    raw = getattr(raw, "_target_list", raw)
+    try:
+        json.dumps(raw, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
 
 
 def _freeze_json(value: Any) -> Any:
@@ -114,8 +126,42 @@ class PersistenceSchema:
         # serialize the declarations without inventing a second schema DSL.
         self._source_schemas = tuple(source_schemas or (self,))
         self._wildcard_rules = tuple(
-            rule for path, rule in self.rules.items() if any(part is _WILDCARD for part in path)
+            rule
+            for path, rule in self.rules.items()
+            if any(part is _WILDCARD for part in path)
         )
+        # 持久化规则会在每个业务字段写入时被查询。规则数量不大，但事实 ID
+        # 几乎都不同，缓存具体路径仍会不断失效。把声明编译成前缀树后，解析
+        # 成本只随路径深度变化，不再随规则数量和历史事实数量变化。
+        self._rule_trie: dict[Any, Any] = {}
+        for pattern, rule in self.rules.items():
+            node = self._rule_trie
+            for part in pattern:
+                node = node.setdefault(part, {})
+            node[_RULE_NODE] = rule
+        # 同一批业务写入会反复命中相同的 concrete path。声明本身在编译后
+        # 不再变化，因此可以直接复用解析结果，避免每次字段写入都重新遍历
+        # 全部持久化规则。缓存达到上限时整代清空，空间不会随长期运行增长。
+        self._resolve_cache: dict[tuple[Any, ...], PersistenceRule | None] = {}
+        self._resolve_write_cache: dict[
+            tuple[Any, ...],
+            _WriteResolution | None,
+        ] = {}
+        self._append_descendant_cache: dict[tuple[Any, ...], bool] = {}
+        self._resolution_cache_limit = 32_768
+
+    @staticmethod
+    def _cache_resolution(
+        cache: dict[tuple[Any, ...], Any],
+        key: tuple[Any, ...],
+        value: Any,
+        *,
+        limit: int,
+    ) -> Any:
+        if len(cache) >= limit:
+            cache.clear()
+        cache[key] = value
+        return value
 
     @classmethod
     def compile(cls, schema: Mapping[str, Any], *, root_path: Iterable[Any] = ()) -> "PersistenceSchema":
@@ -301,13 +347,48 @@ class PersistenceSchema:
 
     def resolve(self, path: Iterable[Any]) -> PersistenceRule | None:
         concrete = tuple(path)
+        if concrete in self._resolve_cache:
+            return self._resolve_cache[concrete]
         exact = self.rules.get(concrete)
         if exact is not None:
-            return exact
-        for pattern, rule in self.rules.items():
-            if any(part is _WILDCARD for part in pattern) and self._matches(pattern, concrete):
-                return rule
-        return None
+            return self._cache_resolution(
+                self._resolve_cache,
+                concrete,
+                exact,
+                limit=self._resolution_cache_limit,
+            )
+        active: list[tuple[Mapping[Any, Any], int]] = [(self._rule_trie, 0)]
+        for actual in concrete:
+            following: list[tuple[Mapping[Any, Any], int]] = []
+            for node, exact_count in active:
+                exact_node = node.get(actual)
+                if isinstance(exact_node, Mapping):
+                    following.append((exact_node, exact_count + 1))
+                wildcard_node = node.get(_WILDCARD)
+                if isinstance(wildcard_node, Mapping):
+                    following.append((wildcard_node, exact_count))
+            active = following
+            if not active:
+                break
+        matches = [
+            (exact_count, node[_RULE_NODE])
+            for node, exact_count in active
+            if _RULE_NODE in node
+        ]
+        if matches:
+            _, rule = max(matches, key=lambda item: item[0])
+            return self._cache_resolution(
+                self._resolve_cache,
+                concrete,
+                rule,
+                limit=self._resolution_cache_limit,
+            )
+        return self._cache_resolution(
+            self._resolve_cache,
+            concrete,
+            None,
+            limit=self._resolution_cache_limit,
+        )
 
     @staticmethod
     def _prefix_matches(pattern: tuple[Any, ...], path: tuple[Any, ...]) -> bool:
@@ -325,26 +406,45 @@ class PersistenceSchema:
         深层写入。解析只遍历声明数量，不触碰 canonical state 或历史事实。
         """
 
-        return self._resolve_write_cached(tuple(path))
-
-    @lru_cache(maxsize=65_536)
-    def _resolve_write_cached(
-        self, concrete: tuple[Any, ...]
-    ) -> _WriteResolution | None:
-        """缓存同一运行中反复出现的具体写入路径。"""
-
-        matches: list[tuple[int, tuple[Any, ...], PersistenceRule]] = []
-        for pattern, rule in self.rules.items():
-            if self._prefix_matches(pattern, concrete):
-                anchor = tuple(
-                    concrete[index] if part is _WILDCARD else part
-                    for index, part in enumerate(pattern)
-                )
-                matches.append((len(pattern), anchor, rule))
-        if not matches:
-            return None
-        _, anchor, rule = max(matches, key=lambda item: item[0])
-        return _WriteResolution(rule=rule, anchor=anchor)
+        concrete = tuple(path)
+        if concrete in self._resolve_write_cache:
+            return self._resolve_write_cache[concrete]
+        active: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = [
+            (self._rule_trie, (), 0)
+        ]
+        best: tuple[int, int, tuple[Any, ...], PersistenceRule] | None = None
+        for depth, actual in enumerate(concrete, start=1):
+            following: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = []
+            for node, anchor, exact_count in active:
+                exact_node = node.get(actual)
+                if isinstance(exact_node, Mapping):
+                    following.append((exact_node, anchor + (actual,), exact_count + 1))
+                wildcard_node = node.get(_WILDCARD)
+                if isinstance(wildcard_node, Mapping):
+                    following.append((wildcard_node, anchor + (actual,), exact_count))
+            active = following
+            for node, anchor, exact_count in active:
+                rule = node.get(_RULE_NODE)
+                if isinstance(rule, PersistenceRule):
+                    candidate = (depth, exact_count, anchor, rule)
+                    if best is None or candidate[:2] > best[:2]:
+                        best = candidate
+            if not active:
+                break
+        if best is None:
+            return self._cache_resolution(
+                self._resolve_write_cache,
+                concrete,
+                None,
+                limit=self._resolution_cache_limit,
+            )
+        _, _, anchor, rule = best
+        return self._cache_resolution(
+            self._resolve_write_cache,
+            concrete,
+            _WriteResolution(rule=rule, anchor=anchor),
+            limit=self._resolution_cache_limit,
+        )
 
     def _schema_node(self, path: tuple[Any, ...]) -> Mapping[str, Any] | None:
         """解析 concrete World path 对应的声明节点。
@@ -414,7 +514,13 @@ class PersistenceSchema:
         if not valid:
             raise TypeError(f"state value at {path!r} does not match schema type {expected!r}")
 
-    def validate_write_value(self, path: Iterable[Any], value: Any) -> None:
+    def validate_write_value(
+        self,
+        path: Iterable[Any],
+        value: Any,
+        *,
+        require_complete: bool = False,
+    ) -> None:
         """在 canonical mutation 前验证一次新值及其完整子树。"""
 
         concrete = tuple(path)
@@ -432,6 +538,13 @@ class PersistenceSchema:
             if isinstance(current, Mapping):
                 properties = schema.get("properties") or {}
                 additional = schema.get("additionalProperties", True)
+                if require_complete:
+                    required = schema.get("required") or ()
+                    missing = [key for key in required if key not in current]
+                    if missing:
+                        raise ValueError(
+                            f"state value at {current_path!r} is missing required fields: {missing!r}"
+                        )
                 for key, item in current.items():
                     child_path = current_path + (key,)
                     if isinstance(properties, Mapping) and key in properties:
@@ -439,7 +552,7 @@ class PersistenceSchema:
                     elif isinstance(additional, Mapping):
                         validate(item, additional, child_path)
                     elif additional is True:
-                        _json_copy(item)
+                        _validate_json_value(item)
                     else:
                         raise ValueError(f"undeclared state field at {child_path!r}")
             elif isinstance(current, list):
@@ -453,10 +566,10 @@ class PersistenceSchema:
     def validate_initial_state(self, state: Mapping[str, Any]) -> None:
         if not isinstance(state, Mapping):
             raise TypeError("initial state must be an object")
+        _validate_json_value(state)
 
         def validate(node: Mapping[str, Any], value: Any, path: tuple[Any, ...]) -> None:
             self._validate_type(value, node, path)
-            _json_copy(value)
             rule = self.resolve(path)
             if rule is not None:
                 if rule.kind is PersistenceKind.APPEND_ONLY_MAP:
@@ -519,13 +632,18 @@ class PersistenceSchema:
         """判断一个替换 entry 是否包含必须保留的追加事实子树。"""
 
         prefix = rule.path
-        return any(
+        cached = self._append_descendant_cache.get(prefix)
+        if cached is not None:
+            return cached
+        result = any(
             len(path) > len(prefix)
             and path[: len(prefix)] == prefix
             and child.kind
             in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST)
             for path, child in self.rules.items()
         )
+        self._append_descendant_cache[prefix] = result
+        return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -676,16 +794,37 @@ class StateDeltaJournal:
         operation: str,
         key: Any,
         value: Any,
+        *,
+        validate_value: bool = True,
+        allow_mixed_field_anchor: bool = False,
     ) -> _PreparedProxyWrite:
         self._require_active()
         affected = container + (key,) if key is not None else container
 
         if self._schema is not None:
-            resolution = self._schema.resolve_write(affected)
-            if resolution is None:
-                raise ValueError(f"undeclared persistence path: {affected!r}")
-            rule = resolution.rule
-            anchor = resolution.anchor
+            # 产业环境绝大多数写入都是“已声明容器的直接子项”：向事实表
+            # 新增一条记录，或修改 replaceable_map 中的一个实体。容器路径
+            # 是稳定且可缓存的，动态业务 ID 却几乎不会重复。先从容器声明
+            # 直接得到锚点，避免为每个新 ID 扫描整张规则表并污染解析缓存。
+            # 这里只能命中容器本身的精确声明。若用 ``resolve``，
+            # ``inventories/<lot_id>`` 这样的实体路径也会命中 wildcard
+            # 条目规则，继而把字段写入误判为新的实体写入。
+            container_rule = self._schema.rules.get(container)
+            direct_child = key is not None and affected == container + (key,)
+            if direct_child and container_rule is not None:
+                rule = container_rule
+                anchor = (
+                    affected
+                    if rule.kind is PersistenceKind.REPLACEABLE
+                    and rule.granularity == "entry"
+                    else container
+                )
+            else:
+                resolution = self._schema.resolve_write(affected)
+                if resolution is None:
+                    raise ValueError(f"undeclared persistence path: {affected!r}")
+                rule = resolution.rule
+                anchor = resolution.anchor
         else:
             # 低层 journal API 仍支持显式精确路径，供独立 store/状态机使用。
             container_kind = self._declarations.get(container)
@@ -703,11 +842,25 @@ class StateDeltaJournal:
             else:
                 raise ValueError(f"undeclared persistence path: {affected!r}")
 
+        if (
+            allow_mixed_field_anchor
+            and self._schema is not None
+            and rule.kind is PersistenceKind.REPLACEABLE
+            and rule.granularity == "entry"
+            and anchor != affected
+            and self._schema.has_append_only_descendant(rule)
+        ):
+            rule = PersistenceRule(affected, PersistenceKind.REPLACEABLE)
+            anchor = affected
+
         kind = rule.kind
         prepared_value = None
         if operation in ("set", "append", "insert"):
-            prepared_value = _json_copy(value)
-            if self._schema is not None:
+            # 显式事务在暂存阶段只需要解析持久化锚点和操作权限，终态值会在
+            # commit 的统一预检中复制并校验。这里重复 JSON copy 会让一次
+            # 业务事务中的每次中间写都承担序列化成本。
+            prepared_value = _json_copy(value) if validate_value else value
+            if self._schema is not None and validate_value:
                 self._schema.validate_write_value(affected, prepared_value)
 
         if kind is PersistenceKind.APPEND_ONLY_MAP:
@@ -755,6 +908,7 @@ class StateDeltaJournal:
             operation=operation,
             key=key,
             value=prepared_value,
+            validated=validate_value,
         )
 
     def prepare_proxy_operation(
@@ -763,21 +917,39 @@ class StateDeltaJournal:
         operation: str,
         key: Any,
         value: Any = None,
+        *,
+        validate_value: bool = True,
+        allow_mixed_field_anchor: bool = False,
     ) -> _PreparedProxyWrite:
         """在 canonical mutation 前解析声明并完成所有可能失败的持久化校验。"""
 
-        return self._resolve_proxy_write(tuple(container_path), operation, key, value)
+        return self._resolve_proxy_write(
+            tuple(container_path),
+            operation,
+            key,
+            value,
+            validate_value=validate_value,
+            allow_mixed_field_anchor=allow_mixed_field_anchor,
+        )
 
     def prepare_proxy_operations(
         self,
         operations: Sequence[tuple[Iterable[Any], str, Any, Any]],
+        *,
+        allow_mixed_field_anchor: bool = False,
     ) -> tuple[_PreparedProxyWrite, ...]:
         """原子预检一组操作；目前用于 ``list.extend``。"""
 
         prepared: list[_PreparedProxyWrite] = []
         pending = set(self._pending_map_ids)
         for container_path, operation, key, value in operations:
-            token = self._resolve_proxy_write(tuple(container_path), operation, key, value)
+            token = self._resolve_proxy_write(
+                tuple(container_path),
+                operation,
+                key,
+                value,
+                allow_mixed_field_anchor=allow_mixed_field_anchor,
+            )
             if token.kind is PersistenceKind.APPEND_ONLY_MAP:
                 identity = (token.anchor, token.key)
                 if identity in pending:
@@ -787,6 +959,10 @@ class StateDeltaJournal:
         return tuple(prepared)
 
     def _commit_proxy_write(self, token: _PreparedProxyWrite) -> None:
+        if not token.validated:
+            raise RuntimeError(
+                "unvalidated proxy operation cannot be committed directly"
+            )
         if token.kind is PersistenceKind.TRANSIENT:
             return
         if token.kind is PersistenceKind.APPEND_ONLY_MAP:
@@ -797,6 +973,7 @@ class StateDeltaJournal:
                     "path": list(token.anchor),
                     "operation": "map_create",
                     "id": token.key,
+                    # prepare 阶段已经复制并检查过；journal 直接取得该副本。
                     "value": token.value,
                     "sequence": self._next_sequence(),
                 }
@@ -814,21 +991,31 @@ class StateDeltaJournal:
             return
 
         if token.operation == "delete" and token.anchor == token.affected_path:
+            # token 已经通过 resolve_write 确认是可替换锚点。开放 mixed
+            # entity 的动态字段可能只由 wildcard 规则声明，重新走 _kind()
+            # 会把这个合法锚点误报为未声明路径。
             self._replacements[token.anchor] = {
                 "path": list(token.anchor),
                 "operation": "delete",
                 "sequence": self._next_sequence(),
             }
             return
+        if token.operation == "set" and token.anchor == token.affected_path:
+            self._replacements[token.anchor] = {
+                "path": list(token.anchor),
+                "operation": "set",
+                "value": token.value,
+                "sequence": self._next_sequence(),
+            }
+            return
         if self._canonical_lookup is None:
             raise RuntimeError("canonical state lookup is required for nested replaceable writes")
-        # 同一个可修改实体在一个 Tick 内往往会更新许多字段。这里只登记
-        # 最小持久化锚点，等 Tick 成功结束时再复制最终值一次，避免每次
-        # 字段写入都深拷贝并序列化整条实体。
+        # 同一条可替换记录在一个 Tick 内往往会更新多个字段。这里只标记
+        # 最终需要保存的锚点；seal_tick 再读取一次最终值，避免每个字段写入
+        # 都深拷贝并 JSON 序列化整条记录。
         self._replacements[token.anchor] = {
             "path": list(token.anchor),
-            "operation": "set",
-            "deferred": True,
+            "operation": "deferred_set",
             "sequence": self._next_sequence(),
         }
 
@@ -845,37 +1032,72 @@ class StateDeltaJournal:
             for index, token in enumerate(tokens)
             if token.kind is PersistenceKind.REPLACEABLE
         }
-        for index, token in enumerate(tokens):
-            if (
-                token.kind is PersistenceKind.REPLACEABLE
-                and last_replacement[token.anchor] != index
-            ):
-                continue
-            self._commit_proxy_write(token)
+        missing = object()
+        previous_replacements: dict[tuple[Any, ...], Any] = {}
+        append_length = len(self._appends)
+        sequence = self._sequence
+        pending_identities: list[tuple[tuple[Any, ...], Any]] = []
+        try:
+            for index, token in enumerate(tokens):
+                if (
+                    token.kind is PersistenceKind.REPLACEABLE
+                    and last_replacement[token.anchor] != index
+                ):
+                    continue
+                if token.kind is PersistenceKind.REPLACEABLE:
+                    previous_replacements[token.anchor] = self._replacements.get(
+                        token.anchor,
+                        missing,
+                    )
+                elif token.kind is PersistenceKind.APPEND_ONLY_MAP:
+                    pending_identities.append((token.anchor, token.key))
+                self._commit_proxy_write(token)
+        except Exception:
+            self._sequence = sequence
+            del self._appends[append_length:]
+            for identity in pending_identities:
+                self._pending_map_ids.discard(identity)
+            for anchor, previous in previous_replacements.items():
+                if previous is missing:
+                    self._replacements.pop(anchor, None)
+                else:
+                    self._replacements[anchor] = previous
+            raise
 
     def seal_tick(self) -> SealedTickDelta:
         self._require_active()
         assert self._active_step is not None
         replacements: list[dict[str, Any]] = []
-        for pending in sorted(
-            self._replacements.values(), key=lambda item: item["sequence"]
+        for item in sorted(
+            self._replacements.values(),
+            key=lambda candidate: candidate["sequence"],
         ):
-            item = dict(pending)
-            if item.pop("deferred", False):
-                if self._canonical_lookup is None:
-                    raise RuntimeError(
-                        "canonical state lookup is required for deferred replacements"
-                    )
-                path = tuple(item["path"])
-                current = self._canonical_lookup(path)
-                if self._schema is not None:
-                    self._schema.validate_write_value(path, current)
-                item["value"] = _json_copy(current)
-            replacements.append(item)
+            if item["operation"] != "deferred_set":
+                replacements.append(item)
+                continue
+            if self._canonical_lookup is None:
+                raise RuntimeError(
+                    "canonical state lookup is required for deferred replacements"
+                )
+            path = tuple(item["path"])
+            value = self._canonical_lookup(path)
+            replacements.append(
+                {
+                    "path": list(path),
+                    "operation": "set",
+                    "value": _json_copy(value),
+                    "sequence": item["sequence"],
+                }
+            )
         result = SealedTickDelta(
             step=self._active_step,
-            replacements=tuple(_freeze_json(item) for item in replacements),
-            appends=tuple(_freeze_json(item) for item in sorted(self._appends, key=lambda item: item["sequence"])),
+            # prepare/commit 已把业务值复制进 journal；seal 后 journal 立即
+            # 清空，delta 也只交给发布器消费。保留普通 JSON 容器，避免对
+            # 整批增量先递归冻结、写盘前又递归解冻。
+            replacements=tuple(replacements),
+            appends=tuple(
+                sorted(self._appends, key=lambda item: item["sequence"])
+            ),
             write_epoch_ids=(self._write_epoch_id,) if self._write_epoch_id else (),
         )
         self._clear_active()
@@ -959,7 +1181,7 @@ class V4CheckpointStore:
     @staticmethod
     def _canonical_bytes(value: Any) -> bytes:
         return json.dumps(
-            _thaw_json(value),
+            value,
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
@@ -993,7 +1215,12 @@ class V4CheckpointStore:
             temporary.unlink(missing_ok=True)
         return len(data)
 
-    def _write_gzip_component(self, directory: Path, payload: Any, name: str) -> dict[str, Any]:
+    def _write_gzip_component(
+        self,
+        directory: Path,
+        payload: Any,
+        name: str,
+    ) -> dict[str, Any]:
         canonical = self._canonical_bytes(payload)
         compressed = gzip.compress(canonical, compresslevel=6, mtime=0)
         digest = self._sha256(compressed)
@@ -1037,7 +1264,9 @@ class V4CheckpointStore:
             raise ValueError("root checkpoint step must be 0")
         delta = SealedTickDelta(
             step=0,
-            replacements=tuple(_freeze_json(dict(entry)) for entry in entries),
+            # 根条目来自 manager 已经脱离 World 的普通快照，发布调用又在
+            # 当前 worker 内同步消费；这里无需再冻结、解冻整棵初始状态。
+            replacements=tuple(dict(entry) for entry in entries),
             appends=(),
         )
         return self._publish_delta(
@@ -1181,7 +1410,7 @@ class V4CheckpointStore:
             if root_metadata is not None:
                 # Keep the fixed World metadata on the root only.  It is
                 # immutable and is never copied into subsequent delta files.
-                manifest["root_metadata"] = _thaw_json(_freeze_json(dict(root_metadata)))
+                manifest["root_metadata"] = dict(root_metadata)
             manifest_path = self.manifests_dir / f"{checkpoint_id}.json"
             manifest_bytes = self._canonical_bytes(manifest)
             bytes_written += self._atomic_write(manifest_path, manifest_bytes)
@@ -1218,7 +1447,12 @@ class V4CheckpointStore:
         finally:
             self._publishing = False
 
-    def resolve(self, step: int | None = None) -> dict[str, Any]:
+    def resolve(
+        self,
+        step: int | None = None,
+        *,
+        include_restored_state: bool = False,
+    ) -> dict[str, Any]:
         """解析一个 v4 marker，并校验 manifest 链。
 
         ``step=None`` 按降序跳过损坏 marker；显式 step 则把损坏原因直接
@@ -1244,8 +1478,8 @@ class V4CheckpointStore:
                 # hash chain.  This keeps ``latest`` from selecting a marker
                 # whose manifest exists but whose replacement/segment is
                 # already damaged.
-                self.restore(candidate)
-                return {
+                restored_state = self.restore(candidate)
+                result = {
                     "step": candidate,
                     "checkpoint_id": marker["checkpoint_id"],
                     "marker": marker,
@@ -1253,6 +1487,9 @@ class V4CheckpointStore:
                     "marker_file": self.complete_dir / f"step_{candidate:06d}.json",
                     "manifest_file": manifest_path,
                 }
+                if include_restored_state:
+                    result["_restored_state"] = restored_state
+                return result
             except (FileNotFoundError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
                 if step is not None:
                     raise
@@ -1360,19 +1597,21 @@ class V4CheckpointStore:
         parent, key = cls._parent(state, operation["path"], create=True)
         kind = operation["operation"]
         if kind == "set":
-            parent[key] = copy.deepcopy(operation["value"])
+            # operation 来自本次 json.loads 的私有对象树，恢复后的 state 可
+            # 直接接管其 value；逐条 deepcopy 会把大型根检查点再复制一遍。
+            parent[key] = operation["value"]
         elif kind == "delete":
             parent.pop(key, None)
         elif kind == "map_create":
             target = parent.setdefault(key, {})
             if not isinstance(target, dict) or operation["id"] in target:
                 raise ValueError("duplicate or invalid append-only map entry during restore")
-            target[operation["id"]] = copy.deepcopy(operation["value"])
+            target[operation["id"]] = operation["value"]
         elif kind == "append":
             target = parent.setdefault(key, [])
             if not isinstance(target, list):
                 raise ValueError("invalid append-only list during restore")
-            target.append(copy.deepcopy(operation["value"]))
+            target.append(operation["value"])
         else:
             raise ValueError(f"unsupported state operation: {kind}")
 

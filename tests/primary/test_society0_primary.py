@@ -1192,7 +1192,7 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert "# Society0 Runtime Diagnostic Report" in diagnostics
     assert "Final step: 3" in diagnostics
     store = V4CheckpointStore(tmp_path)
-    assert store.available_steps() == [0]
+    assert store.available_steps() == [0, 3]
     record = store.resolve(0)
     marker = record["marker"]
     manifest = record["manifest"]
@@ -1617,7 +1617,7 @@ async def test_checkpoint_policy(tmp_path):
     await engine.run(steps=25)
 
     store = V4CheckpointStore(tmp_path)
-    assert store.available_steps() == [0, 10, 20]
+    assert store.available_steps() == [0, 10, 20, 25]
     for step in store.available_steps():
         record = store.resolve(step)
         marker = record["marker"]
@@ -2181,6 +2181,190 @@ async def test_action_call_id_is_available_in_execution_context():
 
 
 @pytest.mark.asyncio
+async def test_action_loop_bounds_request_history_without_truncating_thread() -> None:
+    action_set = ActionSet()
+    requests = []
+    recorded_messages = []
+    recorded_events = []
+
+    async def inspect(sequence: int):
+        return {"change_applied": True, "sequence": sequence, "detail": "x" * 2000}
+
+    action_set.add_action(
+        name="inspect",
+        func=inspect,
+        description="Inspect one sequence.",
+        parameters={
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        sequence = len(requests)
+        if sequence > 5:
+            return {"role": "assistant", "content": "done", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{sequence}",
+                    "type": "function",
+                    "function": {
+                        "name": "inspect",
+                        "arguments": json.dumps({"sequence": sequence}),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect several records.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=6,
+        max_request_messages=6,
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda name, payload: recorded_events.append(
+            (name, payload)
+        ),
+    )
+
+    assert len(requests) == 6
+    assert max(len(request["messages"]) for request in requests) <= 6
+    assert len(result.conversation_messages) == 13
+    assert len(recorded_messages) == 13
+    assert any(name == "request_history_compacted" for name, _ in recorded_events)
+
+
+@pytest.mark.asyncio
+async def test_repeated_read_with_same_result_ends_as_no_progress() -> None:
+    action_set = ActionSet()
+    requests = []
+    events = []
+
+    async def query_plan(section: str):
+        return {"section": section, "items": ["same-plan"]}
+
+    action_set.add_action(
+        name="query_plan",
+        func=query_plan,
+        description="Query one plan section.",
+        parameters={
+            "type": "object",
+            "properties": {"section": {"type": "string"}},
+            "required": ["section"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_plan",
+                        "arguments": '{"section":"sales"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=32,
+        no_progress_action_tags=["industry_query"],
+        thread_event_recorder=lambda name, payload: events.append((name, payload)),
+    )
+
+    assert len(requests) == 2
+    assert result.status == "success"
+    assert result.termination_reason == "repeated_read_no_progress"
+    assert result.termination_action == "query_plan"
+    assert [call["status"] for call in result.action_calls] == ["success", "success"]
+    assert any(name == "agent_loop_no_progress" for name, _ in events)
+
+
+@pytest.mark.asyncio
+async def test_successful_write_resets_repeated_read_detection() -> None:
+    action_set = ActionSet()
+    plan_version = 0
+    requests = []
+
+    async def query_plan(section: str):
+        return {"section": section, "version": plan_version}
+
+    async def update_plan():
+        nonlocal plan_version
+        plan_version += 1
+        return {"change_applied": True, "version": plan_version}
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {
+            "type": "object",
+            "properties": {"section": {"type": "string"}},
+            "required": ["section"],
+        },
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "update_plan",
+        update_plan,
+        "Update the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+    sequence = ["query_plan", "update_plan", "query_plan", "query_plan"]
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        name = sequence[len(requests) - 1]
+        arguments = '{"section":"sales"}' if name == "query_plan" else "{}"
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {"name": name, "arguments": arguments},
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect and update the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=32,
+        no_progress_action_tags=["industry_query"],
+    )
+
+    assert len(requests) == 4
+    assert result.termination_reason == "repeated_read_no_progress"
+    assert [call["action_name"] for call in result.action_calls] == sequence
+
+
+@pytest.mark.asyncio
 async def test_concurrent_action_call_ids_do_not_leak_between_tasks():
     action_set = ActionSet()
     world = World()
@@ -2529,9 +2713,9 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
     )
 
     assert called == ["Campus is lively today."]
-    assert len(llm_payloads) == 3
+    assert len(llm_payloads) == 2
     assert "Required action name(s): publish_post" in llm_payloads[1]["messages"][-1]["content"]
-    assert llm_payloads[-1]["tools"] is None
+    assert llm_payloads[-1]["tools"]
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
     assert result.termination_reason == "action_budget_exhausted"
 
@@ -2564,6 +2748,96 @@ async def test_blank_assistant_turn_is_retried_before_accepting_a_visible_decisi
     assert result.status == "success"
     assert result.termination_reason == "no_action_calls"
     assert result.total_turns == 2
+
+
+@pytest.mark.asyncio
+async def test_output_token_limit_is_not_accepted_as_a_completed_no_action_turn():
+    async def fake_llm_call(_payload):
+        return {
+            "role": "assistant",
+            "content": "我将继续分析库存、订单和产能……",
+            "tool_calls": [],
+            "finish_reason": "length",
+        }
+
+    result = await execute_action_loop(
+        instruction="经营你负责的企业。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "output_token_limit"
+    assert result.failure_class == "provider_output_truncated"
+    assert result.retry_scope == "agent_activation"
+
+
+@pytest.mark.asyncio
+async def test_output_token_limit_with_complete_tool_call_executes_without_saving_text():
+    action_set = ActionSet()
+    called = []
+    recorded_messages = []
+    events = []
+
+    async def query_inventory(product_id: str):
+        called.append(product_id)
+        return {"quantity": 12}
+
+    action_set.add_action(
+        name="query_inventory",
+        func=query_inventory,
+        description="Query inventory",
+        parameters={
+            "type": "object",
+            "properties": {"product_id": {"type": "string"}},
+            "required": ["product_id"],
+        },
+    )
+
+    async def fake_llm_call(_payload):
+        return {
+            "role": "assistant",
+            "content": "这是不应写入记忆的截断正文……",
+            "reasoning_content": "这是不应写入记忆的截断推理……",
+            "tool_calls": [
+                {
+                    "id": "call_inventory",
+                    "type": "function",
+                    "function": {
+                        "name": "query_inventory",
+                        "arguments": '{"product_id":"cell"}',
+                    },
+                }
+            ],
+            "finish_reason": "length",
+        }
+
+    result = await execute_action_loop(
+        instruction="查看库存。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=1,
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "max_turns"
+    assert called == ["cell"]
+    assert [call["status"] for call in result.action_calls] == ["success"]
+    assistant = next(
+        message for message in recorded_messages if message.get("role") == "assistant"
+    )
+    assert assistant["content"] == ""
+    assert "reasoning_content" not in assistant
+    assert ("provider_output_truncated_with_tool_calls", {"tool_call_count": 1}) in events
 
 
 @pytest.mark.asyncio
@@ -3809,10 +4083,9 @@ async def test_action_call_limits_stop_when_all_available_actions_exhausted_with
     )
 
     assert published == ["post 1"]
-    assert len(llm_calls) == 2
+    assert len(llm_calls) == 1
     assert llm_calls[0]["tool_choice"] == "auto"
-    assert llm_calls[-1]["tools"] is None
-    assert result.total_turns == 2
+    assert result.total_turns == 1
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
 
 
@@ -3987,9 +4260,9 @@ async def test_action_call_limits_continue_when_other_actions_remain_available()
     )
 
     assert called == [("publish_post", "post 1"), ("like_post", "post_1")]
-    assert len(llm_calls) == 3
-    assert llm_calls[-1]["tools"] is None
-    assert result.total_turns == 3
+    assert len(llm_calls) == 2
+    assert llm_calls[-1]["tools"]
+    assert result.total_turns == 2
     assert [call["action_name"] for call in result.action_calls] == ["publish_post", "like_post"]
 
 
@@ -4196,8 +4469,7 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     assert result.action_calls[0]["result"] == expected_error
     assert result.status == "success"
     assert result.termination_reason == "action_budget_exhausted"
-    assert len(llm_payloads) == 2
-    assert llm_payloads[-1]["tools"] is None
+    assert len(llm_payloads) == 1
     assert result.full_history[0]["batch_termination_reason"] == (
         "action_batch_exceeds_budget"
     )
@@ -4525,7 +4797,7 @@ async def test_failed_action_attempts_consume_the_action_budget():
         max_action_calls=2,
     )
 
-    assert llm_calls == 3
+    assert llm_calls == 2
     assert action_attempts == 2
     assert [item["status"] for item in result.action_calls] == [
         "error",
@@ -4535,7 +4807,7 @@ async def test_failed_action_attempts_consume_the_action_budget():
 
 
 @pytest.mark.asyncio
-async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decision():
+async def test_action_budget_exhaustion_does_not_issue_a_tool_free_closing_request():
     action_set = ActionSet()
     llm_payloads = []
 
@@ -4551,30 +4823,12 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
 
     async def fake_llm(payload):
         llm_payloads.append(json.loads(json.dumps(payload)))
-        if len(llm_payloads) <= 2:
-            return {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [
-                    {
-                        "id": f"call_{len(llm_payloads)}",
-                        "type": "function",
-                        "function": {
-                            "name": "inspect_world",
-                            "arguments": "{}",
-                        },
-                    }
-                ],
-            }
         return {
             "role": "assistant",
-            "content": (
-                "No supplier is available this month, so I will keep the "
-                "current plan unchanged and review it next month."
-            ),
+            "content": "",
             "tool_calls": [
                 {
-                    "id": "ignored_closing_call",
+                    "id": f"call_{len(llm_payloads)}",
                     "type": "function",
                     "function": {
                         "name": "inspect_world",
@@ -4594,21 +4848,14 @@ async def test_action_budget_exhaustion_still_collects_a_tool_free_final_decisio
         max_action_calls=2,
     )
 
-    assert len(llm_payloads) == 3
-    assert llm_payloads[-1]["tools"] is None
-    assert llm_payloads[-1]["tool_choice"] is None
-    assert "No further actions can be called" in (
-        llm_payloads[-1]["messages"][-1]["content"]
-    )
-    assert "keep the current plan unchanged" in (
-        result.full_history[-1]["response"]["content"]
-    )
+    assert len(llm_payloads) == 2
+    assert llm_payloads[-1]["tools"]
     assert len(result.action_calls) == 2
     assert result.termination_reason == "action_budget_exhausted"
 
 
 @pytest.mark.asyncio
-async def test_tool_free_final_decision_failure_does_not_retry_completed_actions():
+async def test_action_budget_exhaustion_does_not_retry_completed_actions():
     action_set = ActionSet()
     executed = []
     llm_calls = 0
@@ -4627,8 +4874,6 @@ async def test_tool_free_final_decision_failure_does_not_retry_completed_actions
     async def fake_llm(payload):
         nonlocal llm_calls
         llm_calls += 1
-        if payload.get("tools") is None:
-            raise ConnectionError("closing request unavailable")
         return {
             "role": "assistant",
             "content": "",
@@ -4655,15 +4900,55 @@ async def test_tool_free_final_decision_failure_does_not_retry_completed_actions
     )
 
     assert executed == ["order"]
-    assert llm_calls == 2
+    assert llm_calls == 1
     assert [item["action_name"] for item in result.action_calls] == [
         "place_order"
     ]
     assert result.termination_reason == "action_budget_exhausted"
     assert result.status == "success"
-    assert result.full_history[-1]["closing_error"] == (
-        "closing request unavailable"
+
+
+@pytest.mark.asyncio
+async def test_max_turns_is_reported_as_an_activation_failure():
+    action_set = ActionSet()
+    calls = []
+
+    async def ping():
+        return "ok"
+
+    action_set.add_action(
+        "ping",
+        ping,
+        "ping the environment",
+        {"type": "object", "properties": {}},
     )
+
+    async def fake_llm(_payload):
+        calls.append(True)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"ping_{len(calls)}",
+                    "type": "function",
+                    "function": {"name": "ping", "arguments": "{}"},
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Keep checking the environment.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm,
+        max_turns=2,
+    )
+
+    assert len(calls) == 2
+    assert result.termination_reason == "max_turns"
+    assert result.status == "error"
 
 
 @pytest.mark.asyncio
@@ -4931,6 +5216,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
         terminal_actions=["submit_final_decision"],
         completion_action_tags=["social_write"],
         max_action_calls=3,
+        max_request_messages=20,
         action_call_limits={"publish_post": 1},
         memory_top_k=7,
         max_tokens=90,
@@ -4965,6 +5251,7 @@ async def test_agent_batch_events_record_fidelity_execution_options(tmp_path):
     assert instruct_options["terminal_actions"] == ["submit_final_decision"]
     assert instruct_options["completion_action_tags"] == ["social_write"]
     assert instruct_options["max_action_calls"] == 3
+    assert instruct_options["max_request_messages"] == 20
     assert instruct_options["action_call_limits"] == {"publish_post": 1}
     assert instruct_options["llm_request_options"] == {
         "max_tokens": 90,
@@ -6838,11 +7125,9 @@ async def test_embedding_microbatch_preserves_plural_trace_metadata(monkeypatch)
 
 
 @pytest.mark.asyncio
-async def test_memory_write_embeddings_share_one_physical_batch_across_threads(
-    monkeypatch,
-):
-    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_TEXTS", "10")
-    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_WAIT_MS", "1")
+async def test_embedding_microbatch_coalesces_distinct_agent_threads(monkeypatch):
+    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_TEXTS", "20")
+    monkeypatch.setenv("EMBEDDING_MICROBATCH_MAX_WAIT_MS", "5")
 
     manager = EmbeddingManager(
         [
@@ -6851,7 +7136,7 @@ async def test_memory_write_embeddings_share_one_physical_batch_across_threads(
                 "api_key": "test",
                 "base_url": "http://localhost:9999/v1",
                 "model": "embed-test",
-                "concurrency": 1,
+                "concurrency": 10,
                 "provider_type": "openai",
             }
         ]
@@ -6859,9 +7144,17 @@ async def test_memory_write_embeddings_share_one_physical_batch_across_threads(
     physical_calls = []
 
     async def fake_execute_request(endpoint, texts, dimensions, metadata=None):
-        physical_calls.append((list(texts), dict(metadata or {})))
+        physical_calls.append(
+            {
+                "texts": list(texts),
+                "metadata": dict(metadata or {}),
+            }
+        )
         return {
-            "result": [[float(index), 0.0] for index, _ in enumerate(texts)],
+            "result": [
+                [float(index), float(len(text))]
+                for index, text in enumerate(texts)
+            ],
             "model": endpoint.model,
             "dimensions": dimensions,
         }
@@ -6870,35 +7163,40 @@ async def test_memory_write_embeddings_share_one_physical_batch_across_threads(
 
     try:
         results = await asyncio.gather(
-            manager.request(
-                ["alice memory"],
-                dimensions=2,
-                metadata={
-                    "thread_id": "thread-alice",
-                    "agent_id": "alice",
-                    "interaction_type": "memory_write",
-                },
-            ),
-            manager.request(
-                ["bob memory"],
-                dimensions=2,
-                metadata={
-                    "thread_id": "thread-bob",
-                    "agent_id": "bob",
-                    "interaction_type": "memory_write",
-                },
-            ),
+            *(
+                manager.request(
+                    [f"actor {index} memory"],
+                    dimensions=2,
+                    metadata={
+                        "step": 7,
+                        "thread_id": f"thread-{index}",
+                        "agent_id": f"actor-{index}",
+                        "memory_ids": [f"memory-{index}"],
+                        "interaction_type": "memory_write",
+                    },
+                )
+                for index in range(20)
+            )
         )
     finally:
         await manager.close()
 
-    assert len(results) == 2
     assert len(physical_calls) == 1
-    texts, metadata = physical_calls[0]
-    assert texts == ["alice memory", "bob memory"]
-    assert metadata.get("thread_id") is None
-    assert metadata["thread_ids"] == ["thread-alice", "thread-bob"]
-    assert metadata["agent_ids"] == ["alice", "bob"]
+    assert physical_calls[0]["texts"] == [
+        f"actor {index} memory" for index in range(20)
+    ]
+    assert physical_calls[0]["metadata"] == {
+        "step": 7,
+        "thread_ids": [f"thread-{index}" for index in range(20)],
+        "agent_ids": [f"actor-{index}" for index in range(20)],
+        "memory_ids": [f"memory-{index}" for index in range(20)],
+        "interaction_type": "memory_write",
+        "interaction_types": ["memory_write"],
+    }
+    assert [result["result"][0] for result in results] == [
+        [float(index), float(len(f"actor {index} memory"))]
+        for index in range(20)
+    ]
 
 
 @pytest.mark.asyncio

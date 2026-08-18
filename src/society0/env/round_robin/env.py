@@ -217,8 +217,12 @@ class RoundRobinConversationEnv(Environment):
     def _state_store(self):
         """返回 Tick 代理；初始化/恢复阶段使用原始 canonical state。"""
         journal = getattr(self._world, "_state_delta_journal", None)
-        active_tick = getattr(journal, "_active_step", None) is not None
+        active_tick = getattr(journal, "active_step", None) is not None
         return self.state if active_tick else self._world.environment_data.setdefault("state", {})
+
+    def _explicit_transactions_enabled(self) -> bool:
+        mode = getattr(self._world, "state_access_mode", None)
+        return getattr(mode, "value", mode) == "explicit_transactions"
 
     # --- 生命周期钩子 ---
 
@@ -319,9 +323,9 @@ class RoundRobinConversationEnv(Environment):
             total_rounds,
         )
 
-    def _rebuild_active_messages(self) -> None:
+    def _rebuild_active_messages(self, state=None) -> None:
         """从不可变消息事实重建当前轮 transient 收件箱。"""
-        state = self._state_store()
+        state = self._state_store() if state is None else state
         current_round = int(state.get("pairing_current_round", 0) or 0)
         active = {agent_id: [] for agent_id in self._group_index_by_agent.keys()}
         if current_round:
@@ -336,8 +340,17 @@ class RoundRobinConversationEnv(Environment):
 
     # --- 环境内部工具（稍后实现） ---
 
-    def _ensure_state_initialized(self) -> None:
-        state = self._state_store()
+    def _ensure_state_initialized(self, state=None) -> None:
+        # 初始化阶段没有 active journal，可以直接写 canonical；显式模式的
+        # Tick 内普通读取只拿到只读视图，缺省字段由初始化流程补齐，不能在
+        # 读取路径隐式开启/修改事务。
+        read_only = state is None and self._explicit_transactions_enabled() and (
+            getattr(getattr(self._world, "_state_delta_journal", None), "active_step", None)
+            is not None
+        )
+        state = self._state_store() if state is None else state
+        if read_only:
+            return
 
         if "config" not in state:
             state["config"] = self._config.model_dump()
@@ -398,41 +411,56 @@ class RoundRobinConversationEnv(Environment):
 
         return schedule
 
-    def _get_agent_state(self, agent_id: str) -> AgentConversationState:
-        self._ensure_state_initialized()
-        state = self._state_store().setdefault("conversation_current", {})
-        raw = state.get(agent_id)
+    def _get_agent_state(self, agent_id: str, state=None) -> AgentConversationState:
+        write_state = state is not None or not (
+            self._explicit_transactions_enabled()
+            and getattr(getattr(self._world, "_state_delta_journal", None), "active_step", None)
+            is not None
+        )
+        self._ensure_state_initialized(state)
+        state = self._state_store() if state is None else state
+        conversation = state.get("conversation_current")
+        if conversation is None:
+            conversation = {}
+            if write_state:
+                state["conversation_current"] = conversation
+        raw = conversation.get(agent_id)
         if raw is None:
             raw_state = AgentConversationState().model_dump()
-            state[agent_id] = {
+            record = {
                 key: value
                 for key, value in raw_state.items()
                 if key not in {"partner_history"}
             }
+            if write_state:
+                conversation[agent_id] = record
             return AgentConversationState.model_validate(raw_state)
         plain_state = self._to_plain(raw)
-        history = self._partner_history_for_agent(agent_id)
+        history = self._partner_history_for_agent(agent_id, state=state)
         plain_state["partner_history"] = history
         return AgentConversationState.model_validate(plain_state)
 
-    def _set_agent_state(self, agent_id: str, agent_state: AgentConversationState) -> None:
-        self._ensure_state_initialized()
-        conversation_state = self._state_store().setdefault("conversation_current", {})
+    def _set_agent_state(self, agent_id: str, agent_state: AgentConversationState, state=None) -> None:
+        self._ensure_state_initialized(state)
+        state = self._state_store() if state is None else state
+        conversation_state = state.setdefault("conversation_current", {})
         current = agent_state.model_dump()
         current.pop("partner_history", None)
         conversation_state[agent_id] = current
 
-    def _partner_history_for_agent(self, agent_id: str) -> List[str]:
+    def _partner_history_for_agent(self, agent_id: str, state=None) -> List[str]:
+        state = self._state_store() if state is None else state
         history = []
-        for fact in self.state.get("conversation_partner_history", []) or []:
+        for fact in state.get("conversation_partner_history", []) or []:
             if isinstance(fact, Mapping) and fact.get("agent_id") == agent_id:
                 partner = fact.get("partner_id")
                 if partner is not None:
                     history.append(str(partner))
         return history
 
-    def _append_partner_history(self, agent_id: str, partner_id: str, round_number: int) -> None:
-        self.state["conversation_partner_history"].append(
+    def _append_partner_history(self, agent_id: str, partner_id: str, round_number: int, state=None) -> None:
+        state = self._state_store() if state is None else state
+        state["conversation_partner_history"].append(
             {
                 "agent_id": agent_id,
                 "partner_id": partner_id,
@@ -440,17 +468,18 @@ class RoundRobinConversationEnv(Environment):
             }
         )
 
-    def _append_active_message(self, receiver: str, message: Mapping[str, Any]) -> None:
+    def _append_active_message(self, receiver: str, message: Mapping[str, Any], state=None) -> None:
         """更新 transient 收件箱，通过根级替换避免代理深入临时列表。"""
-        active = self._to_plain(self.state.get("active_messages", {}))
+        state = self._state_store() if state is None else state
+        active = self._to_plain(state.get("active_messages", {}))
         if not isinstance(active, dict):
             active = {}
         active.setdefault(receiver, []).append(self._to_plain(message))
-        self.state["active_messages"] = active
+        state["active_messages"] = active
 
-    def _clear_round_messages(self, round_number: int) -> None:
-        self._ensure_state_initialized()
-        state = self._state_store()
+    def _clear_round_messages(self, round_number: int, state=None) -> None:
+        self._ensure_state_initialized(state)
+        state = self._state_store() if state is None else state
 
         state["active_messages"] = {
             agent_id: [] for agent_id in self._group_index_by_agent.keys()
@@ -483,31 +512,33 @@ class RoundRobinConversationEnv(Environment):
         if self._group_index_by_agent[agent1_id] != self._group_index_by_agent[agent2_id]:
             raise ValueError("两个 Agent 不同组，无法建立配对。")
 
-    def _get_pairing_status(self) -> PairingStatus:
-        self._ensure_state_initialized()
-        current_partner = self._to_plain(self.state.get("pairing_current_partner", {}))
-        active_pairs = self._to_plain(self.state.get("pairing_active_pairs", {}))
-        completed = self._to_plain(self.state.get("pairing_completed_pairs", []))
+    def _get_pairing_status(self, state=None) -> PairingStatus:
+        self._ensure_state_initialized(state)
+        state = self._state_store() if state is None else state
+        current_partner = self._to_plain(state.get("pairing_current_partner", {}))
+        active_pairs = self._to_plain(state.get("pairing_active_pairs", {}))
+        completed = self._to_plain(state.get("pairing_completed_pairs", []))
         return PairingStatus(
-            current_round=int(self.state.get("pairing_current_round", 0) or 0),
-            total_rounds=int(self.state.get("pairing_total_rounds", 0) or 0),
+            current_round=int(state.get("pairing_current_round", 0) or 0),
+            total_rounds=int(state.get("pairing_total_rounds", 0) or 0),
             agent_partner=current_partner,
             completed_pairs=[tuple(pair) for pair in completed],
             pairing_schedule=[],
             round_active_pairs={int(key): [tuple(pair) for pair in pairs] for key, pairs in active_pairs.items()},
         )
 
-    def _set_pairing_status(self, status: PairingStatus) -> None:
-        self._ensure_state_initialized()
-        self.state["pairing_current_round"] = status.current_round
-        self.state["pairing_total_rounds"] = status.total_rounds
-        current_partner = self.state.setdefault("pairing_current_partner", {})
+    def _set_pairing_status(self, status: PairingStatus, state=None) -> None:
+        self._ensure_state_initialized(state)
+        state = self._state_store() if state is None else state
+        state["pairing_current_round"] = status.current_round
+        state["pairing_total_rounds"] = status.total_rounds
+        current_partner = state.setdefault("pairing_current_partner", {})
         for agent_id in list(current_partner.keys()):
             if agent_id not in status.agent_partner:
                 del current_partner[agent_id]
         for agent_id, partner_id in status.agent_partner.items():
             current_partner[agent_id] = partner_id
-        self.state["pairing_active_pairs"] = {
+        state["pairing_active_pairs"] = {
             str(round_number): [list(pair) for pair in pairs]
             for round_number, pairs in status.round_active_pairs.items()
         }
@@ -520,11 +551,12 @@ class RoundRobinConversationEnv(Environment):
 
     # --- 能力定义（将在后续步骤实现） ---
 
-    @rule(description="推进到下一轮并自动为所有组进行配对。\n\n使用说明：\n- 自动推进到指定轮次\n- 自动为所有组按计划进行配对\n- 不需要指定具体的agent参数\n- 返回配对结果摘要")
-    async def advance_round_robin_with_pairing(
+    async def _advance_round_robin_with_pairing_impl(
         self,
-        env,  # 框架会自动注入环境实例作为第一个参数
+        env,
         round_number: int,
+        *,
+        state,
     ) -> Dict[str, Any]:
         """推进到下一轮并自动为所有组进行配对
 
@@ -534,10 +566,10 @@ class RoundRobinConversationEnv(Environment):
         - 不需要指定具体的agent参数
         - 返回配对结果摘要
         """
-        self._ensure_state_initialized()
+        self._ensure_state_initialized(state)
 
         # 获取配对状态
-        pairing_status = self._get_pairing_status()
+        pairing_status = self._get_pairing_status(state)
         if pairing_status.total_rounds == 0:
             return {"status": "error", "message": "尚未生成配对计划。"}
 
@@ -594,18 +626,18 @@ class RoundRobinConversationEnv(Environment):
                     (agent1_id, agent2_id)
                 )
                 pairing_status.completed_pairs.append(canonical_target)
-                self.state["pairing_completed_pairs"].append(list(canonical_target))
+                state["pairing_completed_pairs"].append(list(canonical_target))
 
                 # 同步对话状态
                 for agent_id, partner_id in ((agent1_id, agent2_id), (agent2_id, agent1_id)):
-                    agent_state = self._get_agent_state(agent_id)
+                    agent_state = self._get_agent_state(agent_id, state=state)
                     if partner_id not in agent_state.partner_history:
-                        self._append_partner_history(agent_id, partner_id, round_number)
+                        self._append_partner_history(agent_id, partner_id, round_number, state=state)
                     agent_state.current_partner = partner_id
                     agent_state.current_round = round_number
                     agent_state.can_converse = True
                     agent_state.is_conversation_active = True
-                    self._set_agent_state(agent_id, agent_state)
+                    self._set_agent_state(agent_id, agent_state, state=state)
 
                 pairing_results.append({
                     "pair_id": f"{agent1_id}_{agent2_id}",
@@ -631,7 +663,7 @@ class RoundRobinConversationEnv(Environment):
                 })
 
         # 保存配对状态
-        self._set_pairing_status(pairing_status)
+        self._set_pairing_status(pairing_status, state=state)
 
         # 返回配对结果摘要
         successful_pairings = [r for r in pairing_results if r["status"] == "success"]
@@ -647,14 +679,30 @@ class RoundRobinConversationEnv(Environment):
             "pairing_details": pairing_results
         }
 
-    @action(description="向当前配对伙伴发送消息。\n\n使用说明：\n- 只有当前有激活配对才能使用此能力\n- 消息会自动记录到轮次消息缓存中\n- 一次只能发送给当前配对的伙伴")
-    async def send_message_to_partner(
+    @rule(description="推进到下一轮并自动为所有组进行配对。\n\n使用说明：\n- 自动推进到指定轮次\n- 自动为所有组按计划进行配对\n- 不需要指定具体的agent参数\n- 返回配对结果摘要")
+    async def advance_round_robin_with_pairing(
+        self,
+        env,
+        round_number: int,
+    ) -> Dict[str, Any]:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._advance_round_robin_with_pairing_impl(
+                    env, round_number, state=tx.state
+                )
+        return await self._advance_round_robin_with_pairing_impl(
+            env, round_number, state=self.state
+        )
+
+    async def _send_message_to_partner_impl(
         self,
         context: ExecutionContext,
         agent: "Agent",
         content: str,
+        *,
+        state,
     ) -> Dict[str, Any]:
-        self._ensure_state_initialized()
+        self._ensure_state_initialized(state)
 
         # 输入验证
         if not content or not content.strip():
@@ -663,17 +711,17 @@ class RoundRobinConversationEnv(Environment):
         # 标准方式：直接通过框架注入的agent参数获取agent_id
         agent_id = agent.id
 
-        agent_state = self._get_agent_state(agent_id)
+        agent_state = self._get_agent_state(agent_id, state=state)
         if not agent_state.can_converse or not agent_state.current_partner:
             return {"status": "error", "message": "当前没有激活的配对会话。"}
 
         partner_id = agent_state.current_partner
-        pairing_status = self._get_pairing_status()
+        pairing_status = self._get_pairing_status(state)
         current_round = agent_state.current_round or pairing_status.current_round or 1
 
         timestamp = time.time()
-        message_counter = self.state.get("message_counter", 0) + 1
-        self.state["message_counter"] = message_counter
+        message_counter = state.get("message_counter", 0) + 1
+        state["message_counter"] = message_counter
 
         message = ConversationMessage(
             sender=agent_id,
@@ -683,8 +731,8 @@ class RoundRobinConversationEnv(Environment):
             timestamp=timestamp,
         ).model_dump()
 
-        self._append_active_message(partner_id, message)
-        self.state["message_facts"].append(message)
+        self._append_active_message(partner_id, message, state=state)
+        state["message_facts"].append(message)
 
         logger.debug(
             "RoundRobin: %s -> %s @ round %s | message_id=%s",
@@ -701,14 +749,31 @@ class RoundRobinConversationEnv(Environment):
             "message_id": message_counter,
         }
 
-    @action(description="向小组成员广播消息。\n\n使用说明：\n- 可用于需要组内沟通的实验场景\n- 消息会发送给同组的所有成员\n- 不依赖当前的配对状态")
-    async def broadcast_to_group(
+    @action(description="向当前配对伙伴发送消息。\n\n使用说明：\n- 只有当前有激活配对才能使用此能力\n- 消息会自动记录到轮次消息缓存中\n- 一次只能发送给当前配对的伙伴")
+    async def send_message_to_partner(
         self,
         context: ExecutionContext,
         agent: "Agent",
         content: str,
     ) -> Dict[str, Any]:
-        self._ensure_state_initialized()
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._send_message_to_partner_impl(
+                    context, agent, content, state=tx.state
+                )
+        return await self._send_message_to_partner_impl(
+            context, agent, content, state=self.state
+        )
+
+    async def _broadcast_to_group_impl(
+        self,
+        context: ExecutionContext,
+        agent: "Agent",
+        content: str,
+        *,
+        state,
+    ) -> Dict[str, Any]:
+        self._ensure_state_initialized(state)
 
         # 输入验证
         if not content or not content.strip():
@@ -717,7 +782,7 @@ class RoundRobinConversationEnv(Environment):
         # 标准方式：直接通过框架注入的agent参数获取agent_id
         agent_id = agent.id
 
-        agent_state = self._get_agent_state(agent_id)
+        agent_state = self._get_agent_state(agent_id, state=state)
         if not agent_state.can_converse:
             return {"status": "error", "message": "当前状态下不允许广播消息。"}
 
@@ -726,17 +791,17 @@ class RoundRobinConversationEnv(Environment):
         if not receivers:
             return {"status": "ignored", "message": "没有可广播的组员。"}
 
-        pairing_status = self._get_pairing_status()
+        pairing_status = self._get_pairing_status(state)
         current_round = agent_state.current_round or pairing_status.current_round or 1
 
         timestamp = time.time()
         delivered = []
         # 在循环外获取起始计数器
-        message_counter = self.state.get("message_counter", 0)
+        message_counter = state.get("message_counter", 0)
 
         for receiver in receivers:
             message_counter += 1
-            self.state["message_counter"] = message_counter
+            state["message_counter"] = message_counter
             message = ConversationMessage(
                 sender=agent_id,
                 receiver=receiver,
@@ -745,8 +810,8 @@ class RoundRobinConversationEnv(Environment):
                 timestamp=timestamp,
             ).model_dump()
 
-            self._append_active_message(receiver, message)
-            self.state["message_facts"].append(message)
+            self._append_active_message(receiver, message, state=state)
+            state["message_facts"].append(message)
             delivered.append({"receiver": receiver, "message_id": message_counter})
 
         logger.info(
@@ -760,6 +825,22 @@ class RoundRobinConversationEnv(Environment):
             "round": current_round,
             "delivered": delivered,
         }
+
+    @action(description="向小组成员广播消息。\n\n使用说明：\n- 可用于需要组内沟通的实验场景\n- 消息会发送给同组的所有成员\n- 不依赖当前的配对状态")
+    async def broadcast_to_group(
+        self,
+        context: ExecutionContext,
+        agent: "Agent",
+        content: str,
+    ) -> Dict[str, Any]:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._broadcast_to_group_impl(
+                    context, agent, content, state=tx.state
+                )
+        return await self._broadcast_to_group_impl(
+            context, agent, content, state=self.state
+        )
 
     def get_agent_pairing_status(
         self,
@@ -801,7 +882,13 @@ class RoundRobinConversationEnv(Environment):
         marker: str = "ready",
     ) -> Dict[str, Any]:
         self._ensure_state_initialized()
-        agent.state["conversation_marker"] = marker
+        if self._explicit_transactions_enabled():
+            # Agent 状态属于独立 canonical root，不能与环境事务嵌套；该
+            # behavior 没有环境写入，因此只开启 Agent 自身事务。
+            with agent.write_transaction() as tx:
+                tx.state["conversation_marker"] = marker
+        else:
+            agent.state["conversation_marker"] = marker
         agent_state = self._get_agent_state(agent.id)
         return {
             "status": "marked",
@@ -817,9 +904,15 @@ class RoundRobinConversationEnv(Environment):
         self,
         env,  # 框架会自动注入环境实例作为第一个参数
     ) -> Dict[str, Any]:
-        self._ensure_state_initialized()
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._advance_round_robin_impl(env, state=tx.state)
+        return await self._advance_round_robin_impl(env, state=self.state)
 
-        pairing_status = self._get_pairing_status()
+    async def _advance_round_robin_impl(self, env, *, state) -> Dict[str, Any]:
+        self._ensure_state_initialized(state)
+
+        pairing_status = self._get_pairing_status(state)
         if pairing_status.total_rounds == 0:
             return {"status": "idle", "message": "没有可推进的轮次。"}
 
@@ -836,18 +929,18 @@ class RoundRobinConversationEnv(Environment):
         pairing_status.agent_partner = {
             agent_id: None for agent_id in pairing_status.agent_partner.keys()
         }
-        self._set_pairing_status(pairing_status)
+        self._set_pairing_status(pairing_status, state=state)
 
         # 重置对话状态
         for agent_id in list(self._group_index_by_agent.keys()):
-            agent_state = self._get_agent_state(agent_id)
+            agent_state = self._get_agent_state(agent_id, state=state)
             agent_state.current_partner = None
             agent_state.can_converse = False
             agent_state.is_conversation_active = False
             agent_state.current_round = new_round
-            self._set_agent_state(agent_id, agent_state)
+            self._set_agent_state(agent_id, agent_state, state=state)
 
-        self._clear_round_messages(new_round)
+        self._clear_round_messages(new_round, state=state)
 
         logger.info("RoundRobin: 推进到第 %s 轮。", new_round)
 
@@ -870,10 +963,20 @@ class RoundRobinConversationEnv(Environment):
         env,  # 框架会自动注入环境实例作为第一个参数
         round_number: int,
     ) -> Dict[str, Any]:
+        if self._explicit_transactions_enabled():
+            with self.write_transaction() as tx:
+                return await self._initialize_round_messages_impl(
+                    env, round_number, state=tx.state
+                )
+        return await self._initialize_round_messages_impl(
+            env, round_number, state=self.state
+        )
+
+    async def _initialize_round_messages_impl(self, env, round_number: int, *, state) -> Dict[str, Any]:
         if round_number <= 0:
             return {"status": "error", "message": "轮次编号必须大于 0。"}
 
-        self._clear_round_messages(round_number)
+        self._clear_round_messages(round_number, state=state)
         logger.debug("RoundRobin: 初始化第 %s 轮消息缓存。", round_number)
         return {"status": "initialized", "round": round_number}
 

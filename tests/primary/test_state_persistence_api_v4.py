@@ -129,69 +129,6 @@ def test_replaceable_map_compacts_each_changed_id_independently(tmp_path):
         world.event_logger.close()
 
 
-def test_replaceable_entry_is_materialized_only_once_when_tick_is_sealed(tmp_path):
-    class CountingEntry(dict):
-        deepcopy_calls = 0
-
-        def __deepcopy__(self, memo):
-            type(self).deepcopy_calls += 1
-            return {
-                key: copy.deepcopy(value, memo)
-                for key, value in self.items()
-            }
-
-    schema = persistent_state_schema(actors=replaceable_map())
-    compiled = PersistenceSchema.compile(schema, root_path=ROOT)
-    world = World(event_log_path=str(tmp_path / "events.jsonl"))
-    world.environment_data["state"] = {
-        "actors": {"a": CountingEntry({"cash": 1, "risk": 0})}
-    }
-    world.set_state_delta_journal(StateDeltaJournal(compiled))
-    try:
-        CountingEntry.deepcopy_calls = 0
-        world.begin_persistence_tick(1)
-        actor = world.create_environment_state_proxy()["actors"]["a"]
-        actor["cash"] = 2
-        actor["risk"] = 3
-
-        delta = world.seal_persistence_tick()
-
-        assert CountingEntry.deepcopy_calls == 1
-        assert len(delta.replacements) == 1
-        assert dict(delta.replacements[0]["value"]) == {"cash": 2, "risk": 3}
-    finally:
-        world.event_logger.close()
-
-
-def test_persistence_schema_reuses_a_write_resolution_for_the_same_path(monkeypatch):
-    schema = PersistenceSchema.compile(
-        persistent_state_schema(actors=replaceable_map()),
-        root_path=ROOT,
-    )
-    original = PersistenceSchema._prefix_matches
-    calls = 0
-
-    def counting_prefix_matches(pattern, path):
-        nonlocal calls
-        calls += 1
-        return original(pattern, path)
-
-    monkeypatch.setattr(
-        PersistenceSchema,
-        "_prefix_matches",
-        staticmethod(counting_prefix_matches),
-    )
-    path = (*ROOT, "actors", "actor-1", "cash")
-
-    first = schema.resolve_write(path)
-    first_call_count = calls
-    second = schema.resolve_write(path)
-
-    assert first == second
-    assert first_call_count > 0
-    assert calls == first_call_count
-
-
 def test_replaceable_map_supports_entry_create_replace_and_delete(tmp_path):
     schema = persistent_state_schema(plans=replaceable_map())
     world = _world(tmp_path, {"plans": {"old": {"status": "draft"}}}, schema)

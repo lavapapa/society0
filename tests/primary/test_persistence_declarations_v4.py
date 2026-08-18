@@ -96,6 +96,69 @@ def test_recursive_schema_compile_emits_rules_for_nested_properties():
     assert audit is not None and audit.kind is PersistenceKind.APPEND_ONLY_LIST
 
 
+def test_restored_world_can_bind_persistence_without_revalidating_full_state(
+    tmp_path,
+    monkeypatch,
+):
+    schema = _compile(
+        _state_schema(
+            {
+                "counter": {
+                    "type": "integer",
+                    "persistence": _persistence("replaceable"),
+                }
+            }
+        )
+    )
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    world.environment_data["state"] = {"counter": 1}
+
+    def unexpected_validation(_self, _state):
+        raise AssertionError("恢复检查点不应再次序列化并校验完整世界")
+
+    monkeypatch.setattr(
+        checkpoint.PersistenceSchema,
+        "validate_initial_state",
+        unexpected_validation,
+    )
+
+    world.configure_persistence(schema, validate_initial_state=False)
+    world.begin_persistence_tick(1)
+    world.create_environment_state_proxy()["counter"] = 2
+    delta = world.seal_persistence_tick()
+
+    assert len(delta.replacements) == 1
+    world.event_logger.close()
+
+
+def test_persistence_schema_reuses_concrete_write_resolution():
+    schema = _compile(
+        _state_schema(
+            {
+                "inventories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "persistence": _persistence(
+                        "replaceable",
+                        granularity="entry",
+                    ),
+                }
+            }
+        )
+    )
+    path = (*_STATE_ROOT, "inventories", "lot-1", "quantity")
+
+    first = schema.resolve_write(path)
+    second = schema.resolve_write(path)
+
+    assert first is second
+    assert first is not None
+    assert first.anchor == (*_STATE_ROOT, "inventories", "lot-1")
+
+
 def test_schema_compile_resolves_wildcard_dynamic_entry_map():
     schema = _compile(
         _state_schema(
@@ -325,7 +388,7 @@ def test_binding_append_only_map_does_not_enumerate_existing_history():
         journal.record_map_create((*_STATE_ROOT, "facts"), "known", {"v": 2})
 
 
-def test_sealed_delta_is_deeply_immutable():
+def test_sealed_delta_is_detached_from_recorded_value():
     schema = _compile(
         _state_schema(
             {
@@ -338,18 +401,72 @@ def test_sealed_delta_is_deeply_immutable():
     )
     journal = StateDeltaJournal(schema)
     journal.begin_tick(1)
-    journal.record_set((*_STATE_ROOT, "payload"), {"nested": {"value": 1}})
+    recorded = {"nested": {"value": 1}}
+    journal.record_set((*_STATE_ROOT, "payload"), recorded)
     delta = journal.seal_tick()
 
-    with pytest.raises((AttributeError, TypeError)):
-        delta.replacements[0]["value"]["nested"]["value"] = 2
-    with pytest.raises((AttributeError, TypeError)):
-        delta.replacements[0]["path"].append("leak")
-    with pytest.raises((AttributeError, TypeError)):
-        delta.replacements[0]["operation"] = "delete"
+    recorded["nested"]["value"] = 2
 
     assert delta.replacements[0]["value"]["nested"]["value"] == 1
     assert tuple(delta.replacements[0]["path"]) == (*_STATE_ROOT, "payload")
+
+
+def test_nested_replaceable_record_is_materialized_once_at_tick_seal(tmp_path):
+    schema = _compile(
+        _state_schema(
+            {
+                "inventories": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": True,
+                    },
+                    "persistence": _persistence(
+                        "replaceable",
+                        granularity="entry",
+                    ),
+                }
+            }
+        )
+    )
+    world = _world_with_state(
+        tmp_path,
+        schema,
+        {"inventories": {"lot-1": {"quantity": 10, "reserved": 0}}},
+    )
+    try:
+        world.begin_persistence_tick(1)
+        lot = world.create_environment_state_proxy()["inventories"]["lot-1"]
+        lot["quantity"] = 8
+        lot["reserved"] = 2
+        lot["quantity"] = 7
+
+        delta = world.seal_persistence_tick()
+
+        assert len(delta.replacements) == 1
+        replacement = delta.replacements[0]
+        assert replacement["operation"] == "set"
+        assert tuple(replacement["path"]) == (
+            *_STATE_ROOT,
+            "inventories",
+            "lot-1",
+        )
+        assert dict(replacement["value"]) == {"quantity": 7, "reserved": 2}
+    finally:
+        world.event_logger.close()
+
+
+def test_disabled_state_change_log_keeps_version_without_building_events(tmp_path):
+    world = World(event_log_path=str(tmp_path / "events.jsonl"))
+    world.environment_data["state"] = {"counter": 0}
+    world.set_state_change_event_recording(False)
+    version_before = world.get_state_version()
+
+    world.create_environment_state_proxy()["counter"] = 1
+    world.event_logger.close()
+
+    assert world.get_state_version() == version_before + 1
+    assert not (tmp_path / "events.jsonl").exists()
 
 
 def test_nested_proxy_from_previous_tick_is_invalidated_before_new_mutation(tmp_path):

@@ -74,9 +74,10 @@ def test_agent_thread_store_hash_chain_cursor_and_large_blob(tmp_path):
 
     assert request["sequence"] == 2
     assert response["sequence"] == 3
-    assert response["previous_event_sha256"] == request["event_sha256"]
+    assert "previous_event_sha256" not in response
+    assert "event_sha256" not in request
     assert response["payload"] is None
-    assert response["payload_ref"]["sha256"] == response["payload_sha256"]
+    assert "payload_sha256" not in response
     blob_path = tmp_path / response["payload_ref"]["path"]
     assert json.loads(blob_path.read_text(encoding="utf-8"))["provider_raw"]["large"] == "x" * 512
     assert reference["closed"] is True
@@ -230,7 +231,7 @@ def test_v4_epoch_manifest_collects_closed_threads_across_ticks_atomically(tmp_p
     store.close_thread(third)
 
 
-def test_v4_tick_manifest_validation_rejects_missing_blob_and_broken_chain(tmp_path):
+def test_v4_tick_manifest_validation_rejects_missing_blob_and_changed_thread(tmp_path):
     store = AgentThreadStore(tmp_path, inline_payload_max_bytes=1)
     thread_id = store.open_thread(
         agent_id="a",
@@ -248,18 +249,17 @@ def test_v4_tick_manifest_validation_rejects_missing_blob_and_broken_chain(tmp_p
     with pytest.raises(FileNotFoundError, match="blob"):
         store.validate_tick_manifest(descriptor)
 
-    # Restore the blob and then damage a complete JSONL record.  The immutable
-    # reference hash is checked before the chain, so a broken chain is rejected
-    # as a content-integrity failure rather than silently repaired.
+    # 恢复 blob 后修改完整 Thread。检查点只保留一次文件级校验，已经足以
+    # 拒绝被修改的不可变工件，不再给每条 JSONL 记录重复加哈希链。
     blob_path.parent.mkdir(parents=True, exist_ok=True)
     blob_path.write_text('{"body":"large"}', encoding="utf-8")
-    events[1]["previous_event_sha256"] = "0" * 64
+    events[1]["event_type"] = "changed_after_publish"
     thread_path.write_text(
         "\n".join(json.dumps(event, ensure_ascii=False, separators=(",", ":")) for event in events)
         + "\n",
         encoding="utf-8",
     )
-    with pytest.raises(ValueError, match="content hash|hash chain|event hash"):
+    with pytest.raises(ValueError, match="content hash"):
         store.validate_tick_manifest(descriptor)
 
 
@@ -475,7 +475,7 @@ class _RetryingFakeCompletions(_FakeCompletions):
 
 
 @pytest.mark.asyncio
-async def test_llm_manager_persists_exact_provider_request_and_available_response(tmp_path):
+async def test_llm_manager_persists_compact_provider_request_and_available_response(tmp_path):
     context = ExperimentLogContext(tmp_path / "logs")
     thread_id = context.open_agent_thread(
         agent_id="enterprise-a",
@@ -535,22 +535,25 @@ async def test_llm_manager_persists_exact_provider_request_and_available_respons
     context.close_agent_thread(thread_id)
 
     assert result["reasoning_content"] == "先检查再行动"
+    assert result["finish_reason"] == "stop"
     events = context.read_agent_thread_events(thread_id, materialize_payloads=True)
     requests = [event for event in events if event["event_type"] == "provider_request"]
     responses = [event for event in events if event["event_type"] == "provider_response"]
     assert len(requests) == len(responses) == 1
     actual_request = requests[0]["payload"]["request"]
     assert actual_request["model"] == "qwen-test"
-    assert actual_request["messages"][0]["content"] == "system prompt"
+    assert actual_request["messages_count"] == 2
+    assert actual_request["tool_names"] == ["extract_memories"]
+    assert "messages" not in actual_request
+    assert "tools" not in actual_request
     assert actual_request["tool_choice"]["function"]["name"] == "extract_memories"
     assert "metadata" not in actual_request
     assert "agent_id" not in actual_request
     serialized = json.dumps(events, ensure_ascii=False)
     assert "must-not-be-written" not in serialized
-    raw_response = responses[0]["payload"]["response"]
-    assert raw_response["choices"][0]["finish_reason"] == "stop"
-    assert raw_response["choices"][0]["message"]["reasoning_content"] == "先检查再行动"
-    assert raw_response["usage"]["total_tokens"] == 18
+    response_payload = responses[0]["payload"]
+    assert response_payload["finish_reason"] == "stop"
+    assert response_payload["message"]["reasoning_content"] == "先检查再行动"
     assert requests[0]["interaction_id"] == responses[0]["interaction_id"] == "memory-1"
     assert requests[0]["metadata"]["provider_request_id"] == responses[0]["metadata"]["provider_request_id"]
 
@@ -611,7 +614,6 @@ async def test_llm_manager_records_every_physical_retry_attempt(tmp_path):
         ("provider_request", 1),
         ("provider_error", 1),
         ("provider_request", 2),
-        ("provider_response_raw", 2),
         ("provider_response", 2),
     ]
 

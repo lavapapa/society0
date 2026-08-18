@@ -269,17 +269,50 @@ class Agent:
             # 轻量单元测试会注入只读 FakeWorld；生产 World 始终提供代理工厂。
             return self._world.agents_data[self._id]["reminders"]
         proxy = creator(self._id, "reminders")
-        if not isinstance(proxy, ListProxy):
+        if not isinstance(proxy, (ListProxy, list, tuple)) and not hasattr(proxy, "append"):
             raise TypeError("Agent reminders must be a list")
         return proxy
 
     def add_reminder(self, reminder: str):
         """添加提醒"""
+        mode = getattr(self._world, "state_access_mode", None)
+        if getattr(mode, "value", mode) == "explicit_transactions":
+            with self._world.write_agent_transaction(self._id, "reminders") as tx:
+                tx.state.append(reminder)
+            return
         self.reminders.append(reminder)
 
     def clear_reminders(self):
         """清空提醒"""
+        mode = getattr(self._world, "state_access_mode", None)
+        if getattr(mode, "value", mode) == "explicit_transactions":
+            with self._world.write_agent_transaction(self._id, "reminders") as tx:
+                tx.state.clear()
+            return
         self.reminders.clear()
+
+    def write_transaction(
+        self,
+        state_key: str = "state",
+        *,
+        caller_type: str = "system",
+        caller_id: Optional[str] = None,
+    ):
+        """开启 Agent 状态写事务，可携带行为/动作字段权限上下文。"""
+
+        access_context = None
+        if caller_type != "system":
+            merged_schema = self._world.get_merged_agent_state_schema(self.type)
+            access_context = AccessContext(
+                caller_type=caller_type,
+                caller_id=caller_id or caller_type,
+                state_schema=merged_schema,
+            )
+        return self._world.write_agent_transaction(
+            self._id,
+            state_key,
+            access_context=access_context,
+        )
 
     def get_raw_data(self) -> Dict[str, Any]:
         """
@@ -317,6 +350,9 @@ class Agent:
             caller_id=caller_id,
             state_schema=merged_schema
         )
+
+        if getattr(getattr(self._world, "state_access_mode", None), "value", None) == "explicit_transactions":
+            return self._world.create_agent_state_view(self._id, "state")
 
         # 创建带权限控制的 DictProxy
         return DictProxy(
@@ -573,7 +609,7 @@ class LLMAgent(Agent):
         messages = read_messages(thread_id)
         if not isinstance(messages, list):
             raise RuntimeError("read_agent_thread_messages() must return a list")
-        return copy.deepcopy(messages)
+        return messages
 
     def _read_agent_thread_events(self, thread_id: str) -> List[Dict[str, Any]]:
         """读取 Thread 事件；旧的测试替身没有事件接口时返回空列表。"""
@@ -589,7 +625,7 @@ class LLMAgent(Agent):
             events = read_events(thread_id)
         if not isinstance(events, list):
             raise RuntimeError("read_agent_thread_events() must return a list")
-        return copy.deepcopy(events)
+        return events
 
     @staticmethod
     def _thread_memory_commit_state(
@@ -777,6 +813,13 @@ class LLMAgent(Agent):
             thread_events,
             normalized_key,
         )
+        if receipt_payload is not None:
+            if pending_payload is None:
+                raise RuntimeError("memory extraction receipt is missing its pending intent")
+            receipt_payload = {
+                **pending_payload,
+                **receipt_payload,
+            }
 
         thread_ref = self._agent_thread_reference(thread_id)
         if isinstance(thread_ref, dict):
@@ -889,7 +932,7 @@ class LLMAgent(Agent):
 
             if write_memory:
                 receipt_payload = {
-                    **copy.deepcopy(payload),
+                    "idempotency_key": normalized_key,
                     "memory_ids": list(memory_ids),
                     "tool_message": copy.deepcopy(tool_message),
                     "status": "success",
@@ -942,7 +985,15 @@ class LLMAgent(Agent):
             # idempotent upsert，禁止再次构造 caller 摘要或启动新 Thread。
             return await finish_from_commit(payload=pending_payload, write_memory=True)
 
-        messages = self._read_agent_thread_messages(thread_id)
+        messages = [
+            copy.deepcopy(event["payload"].get("message", event["payload"]))
+            for event in thread_events
+            if isinstance(event, dict)
+            and event.get("event_type") == "conversation_message"
+            and isinstance(event.get("payload"), dict)
+        ]
+        if not messages:
+            messages = self._read_agent_thread_messages(thread_id)
         if not messages:
             raise RuntimeError(f"Agent {self.id} Thread {thread_id} 没有可提炼的对话")
 
@@ -998,8 +1049,6 @@ class LLMAgent(Agent):
             "memories": copy.deepcopy(memories),
             "timestamp": timestamp,
             "tool_call_id": tool_message["tool_call_id"],
-            "conversation_messages": copy.deepcopy(result["conversation_messages"]),
-            "full_history": copy.deepcopy(result["full_history"]),
         }
         # Pending intent 是向量写入前的 durable fence。写失败时不会写
         # vector；若 fsync 在写后报错，下一次仍可从该事件恢复。
@@ -1033,7 +1082,7 @@ class LLMAgent(Agent):
             separators=(",", ":"),
         )
         receipt_payload = {
-            **pending_payload,
+            "idempotency_key": normalized_key,
             "memory_ids": list(memory_ids),
             "tool_message": copy.deepcopy(tool_message),
             "status": "success",
@@ -1117,9 +1166,11 @@ class LLMAgent(Agent):
                       hint_on_remain_turn: int = 1,
                       terminal_action_names: Optional[List[str]] = None,
                       completion_action_tags: Optional[List[str]] = None,
+                      no_progress_action_tags: Optional[List[str]] = None,
                       required_action_names: Optional[List[str]] = None,
                       required_action_tags: Optional[List[str]] = None,
                       max_action_calls: Optional[int] = None,
+                      max_request_messages: Optional[int] = None,
                       action_call_limits: Optional[Dict[str, int]] = None,
                       prefer_direct_json_output: bool = False,
                       llm_request_options: Optional[Dict[str, Any]] = None,
@@ -1555,11 +1606,13 @@ class LLMAgent(Agent):
                         context_provider=context_provider,
                         terminal_action_names=effective_terminal_action_names,
                         completion_action_tags=completion_action_tags,
+                        no_progress_action_tags=no_progress_action_tags,
                         required_action_names=required_action_names,
                         required_action_tags=required_action_tags,
                         turn_remain_hint=turn_remain_hint,
                         hint_on_remain_turn=hint_on_remain_turn,
                         max_action_calls=max_action_calls,
+                        max_request_messages=max_request_messages,
                         action_call_limits=action_call_limits,
                         llm_request_options=safe_llm_request_options,
                         prior_messages=(

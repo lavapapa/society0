@@ -23,7 +23,6 @@ from .incremental_checkpoint import (
     SealedTickDelta,
     V4CheckpointStore,
     _WILDCARD,
-    _freeze_json,
     _thaw_json,
 )
 
@@ -508,7 +507,6 @@ class PersistenceManager:
         """
 
         assert self._v4_schema is not None
-        state = self._plain_snapshot_value(state)
         entries: list[dict[str, Any]] = []
         sequence = 0
         # A merged schema contains one source declaration per canonical root.
@@ -576,7 +574,7 @@ class PersistenceManager:
                                 {
                                     "path": list(concrete_path + (key,)),
                                     "operation": "set",
-                                    "value": self._plain_snapshot_value(item),
+                                    "value": item,
                                     "sequence": sequence,
                                 }
                             )
@@ -589,7 +587,7 @@ class PersistenceManager:
                         {
                             "path": list(concrete_path),
                             "operation": "set",
-                            "value": self._plain_snapshot_value(value),
+                            "value": value,
                             "sequence": sequence,
                         }
                     )
@@ -609,7 +607,12 @@ class PersistenceManager:
             raise ValueError("checkpoint_every must be a positive integer")
         if isinstance(declarations, (list, tuple)):
             declarations = PersistenceSchema.merge(*declarations)
-        compiled = world.configure_persistence(declarations)
+        compiled = world.configure_persistence(
+            declarations,
+            validate_initial_state=(
+                getattr(world, "_persistence_schema", None) is None
+            ),
+        )
         if not isinstance(compiled, PersistenceSchema):
             raise TypeError("World.configure_persistence must return PersistenceSchema")
         self._v4_enabled = True
@@ -648,17 +651,18 @@ class PersistenceManager:
         agent_types: Mapping[str, Any],
         *,
         resume_identity: Optional[Mapping[str, Any]] = None,
+        state_access_mode: Optional[str] = None,
     ) -> dict[str, Any]:
-        environment_data = self._plain_snapshot_value(environment_data)
+        environment_data = dict(environment_data)
         environment_data.pop("state", None)
         metadata = {
             "schema_version": 1,
             "run_id": self._v4_run_id,
             "branch_id": self._v4_branch_id,
-            "agents_data": self._plain_snapshot_value(agents_data),
-            "agent_types": self._plain_snapshot_value(agent_types),
+            "agents_data": dict(agents_data),
+            "agent_types": dict(agent_types),
             "environment_data": environment_data,
-            "persistence_schema": self._plain_snapshot_value(self._v4_schema.schema)
+            "persistence_schema": self._v4_schema.schema
             if self._v4_schema is not None
             else None,
             "persistence_root_path": list(self._v4_schema.root_path)
@@ -669,7 +673,9 @@ class PersistenceManager:
             else [],
         }
         if resume_identity is not None:
-            metadata["resume_identity"] = self._plain_snapshot_value(resume_identity)
+            metadata["resume_identity"] = dict(resume_identity)
+        if state_access_mode == "explicit_transactions":
+            metadata["state_access_mode"] = state_access_mode
         return metadata
 
     @staticmethod
@@ -681,12 +687,10 @@ class PersistenceManager:
         replacements: list[Mapping[str, Any]] = []
         appends: list[Mapping[str, Any]] = []
         sequence = 0
-        # Sealed delta mappings are recursively frozen.  Thaw before changing
-        # sequence numbers so the writer never receives MappingProxyType values.
         for delta in deltas:
             operations = [
-                ("replacement", _thaw_json(item)) for item in delta.replacements
-            ] + [("append", _thaw_json(item)) for item in delta.appends]
+                ("replacement", dict(item)) for item in delta.replacements
+            ] + [("append", dict(item)) for item in delta.appends]
             operations.sort(key=lambda item: item[1].get("sequence", 0))
             for kind, operation in operations:
                 operation["sequence"] = sequence
@@ -694,20 +698,18 @@ class PersistenceManager:
                 sequence += 1
         return SealedTickDelta(
             step=deltas[-1].step,
-            replacements=tuple(_freeze_json(item) for item in replacements),
-            appends=tuple(_freeze_json(item) for item in appends),
+            replacements=tuple(replacements),
+            appends=tuple(appends),
             write_epoch_ids=tuple(
                 epoch_id
                 for delta in deltas
                 for epoch_id in delta.write_epoch_ids
             ),
-            annotations=_freeze_json(
-                {
-                    key: _thaw_json(value)
-                    for delta in deltas
-                    for key, value in (delta.annotations or {}).items()
-                }
-            ),
+            annotations={
+                key: value
+                for delta in deltas
+                for key, value in (delta.annotations or {}).items()
+            },
         )
 
     @staticmethod
@@ -743,11 +745,15 @@ class PersistenceManager:
             # Agent identity/type metadata is immutable bootstrap metadata; the
             # declared Agent state itself is represented by root operations so
             # subsequent deltas can replace it without copying the World.
-            for agent_data in agents_data.values():
-                if isinstance(agent_data, dict):
-                    agent_data["state"] = {}
-                    agent_data["properties"] = {}
-                    agent_data["reminders"] = []
+            metadata_agents_data = {
+                str(agent_id): {
+                    key: value
+                    for key, value in agent_data.items()
+                    if key not in {"state", "properties", "reminders"}
+                }
+                for agent_id, agent_data in agents_data.items()
+                if isinstance(agent_data, Mapping)
+            }
             canonical_state = {
                 "environment": {
                     "state": environment_data.get("state") or {},
@@ -758,16 +764,19 @@ class PersistenceManager:
                         "properties": (raw_data or {}).get("properties") or {},
                         "reminders": (raw_data or {}).get("reminders") or [],
                     }
-                    for agent_id, raw_data in self._plain_snapshot_value(world.agents_data).items()
+                    for agent_id, raw_data in agents_data.items()
                     if isinstance(raw_data, Mapping)
                 },
             }
             entries = self._v4_root_entries(canonical_state)
             metadata = self._v4_root_metadata(
                 environment_data,
-                agents_data,
+                metadata_agents_data,
                 agent_types,
                 resume_identity=getattr(world, "_resume_identity", None),
+                state_access_mode=getattr(
+                    getattr(world, "state_access_mode", None), "value", None
+                ),
             )
             checkpoint_id = uuid.uuid4().hex
             memory_target_step = int(world.step)
@@ -807,6 +816,8 @@ class PersistenceManager:
         self,
         delta: SealedTickDelta,
         schedule: 'Schedule',
+        *,
+        force: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Queue a sealed delta and publish complete epochs with backpressure."""
 
@@ -822,7 +833,7 @@ class PersistenceManager:
         async with self._v4_publish_lock:
             self._v4_epoch.append(delta)
             self._v4_pending_memory_epoch_ids.update(delta.write_epoch_ids)
-            if len(self._v4_epoch) < self._v4_checkpoint_every:
+            if len(self._v4_epoch) < self._v4_checkpoint_every and not force:
                 if self._v4_world is not None:
                     self._v4_world.set_memory_checkpoint_view(
                         target_step=delta.step,
@@ -901,13 +912,18 @@ class PersistenceManager:
         cls,
         source_run: str | Path,
         step: Optional[int] = None,
+        *,
+        include_restored_state: bool = False,
     ) -> Dict[str, Any]:
         root = Path(source_run).resolve()
         complete_dir = root / "checkpoints" / "v4" / "complete"
         if not complete_dir.is_dir():
             raise FileNotFoundError(f"No v4 complete checkpoints found in {root}")
         store = V4CheckpointStore(root)
-        return store.resolve(step)
+        return store.resolve(
+            step,
+            include_restored_state=include_restored_state,
+        )
 
     @staticmethod
     def _v4_root_manifest(
@@ -989,7 +1005,9 @@ class PersistenceManager:
         root = v4_base.parent.parent
         branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
         store = V4CheckpointStore(root, branch_id=branch_id)
-        state_payload = store.restore(record["step"])
+        state_payload = record.get("_restored_state")
+        if not isinstance(state_payload, dict):
+            state_payload = store.restore(record["step"])
         root_metadata = self._v4_root_manifest(
             root,
             record["step"],
@@ -1022,22 +1040,33 @@ class PersistenceManager:
             schema = PersistenceSchema.compile(root_metadata["persistence_schema"], root_path=root_path)
 
         from .core_data import World
+        from .state_transactions import StateAccessMode
 
         events_file = event_log_path or str(self.events_dir / f"events_from_step_{record['step']}.jsonl")
-        world = World(step=record["step"], event_log_path=events_file, event_logger=event_logger)
+        resume_identity = root_metadata.get("resume_identity")
+        restored_mode = root_metadata.get("state_access_mode")
+        if restored_mode is None and isinstance(resume_identity, Mapping):
+            restored_mode = resume_identity.get("state_access_mode")
+        if restored_mode is None:
+            restored_mode = StateAccessMode.TRANSPARENT_PROXY
+        world = World(
+            step=record["step"],
+            event_log_path=events_file,
+            event_logger=event_logger,
+            state_access_mode=restored_mode,
+        )
         if environment_factory is not None:
             world.set_environment_factory(environment_factory)
         world.agents_data = copy.deepcopy(root_metadata.get("agents_data") or {})
         world._agent_types = copy.deepcopy(root_metadata.get("agent_types") or {})
         world.environment_data = copy.deepcopy(root_metadata.get("environment_data") or {})
-        resume_identity = root_metadata.get("resume_identity")
         if isinstance(resume_identity, Mapping):
             world._resume_identity = copy.deepcopy(dict(resume_identity))
         world.environment_data.setdefault("type", "base")
-        restored_state_payload = copy.deepcopy(state_payload)
+        restored_state_payload = state_payload
         self._v4_apply_transient_defaults(restored_state_payload, schema)
-        restored_state = copy.deepcopy(
-            ((restored_state_payload.get("environment") or {}).get("state") or {})
+        restored_state = (
+            (restored_state_payload.get("environment") or {}).get("state") or {}
         )
         world.environment_data["state"] = restored_state
         restored_agents = restored_state_payload.get("agents") or {}
@@ -1045,19 +1074,17 @@ class PersistenceManager:
             for agent_id, agent_data in world.agents_data.items():
                 dynamic_data = restored_agents.get(agent_id, {})
                 if isinstance(dynamic_data, Mapping):
-                    agent_data["state"] = copy.deepcopy(dynamic_data.get("state") or {})
-                    agent_data["properties"] = copy.deepcopy(
-                        dynamic_data.get("properties") or {}
-                    )
-                    agent_data["reminders"] = copy.deepcopy(
-                        dynamic_data.get("reminders") or []
-                    )
+                    agent_data["state"] = dynamic_data.get("state") or {}
+                    agent_data["properties"] = dynamic_data.get("properties") or {}
+                    agent_data["reminders"] = dynamic_data.get("reminders") or []
                 else:
                     agent_data["state"] = {}
                     agent_data["properties"] = {}
                     agent_data["reminders"] = []
         if schema is not None:
-            world.configure_persistence(schema)
+            # state_payload 已由 JSON checkpoint 解码并按声明重放；再次对整个
+            # 恢复世界执行 json.dumps 会制造一份与状态同量级的临时字符串。
+            world.configure_persistence(schema, validate_initial_state=False)
         committed_epochs = store.committed_memory_epoch_ids(int(record["step"]))
         branch_id = str((record.get("marker") or {}).get("branch_id") or "main")
         forked_from = (record.get("marker") or {}).get("forked_from") or {}
@@ -1184,7 +1211,10 @@ class PersistenceManager:
             branch_store.committed_memory_epoch_ids(from_step)
         )
         branch._v4_pending_memory_epoch_ids = set()
-        record = branch_store.resolve(from_step)
+        record = branch_store.resolve(
+            from_step,
+            include_restored_state=True,
+        )
         world, _ = await branch._load_v4_checkpoint_record(
             record,
             event_logger=None,
@@ -1213,7 +1243,8 @@ class PersistenceManager:
         del memory_required
         if restore_chroma:
             raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
-        record = self.resolve_checkpoint(step)
+        store = self._v4_store or V4CheckpointStore(self.save_dir)
+        record = store.resolve(step, include_restored_state=True)
         return await self._load_v4_checkpoint_record(
             record,
             event_logger=event_logger,
@@ -1237,7 +1268,11 @@ class PersistenceManager:
         if restore_chroma:
             raise ValueError("v4 checkpoints use the live Chroma view; no copy is restored")
         self._assert_usable()
-        record = self.resolve_checkpoint_from(source_run, step)
+        record = self._resolve_v4_checkpoint_from(
+            Path(source_run).resolve(),
+            step,
+            include_restored_state=True,
+        )
         return await self._load_v4_checkpoint_record(
             record,
             event_logger=event_logger,

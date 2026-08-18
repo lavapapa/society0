@@ -4,7 +4,7 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
-__version__ = "4.0.2"
+__version__ = "4.1.9"
 __all__ = [
     "Society0",
     "LLMModel",
@@ -24,6 +24,8 @@ __all__ = [
     "ActivationSubmission",
     "ActivationPoolSession",
     "World",
+    "StateAccessMode",
+    "StateTransactionConflict",
     "Environment",
     "EnvironmentTickContext",
     "StepRuntimeScope",
@@ -59,6 +61,11 @@ _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
     "ActivationSubmission": ("society0.activation_pool", "ActivationSubmission"),
     "ActivationPoolSession": ("society0.activation_pool", "ActivationPoolSession"),
     "World": ("society0.core_data", "World"),
+    "StateAccessMode": ("society0.state_transactions", "StateAccessMode"),
+    "StateTransactionConflict": (
+        "society0.state_transactions",
+        "StateTransactionConflict",
+    ),
     "Environment": ("society0.environment", "Environment"),
     "EnvironmentTickContext": ("society0.environment", "EnvironmentTickContext"),
     "StepRuntimeScope": ("society0.runtime_scope", "StepRuntimeScope"),
@@ -105,6 +112,8 @@ if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
         ActivationSubmission,
     )
     from .core_data import World  # noqa: F401
+    from .state_transactions import StateAccessMode  # noqa: F401
+    from .state_transactions import StateTransactionConflict  # noqa: F401
     from .environment import Environment, EnvironmentTickContext  # noqa: F401
     from .runtime_scope import StepRuntimeScope  # noqa: F401
     from .recovery import StepFailure  # noqa: F401

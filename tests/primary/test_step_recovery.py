@@ -276,15 +276,13 @@ async def test_v4_restore_rejects_a_different_application_contract(tmp_path) -> 
 
 
 @pytest.mark.asyncio
-async def test_v4_fork_keeps_target_world_and_inherits_checkpoint_position(
-    tmp_path,
-) -> None:
-    source_dir = tmp_path / "fork-source"
+async def test_v4_restore_accepts_frozen_application_contract_digest(tmp_path) -> None:
+    source_dir = tmp_path / "identity-digest-source"
     source = Society0(
         save_dir=str(source_dir),
         base_config=_config(),
         checkpoint_every=1,
-        resume_contract={"policy": "common-prefix"},
+        resume_contract={"experiment": "baseline"},
     )
 
     @source.step(name="advance")
@@ -292,38 +290,26 @@ async def test_v4_fork_keeps_target_world_and_inherits_checkpoint_position(
         ctx.env.state["counter"] += 1
 
     await source.run(steps=1)
+    root = PersistenceManager._v4_root_manifest(source_dir, 1)
+    digest = root["resume_identity"]["application_contract_sha256"]
 
-    target_config = _config()
-    target_config["environment"]["state"]["counter"] = 100
-    destination_dir = tmp_path / "fork-destination"
     destination = Society0(
-        save_dir=str(destination_dir),
-        base_config=target_config,
-        checkpoint_every=1,
-        fork_run=str(source_dir),
-        fork_step=1,
-        resume_contract={"policy": "announced-tax"},
+        save_dir=str(tmp_path / "identity-digest-destination"),
+        base_config=_config(),
+        source_run=str(source_dir),
+        source_step=1,
+        resume_contract_sha256=digest,
     )
 
-    @destination.step(name="advance")
-    async def advance_fork(ctx):
-        assert ctx.step == 1
-        assert ctx.env.state["counter"] == 100
-        ctx.env.state["counter"] += 1
-
-    await destination.run(steps=1)
-
-    assert destination.forked_checkpoint is not None
-    assert destination.forked_checkpoint["step"] == 1
-    restored = V4CheckpointStore(destination_dir).restore(2)
-    assert restored["environment"]["state"]["counter"] == 101
+    restored_step = await destination.restore(source_dir, step=1)
+    assert restored_step == 1
 
 
-def test_source_and_fork_inputs_are_mutually_exclusive(tmp_path) -> None:
-    with pytest.raises(ValueError, match="mutually exclusive"):
+def test_resume_contract_and_digest_are_mutually_exclusive(tmp_path) -> None:
+    with pytest.raises(ValueError, match="只能提供一个"):
         Society0(
-            save_dir=str(tmp_path / "destination"),
+            save_dir=str(tmp_path / "identity-invalid"),
             base_config=_config(),
-            source_run=str(tmp_path / "resume"),
-            fork_run=str(tmp_path / "fork"),
+            resume_contract={"experiment": "baseline"},
+            resume_contract_sha256="0" * 64,
         )

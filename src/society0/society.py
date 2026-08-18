@@ -14,9 +14,9 @@ import yaml
 from .async_utils import invoke_maybe_async
 from .context_stack import ContextStack
 from .core_data import World
+from .state_transactions import StateAccessMode
 from .diagnostics import render_runtime_diagnostic_report
 from .environment import Environment, EnvironmentTickContext
-from .incremental_checkpoint import V4CheckpointStore
 from .recovery import classify_step_failure
 from .function_registry import FunctionRegistry, register_environment_capabilities
 from .logging import ExperimentLogContext
@@ -299,19 +299,24 @@ class Society0:
         log_hooks: Optional[Iterable[Callable[[str, Dict[str, Any]], None]]] = None,
         source_run: Optional[Union[str, Path]] = None,
         source_step: Optional[int] = None,
-        fork_run: Optional[Union[str, Path]] = None,
-        fork_step: Optional[int] = None,
         resume_contract: Optional[Mapping[str, Any]] = None,
+        resume_contract_sha256: Optional[str] = None,
+        state_access_mode: StateAccessMode | str = StateAccessMode.TRANSPARENT_PROXY,
     ) -> None:
         self.save_dir = Path(save_dir)
+        self.state_access_mode = StateAccessMode.coerce(state_access_mode)
         self.source_run = Path(source_run).resolve() if source_run is not None else None
-        self.fork_run = Path(fork_run).resolve() if fork_run is not None else None
-        if self.source_run is not None and self.fork_run is not None:
-            raise ValueError("source_run and fork_run are mutually exclusive")
-        source_path = self.source_run or self.fork_run
-        if source_path is not None:
-            self.validate_resume_paths(self.save_dir, source_path)
-        self._resume_contract_sha256 = self._resume_contract_hash(resume_contract)
+        if self.source_run is not None:
+            self.validate_resume_paths(self.save_dir, self.source_run)
+        if resume_contract is not None and resume_contract_sha256 is not None:
+            raise ValueError(
+                "resume_contract 与 resume_contract_sha256 只能提供一个"
+            )
+        self._resume_contract_sha256 = (
+            self._validate_resume_contract_sha256(resume_contract_sha256)
+            if resume_contract_sha256 is not None
+            else self._resume_contract_hash(resume_contract)
+        )
         self.save_dir.mkdir(parents=True, exist_ok=True)
         self.config = self._load_config(base_config)
         self.llm_model = llm
@@ -337,14 +342,8 @@ class Society0:
         self._embedding_manager = None
         self._model_provider = None
         self.source_step = int(source_step) if source_step is not None else None
-        self.fork_step = int(fork_step) if fork_step is not None else None
-        if self.source_run is None and self.source_step is not None:
-            raise ValueError("source_step requires source_run")
-        if self.fork_run is None and self.fork_step is not None:
-            raise ValueError("fork_step requires fork_run")
         self._expected_resume_identity: Optional[Dict[str, Any]] = None
         self.restored_checkpoint: Optional[Dict[str, Any]] = None
-        self.forked_checkpoint: Optional[Dict[str, Any]] = None
         self._restore_unusable_reason: Optional[str] = None
         self._v4_configured = False
 
@@ -375,6 +374,17 @@ class Society0:
             return None
         cls._reject_secret_contract_keys(contract)
         return PersistenceManager.canonical_sha256(dict(contract))
+
+    @staticmethod
+    def _validate_resume_contract_sha256(value: str) -> str:
+        """接受来源检查点已经冻结的应用合同摘要。"""
+
+        normalized = str(value).strip().lower()
+        if len(normalized) != 64 or any(
+            character not in "0123456789abcdef" for character in normalized
+        ):
+            raise ValueError("resume_contract_sha256 必须是 64 位十六进制摘要")
+        return normalized
 
     @classmethod
     def _reject_secret_contract_keys(cls, value: Any) -> None:
@@ -588,7 +598,11 @@ class Society0:
                     )
                     delta = world.seal_persistence_tick()
                     persistence_sealed = True
-                    await self.persistence_manager.publish_delta(delta, self.schedule)
+                    await self.persistence_manager.publish_delta(
+                        delta,
+                        self.schedule,
+                        force=tick == steps - 1,
+                    )
                     world.advance_step()
                     completed_ticks += 1
                 except BaseException:
@@ -632,10 +646,11 @@ class Society0:
             )
             raise
         finally:
-            await self._save_checkpoint_file(
-                "checkpoint_final.json.gz",
-                failure=failure_info,
-            )
+            if failure_info is not None:
+                await self._save_checkpoint_file(
+                    "checkpoint_final.json.gz",
+                    failure=failure_info,
+                )
             total_time = time.time() - started
             if failed_exc is None:
                 self._write_jsonl(
@@ -716,9 +731,6 @@ class Society0:
         if self.source_run is not None:
             world = await self._load_source_world(self.source_run, self.source_step)
             restored = True
-        elif self.fork_run is not None:
-            world = self._load_fork_cognition(world, self.fork_run, self.fork_step)
-            restored = True
         try:
             self._bind_world_runtime(world)
             self._prepare_world_environment(world)
@@ -731,69 +743,6 @@ class Society0:
         self.current_world_state = world
         self.event_logger.open()
         self.is_initialized = True
-
-    def _load_fork_cognition(
-        self,
-        world: World,
-        source_run: Path,
-        step: Optional[int],
-    ) -> World:
-        """在保留目标 World 的前提下继承已提交的认知历史。"""
-
-        record = PersistenceManager.resolve_checkpoint_from(source_run, step)
-        marker = record.get("marker") or {}
-        if marker.get("checkpoint_version") != "complete_step_v4":
-            raise ValueError("Only complete_step_v4 checkpoints can seed a fork")
-        source_step = int(record["step"])
-        root_metadata = PersistenceManager._v4_root_manifest(source_run, source_step)
-        checkpoint_identity = root_metadata.get("resume_identity")
-        expected_identity = self._expected_resume_identity
-        if expected_identity is None:
-            raise RuntimeError("Society0 fork identity was not initialized")
-        if not isinstance(checkpoint_identity, Mapping) or (
-            checkpoint_identity.get("embedding") != expected_identity.get("embedding")
-        ):
-            raise ValueError(
-                "Fork checkpoint embedding identity does not match the target run"
-            )
-
-        source_agents = root_metadata.get("agents_data")
-        if not isinstance(source_agents, Mapping):
-            raise ValueError("Fork checkpoint has no Agent population")
-        target_agents = world.agents_data
-        if set(source_agents) != set(target_agents):
-            raise ValueError("Fork checkpoint Agent population does not match")
-        identity_fields = ("type", "archetype", "persona")
-        for agent_id, target in target_agents.items():
-            source = source_agents[agent_id]
-            if not isinstance(source, Mapping) or any(
-                source.get(field) != target.get(field) for field in identity_fields
-            ):
-                raise ValueError(
-                    f"Fork checkpoint Agent identity differs for {agent_id}"
-                )
-
-        self.persistence_manager.seed_chroma_store_from(source_run)
-        branch_id = str(marker.get("branch_id") or "main")
-        committed_epochs = V4CheckpointStore(
-            source_run,
-            branch_id=branch_id,
-        ).committed_memory_epoch_ids(source_step)
-        world.step = source_step
-        world.set_memory_checkpoint_view(
-            target_step=source_step,
-            branch_id=branch_id,
-            branch_lineage=[],
-            committed_write_epoch_ids=committed_epochs,
-        )
-        world._resume_identity = dict(expected_identity)
-        self.forked_checkpoint = {
-            "source_run": str(source_run),
-            "step": source_step,
-            "checkpoint_id": str(record["checkpoint_id"]),
-            "marker": dict(marker),
-        }
-        return world
 
     async def restore(
         self,
@@ -835,7 +784,11 @@ class Society0:
         return self.current_world_state.step
 
     async def _load_source_world(self, source_run: Path, step: Optional[int]) -> World:
-        record = PersistenceManager.resolve_checkpoint_from(source_run, step)
+        record = PersistenceManager._resolve_v4_checkpoint_from(
+            source_run,
+            step,
+            include_restored_state=True,
+        )
         marker_version = (record.get("marker") or {}).get("checkpoint_version")
         if marker_version != "complete_step_v4":
             raise ValueError("Only complete_step_v4 checkpoints are recoverable")
@@ -970,6 +923,10 @@ class Society0:
             ),
             "application_contract_sha256": self._resume_contract_sha256,
         }
+        # 默认代理模式沿用既有恢复身份字节，已有运行不会因为升级本功能而
+        # 改变 identity；显式事务作为新合同才写入所选模式。
+        if self.state_access_mode is StateAccessMode.EXPLICIT_TRANSACTIONS:
+            unsigned["state_access_mode"] = self.state_access_mode.value
         return {
             **unsigned,
             "identity_sha256": PersistenceManager.canonical_sha256(unsigned),
@@ -979,6 +936,7 @@ class Society0:
         default_concurrency, concurrency_source = self._resolve_default_agent_concurrency()
         world._default_agent_concurrency = default_concurrency
         world._default_agent_concurrency_source = concurrency_source
+        world.set_state_change_event_recording(self.log_state_changes)
         world.set_log_context(self.log_context)
         world.set_function_registry(self.registry)
         world.set_persistence_manager(self.persistence_manager)
@@ -1052,6 +1010,7 @@ class Society0:
             step=0,
             event_log_path=str(self.save_dir / "events.jsonl"),
             event_logger=self.event_logger,
+            state_access_mode=self.state_access_mode,
         )
         if self.environment_factory is not None:
             world.set_environment_factory(self.environment_factory)
