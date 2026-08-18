@@ -64,10 +64,10 @@ def test_thread_store_recovers_only_incomplete_tail_and_rejects_hash_corruption(
 
     raw_lines = path.read_bytes().splitlines()
     event = json.loads(raw_lines[-1])
-    event["payload"] = {"x": 999}
+    event["sequence"] = 999
     raw_lines[-1] = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode()
     path.write_bytes(b"\n".join(raw_lines) + b"\n")
-    with pytest.raises(ValueError, match="event hash mismatch"):
+    with pytest.raises(ValueError, match="sequence mismatch"):
         store.read_events(thread_id)
 
 

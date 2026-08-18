@@ -897,7 +897,9 @@ class AgentGroup:
         memory_top_k: int = 10,
         terminal_actions: Optional[List[str]] = None,
         completion_action_tags: Optional[List[str]] = None,
+        no_progress_action_tags: Optional[List[str]] = None,
         max_action_calls: Optional[int] = None,
+        max_request_messages: Optional[int] = None,
         action_call_limits: Optional[Dict[str, int]] = None,
         required_actions: Optional[List[str]] = None,
         required_action_tags: Optional[List[str]] = None,
@@ -930,7 +932,9 @@ class AgentGroup:
             },
             terminal_actions=terminal_actions,
             completion_action_tags=completion_action_tags,
+            no_progress_action_tags=no_progress_action_tags,
             max_action_calls=max_action_calls,
+            max_request_messages=max_request_messages,
             action_call_limits=action_call_limits,
             required_actions=required_actions,
             required_action_tags=required_action_tags,
@@ -986,9 +990,11 @@ class AgentGroup:
                     reasoning_stages=reasoning_stages,
                     terminal_action_names=terminal_actions,
                     completion_action_tags=completion_action_tags,
+                    no_progress_action_tags=no_progress_action_tags,
                     required_action_names=required_actions,
                     required_action_tags=required_action_tags,
                     max_action_calls=max_action_calls,
+                    max_request_messages=max_request_messages,
                     action_call_limits=action_call_limits,
                     llm_request_options=llm_request_options,
                     thread_id=explicit_thread_id or auto_thread_id,
@@ -2228,7 +2234,9 @@ def _agent_batch_execution_options(
     llm_request_options: Dict[str, Any],
     terminal_actions: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
+    no_progress_action_tags: Optional[List[str]] = None,
     max_action_calls: Optional[int] = None,
+    max_request_messages: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     required_actions: Optional[List[str]] = None,
     required_action_tags: Optional[List[str]] = None,
@@ -2246,8 +2254,12 @@ def _agent_batch_execution_options(
         options["terminal_actions"] = list(terminal_actions)
     if completion_action_tags is not None:
         options["completion_action_tags"] = list(completion_action_tags)
+    if no_progress_action_tags is not None:
+        options["no_progress_action_tags"] = list(no_progress_action_tags)
     if max_action_calls is not None:
         options["max_action_calls"] = int(max_action_calls)
+    if max_request_messages is not None:
+        options["max_request_messages"] = int(max_request_messages)
     if action_call_limits is not None:
         options["action_call_limits"] = {str(key): int(value) for key, value in action_call_limits.items()}
     if required_actions is not None:

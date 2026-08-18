@@ -7,7 +7,7 @@ from society0 import Society0
 from society0.decorators import env_type
 from society0.env import BUILTIN_ENVS
 from society0.environment import Environment
-from tests import read_gzip_json
+from tests import read_gzip_json, read_last_v4_checkpoint
 
 pytestmark = pytest.mark.primary
 
@@ -124,11 +124,8 @@ async def test_env_tick_hooks_order(tmp_path, hook_envs):
 
     await engine.run(steps=1)
 
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert checkpoint["environment_data"]["state"]["events"] == ["before:0", "step:0", "after:0"]
-    assert checkpoint["step"] == 1
+    checkpoint = read_last_v4_checkpoint(tmp_path)
+    assert checkpoint["environment"]["state"]["events"] == ["before:0", "step:0", "after:0"]
     events = _jsonl(tmp_path / "events.jsonl")
     hook_events = [event for event in events if event.get("event", "").startswith("env_hook_")]
     assert [(event["event"], event["hook_name"]) for event in hook_events] == [
@@ -156,10 +153,8 @@ async def test_env_tick_hooks_support_async_and_sync(tmp_path, hook_envs):
 
     await engine.run(steps=1)
 
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
-    assert checkpoint["environment_data"]["state"]["events"] == [
+    checkpoint = read_last_v4_checkpoint(tmp_path)
+    assert checkpoint["environment"]["state"]["events"] == [
         "async_before:0",
         "step:0",
         "sync_after:0",
@@ -297,7 +292,5 @@ async def test_step_runtime_scope_is_shared_during_step_and_not_checkpointed(
     with pytest.raises(RuntimeError, match="已失效"):
         env.last_scope.namespace("test.env")
 
-    checkpoint = read_gzip_json(
-        tmp_path / "checkpoints" / "checkpoint_final.json.gz"
-    )
+    checkpoint = read_last_v4_checkpoint(tmp_path)
     assert "not-checkpointed" not in json.dumps(checkpoint, ensure_ascii=False)

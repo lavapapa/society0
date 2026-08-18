@@ -17,9 +17,17 @@ import copy
 import logging
 import time
 import uuid
+import threading
 
 # Import new unified state architecture components
 from .state_proxy import DictProxy, ListProxy, _ProxyLease
+from .state_transactions import (
+    StateAccessMode,
+    StateTransaction,
+    StateTransactionConflict,
+    ReadOnlyDict,
+    ReadOnlyList,
+)
 from .context_stack import ContextStack
 from .transaction import TransactionManager, EventLogger
 from .async_utils import invoke_maybe_async
@@ -338,7 +346,8 @@ class World:
         step: int = 0,
         event_log_path: str = "events.jsonl",
         event_logger: Optional[EventLogger] = None,
-        transaction_manager: Optional[TransactionManager] = None
+        transaction_manager: Optional[TransactionManager] = None,
+        state_access_mode: StateAccessMode | str = StateAccessMode.TRANSPARENT_PROXY,
     ):
         """
         Initialize the World with empty state
@@ -350,6 +359,7 @@ class World:
             transaction_manager: 外部注入的事务管理器
         """
         self.step = step
+        self.state_access_mode = StateAccessMode.coerce(state_access_mode)
 
         # Real data storage - the source of truth
         self.agents_data: Dict[str, Dict[str, Any]] = {}
@@ -387,6 +397,10 @@ class World:
             default=None,
         )
         self._log_context: Optional['ExperimentLogContext'] = None
+        # ``Society0(log_state_changes=False)`` 不保存逐字段状态事件。此时仍需
+        # 递增 state_version 以使 FoV 缓存失效，但无需构造随后会被丢弃的
+        # StateChangeEvent。
+        self._record_state_change_events: bool = True
 
         # Dependency injection - these will be set by SimEngine
         self._persistence_manager: Optional[Any] = None
@@ -405,6 +419,15 @@ class World:
         self._tick_checkpoint_annotations: Optional[Dict[str, Any]] = None
         # 状态版本号：每次状态写入都会递增，用于缓存控制
         self._state_version: int = 0
+        self._state_transaction_epoch: int = 0
+        self._state_record_versions: Dict[Any, int] = {}
+        self._state_transaction_lock = threading.RLock()
+        self._state_transactions: set[Any] = set()
+        self._state_transaction_var: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar(
+            f"society0_state_transaction_{id(self)}", default=None
+        )
+        self._state_view_generation: int = 0
+        self._state_view_lease: Any = None
         # FoV 结果缓存：按 step / 按 agent 的临时缓存，避免重复调用
         self._fov_cache_step: Dict[str, Any] = {}
         self._fov_cache_agent: Dict[tuple[str, str], Any] = {}
@@ -442,6 +465,13 @@ class World:
 
     def _create_event_recorder(self):
         """Create event recorder callback for proxies"""
+        if not self._record_state_change_events:
+            def record_version_only(_event_dict):
+                self._bump_state_version()
+
+            record_version_only._society0_records_state_changes = False
+            return record_version_only
+
         def record_event(event_dict):
             # Convert simple event dict to proper event object
             from .events import StateChangeEvent
@@ -466,7 +496,14 @@ class World:
                 # Direct logging if no transaction (should be rare)
                 self.event_logger.write_event(event)
 
+        record_event._society0_records_state_changes = True
         return record_event
+
+    def set_state_change_event_recording(self, enabled: bool) -> None:
+        """选择是否为每次代理写入构造可审计状态事件。"""
+
+        self._record_state_change_events = bool(enabled)
+        self._environment_state_proxy = None
 
     def _create_context_provider(self):
         """Create context provider callback for proxies"""
@@ -985,6 +1022,14 @@ class World:
         if agent_id not in self.agents_data:
             raise KeyError(f"Agent '{agent_id}' not found")
 
+        if self.state_access_mode is StateAccessMode.EXPLICIT_TRANSACTIONS:
+            active = self.current_state_transaction(
+                ("agents", agent_id, state_key)
+            )
+            if active is not None:
+                return active.state  # type: ignore[return-value]
+            return self.create_agent_state_view(agent_id, state_key)  # type: ignore[return-value]
+
         target = self.agents_data[agent_id][state_key]
         proxy_kwargs = {
             "event_recorder": self._create_event_recorder(),
@@ -1009,6 +1054,12 @@ class World:
         Returns:
             DictProxy for environment state (singleton instance)
         """
+        if self.state_access_mode is StateAccessMode.EXPLICIT_TRANSACTIONS:
+            active = self.current_state_transaction(("environment", "state"))
+            if active is not None:
+                return active.state  # type: ignore[return-value]
+            return self.create_environment_state_view()  # type: ignore[return-value]
+
         if self._environment_state_proxy is None:
             self._environment_state_proxy = DictProxy(
                 target_dict=self.environment_data["state"],
@@ -1021,6 +1072,210 @@ class World:
             logger.debug("Created singleton environment state proxy")
         return self._environment_state_proxy
 
+    def _new_state_view_lease(self) -> Any:
+        if self._state_view_lease is None or not self._state_view_lease.active:
+            from .state_transactions import _ViewLease
+
+            self._state_view_generation += 1
+            self._state_view_lease = _ViewLease(self._state_view_generation)
+        return self._state_view_lease
+
+    def _invalidate_state_views(self) -> None:
+        lease = self._state_view_lease
+        if lease is not None:
+            lease.invalidate()
+        self._state_view_lease = None
+
+    def create_agent_state_view(self, agent_id: str, state_key: str) -> Any:
+        """Return a cheap recursive read-only view in explicit mode."""
+
+        if agent_id not in self.agents_data:
+            raise KeyError(f"Agent '{agent_id}' not found")
+        path = ("agents", agent_id, state_key)
+        target = self._persistence_lookup(path)
+        if isinstance(target, dict):
+            return ReadOnlyDict(target, self._new_state_view_lease())
+        if isinstance(target, list):
+            return ReadOnlyList(target, self._new_state_view_lease())
+        raise ValueError(f"Agent {agent_id}.{state_key} is not a state container")
+
+    def create_environment_state_view(self) -> Any:
+        target = self.environment_data.get("state")
+        if isinstance(target, dict):
+            return ReadOnlyDict(target, self._new_state_view_lease())
+        raise ValueError("environment state is not a state container")
+
+    def write_environment_transaction(self, *, access_context: Any = None) -> StateTransaction:
+        if self.state_access_mode is not StateAccessMode.EXPLICIT_TRANSACTIONS:
+            raise RuntimeError("write transactions require explicit_transactions mode")
+        return StateTransaction(self, ("environment", "state"), access_context=access_context)
+
+    def current_state_transaction(
+        self,
+        root_path: Optional[tuple[Any, ...]] = None,
+    ) -> Optional[StateTransaction]:
+        """返回当前同步上下文中已显式开启且根路径匹配的事务。"""
+
+        tx = self._state_transaction_var.get()
+        if tx is None or not getattr(tx, "active", False):
+            return None
+        if root_path is not None and tuple(tx.root_path) != tuple(root_path):
+            return None
+        return tx
+
+    def _has_active_state_transaction(
+        self,
+        root_path: Optional[tuple[Any, ...]] = None,
+    ) -> bool:
+        """判断任一执行上下文中是否存在指定状态根的活动事务。"""
+
+        with self._state_transaction_lock:
+            return any(
+                tx.active
+                and (
+                    root_path is None
+                    or tuple(tx.root_path) == tuple(root_path)
+                )
+                for tx in self._state_transactions
+            )
+
+    def write_agent_transaction(
+        self,
+        agent_id: str,
+        state_key: str = "state",
+        *,
+        access_context: Any = None,
+    ) -> StateTransaction:
+        if self.state_access_mode is not StateAccessMode.EXPLICIT_TRANSACTIONS:
+            raise RuntimeError("write transactions require explicit_transactions mode")
+        if agent_id not in self.agents_data:
+            raise KeyError(f"Agent '{agent_id}' not found")
+        return StateTransaction(
+            self,
+            ("agents", agent_id, state_key),
+            access_context=access_context,
+        )
+
+    def _register_state_transaction(self, tx: StateTransaction) -> None:
+        with self._state_transaction_lock:
+            current = self._state_transaction_var.get()
+            if current is not None and current.active:
+                raise RuntimeError("nested state transactions are not supported")
+            if self._state_delta_journal is not None:
+                active = getattr(self._state_delta_journal, "active_step", None)
+                if active is None:
+                    raise RuntimeError("state transactions require an active persistence Tick")
+            tx._start_version_epoch = self._state_transaction_epoch
+            self._state_transactions.add(tx)
+            self._state_transaction_var.set(tx)
+
+    def _unregister_state_transaction(self, tx: StateTransaction) -> None:
+        with self._state_transaction_lock:
+            self._state_transactions.discard(tx)
+            if self._state_transaction_var.get() is tx:
+                self._state_transaction_var.set(None)
+
+    def _commit_state_transaction(self, tx: StateTransaction) -> None:
+        with self._state_transaction_lock:
+            if tx not in self._state_transactions:
+                raise RuntimeError("state transaction is not active")
+            journal = self._state_delta_journal
+            if journal is not None and getattr(journal, "active_step", None) != tx._start_tick:
+                raise RuntimeError("state transaction cannot cross persistence Tick boundaries")
+            for conflict_key, base in tx._base_versions.items():
+                current = int(self._state_record_versions.get(conflict_key, 0))
+                if current > base:
+                    raise StateTransactionConflict(
+                        "state transaction conflict; canonical state changed"
+                    )
+            plan = tx.prepare_for_commit()
+            if not plan.operations:
+                return
+
+            # 只备份本次将改动的有界记录；append 历史不复制，只记新增 ID
+            # 或原列表长度。若 canonical apply 出现异常，可把整次提交恢复到
+            # 进入提交锁时的状态。
+            backups: dict[tuple[Any, ...], tuple[bool, Any]] = {}
+            appended_map_ids: list[tuple[tuple[Any, ...], Any]] = []
+            appended_list_lengths: dict[tuple[Any, ...], int] = {}
+            for op in tx._operations:
+                kind = getattr(op.kind, "value", op.kind)
+                if kind == "append_only_map":
+                    appended_map_ids.append((op.anchor, op.key))
+                    continue
+                if kind == "append_only_list":
+                    if op.anchor not in appended_list_lengths:
+                        target = self._persistence_lookup(op.anchor)
+                        if target is None:
+                            # 新建 mixed entity 的 append-only 子列表随父记录
+                            # patch 创建；失败回滚时父记录备份已足够。
+                            continue
+                        if not isinstance(target, list):
+                            raise TypeError(f"append-only state at {op.anchor!r} must be a list")
+                        appended_list_lengths[op.anchor] = len(target)
+                    continue
+                if op.anchor in backups:
+                    continue
+                current = self._persistence_lookup(op.anchor)
+                parent = self._persistence_lookup(op.anchor[:-1])
+                present = isinstance(parent, dict) and op.anchor[-1] in parent
+                backups[op.anchor] = (present, copy.deepcopy(current))
+
+            try:
+                tx.apply_canonical(plan)
+                if journal is not None and getattr(journal, "active_step", None) is not None:
+                    journal.commit_proxy_operations(plan.tokens)
+            except Exception:
+                for anchor, (present, old_value) in backups.items():
+                    self._restore_persistence_path(anchor, old_value, present)
+                for anchor, key in appended_map_ids:
+                    target = self._persistence_lookup(anchor)
+                    if isinstance(target, dict):
+                        target.pop(key, None)
+                for anchor, length in appended_list_lengths.items():
+                    target = self._persistence_lookup(anchor)
+                    if isinstance(target, list):
+                        del target[length:]
+                raise
+
+            self._state_transaction_epoch += 1
+            commit_epoch = self._state_transaction_epoch
+            for conflict_key in tx._base_versions:
+                self._state_record_versions[conflict_key] = commit_epoch
+            self._record_explicit_state_commit(plan)
+
+    def _record_explicit_state_commit(self, plan: Any) -> None:
+        """按提交后的有界记录生成状态事件；记录失败不破坏已提交状态。"""
+
+        recorder = self._create_event_recorder()
+        for container, operation, key, value in plan.operations:
+            path = container + (key,) if key is not None else container
+            event = {
+                "event_type": "STATE_CHANGE",
+                "change": {
+                    "path": path,
+                    "operation": operation,
+                    "value": copy.deepcopy(value),
+                },
+                "context_stack": self.get_context_stack(),
+            }
+            try:
+                recorder(event)
+            except Exception as exc:
+                logger.error("Failed to record explicit state transaction commit: %s", exc)
+
+    def _restore_persistence_path(self, path: tuple[Any, ...], value: Any, present: bool) -> None:
+        if len(path) < 2:
+            return
+        parent = self._persistence_lookup(path[:-1])
+        if not isinstance(parent, dict):
+            return
+        key = path[-1]
+        if present:
+            parent[key] = value
+        else:
+            parent.pop(key, None)
+
     def set_state_delta_journal(self, journal: Optional[Any]) -> None:
         """注入 v4 写入日志；更换后重建环境代理以免保留旧引用。"""
 
@@ -1032,6 +1287,7 @@ class World:
         if journal is not None and hasattr(journal, "bind_canonical_state"):
             journal.bind_canonical_state(self._persistence_lookup)
         self._environment_state_proxy = None
+        self._invalidate_state_views()
 
     def _persistence_lookup(self, path: tuple[Any, ...]) -> Any:
         """按完整 canonical path 查找容器，不创建或修改底层状态。"""
@@ -1047,11 +1303,21 @@ class World:
         for part in path[1:]:
             if isinstance(current, dict) and part in current:
                 current = current[part]
+            elif isinstance(current, list) and isinstance(part, int):
+                normalized = part if part >= 0 else len(current) + part
+                if normalized < 0 or normalized >= len(current):
+                    return None
+                current = current[normalized]
             else:
                 return None
         return current
 
-    def configure_persistence(self, schema: Any) -> Any:
+    def configure_persistence(
+        self,
+        schema: Any,
+        *,
+        validate_initial_state: bool = True,
+    ) -> Any:
         """编译并绑定 World 的声明驱动持久化生命周期。"""
 
         from .incremental_checkpoint import PersistenceSchema, StateDeltaJournal
@@ -1068,26 +1334,27 @@ class World:
         # environment and Agent declarations in one journal, while each source
         # schema still validates its own state object against its own JSON
         # Schema.  The legacy single-root path remains unchanged.
-        source_schemas = getattr(compiled, "source_schemas", (compiled,))
-        for source in source_schemas:
-            root_path = tuple(getattr(source, "root_path", ()))
-            if root_path[:2] == ("environment", "state"):
-                source.validate_initial_state(state)
-                continue
-            if root_path[:1] == ("agents",):
-                if len(root_path) < 2:
-                    raise ValueError("Agent persistence root must identify an agent")
-                agent_id = root_path[1]
-                if agent_id not in self.agents_data:
-                    raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
-                agent_data = self.agents_data[agent_id]
-                source.validate_initial_state(
-                    {
-                        "state": agent_data.get("state", {}),
-                        "properties": agent_data.get("properties", {}),
-                        "reminders": agent_data.get("reminders", []),
-                    }
-                )
+        if validate_initial_state:
+            source_schemas = getattr(compiled, "source_schemas", (compiled,))
+            for source in source_schemas:
+                root_path = tuple(getattr(source, "root_path", ()))
+                if root_path[:2] == ("environment", "state"):
+                    source.validate_initial_state(state)
+                    continue
+                if root_path[:1] == ("agents",):
+                    if len(root_path) < 2:
+                        raise ValueError("Agent persistence root must identify an agent")
+                    agent_id = root_path[1]
+                    if agent_id not in self.agents_data:
+                        raise ValueError(f"Agent persistence root is missing: {agent_id!r}")
+                    agent_data = self.agents_data[agent_id]
+                    source.validate_initial_state(
+                        {
+                            "state": agent_data.get("state", {}),
+                            "properties": agent_data.get("properties", {}),
+                            "reminders": agent_data.get("reminders", []),
+                        }
+                    )
         journal = StateDeltaJournal(compiled)
         journal.bind_canonical_state(self._persistence_lookup)
         old_lease = self._persistence_proxy_lease
@@ -1096,6 +1363,7 @@ class World:
         self._persistence_schema = compiled
         self._state_delta_journal = journal
         self._environment_state_proxy = None
+        self._invalidate_state_views()
         self._persistence_proxy_lease = None
         return compiled
 
@@ -1177,6 +1445,9 @@ class World:
             raise RuntimeError("persistence is not configured")
         if self._persistence_proxy_lease is not None and self._persistence_proxy_lease.active:
             raise RuntimeError("a persistence tick is already active")
+        if self._state_transactions:
+            raise RuntimeError("cannot begin a persistence Tick with open state transactions")
+        self._invalidate_state_views()
         self._state_delta_journal.bind_canonical_state(self._persistence_lookup)
         epoch_id = f"{self._memory_branch_id}:{step}:{uuid.uuid4().hex}"
         self._active_memory_epoch_id = epoch_id
@@ -1195,6 +1466,8 @@ class World:
 
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
+        if self._state_transactions:
+            raise RuntimeError("cannot seal a persistence Tick with open state transactions")
         delta = self._state_delta_journal.seal_tick()
         from .incremental_checkpoint import _freeze_json
 
@@ -1209,6 +1482,7 @@ class World:
         if self._persistence_proxy_lease is not None:
             self._persistence_proxy_lease.invalidate()
         self._persistence_proxy_lease = None
+        self._invalidate_state_views()
         self._environment_state_proxy = None
         return delta
 
@@ -1217,6 +1491,8 @@ class World:
 
         if self._state_delta_journal is None:
             raise RuntimeError("persistence is not configured")
+        for tx in list(self._state_transactions):
+            tx.invalidate("state transaction invalidated by persistence Tick abort")
         self._state_delta_journal.abort_tick()
         self._tick_checkpoint_annotations = None
         failed_epoch = self._active_memory_epoch_id
@@ -1228,6 +1504,7 @@ class World:
         if self._persistence_proxy_lease is not None:
             self._persistence_proxy_lease.invalidate()
         self._persistence_proxy_lease = None
+        self._invalidate_state_views()
         self._environment_state_proxy = None
 
     def _iter_agent_memories(self):

@@ -97,6 +97,29 @@ def _world(tmp_path: Path, *, name: str = "world") -> World:
     return world
 
 
+def test_configure_v4_does_not_revalidate_a_restored_world(
+    tmp_path,
+    monkeypatch,
+):
+    world = _world(tmp_path)
+    schema = _declarations()
+    world.configure_persistence(schema, validate_initial_state=False)
+
+    def unexpected_validation(_self, _state):
+        raise AssertionError("已恢复并绑定声明的世界不应重复做全状态校验")
+
+    monkeypatch.setattr(
+        PersistenceSchema,
+        "validate_initial_state",
+        unexpected_validation,
+    )
+    manager = PersistenceManager(str(tmp_path / "run"))
+    try:
+        manager.configure_v4(world, schema)
+    finally:
+        _close(manager, world)
+
+
 def _configure(
     manager: PersistenceManager,
     world: World,

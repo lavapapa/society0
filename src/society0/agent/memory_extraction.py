@@ -24,10 +24,11 @@ EXTRACT_MEMORIES_SCHEMA: Dict[str, Any] = {
     "properties": {
         "memories": {
             "type": "array",
+            "maxItems": 5,
             "items": {
                 "type": "object",
                 "properties": {
-                    "content": {"type": "string"},
+                    "content": {"type": "string", "maxLength": 500},
                     "importance": {"type": "number", "minimum": 0, "maximum": 5},
                 },
                 "required": ["content", "importance"],
@@ -60,6 +61,8 @@ def _extraction_prompt() -> str:
         "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，"
         "由你自己判断哪些经验会影响今后的决策。"
         "只调用 extract_memories 工具。每条记忆用第一人称表达，"
+        "最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，"
+        "不要复制原始 JSON、表格、重复空白或大段带转义符的文本。"
         "如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。"
         "importance 取 0 到 5。如果没有值得形成长期记忆的内容，"
         "返回 {\"memories\": []}。"
@@ -200,11 +203,17 @@ async def extract_memories_from_thread(
                     "interaction_type": "memory_extract",
                 }
             )
-            messages.append(copy.deepcopy(response))
             parsed, tool_call_id, parse_error = _parse_memories_from_response(
                 response
             )
             if parsed is not None:
+                messages.append(
+                    {
+                        key: copy.deepcopy(value)
+                        for key, value in response.items()
+                        if key != "finish_reason"
+                    }
+                )
                 return {
                     "success": True,
                     "memories": parsed,
@@ -221,9 +230,12 @@ async def extract_memories_from_thread(
                 {
                     "role": "user",
                     "content": (
-                        "你刚才没有完成记忆提炼。现在只调用 "
-                        "extract_memories 工具；没有值得保留的记忆时，"
-                        "返回空 memories 数组。"
+                        f"你刚才的工具调用未通过校验（{last_error}）。"
+                        "现在重新调用 extract_memories 工具。memories 的值必须"
+                        "直接是 JSON 数组，不能把数组再次编码成字符串；每条记忆"
+                        "必须用不超过 500 字的自然语言概括，不要逐字复制带引号、"
+                        "转义符、JSON、表格或重复空白的原文。最多返回 5 条；没有"
+                        "值得保留的记忆时，返回空 memories 数组。"
                     ),
                 }
             )

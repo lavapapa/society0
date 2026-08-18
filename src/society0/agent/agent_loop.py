@@ -667,6 +667,16 @@ def _extract_reasoning_content(response: Dict[str, Any]) -> tuple:
 
     return reasoning_content, final_content, metadata
 
+
+def _conversation_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """移除 provider 结束原因，避免把非 message 字段发回接口。"""
+
+    return {
+        key: value
+        for key, value in response.items()
+        if key != "finish_reason"
+    }
+
 def _parse_stages(content: str, defined_stages: List[str], default_stage_name: str = "default") -> tuple:
     """
     Parse LLM output into stages using robust stage marking.
@@ -742,11 +752,13 @@ async def execute_action_loop(
     *,
     terminal_action_names: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
+    no_progress_action_tags: Optional[List[str]] = None,
     required_action_names: Optional[List[str]] = None,
     required_action_tags: Optional[List[str]] = None,
     turn_remain_hint: bool = True,
     hint_on_remain_turn: int = 1,
     max_action_calls: Optional[int] = None,
+    max_request_messages: Optional[int] = None,
     action_call_limits: Optional[Dict[str, int]] = None,
     llm_request_options: Optional[Dict[str, Any]] = None,
     prior_messages: Optional[List[Dict[str, Any]]] = None,
@@ -770,6 +782,10 @@ async def execute_action_loop(
         completion_action_tags: Action tags that mark a successful action as
             completing this instruction. This is useful for workflows such as
             "read tools may continue, but a social_write action ends the round".
+        no_progress_action_tags: Tags identifying read-only actions. Repeating
+            the same tagged action with the same arguments and visible result,
+            without a successful non-tagged action in between, ends the loop
+            normally because the agent has learned nothing new.
         required_action_names: Action names that must succeed before the loop
             can be considered complete. If the model stops early and turns
             remain, the loop asks it to correct the missing action.
@@ -782,6 +798,14 @@ async def execute_action_loop(
 
     # Normalize stages to unified dict format
     normalized_stages = normalize_reasoning_stages(stages)
+    if max_request_messages is not None:
+        if isinstance(max_request_messages, bool) or not isinstance(
+            max_request_messages,
+            int,
+        ):
+            raise ValueError("max_request_messages must be an integer")
+        if max_request_messages < 4:
+            raise ValueError("max_request_messages must be at least 4")
     raw_llm_request_options = dict(llm_request_options or {})
     try:
         provider_request_retry_max = int(
@@ -874,10 +898,35 @@ async def execute_action_loop(
             {"role": "user", "content": instruction}
         ]
 
+    if thread_message_recorder is not None:
+        new_messages = messages[-1:] if prior_messages else messages
+        for message in new_messages:
+            thread_message_recorder(copy.deepcopy(message))
+
     def _append_runtime_message(message: Dict[str, Any]) -> None:
         messages.append(message)
         if thread_message_recorder is not None:
             thread_message_recorder(copy.deepcopy(message))
+
+    def _request_messages() -> List[Dict[str, Any]]:
+        """保留完整 Thread，只压缩发给模型的本次请求视图。"""
+
+        if max_request_messages is None or len(messages) <= max_request_messages:
+            return copy.deepcopy(messages)
+        recent_count = max_request_messages - 2
+        start = len(messages) - recent_count
+        while start > 2 and messages[start].get("role") == "tool":
+            start -= 1
+        projected = [*messages[:2], *messages[start:]]
+        _append_thread_event(
+            "request_history_compacted",
+            {
+                "full_message_count": len(messages),
+                "request_message_count": len(projected),
+                "omitted_message_count": len(messages) - len(projected),
+            },
+        )
+        return copy.deepcopy(projected)
 
     def _append_thread_event(event_type: str, payload: Dict[str, Any]) -> None:
         """Persist a structured Thread event without converting failures to actions.
@@ -939,6 +988,8 @@ async def execute_action_loop(
 
     terminal_action_name_set = _normalize_name_set(terminal_action_names)
     completion_action_tag_set = _normalize_name_set(completion_action_tags)
+    no_progress_action_tag_set = _normalize_name_set(no_progress_action_tags)
+    no_progress_observations: Dict[tuple[str, str], str] = {}
     required_action_name_set = _normalize_name_set(required_action_names)
     required_action_tag_set = _normalize_name_set(required_action_tags)
     if submit_result_only:
@@ -1035,6 +1086,17 @@ async def execute_action_loop(
         merged_tags.update(str(tag).lower() for tag in explicit_tags)
         return any(tag in merged_tags for tag in completion_action_tag_set)
 
+    def _action_matches_no_progress_tags(action_name: str) -> bool:
+        if not no_progress_action_tag_set:
+            return False
+        action_info = action_set.actions.get(action_name) or {}
+        explicit_tags = action_info.get("tags", []) or []
+        merged_tags = {str(action_name).lower()}
+        if "." in action_name:
+            merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
+        merged_tags.update(str(tag).lower() for tag in explicit_tags)
+        return any(tag in merged_tags for tag in no_progress_action_tag_set)
+
     def _action_trace_tags(action_name: str) -> List[str]:
         action_info = action_set.actions.get(action_name) or {}
         explicit_tags = [str(tag) for tag in (action_info.get("tags", []) or [])]
@@ -1115,7 +1177,7 @@ async def execute_action_loop(
                 },
             )
         llm_payload = {
-            "messages": copy.deepcopy(messages),
+            "messages": _request_messages(),
             "tools": copy.deepcopy(actions_schema) if actions_schema else None,
             "tool_choice": _default_tool_choice()
         }
@@ -1207,7 +1269,33 @@ async def execute_action_loop(
             }
         )
 
+        finish_reason = str(response.get("finish_reason") or "").lower()
+        response_message = _conversation_response(response)
+        if finish_reason == "length":
+            raw_tool_calls = response_message.get("tool_calls")
+            if not isinstance(raw_tool_calls, list) or not raw_tool_calls:
+                # 已被 provider 截断的文字不代表主体完成了经营判断。
+                # 继续把它计作 no_action_calls 会确认 Inbox，并把半截叙述
+                # 写入长期记忆。
+                _append_runtime_message(response_message)
+                loop_result.termination_reason = "output_token_limit"
+                loop_result.error = "model output reached the configured token limit"
+                loop_result.failure_class = "provider_output_truncated"
+                loop_result.retry_scope = "agent_activation"
+                break
+            # OpenAI 兼容端点可能在内部输出用尽时仍返回完整的
+            # 结构化工具调用。工具调用仍按下方的 schema 与 action
+            # 边界验证；截断正文和推理内容不进入对话或长期记忆。
+            response_message = dict(response_message)
+            response_message["content"] = ""
+            response_message.pop("reasoning_content", None)
+            _append_thread_event(
+                "provider_output_truncated_with_tool_calls",
+                {"tool_call_count": len(raw_tool_calls)},
+            )
+
         # Extract reasoning content, final content and action calls using new function
+        response = response_message
         reasoning_content, final_content_part, response_metadata = _extract_reasoning_content(response)
         action_calls = response.get("tool_calls", [])
 
@@ -1252,7 +1340,7 @@ async def execute_action_loop(
                 final_content += "\n\n" + final_content_part
 
         # Add assistant message to history
-        messages.append(response)
+        _append_runtime_message(response)
 
         # Execute action calls if present
         if not action_calls:
@@ -1755,6 +1843,35 @@ async def execute_action_loop(
 
                 logger.debug("Action result: %s", str(action_result)[:100])
 
+            if action_succeeded:
+                if _action_matches_no_progress_tags(action_call.action_name):
+                    observation_key = (
+                        action_key,
+                        json.dumps(
+                            action_call.arguments,
+                            ensure_ascii=False,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
+                    )
+                    visible_result = str(action_call.result)
+                    if no_progress_observations.get(observation_key) == visible_result:
+                        terminate_loop = True
+                        loop_result.termination_reason = "repeated_read_no_progress"
+                        loop_result.termination_action = action_call.action_name
+                        _append_thread_event(
+                            "agent_loop_no_progress",
+                            {
+                                "action_name": action_call.action_name,
+                                "arguments": copy.deepcopy(action_call.arguments),
+                                "reason": "repeated_read_same_result_without_state_change",
+                            },
+                        )
+                    else:
+                        no_progress_observations[observation_key] = visible_result
+                else:
+                    no_progress_observations.clear()
+
             if action_succeeded and action_reported_no_change:
                 terminate_loop = True
                 loop_result.termination_reason = "action_reported_no_change"
@@ -1839,76 +1956,6 @@ async def execute_action_loop(
             else:
                 loop_result.termination_reason = "max_turns"
 
-    if loop_result.termination_reason == "action_budget_exhausted":
-        _append_runtime_message(
-            {
-                "role": "user",
-                "content": (
-                    "No further actions can be called in this activation. "
-                    "Based only on the information and completed action results "
-                    "already available, provide your final decision in text. "
-                    "Do not claim that an unexecuted action occurred."
-                ),
-            }
-        )
-        total_turns += 1
-        final_payload = {
-            "messages": copy.deepcopy(messages),
-            "tools": None,
-            "tool_choice": None,
-        }
-        final_payload.update(safe_llm_request_options)
-        final_payload["tools"] = None
-        final_payload["tool_choice"] = None
-        try:
-            response = await llm_call(final_payload)
-        except Exception as exc:
-            logger.warning(
-                "Tool-free closing request failed after the action budget "
-                "was exhausted: %s",
-                exc,
-            )
-            full_history.append(
-                {
-                    "turn": total_turns,
-                    "request": final_payload,
-                    "response": None,
-                    "closing_error": str(exc),
-                }
-            )
-        else:
-            full_history.append(
-                {
-                    "turn": total_turns,
-                    "request": final_payload,
-                    "response": response,
-                }
-            )
-            reasoning_content, final_content_part, response_metadata = (
-                _extract_reasoning_content(response)
-            )
-            if reasoning_content:
-                if loop_result.reasoning_content is None:
-                    loop_result.reasoning_content = reasoning_content
-                else:
-                    loop_result.reasoning_content += "\n\n" + reasoning_content
-                loop_result.thinking_process.append(
-                    {
-                        "turn": total_turns,
-                        "content": reasoning_content,
-                        "metadata": response_metadata,
-                    }
-                )
-                loop_result.has_reasoning = True
-            if loop_result.model_type is None:
-                loop_result.model_type = response_metadata["model_type"]
-            if final_content_part:
-                if final_content is None:
-                    final_content = final_content_part
-                else:
-                    final_content += "\n\n" + final_content_part
-            messages.append(response)
-
     # Parse the final response content into stages
     phases, phases_unknown, parsing_errors = _parse_stages(
         final_content, stage_names, default_stage_name
@@ -1966,6 +2013,8 @@ async def execute_action_loop(
         "action_batch_exceeds_action_limit",
         "tool_schema_error_exhausted",
         "provider_request_exhausted",
+        "output_token_limit",
+        "max_turns",
     }
     status = (
         "error"

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from society0 import Society0
-from tests import read_gzip_json
+from tests import read_last_v4_checkpoint
 
 pytestmark = pytest.mark.primary
 
@@ -44,7 +44,7 @@ def _social_config(*, recommendation=None, agents=None):
 
 
 def _read_checkpoint(path: Path):
-    return read_gzip_json(path / "checkpoints" / "checkpoint_final.json.gz")
+    return read_last_v4_checkpoint(path)
 
 
 def _post(post_id, *, author_id="author_recent", created_tick=0, likes=0, replies=0, reply_to=None, content=None):
@@ -328,7 +328,7 @@ async def test_social_network_state_change_events_are_hidden_by_default_but_chec
     assert full_content not in json.dumps(post_state_events, ensure_ascii=False)
 
     checkpoint = _read_checkpoint(tmp_path)
-    checkpoint_post = checkpoint["environment_data"]["state"]["post_creation_facts"]["post_full_checkpoint"]
+    checkpoint_post = checkpoint["environment"]["state"]["post_creation_facts"]["post_full_checkpoint"]
     assert checkpoint_post["content"] == full_content
 
 
@@ -414,7 +414,7 @@ async def test_recommendation_scores_full_active_pool(tmp_path):
     assert observed["candidate_count"] == 1002
     assert observed["state_recommended_during_step"] == {}
     assert observed["recommended_ids"][0] == "post_0900_old_high_engagement"
-    assert checkpoint["environment_data"]["state"]["recommended_posts"]["viewer"][0] == "post_0900_old_high_engagement"
+    assert checkpoint["environment"]["state"]["recommended_posts"]["viewer"][0] == "post_0900_old_high_engagement"
     assert "post_0900_old_high_engagement" in observed["feed"]
     assert len(observed["recommended_ids"]) == 8
 
@@ -534,7 +534,7 @@ async def test_view_counts_flush_after_tick(tmp_path):
         if event.get("event_type") == "social_recommendation_trace"
     ]
     assert observed["view_count_during_step"] == 0
-    assert checkpoint["environment_data"]["state"]["post_projection"]["post_visible"]["view_count"] == 2
+    assert checkpoint["environment"]["state"]["post_projection"]["post_visible"]["view_count"] == 2
     assert view_count_state_changes == []
     assert len(flush_events) == 1
     assert flush_events[0]["event_data"]["impression_deltas"] == {"post_visible": 2}
@@ -591,7 +591,7 @@ async def test_trending_posts_action_records_exposure_after_tick(tmp_path):
     assert "帖子 ID: post_hot" in observed["trending"]
     assert "作者用户 ID: author_old" in observed["trending"]
     assert observed["view_count_during_step"] == 0
-    assert checkpoint["environment_data"]["state"]["post_projection"]["post_hot"]["view_count"] == 1
+    assert checkpoint["environment"]["state"]["post_projection"]["post_hot"]["view_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -622,8 +622,8 @@ async def test_recommended_feed_preview_has_no_impression_or_state_side_effect(t
     assert "个性化推荐动态预览" in observed["feed"]
     assert observed["view_count_during_step"] == 0
     assert observed["recommended_posts_during_step"] == {}
-    assert checkpoint["environment_data"]["state"]["post_projection"]["post_visible"]["view_count"] == 0
-    assert checkpoint["environment_data"]["state"]["recommended_posts"] == {}
+    assert checkpoint["environment"]["state"]["post_projection"]["post_visible"]["view_count"] == 0
+    assert checkpoint["environment"]["state"]["recommended_posts"] == {}
 
 
 @pytest.mark.asyncio
@@ -671,7 +671,7 @@ async def test_recommended_posts_keeps_all_agents_under_proxy_state(tmp_path):
     assert observed["recommended_posts"]["viewer"]
     assert observed["recommended_posts"]["viewer_2"]
     assert observed["state_recommended_during_step"] == {}
-    assert set(checkpoint["environment_data"]["state"]["recommended_posts"]) == {"viewer", "viewer_2"}
+    assert set(checkpoint["environment"]["state"]["recommended_posts"]) == {"viewer", "viewer_2"}
     assert recommended_state_changes == []
     assert len(flush_events) == 1
     assert set(flush_events[0]["event_data"]["recommended_posts"]) == {"viewer", "viewer_2"}
@@ -698,7 +698,7 @@ async def test_notifications_accumulate_without_root_reset(tmp_path):
     await engine.run(steps=1)
 
     checkpoint = _read_checkpoint(tmp_path)
-    observed["notifications"] = checkpoint["environment_data"]["state"]["notification_facts"]
+    observed["notifications"] = checkpoint["environment"]["state"]["notification_facts"]
     notifications = [
         item for item in observed["notifications"] if item["target_agent_id"] == "author_old"
     ]
@@ -764,8 +764,8 @@ async def test_post_embedding_generated_once(tmp_path):
     await engine.run(steps=1)
     checkpoint = _read_checkpoint(tmp_path)
     checkpoint_post = {
-        **checkpoint["environment_data"]["state"]["post_creation_facts"]["post_once"],
-        **checkpoint["environment_data"]["state"]["post_projection"]["post_once"],
+        **checkpoint["environment"]["state"]["post_creation_facts"]["post_once"],
+        **checkpoint["environment"]["state"]["post_projection"]["post_once"],
     }
 
     assert observed["calls"] == 1
@@ -832,7 +832,7 @@ async def test_publish_post_embeddings_flush_in_one_batch_after_tick(tmp_path):
 
     await engine.run(steps=1)
     checkpoint = _read_checkpoint(tmp_path)
-    posts = checkpoint["environment_data"]["state"]["post_projection"]
+    posts = checkpoint["environment"]["state"]["post_projection"]
 
     assert observed["calls_during_step"] == 0
     assert observed["pending_during_step"] == ["post_1", "post_2"]
