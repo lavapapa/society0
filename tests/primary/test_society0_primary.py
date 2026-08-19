@@ -2243,7 +2243,7 @@ async def test_action_loop_bounds_request_history_without_truncating_thread() ->
 
 
 @pytest.mark.asyncio
-async def test_repeated_read_with_same_result_ends_as_no_progress() -> None:
+async def test_repeated_read_with_same_result_continues_until_max_turns() -> None:
     action_set = ActionSet()
     requests = []
     events = []
@@ -2286,22 +2286,25 @@ async def test_repeated_read_with_same_result_ends_as_no_progress() -> None:
         system_prompt="You are a test agent.",
         stages=["act"],
         llm_call=fake_llm_call,
-        max_turns=32,
-        no_progress_action_tags=["industry_query"],
+        max_turns=3,
         thread_event_recorder=lambda name, payload: events.append((name, payload)),
     )
 
-    assert len(requests) == 2
-    assert result.status == "success"
-    assert result.termination_reason == "repeated_read_no_progress"
+    assert len(requests) == 3
+    assert result.status == "error"
+    assert result.termination_reason == "max_turns"
     assert result.activation_status == "incomplete"
-    assert result.termination_action == "query_plan"
-    assert [call["status"] for call in result.action_calls] == ["success", "success"]
-    assert any(name == "agent_loop_no_progress" for name, _ in events)
+    assert result.termination_action is None
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "success",
+        "success",
+    ]
+    assert not any(name == "agent_loop_no_progress" for name, _ in events)
 
 
 @pytest.mark.asyncio
-async def test_successful_write_resets_repeated_read_detection() -> None:
+async def test_repeated_read_after_write_continues_until_max_turns() -> None:
     action_set = ActionSet()
     plan_version = 0
     requests = []
@@ -2356,12 +2359,13 @@ async def test_successful_write_resets_repeated_read_detection() -> None:
         system_prompt="You are a test agent.",
         stages=["act"],
         llm_call=fake_llm_call,
-        max_turns=32,
-        no_progress_action_tags=["industry_query"],
+        max_turns=4,
     )
 
     assert len(requests) == 4
-    assert result.termination_reason == "repeated_read_no_progress"
+    assert result.status == "error"
+    assert result.termination_reason == "max_turns"
+    assert result.activation_status == "incomplete"
     assert [call["action_name"] for call in result.action_calls] == sequence
 
 
@@ -3474,7 +3478,7 @@ async def test_completion_action_tag_retries_explicit_social_not_found_results(
 
 
 @pytest.mark.asyncio
-async def test_action_loop_stops_when_an_action_reports_no_state_change():
+async def test_action_loop_continues_after_no_change_until_max_turns():
     action_set = ActionSet()
     action_calls = []
     llm_calls = []
@@ -3526,17 +3530,19 @@ async def test_action_loop_stops_when_an_action_reports_no_state_change():
         system_prompt="You are a test agent.",
         stages=[{"name": "answer", "desc": "act"}],
         llm_call=fake_llm_call,
-        max_turns=8,
+        max_turns=3,
     )
 
-    assert action_calls == ["same review", "same review"]
-    assert len(llm_calls) == 2
-    assert result.total_turns == 2
+    assert action_calls == ["same review"] * 3
+    assert len(llm_calls) == 3
+    assert result.total_turns == 3
     assert [call["status"] for call in result.action_calls] == [
         "success",
         "success",
+        "success",
     ]
-    assert result.termination_reason == "action_reported_no_change"
+    assert result.termination_reason == "max_turns"
+    assert result.activation_status == "incomplete"
 
 
 @pytest.mark.asyncio
@@ -3606,7 +3612,7 @@ async def test_action_loop_allows_identical_calls_that_report_real_changes():
 
 
 @pytest.mark.asyncio
-async def test_no_change_does_not_discard_later_actions_in_the_same_batch():
+async def test_no_change_does_not_end_a_batch_or_the_next_turn():
     action_set = ActionSet()
     action_calls = []
     llm_calls = []
@@ -3678,19 +3684,24 @@ async def test_no_change_does_not_discard_later_actions_in_the_same_batch():
         system_prompt="You are a test agent.",
         stages=[{"name": "answer", "desc": "act"}],
         llm_call=fake_llm_call,
-        max_turns=8,
+        max_turns=2,
     )
 
     assert action_calls == [
         ("save_review", "same review"),
         ("deliver", "contract-1", 10),
+        ("save_review", "same review"),
+        ("deliver", "contract-1", 10),
     ]
-    assert len(llm_calls) == 1
+    assert len(llm_calls) == 2
     assert [call["status"] for call in result.action_calls] == [
         "success",
         "success",
+        "success",
+        "success",
     ]
-    assert result.termination_reason == "action_reported_no_change"
+    assert result.termination_reason == "max_turns"
+    assert result.activation_status == "incomplete"
 
 
 @pytest.mark.asyncio
@@ -4469,8 +4480,9 @@ async def test_execute_action_loop_records_budget_blocked_actions():
     )
     assert result.action_calls[0]["action_name"] == "limited_action"
     assert result.action_calls[0]["result"] == expected_error
-    assert result.status == "success"
+    assert result.status == "error"
     assert result.termination_reason == "action_budget_exhausted"
+    assert result.activation_status == "incomplete"
     assert len(llm_payloads) == 1
     assert result.full_history[0]["batch_termination_reason"] == (
         "action_batch_exceeds_budget"
@@ -4907,7 +4919,8 @@ async def test_action_budget_exhaustion_does_not_retry_completed_actions():
         "place_order"
     ]
     assert result.termination_reason == "action_budget_exhausted"
-    assert result.status == "success"
+    assert result.status == "error"
+    assert result.activation_status == "incomplete"
 
 
 @pytest.mark.asyncio

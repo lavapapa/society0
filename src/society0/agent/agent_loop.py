@@ -206,21 +206,6 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
     return "success", None
 
 
-def _action_reported_no_change(result: Any) -> bool:
-    """Honor an environment's explicit statement that a write was a no-op.
-
-    The runtime does not deduplicate calls from names and arguments alone:
-    identical arguments may represent legitimate repeated business actions.
-    An environment that can prove idempotence may return
-    ``change_applied=False`` to stop the current action loop safely.
-    """
-
-    return (
-        isinstance(result, (dict, DictProxy))
-        and result.get("change_applied") is False
-    )
-
-
 def _is_tool_schema_error(error: BaseException | str) -> bool:
     """识别本地 Action 参数校验错误，避免把它升级为 step 失败。"""
 
@@ -534,7 +519,7 @@ class LoopResult:
     retry_scope: Optional[str] = None
     retry_attempts: Optional[int] = None
     # 激活是否已由模型完成。工具调用成功不等于本轮经营判断已经完成：
-    # 读取停滞、预算耗尽、回合耗尽和输出截断都保留已写入的业务事实，
+    # 行动预算耗尽、回合耗尽和输出截断都保留已写入的业务事实，
     # 但交由调用方决定如何延期该次激活。
     activation_status: str = "completed"
 
@@ -756,7 +741,6 @@ async def execute_action_loop(
     *,
     terminal_action_names: Optional[List[str]] = None,
     completion_action_tags: Optional[List[str]] = None,
-    no_progress_action_tags: Optional[List[str]] = None,
     required_action_names: Optional[List[str]] = None,
     required_action_tags: Optional[List[str]] = None,
     turn_remain_hint: bool = True,
@@ -786,10 +770,6 @@ async def execute_action_loop(
         completion_action_tags: Action tags that mark a successful action as
             completing this instruction. This is useful for workflows such as
             "read tools may continue, but a social_write action ends the round".
-        no_progress_action_tags: Tags identifying read-only actions. Repeating
-            the same tagged action with the same arguments and visible result,
-            without a successful non-tagged action in between, ends the loop
-            normally because the agent has learned nothing new.
         required_action_names: Action names that must succeed before the loop
             can be considered complete. If the model stops early and turns
             remain, the loop asks it to correct the missing action.
@@ -992,8 +972,6 @@ async def execute_action_loop(
 
     terminal_action_name_set = _normalize_name_set(terminal_action_names)
     completion_action_tag_set = _normalize_name_set(completion_action_tags)
-    no_progress_action_tag_set = _normalize_name_set(no_progress_action_tags)
-    no_progress_observations: Dict[tuple[str, str], str] = {}
     required_action_name_set = _normalize_name_set(required_action_names)
     required_action_tag_set = _normalize_name_set(required_action_tags)
     if submit_result_only:
@@ -1089,17 +1067,6 @@ async def execute_action_loop(
             merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
         merged_tags.update(str(tag).lower() for tag in explicit_tags)
         return any(tag in merged_tags for tag in completion_action_tag_set)
-
-    def _action_matches_no_progress_tags(action_name: str) -> bool:
-        if not no_progress_action_tag_set:
-            return False
-        action_info = action_set.actions.get(action_name) or {}
-        explicit_tags = action_info.get("tags", []) or []
-        merged_tags = {str(action_name).lower()}
-        if "." in action_name:
-            merged_tags.add(action_name.rsplit(".", maxsplit=1)[-1].lower())
-        merged_tags.update(str(tag).lower() for tag in explicit_tags)
-        return any(tag in merged_tags for tag in no_progress_action_tag_set)
 
     def _action_trace_tags(action_name: str) -> List[str]:
         action_info = action_set.actions.get(action_name) or {}
@@ -1585,7 +1552,6 @@ async def execute_action_loop(
             is_last_action_in_turn = idx == len(action_calls) - 1
             action_key = action_call.action_name.lower()
             action_succeeded = False
-            action_reported_no_change = False
             if action_call.call_id in duplicate_call_ids:
                 duplicate_message = (
                     "Duplicate action call in the same assistant turn was "
@@ -1841,51 +1807,9 @@ async def execute_action_loop(
                 if action_call.status == "success":
                     action_call_counts[action_key] += 1
                     action_succeeded = True
-                    action_reported_no_change = _action_reported_no_change(
-                        action_result
-                    )
 
                 logger.debug("Action result: %s", str(action_result)[:100])
 
-            if action_succeeded:
-                if _action_matches_no_progress_tags(action_call.action_name):
-                    observation_key = (
-                        action_key,
-                        json.dumps(
-                            action_call.arguments,
-                            ensure_ascii=False,
-                            sort_keys=True,
-                            separators=(",", ":"),
-                        ),
-                    )
-                    visible_result = str(action_call.result)
-                    if no_progress_observations.get(observation_key) == visible_result:
-                        terminate_loop = True
-                        loop_result.termination_reason = "repeated_read_no_progress"
-                        loop_result.termination_action = action_call.action_name
-                        _append_thread_event(
-                            "agent_loop_no_progress",
-                            {
-                                "action_name": action_call.action_name,
-                                "arguments": copy.deepcopy(action_call.arguments),
-                                "reason": "repeated_read_same_result_without_state_change",
-                            },
-                        )
-                    else:
-                        no_progress_observations[observation_key] = visible_result
-                else:
-                    no_progress_observations.clear()
-
-            if action_succeeded and action_reported_no_change:
-                terminate_loop = True
-                loop_result.termination_reason = "action_reported_no_change"
-                loop_result.termination_action = action_call.action_name
-                logger.debug(
-                    "Action %s reported no state change; ending loop after "
-                    "the current action batch",
-                    action_call.action_name,
-                )
-                continue
             if action_succeeded and action_call.action_name.lower() in terminal_action_name_set:
                 terminate_loop = True
                 loop_result.termination_reason = "terminal_action"
@@ -1922,22 +1846,6 @@ async def execute_action_loop(
                 }
                 for ac in executed_action_calls
             ]
-
-        if (
-            terminate_loop
-            and loop_result.termination_reason == "action_reported_no_change"
-            and any(
-                action_call.status in {"error", "blocked"}
-                for action_call in executed_action_calls
-            )
-        ):
-            terminate_loop = False
-            loop_result.termination_reason = None
-            loop_result.termination_action = None
-            logger.debug(
-                "An action in the no-change batch failed or was blocked; "
-                "continuing so the model can correct it"
-            )
 
         if terminate_loop:
             break
@@ -2015,6 +1923,7 @@ async def execute_action_loop(
     error_termination_reasons = {
         "empty_model_response",
         "action_batch_exceeds_action_limit",
+        "action_budget_exhausted",
         "tool_schema_error_exhausted",
         "provider_request_exhausted",
         "output_token_limit",
@@ -2029,7 +1938,6 @@ async def execute_action_loop(
         status = "partial_success" if processed_phases else "error"
 
     incomplete_termination_reasons = {
-        "repeated_read_no_progress",
         "action_budget_exhausted",
         "max_turns",
         "output_token_limit",
