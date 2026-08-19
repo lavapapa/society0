@@ -1990,6 +1990,7 @@ class LLMAgent(Agent):
                 "actions": loop_result.action_calls,
                 "termination_reason": loop_result.termination_reason,
                 "termination_action": loop_result.termination_action,
+                "activation_status": loop_result.activation_status,
                 **(
                     {"error": loop_error or "agent_loop_error"}
                     if instruction_status == "error"

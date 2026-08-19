@@ -533,6 +533,10 @@ class LoopResult:
     failure_class: Optional[str] = None
     retry_scope: Optional[str] = None
     retry_attempts: Optional[int] = None
+    # 激活是否已由模型完成。工具调用成功不等于本轮经营判断已经完成：
+    # 读取停滞、预算耗尽、回合耗尽和输出截断都保留已写入的业务事实，
+    # 但交由调用方决定如何延期该次激活。
+    activation_status: str = "completed"
 
     # 新增字段 - 支持OpenAI推理模型
     reasoning_content: Optional[str] = None  # 原始推理内容
@@ -2024,6 +2028,12 @@ async def execute_action_loop(
     if parsing_errors and status != "error":
         status = "partial_success" if processed_phases else "error"
 
+    incomplete_termination_reasons = {
+        "repeated_read_no_progress",
+        "action_budget_exhausted",
+        "max_turns",
+        "output_token_limit",
+    }
     return LoopResult(
         status=status,
         phases=processed_phases,
@@ -2040,6 +2050,11 @@ async def execute_action_loop(
         failure_class=loop_result.failure_class,
         retry_scope=loop_result.retry_scope,
         retry_attempts=loop_result.retry_attempts,
+        activation_status=(
+            "incomplete"
+            if loop_result.termination_reason in incomplete_termination_reasons
+            else "completed"
+        ),
         reasoning_content=loop_result.reasoning_content,
         thinking_process=loop_result.thinking_process,
         has_reasoning=loop_result.has_reasoning,
