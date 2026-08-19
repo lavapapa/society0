@@ -2294,6 +2294,7 @@ async def test_repeated_read_with_same_result_ends_as_no_progress() -> None:
     assert len(requests) == 2
     assert result.status == "success"
     assert result.termination_reason == "repeated_read_no_progress"
+    assert result.activation_status == "incomplete"
     assert result.termination_action == "query_plan"
     assert [call["status"] for call in result.action_calls] == ["success", "success"]
     assert any(name == "agent_loop_no_progress" for name, _ in events)
@@ -2718,6 +2719,7 @@ async def test_required_action_gets_correction_turn_when_model_stops_early():
     assert llm_payloads[-1]["tools"]
     assert [call["action_name"] for call in result.action_calls] == ["publish_post"]
     assert result.termination_reason == "action_budget_exhausted"
+    assert result.activation_status == "incomplete"
 
 
 @pytest.mark.asyncio
