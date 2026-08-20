@@ -1848,10 +1848,10 @@ async def execute_action_loop(
                     and previous_read[0] == result_content
                 ):
                     base_content = (
-                        f"重复读取提示：这是本次激活中第 {payload_occurrence} 次以完全相同的"
-                        f"参数读取该信息，本次结果与先前工具调用 {previous_read[1]} 完全相同。"
-                        "完整结果已经保留，请直接复用；只有缺少会改变当前判断的具体事实时，"
-                        "才改用不同筛选继续查询。"
+                        "该读取与本次激活内先前相同参数的结果完全一致，"
+                        "当前事实没有变化。完整结果已在上文保留；请直接复用，"
+                        "不要再以相同参数读取。若已有事实足以判断，现在形成经营决定；"
+                        "只有缺少会改变判断的具体事实时，才改用不同筛选继续查询。"
                     )
                 else:
                     base_content = result_content + _repeated_action_hint(
