@@ -2300,6 +2300,8 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
         "success",
         "success",
     ]
+    assert "第 2 次以完全相同的参数" in requests[2]["messages"][-1]["content"]
+    assert "第 3 次以完全相同的参数" in result.conversation_messages[-1]["content"]
     assert not any(name == "agent_loop_no_progress" for name, _ in events)
 
 
@@ -7990,6 +7992,9 @@ async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp
     assert success_record["max_tokens"] == 80
     assert success_record["temperature"] == 0.2
     assert success_record["top_p"] == 0.9
+    assert success_record["queue_duration_sec"] >= 0
+    assert success_record["jitter_duration_sec"] >= 0.005
+    assert success_record["queue_duration_sec"] < success_record["jitter_duration_sec"]
 
     summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_resource_calls()
     assert summary["llm"]["tools_count_total"] == 1

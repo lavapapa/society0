@@ -304,6 +304,7 @@ class LLMLogExtras(BaseModel):
     cache_hit: bool = False
     duration_sec: Optional[float] = None
     queue_duration_sec: Optional[float] = None
+    jitter_duration_sec: Optional[float] = None
     provider_duration_sec: Optional[float] = None
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
@@ -843,13 +844,18 @@ class LLMManager:
         # 全局并发整形 + 端点级并发限制
         async with self._global_semaphore:
             async with self.semaphores[endpoint.id]:
+                # queue_duration 只表示等待并发许可的时间。许可取得后
+                # 若事件循环被同步工具阻塞，后续 jitter 会单独记录，
+                # 不再被误报为 Provider 并发队列。
+                acquired_time = time.time()
+                extras.queue_duration_sec = acquired_time - start_time
                 # 抖动：降低瞬时突发（5ms~50ms）
+                jitter_started = time.time()
                 try:
                     await asyncio.sleep(random.uniform(0.005, 0.05))
                 except Exception:
                     pass
-                acquired_time = time.time()
-                extras.queue_duration_sec = acquired_time - start_time
+                extras.jitter_duration_sec = time.time() - jitter_started
 
                 stats_entry = self.endpoint_stats[endpoint.id]
 

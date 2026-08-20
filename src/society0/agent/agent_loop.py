@@ -990,6 +990,7 @@ async def execute_action_loop(
             raise ValueError(f"action_call_limits[{action_name}] must be non-negative")
     action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
+    action_payload_counts: Counter[tuple[str, str]] = Counter()
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1075,6 +1076,31 @@ async def execute_action_loop(
         if "." in action_name:
             merged_tags.insert(1, action_name.rsplit(".", maxsplit=1)[-1])
         return list(dict.fromkeys(merged_tags))
+
+    def _repeated_action_hint(
+        action_name: str,
+        *,
+        occurrence: int,
+        failed: bool,
+    ) -> str:
+        """提醒模型收束完全相同的调用，但不替它终止当前 Thread。"""
+
+        if occurrence <= 1:
+            return ""
+        if failed:
+            return (
+                f"\n\n重复调用提示：这是本次激活中第 {occurrence} 次以完全相同的"
+                "参数提交这个失败调用。再次原样提交会得到相同错误；"
+                "请按上述报错修改具体字段或选择合法的另一种表达。"
+            )
+        tags = {tag.lower() for tag in _action_trace_tags(action_name)}
+        if "industry_query" not in tags and not action_name.lower().startswith("query"):
+            return ""
+        return (
+            f"\n\n重复读取提示：这是本次激活中第 {occurrence} 次以完全相同的"
+            "参数读取该信息。若结果未变，继续原样查询不会增加新信息；"
+            "请复用已有结果，改用能回答剩余问题的不同筛选，或据此作出经营判断。"
+        )
 
     def _successful_action_aliases_and_tags() -> tuple[set[str], set[str]]:
         names: set[str] = set()
@@ -1551,6 +1577,17 @@ async def execute_action_loop(
                 logger.debug("Action parameters: %s", action_call.arguments)
             is_last_action_in_turn = idx == len(action_calls) - 1
             action_key = action_call.action_name.lower()
+            payload_key = (
+                action_key,
+                json.dumps(
+                    action_call.arguments,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+            action_payload_counts[payload_key] += 1
+            payload_occurrence = action_payload_counts[payload_key]
             action_succeeded = False
             if action_call.call_id in duplicate_call_ids:
                 duplicate_message = (
@@ -1646,9 +1683,14 @@ async def execute_action_loop(
                         "duration_sec": 0.0,
                     },
                 )
+                display_error = error_msg + _repeated_action_hint(
+                    action_call.action_name,
+                    occurrence=payload_occurrence,
+                    failed=True,
+                )
                 tool_message = {
                     "role": "tool",
-                    "content": error_msg,
+                    "content": display_error,
                     "tool_call_id": action_call.call_id,
                 }
                 _append_runtime_message(tool_message)
@@ -1743,7 +1785,11 @@ async def execute_action_loop(
                     },
                 )
                 logger.debug("Action error: %s", error_msg)
-                base_content = f"Error: {error_msg}"
+                base_content = f"Error: {error_msg}" + _repeated_action_hint(
+                    action_call.action_name,
+                    occurrence=payload_occurrence,
+                    failed=True,
+                )
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
                     display_content = (
@@ -1785,7 +1831,11 @@ async def execute_action_loop(
                     event_payload["error"] = action_call.error
                 _append_thread_event(event_type, event_payload)
 
-                base_content = str(action_result)
+                base_content = str(action_result) + _repeated_action_hint(
+                    action_call.action_name,
+                    occurrence=payload_occurrence,
+                    failed=action_call.status != "success",
+                )
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
                     display_content = (
