@@ -1800,6 +1800,7 @@ class Society0:
             "runtime_overhead_share": share(runtime_overhead),
             "bottleneck": bottleneck,
         }
+        bucket["queue_duration_semantics"] = "client_admission_wait_upper_bound"
 
     @staticmethod
     def _finalize_operation_resource_map(resource_map: Optional[Dict[str, Dict[str, Any]]]) -> None:
