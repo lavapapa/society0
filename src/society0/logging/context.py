@@ -449,6 +449,7 @@ class ExperimentLogContext:
             "dimensions": record.get("dimensions") or (started or {}).get("dimensions"),
             "input_characters": record.get("input_characters") or (started or {}).get("input_characters"),
             "queue_duration_sec": record.get("queue_duration_sec"),
+            "jitter_duration_sec": record.get("jitter_duration_sec"),
             "provider_duration_sec": record.get("provider_duration_sec"),
             "step": record.get("step") or (started or {}).get("step"),
             "step_name": record.get("step_name") or (started or {}).get("step_name"),
