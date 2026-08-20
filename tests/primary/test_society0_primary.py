@@ -2302,6 +2302,13 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     ]
     assert "第 2 次以完全相同的参数" in requests[2]["messages"][-1]["content"]
     assert "第 3 次以完全相同的参数" in result.conversation_messages[-1]["content"]
+    assert "same-plan" not in requests[2]["messages"][-1]["content"]
+    assert "先前工具调用 call_1 完全相同" in requests[2]["messages"][-1]["content"]
+    assert [call["result"] for call in result.action_calls] == [
+        {"section": "sales", "items": ["same-plan"]},
+        {"section": "sales", "items": ["same-plan"]},
+        {"section": "sales", "items": ["same-plan"]},
+    ]
     assert not any(name == "agent_loop_no_progress" for name, _ in events)
 
 
@@ -2369,6 +2376,9 @@ async def test_repeated_read_after_write_continues_until_max_turns() -> None:
     assert result.termination_reason == "max_turns"
     assert result.activation_status == "incomplete"
     assert [call["action_name"] for call in result.action_calls] == sequence
+    assert "'version': 1" in requests[3]["messages"][-1]["content"]
+    assert "先前工具调用 call_1 完全相同" not in requests[3]["messages"][-1]["content"]
+    assert "先前工具调用 call_3 完全相同" in result.conversation_messages[-1]["content"]
 
 
 @pytest.mark.asyncio

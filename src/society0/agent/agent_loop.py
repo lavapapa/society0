@@ -991,6 +991,7 @@ async def execute_action_loop(
     action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
     action_payload_counts: Counter[tuple[str, str]] = Counter()
+    successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1831,11 +1832,38 @@ async def execute_action_loop(
                     event_payload["error"] = action_call.error
                 _append_thread_event(event_type, event_payload)
 
-                base_content = str(action_result) + _repeated_action_hint(
-                    action_call.action_name,
-                    occurrence=payload_occurrence,
-                    failed=action_call.status != "success",
+                result_content = str(action_result)
+                trace_tags = {
+                    tag.lower() for tag in _action_trace_tags(action_call.action_name)
+                }
+                is_read_action = (
+                    "industry_query" in trace_tags
+                    or action_call.action_name.lower().startswith("query")
                 )
+                previous_read = successful_read_results.get(payload_key)
+                if (
+                    action_call.status == "success"
+                    and is_read_action
+                    and previous_read is not None
+                    and previous_read[0] == result_content
+                ):
+                    base_content = (
+                        f"重复读取提示：这是本次激活中第 {payload_occurrence} 次以完全相同的"
+                        f"参数读取该信息，本次结果与先前工具调用 {previous_read[1]} 完全相同。"
+                        "完整结果已经保留，请直接复用；只有缺少会改变当前判断的具体事实时，"
+                        "才改用不同筛选继续查询。"
+                    )
+                else:
+                    base_content = result_content + _repeated_action_hint(
+                        action_call.action_name,
+                        occurrence=payload_occurrence,
+                        failed=action_call.status != "success",
+                    )
+                    if action_call.status == "success" and is_read_action:
+                        successful_read_results[payload_key] = (
+                            result_content,
+                            action_call.call_id,
+                        )
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
                     display_content = (
