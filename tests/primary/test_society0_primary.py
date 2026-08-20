@@ -2318,6 +2318,75 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
 
 
 @pytest.mark.asyncio
+async def test_different_read_filters_with_same_result_prompt_decision_each_time() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    class EmptyMemoryResult(dict):
+        def __str__(self) -> str:
+            return f"no memory for query={self['query']}"
+
+    async def query_memory(query: str):
+        return EmptyMemoryResult(
+            query=query,
+            records=[],
+            returned_count=0,
+            scope="self_memory_history",
+        )
+
+    action_set.add_action(
+        name="query_memory",
+        func=query_memory,
+        description="Query memory by keyword.",
+        parameters={
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+            "required": ["query"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        query = ("cash", "inventory", "supplier")[len(requests) - 1]
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_memory",
+                        "arguments": json.dumps({"query": query}),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect memory only when it can change the decision.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    assert result.activation_status == "incomplete"
+    assert result.termination_reason == "max_turns"
+    assert [call["arguments"] for call in result.action_calls] == [
+        {"query": "cash"},
+        {"query": "inventory"},
+        {"query": "supplier"},
+    ]
+    assert "不同筛选参数" in requests[2]["messages"][-2]["content"]
+    assert requests[2]["messages"][-1]["role"] == "user"
+    assert "更换筛选后仍得到完全一致" in requests[2]["messages"][-1]["content"]
+    assert result.termination_action is None
+
+
+@pytest.mark.asyncio
 async def test_repeated_read_after_write_continues_until_max_turns() -> None:
     action_set = ActionSet()
     plan_version = 0
