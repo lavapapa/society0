@@ -992,6 +992,7 @@ async def execute_action_loop(
     action_call_counts: Counter[str] = Counter()
     action_payload_counts: Counter[tuple[str, str]] = Counter()
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
+    decision_prompted_reads: set[tuple[str, str]] = set()
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1571,6 +1572,7 @@ async def execute_action_loop(
                 loop_result.termination_reason = batch_termination_reason
             break
 
+        prompt_decision_after_tools = False
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
             logger.debug("Executing action: %s", action_call.action_name)
@@ -1853,6 +1855,9 @@ async def execute_action_loop(
                         "不要再以相同参数读取。若已有事实足以判断，现在形成经营决定；"
                         "只有缺少会改变判断的具体事实时，才改用不同筛选继续查询。"
                     )
+                    if payload_key not in decision_prompted_reads:
+                        decision_prompted_reads.add(payload_key)
+                        prompt_decision_after_tools = True
                 else:
                     base_content = result_content + _repeated_action_hint(
                         action_call.action_name,
@@ -1924,6 +1929,20 @@ async def execute_action_loop(
                 }
                 for ac in executed_action_calls
             ]
+
+        if prompt_decision_after_tools and not terminate_loop:
+            _append_runtime_message(
+                {
+                    "role": "user",
+                    "content": (
+                        "调查进度提醒：你刚才以相同参数重新读取了已有事实，"
+                        "结果没有变化。这条提醒不会结束当前任务，你仍然拥有全部"
+                        "工具。下一步请直接作出经营判断、执行必要的经营行动，"
+                        "或改用能补足某个具体关键缺口的不同查询。不要再原样"
+                        "提交这个读取。"
+                    ),
+                }
+            )
 
         if terminate_loop:
             break

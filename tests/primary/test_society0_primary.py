@@ -2300,13 +2300,15 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
         "success",
         "success",
     ]
-    assert "当前事实没有变化" in requests[2]["messages"][-1]["content"]
-    assert (
-        requests[2]["messages"][-1]["content"]
-        == result.conversation_messages[-1]["content"]
-    )
-    assert "same-plan" not in requests[2]["messages"][-1]["content"]
-    assert "不要再以相同参数读取" in requests[2]["messages"][-1]["content"]
+    second_turn_messages = requests[2]["messages"]
+    assert "当前事实没有变化" in second_turn_messages[-2]["content"]
+    assert second_turn_messages[-1]["role"] == "user"
+    assert "这条提醒不会结束当前任务" in second_turn_messages[-1]["content"]
+    assert "仍然拥有全部工具" in second_turn_messages[-1]["content"]
+    assert "same-plan" not in second_turn_messages[-2]["content"]
+    assert "不要再以相同参数读取" in second_turn_messages[-2]["content"]
+    assert result.conversation_messages[-1]["role"] == "tool"
+    assert "当前事实没有变化" in result.conversation_messages[-1]["content"]
     assert [call["result"] for call in result.action_calls] == [
         {"section": "sales", "items": ["same-plan"]},
         {"section": "sales", "items": ["same-plan"]},
@@ -2381,7 +2383,8 @@ async def test_repeated_read_after_write_continues_until_max_turns() -> None:
     assert [call["action_name"] for call in result.action_calls] == sequence
     assert "'version': 1" in requests[3]["messages"][-1]["content"]
     assert "当前事实没有变化" not in requests[3]["messages"][-1]["content"]
-    assert "当前事实没有变化" in result.conversation_messages[-1]["content"]
+    assert "当前事实没有变化" in result.conversation_messages[-2]["content"]
+    assert "这条提醒不会结束当前任务" in result.conversation_messages[-1]["content"]
 
 
 @pytest.mark.asyncio
