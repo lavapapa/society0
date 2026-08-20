@@ -2300,10 +2300,13 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
         "success",
         "success",
     ]
-    assert "第 2 次以完全相同的参数" in requests[2]["messages"][-1]["content"]
-    assert "第 3 次以完全相同的参数" in result.conversation_messages[-1]["content"]
+    assert "当前事实没有变化" in requests[2]["messages"][-1]["content"]
+    assert (
+        requests[2]["messages"][-1]["content"]
+        == result.conversation_messages[-1]["content"]
+    )
     assert "same-plan" not in requests[2]["messages"][-1]["content"]
-    assert "先前工具调用 call_1 完全相同" in requests[2]["messages"][-1]["content"]
+    assert "不要再以相同参数读取" in requests[2]["messages"][-1]["content"]
     assert [call["result"] for call in result.action_calls] == [
         {"section": "sales", "items": ["same-plan"]},
         {"section": "sales", "items": ["same-plan"]},
@@ -2377,8 +2380,8 @@ async def test_repeated_read_after_write_continues_until_max_turns() -> None:
     assert result.activation_status == "incomplete"
     assert [call["action_name"] for call in result.action_calls] == sequence
     assert "'version': 1" in requests[3]["messages"][-1]["content"]
-    assert "先前工具调用 call_1 完全相同" not in requests[3]["messages"][-1]["content"]
-    assert "先前工具调用 call_3 完全相同" in result.conversation_messages[-1]["content"]
+    assert "当前事实没有变化" not in requests[3]["messages"][-1]["content"]
+    assert "当前事实没有变化" in result.conversation_messages[-1]["content"]
 
 
 @pytest.mark.asyncio
