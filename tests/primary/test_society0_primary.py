@@ -2248,17 +2248,30 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     requests = []
     events = []
 
-    async def query_plan(section: str):
-        return {"section": section, "items": ["same-plan"]}
+    industrial_model_result = {
+        "detail_level": "products",
+        "products": [
+            {
+                "id": f"product-{index}",
+                "name": f"稳定产品 {index}",
+                "description": "固定的工业模型详情。" + "x" * 120,
+            }
+            for index in range(12)
+        ],
+    }
+
+    async def query_industrial_model(detail_level: str):
+        assert detail_level == "products"
+        return industrial_model_result
 
     action_set.add_action(
-        name="query_plan",
-        func=query_plan,
-        description="Query one plan section.",
+        name="query_industrial_model",
+        func=query_industrial_model,
+        description="Query the industrial model.",
         parameters={
             "type": "object",
-            "properties": {"section": {"type": "string"}},
-            "required": ["section"],
+            "properties": {"detail_level": {"type": "string"}},
+            "required": ["detail_level"],
         },
         tags=["industry_query"],
     )
@@ -2273,8 +2286,8 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
                     "id": f"call_{len(requests)}",
                     "type": "function",
                     "function": {
-                        "name": "query_plan",
-                        "arguments": '{"section":"sales"}',
+                        "name": "query_industrial_model",
+                        "arguments": '{"detail_level":"products"}',
                     },
                 }
             ],
@@ -2295,6 +2308,7 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     assert result.termination_reason == "max_turns"
     assert result.activation_status == "incomplete"
     assert result.termination_action is None
+    assert len(str(industrial_model_result)) > 1_000
     assert [call["status"] for call in result.action_calls] == [
         "success",
         "success",
@@ -2302,17 +2316,19 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     ]
     second_turn_messages = requests[2]["messages"]
     assert "当前事实没有变化" in second_turn_messages[-2]["content"]
+    assert "第 2 次以完全相同参数调用 query_industrial_model" in second_turn_messages[-2]["content"]
     assert second_turn_messages[-1]["role"] == "user"
     assert "这条提醒不会结束当前任务" in second_turn_messages[-1]["content"]
     assert "仍然拥有全部工具" in second_turn_messages[-1]["content"]
-    assert "same-plan" not in second_turn_messages[-2]["content"]
+    assert "product-11" not in second_turn_messages[-2]["content"]
     assert "不要再以相同参数读取" in second_turn_messages[-2]["content"]
     assert result.conversation_messages[-1]["role"] == "tool"
     assert "当前事实没有变化" in result.conversation_messages[-1]["content"]
+    assert "第 3 次以完全相同参数调用 query_industrial_model" in result.conversation_messages[-1]["content"]
     assert [call["result"] for call in result.action_calls] == [
-        {"section": "sales", "items": ["same-plan"]},
-        {"section": "sales", "items": ["same-plan"]},
-        {"section": "sales", "items": ["same-plan"]},
+        industrial_model_result,
+        industrial_model_result,
+        industrial_model_result,
     ]
     assert not any(name == "agent_loop_no_progress" for name, _ in events)
 

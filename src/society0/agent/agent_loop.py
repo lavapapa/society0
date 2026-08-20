@@ -1878,7 +1878,8 @@ async def execute_action_loop(
                     and previous_read[0] == result_content
                 ):
                     base_content = (
-                        "该读取与本次激活内先前相同参数的结果完全一致，"
+                        f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
+                        f"调用 {action_call.action_name}；该读取与先前结果完全一致，"
                         "当前事实没有变化。完整结果已在上文保留；请直接复用，"
                         "不要再以相同参数读取。若已有事实足以判断，现在形成经营决定；"
                         "只有缺少会改变判断的具体事实时，才改用不同筛选继续查询。"
