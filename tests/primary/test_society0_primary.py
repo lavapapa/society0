@@ -7993,11 +7993,13 @@ async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp
     assert success_record["temperature"] == 0.2
     assert success_record["top_p"] == 0.9
     assert success_record["queue_duration_sec"] >= 0
+    assert success_record["queue_duration_semantics"] == "client_admission_wait_upper_bound"
     assert success_record["jitter_duration_sec"] >= 0.005
     assert success_record["queue_duration_sec"] < success_record["jitter_duration_sec"]
 
     summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_resource_calls()
     assert summary["llm"]["tools_count_total"] == 1
+    assert summary["llm"]["queue_duration_semantics"] == "client_admission_wait_upper_bound"
     assert summary["llm"]["tools_count_max"] == 1
     assert summary["llm"]["tools_count_avg"] == 1.0
     assert summary["llm"]["tools_characters"] == success_record["tools_characters"]
