@@ -206,6 +206,25 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
     return "success", None
 
 
+def _read_outcome_signature(result: Any, rendered: str) -> str:
+    """识别参数不同但同样没有返回记录的只读结果。"""
+
+    if isinstance(result, (dict, DictProxy)):
+        records = result.get("records")
+        returned_count = result.get("returned_count", result.get("count"))
+        if records == [] and returned_count == 0:
+            return json.dumps(
+                {
+                    "outcome": "empty_records",
+                    "scope": result.get("scope"),
+                    "type": result.get("type"),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+    return rendered
+
+
 def _is_tool_schema_error(error: BaseException | str) -> bool:
     """识别本地 Action 参数校验错误，避免把它升级为 step 失败。"""
 
@@ -992,7 +1011,8 @@ async def execute_action_loop(
     action_call_counts: Counter[str] = Counter()
     action_payload_counts: Counter[tuple[str, str]] = Counter()
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
-    decision_prompted_reads: set[tuple[str, str]] = set()
+    successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
+    decision_prompted_outcomes: set[tuple[str, str]] = set()
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1573,6 +1593,7 @@ async def execute_action_loop(
             break
 
         prompt_decision_after_tools = False
+        first_decision_prompt_this_turn = False
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
             logger.debug("Executing action: %s", action_call.action_name)
@@ -1835,6 +1856,10 @@ async def execute_action_loop(
                 _append_thread_event(event_type, event_payload)
 
                 result_content = str(action_result)
+                result_signature = _read_outcome_signature(
+                    action_result,
+                    result_content,
+                )
                 trace_tags = {
                     tag.lower() for tag in _action_trace_tags(action_call.action_name)
                 }
@@ -1843,6 +1868,9 @@ async def execute_action_loop(
                     or action_call.action_name.lower().startswith("query")
                 )
                 previous_read = successful_read_results.get(payload_key)
+                previous_outcome = successful_read_outcomes.get(
+                    (action_key, result_signature)
+                )
                 if (
                     action_call.status == "success"
                     and is_read_action
@@ -1855,9 +1883,32 @@ async def execute_action_loop(
                         "不要再以相同参数读取。若已有事实足以判断，现在形成经营决定；"
                         "只有缺少会改变判断的具体事实时，才改用不同筛选继续查询。"
                     )
-                    if payload_key not in decision_prompted_reads:
-                        decision_prompted_reads.add(payload_key)
-                        prompt_decision_after_tools = True
+                    prompt_decision_after_tools = True
+                    outcome_key = (action_key, result_signature)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
+                elif (
+                    action_call.status == "success"
+                    and is_read_action
+                    and previous_outcome is not None
+                ):
+                    base_content = (
+                        "这次虽然使用了不同筛选参数，但返回结果与本次激活内"
+                        "先前同一查询工具的结果完全一致，没有增加新事实。"
+                        "完整结果已在上文保留；请复用已有结果并回到当前"
+                        "经营问题，不要通过更换关键词继续探测同一空结果或"
+                        "不变结果。"
+                    )
+                    successful_read_results[payload_key] = (
+                        result_content,
+                        action_call.call_id,
+                    )
+                    prompt_decision_after_tools = True
+                    outcome_key = (action_key, result_signature)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
                 else:
                     base_content = result_content + _repeated_action_hint(
                         action_call.action_name,
@@ -1868,6 +1919,10 @@ async def execute_action_loop(
                         successful_read_results[payload_key] = (
                             result_content,
                             action_call.call_id,
+                        )
+                        successful_read_outcomes.setdefault(
+                            (action_key, result_signature),
+                            (payload_key[1], action_call.call_id),
                         )
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
@@ -1930,16 +1985,21 @@ async def execute_action_loop(
                 for ac in executed_action_calls
             ]
 
-        if prompt_decision_after_tools and not terminate_loop:
+        if (
+            prompt_decision_after_tools
+            and not terminate_loop
+            and (turn + 1 < max_turns or first_decision_prompt_this_turn)
+        ):
             _append_runtime_message(
                 {
                     "role": "user",
                     "content": (
-                        "调查进度提醒：你刚才以相同参数重新读取了已有事实，"
-                        "结果没有变化。这条提醒不会结束当前任务，你仍然拥有全部"
+                        "调查进度提醒：你刚才的读取没有增加新事实；可能是"
+                        "相同参数重复读取，也可能是更换筛选后仍得到完全一致的"
+                        "结果。这条提醒不会结束当前任务，你仍然拥有全部"
                         "工具。下一步请直接作出经营判断、执行必要的经营行动，"
                         "或改用能补足某个具体关键缺口的不同查询。不要再原样"
-                        "提交这个读取。"
+                        "提交这个读取，也不要只更换关键词继续探测同一结果。"
                     ),
                 }
             )
