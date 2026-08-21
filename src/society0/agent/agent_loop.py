@@ -857,6 +857,37 @@ async def execute_action_loop(
         raise ValueError(
             "empty_response_retry_temperature_max must be positive"
         )
+    raw_read_temperature_delta = raw_llm_request_options.pop(
+        "repeated_read_temperature_delta",
+        None,
+    )
+    if raw_read_temperature_delta is None:
+        repeated_read_temperature_delta = None
+    else:
+        try:
+            repeated_read_temperature_delta = float(raw_read_temperature_delta)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "repeated_read_temperature_delta must be numeric"
+            ) from exc
+        if repeated_read_temperature_delta <= 0:
+            raise ValueError(
+                "repeated_read_temperature_delta must be positive"
+            )
+    raw_read_temperature_cap = raw_llm_request_options.pop(
+        "repeated_read_temperature_max",
+        1.0,
+    )
+    try:
+        repeated_read_temperature_max = float(raw_read_temperature_cap)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "repeated_read_temperature_max must be numeric"
+        ) from exc
+    if repeated_read_temperature_max <= 0:
+        raise ValueError(
+            "repeated_read_temperature_max must be positive"
+        )
 
     safe_llm_request_options = {
         str(key): value
@@ -1020,6 +1051,7 @@ async def execute_action_loop(
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
+    repeated_read_temperature_attempt = 0
 
     def _is_system_action(action_name: str, action_info: Dict[str, Any]) -> bool:
         tags = {str(tag).lower() for tag in (action_info.get("tags", []) or [])}
@@ -1232,6 +1264,38 @@ async def execute_action_loop(
 
         # Call LLM with current message history and actions
         turn_request_options = dict(safe_llm_request_options)
+        if (
+            repeated_read_temperature_attempt > 0
+            and repeated_read_temperature_delta is not None
+        ):
+            previous_temperature = turn_request_options.get("temperature")
+            if previous_temperature is None:
+                previous_temperature = 0.0
+            try:
+                previous_temperature = float(previous_temperature)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("temperature must be numeric") from exc
+            next_temperature = round(
+                min(
+                    previous_temperature
+                    + repeated_read_temperature_delta
+                    * repeated_read_temperature_attempt,
+                    max(previous_temperature, repeated_read_temperature_max),
+                ),
+                12,
+            )
+            turn_request_options["temperature"] = next_temperature
+            _append_thread_event(
+                "provider_repeated_read_diversification",
+                {
+                    "attempt": repeated_read_temperature_attempt,
+                    "temperature_before": previous_temperature,
+                    "temperature_after": next_temperature,
+                    "retry_scope": "agent_activation",
+                    "reason": "repeated_unchanged_read_cycle",
+                },
+            )
+        repeated_read_temperature_attempt = 0
         if (
             empty_response_count > 0
             and empty_response_retry_temperature_delta is not None
@@ -2093,6 +2157,10 @@ async def execute_action_loop(
             and not terminate_loop
             and turn + 1 < max_turns
         ):
+            repeated_read_temperature_attempt = max(
+                read_cycle_occurrences.values(),
+                default=1,
+            )
             _append_runtime_message(
                 {
                     "role": "user",

@@ -1472,6 +1472,8 @@ class LLMAgent(Agent):
                     "empty_response_retry_max",
                     "empty_response_retry_temperature_delta",
                     "empty_response_retry_temperature_max",
+                    "repeated_read_temperature_delta",
+                    "repeated_read_temperature_max",
                 }
                 for key, value in safe_llm_request_options.items():
                     if key in agent_loop_control_options:

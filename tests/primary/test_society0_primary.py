@@ -2403,6 +2403,88 @@ async def test_repeated_identical_read_gets_concrete_one_step_cycle_prompt() -> 
 
 
 @pytest.mark.asyncio
+async def test_repeated_read_can_diversify_next_request_without_ending_thread() -> None:
+    action_set = ActionSet()
+    requests = []
+    events = []
+
+    async def query_records(record_type: str, record_id: str):
+        return {"type": record_type, "id": record_id, "status": "unchanged"}
+
+    action_set.add_action(
+        name="query_records",
+        func=query_records,
+        description="Read one record.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "record_type": {"type": "string"},
+                "record_id": {"type": "string"},
+            },
+            "required": ["record_type", "record_id"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if float(payload.get("temperature", 0)) > 0:
+            return {
+                "role": "assistant",
+                "content": "已有信息足以判断，本轮保持当前安排。",
+                "tool_calls": [],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_records",
+                        "arguments": (
+                            '{"record_type":"purchase_request",'
+                            '"record_id":"purchase-request:1"}'
+                        ),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the purchase request.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=64,
+        llm_request_options={
+            "temperature": 0.0,
+            "repeated_read_temperature_delta": 0.2,
+            "repeated_read_temperature_max": 0.6,
+        },
+        thread_event_recorder=lambda name, payload: events.append((name, payload)),
+    )
+
+    assert result.activation_status == "completed"
+    assert result.termination_reason == "no_action_calls"
+    assert len(result.action_calls) == 2
+    assert [request.get("temperature") for request in requests] == [0.0, 0.0, 0.2]
+    assert "repeated_read_temperature_delta" not in requests[-1]
+    assert (
+        "provider_repeated_read_diversification",
+        {
+            "attempt": 1,
+            "temperature_before": 0.0,
+            "temperature_after": 0.2,
+            "retry_scope": "agent_activation",
+            "reason": "repeated_unchanged_read_cycle",
+        },
+    ) in events
+
+
+@pytest.mark.asyncio
 async def test_repeated_multi_tool_read_cycle_gets_concrete_convergence_prompt() -> None:
     action_set = ActionSet()
     requests = []
