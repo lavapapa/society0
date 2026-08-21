@@ -2334,6 +2334,76 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
 
 
 @pytest.mark.asyncio
+async def test_repeated_multi_tool_read_cycle_gets_concrete_convergence_prompt() -> None:
+    action_set = ActionSet()
+    requests = []
+    sequence = ["query_plan", "query_market", "query_economics"] * 2
+
+    for action_name in {"query_plan", "query_market", "query_economics"}:
+        async def query(value: int, *, _name=action_name):
+            return {"source": _name, "value": value}
+
+        action_set.add_action(
+            name=action_name,
+            func=query,
+            description=f"Run {action_name}.",
+            parameters={
+                "type": "object",
+                "properties": {"value": {"type": "integer"}},
+                "required": ["value"],
+            },
+            tags=["industry_query"],
+        )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if any(
+            message.get("role") == "user"
+            and "查询闭环提醒" in str(message.get("content") or "")
+            for message in payload["messages"]
+        ):
+            return {
+                "role": "assistant",
+                "content": "已有信息足以完成本轮判断。",
+                "tool_calls": [],
+            }
+        action_name = sequence[len(requests) - 1]
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": action_name,
+                        "arguments": '{"value":1}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the current business facts.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=10,
+    )
+
+    assert len(requests) == 7
+    assert len(result.action_calls) == 6
+    assert result.termination_reason == "no_action_calls"
+    assert result.activation_status == "completed"
+    cycle_prompt = requests[-1]["messages"][-1]
+    assert cycle_prompt["role"] == "user"
+    assert "完整重复了同一组 3 步只读查询路径" in cycle_prompt["content"]
+    assert "不会结束当前任务" in cycle_prompt["content"]
+    assert "不会移除任何工具" in cycle_prompt["content"]
+
+
+@pytest.mark.asyncio
 async def test_repeated_identical_tool_error_prompts_model_to_change_course() -> None:
     action_set = ActionSet()
     requests = []

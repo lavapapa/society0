@@ -1014,6 +1014,9 @@ async def execute_action_loop(
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
     decision_prompted_outcomes: set[tuple[str, str]] = set()
+    successful_read_sequence: List[tuple[str, str]] = []
+    read_cycle_last_prompt_at: Dict[tuple[tuple[str, str], ...], int] = {}
+    read_cycle_occurrences: Counter[tuple[tuple[str, str], ...]] = Counter()
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1147,6 +1150,46 @@ async def execute_action_loop(
             "或用现有事实完成当前判断。这条提醒不会结束"
             "当前任务，你仍然拥有全部工具。"
         )
+
+    def _record_successful_read_cycle(
+        payload_key: tuple[str, str],
+    ) -> Optional[str]:
+        """识别跨工具的完整重复查询路径，只提醒收束而不结束 Thread。"""
+
+        successful_read_sequence.append(payload_key)
+        sequence_length = len(successful_read_sequence)
+        for cycle_length in range(2, min(12, sequence_length // 2) + 1):
+            previous = successful_read_sequence[-2 * cycle_length : -cycle_length]
+            current = successful_read_sequence[-cycle_length:]
+            if previous != current:
+                continue
+            rotations = [
+                tuple(current[index:] + current[:index])
+                for index in range(cycle_length)
+            ]
+            canonical_cycle = min(rotations)
+            last_prompt_at = read_cycle_last_prompt_at.get(canonical_cycle, 0)
+            if sequence_length - last_prompt_at < cycle_length:
+                continue
+            read_cycle_last_prompt_at[canonical_cycle] = sequence_length
+            read_cycle_occurrences[canonical_cycle] += 1
+            rendered_calls = []
+            for action_name, arguments_json in current:
+                compact_arguments = arguments_json
+                if len(compact_arguments) > 180:
+                    compact_arguments = compact_arguments[:177] + "..."
+                rendered_calls.append(f"{action_name}({compact_arguments})")
+            return (
+                "查询闭环提醒：你已经完整重复了同一组 "
+                f"{cycle_length} 步只读查询路径（第 "
+                f"{read_cycle_occurrences[canonical_cycle]} 次识别）："
+                + "；".join(rendered_calls)
+                + "。这些完整结果已在当前 Thread 中，再次按同一路径读取"
+                "不会完成新的调查。下一步请综合已有结果形成经营判断，"
+                "执行确有必要的经营行动，或明确说明为何保持或延后。"
+                "这条提醒不会结束当前任务，也不会移除任何工具。"
+            )
+        return None
 
     def _successful_action_aliases_and_tags() -> tuple[set[str], set[str]]:
         names: set[str] = set()
@@ -1619,6 +1662,7 @@ async def execute_action_loop(
         prompt_decision_after_tools = False
         first_decision_prompt_this_turn = False
         repeated_failure_prompt: Optional[str] = None
+        repeated_read_cycle_prompt: Optional[str] = None
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
             logger.debug("Executing action: %s", action_call.action_name)
@@ -1987,6 +2031,16 @@ async def execute_action_loop(
                 if action_call.status == "success":
                     action_call_counts[action_key] += 1
                     action_succeeded = True
+                    if is_read_action:
+                        current_cycle_prompt = _record_successful_read_cycle(
+                            payload_key
+                        )
+                        if current_cycle_prompt is not None:
+                            repeated_read_cycle_prompt = current_cycle_prompt
+                    else:
+                        successful_read_sequence.clear()
+                        read_cycle_last_prompt_at.clear()
+                        read_cycle_occurrences.clear()
 
                 logger.debug("Action result: %s", str(action_result)[:100])
 
@@ -2032,6 +2086,13 @@ async def execute_action_loop(
                 {
                     "role": "user",
                     "content": repeated_failure_prompt,
+                }
+            )
+        elif repeated_read_cycle_prompt is not None and not terminate_loop:
+            _append_runtime_message(
+                {
+                    "role": "user",
+                    "content": repeated_read_cycle_prompt,
                 }
             )
         elif (
