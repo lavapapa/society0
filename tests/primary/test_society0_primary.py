@@ -2334,6 +2334,75 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
 
 
 @pytest.mark.asyncio
+async def test_repeated_identical_read_gets_concrete_one_step_cycle_prompt() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_product_economics(product_id: str):
+        return {"product_id": product_id, "complete_period_coverage": True}
+
+    action_set.add_action(
+        name="query_product_economics",
+        func=query_product_economics,
+        description="Query complete product economics.",
+        parameters={
+            "type": "object",
+            "properties": {"product_id": {"type": "string"}},
+            "required": ["product_id"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if any(
+            message.get("role") == "user"
+            and "完整重复了同一组 1 步只读查询路径" in str(
+                message.get("content") or ""
+            )
+            for message in payload["messages"]
+        ):
+            return {
+                "role": "assistant",
+                "content": "已有完整区间结果，本轮维持现有经营安排。",
+                "tool_calls": [],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_product_economics",
+                        "arguments": '{"product_id":"li_power_lfp_module"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review product economics.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=64,
+    )
+
+    assert len(requests) == 3
+    assert len(result.action_calls) == 2
+    assert result.termination_reason == "no_action_calls"
+    assert result.activation_status == "completed"
+    prompt = requests[-1]["messages"][-1]
+    assert prompt["role"] == "user"
+    assert "query_product_economics" in prompt["content"]
+    assert "完整重复了同一组 1 步只读查询路径" in prompt["content"]
+    assert "仍然拥有全部工具" in prompt["content"]
+
+
+@pytest.mark.asyncio
 async def test_repeated_multi_tool_read_cycle_gets_concrete_convergence_prompt() -> None:
     action_set = ActionSet()
     requests = []

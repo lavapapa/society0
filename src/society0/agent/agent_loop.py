@@ -1158,7 +1158,7 @@ async def execute_action_loop(
 
         successful_read_sequence.append(payload_key)
         sequence_length = len(successful_read_sequence)
-        for cycle_length in range(2, min(12, sequence_length // 2) + 1):
+        for cycle_length in range(1, min(12, sequence_length // 2) + 1):
             previous = successful_read_sequence[-2 * cycle_length : -cycle_length]
             current = successful_read_sequence[-cycle_length:]
             if previous != current:
@@ -1187,7 +1187,7 @@ async def execute_action_loop(
                 + "。这些完整结果已在当前 Thread 中，再次按同一路径读取"
                 "不会完成新的调查。下一步请综合已有结果形成经营判断，"
                 "执行确有必要的经营行动，或明确说明为何保持或延后。"
-                "这条提醒不会结束当前任务，也不会移除任何工具。"
+                "这条提醒不会结束当前任务；你仍然拥有全部工具，且不会移除任何工具。"
             )
         return None
 
@@ -2088,7 +2088,11 @@ async def execute_action_loop(
                     "content": repeated_failure_prompt,
                 }
             )
-        elif repeated_read_cycle_prompt is not None and not terminate_loop:
+        elif (
+            repeated_read_cycle_prompt is not None
+            and not terminate_loop
+            and turn + 1 < max_turns
+        ):
             _append_runtime_message(
                 {
                     "role": "user",
