@@ -2334,6 +2334,68 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
 
 
 @pytest.mark.asyncio
+async def test_repeated_identical_tool_error_prompts_model_to_change_course() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_record(record_id: str):
+        raise KeyError(f"unknown record: {record_id}")
+
+    action_set.add_action(
+        name="query_record",
+        func=query_record,
+        description="Query one record.",
+        parameters={
+            "type": "object",
+            "properties": {"record_id": {"type": "string"}},
+            "required": ["record_id"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if len(requests) == 3:
+            return {
+                "role": "assistant",
+                "content": "The record is unavailable; the current judgment is complete.",
+                "tool_calls": [],
+            }
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_record",
+                        "arguments": '{"record_id":"missing"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect the record only if it is available.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=4,
+    )
+
+    assert result.status == "success"
+    assert result.termination_reason == "no_action_calls"
+    assert [call["status"] for call in result.action_calls] == ["error", "error"]
+    third_request_messages = requests[2]["messages"]
+    assert "第 2 次以完全相同的参数提交这个失败调用" in third_request_messages[-2]["content"]
+    assert third_request_messages[-1]["role"] == "user"
+    assert "不要再次原样提交" in third_request_messages[-1]["content"]
+    assert "这条提醒不会结束当前任务" in third_request_messages[-1]["content"]
+
+
+@pytest.mark.asyncio
 async def test_different_read_filters_with_same_result_prompt_decision_each_time() -> None:
     action_set = ActionSet()
     requests = []

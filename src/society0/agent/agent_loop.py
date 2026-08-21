@@ -1010,6 +1010,7 @@ async def execute_action_loop(
     action_attempt_counts: Counter[str] = Counter()
     action_call_counts: Counter[str] = Counter()
     action_payload_counts: Counter[tuple[str, str]] = Counter()
+    failed_action_results: Dict[tuple[str, str], str] = {}
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
     decision_prompted_outcomes: set[tuple[str, str]] = set()
@@ -1122,6 +1123,29 @@ async def execute_action_loop(
             f"\n\n重复读取提示：这是本次激活中第 {occurrence} 次以完全相同的"
             "参数读取该信息。若结果未变，继续原样查询不会增加新信息；"
             "请复用已有结果，改用能回答剩余问题的不同筛选，或据此作出经营判断。"
+        )
+
+    def _record_failed_outcome(
+        action_name: str,
+        *,
+        payload_key: tuple[str, str],
+        occurrence: int,
+        error: str,
+    ) -> Optional[str]:
+        """记录同参数失败；只对错误本身也未变的重复调用提醒收束。"""
+
+        previous_error = failed_action_results.get(payload_key)
+        failed_action_results[payload_key] = error
+        if occurrence <= 1 or previous_error != error:
+            return None
+        return (
+            f"错误收束提醒：这是本次激活中第 {occurrence} 次"
+            f"以完全相同参数调用 {action_name}，"
+            "并且得到与上次完全相同的错误。这个调用已经"
+            "不会提供新信息；不要再次原样提交。请根据错误"
+            "改用合法参数、选择能补足关键事实的其他工具，"
+            "或用现有事实完成当前判断。这条提醒不会结束"
+            "当前任务，你仍然拥有全部工具。"
         )
 
     def _successful_action_aliases_and_tags() -> tuple[set[str], set[str]]:
@@ -1594,6 +1618,7 @@ async def execute_action_loop(
 
         prompt_decision_after_tools = False
         first_decision_prompt_this_turn = False
+        repeated_failure_prompt: Optional[str] = None
         for idx, action_call in enumerate(action_calls):
             # Action执行监控 - 增强版
             logger.debug("Executing action: %s", action_call.action_name)
@@ -1694,6 +1719,14 @@ async def execute_action_loop(
             if action_call.error is not None and action_call.status == "error":
                 action_attempt_counts[action_key] += 1
                 error_msg = action_call.error
+                current_failure_prompt = _record_failed_outcome(
+                    action_call.action_name,
+                    payload_key=payload_key,
+                    occurrence=payload_occurrence,
+                    error=error_msg,
+                )
+                if current_failure_prompt is not None:
+                    repeated_failure_prompt = current_failure_prompt
                 _append_thread_event(
                     "tool_execution_failed",
                     {
@@ -1789,6 +1822,14 @@ async def execute_action_loop(
                         f"Error executing action {action_call.action_name}: "
                         f"{action_exception}"
                     )
+                current_failure_prompt = _record_failed_outcome(
+                    action_call.action_name,
+                    payload_key=payload_key,
+                    occurrence=payload_occurrence,
+                    error=error_msg,
+                )
+                if current_failure_prompt is not None:
+                    repeated_failure_prompt = current_failure_prompt
                 _append_thread_event(
                     "tool_execution_failed",
                     {
@@ -1986,7 +2027,14 @@ async def execute_action_loop(
                 for ac in executed_action_calls
             ]
 
-        if (
+        if repeated_failure_prompt is not None and not terminate_loop:
+            _append_runtime_message(
+                {
+                    "role": "user",
+                    "content": repeated_failure_prompt,
+                }
+            )
+        elif (
             prompt_decision_after_tools
             and not terminate_loop
             and (turn + 1 < max_turns or first_decision_prompt_this_turn)
