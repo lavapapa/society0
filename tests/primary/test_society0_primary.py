@@ -6015,6 +6015,8 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
             "max_tokens": 64,
             "temperature": 0.0,
             "top_p": 0.8,
+            "repeated_read_temperature_delta": 0.2,
+            "repeated_read_temperature_max": 0.6,
             "metadata": {"must_not": "pass"},
         },
     )
@@ -6024,6 +6026,8 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert calls[0]["max_tokens"] == 64
     assert calls[0]["temperature"] == 0.0
     assert calls[0]["top_p"] == 0.8
+    assert "repeated_read_temperature_delta" not in calls[0]
+    assert "repeated_read_temperature_max" not in calls[0]
     assert calls[0]["metadata"]["agent_id"] == "alice"
     assert calls[0]["metadata"].get("must_not") is None
     assert calls[0]["tools"][0]["function"]["strict"] is True
