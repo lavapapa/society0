@@ -207,7 +207,11 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
 
 
 def _read_outcome_signature(result: Any, rendered: str) -> str:
-    """识别参数不同但同样没有返回记录的只读结果。"""
+    """识别参数不同但决策结论未变的只读结果。"""
+
+    explicit_signature = getattr(result, "read_outcome_signature", None)
+    if explicit_signature is not None:
+        return str(explicit_signature)
 
     if isinstance(result, (dict, DictProxy)):
         records = result.get("records")
@@ -857,6 +861,41 @@ async def execute_action_loop(
         raise ValueError(
             "empty_response_retry_temperature_max must be positive"
         )
+    raw_repeated_read_temperature_delta = raw_llm_request_options.pop(
+        "repeated_read_temperature_delta",
+        None,
+    )
+    if raw_repeated_read_temperature_delta is None:
+        repeated_read_temperature_delta = None
+    else:
+        try:
+            repeated_read_temperature_delta = float(
+                raw_repeated_read_temperature_delta
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "repeated_read_temperature_delta must be numeric"
+            ) from exc
+        if repeated_read_temperature_delta <= 0:
+            raise ValueError(
+                "repeated_read_temperature_delta must be positive"
+            )
+    raw_repeated_read_temperature_cap = raw_llm_request_options.pop(
+        "repeated_read_temperature_max",
+        1.0,
+    )
+    try:
+        repeated_read_temperature_max = float(
+            raw_repeated_read_temperature_cap
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "repeated_read_temperature_max must be numeric"
+        ) from exc
+    if repeated_read_temperature_max <= 0:
+        raise ValueError(
+            "repeated_read_temperature_max must be positive"
+        )
 
     safe_llm_request_options = {
         str(key): value
@@ -1013,6 +1052,7 @@ async def execute_action_loop(
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
     decision_prompted_outcomes: set[tuple[str, str]] = set()
+    repeated_read_streak = 0
     oversized_batch_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
@@ -1193,6 +1233,32 @@ async def execute_action_loop(
                     "temperature_after": next_temperature,
                     "retry_scope": "agent_activation",
                     "reason": "empty_model_response",
+                },
+            )
+        if repeated_read_streak > 0 and repeated_read_temperature_delta is not None:
+            previous_temperature = turn_request_options.get("temperature")
+            if previous_temperature is None:
+                previous_temperature = 0.0
+            try:
+                previous_temperature = float(previous_temperature)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("temperature must be numeric") from exc
+            next_temperature = round(
+                min(
+                    previous_temperature
+                    + repeated_read_streak * repeated_read_temperature_delta,
+                    repeated_read_temperature_max,
+                ),
+                12,
+            )
+            turn_request_options["temperature"] = next_temperature
+            _append_thread_event(
+                "provider_repeated_read_diversification",
+                {
+                    "streak": repeated_read_streak,
+                    "temperature_before": previous_temperature,
+                    "temperature_after": next_temperature,
+                    "reason": "unchanged_read_result",
                 },
             )
         llm_payload = {
@@ -2004,6 +2070,11 @@ async def execute_action_loop(
                     ),
                 }
             )
+
+        if prompt_decision_after_tools:
+            repeated_read_streak += 1
+        else:
+            repeated_read_streak = 0
 
         if terminate_loop:
             break

@@ -2300,6 +2300,11 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
         stages=["act"],
         llm_call=fake_llm_call,
         max_turns=3,
+        llm_request_options={
+            "temperature": 0.0,
+            "repeated_read_temperature_delta": 0.2,
+            "repeated_read_temperature_max": 0.6,
+        },
         thread_event_recorder=lambda name, payload: events.append((name, payload)),
     )
 
@@ -2331,6 +2336,14 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
         industrial_model_result,
     ]
     assert not any(name == "agent_loop_no_progress" for name, _ in events)
+    assert [request["temperature"] for request in requests] == [0.0, 0.0, 0.2]
+    assert all("repeated_read_temperature_delta" not in request for request in requests)
+    assert all("repeated_read_temperature_max" not in request for request in requests)
+    assert any(
+        name == "provider_repeated_read_diversification"
+        and payload["temperature_after"] == 0.2
+        for name, payload in events
+    )
 
 
 @pytest.mark.asyncio
@@ -2400,6 +2413,62 @@ async def test_different_read_filters_with_same_result_prompt_decision_each_time
     assert requests[2]["messages"][-1]["role"] == "user"
     assert "更换筛选后仍得到完全一致" in requests[2]["messages"][-1]["content"]
     assert result.termination_action is None
+
+
+@pytest.mark.asyncio
+async def test_explicit_read_outcome_signature_detects_equivalent_results() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    class ForecastResult(dict):
+        read_outcome_signature = "cash-safe-with-no-flows"
+
+    async def query_forecast(end_date: str):
+        return ForecastResult(end_date=end_date, minimum_cash=100, shortfall=None)
+
+    action_set.add_action(
+        name="query_forecast",
+        func=query_forecast,
+        description="Query a forecast.",
+        parameters={
+            "type": "object",
+            "properties": {"end_date": {"type": "string"}},
+            "required": ["end_date"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        end_date = ("2027-04-30", "2027-05-31", "2027-06-30")[
+            len(requests) - 1
+        ]
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_forecast",
+                        "arguments": json.dumps({"end_date": end_date}),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect liquidity.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    assert result.activation_status == "incomplete"
+    assert "不同筛选参数" in requests[2]["messages"][-2]["content"]
 
 
 @pytest.mark.asyncio
