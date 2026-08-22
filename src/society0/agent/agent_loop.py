@@ -1051,6 +1051,7 @@ async def execute_action_loop(
     action_payload_counts: Counter[tuple[str, str]] = Counter()
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
+    failed_read_results: Dict[tuple[str, str], str] = {}
     decision_prompted_outcomes: set[tuple[str, str]] = set()
     repeated_read_streak = 0
     oversized_batch_rejections = 0
@@ -1678,6 +1679,13 @@ async def execute_action_loop(
             )
             action_payload_counts[payload_key] += 1
             payload_occurrence = action_payload_counts[payload_key]
+            trace_tags = {
+                tag.lower() for tag in _action_trace_tags(action_call.action_name)
+            }
+            is_read_action = (
+                "industry_query" in trace_tags
+                or action_call.action_name.lower().startswith("query")
+            )
             action_succeeded = False
             if action_call.call_id in duplicate_call_ids:
                 duplicate_message = (
@@ -1773,11 +1781,29 @@ async def execute_action_loop(
                         "duration_sec": 0.0,
                     },
                 )
-                display_error = error_msg + _repeated_action_hint(
-                    action_call.action_name,
-                    occurrence=payload_occurrence,
-                    failed=True,
-                )
+                if (
+                    is_read_action
+                    and failed_read_results.get(payload_key) == error_msg
+                ):
+                    display_error = (
+                        f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
+                        f"调用 {action_call.action_name}，并得到完全相同的错误。"
+                        "上一次错误和修正信息已在上文保留；请按错误提示修正参数，"
+                        "改用不同查询，或基于已有事实形成经营判断。不要原样重试。"
+                    )
+                    prompt_decision_after_tools = True
+                    outcome_key = (f"failed:{action_key}", error_msg)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
+                else:
+                    display_error = error_msg + _repeated_action_hint(
+                        action_call.action_name,
+                        occurrence=payload_occurrence,
+                        failed=True,
+                    )
+                if is_read_action:
+                    failed_read_results[payload_key] = error_msg
                 tool_message = {
                     "role": "tool",
                     "content": display_error,
@@ -1875,11 +1901,29 @@ async def execute_action_loop(
                     },
                 )
                 logger.debug("Action error: %s", error_msg)
-                base_content = f"Error: {error_msg}" + _repeated_action_hint(
-                    action_call.action_name,
-                    occurrence=payload_occurrence,
-                    failed=True,
-                )
+                if (
+                    is_read_action
+                    and failed_read_results.get(payload_key) == error_msg
+                ):
+                    base_content = (
+                        f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
+                        f"调用 {action_call.action_name}，并得到完全相同的错误。"
+                        "上一次错误和修正信息已在上文保留；请按错误提示修正参数，"
+                        "改用不同查询，或基于已有事实形成经营判断。不要原样重试。"
+                    )
+                    prompt_decision_after_tools = True
+                    outcome_key = (f"failed:{action_key}", error_msg)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
+                else:
+                    base_content = f"Error: {error_msg}" + _repeated_action_hint(
+                        action_call.action_name,
+                        occurrence=payload_occurrence,
+                        failed=True,
+                    )
+                if is_read_action:
+                    failed_read_results[payload_key] = error_msg
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
                     display_content = (
@@ -1926,18 +1970,28 @@ async def execute_action_loop(
                     action_result,
                     result_content,
                 )
-                trace_tags = {
-                    tag.lower() for tag in _action_trace_tags(action_call.action_name)
-                }
-                is_read_action = (
-                    "industry_query" in trace_tags
-                    or action_call.action_name.lower().startswith("query")
-                )
                 previous_read = successful_read_results.get(payload_key)
                 previous_outcome = successful_read_outcomes.get(
                     (action_key, result_signature)
                 )
+                previous_failed_read = failed_read_results.get(payload_key)
                 if (
+                    action_call.status != "success"
+                    and is_read_action
+                    and previous_failed_read == result_content
+                ):
+                    base_content = (
+                        f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
+                        f"调用 {action_call.action_name}，并得到完全相同的错误。"
+                        "上一次错误和修正信息已在上文保留；请按错误提示修正参数，"
+                        "改用不同查询，或基于已有事实形成经营判断。不要原样重试。"
+                    )
+                    prompt_decision_after_tools = True
+                    outcome_key = (f"failed:{action_key}", result_signature)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
+                elif (
                     action_call.status == "success"
                     and is_read_action
                     and previous_read is not None
@@ -1991,6 +2045,8 @@ async def execute_action_loop(
                             (action_key, result_signature),
                             (payload_key[1], action_call.call_id),
                         )
+                if action_call.status != "success" and is_read_action:
+                    failed_read_results[payload_key] = result_content
                 display_content = base_content
                 if should_hint and is_last_action_in_turn:
                     display_content = (
