@@ -2347,6 +2347,77 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
 
 
 @pytest.mark.asyncio
+async def test_repeated_failed_read_diversifies_without_ending_thread() -> None:
+    action_set = ActionSet()
+    requests = []
+    events = []
+
+    async def query_trade(record_id: str):
+        raise KeyError(
+            f"未知 Trade：{record_id}；最接近的本主体可见编号是 trade:canonical"
+        )
+
+    action_set.add_action(
+        name="query_trade",
+        func=query_trade,
+        description="Query one trade.",
+        parameters={
+            "type": "object",
+            "properties": {"record_id": {"type": "string"}},
+            "required": ["record_id"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_trade",
+                        "arguments": '{"record_id":"trade:wrong"}',
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Inspect the referenced trade.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        llm_request_options={
+            "temperature": 0.0,
+            "repeated_read_temperature_delta": 0.2,
+            "repeated_read_temperature_max": 0.6,
+        },
+        thread_event_recorder=lambda name, payload: events.append((name, payload)),
+    )
+
+    assert result.activation_status == "incomplete"
+    assert result.termination_reason == "max_turns"
+    assert result.termination_action is None
+    assert [call["status"] for call in result.action_calls] == [
+        "error",
+        "error",
+        "error",
+    ]
+    assert "完全相同的错误" in requests[2]["messages"][-2]["content"]
+    assert "不要原样重试" in requests[2]["messages"][-2]["content"]
+    assert requests[2]["messages"][-1]["role"] == "user"
+    assert "这条提醒不会结束当前任务" in requests[2]["messages"][-1]["content"]
+    assert [request["temperature"] for request in requests] == [0.0, 0.0, 0.2]
+    assert not any(name == "agent_loop_no_progress" for name, _ in events)
+
+
+@pytest.mark.asyncio
 async def test_different_read_filters_with_same_result_prompt_decision_each_time() -> None:
     action_set = ActionSet()
     requests = []
