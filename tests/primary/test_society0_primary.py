@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import pytest
+from jsonschema import ValidationError
 from pydantic import BaseModel
 
 from society0 import EmbedModel, LLMModel, Society0
@@ -176,6 +177,192 @@ def test_action_set_default_schema_does_not_emit_or_store_strict_metadata():
 
     assert "strict" not in action_set.actions["legacy_action"]
     assert "strict" not in action_set.get_openai_actions_schema()[0]["function"]
+
+
+@pytest.mark.asyncio
+async def test_strict_action_normalizes_nullable_provider_sentinels_by_schema():
+    captured = []
+    action_set = ActionSet()
+    action_set.add_action(
+        name="capture",
+        func=lambda **kwargs: captured.append(kwargs) or kwargs,
+        description="Capture one structured payload.",
+        parameters={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "note": {"type": ["string", "null"], "minLength": 1},
+                "nested": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "reason": {
+                            "type": ["string", "null"],
+                            "minLength": 1,
+                        },
+                    },
+                    "required": ["reason"],
+                },
+                "labels": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"type": ["string", "null"], "minLength": 1},
+                },
+                "plain": {"type": "string", "minLength": 1},
+                "free_text": {"type": ["string", "null"], "minLength": 0},
+                "count": {"type": "integer"},
+                "enabled": {"type": "boolean"},
+            },
+            "required": [
+                "note",
+                "nested",
+                "labels",
+                "plain",
+                "free_text",
+                "count",
+                "enabled",
+            ],
+        },
+        strict=True,
+    )
+
+    result = await action_set.call_action(
+        "capture",
+        note=" null ",
+        nested={"reason": "None"},
+        labels=["null", "None"],
+        plain="null",
+        free_text="",
+        count=3,
+        enabled=True,
+    )
+
+    assert result == {
+        "note": None,
+        "nested": {"reason": None},
+        "labels": ["null", "None"],
+        "plain": "null",
+        "free_text": "",
+        "count": 3,
+        "enabled": True,
+    }
+    assert captured == [result]
+
+
+@pytest.mark.asyncio
+async def test_strict_action_preserves_literal_enum_and_normalizes_object_in_array():
+    captured = []
+    action_set = ActionSet()
+    action_set.add_action(
+        name="capture",
+        func=lambda **kwargs: captured.append(kwargs) or kwargs,
+        description="Capture one structured payload.",
+        parameters={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "literal": {
+                    "type": ["string", "null"],
+                    "enum": ["null", None],
+                },
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "optional": {
+                                "type": ["string", "null"],
+                                "minLength": 1,
+                            }
+                        },
+                        "required": ["optional"],
+                    },
+                },
+            },
+            "required": ["literal", "items"],
+        },
+        strict=True,
+    )
+
+    result = await action_set.call_action(
+        "capture",
+        literal="null",
+        items=[{"optional": " None "}],
+    )
+
+    assert result == {"literal": "null", "items": [{"optional": None}]}
+    assert captured == [result]
+
+
+@pytest.mark.asyncio
+async def test_invalid_sibling_does_not_rollback_successful_action():
+    executed = []
+    calls = []
+    action_set = ActionSet()
+
+    async def record(note: str | None):
+        executed.append(note)
+        return {"ok": True, "note": note}
+
+    action_set.add_action(
+        name="record",
+        func=record,
+        description="Record one optional note.",
+        parameters={
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {"note": {"type": ["string", "null"], "minLength": 1}},
+            "required": ["note"],
+        },
+        strict=True,
+    )
+
+    with pytest.raises(ValidationError):
+        await action_set.call_action("record", note=1)
+    assert executed == []
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "valid",
+                        "type": "function",
+                        "function": {
+                            "name": "record",
+                            "arguments": '{"note":"None"}',
+                        },
+                    },
+                    {
+                        "id": "invalid",
+                        "type": "function",
+                        "function": {
+                            "name": "record",
+                            "arguments": '{"note":1}',
+                        },
+                    },
+                ],
+            }
+        return {"role": "assistant", "content": "done", "tool_calls": []}
+
+    result = await execute_action_loop(
+        instruction="Record one note.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "act", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+    )
+
+    assert executed == [None]
+    assert len(calls) == 2
+    assert [call["status"] for call in result.action_calls] == ["success", "error"]
+    assert result.action_calls[0]["arguments"] == {"note": None}
+    assert result.action_calls[1]["arguments"] == {"note": 1}
 
 
 def test_experiment_environment_action_registry_preserves_strict_metadata():
@@ -3582,6 +3769,16 @@ async def test_completion_action_tag_ignores_semantic_action_failure():
     assert len(llm_calls) == 2
     assert [call["status"] for call in result.action_calls] == ["error", "success"]
     assert result.action_calls[0]["error"] == "Post missing_post not found"
+
+
+def test_semantic_action_status_treats_rejected_result_as_failure():
+    assert _semantic_action_status(
+        {
+            "accepted": False,
+            "reason": "conversation_limit_reached",
+            "message": "请在下一经营期间继续协商",
+        }
+    ) == ("error", "请在下一经营期间继续协商")
 
 
 @pytest.mark.asyncio

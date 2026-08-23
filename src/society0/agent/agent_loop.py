@@ -162,6 +162,13 @@ def _semantic_action_status(result: Any) -> tuple[str, Optional[str]]:
     the round after a failed write such as "Post post_x not found".
     """
     if isinstance(result, (dict, DictProxy)):
+        if result.get("accepted") is False:
+            return "error", str(
+                result.get("error")
+                or result.get("message")
+                or result.get("reason")
+                or "action rejected"
+            )
         explicit_ok = result.get("ok")
         if explicit_ok is False:
             return "error", str(result.get("error") or result.get("message") or "action failed")
@@ -254,6 +261,94 @@ def _is_tool_schema_error(error: BaseException | str) -> bool:
         "validationerror",
         "jsonschemaexception",
     }
+
+
+_STRICT_NULL_STRING_SENTINELS = {"null", "none"}
+
+
+def _schema_types(schema: Any) -> set[str]:
+    if not isinstance(schema, dict):
+        return set()
+    schema_type = schema.get("type")
+    if isinstance(schema_type, str):
+        return {schema_type}
+    if isinstance(schema_type, list):
+        return {value for value in schema_type if isinstance(value, str)}
+    return set()
+
+
+def _schema_allows_null(schema: Any) -> bool:
+    """Only honor the explicit nullable forms used by strict Action schemas."""
+
+    if not isinstance(schema, dict):
+        return False
+    enum = schema.get("enum")
+    return "null" in _schema_types(schema) or (
+        isinstance(enum, list) and None in enum
+    )
+
+
+def _schema_accepts_string(schema: Any, value: str) -> bool:
+    if not isinstance(schema, dict) or "string" not in _schema_types(schema):
+        return False
+    enum = schema.get("enum")
+    if isinstance(enum, list) and value not in enum:
+        return False
+    min_length = schema.get("minLength", 0)
+    return not isinstance(min_length, bool) and len(value) >= int(min_length)
+
+
+def _normalize_strict_action_value(
+    value: Any,
+    schema: Any,
+) -> Any:
+    """Normalize provider string nulls using the action's strict schema only."""
+
+    if not isinstance(schema, dict):
+        return value
+
+    if isinstance(value, dict):
+        properties = schema.get("properties", {})
+        if not isinstance(properties, dict):
+            return value
+        return {
+            key: _normalize_strict_action_value(
+                item,
+                properties.get(key),
+            )
+            if key in properties
+            else item
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        item_schema = schema.get("items")
+        return [
+            _normalize_strict_action_value(item, item_schema)
+            if isinstance(item, (dict, list))
+            else item
+            for item in value
+        ]
+    if isinstance(value, str) and _schema_allows_null(schema):
+        stripped = value.strip()
+        enum = schema.get("enum")
+        if (
+            stripped.casefold() in _STRICT_NULL_STRING_SENTINELS
+            and not (isinstance(enum, list) and value in enum)
+        ):
+            return None
+        if (
+            not stripped
+            and not _schema_accepts_string(schema, value)
+        ):
+            return None
+    return value
+
+
+def _normalize_strict_action_arguments(
+    arguments: Dict[str, Any],
+    schema: Dict[str, Any],
+) -> Dict[str, Any]:
+    return _normalize_strict_action_value(arguments, schema)
 
 
 _PROVIDER_TRANSPORT_MESSAGE_MARKERS = (
@@ -393,6 +488,10 @@ class ActionSet:
         action_info = self.actions[action_name]
         argument_validator = action_info.get("argument_validator")
         if argument_validator is not None:
+            kwargs = _normalize_strict_action_arguments(
+                kwargs,
+                action_info["parameters"],
+            )
             argument_validator.validate(kwargs)
 
         call_id_token = _CURRENT_ACTION_CALL_ID.set(_society0_call_id)
@@ -1498,6 +1597,12 @@ async def execute_action_loop(
                 if not isinstance(parsed_arguments, dict):
                     raise TypeError("tool arguments must be a JSON object")
                 action_call.arguments = parsed_arguments
+                action_info = action_set.actions.get(action_call.action_name)
+                if action_info and action_info.get("argument_validator") is not None:
+                    action_call.arguments = _normalize_strict_action_arguments(
+                        action_call.arguments,
+                        action_info["parameters"],
+                    )
             except Exception as exc:
                 action_call.status = "error"
                 action_call.error = (
