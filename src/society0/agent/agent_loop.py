@@ -1017,6 +1017,12 @@ async def execute_action_loop(
     else:
         stages_text = format_stages_for_prompt(normalized_stages)
         flow_section = f"[输出流程]\n{act_prompt.format(stages=stages_text)}"
+    if safe_llm_request_options.get("parallel_tool_calls") is False:
+        flow_section += (
+            "\n\n[工具调用协议]\n"
+            "每个 assistant 响应最多提交一个 tool call；"
+            "收到该工具结果后再决定下一步。"
+        )
     system_message = f"{system_prompt}\n\n{flow_section}"
     if prior_messages:
         messages = copy.deepcopy(prior_messages)
@@ -1155,6 +1161,7 @@ async def execute_action_loop(
     decision_prompted_outcomes: set[tuple[str, str]] = set()
     repeated_read_streak = 0
     oversized_batch_rejections = 0
+    parallel_tool_call_contract_rejections = 0
     empty_response_count = 0
     schema_error_count = 0
 
@@ -1298,6 +1305,31 @@ async def execute_action_loop(
             "nor a tool call. Respond with a concrete decision in text, call an "
             "available tool, or explicitly state that no change is needed."
         )
+
+    def _parallel_tool_call_batch_error(raw_action_calls: Any) -> Optional[str]:
+        """Validate the assistant envelope before constructing tool receipts."""
+
+        if not isinstance(raw_action_calls, list):
+            return "tool_calls must be a list"
+
+        seen_call_ids: set[str] = set()
+        for index, raw_action_call in enumerate(raw_action_calls):
+            if not isinstance(raw_action_call, dict):
+                return f"tool call at index {index} must be an object"
+            call_id = raw_action_call.get("id")
+            if not isinstance(call_id, str) or not call_id.strip():
+                return f"tool call at index {index} must have a non-empty string id"
+            normalized_call_id = call_id.strip()
+            if normalized_call_id in seen_call_ids:
+                return f"duplicate tool call id: {call_id}"
+            function = raw_action_call.get("function")
+            if not isinstance(function, dict):
+                return f"tool call at index {index} must have a function object"
+            function_name = function.get("name")
+            if not isinstance(function_name, str) or not function_name.strip():
+                return f"tool call at index {index} must have a non-empty function name"
+            seen_call_ids.add(normalized_call_id)
+        return None
 
 
     for turn in range(max_turns):
@@ -1459,31 +1491,132 @@ async def execute_action_loop(
         response_message = _conversation_response(response)
         if finish_reason == "length":
             raw_tool_calls = response_message.get("tool_calls")
-            if not isinstance(raw_tool_calls, list) or not raw_tool_calls:
-                # 已被 provider 截断的文字不代表主体完成了经营判断。
-                # 继续把它计作 no_action_calls 会确认 Inbox，并把半截叙述
-                # 写入长期记忆。
-                _append_runtime_message(response_message)
-                loop_result.termination_reason = "output_token_limit"
-                loop_result.error = "model output reached the configured token limit"
-                loop_result.failure_class = "provider_output_truncated"
-                loop_result.retry_scope = "agent_activation"
-                break
-            # OpenAI 兼容端点可能在内部输出用尽时仍返回完整的
-            # 结构化工具调用。工具调用仍按下方的 schema 与 action
-            # 边界验证；截断正文和推理内容不进入对话或长期记忆。
+            # 输出截断优先于工具调用：即使 provider 同时返回一个完整的
+            # tool call，也不能把未完成的响应当作可执行行动。
             response_message = dict(response_message)
             response_message["content"] = ""
             response_message.pop("reasoning_content", None)
-            _append_thread_event(
-                "provider_output_truncated_with_tool_calls",
-                {"tool_call_count": len(raw_tool_calls)},
-            )
+            _append_runtime_message(response_message)
+            if isinstance(raw_tool_calls, list) and raw_tool_calls:
+                _append_thread_event(
+                    "provider_output_truncated_with_tool_calls",
+                    {"tool_call_count": len(raw_tool_calls)},
+                )
+            loop_result.termination_reason = "output_token_limit"
+            loop_result.error = "model output reached the configured token limit"
+            loop_result.failure_class = "provider_output_truncated"
+            loop_result.retry_scope = "agent_activation"
+            break
+
+        response = response_message
+        action_calls = response.get("tool_calls", [])
+        is_parallel_disabled = (
+            safe_llm_request_options.get("parallel_tool_calls") is False
+        )
+        is_multi_action_batch = (
+            isinstance(action_calls, list) and len(action_calls) > 1
+        )
+        if (
+            is_parallel_disabled
+            and action_calls
+        ):
+            parallel_batch_error = _parallel_tool_call_batch_error(action_calls)
+            if parallel_batch_error is not None:
+                parallel_tool_call_contract_rejections += 1
+                # 结构不合法时不把 assistant/tool 消息放入对话，避免留下
+                # provider 无法继续消费的工具历史；本次激活直接未完成。
+                full_history[-1]["batch_termination_reason"] = (
+                    "parallel_tool_call_contract_violation"
+                )
+                full_history[-1]["rejected_tool_call_count"] = (
+                    len(action_calls) if isinstance(action_calls, list) else 0
+                )
+                full_history[-1]["contract_error"] = parallel_batch_error
+                _append_thread_event(
+                    "parallel_tool_call_contract_rejected",
+                    {
+                        "tool_call_count": (
+                            len(action_calls) if isinstance(action_calls, list) else 0
+                        ),
+                        "rejection_count": parallel_tool_call_contract_rejections,
+                        "reason": "invalid_tool_call_batch",
+                        "error": parallel_batch_error,
+                    },
+                )
+                loop_result.termination_reason = (
+                    "parallel_tool_call_contract_violation"
+                )
+                loop_result.error = (
+                    "model returned an invalid tool-call batch while "
+                    f"parallel_tool_calls=false: {parallel_batch_error}"
+                )
+                loop_result.failure_class = (
+                    "parallel_tool_call_contract_violation"
+                )
+                loop_result.retry_scope = "agent_activation"
+                loop_result.retry_attempts = parallel_tool_call_contract_rejections
+                break
+
+            if not is_multi_action_batch:
+                # 合法的单个 tool call 继续走下面的普通 Action 执行路径。
+                pass
+            else:
+                parallel_tool_call_contract_rejections += 1
+                # Provider 端即使接受了 parallel_tool_calls=false，也可能在
+                # 一个 assistant 消息中返回多个调用。必须先整批拒绝，避免
+                # 主体在看到第一个行动结果之前改变环境多次。
+                _append_runtime_message(response)
+                rejection_content = (
+                    "本轮返回了多个工具调用，整批已在执行前拒绝；"
+                    "本轮没有执行任何 Action。每次只能提交一个最小必要的 "
+                    "Action，看到该 Action 的工具结果后再判断下一步。"
+                )
+                turn_tool_messages = []
+                for raw_action_call in action_calls:
+                    call_id = str(raw_action_call.get("id") or "")
+                    tool_message = {
+                        "role": "tool",
+                        "content": rejection_content,
+                        "tool_call_id": call_id,
+                    }
+                    _append_runtime_message(tool_message)
+                    turn_tool_messages.append(dict(tool_message))
+                full_history[-1]["tool_messages"] = turn_tool_messages
+                full_history[-1]["batch_termination_reason"] = (
+                    "parallel_tool_call_contract_violation"
+                )
+                full_history[-1]["rejected_tool_call_count"] = len(action_calls)
+                _append_thread_event(
+                    "parallel_tool_call_contract_rejected",
+                    {
+                        "tool_call_count": len(action_calls),
+                        "rejection_count": parallel_tool_call_contract_rejections,
+                        "reason": "parallel_tool_calls_false",
+                    },
+                )
+                if (
+                    parallel_tool_call_contract_rejections == 1
+                    and turn + 1 < max_turns
+                ):
+                    continue
+                loop_result.termination_reason = (
+                    "parallel_tool_call_contract_violation"
+                )
+                loop_result.error = (
+                    "model returned multiple tool calls while "
+                    "parallel_tool_calls=false"
+                )
+                loop_result.failure_class = (
+                    "parallel_tool_call_contract_violation"
+                )
+                loop_result.retry_scope = "agent_activation"
+                loop_result.retry_attempts = parallel_tool_call_contract_rejections
+                break
 
         # Extract reasoning content, final content and action calls using new function
-        response = response_message
-        reasoning_content, final_content_part, response_metadata = _extract_reasoning_content(response)
-        action_calls = response.get("tool_calls", [])
+        reasoning_content, final_content_part, response_metadata = (
+            _extract_reasoning_content(response)
+        )
 
         # Handle reasoning content accumulation (independent handling)
         if reasoning_content:
@@ -2318,6 +2451,7 @@ async def execute_action_loop(
         "tool_schema_error_exhausted",
         "provider_request_exhausted",
         "output_token_limit",
+        "parallel_tool_call_contract_violation",
         "max_turns",
     }
     status = (
@@ -2332,6 +2466,7 @@ async def execute_action_loop(
         "action_budget_exhausted",
         "max_turns",
         "output_token_limit",
+        "parallel_tool_call_contract_violation",
     }
     return LoopResult(
         status=status,
