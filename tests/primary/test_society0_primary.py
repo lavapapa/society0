@@ -10,6 +10,7 @@ from society0 import EmbedModel, LLMModel, Society0
 from society0.agent.core import LLMAgent, _parse_structured_json_from_model_text
 from society0.agent.agent_loop import (
     ActionSet,
+    DEFAULT_AGENT_ACT_PROMPT,
     _semantic_action_status,
     build_assistant_turn_trace,
     execute_action_loop,
@@ -32,6 +33,12 @@ from society0.state_proxy import DictProxy
 from society0.transaction import EventLogger
 
 pytestmark = pytest.mark.primary
+
+
+def test_default_action_prompt_explains_strict_nullable_arguments() -> None:
+    assert "schema 列出的全部字段" in DEFAULT_AGENT_ACT_PROMPT
+    assert "JSON null" in DEFAULT_AGENT_ACT_PROMPT
+    assert "布尔值使用 true/false" in DEFAULT_AGENT_ACT_PROMPT
 
 
 def test_strict_normalization_keeps_optional_enum_nullable():

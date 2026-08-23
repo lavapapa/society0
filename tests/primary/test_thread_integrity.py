@@ -1,3 +1,4 @@
+import ast
 import json
 
 import pytest
@@ -5,7 +6,10 @@ import pytest
 from tests import read_gzip_json
 
 from society0.agent.agent_loop import ActionSet, execute_action_loop
+from society0.agent.core import LLMAgent
 from society0.agent.thread_store import AgentThreadStore
+from society0.context_stack import ContextStack
+from society0.logging import ExperimentLogContext
 from society0.resource_managers import redact_credentials
 from society0 import Society0
 
@@ -115,6 +119,145 @@ async def test_successful_action_is_not_relabelled_when_completed_event_write_fa
             thread_event_recorder=recorder,
         )
     assert state == ["committed"]
+
+
+@pytest.mark.asyncio
+async def test_same_tick_second_provider_request_replays_action_result_on_same_thread(
+    tmp_path,
+):
+    context = ExperimentLogContext(tmp_path / "logs")
+    thread_id = context.open_agent_thread(
+        agent_id="a",
+        checkpoint_step=1,
+        scope={"kind": "tick", "id": "1"},
+    )
+    requests = []
+    canonical_result = {
+        "conversation_id": "conversation:canonical",
+        "message_id": "message:1",
+        "accepted": True,
+        "status": "sent",
+    }
+
+    class FakeWorld:
+        agents_data = {
+            "a": {
+                "id": "a",
+                "type": "participant",
+                "archetype": "llm",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Environment", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return context
+
+        def get_context_stack(self):
+            return ContextStack()
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    action_set = ActionSet()
+
+    async def publish_message(conversation_id: str, content: str):
+        assert conversation_id == canonical_result["conversation_id"]
+        assert content == "本 Tick 的经营消息"
+        return dict(canonical_result)
+
+    action_set.add_action(
+        "publish_message",
+        publish_message,
+        "Publish one message to the canonical conversation.",
+        {
+            "type": "object",
+            "properties": {
+                "conversation_id": {"type": "string"},
+                "content": {"type": "string"},
+            },
+            "required": ["conversation_id", "content"],
+        },
+    )
+
+    async def fake_provider(payload):
+        requests.append(json.loads(json.dumps(payload, ensure_ascii=False)))
+        if len(requests) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "publish-1",
+                        "type": "function",
+                        "function": {
+                            "name": "publish_message",
+                            "arguments": json.dumps(
+                                {
+                                    "conversation_id": canonical_result[
+                                        "conversation_id"
+                                    ],
+                                    "content": "本 Tick 的经营消息",
+                                },
+                                ensure_ascii=False,
+                            ),
+                        },
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "本 Tick 已完成。", "tool_calls": []}
+
+    agent = LLMAgent("a", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="你负责经营一个主体。",
+        memory=None,
+        llm_call=fake_provider,
+        actionset=action_set,
+    )
+
+    try:
+        result = await agent.instruct(
+            "向 canonical conversation 发布本 Tick 消息。",
+            current_step=1,
+            retrieve_memory=False,
+            max_turns=2,
+            turn_remain_hint=False,
+            thread_id=thread_id,
+        )
+        thread_messages = context.read_agent_thread_messages(thread_id)
+    finally:
+        context.close_agent_thread(thread_id)
+        context.close()
+
+    assert result["status"] == "success"
+    assert result["thread_id"] == thread_id
+    assert result["thread_ref"]["thread_id"] == thread_id
+    assert len(requests) == 2
+    assert [request["metadata"]["thread_id"] for request in requests] == [
+        thread_id,
+        thread_id,
+    ]
+
+    second_messages = requests[1]["messages"]
+    assistant_message = next(
+        message
+        for message in second_messages
+        if message.get("role") == "assistant" and message.get("tool_calls")
+    )
+    tool_message = next(
+        message for message in second_messages if message.get("role") == "tool"
+    )
+    assert assistant_message["tool_calls"][0]["id"] == "publish-1"
+    assert tool_message["tool_call_id"] == "publish-1"
+    assert ast.literal_eval(tool_message["content"]) == canonical_result
+    assert result["actions"][0]["result"] == canonical_result
+    assert result["actions"][0]["status"] == "success"
+    assert thread_messages == result["raw_output"]["conversation_messages"]
 
 
 def test_request_credentials_are_redacted_recursively():

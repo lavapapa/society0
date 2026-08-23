@@ -73,6 +73,7 @@ DEFAULT_AGENT_ACT_PROMPT = """按任务需要简要思考并行动。可参考�
 {stages}
 
 - 如果需要使用工具，直接调用工具，不要只描述工具调用。
+- 调用标记为 strict 的工具时，必须提交 schema 列出的全部字段；没有值的可空字段使用 JSON null，布尔值使用 true/false，不能写成字符串或省略字段。
 - 任务完成后停止；不要重复调用已经完成的工具。"""
 
 SUBMIT_RESULT_ONLY_PROMPT = "直接调用 submit_result 工具提交最终结构化结果；不要输出阶段标记、解释或额外文本。"
