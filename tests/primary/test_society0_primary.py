@@ -3219,7 +3219,7 @@ async def test_output_token_limit_is_not_accepted_as_a_completed_no_action_turn(
 
 
 @pytest.mark.asyncio
-async def test_output_token_limit_with_complete_tool_call_executes_without_saving_text():
+async def test_output_token_limit_with_complete_tool_call_does_not_execute_terminal_action():
     action_set = ActionSet()
     called = []
     recorded_messages = []
@@ -3265,6 +3265,7 @@ async def test_output_token_limit_with_complete_tool_call_executes_without_savin
         stages=[{"name": "回答", "desc": "act"}],
         llm_call=fake_llm_call,
         max_turns=1,
+        terminal_action_names=["query_inventory"],
         thread_message_recorder=lambda message: recorded_messages.append(message),
         thread_event_recorder=lambda event_type, payload: events.append(
             (event_type, payload)
@@ -3272,15 +3273,531 @@ async def test_output_token_limit_with_complete_tool_call_executes_without_savin
     )
 
     assert result.status == "error"
-    assert result.termination_reason == "max_turns"
-    assert called == ["cell"]
-    assert [call["status"] for call in result.action_calls] == ["success"]
+    assert result.termination_reason == "output_token_limit"
+    assert result.activation_status == "incomplete"
+    assert called == []
+    assert result.action_calls == []
+    assert result.reasoning_content is None
+    assert result.full_history[0]["response"]["content"] == (
+        "这是不应写入记忆的截断正文……"
+    )
     assistant = next(
         message for message in recorded_messages if message.get("role") == "assistant"
     )
     assert assistant["content"] == ""
     assert "reasoning_content" not in assistant
+    assert all(
+        "不应写入记忆的截断正文" not in str(message)
+        for message in recorded_messages
+    )
     assert ("provider_output_truncated_with_tool_calls", {"tool_call_count": 1}) in events
+
+
+@pytest.mark.asyncio
+async def test_parallel_false_rejects_multi_action_turn_then_executes_one_corrected_action():
+    action_set = ActionSet()
+    executed = []
+    traces = []
+    llm_payloads = []
+    recorded_messages = []
+    events = []
+
+    world = World()
+    world.set_context_stack(ContextStack().push_step("step_0"))
+
+    def context_provider():
+        def record_action(action_name, arguments, result, status):
+            traces.append(
+                {
+                    "action_name": action_name,
+                    "arguments": arguments,
+                    "result": result,
+                    "status": status,
+                }
+            )
+
+        return world.get_context_stack(), world.set_context_stack, record_action
+
+    def register_action(action_name):
+        async def execute(sequence: int):
+            executed.append((action_name, sequence))
+            return f"{action_name}:{sequence}"
+
+        action_set.add_action(
+            action_name,
+            execute,
+            action_name,
+            {
+                "type": "object",
+                "properties": {"sequence": {"type": "integer"}},
+                "required": ["sequence"],
+            },
+        )
+
+    for name in ("update_state", "inspect_state", "publish_state"):
+        register_action(name)
+
+    rejected_calls = [
+        {
+            "id": f"rejected_{sequence}",
+            "type": "function",
+            "function": {
+                "name": action_name,
+                "arguments": json.dumps({"sequence": sequence}),
+            },
+        }
+        for sequence, action_name in enumerate(
+            ("update_state", "inspect_state", "publish_state"),
+            start=1,
+        )
+    ]
+
+    async def fake_llm_call(payload):
+        llm_payloads.append(json.loads(json.dumps(payload)))
+        if len(llm_payloads) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": rejected_calls,
+            }
+        if len(llm_payloads) == 2:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "corrected_7",
+                        "type": "function",
+                        "function": {
+                            "name": "update_state",
+                            "arguments": '{"sequence":7}',
+                        },
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "已根据结果完成。", "tool_calls": []}
+
+    result = await execute_action_loop(
+        instruction="更新一次状态。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        max_action_calls=1,
+        action_call_limits={"update_state": 1},
+        llm_request_options={"parallel_tool_calls": False},
+        context_provider=context_provider,
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert executed == [("update_state", 7)]
+    assert [call["call_id"] for call in result.action_calls] == ["corrected_7"]
+    assert result.action_calls[0]["status"] == "success"
+    assert result.status == "error"
+    assert result.termination_reason == "action_budget_exhausted"
+    assert result.activation_status == "incomplete"
+    assert traces == [
+        {
+            "action_name": "update_state",
+            "arguments": {"sequence": 7},
+            "result": "update_state:7",
+            "status": "success",
+        }
+    ]
+    assert len(llm_payloads) == 2
+    assert llm_payloads[0]["parallel_tool_calls"] is False
+    assert "每个 assistant 响应最多提交一个 tool call" in (
+        llm_payloads[0]["messages"][0]["content"]
+    )
+    assert llm_payloads[1]["messages"][-4]["tool_calls"] == rejected_calls
+    assert [
+        message["tool_call_id"]
+        for message in llm_payloads[1]["messages"][-3:]
+    ] == ["rejected_1", "rejected_2", "rejected_3"]
+    assert result.full_history[0]["response"]["tool_calls"] == rejected_calls
+    assert [
+        message["tool_call_id"]
+        for message in result.full_history[0]["tool_messages"]
+    ] == ["rejected_1", "rejected_2", "rejected_3"]
+    assert all(
+        "本轮没有执行任何 Action" in message["content"]
+        and "看到该 Action 的工具结果后再判断下一步" in message["content"]
+        for message in result.full_history[0]["tool_messages"]
+    )
+    first_assistant = next(
+        message
+        for message in result.conversation_messages
+        if message.get("role") == "assistant" and len(message.get("tool_calls", [])) == 3
+    )
+    assert first_assistant["tool_calls"] == rejected_calls
+    assert first_assistant in recorded_messages
+    assert [
+        event
+        for event in events
+        if event[0] == "parallel_tool_call_contract_rejected"
+    ] == [
+        (
+            "parallel_tool_call_contract_rejected",
+            {
+                "tool_call_count": 3,
+                "rejection_count": 1,
+                "reason": "parallel_tool_calls_false",
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_parallel_false_second_multi_action_turn_is_incomplete_contract_error():
+    action_set = ActionSet()
+    executed = []
+    events = []
+    llm_calls = 0
+
+    async def update_state(sequence: int):
+        executed.append(sequence)
+        return f"updated:{sequence}"
+
+    action_set.add_action(
+        "update_state",
+        update_state,
+        "update state",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm_call(_payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"turn_{llm_calls}_call_{sequence}",
+                    "type": "function",
+                    "function": {
+                        "name": "update_state",
+                        "arguments": json.dumps({"sequence": sequence}),
+                    },
+                }
+                for sequence in (1, 2)
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="更新状态。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm_call,
+        max_turns=4,
+        max_action_calls=1,
+        action_call_limits={"update_state": 1},
+        llm_request_options={"parallel_tool_calls": False},
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert llm_calls == 2
+    assert executed == []
+    assert result.action_calls == []
+    assert result.status == "error"
+    assert result.activation_status == "incomplete"
+    assert result.termination_reason == "parallel_tool_call_contract_violation"
+    assert result.failure_class == "parallel_tool_call_contract_violation"
+    assert result.retry_scope == "agent_activation"
+    assert result.retry_attempts == 2
+    assert [event[1]["rejection_count"] for event in events] == [1, 2]
+    assert [len(item["tool_messages"]) for item in result.full_history] == [2, 2]
+    assert len(
+        [
+            message
+            for message in result.conversation_messages
+            if message.get("role") == "tool"
+        ]
+    ) == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("invalid_calls", "expected_error"),
+    [
+        (
+            [
+                {
+                    "id": "valid_1",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+                "not-an-object",
+            ],
+            "must be an object",
+        ),
+        (
+            [
+                {
+                    "id": "",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+                {
+                    "id": "valid_2",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+            ],
+            "non-empty string id",
+        ),
+        (
+            [
+                {
+                    "id": "",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+            ],
+            "non-empty string id",
+        ),
+        (
+            [
+                {
+                    "id": "duplicate",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+                {
+                    "id": "duplicate",
+                    "function": {"name": "update_state", "arguments": "{}"},
+                },
+            ],
+            "duplicate tool call id",
+        ),
+    ],
+)
+async def test_parallel_false_invalid_multi_action_batch_ends_without_retry(
+    invalid_calls,
+    expected_error,
+):
+    llm_calls = 0
+    events = []
+
+    async def fake_llm_call(_payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": invalid_calls,
+        }
+
+    result = await execute_action_loop(
+        instruction="更新状态。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        llm_request_options={"parallel_tool_calls": False},
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert llm_calls == 1
+    assert result.action_calls == []
+    assert result.status == "error"
+    assert result.activation_status == "incomplete"
+    assert result.termination_reason == "parallel_tool_call_contract_violation"
+    assert result.failure_class == "parallel_tool_call_contract_violation"
+    assert result.retry_attempts == 1
+    assert expected_error in result.error
+    assert "tool_messages" not in result.full_history[0]
+    assert not any(
+        message.get("role") == "tool"
+        for message in result.conversation_messages
+    )
+    assert not any(
+        message.get("role") == "assistant" and message.get("tool_calls")
+        for message in result.conversation_messages
+    )
+    assert [event[0] for event in events] == [
+        "parallel_tool_call_contract_rejected"
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("parallel_tool_calls", [None, True])
+async def test_multi_action_turn_keeps_existing_batch_semantics_when_parallel_not_false(
+    parallel_tool_calls,
+):
+    action_set = ActionSet()
+    executed = []
+    llm_calls = 0
+    llm_payloads = []
+
+    async def update_state(sequence: int):
+        executed.append(sequence)
+        return f"updated:{sequence}"
+
+    action_set.add_action(
+        "update_state",
+        update_state,
+        "update state",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        llm_payloads.append(json.loads(json.dumps(payload)))
+        if llm_calls == 2:
+            return {"role": "assistant", "content": "done", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"batch_{sequence}",
+                    "type": "function",
+                    "function": {
+                        "name": "update_state",
+                        "arguments": json.dumps({"sequence": sequence}),
+                    },
+                }
+                for sequence in (1, 2)
+            ],
+        }
+
+    options = (
+        None
+        if parallel_tool_calls is None
+        else {"parallel_tool_calls": parallel_tool_calls}
+    )
+    result = await execute_action_loop(
+        instruction="更新状态。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["Reflection"],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        max_action_calls=3,
+        llm_request_options=options,
+    )
+
+    assert executed == [1, 2]
+    assert [call["status"] for call in result.action_calls] == ["success", "success"]
+    assert result.status == "success"
+    assert result.termination_reason == "no_action_calls"
+    assert "每个 assistant 响应最多提交一个 tool call" not in (
+        llm_payloads[0]["messages"][0]["content"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_length_takes_precedence_over_multi_action_and_discards_truncated_text():
+    action_set = ActionSet()
+    executed = []
+    recorded_messages = []
+    events = []
+    llm_calls = 0
+
+    async def update_state(sequence: int):
+        executed.append(sequence)
+        return f"updated:{sequence}"
+
+    action_set.add_action(
+        "update_state",
+        update_state,
+        "update state",
+        {
+            "type": "object",
+            "properties": {"sequence": {"type": "integer"}},
+            "required": ["sequence"],
+        },
+    )
+
+    async def fake_llm_call(_payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        if llm_calls > 1:
+            raise AssertionError("truncated output must not trigger a retry")
+        if llm_calls == 1:
+            return {
+                "role": "assistant",
+                "content": "不应进入成功记忆的截断正文……",
+                "reasoning_content": "不应进入成功记忆的截断推理……",
+                "finish_reason": "length",
+                "tool_calls": [
+                    {
+                        "id": f"truncated_{sequence}",
+                        "type": "function",
+                        "function": {
+                            "name": "update_state",
+                            "arguments": json.dumps({"sequence": sequence}),
+                        },
+                    }
+                    for sequence in (1, 2)
+                ],
+            }
+        raise AssertionError("unexpected provider turn")
+
+    result = await execute_action_loop(
+        instruction="更新状态。",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["回答"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+        max_action_calls=2,
+        llm_request_options={"parallel_tool_calls": False},
+        thread_message_recorder=lambda message: recorded_messages.append(message),
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert llm_calls == 1
+    assert executed == []
+    assert result.status == "error"
+    assert result.termination_reason == "output_token_limit"
+    assert result.activation_status == "incomplete"
+    assert result.action_calls == []
+    assert result.reasoning_content is None
+    assert result.full_history[0]["response"]["content"] == (
+        "不应进入成功记忆的截断正文……"
+    )
+    assert result.full_history[0]["response"]["reasoning_content"] == (
+        "不应进入成功记忆的截断推理……"
+    )
+    truncated_assistant = next(
+        message
+        for message in result.conversation_messages
+        if message.get("role") == "assistant"
+        and len(message.get("tool_calls", [])) == 2
+    )
+    assert truncated_assistant["content"] == ""
+    assert "reasoning_content" not in truncated_assistant
+    assert truncated_assistant in recorded_messages
+    assert all(
+        "不应进入成功记忆" not in str(message)
+        for message in recorded_messages
+    )
+    assert (
+        "provider_output_truncated_with_tool_calls",
+        {"tool_call_count": 2},
+    ) in events
+    assert "tool_messages" not in result.full_history[0]
+    assert not any(
+        event[0] == "parallel_tool_call_contract_rejected" for event in events
+    )
 
 
 @pytest.mark.asyncio
