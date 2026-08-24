@@ -470,6 +470,195 @@ async def test_action_loop_sends_strict_flag_in_real_tool_payload():
     assert requests[0]["tools"][0]["function"]["strict"] is True
 
 
+def _representative_raw_schemas():
+    """提供 strict 链路的中性代表 schema，避免测试依赖具体业务层。"""
+
+    return {
+        "probe_action": {
+            "type": "object",
+            "properties": {
+                "values": {
+                    "type": ["array", "null"],
+                    "items": {"type": "string", "minLength": 1},
+                },
+                "flag": {"type": ["boolean", "null"], "default": False},
+                "offset": {"type": "integer", "minimum": 0, "default": 0},
+            },
+            "required": [],
+            "additionalProperties": False,
+        },
+    }
+
+
+def _representative_action_set(executed):
+    action_set = ActionSet()
+    action_name = "probe_action"
+    strict_schema = normalize_strict_function_parameters(
+        _representative_raw_schemas()[action_name]
+    )
+
+    def record_action(**kwargs):
+        executed.append((action_name, kwargs))
+        return {"ok": True, "action_name": action_name}
+
+    action_set.add_action(
+        name=action_name,
+        func=record_action,
+        description=action_name,
+        parameters=strict_schema,
+        tags=["query"],
+        strict=True,
+    )
+    return action_set
+
+
+def _provider_tool_call(action_name, arguments):
+    return {
+        "id": f"test_{action_name}",
+        "type": "function",
+        "function": {
+            "name": action_name,
+            "arguments": json.dumps(arguments, ensure_ascii=False),
+        },
+    }
+
+
+def test_strict_wire_schema_has_explicit_required_types():
+    executed = []
+    action_set = _representative_action_set(executed)
+    wire_functions = {
+        item["function"]["name"]: item["function"]
+        for item in action_set.get_openai_actions_schema()
+    }
+
+    function = wire_functions["probe_action"]
+    assert function["strict"] is True
+    parameters = function["parameters"]
+    assert parameters["required"] == ["values", "flag", "offset"]
+    assert parameters["additionalProperties"] is False
+    assert {
+        name: parameters["properties"][name]["type"]
+        for name in parameters["properties"]
+    } == {
+        "values": ["array", "null"],
+        "flag": ["boolean", "null"],
+        "offset": ["integer", "null"],
+    }
+    assert parameters["properties"]["flag"]["default"] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"flag": False, "offset": 0},
+        {"values": None, "flag": "false", "offset": 0},
+        {"values": None, "flag": "true", "offset": 0},
+        {"values": None, "flag": "0", "offset": 0},
+    ],
+    ids=[
+        "missing_values",
+        "flag_string_false",
+        "flag_string_true",
+        "flag_string_zero",
+    ],
+)
+async def test_provider_replay_rejects_invalid_arguments(
+    arguments,
+):
+    executed = []
+    events = []
+    action_set = _representative_action_set(executed)
+
+    async def fake_provider(_payload):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [_provider_tool_call("probe_action", arguments)],
+        }
+
+    result = await execute_action_loop(
+        instruction="执行查询。",
+        action_set=action_set,
+        system_prompt="Test agent",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_provider,
+        max_turns=1,
+        terminal_action_names=["probe_action"],
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "tool_schema_error_exhausted"
+    assert result.failure_class == "tool_schema_error"
+    assert executed == []
+    failed_events = [
+        payload
+        for event_type, payload in events
+        if event_type == "tool_execution_failed"
+    ]
+    assert len(failed_events) == 1
+    assert failed_events[0]["action_name"] == "probe_action"
+    assert failed_events[0]["failure_class"] == "tool_schema_error"
+    assert failed_events[0]["status"] == "error"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"values": None, "flag": None, "offset": 0},
+        {"values": None, "flag": False, "offset": 0},
+    ],
+    ids=["values_null_flag_null", "values_null_flag_false"],
+)
+async def test_provider_replay_accepts_explicit_nullable_arguments(
+    arguments,
+):
+    executed = []
+    action_set = _representative_action_set(executed)
+
+    async def fake_provider(_payload):
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                _provider_tool_call("probe_action", arguments)
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="执行查询。",
+        action_set=action_set,
+        system_prompt="Test agent",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_provider,
+        max_turns=1,
+        terminal_action_names=["probe_action"],
+    )
+
+    assert result.status == "success"
+    assert result.termination_reason == "terminal_action"
+    assert executed == [("probe_action", arguments)]
+
+
+@pytest.mark.asyncio
+async def test_default_annotation_does_not_fill_missing_field():
+    executed = []
+    action_set = _representative_action_set(executed)
+
+    with pytest.raises(ValidationError, match="flag"):
+        await action_set.call_action(
+            "probe_action",
+            values=None,
+            offset=0,
+        )
+
+    assert executed == []
+
+
 @pytest.mark.asyncio
 async def test_structured_output_strict_request_does_not_silently_downgrade():
     requests = []
