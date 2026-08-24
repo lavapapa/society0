@@ -37,6 +37,25 @@ from .logging import ExperimentLogContext, LogField, ResourceEvent
 logger = logging.getLogger(__name__)
 
 
+def _build_httpx_client(*, trust_env: bool) -> Any:
+    """按代理继承模式建立一个由管理器持有的 HTTPX 连接池。"""
+
+    import httpx
+
+    limits = httpx.Limits(
+        max_connections=200,
+        max_keepalive_connections=200,
+        keepalive_expiry=30.0,
+    )
+    return httpx.AsyncClient(
+        limits=limits,
+        timeout=None,
+        http2=False,
+        follow_redirects=True,
+        trust_env=trust_env,
+    )
+
+
 def _safe_json_size(value: Any) -> int:
     """Return JSON character size for monitor-only payload accounting."""
     try:
@@ -372,29 +391,9 @@ class LLMManager:
         # 全局并发整形：为所有端点统一限制总并发，避免瞬时连接洪峰
         self._global_semaphore = asyncio.Semaphore(200)
 
-        # 共享 HTTPX 连接池：限制最大连接数并启用 keep-alive/HTTP2
-        self._http_client = None
-        try:
-            import httpx
-
-            limits = httpx.Limits(
-                max_connections=200,
-                max_keepalive_connections=200,
-                keepalive_expiry=30.0,
-            )
-            # 不设置整体超时，由调用方 payload 决定是否传入 timeout
-            self._http_client = httpx.AsyncClient(
-                limits=limits,
-                timeout=None,
-                http2=True,
-                follow_redirects=True,
-            )
-            logger.info(
-                "LLMManager: initialized shared HTTPX client (max_conn=200, keepalive=200, http2=True)"
-            )
-        except Exception as e:
-            logger.warning("LLMManager: failed to init shared HTTPX client, fallback to SDK defaults: %s", e)
-            self._http_client = None
+        # 按 trust_env 分组共享 HTTPX 连接池，最多各建立一个连接池。
+        self._http_clients: Dict[bool, Any] = {}
+        self._managed_http_client_ids: Set[int] = set()
 
         # 初始化端点
         for endpoint_config in endpoints:
@@ -407,6 +406,23 @@ class LLMManager:
     def set_log_context(self, log_context: Optional[ExperimentLogContext]) -> None:
         """注入或更新日志上下文。"""
         self._log_context = log_context
+
+    def _http_client_for(self, trust_env: bool):
+        """返回指定代理继承模式对应的共享连接池。"""
+
+        key = bool(trust_env)
+        if key in self._http_clients:
+            return self._http_clients[key]
+
+        client = _build_httpx_client(trust_env=key)
+        logger.info(
+            "LLMManager: initialized HTTPX client "
+            "(trust_env=%s, max_conn=200, keepalive=200)",
+            key,
+        )
+
+        self._http_clients[key] = client
+        return client
 
     @staticmethod
     def _provider_response_payload(
@@ -557,12 +573,14 @@ class LLMManager:
             provider_type=config.get("provider_type", "openai"),
             api_version=config.get("api_version"),
             deployment_name=config.get("deployment_name"),
+            trust_env=bool(config.get("trust_env", True)),
             tool_choice_policy=config.get("tool_choice_policy", "native"),
         )
 
         # 创建异步客户端（注入共享 HTTP 客户端以复用连接池）
         try:
             import openai
+            http_client = self._http_client_for(endpoint.trust_env)
 
             # 根据提供商类型创建不同的客户端
             if endpoint.provider_type == "azure":
@@ -572,7 +590,8 @@ class LLMManager:
                     azure_endpoint=endpoint.base_url,
                     api_version=endpoint.api_version or "2024-02-15-preview",
                     timeout=endpoint.timeout,
-                    http_client=self._http_client,
+                    max_retries=0,
+                    http_client=http_client,
                 )
                 logger.debug(f"Created Azure OpenAI client for endpoint: {endpoint.id}")
             else:
@@ -581,9 +600,13 @@ class LLMManager:
                     api_key=endpoint.api_key,
                     base_url=endpoint.base_url,
                     timeout=endpoint.timeout,
-                    http_client=self._http_client,
+                    max_retries=0,
+                    http_client=http_client,
                 )
                 logger.debug(f"Created OpenAI client for endpoint: {endpoint.id}")
+
+            if http_client is not None:
+                self._managed_http_client_ids.add(id(client))
 
             # 创建并发信号量
             semaphore = asyncio.Semaphore(endpoint.concurrency)
@@ -1183,9 +1206,12 @@ class LLMManager:
 
     async def close(self) -> None:
         """关闭管理器内部资源（共享HTTP客户端与SDK客户端）。"""
-        # 关闭 OpenAI/兼容 客户端
+        # manager-owned OpenAI clients share the pools below; closing them here
+        # would close the same HTTPX pool once per endpoint.
         for client in list(self.clients.values()):
             if client is None:
+                continue
+            if id(client) in self._managed_http_client_ids:
                 continue
             try:
                 closer = getattr(client, "close", None)
@@ -1195,9 +1221,12 @@ class LLMManager:
                         await res
             except Exception:
                 pass
-        # 关闭共享 HTTP 客户端
-        http_client = getattr(self, "_http_client", None)
-        if http_client is not None:
+        # Each trust_env pool is closed exactly once by its owner.
+        closed_ids: Set[int] = set()
+        for http_client in self._http_clients.values():
+            if http_client is None or id(http_client) in closed_ids:
+                continue
+            closed_ids.add(id(http_client))
             try:
                 await http_client.aclose()
             except Exception:
@@ -1250,6 +1279,10 @@ class EmbeddingManager:
         }
         self.default_dimensions = self._load_default_dimensions(endpoints)
 
+        # 按 trust_env 分组共享 HTTPX 连接池，最多各建立一个连接池。
+        self._http_clients: Dict[bool, Any] = {}
+        self._managed_http_client_ids: Set[int] = set()
+
         # 初始化端点
         for endpoint_config in endpoints:
             self._add_endpoint(endpoint_config)
@@ -1261,6 +1294,23 @@ class EmbeddingManager:
     def set_log_context(self, log_context: Optional[ExperimentLogContext]) -> None:
         """注入或更新日志上下文。"""
         self._log_context = log_context
+
+    def _http_client_for(self, trust_env: bool):
+        """返回指定代理继承模式对应的共享连接池。"""
+
+        key = bool(trust_env)
+        if key in self._http_clients:
+            return self._http_clients[key]
+
+        client = _build_httpx_client(trust_env=key)
+        logger.info(
+            "EmbeddingManager: initialized HTTPX client "
+            "(trust_env=%s, max_conn=200, keepalive=200)",
+            key,
+        )
+
+        self._http_clients[key] = client
+        return client
 
     def _append_agent_thread_event(
         self,
@@ -1702,11 +1752,16 @@ class EmbeddingManager:
                 )
             else:
                 import openai
+                http_client = self._http_client_for(endpoint.trust_env)
                 client = openai.AsyncOpenAI(
                     api_key=endpoint.api_key,
                     base_url=endpoint.base_url,
-                    timeout=endpoint.timeout
+                    timeout=endpoint.timeout,
+                    max_retries=0,
+                    http_client=http_client,
                 )
+                if http_client is not None:
+                    self._managed_http_client_ids.add(id(client))
 
             # 创建并发信号量
             semaphore = asyncio.Semaphore(endpoint.concurrency)
@@ -2282,6 +2337,8 @@ class EmbeddingManager:
         for client in list(self.clients.values()):
             if client is None:
                 continue
+            if id(client) in self._managed_http_client_ids:
+                continue
             for closer_name in ("aclose", "close"):
                 closer = getattr(client, closer_name, None)
                 if not callable(closer):
@@ -2293,3 +2350,13 @@ class EmbeddingManager:
                 except Exception:
                     pass
                 break
+
+        closed_ids: Set[int] = set()
+        for http_client in self._http_clients.values():
+            if http_client is None or id(http_client) in closed_ids:
+                continue
+            closed_ids.add(id(http_client))
+            try:
+                await http_client.aclose()
+            except Exception:
+                pass
