@@ -2,8 +2,10 @@ import asyncio
 import json
 from pathlib import Path
 
+import httpx
 import pytest
 from jsonschema import ValidationError
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from society0 import EmbedModel, LLMModel, Society0
@@ -9336,6 +9338,93 @@ async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp
     assert summary["llm"]["total_tools_characters"] == success_record["tools_characters"]
     assert summary["llm"]["total_payload_characters"] == success_record["payload_characters"]
     assert summary["llm"]["slowest_calls"][0]["payload_characters"] == success_record["payload_characters"]
+
+
+@pytest.mark.asyncio
+async def test_llm_manager_http_transport_preserves_tool_contract_flags():
+    captured_requests = []
+
+    async def capture(request: httpx.Request) -> httpx.Response:
+        captured_requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "id": "chatcmpl-test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-test",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": "ok"},
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "total_tokens": 2,
+                },
+            },
+        )
+
+    mock_http_client = httpx.AsyncClient(
+        transport=httpx.MockTransport(capture),
+        base_url="https://mock.test/v1",
+    )
+    sdk_client = AsyncOpenAI(
+        api_key="test",
+        base_url="https://mock.test/v1",
+        http_client=mock_http_client,
+        max_retries=0,
+    )
+    manager = LLMManager(
+        [
+            {
+                "id": "default",
+                "api_key": "test",
+                "base_url": "https://unused.test/v1",
+                "model": "gpt-test",
+                "concurrency": 1,
+                "timeout": 30,
+            }
+        ]
+    )
+    original_client = manager.clients["default"]
+    await original_client.close()
+    manager.clients["default"] = sdk_client
+
+    try:
+        result = await manager.request(
+            {
+                "messages": [{"role": "user", "content": "probe"}],
+                "parallel_tool_calls": False,
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "probe_action",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                                "additionalProperties": False,
+                            },
+                            "strict": True,
+                        },
+                    }
+                ],
+            }
+        )
+    finally:
+        await manager.close()
+
+    assert result["content"] == "ok"
+    assert len(captured_requests) == 1
+    request_body = captured_requests[0]
+    assert request_body["parallel_tool_calls"] is False
+    assert request_body["tools"][0]["function"]["strict"] is True
 
 
 def test_legacy_schedule_importable():
