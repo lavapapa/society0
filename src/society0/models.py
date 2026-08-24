@@ -25,6 +25,7 @@ class LLMModel:
     provider_type: str = "openai"
     concurrency: int = 5
     timeout: float = 30.0
+    trust_env: bool = True
     api_version: Optional[str] = None
     deployment_name: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -48,6 +49,7 @@ class LLMModel:
         base_url: str = "https://api.openai.com/v1",
         concurrency: int = 5,
         timeout: float = 30.0,
+        trust_env: bool = True,
         request_options: Optional[Dict[str, Any]] = None,
         tool_choice_policy: str = "native",
     ) -> "LLMModel":
@@ -59,6 +61,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            trust_env=trust_env,
             request_options=dict(request_options or {}),
             tool_choice_policy=tool_choice_policy,
         )
@@ -73,6 +76,7 @@ class LLMModel:
         api_key: Optional[str] = None,
         concurrency: int = 5,
         timeout: float = 30.0,
+        trust_env: bool = True,
         request_options: Optional[Dict[str, Any]] = None,
         tool_choice_policy: str = "native",
     ) -> "LLMModel":
@@ -84,6 +88,7 @@ class LLMModel:
             provider_type="openai",
             concurrency=concurrency,
             timeout=timeout,
+            trust_env=trust_env,
             request_options=dict(request_options or {}),
             tool_choice_policy=tool_choice_policy,
         )
@@ -149,6 +154,7 @@ class LLMModel:
             "model": self.model,
             "concurrency": self.concurrency,
             "timeout": self.timeout,
+            "trust_env": self.trust_env,
             "provider_type": self.provider_type,
             "api_version": self.api_version,
             "deployment_name": self.deployment_name,
@@ -236,6 +242,7 @@ class EmbedModel:
         send_dimensions: bool = True,
         concurrency: int = 5,
         timeout: float = 30.0,
+        trust_env: bool = True,
     ) -> "EmbedModel":
         return cls(
             id=id,
@@ -247,6 +254,7 @@ class EmbedModel:
             send_dimensions=send_dimensions,
             concurrency=concurrency,
             timeout=timeout,
+            trust_env=trust_env,
         )
 
     @classmethod

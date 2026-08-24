@@ -7898,6 +7898,180 @@ def test_model_declaration_builds_endpoint_configs():
 
 
 @pytest.mark.asyncio
+async def test_openai_compatible_managers_honor_trust_env_and_close_http_clients(monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:1")
+    llm = LLMModel.openai_compatible(
+        model="chat-test",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test",
+        trust_env=False,
+    )
+    embed = EmbedModel.openai_compatible(
+        model="embed-test",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test",
+        trust_env=False,
+    )
+    default_llm = LLMModel.openai_compatible(
+        model="chat-test",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test",
+    )
+    default_embed = EmbedModel.openai_compatible(
+        model="embed-test",
+        base_url="http://127.0.0.1:9/v1",
+        api_key="test",
+    )
+    managers = [
+        llm.build_manager(),
+        embed.build_manager(),
+        default_llm.build_manager(),
+        default_embed.build_manager(),
+    ]
+
+    try:
+        assert llm.endpoint_config()["trust_env"] is False
+        assert embed.endpoint_config()["trust_env"] is False
+        assert default_llm.endpoint_config()["trust_env"] is True
+        assert default_embed.endpoint_config()["trust_env"] is True
+
+        assert managers[0]._http_clients[False]._trust_env is False
+        assert managers[1]._http_clients[False]._trust_env is False
+        assert managers[2]._http_clients[True]._trust_env is True
+        assert managers[3]._http_clients[True]._trust_env is True
+        assert managers[0].clients[llm.id]._client is managers[0]._http_clients[False]
+        assert managers[1].clients[embed.id]._client is managers[1]._http_clients[False]
+        assert managers[0].clients[llm.id].max_retries == 0
+        assert managers[1].clients[embed.id].max_retries == 0
+    finally:
+        for manager in managers:
+            await manager.close()
+
+    assert all(
+        all(pool.is_closed for pool in manager._http_clients.values())
+        for manager in managers
+    )
+
+
+@pytest.mark.asyncio
+async def test_managers_route_mixed_trust_env_endpoints_to_distinct_pools():
+    endpoint_configs = [
+        {
+            "id": "direct",
+            "api_key": "test",
+            "base_url": "http://127.0.0.1:9/v1",
+            "model": "test-model",
+            "concurrency": 1,
+            "trust_env": False,
+        },
+        {
+            "id": "proxied",
+            "api_key": "test",
+            "base_url": "http://127.0.0.1:10/v1",
+            "model": "test-model",
+            "concurrency": 1,
+            "trust_env": True,
+        },
+    ]
+    llm_manager = LLMManager(endpoint_configs)
+    embed_manager = EmbeddingManager(endpoint_configs)
+    managers = [llm_manager, embed_manager]
+    close_counts = {id(manager): {False: 0, True: 0} for manager in managers}
+
+    def track_pool_close(manager, trust_env, pool):
+        original_close = pool.aclose
+
+        async def close_once():
+            close_counts[id(manager)][trust_env] += 1
+            await original_close()
+
+        pool.aclose = close_once
+
+    try:
+        for manager in managers:
+            assert set(manager._http_clients) == {False, True}
+            assert manager.clients["direct"]._client is manager._http_clients[False]
+            assert manager.clients["proxied"]._client is manager._http_clients[True]
+            assert manager._http_clients[False]._trust_env is False
+            assert manager._http_clients[True]._trust_env is True
+            for trust_env, pool in manager._http_clients.items():
+                track_pool_close(manager, trust_env, pool)
+    finally:
+        for manager in managers:
+            await manager.close()
+
+    for manager in managers:
+        assert close_counts[id(manager)] == {False: 1, True: 1}
+        assert all(pool.is_closed for pool in manager._http_clients.values())
+
+
+@pytest.mark.asyncio
+async def test_openai_azure_and_embedding_clients_disable_sdk_retries():
+    llm_manager = LLMManager(
+        [
+            {
+                "id": "openai",
+                "api_key": "test",
+                "base_url": "http://127.0.0.1:9/v1",
+                "model": "chat-test",
+                "concurrency": 1,
+            },
+            {
+                "id": "azure",
+                "api_key": "test",
+                "base_url": "http://127.0.0.1:10",
+                "model": "chat-test",
+                "concurrency": 1,
+                "provider_type": "azure",
+                "api_version": "2024-02-15-preview",
+            },
+        ]
+    )
+    embed_manager = EmbeddingManager(
+        [
+            {
+                "id": "embed",
+                "api_key": "test",
+                "base_url": "http://127.0.0.1:11/v1",
+                "model": "embed-test",
+                "concurrency": 1,
+            }
+        ]
+    )
+
+    try:
+        assert llm_manager.clients["openai"].max_retries == 0
+        assert llm_manager.clients["azure"].max_retries == 0
+        assert embed_manager.clients["embed"].max_retries == 0
+    finally:
+        await llm_manager.close()
+        await embed_manager.close()
+
+
+def test_resume_identity_records_llm_trust_env(tmp_path):
+    def build_identity(trust_env, save_dir):
+        engine = Society0(
+            save_dir=str(save_dir),
+            base_config=_base_config(),
+            llm=LLMModel.openai_compatible(
+                model="chat-test",
+                base_url="http://127.0.0.1:9/v1",
+                api_key="test",
+                trust_env=trust_env,
+            ),
+        )
+        world = engine._create_initial_world()
+        return engine._build_resume_identity(world)
+
+    direct = build_identity(False, tmp_path / "direct")
+    proxied = build_identity(True, tmp_path / "proxied")
+
+    assert direct["llm"]["trust_env"] is False
+    assert proxied["llm"]["trust_env"] is True
+    assert direct["identity_sha256"] != proxied["identity_sha256"]
+
+
+@pytest.mark.asyncio
 async def test_llm_model_request_options_are_defaults_for_every_call(monkeypatch):
     llm = LLMModel.openai_compatible(
         model="qwen-test",

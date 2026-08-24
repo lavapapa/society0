@@ -898,6 +898,7 @@ class Society0:
                 "model": self.llm_model.model,
                 "concurrency": self.llm_model.concurrency,
                 "timeout": self.llm_model.timeout,
+                "trust_env": self.llm_model.trust_env,
                 "request_options": self._normalize_resume_request_options(
                     self.llm_model.request_options
                 ),
