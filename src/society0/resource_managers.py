@@ -890,17 +890,23 @@ class LLMManager:
                     wait=wait_random_exponential(multiplier=0.1, max=1.5),
                     reraise=True,
                 )
+                attempt_interval_started_at = start_time
 
                 try:
                     async for attempt in retrying:
                         with attempt:
                             attempt_number = attempt.retry_state.attempt_number
                             provider_start_time: Optional[float] = None
+                            provider_duration: Optional[float] = None
                             decode_error_recorded = False
                             try:
                                 extras.error = None
                                 extras.error_type = None
                                 extras.retry_count = attempt_number - 1
+                                extras.provider_duration_sec = None
+                                if attempt_number > 1:
+                                    extras.queue_duration_sec = None
+                                    extras.jitter_duration_sec = None
 
                                 stats_entry["requests"] += 1
 
@@ -1022,7 +1028,7 @@ class LLMManager:
                                     endpoint=endpoint,
                                 )
 
-                                execution_time = time.time() - start_time
+                                execution_time = time.time() - attempt_interval_started_at
                                 extras.duration_sec = execution_time
                                 extras.provider_duration_sec = provider_duration
 
@@ -1065,6 +1071,7 @@ class LLMManager:
                                 return result
 
                             except asyncio.CancelledError as exc:
+                                attempt_completed_at = time.time()
                                 self._append_agent_thread_event_best_effort(
                                     dict(metadata or {}) if isinstance(metadata, dict) else {},
                                     "provider_cancelled",
@@ -1078,9 +1085,15 @@ class LLMManager:
                                 )
                                 extras.error_type = type(exc).__name__
                                 extras.error = str(exc) or repr(exc)
-                                extras.duration_sec = time.time() - start_time
-                                if provider_start_time is not None:
-                                    extras.provider_duration_sec = time.time() - provider_start_time
+                                extras.duration_sec = (
+                                    attempt_completed_at - attempt_interval_started_at
+                                )
+                                if provider_duration is not None:
+                                    extras.provider_duration_sec = provider_duration
+                                elif provider_start_time is not None:
+                                    extras.provider_duration_sec = (
+                                        attempt_completed_at - provider_start_time
+                                    )
                                 stats_entry["errors"] += 1
                                 if self._log_context:
                                     cancelled_payload = _log_model_payload(extras)
@@ -1095,6 +1108,7 @@ class LLMManager:
                                     )
                                 raise
                             except Exception as exc:
+                                attempt_completed_at = time.time()
                                 if not decode_error_recorded:
                                     self._append_agent_thread_event_best_effort(
                                         dict(metadata or {}) if isinstance(metadata, dict) else {},
@@ -1109,9 +1123,16 @@ class LLMManager:
                                     )
                                 extras.error_type = type(exc).__name__
                                 extras.error = str(exc) or repr(exc)
-                                extras.duration_sec = time.time() - start_time
-                                if provider_start_time is not None:
-                                    extras.provider_duration_sec = time.time() - provider_start_time
+                                extras.duration_sec = (
+                                    attempt_completed_at - attempt_interval_started_at
+                                )
+                                attempt_interval_started_at = attempt_completed_at
+                                if provider_duration is not None:
+                                    extras.provider_duration_sec = provider_duration
+                                elif provider_start_time is not None:
+                                    extras.provider_duration_sec = (
+                                        attempt_completed_at - provider_start_time
+                                    )
                                 stats_entry["errors"] += 1
 
                                 level = (

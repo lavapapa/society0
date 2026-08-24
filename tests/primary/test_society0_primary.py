@@ -7,8 +7,10 @@ import pytest
 from jsonschema import ValidationError
 from openai import AsyncOpenAI
 from pydantic import BaseModel
+from tenacity import wait_fixed
 
 from society0 import EmbedModel, LLMModel, Society0
+import society0.resource_managers as resource_managers
 from society0.agent.core import LLMAgent, _parse_structured_json_from_model_text
 from society0.agent.agent_loop import (
     ActionSet,
@@ -1776,6 +1778,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                         "duration_sec": 1.1,
                         "provider_duration_sec": 0.9,
                         "queue_duration_sec": 0.1,
+                        "jitter_duration_sec": 0.02,
                         "input_characters": 1000,
                         "tools_characters": 300,
                         "payload_characters": 1500,
@@ -1796,6 +1799,7 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
                         "duration_sec": 2.2,
                         "provider_duration_sec": 2.0,
                         "queue_duration_sec": 0.15,
+                        "jitter_duration_sec": 0.03,
                         "input_characters": 1200,
                         "tools_characters": 300,
                         "payload_characters": 1700,
@@ -1908,18 +1912,26 @@ def test_event_summary_preserves_agent_batch_fidelity_options(tmp_path):
     assert instruct["resources"]["llm"]["timing_breakdown"] == {
         "provider_duration_sec": 2.9,
         "queue_duration_sec": 0.25,
-        "runtime_overhead_sec": 0.15,
+        "jitter_duration_sec": 0.05,
+        "runtime_overhead_sec": 0.1,
         "provider_share": 0.878788,
         "queue_share": 0.075758,
-        "runtime_overhead_share": 0.045455,
+        "jitter_share": 0.015152,
+        "runtime_overhead_share": 0.030303,
         "bottleneck": "provider",
     }
+    assert instruct["resources"]["llm"]["jitter_duration_sec_total"] == 0.05
+    assert instruct["resources"]["llm"]["jitter_duration_sec_max"] == 0.03
+    assert instruct["resources"]["llm"]["jitter_duration_sec_avg"] == 0.025
+    assert instruct["resources"]["llm"]["provider_duration_semantics"] == (
+        "provider_elapsed_including_unseparated_internal_queue"
+    )
     assert instruct["resources"]["llm"]["fidelity"]["agent_loop"]["call_count"] == 2
     assert instruct["resources"]["llm"]["fidelity"]["agent_loop"]["timing_breakdown"]["bottleneck"] == "provider"
     assert "memory_extraction" not in instruct["resources"]["llm"]["fidelity"]
     assert instruct["by_tick"]["0"]["resources"]["llm"]["call_count"] == 1
     assert instruct["by_tick"]["0"]["resources"]["llm"]["total_payload_characters"] == 1500
-    assert instruct["by_tick"]["0"]["resources"]["llm"]["timing_breakdown"]["runtime_overhead_sec"] == 0.1
+    assert instruct["by_tick"]["0"]["resources"]["llm"]["timing_breakdown"]["runtime_overhead_sec"] == 0.08
     assert instruct["by_tick"]["1"]["resources"]["llm"]["call_count"] == 1
     assert instruct["by_tick"]["1"]["resources"]["llm"]["total_duration_sec"] == 2.2
     assert instruct["execution_options"]["memory"]["extract"] is True
@@ -8672,6 +8684,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
                         "step": 0,
                         "duration_sec": 1.25,
                         "queue_duration_sec": 0.2,
+                        "jitter_duration_sec": 0.03,
                         "provider_duration_sec": 1.0,
                         "step_name": "survey",
                         "interaction_type": "interview",
@@ -8691,6 +8704,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
                         "step": 1,
                         "duration_sec": 2.0,
                         "queue_duration_sec": 0.5,
+                        "jitter_duration_sec": 0.04,
                         "provider_duration_sec": 1.4,
                         "step_name": "survey",
                         "interaction_type": "interview",
@@ -8741,6 +8755,9 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "queue_duration_sec_total",
         "queue_duration_sec_max",
         "queue_duration_sec_avg",
+        "jitter_duration_sec_total",
+        "jitter_duration_sec_max",
+        "jitter_duration_sec_avg",
         "provider_duration_sec_total",
         "provider_duration_sec_max",
         "provider_duration_sec_avg",
@@ -8756,6 +8773,9 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "total_duration_sec",
         "total_provider_duration_sec",
         "total_queue_duration_sec",
+        "total_jitter_duration_sec",
+        "queue_duration_semantics",
+        "provider_duration_semantics",
         "timing_breakdown",
         "slowest_calls",
         "by_interaction",
@@ -8782,6 +8802,9 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
             "queue_duration_sec_total",
             "queue_duration_sec_max",
             "queue_duration_sec_avg",
+            "jitter_duration_sec_total",
+            "jitter_duration_sec_max",
+            "jitter_duration_sec_avg",
             "provider_duration_sec_total",
             "provider_duration_sec_max",
             "provider_duration_sec_avg",
@@ -8797,6 +8820,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
             "total_duration_sec",
             "total_provider_duration_sec",
             "total_queue_duration_sec",
+            "total_jitter_duration_sec",
         )
     } == {
         "started_count": 1,
@@ -8813,6 +8837,9 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "queue_duration_sec_total": 0.7,
         "queue_duration_sec_max": 0.5,
         "queue_duration_sec_avg": 0.35,
+        "jitter_duration_sec_total": 0.07,
+        "jitter_duration_sec_max": 0.04,
+        "jitter_duration_sec_avg": 0.035,
         "provider_duration_sec_total": 2.4,
         "provider_duration_sec_max": 1.4,
         "provider_duration_sec_avg": 1.2,
@@ -8828,16 +8855,25 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
         "total_duration_sec": 3.25,
         "total_provider_duration_sec": 2.4,
         "total_queue_duration_sec": 0.7,
+        "total_jitter_duration_sec": 0.07,
     }
     assert summary["llm"]["timing_breakdown"] == {
         "provider_duration_sec": 2.4,
         "queue_duration_sec": 0.7,
-        "runtime_overhead_sec": 0.15,
+        "jitter_duration_sec": 0.07,
+        "runtime_overhead_sec": 0.08,
         "provider_share": 0.738462,
         "queue_share": 0.215385,
-        "runtime_overhead_share": 0.046154,
+        "jitter_share": 0.021538,
+        "runtime_overhead_share": 0.024615,
         "bottleneck": "provider",
     }
+    assert summary["llm"]["queue_duration_semantics"] == (
+        "client_admission_wait_upper_bound"
+    )
+    assert summary["llm"]["provider_duration_semantics"] == (
+        "provider_elapsed_including_unseparated_internal_queue"
+    )
     assert summary["llm"]["slowest_calls"][0]["agent_id"] == "bob"
     assert summary["llm"]["slowest_calls"][0]["error_type"] == "TimeoutError"
     assert summary["llm"]["error_samples"][0]["agent_id"] == "bob"
@@ -8847,6 +8883,7 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["llm"]["by_tick"]["0"]["input_characters"] == 700
     assert summary["llm"]["by_tick"]["0"]["messages_count_avg"] == 2.0
     assert summary["llm"]["by_tick"]["0"]["total_input_characters"] == 700
+    assert summary["llm"]["by_tick"]["0"]["jitter_duration_sec_max"] == 0.03
     assert summary["llm"]["by_tick"]["0"]["timing_breakdown"]["bottleneck"] == "provider"
     assert summary["llm"]["by_tick"]["1"]["call_count"] == 1
     assert summary["llm"]["by_tick"]["1"]["error_count"] == 1
@@ -8854,12 +8891,13 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["error_count"] == 1
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["queue_duration_sec_total"] == 0.7
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["provider_duration_sec_total"] == 2.4
+    assert summary["llm"]["by_interaction"]["survey / interview / trust"]["jitter_duration_sec_max"] == 0.04
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["input_characters"] == 1600
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["messages_count_max"] == 4
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["total_duration_sec"] == 3.25
     assert summary["llm"]["by_interaction"]["survey / interview / trust"]["timing_breakdown"][
         "runtime_overhead_sec"
-    ] == 0.15
+    ] == 0.08
     assert summary["llm"]["by_interaction_type"]["interview"]["call_count"] == 2
     assert summary["llm"]["by_interaction_type"]["interview"]["error_count"] == 1
     assert summary["llm"]["by_interaction_type"]["interview"]["total_tokens"] == 14
@@ -8877,12 +8915,15 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["embedding"]["total_input_characters"] == 1200
     assert summary["embedding"]["queue_duration_sec_total"] == 0.1
     assert summary["embedding"]["provider_duration_sec_total"] == 0.35
+    assert summary["embedding"]["jitter_duration_sec_total"] == 0.0
     assert summary["embedding"]["timing_breakdown"] == {
         "provider_duration_sec": 0.35,
         "queue_duration_sec": 0.1,
+        "jitter_duration_sec": 0.0,
         "runtime_overhead_sec": 0.05,
         "provider_share": 0.7,
         "queue_share": 0.2,
+        "jitter_share": 0.0,
         "runtime_overhead_share": 0.1,
         "bottleneck": "provider",
     }
@@ -8893,6 +8934,29 @@ def test_society0_resource_summary_aggregates_resource_calls(tmp_path):
     assert summary["embedding"]["by_interaction_type"]["memory_retrieve"]["call_count"] == 1
     assert summary["embedding"]["fidelity"]["memory_io"]["call_count"] == 1
     assert summary["embedding"]["fidelity"]["memory_io"]["texts_count"] == 6
+
+
+def test_society0_timing_breakdown_can_identify_jitter_as_bottleneck():
+    bucket = {
+        "duration_sec_total": 1.0,
+        "provider_duration_sec_total": 0.1,
+        "queue_duration_sec_total": 0.1,
+        "jitter_duration_sec_total": 0.7,
+    }
+
+    Society0._attach_timing_breakdown(bucket)
+
+    assert bucket["timing_breakdown"] == {
+        "provider_duration_sec": 0.1,
+        "queue_duration_sec": 0.1,
+        "jitter_duration_sec": 0.7,
+        "runtime_overhead_sec": 0.1,
+        "provider_share": 0.1,
+        "queue_share": 0.1,
+        "jitter_share": 0.7,
+        "runtime_overhead_share": 0.1,
+        "bottleneck": "jitter",
+    }
 
 
 def test_society0_resource_summary_exposes_fidelity_diagnostics(tmp_path):
@@ -9215,6 +9279,129 @@ async def test_llm_manager_retries_after_first_connection_failure():
 
 
 @pytest.mark.asyncio
+async def test_llm_manager_retry_resource_records_are_disjoint_physical_attempts(
+    tmp_path,
+    monkeypatch,
+):
+    attempts = 0
+
+    class FakeMessage:
+        role = "assistant"
+        content = "recovered"
+        tool_calls = []
+
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeResponse:
+        choices = [FakeChoice()]
+        usage = None
+
+    class FlakyCompletions:
+        async def create(self, **_kwargs):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                await asyncio.sleep(0.08)
+                raise ConnectionError("temporary connection failure")
+            await asyncio.sleep(0.005)
+            return FakeResponse()
+
+    class FlakyChat:
+        completions = FlakyCompletions()
+
+    class FlakyClient:
+        chat = FlakyChat()
+
+    monkeypatch.setattr(
+        resource_managers,
+        "wait_random_exponential",
+        lambda **_kwargs: wait_fixed(0.02),
+    )
+    monkeypatch.setattr(resource_managers.random, "uniform", lambda *_args: 0.01)
+
+    log_context = ExperimentLogContext(tmp_path / "logs")
+    manager = LLMManager(
+        [
+            {
+                "id": "default",
+                "api_key": "test",
+                "base_url": "http://localhost:9999/v1",
+                "model": "gpt-test",
+                "concurrency": 1,
+                "timeout": 30,
+            }
+        ],
+        log_context=log_context,
+    )
+    manager.clients["default"] = FlakyClient()
+    manager._max_retries = 2
+
+    try:
+        result = await manager.request(
+            {
+                "messages": [{"role": "user", "content": "retry"}],
+                "metadata": {
+                    "step": 4,
+                    "step_name": "retry_probe",
+                    "interaction_type": "instruct",
+                    "interaction_name": "round",
+                },
+            }
+        )
+    finally:
+        await manager.close()
+        log_context.close()
+
+    assert result["content"] == "recovered"
+    records = _read_jsonl(tmp_path / "resource_calls.jsonl")
+    terminal_records = [record for record in records if record["status"] != "started"]
+    assert [record["status"] for record in terminal_records] == ["failed", "success"]
+    assert len({record["request_id"] for record in terminal_records}) == 1
+    assert [record["retry_count"] for record in terminal_records] == [0, 1]
+    assert terminal_records[0]["jitter_duration_sec"] >= 0.01
+    assert "jitter_duration_sec" not in terminal_records[1]
+    assert "queue_duration_sec" in terminal_records[0]
+    assert "queue_duration_sec" not in terminal_records[1]
+    assert terminal_records[1]["duration_sec"] >= 0.02
+    assert terminal_records[1]["duration_sec"] < terminal_records[0]["duration_sec"]
+    assert terminal_records[1]["provider_duration_sec"] < terminal_records[0][
+        "provider_duration_sec"
+    ]
+
+    summary = Society0(
+        save_dir=str(tmp_path),
+        base_config=_base_config(),
+    )._summarize_resource_calls()
+    duration_total = sum(record["duration_sec"] for record in terminal_records)
+    provider_total = sum(
+        record["provider_duration_sec"] for record in terminal_records
+    )
+    assert summary["llm"]["call_count"] == 2
+    assert summary["llm"]["error_count"] == 1
+    assert summary["llm"]["duration_sec_total"] == pytest.approx(duration_total, abs=1e-6)
+    assert summary["llm"]["provider_duration_sec_total"] == pytest.approx(
+        provider_total,
+        abs=1e-6,
+    )
+    assert summary["llm"]["jitter_duration_sec_total"] == pytest.approx(
+        terminal_records[0]["jitter_duration_sec"],
+        abs=1e-6,
+    )
+    expected_runtime_overhead = max(
+        summary["llm"]["duration_sec_total"]
+        - summary["llm"]["provider_duration_sec_total"]
+        - summary["llm"]["queue_duration_sec_total"]
+        - summary["llm"]["jitter_duration_sec_total"],
+        0.0,
+    )
+    assert summary["llm"]["timing_breakdown"]["runtime_overhead_sec"] == pytest.approx(
+        expected_runtime_overhead,
+        abs=1e-6,
+    )
+
+
+@pytest.mark.asyncio
 async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp_path):
     captured_payloads = []
 
@@ -9331,6 +9518,32 @@ async def test_llm_manager_logs_tool_and_payload_size_for_generation_options(tmp
     summary = Society0(save_dir=str(tmp_path), base_config=_base_config())._summarize_resource_calls()
     assert summary["llm"]["tools_count_total"] == 1
     assert summary["llm"]["queue_duration_semantics"] == "client_admission_wait_upper_bound"
+    assert summary["llm"]["provider_duration_semantics"] == (
+        "provider_elapsed_including_unseparated_internal_queue"
+    )
+    assert summary["llm"]["jitter_duration_sec_total"] == pytest.approx(
+        success_record["jitter_duration_sec"],
+        abs=1e-6,
+    )
+    assert summary["llm"]["jitter_duration_sec_max"] == pytest.approx(
+        success_record["jitter_duration_sec"],
+        abs=1e-6,
+    )
+    assert summary["llm"]["jitter_duration_sec_avg"] == pytest.approx(
+        success_record["jitter_duration_sec"],
+        abs=1e-6,
+    )
+    expected_runtime_overhead = max(
+        summary["llm"]["duration_sec_total"]
+        - summary["llm"]["provider_duration_sec_total"]
+        - summary["llm"]["queue_duration_sec_total"]
+        - summary["llm"]["jitter_duration_sec_total"],
+        0.0,
+    )
+    assert summary["llm"]["timing_breakdown"]["runtime_overhead_sec"] == pytest.approx(
+        expected_runtime_overhead,
+        abs=1e-6,
+    )
     assert summary["llm"]["tools_count_max"] == 1
     assert summary["llm"]["tools_count_avg"] == 1.0
     assert summary["llm"]["tools_characters"] == success_record["tools_characters"]

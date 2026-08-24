@@ -1610,6 +1610,8 @@ class Society0:
             "duration_sec_total": 0.0,
             "provider_duration_sec_total": 0.0,
             "queue_duration_sec_total": 0.0,
+            "jitter_duration_sec_total": 0.0,
+            "jitter_duration_sec_max": 0.0,
             "input_characters": 0,
             "tools_characters": 0,
             "payload_characters": 0,
@@ -1723,10 +1725,18 @@ class Society0:
         if record.get("status") and record.get("status") != "success":
             bucket["error_count"] += 1
 
-        for key in ("duration_sec", "provider_duration_sec", "queue_duration_sec"):
+        for key in (
+            "duration_sec",
+            "provider_duration_sec",
+            "queue_duration_sec",
+            "jitter_duration_sec",
+        ):
             value = record.get(key)
             if isinstance(value, (int, float)):
                 bucket[f"{key}_total"] += float(value)
+                max_key = f"{key}_max"
+                if max_key in bucket:
+                    bucket[max_key] = max(bucket[max_key], float(value))
 
         for key in (
             "input_characters",
@@ -1768,6 +1778,7 @@ class Society0:
                 "tools_count": record.get("tools_count"),
                 "texts_count": record.get("texts_count"),
                 "total_tokens": record.get("total_tokens"),
+                "jitter_duration_sec": record.get("jitter_duration_sec"),
                 "error_type": record.get("error_type"),
             }
             slowest = bucket["slowest_calls"]
@@ -1781,7 +1792,8 @@ class Society0:
         duration = round(float(bucket.get("duration_sec_total", 0.0) or 0.0), 6)
         provider = round(float(bucket.get("provider_duration_sec_total", 0.0) or 0.0), 6)
         queue = round(float(bucket.get("queue_duration_sec_total", 0.0) or 0.0), 6)
-        runtime_overhead = round(max(duration - provider - queue, 0.0), 6)
+        jitter = round(float(bucket.get("jitter_duration_sec_total", 0.0) or 0.0), 6)
+        runtime_overhead = round(max(duration - provider - queue - jitter, 0.0), 6)
 
         def share(value: float) -> float:
             return round(value / duration, 6) if duration > 0 else 0.0
@@ -1789,19 +1801,25 @@ class Society0:
         components = {
             "provider": provider,
             "queue": queue,
+            "jitter": jitter,
             "runtime_overhead": runtime_overhead,
         }
         bottleneck = "none" if duration <= 0 else max(components.items(), key=lambda item: item[1])[0]
         bucket["timing_breakdown"] = {
             "provider_duration_sec": provider,
             "queue_duration_sec": queue,
+            "jitter_duration_sec": jitter,
             "runtime_overhead_sec": runtime_overhead,
             "provider_share": share(provider),
             "queue_share": share(queue),
+            "jitter_share": share(jitter),
             "runtime_overhead_share": share(runtime_overhead),
             "bottleneck": bottleneck,
         }
         bucket["queue_duration_semantics"] = "client_admission_wait_upper_bound"
+        bucket["provider_duration_semantics"] = (
+            "provider_elapsed_including_unseparated_internal_queue"
+        )
 
     @staticmethod
     def _finalize_operation_resource_map(resource_map: Optional[Dict[str, Dict[str, Any]]]) -> None:
@@ -1811,7 +1829,13 @@ class Society0:
             by_interaction_type = bucket.pop("_by_interaction_type", {})
             fidelity_phases = bucket.pop("_fidelity_phases", {})
             call_count = bucket.get("call_count", 0)
-            for key in ("duration_sec_total", "provider_duration_sec_total", "queue_duration_sec_total"):
+            for key in (
+                "duration_sec_total",
+                "provider_duration_sec_total",
+                "queue_duration_sec_total",
+                "jitter_duration_sec_total",
+                "jitter_duration_sec_max",
+            ):
                 bucket[key] = round(float(bucket.get(key, 0.0)), 6)
             bucket["duration_sec_avg"] = (
                 round(bucket["duration_sec_total"] / call_count, 6)
@@ -1828,6 +1852,11 @@ class Society0:
                 if call_count
                 else 0.0
             )
+            bucket["jitter_duration_sec_avg"] = (
+                round(bucket["jitter_duration_sec_total"] / call_count, 6)
+                if call_count
+                else 0.0
+            )
             bucket["messages_count_avg"] = (
                 round(bucket["messages_count_total"] / call_count, 6)
                 if call_count
@@ -1841,6 +1870,7 @@ class Society0:
             bucket["total_duration_sec"] = bucket["duration_sec_total"]
             bucket["total_provider_duration_sec"] = bucket["provider_duration_sec_total"]
             bucket["total_queue_duration_sec"] = bucket["queue_duration_sec_total"]
+            bucket["total_jitter_duration_sec"] = bucket["jitter_duration_sec_total"]
             bucket["total_input_characters"] = bucket["input_characters"]
             bucket["total_tools_characters"] = bucket["tools_characters"]
             bucket["total_payload_characters"] = bucket["payload_characters"]
@@ -1907,6 +1937,7 @@ class Society0:
                 "temperature",
                 "top_p",
                 "queue_duration_sec",
+                "jitter_duration_sec",
                 "provider_duration_sec",
                 "prompt_tokens",
                 "completion_tokens",
@@ -1963,6 +1994,8 @@ class Society0:
                         "duration_sec_max": 0.0,
                         "queue_duration_sec_total": 0.0,
                         "queue_duration_sec_max": 0.0,
+                        "jitter_duration_sec_total": 0.0,
+                        "jitter_duration_sec_max": 0.0,
                         "provider_duration_sec_total": 0.0,
                         "provider_duration_sec_max": 0.0,
                         "input_characters": 0,
@@ -2002,6 +2035,8 @@ class Society0:
                             "duration_sec_total": 0.0,
                             "provider_duration_sec_total": 0.0,
                             "queue_duration_sec_total": 0.0,
+                            "jitter_duration_sec_total": 0.0,
+                            "jitter_duration_sec_max": 0.0,
                             "input_characters": 0,
                             "tools_characters": 0,
                             "payload_characters": 0,
@@ -2032,6 +2067,8 @@ class Society0:
                         "duration_sec_total": 0.0,
                         "provider_duration_sec_total": 0.0,
                         "queue_duration_sec_total": 0.0,
+                        "jitter_duration_sec_total": 0.0,
+                        "jitter_duration_sec_max": 0.0,
                         "input_characters": 0,
                         "tools_characters": 0,
                         "payload_characters": 0,
@@ -2063,13 +2100,23 @@ class Society0:
                     slowest.append(compact_slow_call(record))
                     slowest.sort(key=lambda item: item.get("duration_sec", 0), reverse=True)
                     del slowest[5:]
-                for timing_key in ("queue_duration_sec", "provider_duration_sec"):
+                for timing_key in (
+                    "queue_duration_sec",
+                    "jitter_duration_sec",
+                    "provider_duration_sec",
+                ):
                     timing_value = record.get(timing_key)
                     if isinstance(timing_value, (int, float)):
                         timing_float = float(timing_value)
                         bucket[f"{timing_key}_total"] += timing_float
                         bucket[f"{timing_key}_max"] = max(bucket[f"{timing_key}_max"], timing_float)
                         tick_bucket[f"{timing_key}_total"] += timing_float
+                        tick_max_key = f"{timing_key}_max"
+                        if tick_max_key in tick_bucket:
+                            tick_bucket[tick_max_key] = max(
+                                tick_bucket[tick_max_key],
+                                timing_float,
+                            )
                 for key in (
                     "prompt_tokens",
                     "completion_tokens",
@@ -2109,6 +2156,8 @@ class Society0:
                         "duration_sec_max": 0.0,
                         "queue_duration_sec_total": 0.0,
                         "queue_duration_sec_max": 0.0,
+                        "jitter_duration_sec_total": 0.0,
+                        "jitter_duration_sec_max": 0.0,
                         "provider_duration_sec_total": 0.0,
                         "provider_duration_sec_max": 0.0,
                         "input_characters": 0,
@@ -2134,7 +2183,11 @@ class Society0:
                         interaction_bucket["duration_sec_max"],
                         duration_float,
                     )
-                for timing_key in ("queue_duration_sec", "provider_duration_sec"):
+                for timing_key in (
+                    "queue_duration_sec",
+                    "jitter_duration_sec",
+                    "provider_duration_sec",
+                ):
                     timing_value = record.get(timing_key)
                     if isinstance(timing_value, (int, float)):
                         timing_float = float(timing_value)
@@ -2198,7 +2251,11 @@ class Society0:
                 bucket["incomplete_count"] = max(bucket["started_count"] - bucket["terminal_count"], 0)
             bucket["duration_sec_total"] = round(bucket["duration_sec_total"], 6)
             bucket["duration_sec_max"] = round(bucket["duration_sec_max"], 6)
-            for timing_key in ("queue_duration_sec", "provider_duration_sec"):
+            for timing_key in (
+                "queue_duration_sec",
+                "jitter_duration_sec",
+                "provider_duration_sec",
+            ):
                 total_key = f"{timing_key}_total"
                 max_key = f"{timing_key}_max"
                 avg_key = f"{timing_key}_avg"
@@ -2226,6 +2283,7 @@ class Society0:
             bucket["total_duration_sec"] = bucket["duration_sec_total"]
             bucket["total_provider_duration_sec"] = bucket["provider_duration_sec_total"]
             bucket["total_queue_duration_sec"] = bucket["queue_duration_sec_total"]
+            bucket["total_jitter_duration_sec"] = bucket["jitter_duration_sec_total"]
             bucket["total_input_characters"] = bucket["input_characters"]
             bucket["total_tools_characters"] = bucket["tools_characters"]
             bucket["total_payload_characters"] = bucket["payload_characters"]
@@ -2240,7 +2298,13 @@ class Society0:
             if error_samples:
                 bucket["error_samples"] = error_samples
             for tick_bucket in by_tick.values():
-                for key in ("duration_sec_total", "queue_duration_sec_total", "provider_duration_sec_total"):
+                for key in (
+                    "duration_sec_total",
+                    "queue_duration_sec_total",
+                    "jitter_duration_sec_total",
+                    "jitter_duration_sec_max",
+                    "provider_duration_sec_total",
+                ):
                     tick_bucket[key] = round(tick_bucket[key], 6)
                 tick_bucket["duration_sec_avg"] = (
                     round(tick_bucket["duration_sec_total"] / tick_bucket["call_count"], 6)
@@ -2257,6 +2321,11 @@ class Society0:
                     if tick_bucket["call_count"]
                     else 0.0
                 )
+                tick_bucket["jitter_duration_sec_avg"] = (
+                    round(tick_bucket["jitter_duration_sec_total"] / tick_bucket["call_count"], 6)
+                    if tick_bucket["call_count"]
+                    else 0.0
+                )
                 tick_bucket["messages_count_avg"] = (
                     round(tick_bucket["messages_count_total"] / tick_bucket["call_count"], 6)
                     if tick_bucket["call_count"]
@@ -2270,6 +2339,7 @@ class Society0:
                 tick_bucket["total_duration_sec"] = tick_bucket["duration_sec_total"]
                 tick_bucket["total_provider_duration_sec"] = tick_bucket["provider_duration_sec_total"]
                 tick_bucket["total_queue_duration_sec"] = tick_bucket["queue_duration_sec_total"]
+                tick_bucket["total_jitter_duration_sec"] = tick_bucket["jitter_duration_sec_total"]
                 tick_bucket["total_input_characters"] = tick_bucket["input_characters"]
                 tick_bucket["total_tools_characters"] = tick_bucket["tools_characters"]
                 tick_bucket["total_payload_characters"] = tick_bucket["payload_characters"]
@@ -2284,7 +2354,11 @@ class Society0:
                     interaction_bucket["duration_sec_max"],
                     6,
                 )
-                for timing_key in ("queue_duration_sec", "provider_duration_sec"):
+                for timing_key in (
+                    "queue_duration_sec",
+                    "jitter_duration_sec",
+                    "provider_duration_sec",
+                ):
                     total_key = f"{timing_key}_total"
                     max_key = f"{timing_key}_max"
                     avg_key = f"{timing_key}_avg"
@@ -2309,6 +2383,7 @@ class Society0:
                 interaction_bucket["total_duration_sec"] = interaction_bucket["duration_sec_total"]
                 interaction_bucket["total_provider_duration_sec"] = interaction_bucket["provider_duration_sec_total"]
                 interaction_bucket["total_queue_duration_sec"] = interaction_bucket["queue_duration_sec_total"]
+                interaction_bucket["total_jitter_duration_sec"] = interaction_bucket["jitter_duration_sec_total"]
                 interaction_bucket["total_input_characters"] = interaction_bucket["input_characters"]
                 interaction_bucket["total_tools_characters"] = interaction_bucket["tools_characters"]
                 interaction_bucket["total_payload_characters"] = interaction_bucket["payload_characters"]

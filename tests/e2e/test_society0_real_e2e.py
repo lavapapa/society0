@@ -359,13 +359,21 @@ def _assert_resource_timing(records: list[dict]) -> None:
 def _assert_timing_breakdown(bucket: dict) -> None:
     timing = bucket.get("timing_breakdown")
     assert isinstance(timing, dict)
-    assert timing["bottleneck"] in {"provider", "queue", "runtime_overhead", "none"}
+    assert timing["bottleneck"] in {
+        "provider",
+        "queue",
+        "jitter",
+        "runtime_overhead",
+        "none",
+    }
     for key in (
         "provider_duration_sec",
         "queue_duration_sec",
+        "jitter_duration_sec",
         "runtime_overhead_sec",
         "provider_share",
         "queue_share",
+        "jitter_share",
         "runtime_overhead_share",
     ):
         assert isinstance(timing.get(key), (int, float))
