@@ -75,6 +75,51 @@ def _state_schema(properties):
     }
 
 
+class _FactResult(dict):
+    def __init__(self, *, read_fact_keys, **payload):
+        super().__init__(payload)
+        self.read_fact_keys = frozenset(read_fact_keys)
+
+
+async def _run_action_sequence(
+    action_set,
+    sequence,
+    requests,
+    *,
+    instruction,
+    max_turns,
+    llm_request_options=None,
+):
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if len(requests) > len(sequence):
+            return {"role": "assistant", "content": "done", "tool_calls": []}
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": sequence[len(requests) - 1],
+                        "arguments": "{}",
+                    },
+                }
+            ],
+        }
+
+    return await execute_action_loop(
+        instruction=instruction,
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=max_turns,
+        llm_request_options=llm_request_options,
+    )
+
+
 def _base_config(*, environment_state_schema=None, environment_state=None):
     return {
         "agent_types": [
@@ -2937,6 +2982,423 @@ async def test_explicit_read_outcome_signature_detects_equivalent_results() -> N
 
     assert result.activation_status == "incomplete"
     assert "不同筛选参数" in requests[2]["messages"][-2]["content"]
+
+
+@pytest.mark.asyncio
+async def test_cross_tool_read_fact_subset_is_bounded_and_prompts_decision() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_board():
+        return _FactResult(
+            read_fact_keys={"cash", "orders"},
+            detail="board full detail",
+        )
+
+    async def query_inventory():
+        return _FactResult(
+            read_fact_keys={"orders"},
+            detail="inventory full detail",
+        )
+
+    empty_parameters = {"type": "object", "properties": {}}
+    action_set.add_action(
+        "query_board",
+        query_board,
+        "Query the board answer.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "query_inventory",
+        query_inventory,
+        "Query inventory.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("query_board", "query_inventory"),
+        requests,
+        instruction="Review the board answer and inventory.",
+        max_turns=3,
+        llm_request_options={
+            "temperature": 0.0,
+            "repeated_read_temperature_delta": 0.2,
+            "repeated_read_temperature_max": 0.6,
+        },
+    )
+
+    compressed_message = requests[2]["messages"][-2]
+    assert len(requests) == 3
+    assert result.status == "success"
+    assert result.termination_reason == "no_action_calls"
+    assert result.termination_action is None
+    assert compressed_message["role"] == "tool"
+    assert "inventory full detail" not in compressed_message["content"]
+    assert "此前董事会/查询答案" in compressed_message["content"]
+    assert "回到当前经营判断" in compressed_message["content"]
+    assert requests[2]["temperature"] == 0.2
+    assert result.action_calls[1]["result"]["detail"] == "inventory full detail"
+
+
+@pytest.mark.asyncio
+async def test_cross_tool_read_fact_union_is_presented_and_merged() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_board():
+        return _FactResult(read_fact_keys={"cash", "orders"}, detail="board detail")
+
+    async def query_inventory():
+        return _FactResult(
+            read_fact_keys={"orders", "inventory"},
+            detail="inventory detail",
+        )
+
+    async def query_sales():
+        return _FactResult(
+            read_fact_keys={"cash", "orders", "inventory"},
+            detail="sales detail",
+        )
+
+    empty_parameters = {"type": "object", "properties": {}}
+    for name, func in (
+        ("query_board", query_board),
+        ("query_inventory", query_inventory),
+        ("query_sales", query_sales),
+    ):
+        action_set.add_action(
+            name,
+            func,
+            f"Run {name}.",
+            empty_parameters,
+            tags=["industry_query"],
+        )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("query_board", "query_inventory", "query_sales"),
+        requests,
+        instruction="Review all operating facts.",
+        max_turns=4,
+    )
+
+    assert requests[2]["messages"][-1]["role"] == "tool"
+    assert "inventory detail" in requests[2]["messages"][-1]["content"]
+    compressed_message = requests[3]["messages"][-2]
+    assert "sales detail" not in compressed_message["content"]
+    assert "此前董事会/查询答案" in compressed_message["content"]
+    assert result.action_calls[1]["result"]["detail"] == "inventory detail"
+    assert result.action_calls[2]["result"]["detail"] == "sales detail"
+
+
+@pytest.mark.asyncio
+async def test_failed_read_fact_keys_do_not_cover_later_cross_tool_reads() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def failed_read():
+        return _FactResult(
+            read_fact_keys={"cash"},
+            ok=False,
+            error="temporary read failure",
+            detail="failed detail",
+        )
+
+    async def successful_read():
+        return _FactResult(read_fact_keys={"cash"}, detail="successful detail")
+
+    async def subset_read():
+        return _FactResult(read_fact_keys={"cash"}, detail="subset detail")
+
+    empty_parameters = {"type": "object", "properties": {}}
+    for name, func in (
+        ("failed_read", failed_read),
+        ("successful_read", successful_read),
+        ("subset_read", subset_read),
+    ):
+        action_set.add_action(
+            name,
+            func,
+            f"Run {name}.",
+            empty_parameters,
+            tags=["industry_query"],
+        )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("failed_read", "successful_read", "subset_read"),
+        requests,
+        instruction="Read the cash position.",
+        max_turns=4,
+    )
+
+    assert result.action_calls[0]["status"] == "error"
+    assert "successful detail" in requests[2]["messages"][-1]["content"]
+    compressed_message = requests[3]["messages"][-2]
+    assert "subset detail" not in compressed_message["content"]
+    assert "此前董事会/查询答案" in compressed_message["content"]
+
+
+@pytest.mark.asyncio
+async def test_changed_write_clears_cross_tool_fact_and_read_caches() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_plan():
+        return _FactResult(read_fact_keys={"plan"}, detail="plan detail")
+
+    async def update_plan():
+        return {"change_applied": True}
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "update_plan",
+        update_plan,
+        "Update the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("query_plan", "update_plan", "query_plan"),
+        requests,
+        instruction="Inspect and update the plan.",
+        max_turns=4,
+    )
+
+    repeated_after_write = requests[3]["messages"][-1]
+    assert "plan detail" in repeated_after_write["content"]
+    assert "当前事实没有变化" not in repeated_after_write["content"]
+    assert "此前董事会/查询答案" not in repeated_after_write["content"]
+    assert [call["action_name"] for call in result.action_calls] == [
+        "query_plan",
+        "update_plan",
+        "query_plan",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_same_action_fact_repeat_keeps_existing_duplicate_feedback() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_plan():
+        return _FactResult(read_fact_keys={"plan"}, detail="plan detail")
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+
+    await _run_action_sequence(
+        action_set,
+        ("query_plan", "query_plan"),
+        requests,
+        instruction="Inspect the plan.",
+        max_turns=3,
+    )
+
+    repeated_message = requests[2]["messages"][-2]
+    assert "完全相同参数调用 query_plan" in repeated_message["content"]
+    assert "此前董事会/查询答案" not in repeated_message["content"]
+
+
+@pytest.mark.asyncio
+async def test_noop_write_keeps_cross_tool_fact_coverage() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_plan():
+        return _FactResult(read_fact_keys={"plan"}, detail="plan detail")
+
+    async def query_budget():
+        return _FactResult(read_fact_keys={"plan"}, detail="budget detail")
+
+    async def update_plan():
+        return {"change_applied": False}
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "query_budget",
+        query_budget,
+        "Query the budget.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "update_plan",
+        update_plan,
+        "Update the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("query_plan", "update_plan", "query_budget"),
+        requests,
+        instruction="Inspect and update the plan.",
+        max_turns=4,
+    )
+
+    compressed_message = requests[3]["messages"][-2]
+    assert "plan detail" not in compressed_message["content"]
+    assert "此前董事会/查询答案" in compressed_message["content"]
+    assert [call["status"] for call in result.action_calls] == [
+        "success",
+        "success",
+        "success",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_failed_write_does_not_clear_cross_tool_fact_coverage() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_plan():
+        return _FactResult(read_fact_keys={"plan"}, detail="plan detail")
+
+    async def query_budget():
+        return _FactResult(read_fact_keys={"plan"}, detail="budget detail")
+
+    async def update_plan():
+        raise RuntimeError("plan update failed")
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "query_budget",
+        query_budget,
+        "Query the budget.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "update_plan",
+        update_plan,
+        "Update the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_plan"],
+    )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("query_plan", "update_plan", "query_budget"),
+        requests,
+        instruction="Inspect and update the plan.",
+        max_turns=4,
+    )
+
+    compressed_message = requests[3]["messages"][-2]
+    assert "plan detail" not in compressed_message["content"]
+    assert "此前董事会/查询答案" in compressed_message["content"]
+    assert result.action_calls[1]["status"] == "error"
+
+
+@pytest.mark.asyncio
+async def test_produces_and_sells_fact_keys_do_not_cover_each_other() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def produces():
+        return _FactResult(
+            read_fact_keys={"produces:cell"},
+            detail="production detail",
+        )
+
+    async def sells():
+        return _FactResult(read_fact_keys={"sells:cell"}, detail="sales detail")
+
+    empty_parameters = {"type": "object", "properties": {}}
+    action_set.add_action(
+        "produces",
+        produces,
+        "Read production facts.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "sells",
+        sells,
+        "Read sales facts.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+
+    result = await _run_action_sequence(
+        action_set,
+        ("produces", "sells"),
+        requests,
+        instruction="Read production and sales facts.",
+        max_turns=3,
+    )
+
+    assert "sales detail" in requests[2]["messages"][-1]["content"]
+    assert result.action_calls[1]["result"]["detail"] == "sales detail"
+
+
+@pytest.mark.asyncio
+async def test_reads_without_fact_keys_keep_existing_cross_tool_behavior() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_one():
+        return {"detail": "shared detail"}
+
+    async def query_two():
+        return {"detail": "shared detail"}
+
+    empty_parameters = {"type": "object", "properties": {}}
+    action_set.add_action(
+        "query_one",
+        query_one,
+        "Read one view.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+    action_set.add_action(
+        "query_two",
+        query_two,
+        "Read another view.",
+        empty_parameters,
+        tags=["industry_query"],
+    )
+
+    await _run_action_sequence(
+        action_set,
+        ("query_one", "query_two"),
+        requests,
+        instruction="Read both views.",
+        max_turns=3,
+    )
+
+    assert "shared detail" in requests[2]["messages"][-1]["content"]
+    assert "此前董事会/查询答案" not in requests[2]["messages"][-1]["content"]
 
 
 @pytest.mark.asyncio
