@@ -17,6 +17,7 @@ import logging
 import json_repair
 import time
 from collections import Counter
+from collections.abc import Mapping
 
 from ..function_registry import validate_strict_function_parameters
 from ..resource_managers import redact_credentials
@@ -235,6 +236,24 @@ def _read_outcome_signature(result: Any, rendered: str) -> str:
                 sort_keys=True,
             )
     return rendered
+
+
+def _read_fact_keys(result: Any) -> frozenset[str]:
+    """读取 Action 声明的、可跨工具复用的稳定事实键。"""
+
+    raw_fact_keys = getattr(result, "read_fact_keys", None)
+    if raw_fact_keys is None or isinstance(raw_fact_keys, str):
+        return frozenset()
+    try:
+        fact_keys = frozenset(raw_fact_keys)
+    except TypeError:
+        return frozenset()
+    if not fact_keys or any(
+        not isinstance(fact_key, str) or not fact_key
+        for fact_key in fact_keys
+    ):
+        return frozenset()
+    return fact_keys
 
 
 def _is_tool_schema_error(error: BaseException | str) -> bool:
@@ -1157,7 +1176,9 @@ async def execute_action_loop(
     action_payload_counts: Counter[tuple[str, str]] = Counter()
     successful_read_results: Dict[tuple[str, str], tuple[str, str]] = {}
     successful_read_outcomes: Dict[tuple[str, str], tuple[str, str]] = {}
+    successful_read_action_keys: set[str] = set()
     failed_read_results: Dict[tuple[str, str], str] = {}
+    presented_read_fact_keys: set[str] = set()
     decision_prompted_outcomes: set[tuple[str, str]] = set()
     repeated_read_streak = 0
     oversized_batch_rejections = 0
@@ -2204,11 +2225,34 @@ async def execute_action_loop(
                     event_payload["error"] = action_call.error
                 _append_thread_event(event_type, event_payload)
 
+                if (
+                    action_call.status == "success"
+                    and not is_read_action
+                    and not (
+                        isinstance(action_result, Mapping)
+                        and action_result.get("change_applied") is False
+                    )
+                ):
+                    presented_read_fact_keys.clear()
+                    successful_read_results.clear()
+                    successful_read_outcomes.clear()
+                    successful_read_action_keys.clear()
+                    failed_read_results.clear()
+
                 result_content = str(action_result)
                 result_signature = _read_outcome_signature(
                     action_result,
                     result_content,
                 )
+                read_fact_keys = (
+                    _read_fact_keys(action_result)
+                    if action_call.status == "success" and is_read_action
+                    else frozenset()
+                )
+                new_read_fact_keys = read_fact_keys - presented_read_fact_keys
+                if new_read_fact_keys:
+                    presented_read_fact_keys.update(new_read_fact_keys)
+                same_action_read_seen = action_key in successful_read_action_keys
                 previous_read = successful_read_results.get(payload_key)
                 previous_outcome = successful_read_outcomes.get(
                     (action_key, result_signature)
@@ -2227,6 +2271,50 @@ async def execute_action_loop(
                     )
                     prompt_decision_after_tools = True
                     outcome_key = (f"failed:{action_key}", result_signature)
+                    if outcome_key not in decision_prompted_outcomes:
+                        decision_prompted_outcomes.add(outcome_key)
+                        first_decision_prompt_this_turn = True
+                elif (
+                    action_call.status == "success"
+                    and is_read_action
+                    and read_fact_keys
+                    and new_read_fact_keys
+                ):
+                    base_content = result_content + _repeated_action_hint(
+                        action_call.action_name,
+                        occurrence=payload_occurrence,
+                        failed=False,
+                    )
+                    successful_read_results[payload_key] = (
+                        result_content,
+                        action_call.call_id,
+                    )
+                    successful_read_outcomes.setdefault(
+                        (action_key, result_signature),
+                        (payload_key[1], action_call.call_id),
+                    )
+                elif (
+                    action_call.status == "success"
+                    and is_read_action
+                    and read_fact_keys
+                    and not new_read_fact_keys
+                    and not same_action_read_seen
+                ):
+                    base_content = (
+                        "这次读取涉及的事实已经在此前董事会/查询答案中完整呈现；"
+                        "为避免重复发送完整结果，本次只保留执行记录。请回到当前"
+                        "经营判断；若仍有缺口，请提出会改变判断的具体查询。"
+                    )
+                    successful_read_results[payload_key] = (
+                        result_content,
+                        action_call.call_id,
+                    )
+                    successful_read_outcomes.setdefault(
+                        (action_key, result_signature),
+                        (payload_key[1], action_call.call_id),
+                    )
+                    prompt_decision_after_tools = True
+                    outcome_key = (f"covered:{action_key}", result_signature)
                     if outcome_key not in decision_prompted_outcomes:
                         decision_prompted_outcomes.add(outcome_key)
                         first_decision_prompt_this_turn = True
@@ -2284,6 +2372,8 @@ async def execute_action_loop(
                             (action_key, result_signature),
                             (payload_key[1], action_call.call_id),
                         )
+                if action_call.status == "success" and is_read_action:
+                    successful_read_action_keys.add(action_key)
                 if action_call.status != "success" and is_read_action:
                     failed_read_results[payload_key] = result_content
                 display_content = base_content
