@@ -7475,7 +7475,12 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
             "repeated_read_temperature_delta": 0.2,
             "repeated_read_temperature_max": 0.6,
             "metadata": {"must_not": "pass"},
+            "extra_body": {
+                "chat_template_kwargs": {"enable_thinking": False},
+                "metadata": {"caller": "kept", "session_id": "wrong-thread"},
+            },
         },
+        thread_id="thr_session_cache_test",
     )
 
     assert result["structured_output"] == {"trust_score": 4.0}
@@ -7487,6 +7492,10 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert "repeated_read_temperature_max" not in calls[0]
     assert calls[0]["metadata"]["agent_id"] == "alice"
     assert calls[0]["metadata"].get("must_not") is None
+    assert calls[0]["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": False},
+        "metadata": {"caller": "kept", "session_id": "thr_session_cache_test"},
+    }
     assert calls[0]["tools"][0]["function"]["strict"] is True
     assert len(calls) == 1
     assert calls[0]["tool_choice"] == {"type": "function", "function": {"name": "submit_result"}}
@@ -7495,6 +7504,89 @@ async def test_submit_result_terminates_structured_instruct_without_extra_llm_tu
     assert result["assistant_turn_trace"][0]["has_visible_text"] is False
     assert result["assistant_turn_trace"][0]["tool_calls"][0]["action_name"] == "submit_result"
     assert result["termination_reason"] == "terminal_action"
+
+
+@pytest.mark.asyncio
+async def test_agent_thread_reuses_provider_session_id_across_tool_turns():
+    calls = []
+
+    class FakeWorld:
+        agents_data = {
+            "alice": {
+                "id": "alice",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "Inspect then decide.",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+        event_logger = None
+
+        def get_environment(self):
+            return type("Env", (), {"agent_instruction": ""})()
+
+        def get_log_context(self):
+            return None
+
+        def get_context_stack(self):
+            return ContextStack()
+
+        def set_context_stack(self, stack):
+            self.context_stack = stack
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        if len(calls) == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "inspect", "arguments": "{}"},
+                    }
+                ],
+            }
+        return {"role": "assistant", "content": "No change is needed."}
+
+    actions = ActionSet()
+    actions.add_action(
+        "inspect",
+        lambda: {"status": "ok"},
+        "Read the current state.",
+        {"type": "object", "properties": {}, "required": [], "additionalProperties": False},
+        strict=True,
+    )
+    agent = LLMAgent("alice", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="Inspect then decide.",
+        memory=None,
+        llm_call=fake_llm_call,
+        actionset=actions,
+    )
+
+    result = await agent.instruct(
+        "Inspect the current state.",
+        retrieve_memory=False,
+        max_turns=2,
+        llm_request_options={
+            "extra_body": {
+                "chat_template_kwargs": {"enable_thinking": False},
+                "metadata": {"caller": "kept"},
+            }
+        },
+        thread_id="thr_session_cache_reused",
+    )
+
+    assert result["termination_reason"] == "no_action_calls"
+    assert len(calls) == 2
+    assert [call["extra_body"]["metadata"] for call in calls] == [
+        {"caller": "kept", "session_id": "thr_session_cache_reused"},
+        {"caller": "kept", "session_id": "thr_session_cache_reused"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -8755,13 +8847,20 @@ async def test_llm_model_request_options_are_defaults_for_every_call(monkeypatch
         return {"role": "assistant", "content": "ok"}
 
     monkeypatch.setattr(manager, "request", fake_request)
-    await runtime.llm_call({"messages": [], "temperature": 0})
+    await runtime.llm_call(
+        {
+            "messages": [],
+            "temperature": 0,
+            "extra_body": {"metadata": {"session_id": "thr_session_cache_test"}},
+        }
+    )
     await manager.close()
 
     assert captured == [
         {
             "extra_body": {
-                "chat_template_kwargs": {"enable_thinking": False}
+                "chat_template_kwargs": {"enable_thinking": False},
+                "metadata": {"session_id": "thr_session_cache_test"},
             },
             "temperature": 0,
             "messages": [],

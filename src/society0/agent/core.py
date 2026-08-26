@@ -88,6 +88,19 @@ def _sanitize_llm_request_options(options: Optional[Dict[str, Any]]) -> Dict[str
     }
 
 
+def _with_thread_session_id(options: Dict[str, Any], thread_id: Optional[str]) -> Dict[str, Any]:
+    """Attach the provider KV-cache session to one Agent Thread's action loop."""
+    if thread_id is None:
+        return options
+    request_options = dict(options)
+    extra_body = dict(request_options.get("extra_body") or {})
+    metadata = dict(extra_body.get("metadata") or {})
+    metadata["session_id"] = thread_id
+    extra_body["metadata"] = metadata
+    request_options["extra_body"] = extra_body
+    return request_options
+
+
 def _format_agent_exception(exc: BaseException) -> str:
     """Return a non-empty, audit-friendly description of an agent error.
 
@@ -1207,6 +1220,10 @@ class LLMAgent(Agent):
             raise RuntimeError(f"LLM call function not initialized for Agent '{self.id}'")
         safe_llm_request_options = _sanitize_llm_request_options(llm_request_options)
         normalized_thread_id = str(thread_id or "").strip() or None
+        safe_llm_request_options = _with_thread_session_id(
+            safe_llm_request_options,
+            normalized_thread_id,
+        )
         if prior_messages is not None and normalized_thread_id is not None:
             raise ValueError("prior_messages and thread_id cannot be used together")
         resolved_thread_ref = (

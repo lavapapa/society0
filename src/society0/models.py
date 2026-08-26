@@ -7,13 +7,37 @@ resource managers so lifecycle, concurrency, and logs remain centralized.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 from .llm_model_types import ModelConfig, ModelRuntime
 from .resource_managers import EmbeddingManager, LLMManager
 
 
 _TOOL_CHOICE_POLICIES = {"native", "auto_restrict"}
+
+
+def _merge_llm_request_options(
+    defaults: Mapping[str, Any],
+    request: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Merge one per-call session metadata object without losing static vendor options."""
+    merged = dict(defaults)
+    request_extra_body = request.get("extra_body")
+    default_extra_body = merged.get("extra_body")
+    merged.update(request)
+    if not isinstance(default_extra_body, Mapping) or not isinstance(request_extra_body, Mapping):
+        return merged
+
+    extra_body = dict(default_extra_body)
+    extra_body.update(request_extra_body)
+    default_metadata = default_extra_body.get("metadata")
+    request_metadata = request_extra_body.get("metadata")
+    if isinstance(default_metadata, Mapping) and isinstance(request_metadata, Mapping):
+        metadata = dict(default_metadata)
+        metadata.update(request_metadata)
+        extra_body["metadata"] = metadata
+    merged["extra_body"] = extra_body
+    return merged
 
 
 @dataclass(slots=True)
@@ -168,8 +192,7 @@ class LLMModel:
         manager = self.build_manager(log_context=log_context)
 
         async def llm_call(payload: Dict[str, Any]) -> Dict[str, Any]:
-            request_payload = dict(self.request_options)
-            request_payload.update(payload)
+            request_payload = _merge_llm_request_options(self.request_options, payload)
             return await manager.request(request_payload)
 
         config = ModelConfig(
