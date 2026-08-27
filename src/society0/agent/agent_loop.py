@@ -256,6 +256,19 @@ def _read_fact_keys(result: Any) -> frozenset[str]:
     return fact_keys
 
 
+def _repeated_read_recall(rendered: str, *, limit: int = 1600) -> str:
+    """把已读结果的开头结论重新放到重复读取后的近端上下文。
+
+    完整结果仍保留在 Thread 中。这里仅在模型已经原样重试时，重放其开头的
+    决策摘要，避免长工具结果离当前回合过远而只剩一条抽象的“请复用”提醒。
+    """
+
+    text = str(rendered).strip()
+    if len(text) <= limit:
+        return text
+    return text[:limit].rstrip() + "\n……（完整结果仍在上文）"
+
+
 def _is_tool_schema_error(error: BaseException | str) -> bool:
     """识别本地 Action 参数校验错误，避免把它升级为 step 失败。"""
 
@@ -2324,10 +2337,14 @@ async def execute_action_loop(
                     and previous_read is not None
                     and previous_read[0] == result_content
                 ):
+                    recalled_content = _repeated_read_recall(result_content)
                     base_content = (
                         f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
                         f"调用 {action_call.action_name}；该读取与先前结果完全一致，"
-                        "当前事实没有变化。完整结果已在上文保留；请直接复用，"
+                        "当前事实没有变化。为便于据已有事实判断，下面重现该查询"
+                        "开头的决策摘要（不是新增事实）：\n"
+                        f"{recalled_content}\n\n"
+                        "完整结果已在上文保留；请直接复用，"
                         "不要再以相同参数读取。若已有事实足以判断，现在形成经营决定；"
                         "只有缺少会改变判断的具体事实时，才改用不同筛选继续查询。"
                     )
