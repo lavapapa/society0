@@ -2767,6 +2767,8 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     assert second_turn_messages[-1]["role"] == "user"
     assert "这条提醒不会结束当前任务" in second_turn_messages[-1]["content"]
     assert "仍然拥有全部工具" in second_turn_messages[-1]["content"]
+    assert "开头的决策摘要" in second_turn_messages[-2]["content"]
+    assert "product-0" in second_turn_messages[-2]["content"]
     assert "product-11" not in second_turn_messages[-2]["content"]
     assert "不要再以相同参数读取" in second_turn_messages[-2]["content"]
     assert result.conversation_messages[-1]["role"] == "tool"
