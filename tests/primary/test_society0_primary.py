@@ -76,9 +76,10 @@ def _state_schema(properties):
 
 
 class _FactResult(dict):
-    def __init__(self, *, read_fact_keys, **payload):
+    def __init__(self, *, read_fact_keys, read_recall_text=None, **payload):
         super().__init__(payload)
         self.read_fact_keys = frozenset(read_fact_keys)
+        self.read_recall_text = read_recall_text
 
 
 async def _run_action_sequence(
@@ -3276,6 +3277,42 @@ async def test_same_action_fact_repeat_keeps_existing_duplicate_feedback() -> No
     repeated_message = requests[2]["messages"][-2]
     assert "完全相同参数调用 query_plan" in repeated_message["content"]
     assert "此前董事会/查询答案" not in repeated_message["content"]
+
+
+@pytest.mark.asyncio
+async def test_same_action_fact_repeat_prefers_explicit_decision_receipt() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_plan():
+        return _FactResult(
+            read_fact_keys={"plan"},
+            read_recall_text="计划读取回执：已完整覆盖当前采购计划；维持无需写入。",
+            detail="逐项计划明细。" + "x" * 2_000,
+        )
+
+    action_set.add_action(
+        "query_plan",
+        query_plan,
+        "Query the plan.",
+        {"type": "object", "properties": {}},
+        tags=["industry_query"],
+    )
+
+    await _run_action_sequence(
+        action_set,
+        ("query_plan", "query_plan"),
+        requests,
+        instruction="Inspect the plan.",
+        max_turns=3,
+    )
+
+    repeated_message = requests[2]["messages"][-2]
+    assert "完全相同参数调用 query_plan" in repeated_message["content"]
+    assert "计划读取回执：已完整覆盖当前采购计划；维持无需写入。" in (
+        repeated_message["content"]
+    )
+    assert "逐项计划明细" not in repeated_message["content"]
 
 
 @pytest.mark.asyncio
