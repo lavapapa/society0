@@ -269,6 +269,20 @@ def _repeated_read_recall(rendered: str, *, limit: int = 1600) -> str:
     return text[:limit].rstrip() + "\n……（完整结果仍在上文）"
 
 
+def _read_recall_text(result: Any, rendered: str) -> str:
+    """优先使用读取工具给出的近端决策回执。
+
+    读取结果可能先列出长篇逐项明细，而“本页是否已经覆盖、是否还有下一页”
+    等决定性结论位于末尾。重复读取时，工具可显式提供这份短回执；没有回执
+    的既有工具仍按原来的开头摘要回放。
+    """
+
+    explicit_recall = getattr(result, "read_recall_text", None)
+    if isinstance(explicit_recall, str) and explicit_recall.strip():
+        return explicit_recall.strip()
+    return _repeated_read_recall(rendered)
+
+
 def _is_tool_schema_error(error: BaseException | str) -> bool:
     """识别本地 Action 参数校验错误，避免把它升级为 step 失败。"""
 
@@ -2314,7 +2328,10 @@ async def execute_action_loop(
                     and previous_read is None
                 ):
                     if same_action_read_seen:
-                        recalled_content = _repeated_read_recall(result_content)
+                        recalled_content = _read_recall_text(
+                            action_result,
+                            result_content,
+                        )
                         base_content = (
                             "这次使用了不同筛选参数，但它涉及的事实已经在此前"
                             "董事会/查询答案中完整呈现，没有增加新的事实键。"
@@ -2350,7 +2367,10 @@ async def execute_action_loop(
                     and previous_read is not None
                     and previous_read[0] == result_content
                 ):
-                    recalled_content = _repeated_read_recall(result_content)
+                    recalled_content = _read_recall_text(
+                        action_result,
+                        result_content,
+                    )
                     base_content = (
                         f"这是本次激活中第 {payload_occurrence} 次以完全相同参数"
                         f"调用 {action_call.action_name}；该读取与先前结果完全一致，"
