@@ -2311,13 +2311,26 @@ async def execute_action_loop(
                     and is_read_action
                     and read_fact_keys
                     and not new_read_fact_keys
-                    and not same_action_read_seen
+                    and previous_read is None
                 ):
-                    base_content = (
-                        "这次读取涉及的事实已经在此前董事会/查询答案中完整呈现；"
-                        "为避免重复发送完整结果，本次只保留执行记录。请回到当前"
-                        "经营判断；若仍有缺口，请提出会改变判断的具体查询。"
-                    )
+                    if same_action_read_seen:
+                        recalled_content = _repeated_read_recall(result_content)
+                        base_content = (
+                            "这次使用了不同筛选参数，但它涉及的事实已经在此前"
+                            "董事会/查询答案中完整呈现，没有增加新的事实键。"
+                            "下面保留本次查询的开头决策摘要，便于判断它是否真的"
+                            "改变结论：\n"
+                            f"{recalled_content}\n\n"
+                            "如果这里的首个约束、可持续终点和可用来源没有改变，"
+                            "仅改变期限、数量或筛选不会形成新的经营事实；请基于"
+                            "已有结论作出经营判断，或执行会改变该结论的经营行动。"
+                        )
+                    else:
+                        base_content = (
+                            "这次读取涉及的事实已经在此前董事会/查询答案中完整呈现；"
+                            "为避免重复发送完整结果，本次只保留执行记录。请回到当前"
+                            "经营判断；若仍有缺口，请提出会改变判断的具体查询。"
+                        )
                     successful_read_results[payload_key] = (
                         result_content,
                         action_call.call_id,

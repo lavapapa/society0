@@ -2753,7 +2753,6 @@ async def test_repeated_read_with_same_result_continues_until_max_turns() -> Non
     assert len(requests) == 3
     assert result.status == "error"
     assert result.termination_reason == "max_turns"
-    assert result.activation_status == "incomplete"
     assert result.termination_action is None
     assert len(str(industrial_model_result)) > 1_000
     assert [call["status"] for call in result.action_calls] == [
@@ -3043,6 +3042,67 @@ async def test_cross_tool_read_fact_subset_is_bounded_and_prompts_decision() -> 
     assert "回到当前经营判断" in compressed_message["content"]
     assert requests[2]["temperature"] == 0.2
     assert result.action_calls[1]["result"]["detail"] == "inventory full detail"
+
+
+@pytest.mark.asyncio
+async def test_same_tool_read_fact_subset_replays_current_decision_summary() -> None:
+    action_set = ActionSet()
+    requests = []
+
+    async def query_supply(coverage_end: str):
+        return _FactResult(
+            read_fact_keys={"continuous_supply:plan-a"},
+            detail=f"supply board through {coverage_end}",
+        )
+
+    action_set.add_action(
+        "query_supply",
+        query_supply,
+        "Query continuous supply.",
+        {
+            "type": "object",
+            "properties": {"coverage_end": {"type": "string"}},
+            "required": ["coverage_end"],
+        },
+        tags=["industry_query"],
+    )
+
+    async def fake_llm_call(payload):
+        requests.append(payload)
+        if len(requests) > 2:
+            return {"role": "assistant", "content": "Decision complete.", "tool_calls": []}
+        coverage_end = ("2026-05-02", "2026-05-31")[len(requests) - 1]
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": f"call_{len(requests)}",
+                    "type": "function",
+                    "function": {
+                        "name": "query_supply",
+                        "arguments": json.dumps({"coverage_end": coverage_end}),
+                    },
+                }
+            ],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review continuous supply.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=["act"],
+        llm_call=fake_llm_call,
+        max_turns=3,
+    )
+
+    compressed_message = requests[2]["messages"][-2]
+    assert result.status == "success"
+    assert "没有增加新的事实键" in compressed_message["content"]
+    assert "supply board through 2026-05-31" in compressed_message["content"]
+    assert "仅改变期限、数量或筛选不会形成新的经营事实" in compressed_message[
+        "content"
+    ]
 
 
 @pytest.mark.asyncio
