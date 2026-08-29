@@ -414,6 +414,11 @@ _PROVIDER_TRANSPORT_MESSAGE_MARKERS = (
     "http 504",
 )
 
+_PROVIDER_CONTEXT_LIMIT_MESSAGE_MARKERS = (
+    "maximum context length",
+    "requested token count exceeds",
+)
+
 
 def _provider_transport_failure_class(error: BaseException) -> str | None:
     """Return a fine-grained provider failure class for one physical request."""
@@ -433,6 +438,25 @@ def _provider_transport_failure_class(error: BaseException) -> str | None:
                 if "timeout" in lowered or "timed out" in lowered
                 else "provider_transport_error"
             )
+        cause = current.__cause__
+        if isinstance(cause, BaseException):
+            current = cause
+            continue
+        context = current.__context__
+        current = context if isinstance(context, BaseException) else None
+    return None
+
+
+def _provider_context_limit_failure_class(error: BaseException) -> str | None:
+    """Identify the provider's explicit physical context-window rejection."""
+
+    seen: set[int] = set()
+    current: BaseException | None = error
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        lowered = str(current).casefold()
+        if any(marker in lowered for marker in _PROVIDER_CONTEXT_LIMIT_MESSAGE_MARKERS):
+            return "provider_context_limit"
         cause = current.__cause__
         if isinstance(cause, BaseException):
             current = cause
@@ -1466,9 +1490,13 @@ async def execute_action_loop(
                 response = await llm_call(llm_payload)
                 break
             except Exception as exc:
-                failure_class = _provider_transport_failure_class(exc)
+                failure_class = (
+                    _provider_transport_failure_class(exc)
+                    or _provider_context_limit_failure_class(exc)
+                )
                 if (
                     failure_class is None
+                    or failure_class == "provider_context_limit"
                     or provider_attempt > provider_request_retry_max
                 ):
                     _append_thread_event(
@@ -1478,7 +1506,10 @@ async def execute_action_loop(
                             "max_retries": provider_request_retry_max,
                             "failure_class": failure_class or "provider_request_error",
                             "retry_scope": "agent_activation",
-                            "exhausted": failure_class is not None,
+                            "exhausted": failure_class in {
+                                "provider_timeout",
+                                "provider_transport_error",
+                            },
                             "error_type": type(exc).__name__,
                             "error": str(exc) or repr(exc),
                         },
@@ -1508,7 +1539,11 @@ async def execute_action_loop(
                 )
                 provider_attempt += 1
         if provider_error is not None:
-            loop_result.termination_reason = "provider_request_exhausted"
+            loop_result.termination_reason = (
+                "provider_context_limit"
+                if provider_failure_class == "provider_context_limit"
+                else "provider_request_exhausted"
+            )
             loop_result.error = _format_provider_error(provider_error)
             loop_result.failure_class = provider_failure_class
             loop_result.retry_scope = "agent_activation"
@@ -2590,6 +2625,7 @@ async def execute_action_loop(
         "action_budget_exhausted",
         "tool_schema_error_exhausted",
         "provider_request_exhausted",
+        "provider_context_limit",
         "output_token_limit",
         "parallel_tool_call_contract_violation",
         "max_turns",
@@ -2607,6 +2643,7 @@ async def execute_action_loop(
         "max_turns",
         "output_token_limit",
         "parallel_tool_call_contract_violation",
+        "provider_context_limit",
     }
     return LoopResult(
         status=status,
