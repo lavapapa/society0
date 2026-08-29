@@ -1,5 +1,6 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -309,6 +310,85 @@ async def test_failed_thread_memory_extraction_never_writes_fallback():
         )
 
     assert memory.write_calls == []
+
+
+@pytest.mark.asyncio
+async def test_thread_memory_extraction_uses_model_runtime_and_thread_session():
+    thread_messages = [
+        {"role": "system", "content": "你负责经营企业。"},
+        {"role": "user", "content": "经营。"},
+        {"role": "assistant", "content": "本期经营完成。"},
+    ]
+    runtime_requests = []
+
+    class FakeMemory:
+        async def add_memories_batch(self, entries, **kwargs):
+            return [entry["memory_id"] for entry in entries]
+
+        @staticmethod
+        def stable_memory_id(key, *, memory_type):
+            return f"{memory_type}:{key}"
+
+    class LogContext:
+        def read_agent_thread_messages(self, thread_id):
+            assert thread_id == "thread-runtime-session"
+            return thread_messages
+
+        def read_agent_thread_events(self, thread_id):
+            return []
+
+        def append_agent_thread_event(self, *args, **kwargs):
+            return None
+
+        def append_agent_thread_message(self, *args, **kwargs):
+            return None
+
+    async def runtime_llm(payload):
+        runtime_requests.append(payload)
+        return _extract_response([])
+
+    async def raw_manager_llm(payload):
+        raise AssertionError("memory extraction bypassed the model runtime")
+
+    class FakeWorld:
+        event_logger = None
+        agents_data = {
+            "a": {
+                "id": "a",
+                "type": "participant",
+                "archetype": "llm",
+                "persona": "你负责经营企业。",
+                "state": {},
+                "properties": {},
+                "reminders": [],
+            }
+        }
+
+        def get_log_context(self):
+            return LogContext()
+
+        def _resolve_model_selection(self, agent_id, model_id):
+            assert (agent_id, model_id) == ("a", None)
+            return SimpleNamespace(runtime=SimpleNamespace(llm_call=runtime_llm))
+
+    agent = LLMAgent("a", FakeWorld())
+    agent.initialize_cognitive_system(
+        persona="你负责经营企业。",
+        memory=FakeMemory(),
+        llm_call=raw_manager_llm,
+        actionset=ActionSet(),
+    )
+
+    result = await agent.extract_memories_from_thread(
+        thread_id="thread-runtime-session",
+        timestamp=3,
+    )
+
+    assert result["memory_ids"] == []
+    assert len(runtime_requests) == 1
+    assert runtime_requests[0]["extra_body"] == {
+        "metadata": {"session_id": "thread-runtime-session"}
+    }
 
 
 @pytest.mark.asyncio

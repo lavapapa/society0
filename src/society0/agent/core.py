@@ -1010,9 +1010,25 @@ class LLMAgent(Agent):
         if not messages:
             raise RuntimeError(f"Agent {self.id} Thread {thread_id} 没有可提炼的对话")
 
+        # 经营回合通过 World 的模型运行时发出请求，那里会合并正式模型的
+        # request_options。记忆提炼也属于同一 Thread 的工具调用，不能绕过
+        # 这条路径，否则 Qwen 会重新开启 thinking，且会丢失同一 Thread 的
+        # KV-cache 会话标识。
+        llm_call = self._llm_call
+        resolve_model = getattr(self._world, "_resolve_model_selection", None)
+        if callable(resolve_model):
+            selection = resolve_model(self.id, None)
+            runtime_call = getattr(getattr(selection, "runtime", None), "llm_call", None)
+            if callable(runtime_call):
+                llm_call = runtime_call
+
+        async def extract_with_thread_session(payload: Dict[str, Any]) -> Dict[str, Any]:
+            request_payload = _with_thread_session_id(dict(payload), thread_id)
+            return await llm_call(request_payload)
+
         result = await extract_memories_from_thread(
             conversation_messages=messages,
-            llm_call=self._llm_call,
+            llm_call=extract_with_thread_session,
             thread_id=thread_id,
             metadata={
                 "agent_id": self.id,
