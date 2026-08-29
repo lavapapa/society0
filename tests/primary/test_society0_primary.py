@@ -4686,6 +4686,51 @@ async def test_exhausted_provider_retry_preserves_activation_failure_scope():
 
 
 @pytest.mark.asyncio
+async def test_provider_context_limit_keeps_the_tick_running_with_an_incomplete_activation():
+    calls = []
+    events = []
+
+    async def fake_llm_call(payload):
+        calls.append(payload)
+        raise RuntimeError(
+            "Requested token count exceeds the model's maximum context length."
+        )
+
+    result = await execute_action_loop(
+        instruction="经营当前主体。",
+        action_set=ActionSet(),
+        system_prompt="You are a test agent.",
+        stages=[{"name": "回答", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=2,
+        llm_request_options={"provider_request_retry_max": 3},
+        thread_event_recorder=lambda event_type, payload: events.append(
+            (event_type, payload)
+        ),
+    )
+
+    assert result.status == "error"
+    assert result.termination_reason == "provider_context_limit"
+    assert result.failure_class == "provider_context_limit"
+    assert result.retry_scope == "agent_activation"
+    assert result.retry_attempts == 1
+    assert result.activation_status == "incomplete"
+    assert len(calls) == 1
+    failed = [payload for event_type, payload in events if event_type == "provider_request_failed"]
+    assert failed == [
+        {
+            "attempt": 1,
+            "max_retries": 3,
+            "failure_class": "provider_context_limit",
+            "retry_scope": "agent_activation",
+            "exhausted": False,
+            "error_type": "RuntimeError",
+            "error": "Requested token count exceeds the model's maximum context length.",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_tool_schema_error_returns_to_same_activation_without_replaying_successful_actions():
     calls = []
     executed = []
