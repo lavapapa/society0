@@ -2,7 +2,7 @@
 
 Society0 is the simulation engine core for [ICLabSZ/Society_Zero_Universe](https://github.com/ICLabSZ/Society_Zero_Universe), designed to be used as a standalone engine for creating, running, and analyzing social simulation experiments.
 
-Current release: `4.1.9`. The long-term architecture and responsibility boundaries are documented in [PROJECT.md](PROJECT.md); release-specific changes are documented under `docs/release-*.md`.
+The package version is defined by `project.version` in [pyproject.toml](pyproject.toml). The long-term architecture and responsibility boundaries are documented in [PROJECT.md](PROJECT.md); release-specific changes are documented under `docs/release-*.md`.
 
 The intended workflow is agent-assisted: researchers can use their own coding agents, such as Codex, Claude Code, Gemini, CodeWhale, or similar tools, to create experiments, configure models, run simulations, inspect outputs, and draft analysis. The engine provides a general abstraction for agents, environments, memory, model providers, run state, and outputs, so different kinds of social simulation can be built on the same core.
 
