@@ -6,6 +6,7 @@ import copy
 
 import pytest
 
+import society0.incremental_checkpoint as incremental_checkpoint
 from society0 import (
     append_only_list,
     append_only_map,
@@ -101,6 +102,160 @@ def test_replaceable_map_captures_only_changed_entry_after_deep_dict_and_list_wr
             {"id": "lot-3", "qty": 1},
         ]
         assert "inv-2" not in repr(entry)
+    finally:
+        world.event_logger.close()
+
+
+def test_nested_replaceable_write_rejects_non_json_value_before_mutation(tmp_path):
+    schema = persistent_state_schema(accounts=replaceable_map())
+    world = _world(tmp_path, {"accounts": {"a": {"balance": 1}}}, schema)
+    try:
+        account = world.create_environment_state_proxy()["accounts"]["a"]
+
+        with pytest.raises(TypeError, match="JSON-compatible"):
+            account["balance"] = object()
+
+        assert world.environment_data["state"]["accounts"]["a"] == {"balance": 1}
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        world.event_logger.close()
+
+
+@pytest.mark.parametrize("value", [None, "cash", 42, True, 1.25])
+def test_exact_json_scalars_skip_copy_and_serialization(monkeypatch, value):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("exact JSON scalars must not be copied or serialized")
+
+    monkeypatch.setattr(incremental_checkpoint.copy, "deepcopy", unexpected)
+    monkeypatch.setattr(incremental_checkpoint.json, "dumps", unexpected)
+
+    assert incremental_checkpoint._json_copy(value) is value
+    incremental_checkpoint._validate_json_value(value)
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_exact_float_is_rejected_by_both_json_paths(value):
+    with pytest.raises(TypeError, match="JSON-compatible"):
+        incremental_checkpoint._json_copy(value)
+    with pytest.raises(TypeError, match="JSON-compatible"):
+        incremental_checkpoint._validate_json_value(value)
+
+
+def test_non_finite_float_is_rejected_before_direct_and_nested_mutation(tmp_path):
+    schema = persistent_state_schema(values=replaceable_map())
+    world = _world(tmp_path, {"values": {"known": {"amount": 1.0}}}, schema)
+    try:
+        values = world.create_environment_state_proxy()["values"]
+
+        with pytest.raises(TypeError, match="JSON-compatible"):
+            values["new"] = float("nan")
+        with pytest.raises(TypeError, match="JSON-compatible"):
+            values["known"]["amount"] = float("inf")
+
+        assert world.environment_data["state"]["values"] == {
+            "known": {"amount": 1.0}
+        }
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        world.event_logger.close()
+
+
+def test_huge_integer_is_rejected_before_direct_and_nested_mutation(tmp_path):
+    import sys
+
+    previous_limit = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    schema = persistent_state_schema(values=replaceable_map())
+    world = _world(tmp_path, {"values": {"known": {"amount": 1}}}, schema)
+    try:
+        value = 10 ** 5000
+        for validate in (incremental_checkpoint._json_copy,
+                         incremental_checkpoint._validate_json_value):
+            with pytest.raises((TypeError, ValueError)):
+                validate(value)
+        values = world.create_environment_state_proxy()["values"]
+        with pytest.raises((TypeError, ValueError)):
+            values["new"] = value
+        with pytest.raises((TypeError, ValueError)):
+            values["known"]["amount"] = value
+        assert world.environment_data["state"]["values"] == {"known": {"amount": 1}}
+        assert world.seal_persistence_tick().replacements == ()
+    finally:
+        world.event_logger.close()
+        sys.set_int_max_str_digits(previous_limit)
+
+
+def test_large_serializable_integer_keeps_original_json_path():
+    value = 10 ** 300
+    assert incremental_checkpoint._json_copy(value) == value
+    incremental_checkpoint._validate_json_value(value)
+
+
+def test_json_containers_and_scalar_subclasses_keep_copy_and_serialization(monkeypatch):
+    class IntSubclass(int):
+        pass
+
+    original_copy = incremental_checkpoint.copy.deepcopy
+    original_dumps = incremental_checkpoint.json.dumps
+    copied_values: list[object] = []
+    serialized_values: list[object] = []
+
+    def record_copy(value, *args, **kwargs):
+        copied_values.append(value)
+        return original_copy(value, *args, **kwargs)
+
+    def record_dumps(value, *args, **kwargs):
+        serialized_values.append(value)
+        return original_dumps(value, *args, **kwargs)
+
+    monkeypatch.setattr(incremental_checkpoint.copy, "deepcopy", record_copy)
+    monkeypatch.setattr(incremental_checkpoint.json, "dumps", record_dumps)
+
+    container = {"items": [1]}
+    copied = incremental_checkpoint._json_copy(container)
+    subclass_value = IntSubclass(2)
+    incremental_checkpoint._json_copy(subclass_value)
+    incremental_checkpoint._validate_json_value(subclass_value)
+
+    assert copied == container
+    assert copied is not container
+    assert copied["items"] is not container["items"]
+    assert container in copied_values
+    assert subclass_value in copied_values
+    assert container in serialized_values
+    assert subclass_value in serialized_values
+
+
+def test_json_proxy_values_keep_copy_and_serialization_fallback(
+    tmp_path,
+    monkeypatch,
+):
+    schema = persistent_state_schema(payload=replaceable())
+    world = _world(tmp_path, {"payload": {"items": [1]}}, schema)
+    original_copy = incremental_checkpoint.copy.deepcopy
+    original_dumps = incremental_checkpoint.json.dumps
+    copied_values: list[object] = []
+    serialized_values: list[object] = []
+
+    def record_copy(value, *args, **kwargs):
+        copied_values.append(value)
+        return original_copy(value, *args, **kwargs)
+
+    def record_dumps(value, *args, **kwargs):
+        serialized_values.append(value)
+        return original_dumps(value, *args, **kwargs)
+
+    monkeypatch.setattr(incremental_checkpoint.copy, "deepcopy", record_copy)
+    monkeypatch.setattr(incremental_checkpoint.json, "dumps", record_dumps)
+    try:
+        proxy = world.create_environment_state_proxy()["payload"]
+        copied = incremental_checkpoint._json_copy(proxy)
+        incremental_checkpoint._validate_json_value(proxy)
+
+        assert copied == {"items": [1]}
+        assert proxy in copied_values
+        assert copied in serialized_values
+        assert proxy._target_dict in serialized_values
     finally:
         world.event_logger.close()
 

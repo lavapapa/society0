@@ -6,15 +6,17 @@ import copy
 import gzip
 import hashlib
 import json
+import math
 import os
 import tempfile
 import time
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Sequence
 
 
 class PersistenceKind(str, Enum):
@@ -60,9 +62,27 @@ class _PreparedProxyWrite:
     validated: bool = True
 
 
+def _validate_exact_json_scalar(value: Any) -> bool:
+    """验证严格 JSON 标量，并返回它是否可以直接复用。"""
+
+    value_type = type(value)
+    if value is None or value_type in (str, bool):
+        return True
+    if value_type is int:
+        # 640 bit 小于 Python 最小十进制位数限制；更大整数沿用 JSON 校验。
+        return value.bit_length() <= 640
+    if value_type is float:
+        if math.isfinite(value):
+            return True
+        raise TypeError(f"persistence value is not JSON-compatible: {value!r}")
+    return False
+
+
 def _json_copy(value: Any) -> Any:
     """复制并检查持久化值，拒绝只能到保存线程才暴露的坏值。"""
 
+    if _validate_exact_json_scalar(value):
+        return value
     try:
         copied = copy.deepcopy(value)
         json.dumps(copied, ensure_ascii=False, allow_nan=False)
@@ -74,6 +94,8 @@ def _json_copy(value: Any) -> Any:
 def _validate_json_value(value: Any) -> None:
     """只检查 JSON 兼容性，不为只读校验额外复制整棵子树。"""
 
+    if _validate_exact_json_scalar(value):
+        return
     raw = getattr(value, "_target_dict", value)
     raw = getattr(raw, "_target_list", raw)
     try:
@@ -856,9 +878,8 @@ class StateDeltaJournal:
         kind = rule.kind
         prepared_value = None
         if operation in ("set", "append", "insert"):
-            # 显式事务在暂存阶段只需要解析持久化锚点和操作权限，终态值会在
-            # commit 的统一预检中复制并校验。这里重复 JSON copy 会让一次
-            # 业务事务中的每次中间写都承担序列化成本。
+            # 写时先取得独立且合法的 JSON 值。严格 JSON 标量由 _json_copy
+            # 直接复用，容器与子类仍保留原有复制和完整校验语义。
             prepared_value = _json_copy(value) if validate_value else value
             if self._schema is not None and validate_value:
                 self._schema.validate_write_value(affected, prepared_value)
