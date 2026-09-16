@@ -4,7 +4,7 @@ import itertools
 import pytest
 
 from society0.incremental_checkpoint import (
-    PersistenceKind, PersistenceRule, PersistenceSchema, _WILDCARD,
+    PersistenceKind, PersistenceRule, PersistenceSchema, StateDeltaJournal, _WILDCARD,
 )
 
 
@@ -76,3 +76,34 @@ def test_write_rule_resolution_keeps_deepest_then_most_exact_precedence():
             assert result.rule is rules[expected]
             assert result.anchor == path[:len(expected)]
     assert schema.resolve_write(("unknown",)) is None
+
+
+@pytest.mark.parametrize("history_size", [0, 100_000])
+def test_batch_preflight_only_checks_membership_of_prior_tick_writes(history_size):
+    class PendingIds:
+        def __init__(self):
+            self.values = {(("facts",), str(i)) for i in range(history_size)}
+
+        def __contains__(self, value):
+            return value in self.values
+
+        def __iter__(self):
+            raise AssertionError("批量预检不得复制或扫描此前累积的事实编号")
+
+    journal = StateDeltaJournal({("facts",): PersistenceKind.APPEND_ONLY_MAP,
+                                 ("price",): PersistenceKind.REPLACEABLE})
+    journal.begin_tick(1)
+    journal._pending_map_ids = PendingIds()
+    tokens = journal.prepare_proxy_operations([
+        ((), "set", "price", 3), (("facts",), "set", "new", {"value": 1}),
+    ])
+    assert len(tokens) == 2
+    with pytest.raises(ValueError, match="duplicate append-only map id"):
+        journal.prepare_proxy_operations([
+            (("facts",), "set", "same", {}), (("facts",), "set", "same", {}),
+        ])
+    if history_size:
+        with pytest.raises(ValueError, match="duplicate append-only map id"):
+            journal.prepare_proxy_operations([(("facts",), "set", "0", {})])
+    assert journal._appends == []
+    assert journal._replacements == {}

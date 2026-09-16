@@ -975,7 +975,8 @@ class StateDeltaJournal:
         """原子预检一组操作；目前用于 ``list.extend``。"""
 
         prepared: list[_PreparedProxyWrite] = []
-        pending = set(self._pending_map_ids)
+        # 单项预检已查询本 Tick 的已提交编号；这里仅检测本批内部重复。
+        pending = set()
         for container_path, operation, key, value in operations:
             token = self._resolve_proxy_write(
                 tuple(container_path),
