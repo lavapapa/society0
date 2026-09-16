@@ -1,6 +1,10 @@
 # Society0 4.1.10
 
-This patch release reduces redundant work in transparent-proxy persistence writes while retaining the Agent runtime and checkpoint-v4 format from 4.1.9.
+This release consolidates the Agent runtime fixes developed after the 4.1.9 tag and reduces redundant work in transparent-proxy persistence writes. The checkpoint-v4 storage format is retained.
+
+## Agent runtime
+
+The integrated runtime preserves incomplete and context-limited activations, maintains same-tick Thread continuity, provides receipts for repeated reads, and reuses provider KV caches within threads. It also carries the strict single-action request contract, proxy and retry-timing corrections, and preservation of model settings during Thread memory extraction. These changes are inherited from the validated runtime baseline; the persistence optimizations do not alter them.
 
 ## Persistence writes
 
