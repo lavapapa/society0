@@ -16,6 +16,7 @@ import re
 import logging
 import json_repair
 import time
+from itertools import count
 from collections import Counter
 from collections.abc import Mapping
 
@@ -928,7 +929,7 @@ async def execute_action_loop(
     stages: List[Union[str, Dict[str, Any]]],
     llm_call: Callable[[List[Dict]], Awaitable[Any]],
     act_prompt: str = DEFAULT_AGENT_ACT_PROMPT,
-    max_turns: int = 4,
+    max_turns: Optional[int] = None,
     default_stage_name: str = "default",
     context_provider: Optional[Callable] = None,
     *,
@@ -956,7 +957,7 @@ async def execute_action_loop(
         stages: List of stage definitions (can be strings or dicts with name/desc)
         llm_call: Callable to make LLM API calls
         act_prompt: Template for stage guidance (will be formatted with stages)
-        max_turns: Maximum number of loop iterations
+        max_turns: Maximum number of loop iterations, or None for natural completion
         default_stage_name: Name for content that appears before any stage markers
         context_provider: Function that returns (current_context_stack, update_function) for action context tracking
         terminal_action_names: Action names that should terminate loop once called
@@ -975,6 +976,11 @@ async def execute_action_loop(
 
     # Normalize stages to unified dict format
     normalized_stages = normalize_reasoning_stages(stages)
+    if max_turns is not None:
+        if isinstance(max_turns, bool) or not isinstance(max_turns, int):
+            raise ValueError("max_turns must be an integer or None")
+        if max_turns <= 0:
+            raise ValueError("max_turns must be positive when provided")
     if max_request_messages is not None:
         if isinstance(max_request_messages, bool) or not isinstance(
             max_request_messages,
@@ -1404,9 +1410,12 @@ async def execute_action_loop(
         return None
 
 
-    for turn in range(max_turns):
+    def _has_turns_remaining(turn: int) -> bool:
+        return max_turns is None or turn + 1 < max_turns
+
+    for turn in count():
         total_turns = turn + 1
-        logger.debug("Action loop turn %s/%s", total_turns, max_turns)
+        logger.debug("Action loop turn %s/%s", total_turns, max_turns or "∞")
 
         # Call LLM with current message history and actions
         turn_request_options = dict(safe_llm_request_options)
@@ -1679,7 +1688,7 @@ async def execute_action_loop(
                 )
                 if (
                     parallel_tool_call_contract_rejections == 1
-                    and turn + 1 < max_turns
+                    and _has_turns_remaining(turn)
                 ):
                     continue
                 loop_result.termination_reason = (
@@ -1748,7 +1757,7 @@ async def execute_action_loop(
         if not action_calls:
             if not str(final_content_part or "").strip():
                 empty_response_count += 1
-                if turn + 1 < max_turns:
+                if _has_turns_remaining(turn):
                     _append_thread_event(
                         "provider_empty_response",
                         {
@@ -1770,7 +1779,7 @@ async def execute_action_loop(
                 loop_result.retry_attempts = empty_response_count
                 break
             missing_names, missing_tags = _missing_loop_requirements()
-            if (missing_names or missing_tags) and turn + 1 < max_turns:
+            if (missing_names or missing_tags) and _has_turns_remaining(turn):
                 _append_runtime_message({"role": "user", "content": _required_action_reminder(missing_names, missing_tags)})
                 continue
             if missing_names:
@@ -1851,8 +1860,14 @@ async def execute_action_loop(
         turn_tool_messages = []  # 本轮的工具结果消息，写入 full_history 便于事后重建
         executed_action_calls = []
         terminate_loop = False
-        remaining_turns = max_turns - (turn + 1)
-        should_hint = turn_remain_hint and remaining_turns <= hint_on_remain_turn
+        remaining_turns = (
+            max_turns - (turn + 1) if max_turns is not None else None
+        )
+        should_hint = (
+            turn_remain_hint
+            and remaining_turns is not None
+            and remaining_turns <= hint_on_remain_turn
+        )
 
         batch_limit_error: Optional[str] = None
         batch_termination_reason: Optional[str] = None
@@ -1954,7 +1969,7 @@ async def execute_action_loop(
             )
             can_retry_smaller_batch = (
                 oversized_batch_rejections == 0
-                and turn + 1 < max_turns
+                and _has_turns_remaining(turn)
                 and (remaining_global_budget is None or remaining_global_budget > 0)
             )
             if can_retry_smaller_batch:
@@ -2525,7 +2540,7 @@ async def execute_action_loop(
         if (
             prompt_decision_after_tools
             and not terminate_loop
-            and (turn + 1 < max_turns or first_decision_prompt_this_turn)
+            and (_has_turns_remaining(turn) or first_decision_prompt_this_turn)
         ):
             _append_runtime_message(
                 {
@@ -2551,6 +2566,9 @@ async def execute_action_loop(
         if _all_available_action_budgets_exhausted():
             loop_result.termination_reason = "action_budget_exhausted"
             break
+        if max_turns is not None and turn + 1 >= max_turns:
+            loop_result.termination_reason = "max_turns"
+            break
         continue
     else:
         if loop_result.termination_reason is None:
@@ -2564,7 +2582,7 @@ async def execute_action_loop(
                 loop_result.failure_class = "tool_schema_error"
                 loop_result.retry_scope = "agent_activation"
                 loop_result.retry_attempts = schema_error_count
-            else:
+            elif max_turns is not None:
                 loop_result.termination_reason = "max_turns"
 
     # Parse the final response content into stages

@@ -5319,6 +5319,66 @@ async def test_action_loop_continues_after_no_change_until_max_turns():
 
 
 @pytest.mark.asyncio
+async def test_action_loop_without_turn_limit_ends_on_natural_model_completion():
+    action_set = ActionSet()
+    calls = []
+    llm_calls = 0
+
+    async def record_review(summary: str):
+        calls.append(summary)
+        return {"change_applied": True, "summary": summary}
+
+    action_set.add_action(
+        name="record_review",
+        func=record_review,
+        description="Record a review",
+        parameters={
+            "type": "object",
+            "properties": {"summary": {"type": "string"}},
+            "required": ["summary"],
+        },
+    )
+
+    async def fake_llm_call(payload):
+        nonlocal llm_calls
+        llm_calls += 1
+        if llm_calls == 1:
+            return {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_review",
+                        "type": "function",
+                        "function": {
+                            "name": "record_review",
+                            "arguments": '{"summary":"completed"}',
+                        },
+                    }
+                ],
+            }
+        return {
+            "role": "assistant",
+            "content": "Review complete.",
+            "tool_calls": [],
+        }
+
+    result = await execute_action_loop(
+        instruction="Review the plan.",
+        action_set=action_set,
+        system_prompt="You are a test agent.",
+        stages=[{"name": "answer", "desc": "act"}],
+        llm_call=fake_llm_call,
+        max_turns=None,
+    )
+
+    assert calls == ["completed"]
+    assert result.total_turns == 2
+    assert result.termination_reason == "no_action_calls"
+    assert result.activation_status == "completed"
+
+
+@pytest.mark.asyncio
 async def test_action_loop_allows_identical_calls_that_report_real_changes():
     action_set = ActionSet()
     action_calls = []
