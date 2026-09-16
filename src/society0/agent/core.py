@@ -1189,7 +1189,7 @@ class LLMAgent(Agent):
                       llm_call_override: Optional[Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
                       *,
                       override_actionset: Optional[Any] = None,
-                      max_turns: int = 3,
+                      max_turns: Optional[int] = None,
                       memory_top_k: int = 10,
                       turn_remain_hint: bool = True,
                       hint_on_remain_turn: int = 1,
