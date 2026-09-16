@@ -124,6 +124,42 @@ def _thaw_json(value: Any) -> Any:
     return value
 
 
+class _SchemaLookup:
+    """按声明结构编译路径导航；动态事实 ID 不产生新的导航节点。"""
+
+    __slots__ = ("schema", "properties", "additional", "array", "items", "slice_node")
+
+    def __init__(self, schema: Mapping[str, Any]):
+        self.schema = schema
+        self.properties = {
+            key: _SchemaLookup(value)
+            for key, value in (schema.get("properties") or {}).items()
+        }
+        self.array = schema.get("type") == "array"
+        items = schema.get("items")
+        self.items = _SchemaLookup(items) if isinstance(items, Mapping) else None
+        self.slice_node = None
+        if self.array and self.items is not None:
+            sliced = object.__new__(_SchemaLookup)
+            sliced.schema = {"type": "array", "items": items}
+            sliced.properties = {}
+            sliced.additional = None
+            sliced.array = True
+            sliced.items = self.items
+            sliced.slice_node = sliced
+            self.slice_node = sliced
+        additional = schema.get("additionalProperties", True)
+        if not schema:
+            self.additional = self
+        elif isinstance(additional, Mapping):
+            self.additional = _SchemaLookup(additional)
+        else:
+            self.additional = _OPEN_SCHEMA_LOOKUP if additional is True else None
+
+
+_OPEN_SCHEMA_LOOKUP = _SchemaLookup({})
+
+
 class PersistenceSchema:
     """JSON Schema 上的 fail-closed 持久化声明编译结果。
 
@@ -147,6 +183,7 @@ class PersistenceSchema:
         # original compiled schemas so callers can validate each root and
         # serialize the declarations without inventing a second schema DSL.
         self._source_schemas = tuple(source_schemas or (self,))
+        self._schema_lookup = _SchemaLookup(self.schema)
         self._wildcard_rules = tuple(
             rule
             for path, rule in self.rules.items()
@@ -431,24 +468,22 @@ class PersistenceSchema:
         concrete = tuple(path)
         if concrete in self._resolve_write_cache:
             return self._resolve_write_cache[concrete]
-        active: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = [
-            (self._rule_trie, (), 0)
-        ]
-        best: tuple[int, int, tuple[Any, ...], PersistenceRule] | None = None
+        active = [(self._rule_trie, 0)]
+        best: tuple[int, int, PersistenceRule] | None = None
         for depth, actual in enumerate(concrete, start=1):
-            following: list[tuple[Mapping[Any, Any], tuple[Any, ...], int]] = []
-            for node, anchor, exact_count in active:
+            following = []
+            for node, exact_count in active:
                 exact_node = node.get(actual)
-                if isinstance(exact_node, Mapping):
-                    following.append((exact_node, anchor + (actual,), exact_count + 1))
+                if exact_node is not None:
+                    following.append((exact_node, exact_count + 1))
                 wildcard_node = node.get(_WILDCARD)
-                if isinstance(wildcard_node, Mapping):
-                    following.append((wildcard_node, anchor + (actual,), exact_count))
+                if wildcard_node is not None:
+                    following.append((wildcard_node, exact_count))
             active = following
-            for node, anchor, exact_count in active:
+            for node, exact_count in active:
                 rule = node.get(_RULE_NODE)
-                if isinstance(rule, PersistenceRule):
-                    candidate = (depth, exact_count, anchor, rule)
+                if rule is not None:
+                    candidate = (depth, exact_count, rule)
                     if best is None or candidate[:2] > best[:2]:
                         best = candidate
             if not active:
@@ -460,11 +495,11 @@ class PersistenceSchema:
                 None,
                 limit=self._resolution_cache_limit,
             )
-        _, _, anchor, rule = best
+        depth, _, rule = best
         return self._cache_resolution(
             self._resolve_write_cache,
             concrete,
-            _WriteResolution(rule=rule, anchor=anchor),
+            _WriteResolution(rule=rule, anchor=concrete[:depth]),
             limit=self._resolution_cache_limit,
         )
 
@@ -480,41 +515,19 @@ class PersistenceSchema:
             root = source.root_path
             if len(path) < len(root) or not self._prefix_matches(root, path):
                 continue
-            node: Mapping[str, Any] = source.schema
+            node = source._schema_lookup
             for part in path[len(root) :]:
-                if not isinstance(node, Mapping):
+                if node is None:
                     return None
-                if not any(
-                    key in node
-                    for key in ("type", "properties", "additionalProperties", "items")
-                ):
-                    # An empty JSON Schema (or a node carrying only the
-                    # persistence annotation) intentionally accepts any JSON
-                    # subtree.  It remains bounded by its persistence anchor.
-                    node = {}
-                    continue
-                properties = node.get("properties") or {}
-                if isinstance(properties, Mapping) and part in properties:
-                    node = properties[part]
-                    continue
-                if node.get("type") == "array":
-                    items = node.get("items")
-                    if isinstance(items, Mapping) and isinstance(part, int):
-                        node = items
-                        continue
-                    if isinstance(items, Mapping) and isinstance(part, slice):
-                        node = {"type": "array", "items": items}
-                        continue
-                    return None
-                additional = node.get("additionalProperties", True)
-                if isinstance(additional, Mapping):
-                    node = additional
-                    continue
-                if additional is True:
-                    node = {}
-                    continue
-                return None
-            return node
+                child = node.properties.get(part)
+                if child is not None:
+                    node = child
+                elif node.array:
+                    node = (node.items if isinstance(part, int) else
+                            node.slice_node if isinstance(part, slice) else None)
+                else:
+                    node = node.additional
+            return node.schema if node is not None else None
         return None
 
     @staticmethod
