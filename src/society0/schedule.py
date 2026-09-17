@@ -890,7 +890,7 @@ class AgentGroup:
         retrieve_memory: bool = True,
         model: Optional[str] = None,
         current_step: Optional[int] = None,
-        max_turns: int = 3,
+        max_turns: Optional[int] = 3,
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
         reasoning_stages: Optional[List[Dict[str, Any]]] = None,
@@ -1167,7 +1167,7 @@ class AgentGroup:
         output: Any,
         retrieve_memory: bool = True,
         model: Optional[str] = None,
-        max_turns: int = 2,
+        max_turns: Optional[int] = 2,
         concurrency: Optional[int] = None,
         name: Optional[str] = None,
         reasoning_stages: Optional[List[Dict[str, Any]]] = None,
@@ -2224,7 +2224,7 @@ def _summarize_llm_request_options(options: Dict[str, Any]) -> Dict[str, Any]:
 
 def _agent_batch_execution_options(
     *,
-    max_turns: int,
+    max_turns: Optional[int],
     output_schema: Any,
     reasoning_stages: Optional[List[Dict[str, Any]]],
     memory: Dict[str, Any],
@@ -2239,7 +2239,7 @@ def _agent_batch_execution_options(
 ) -> Dict[str, Any]:
     """Summarize fidelity-relevant runtime options without recording prompts."""
     options: Dict[str, Any] = {
-        "max_turns": int(max_turns),
+        "max_turns": max_turns,
         "output_schema": output_schema is not None,
         "reasoning_stage_count": len(reasoning_stages or []),
         "reasoning_stages": _summarize_reasoning_stages(reasoning_stages),
