@@ -1413,7 +1413,7 @@ async def execute_action_loop(
     def _has_turns_remaining(turn: int) -> bool:
         return max_turns is None or turn + 1 < max_turns
 
-    for turn in count():
+    for turn in count() if max_turns is None else range(max_turns):
         total_turns = turn + 1
         logger.debug("Action loop turn %s/%s", total_turns, max_turns or "∞")
 
@@ -2565,9 +2565,6 @@ async def execute_action_loop(
             break
         if _all_available_action_budgets_exhausted():
             loop_result.termination_reason = "action_budget_exhausted"
-            break
-        if max_turns is not None and turn + 1 >= max_turns:
-            loop_result.termination_reason = "max_turns"
             break
         continue
     else:
