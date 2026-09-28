@@ -1,0 +1,64 @@
+{
+  "thread_reads": [
+    {
+      "count": 200,
+      "file_bytes": 896385,
+      "read_sec": 0.018729542003711686,
+      "python_peak_bytes": 3080578,
+      "metrics": {
+        "jsonl_full_reads": 1,
+        "jsonl_full_hashes": 0,
+        "jsonl_bytes_read": 896385,
+        "jsonl_append_bytes": 0,
+        "manifest_reference_count": 0
+      }
+    },
+    {
+      "count": 2000,
+      "file_bytes": 8964187,
+      "read_sec": 0.18962908399407752,
+      "python_peak_bytes": 30745514,
+      "metrics": {
+        "jsonl_full_reads": 1,
+        "jsonl_full_hashes": 0,
+        "jsonl_bytes_read": 8964187,
+        "jsonl_append_bytes": 0,
+        "manifest_reference_count": 0
+      }
+    }
+  ],
+  "partial_tail_read": {
+    "before_bytes": 421,
+    "after_bytes": 401,
+    "reader_removed_bytes": 20
+  },
+  "metadata_only_blob_read": {
+    "blob_read_calls": 2,
+    "blob_bytes_processed": 65618
+  },
+  "journal": {
+    "mutations": 10000,
+    "sealed_replacements": 1,
+    "sealed_json_bytes": 65658
+  },
+  "manager_history": [
+    {
+      "step": 10,
+      "publish_sec": 0.001466125002480112,
+      "last_manifest_chain_length": 11,
+      "cumulative_manifest_visits": 65
+    },
+    {
+      "step": 100,
+      "publish_sec": 0.005685708005330525,
+      "last_manifest_chain_length": 101,
+      "cumulative_manifest_visits": 5150
+    },
+    {
+      "step": 200,
+      "publish_sec": 0.009869999994407408,
+      "last_manifest_chain_length": 201,
+      "cumulative_manifest_visits": 20300
+    }
+  ]
+}
