@@ -7,6 +7,9 @@ Checkpoints only reference immutable, closed thread files by cursor and hash.
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
+import struct
+from weakref import WeakValueDictionary
 from dataclasses import asdict, dataclass, is_dataclass
 from datetime import date, datetime
 import hashlib
@@ -67,7 +70,8 @@ class _ThreadIndex:
     byte_offset: int
     closed: bool
     last_event_type: str | None
-    opened_payload: dict[str, Any]
+    opened_payload: dict[str, Any] | None
+    opened_payload_bytes: int = 0
 
 
 def _credential_key(key: Any) -> bool:
@@ -190,11 +194,14 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-class AgentThreadStore:
+from .thread_observation import ThreadObservation
+
+
+class AgentThreadStore(ThreadObservation):
     """Persist complete Agent Thread events under one simulation run directory."""
 
     _locks_guard = RLock()
-    _run_locks: dict[str, RLock] = {}
+    _run_locks = WeakValueDictionary()
 
     def __init__(
         self,
@@ -202,11 +209,17 @@ class AgentThreadStore:
         *,
         inline_payload_max_bytes: int = 1024 * 1024,
         create: bool = True,
+        cache_max_entries: int = 256,
     ) -> None:
+        self.read_only = not create
+        self.cache_max_entries = int(cache_max_entries)
+        if self.cache_max_entries < 1:
+            raise ValueError("cache_max_entries must be positive")
         self.run_dir = Path(run_dir).resolve()
         self.root = self.run_dir / "agent_threads"
         self.threads_dir = self.root / "threads"
         self.manifests_dir = self.root / "manifests"
+        self.locators_dir = self.root / "locators"
         self.blobs_dir = self.root / "blobs" / "sha256"
         self.inline_payload_max_bytes = int(inline_payload_max_bytes)
         if self.inline_payload_max_bytes < 0:
@@ -216,6 +229,7 @@ class AgentThreadStore:
                 self.root,
                 self.threads_dir,
                 self.manifests_dir,
+                self.locators_dir,
                 self.blobs_dir,
             ):
                 directory.mkdir(parents=True, exist_ok=True)
@@ -225,11 +239,11 @@ class AgentThreadStore:
                     pass
         with self._locks_guard:
             self._lock = self._run_locks.setdefault(str(self.run_dir), RLock())
-        self._path_cache: dict[str, Path] = {}
+        self._path_cache: dict[str, Path] = OrderedDict()
         # ``_thread_indexes`` is the append/checkpoint hot-path index.  It is
         # never treated as recovery evidence: validation deliberately reads
         # and hashes the immutable JSONL/blob components again.
-        self._thread_indexes: dict[str, _ThreadIndex] = {}
+        self._thread_indexes: dict[str, _ThreadIndex] = OrderedDict()
         self.metrics: dict[str, int] = {
             "jsonl_full_reads": 0,
             "jsonl_full_hashes": 0,
@@ -318,16 +332,15 @@ class AgentThreadStore:
         normalized = self._validate_thread_id(thread_id)
         cached = self._path_cache.get(normalized)
         if cached is not None and cached.is_file() and not cached.is_symlink():
+            self._path_cache.move_to_end(normalized)
             return cached
-        candidates = list(self.threads_dir.glob(f"*/{normalized}.jsonl"))
-        if len(candidates) != 1:
-            if not candidates:
-                raise FileNotFoundError(f"agent thread not found: {normalized}")
-            raise ValueError(f"duplicate agent thread id: {normalized}")
-        path = candidates[0]
-        if path.is_symlink() or not path.is_file():
-            raise ValueError("agent thread must be a regular file")
-        self._path_cache[normalized] = path
+        locator = self.locators_dir / f"{normalized}.json"
+        if not locator.is_file():
+            raise FileNotFoundError(f"agent thread locator not found: {normalized}")
+        path = self._safe_relative_file(json.loads(locator.read_text())["path"], component="agent thread")
+        if not path.is_file():
+            raise FileNotFoundError(f"agent thread not found: {normalized}")
+        self._cache_put(self._path_cache, normalized, path)
         return path
 
     def reset_metrics(self) -> None:
@@ -365,8 +378,9 @@ class AgentThreadStore:
                 str(events[-1].get("event_type")) if events else None
             ),
             opened_payload=opened_payload,
+            opened_payload_bytes=(int((events[0].get("payload_ref") or {}).get("bytes", 0)) or raw.find(b"\n") + 1) if events else 0,
         )
-        self._thread_indexes[thread_id] = index
+        self._cache_put(self._thread_indexes, thread_id, index)
         return index
 
     def _load_thread_index(self, thread_id: str, path: Path) -> _ThreadIndex:
@@ -383,6 +397,7 @@ class AgentThreadStore:
         except OSError:
             current_size = -1
         if cached is not None and cached.path == path and cached.byte_offset == current_size:
+            self._thread_indexes.move_to_end(thread_id)
             return cached
         raw = self._read_thread_bytes_with_tail_recovery(path)
         self.metrics["jsonl_full_reads"] += 1
@@ -393,10 +408,38 @@ class AgentThreadStore:
             expected_thread_id=thread_id,
             raw=raw,
         )
+        if not self.read_only:
+            for event in events:
+                if event.get("payload_ref") is not None:
+                    self._materialize_payload(event)
         # ``_read_events_path`` performs validation but does not hash the whole
         # file.  The incremental digest below is the one full hash needed to
         # resume an append stream after process restart.
+        if not self.read_only:
+            offset_path = path.with_suffix(".offsets")
+            temporary = offset_path.with_name(f".{offset_path.name}.{uuid.uuid4().hex}.tmp")
+            try:
+                offset = 0
+                with temporary.open("xb") as handle:
+                    for line in raw.splitlines(keepends=True):
+                        offset += len(line)
+                        handle.write(struct.pack("<Q", offset))
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                temporary.replace(offset_path)
+                self._fsync_directory(offset_path.parent)
+            finally:
+                temporary.unlink(missing_ok=True)
         return self._index_from_events(thread_id, path, raw, events)
+
+    def _opened_payload(self, index: _ThreadIndex) -> dict[str, Any]:
+        if index.opened_payload is not None:
+            return index.opened_payload
+        # 仅重读首条，不因超大 scope 使后续追加扫描累计 Thread。
+        with index.path.open("rb") as source:
+            raw = source.readline()
+        self.metrics["jsonl_bytes_read"] += len(raw)
+        return self._materialize_payload(json.loads(raw))
 
     def _reference_from_index(
         self,
@@ -409,7 +452,7 @@ class AgentThreadStore:
             raise ValueError("agent thread is empty")
         if require_closed and not index.closed:
             raise ValueError("agent thread is not closed")
-        opened = index.opened_payload
+        opened = self._opened_payload(index)
         return {
             "thread_id": str(thread_id),
             "agent_id": str(opened.get("agent_id") or ""),
@@ -470,6 +513,7 @@ class AgentThreadStore:
         thread_id: str | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> str:
+        self._require_writable()
         normalized_agent_id = str(agent_id).strip()
         if not normalized_agent_id:
             raise ValueError("agent_id must be non-empty")
@@ -481,16 +525,17 @@ class AgentThreadStore:
             else f"thr_{uuid.uuid4().hex}"
         )
         with self._lock:
-            existing = list(self.threads_dir.glob(f"*/{normalized_thread_id}.jsonl"))
-            if existing:
+            locator = self.locators_dir / f"{normalized_thread_id}.json"
+            if locator.exists():
                 raise ValueError(f"agent thread already exists: {normalized_thread_id}")
             path = self._thread_path_for_new(normalized_thread_id, checkpoint_step)
             if path.exists():
                 raise ValueError(f"agent thread already exists: {normalized_thread_id}")
             path.touch(mode=0o600, exist_ok=False)
             self._fsync_directory(path.parent)
-            self._path_cache[normalized_thread_id] = path
-            self._thread_indexes[normalized_thread_id] = _ThreadIndex(
+            self._atomic_write_json(locator, {"path": self._relative_path(path)})
+            self._cache_put(self._path_cache, normalized_thread_id, path)
+            self._cache_put(self._thread_indexes, normalized_thread_id, _ThreadIndex(
                 path=path,
                 event_count=0,
                 next_sequence=1,
@@ -500,7 +545,7 @@ class AgentThreadStore:
                 closed=False,
                 last_event_type=None,
                 opened_payload={},
-            )
+            ))
             self._append_event_locked(
                 normalized_thread_id,
                 "thread_opened",
@@ -549,6 +594,7 @@ class AgentThreadStore:
         turn_id: str | None = None,
         metadata: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
+        self._require_writable()
         normalized_thread_id = self._validate_thread_id(thread_id)
         normalized_event_type = str(event_type).strip()
         if not normalized_event_type:
@@ -557,7 +603,7 @@ class AgentThreadStore:
         index = self._load_thread_index(normalized_thread_id, path)
         if index.closed:
             raise RuntimeError("cannot append to a closed agent thread")
-        opened_payload = index.opened_payload
+        opened_payload = self._opened_payload(index)
         had_events = index.event_count > 0
         if not had_events and normalized_event_type != "thread_opened":
             raise ValueError("agent thread must start with thread_opened")
@@ -625,6 +671,11 @@ class AgentThreadStore:
                 os.fsync(handle.fileno())
         index.file_digest.update(serialized_bytes)
         index.byte_offset += len(serialized_bytes)
+        with path.with_suffix(".offsets").open("ab") as offsets:
+            offsets.write(struct.pack("<Q", index.byte_offset))
+            if durable_fence:
+                offsets.flush()
+                os.fsync(offsets.fileno())
         index.event_count += 1
         index.next_sequence += 1
         index.tail_event_id = str(event["event_id"])
@@ -632,6 +683,8 @@ class AgentThreadStore:
         index.closed = normalized_event_type == "thread_closed"
         if not had_events and isinstance(opened_payload, Mapping):
             index.opened_payload = dict(opened_payload)
+            index.opened_payload_bytes = len(payload_bytes)
+            self._cache_put(self._thread_indexes, normalized_thread_id, index)
         self.metrics["jsonl_append_bytes"] += len(serialized_bytes)
         return event
 
@@ -680,6 +733,8 @@ class AgentThreadStore:
             json.loads(tail)
         except (UnicodeDecodeError, json.JSONDecodeError):
             keep_size = separator + 1
+            if self.read_only:
+                return raw[:keep_size]
             with path.open("r+b") as handle:
                 handle.truncate(keep_size)
                 handle.flush()
@@ -746,7 +801,6 @@ class AgentThreadStore:
                 raise ValueError("agent thread sequence mismatch")
             if events and events[-1].get("event_type") == "thread_closed":
                 raise ValueError("agent thread has events after close")
-            self._materialize_payload(event)
             checkpoint_step = event.get("checkpoint_step")
             self._normalize_checkpoint_step(checkpoint_step)
             if materialize_payloads:
@@ -763,7 +817,8 @@ class AgentThreadStore:
         *,
         materialize_payloads: bool = True,
     ) -> list[dict[str, Any]]:
-        with self._lock:
+        from contextlib import nullcontext
+        with nullcontext() if self.read_only else self._lock:
             path = self._resolve_thread_path(thread_id)
             return self._read_events_path(
                 path,
@@ -935,6 +990,7 @@ class AgentThreadStore:
     ) -> tuple[str, int]:
         """Write a manifest once; never mutate one referenced by a marker."""
 
+        self._require_writable()
         raw = self._manifest_bytes(manifest)
         digest = _sha256_bytes(raw)
         if path.is_symlink():
@@ -1264,6 +1320,8 @@ class AgentThreadStore:
                 expected_thread_id=normalized_thread_id,
                 raw=raw_thread,
             )
+            for event in events:
+                self._materialize_payload(event)
             if not events or events[-1].get("event_type") != "thread_closed":
                 raise ValueError("recoverable manifest references an open agent thread")
             actual = self._reference_from_raw_events(

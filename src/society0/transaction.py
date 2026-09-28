@@ -159,7 +159,7 @@ class EventLogger:
 
     def log(self, event_type: str, source: str, data: Dict[str, Any]) -> None:
         """
-        Compatibility method for simple event logging (matches event_logger.py interface)
+        Write a structured event from a type, source, and payload.
 
         Args:
             event_type: Type of event
@@ -189,18 +189,6 @@ class EventLogger:
         event = SimpleEvent(event_type, source, data)
         self.write_event(event)
 
-    def set_context(self, step: int, node_id: Optional[str] = None) -> None:
-        """
-        Compatibility method for setting execution context (matches event_logger.py interface)
-
-        Args:
-            step: Current simulation step
-            node_id: Current node being executed (if applicable)
-        """
-        # The transaction-based EventLogger doesn't need to track context globally
-        # since each event includes its own context stack. This is a no-op for compatibility.
-        pass
-    
     def _notify_listeners(self, batch: EventBatch) -> None:
         """向已注册的监听器广播写入结果"""
         for listener in self._listeners:
@@ -234,7 +222,7 @@ class EventLogger:
         # CodeSchedule writes lightweight lifecycle events with an `event` key,
         # while transaction-backed events historically used only `event_type`.
         # Keep both fields so monitoring code can aggregate events uniformly
-        # without breaking replay code that still keys off `event_type`.
+        # while retaining the event type for diagnostic consumers.
         event_type = event_dict.get("event_type")
         if event_type is not None and "event" not in event_dict:
             event_dict["event"] = event_type

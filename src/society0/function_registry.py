@@ -1,5 +1,5 @@
 """
-SimEngine V2: FunctionRegistry - Clean registry without dependency injection chaos.
+Society0: FunctionRegistry - Clean registry without dependency injection chaos.
 
 Simple registry that holds function references without being injected everywhere.
 Functions are registered via decorators and retrieved by Schedule during compilation.

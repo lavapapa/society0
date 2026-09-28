@@ -344,7 +344,7 @@ class Agent:
         """
         为特定执行上下文提供受限的 state 访问
 
-        这个方法由 World 或 SimEngine 在执行 behavior/action 时调用，
+        这个方法由 World 或 Society0 在执行 behavior/action 时调用，
         创建一个带权限控制的 DictProxy。
 
         Args:
@@ -447,7 +447,7 @@ class Agent:
         """在当前 Agent 的上下文中，调用一个注册在案的 behavior。
 
         这为实现 Agent 行为的连锁反应提供了基础。
-        注意：为避免无限递归，需在 SimEngine 或调用层设计熔断机制。
+        注意：为避免无限递归，需在 Society0 或调用层设计熔断机制。
 
         Args:
             behavior_name: 要调用的 behavior 名称

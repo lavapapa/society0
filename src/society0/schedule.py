@@ -131,10 +131,19 @@ class StepResult:
     observations: Dict[str, Any] = field(default_factory=dict)
     notes: Optional[str] = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, *, result_dir=None, step=None, step_name=None) -> Dict[str, Any]:
+        from .result_datasets import is_large_table, write_dataset
+
+        tables = {}
+        for name, rows in self.tables.items():
+            if result_dir is not None and is_large_table(rows):
+                tables[name] = write_dataset(result_dir, rows, step=step,
+                                             name=f"{step_name}/{name}", normalize=_jsonable)
+            else:
+                tables[name] = _jsonable(rows)
         return {
             "metrics": _jsonable(self.metrics),
-            "tables": _jsonable(self.tables),
+            "tables": tables,
             "artifacts": _jsonable(self.artifacts),
             "observations": _jsonable(self.observations),
             "notes": self.notes,
@@ -1720,6 +1729,7 @@ class CodeSchedule:
         world: Any,
         log: Any = None,
         on_step_event: Optional[Callable[[Dict[str, Any]], None]] = None,
+        result_dir=None,
     ) -> List[Dict[str, Any]]:
         if not self.steps:
             raise RuntimeError("No code steps registered")
@@ -1756,8 +1766,11 @@ class CodeSchedule:
                     "step": tick,
                     "step_name": code_step.name,
                     "duration_sec": time.time() - started,
-                    "result": result.to_dict(),
+                    "result": result.to_dict(result_dir=result_dir, step=tick, step_name=code_step.name),
                 }
+                for table in entry["result"]["tables"].values():
+                    if isinstance(table, dict) and table.get("dataset") == "society0_records_v1":
+                        world.set_checkpoint_annotation("dataset:" + table["path"], table)
                 results.append(entry)
                 if on_step_event is not None:
                     on_step_event(
@@ -2584,6 +2597,14 @@ def _record_agent_batch_event(
         if error_samples:
             event_data["error_samples"] = _jsonable(error_samples)
 
+        if event_type == "agent_batch_heartbeat":
+            # 同一批次的静态设置已在 started 记录中保留。
+            for key in ("model_id", "fovs", "actions", "target_ids_sample", "execution_options", "concurrency_source"):
+                event_data.pop(key, None)
+            context_stack = []
+        status_writer = getattr(world, "_runtime_status_writer", None)
+        if status_writer is not None:
+            status_writer(event_type, **{key: event_data[key] for key in ("completed_count", "in_flight_count", "pending_count") if key in event_data})
         event_logger.write_event(AgentBatchEvent(context_stack=context_stack))
     except Exception:
         pass
@@ -3181,12 +3202,6 @@ def _injection_for_parameter(
 
 Schedule = CodeSchedule
 
-try:
-    from .legacy.schedule import StepFlow, StepNode  # noqa: F401
-except Exception:  # pragma: no cover
-    StepFlow = None  # type: ignore
-    StepNode = None  # type: ignore
-
 
 __all__ = [
     "AgentBatchResult",
@@ -3197,7 +3212,5 @@ __all__ = [
     "CodeStep",
     "Schedule",
     "StepContext",
-    "StepFlow",
-    "StepNode",
     "StepResult",
 ]

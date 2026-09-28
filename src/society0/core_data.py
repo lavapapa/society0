@@ -1,5 +1,5 @@
 """
-SimEngine V2: Core data structures following the unified state architecture.
+Society0 core data structures following the unified state architecture.
 
 This module defines the fundamental data structures:
 - World: Single source of truth for simulation state (renamed from WorldState)
@@ -34,7 +34,7 @@ from .async_utils import invoke_maybe_async
 from .logging import AgentEvent, LogField, summarize_text
 
 if TYPE_CHECKING:
-    from .legacy.schedule import Schedule, StepFlow, StepNode
+    from .schedule import CodeSchedule
     from .agent import Agent
     from .environment import Environment
     from .logging import ExperimentLogContext
@@ -246,9 +246,9 @@ class ExecutionContext:
     between static parameters and dynamic runtime context.
     """
     world: 'World'                   # Reference to current world state (renamed from WorldState)
-    step: Optional['StepFlow']       # Reference to current StepFlow instance (None for direct calls)
-    node: Optional['StepNode']       # Reference to current StepNode instance (None for direct calls)
-    caller: Union['Schedule', 'Agent', 'Environment', str]  # Entity that initiated this function call
+    step: Optional[Any]       # Optional step execution context
+    node: Optional[Any]       # Optional operation execution context
+    caller: Union['CodeSchedule', 'Agent', 'Environment', str]  # Entity that initiated this function call
     event_logger: Optional['EventLogger'] = None  # Reference to event logger for traceability
     log_context: Optional['ExperimentLogContext'] = None  # Structured logging context
     operator_id: Optional[str] = None  # 当前正在执行的 operator 标识（若有）
@@ -388,7 +388,7 @@ class World:
         self.event_logger = event_logger or EventLogger(event_log_path)
         self.transaction_manager = transaction_manager or TransactionManager(self.event_logger)
 
-        # Current context stack (will be set by Schedule). The context var is
+        # Current context stack (will be set by CodeSchedule). The context var is
         # task-local, preventing concurrent agent actions from inheriting each
         # other's action frames while preserving a synchronous fallback stack.
         self._current_context_stack: Optional[ContextStack] = None
@@ -402,7 +402,7 @@ class World:
         # StateChangeEvent。
         self._record_state_change_events: bool = True
 
-        # Dependency injection - these will be set by SimEngine
+        # Dependency injection - these will be set by Society0
         self._persistence_manager: Optional[Any] = None
         self._function_registry: Optional[Any] = None
         self._llm_manager: Optional[Any] = None
@@ -411,8 +411,6 @@ class World:
         self._environment_factory: Optional[Callable[["World"], "Environment"]] = None
         # 内部缓存：已发现的环境类型元数据（仅首次访问时构建）
         self._env_meta_cache: Optional[Dict[str, Any]] = None
-        # 节点差异调度器，由 SimEngine 在组合根注入
-        self._node_diff_dispatcher: Optional[Any] = None
         # 由已提交步骤派生的审计结果。它们随 checkpoint 留证，
         # 但不进入 Environment 的 canonical 运行状态。
         self._checkpoint_annotations: Dict[str, Any] = {}
@@ -435,7 +433,7 @@ class World:
         self._step_runtime_scope: Optional['StepRuntimeScope'] = None
 
     def set_context_stack(self, context_stack: ContextStack):
-        """Set the current context stack (called by Schedule/StepFlow)"""
+        """Set the current context stack (called by CodeSchedule)"""
         self._current_context_stack = context_stack
         self._context_stack_var.set(context_stack)
 
@@ -520,10 +518,10 @@ class World:
 
     def _build_execution_context(
         self,
-        caller: Union['Schedule', 'Agent', 'Environment', str],
+        caller: Union['CodeSchedule', 'Agent', 'Environment', str],
         *,
-        step: Optional['StepFlow'] = None,
-        node: Optional['StepNode'] = None,
+        step: Optional[Any] = None,
+        node: Optional[Any] = None,
     ) -> ExecutionContext:
         """构造标准 ExecutionContext，统一包含当前 world 引用。"""
         from .agent.agent_loop import current_action_call_id
@@ -1525,7 +1523,9 @@ class World:
 
         self._memory_branch_id = str(branch_id)
         self._memory_branch_lineage = list(branch_lineage)
-        self._committed_memory_epoch_ids = set(committed_write_epoch_ids)
+        from .agent.memory_view import PublishedEpochs
+
+        self._committed_memory_epoch_ids = PublishedEpochs(committed_write_epoch_ids)
         for memory in self._iter_agent_memories():
             memory.branch_id = self._memory_branch_id
             memory.set_memory_view(
@@ -1544,15 +1544,6 @@ class World:
         """Get the event logger"""
         return self.event_logger
 
-    # Diff dispatcher 注入/访问
-    def set_node_diff_dispatcher(self, dispatcher: Optional[Any]) -> None:
-        """注入节点差异调度器。"""
-        self._node_diff_dispatcher = dispatcher
-
-    def get_node_diff_dispatcher(self) -> Optional[Any]:
-        """获取节点差异调度器。"""
-        return self._node_diff_dispatcher
-
     # =========================================================================
     # v3.0: Schema 管理和初始化
     # =========================================================================
@@ -1562,7 +1553,7 @@ class World:
         获取指定 Agent 类型的 state schema
 
         这个 schema 是从外部配置（agent_set）中读取的。
-        SimEngine 在初始化时会将 agent_types 存储到 world._agent_types 中。
+        Society0 在初始化时会将 agent_types 存储到 world._agent_types 中。
 
         Args:
             agent_type: Agent 类型名称
@@ -2329,7 +2320,7 @@ class World:
         if self._function_registry is None:
             raise RuntimeError(
                 "Function registry not initialized. "
-                "Ensure SimEngine has properly initialized World with set_function_registry()."
+                "Ensure Society0 has properly initialized World with set_function_registry()."
             )
         return self._function_registry
 
@@ -2857,7 +2848,7 @@ class World:
         """
         🔧 PERSONA 重构: Initialize cognitive systems for all LLMAgents
 
-        This method should be called by SimEngine after World creation or restoration.
+        This method should be called by Society0 after World creation or restoration.
         It handles the complete initialization of all cognitive components for LLM agents.
 
         按照resource_management_design.md，使用注入的依赖而不是硬编码。
@@ -3065,179 +3056,6 @@ class World:
         # 3. 未定义，返回 None（将使用全局默认值）
         logger.debug(f"No reasoning_stages configured for agent {agent_id}, will use global default")
         return None
-
-    # Event replay mechanism for event sourcing
-
-    def apply_event(self, event):
-        """
-        Apply an event to restore state during event replay.
-
-        This is the core dispatcher for event sourcing, handling different
-        event types during restoration from snapshots + event logs.
-
-        Args:
-            event: BaseEvent instance to apply
-        """
-        from .events import StateChangeEvent, MemoryChangeEvent, NodeExecutionEvent, StepSummaryEvent
-
-        if isinstance(event, StateChangeEvent):
-            self._apply_state_change(event)
-        elif isinstance(event, MemoryChangeEvent):
-            self._apply_memory_change(event)
-        elif isinstance(event, NodeExecutionEvent):
-            # Node execution events are informational and don't need replay
-            logger.debug(f"Skipping NodeExecutionEvent during replay: {event.node_id}")
-        elif isinstance(event, StepSummaryEvent):
-            # Step summary events are analytical and don't need replay
-            # They are used for post-hoc analysis and don't affect world state
-            logger.debug(f"Skipping StepSummaryEvent during replay: step {event.step_number}")
-        else:
-            # Handle unknown event types gracefully
-            event_type = getattr(event, 'event_type', type(event).__name__)
-            logger.warning(f"Unknown event type during replay: {event_type}")
-
-            # Try to extract basic event info for debugging
-            event_details = {
-                "event_id": getattr(event, 'event_id', 'unknown'),
-                "timestamp": getattr(event, 'timestamp', 'unknown'),
-                "context_stack_length": len(getattr(event, 'context_stack', []))
-            }
-            logger.debug(f"Unknown event details: {event_details}")
-
-    def _apply_state_change(self, event):
-        """
-        Apply a StateChangeEvent by directly modifying the underlying data.
-
-        This method bypasses the proxy system to avoid generating new events
-        during replay. It directly manipulates agents_data or environment_data.
-
-        Args:
-            event: StateChangeEvent instance
-        """
-        try:
-            # Parse the event change information
-            if hasattr(event, 'change') and event.change:
-                # Legacy format with change dict
-                change = event.change
-                path = change.get('path', [])
-                operation = change.get('operation')
-                value = change.get('value')
-            else:
-                # Direct format
-                path = getattr(event, 'path', [])
-                operation = getattr(event, 'operation', None)
-                value = getattr(event, 'value', None)
-
-            if not path:
-                logger.warning("StateChangeEvent has empty path, skipping")
-                return
-
-            # Determine target based on event metadata
-            target_type = getattr(event, 'target_type', 'agent')
-            target_id = getattr(event, 'target_id', 'unknown')
-
-            if target_type == "agent":
-                if target_id not in self.agents_data:
-                    logger.warning(f"Agent {target_id} not found during event replay, skipping")
-                    return
-
-                # For agent events, path points directly to the field within agent data
-                # We need to determine which section (state, properties, reminders) to update
-                agent_data = self.agents_data[target_id]
-
-                # If path has only one element, assume it's going to state
-                if len(path) == 1:
-                    target = agent_data["state"]
-                    remaining_path = path
-                else:
-                    # Check if first path element is a known agent section
-                    if path[0] in ["state", "properties", "reminders"]:
-                        target = agent_data[path[0]]
-                        remaining_path = path[1:]
-                    else:
-                        # Default to state section
-                        target = agent_data["state"]
-                        remaining_path = path
-
-            elif target_type == "environment":
-                target = self.environment_data["state"]
-                remaining_path = path
-
-            else:
-                logger.warning(f"Unknown target_type during event replay: {target_type}")
-                return
-
-            # Navigate deeper into the structure
-            for key in remaining_path[:-1]:
-                if key not in target:
-                    # Create missing intermediate structures
-                    target[key] = {}
-                target = target[key]
-
-            # Apply the operation
-            if remaining_path:
-                final_key = remaining_path[-1]
-
-                if operation == "set":
-                    target[final_key] = value
-                elif operation == "delete":
-                    if final_key in target:
-                        del target[final_key]
-                elif operation == "append":
-                    if final_key not in target:
-                        target[final_key] = []
-                    if isinstance(target[final_key], list):
-                        target[final_key].append(value)
-                elif operation == "extend":
-                    if final_key not in target:
-                        target[final_key] = []
-                    if isinstance(target[final_key], list) and isinstance(value, list):
-                        target[final_key].extend(value)
-                else:
-                    logger.warning(f"Unknown operation during event replay: {operation}")
-            else:
-                # Direct assignment to root level (rare case)
-                if operation == "set":
-                    target.update(value if isinstance(value, dict) else {})
-
-            logger.debug(f"Applied state change event: {target_type}.{target_id} {path} {operation} {value}")
-
-        except Exception as e:
-            logger.error(f"Failed to apply state change event: {e}")
-            logger.error(f"Event details: target_type={getattr(event, 'target_type', 'unknown')}, target_id={getattr(event, 'target_id', 'unknown')}, path={getattr(event, 'path', 'unknown')}, operation={getattr(event, 'operation', 'unknown')}")
-
-    def _apply_memory_change(self, event):
-        """
-        Apply a MemoryChangeEvent by delegating to the agent's memory system.
-
-        Args:
-            event: MemoryChangeEvent instance
-        """
-        try:
-            agent_id = event.target_id
-
-            if agent_id not in self.agents_data:
-                logger.warning(f"Agent {agent_id} not found for memory event replay, skipping")
-                return
-
-            # Get the agent and its memory system
-            agent = self.get_agent(agent_id)
-
-            if not hasattr(agent, '_memory') or agent._memory is None:
-                logger.warning(f"Agent {agent_id} has no memory system for event replay, skipping")
-                return
-
-            # Delegate to the memory system's apply_event method
-            # Note: Memory system must implement its own apply_event method
-            if hasattr(agent._memory, 'apply_event'):
-                agent._memory.apply_event(event)
-                logger.debug(f"Applied memory change event for agent {agent_id}")
-            else:
-                logger.warning(f"Memory system for agent {agent_id} does not support event replay")
-
-        except Exception as e:
-            logger.error(f"Failed to apply memory change event: {e}")
-            logger.error(f"Event details: agent_id={getattr(event, 'target_id', 'unknown')}")
 
     def close(self):
         """Clean up resources"""

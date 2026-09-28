@@ -50,10 +50,9 @@ def test_replaceable_and_append_only_restore_each_tick_without_copying_old_facts
         }
     }
     manifest = json.loads((tmp_path / marker["manifest_file"]).read_text())
-    assert manifest["new_segments"][0]["entry_count"] == 2
-    with gzip.open(tmp_path / manifest["new_segments"][0]["path"], "rt") as handle:
-        segment = json.load(handle)
-    assert [entry.get("id") for entry in segment["entries"]] == ["f2", None]
+    entries = list(store.iter_operations(marker["checkpoint_id"]))
+    assert manifest["component_codec"] == "sqlite_records_v1"
+    assert [entry.get("id") for entry in entries if entry["operation"] != "set"] == ["f2", None]
 
 
 def test_same_tick_order_duplicate_id_and_abort_are_strict(tmp_path):
@@ -88,9 +87,9 @@ def test_transient_is_never_serialized_and_missing_segment_is_detected(tmp_path)
     assert "cursor" not in restored.get("environment", {}).get("state", {})
 
     manifest = json.loads((tmp_path / marker["manifest_file"]).read_text())
-    segment = tmp_path / manifest["new_segments"][0]["path"]
+    segment = tmp_path / manifest["replacement_file"]
     segment.unlink()
-    with pytest.raises(FileNotFoundError, match="segment"):
+    with pytest.raises(FileNotFoundError, match="replacement"):
         store.restore(1)
 
 

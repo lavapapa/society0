@@ -334,7 +334,7 @@ class SocialNetworkEnv(Environment):
 
         # 从 world.environment_data 中获取配置
         #
-        # SimEngine 会把 environment.yaml 的 config 放在 world.environment_data["config"]。
+        # Society0 会把 environment.yaml 的 config 放在 world.environment_data["config"]。
         # 之前错误地读取 world.environment_data["state"]["config"] 会导致始终回退到默认配置，
         # 且 environment.yaml 的推荐参数完全不生效。
         raw_config = world.environment_data.get("config") or {}
@@ -347,7 +347,7 @@ class SocialNetworkEnv(Environment):
 
         # 初始化图属性（不存放在state中）
         self.graph: Optional[nx.DiGraph] = None
-        # 注入的资源句柄（由 SimEngine 提供）
+        # 注入的资源句柄（由 Society0 提供）
         self._embed_call = None
         self._vector_client = None
         self._post_collection = None
@@ -910,7 +910,7 @@ class SocialNetworkEnv(Environment):
         active_epoch = getattr(world, "_active_memory_epoch_id", None)
         active_epoch = str(active_epoch) if active_epoch else None
         committed = getattr(world, "_committed_memory_epoch_ids", None)
-        committed_epochs = None if committed is None else {str(epoch) for epoch in committed}
+        committed_epochs = committed
         source_branch = getattr(world, "_memory_source_branch_id", None)
         if source_branch is None:
             source_branch = lineage[0][0] if lineage else branch_id

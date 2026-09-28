@@ -17,6 +17,9 @@ from datetime import datetime
 import threading
 
 from .state_proxy import DictProxy, ListProxy
+from . import checkpoint_records
+from .agent.memory_view import PublishedEpochs
+import heapq
 from .incremental_checkpoint import (
     PersistenceSchema,
     PersistenceKind,
@@ -73,19 +76,16 @@ class PersistenceManager:
         self.checkpoints_dir = self.save_dir / "checkpoints"
         self.metadata_dir = self.save_dir / "metadata"
         self.events_dir = self.save_dir / "events"
-        self.diffs_dir = self.save_dir / "diffs"
         self.interviews_dir = self.save_dir / "interviews"
 
         for dir_path in [
             self.checkpoints_dir,
             self.metadata_dir,
             self.events_dir,
-            self.diffs_dir,
             self.interviews_dir,
         ]:
             dir_path.mkdir(parents=True, exist_ok=True)
 
-        self._diff_lock = threading.Lock()
         self._chroma_init_lock = threading.Lock()
 
         # v4 state is consumed only from sealed deltas after the World has been
@@ -96,6 +96,8 @@ class PersistenceManager:
         self._v4_store: Optional[V4CheckpointStore] = None
         self._v4_checkpoint_every = 1
         self._v4_epoch: list[SealedTickDelta] = []
+        self._v4_staged_records: list[Path] = []
+        self._v4_next_sequence = 0
         self._v4_publish_lock: Optional[asyncio.Lock] = None
         self._v4_root_published = False
         self._v4_run_id = uuid.uuid4().hex
@@ -497,7 +499,7 @@ class PersistenceManager:
             current = current[part]
         return True, current
 
-    def _v4_root_entries(self, state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    def _v4_root_entries(self, state: Mapping[str, Any]):
         """Build step-0 operations from declared state once.
 
         The root is the only place where the complete initial state may be
@@ -507,7 +509,6 @@ class PersistenceManager:
         """
 
         assert self._v4_schema is not None
-        entries: list[dict[str, Any]] = []
         sequence = 0
         # A merged schema contains one source declaration per canonical root.
         # Expand only the Agent-id wildcard against the already-captured root
@@ -559,40 +560,41 @@ class PersistenceManager:
                             # restored Env would try to recreate the container
                             # after the journal was attached but before a Tick
                             # delta existed.
-                            entries.append(
-                                {
+                            yield {
                                     "path": list(concrete_path),
                                     "operation": "set",
                                     "value": {},
                                     "sequence": sequence,
                                 }
-                            )
                             sequence += 1
                             continue
                         for key, item in value.items():
-                            entries.append(
-                                {
+                            yield {
                                     "path": list(concrete_path + (key,)),
                                     "operation": "set",
                                     "value": item,
                                     "sequence": sequence,
                                 }
-                            )
                             sequence += 1
                         continue
-                    # Root bootstrap is allowed to materialize an append-only
-                    # container once. Tick writes still enforce append-only
-                    # operations through StateDeltaJournal.
-                    entries.append(
-                        {
-                            "path": list(concrete_path),
-                            "operation": "set",
-                            "value": value,
-                            "sequence": sequence,
-                        }
-                    )
-                    sequence += 1
-        return entries
+                    if rule.kind in (PersistenceKind.APPEND_ONLY_MAP, PersistenceKind.APPEND_ONLY_LIST):
+                        is_map = rule.kind is PersistenceKind.APPEND_ONLY_MAP
+                        yield {"path": list(concrete_path), "operation": "set",
+                               "value": {} if is_map else [], "sequence": sequence}
+                        sequence += 1
+                        items = value.items() if is_map else enumerate(value)
+                        for key, item in items:
+                            operation = {"path": list(concrete_path),
+                                         "operation": "map_create" if is_map else "append",
+                                         "value": item, "sequence": sequence}
+                            if is_map:
+                                operation["id"] = key
+                            yield operation
+                            sequence += 1
+                    else:
+                        yield {"path": list(concrete_path), "operation": "set",
+                               "value": value, "sequence": sequence}
+                        sequence += 1
 
     def configure_v4(
         self,
@@ -724,6 +726,18 @@ class PersistenceManager:
             # 取消：发布已经提交，必须把成功结果交给调用方完成 step 推进。
             return await worker
 
+    def set_checkpoint_base(self, source_run: str | Path, step: int, *,
+                            delta: Any, branch_id: str = "main") -> None:
+        """固定源完整检查点；delta 为初始化增量或发布时封存的零参函数。"""
+        source = V4CheckpointStore(source_run, branch_id=branch_id, create=False)
+        marker = source._read_marker(step)
+        self._v4_base_checkpoint = {
+            "source_root": os.path.relpath(Path(source_run).resolve(), self.save_dir.resolve()),
+            "step": step, "branch_id": branch_id,
+            "checkpoint_id": marker["checkpoint_id"],
+        }
+        self._v4_base_delta = delta
+
     async def publish_root(self, world: 'World', schedule: 'Schedule') -> Dict[str, Any]:
         """Publish the immutable step-0 v4 root through a worker thread."""
 
@@ -737,11 +751,11 @@ class PersistenceManager:
         async with self._v4_publish_lock:
             if self._v4_root_published:
                 raise RuntimeError("v4 root checkpoint is already published")
-            # Capture canonical World data once, before entering the worker.
-            # No subsequent delta publish has access to this World reference.
-            environment_data = self._plain_snapshot_value(world.environment_data)
-            agents_data = self._plain_snapshot_value(world.agents_data)
-            agent_types = self._plain_snapshot_value(getattr(world, "_agent_types", {}) or {})
+            # 发布期间调用方持有步骤边界，await 完成前 World 不允许推进。
+            # worker 借用只读引用逐条消费根状态，不复制整棵 World。
+            environment_data = world.environment_data
+            agents_data = world.agents_data
+            agent_types = getattr(world, "_agent_types", {}) or {}
             # Agent identity/type metadata is immutable bootstrap metadata; the
             # declared Agent state itself is represented by root operations so
             # subsequent deltas can replace it without copying the World.
@@ -778,6 +792,15 @@ class PersistenceManager:
                     getattr(world, "state_access_mode", None), "value", None
                 ),
             )
+            base = getattr(self, "_v4_base_checkpoint", None)
+            if base is not None:
+                delta = self._v4_base_delta
+                if callable(delta):
+                    delta = delta()
+                if not isinstance(delta, SealedTickDelta):
+                    raise TypeError("base checkpoint requires a sealed initialization delta")
+                entries = heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0))
+                metadata["base_checkpoint"] = dict(base)
             checkpoint_id = uuid.uuid4().hex
             memory_target_step = int(world.step)
             inherited_memory_epochs = set(
@@ -831,6 +854,24 @@ class PersistenceManager:
         if self._v4_publish_lock is None:
             self._v4_publish_lock = asyncio.Lock()
         async with self._v4_publish_lock:
+            if self._v4_checkpoint_every > 1:
+                pending_dir = self.save_dir / "checkpoints" / "v4" / "pending"
+                pending_dir.mkdir(parents=True, exist_ok=True)
+                staged_path = pending_dir / f"{uuid.uuid4().hex}.sqlite"
+                try:
+                    await self._await_v4_publication(checkpoint_records.write_records,
+                        staged_path, heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+                        sequence_offset=self._v4_next_sequence)
+                except BaseException:
+                    self._v4_epoch.clear()
+                    self._clear_staged_records()
+                    self._v4_pending_memory_epoch_ids.clear()
+                    raise
+                self._v4_staged_records.append(staged_path)
+                self._v4_next_sequence = checkpoint_records.next_sequence(staged_path)
+                delta = SealedTickDelta(step=delta.step, replacements=(), appends=(),
+                                       write_epoch_ids=delta.write_epoch_ids,
+                                       annotations=delta.annotations)
             self._v4_epoch.append(delta)
             self._v4_pending_memory_epoch_ids.update(delta.write_epoch_ids)
             if len(self._v4_epoch) < self._v4_checkpoint_every and not force:
@@ -840,8 +881,8 @@ class PersistenceManager:
                         branch_id=self._v4_branch_id,
                         branch_lineage=self._v4_branch_lineage,
                         committed_write_epoch_ids=(
-                            self._v4_committed_memory_epoch_ids
-                            | self._v4_pending_memory_epoch_ids
+                            PublishedEpochs(self._v4_committed_memory_epoch_ids,
+                                            self._v4_pending_memory_epoch_ids)
                         ),
                     )
                 return None
@@ -856,6 +897,7 @@ class PersistenceManager:
                 )
                 return self._v4_store.publish(
                     combined,
+                    staged_records=self._v4_staged_records or None,
                     checkpoint_id=checkpoint_id,
                     thread_manifest=thread_manifest,
                     memory_view={
@@ -870,11 +912,13 @@ class PersistenceManager:
                 # A failed epoch is never recoverable.  The caller may continue
                 # only after explicitly starting a new epoch.
                 self._v4_epoch.clear()
+                self._clear_staged_records()
                 self._v4_pending_memory_epoch_ids.clear()
                 raise
             self._v4_epoch.clear()
-            committed = self._v4_store.committed_memory_epoch_ids(combined.step)
-            self._v4_committed_memory_epoch_ids = set(committed)
+            self._clear_staged_records()
+            self._v4_committed_memory_epoch_ids.update(combined.write_epoch_ids)
+            committed = self._v4_committed_memory_epoch_ids
             self._v4_pending_memory_epoch_ids.clear()
             if self._v4_world is not None:
                 self._v4_world._checkpoint_annotations.update(
@@ -888,12 +932,22 @@ class PersistenceManager:
                 )
             return marker
 
+    def _clear_staged_records(self) -> None:
+        for path in self._v4_staged_records:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Unpublished checkpoint staging file remains: %s", path)
+        self._v4_staged_records.clear()
+        self._v4_next_sequence = 0
+
     def discard_unpublished_epoch(self) -> None:
         """Drop all sealed deltas since the previous v4 marker."""
 
         if self._v4_publish_lock is not None and self._v4_publish_lock.locked():
             raise RuntimeError("cannot discard an epoch while v4 writer is active")
         self._v4_epoch.clear()
+        self._clear_staged_records()
         self._v4_pending_memory_epoch_ids.clear()
         if self._v4_store is not None and self._v4_world is not None:
             latest = self._v4_store.resolve()
@@ -1146,28 +1200,6 @@ class PersistenceManager:
         self._atomic_write_diagnostic_gzip_json(path, payload)
         return path
 
-    def append_node_diff(
-        self,
-        *,
-        step_id: int,
-        node_id: str,
-        changes: List[Dict[str, Any]],
-        context_stack: Optional[List[Dict[str, Any]]] = None,
-    ) -> None:
-        """追加节点差异记录到 diffs 目录。"""
-        record: Dict[str, Any] = {
-            "step_number": step_id,
-            "node_id": node_id,
-            "changes": changes,
-        }
-        if context_stack is not None:
-            record["context_stack"] = context_stack
-
-        diff_file = self.diffs_dir / f"diffs_from_step_{step_id:06d}.jsonl"
-        serialized = json.dumps(record, ensure_ascii=False, default=self._json_serializer)
-        with self._diff_lock, diff_file.open("a", encoding="utf-8") as fp:
-            fp.write(serialized + "\n")
-    
     @classmethod
     def resolve_checkpoint_from(
         cls,

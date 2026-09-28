@@ -1,5 +1,5 @@
 """
-SimEngine V2: Resource Managers - LLM和Embedding的统一管理器
+Society0: Resource Managers - LLM和Embedding的统一管理器
 
 按照resource_management_design.md设计文档实现的资源管理器，
 解决硬编码依赖和全局状态滥用问题。

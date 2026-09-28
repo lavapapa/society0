@@ -1,5 +1,5 @@
 """
-This package contains built-in environment extensions for the SimEngine.
+This package contains built-in environment extensions for the Society0.
 
 This __init__.py file serves as the central registry for all built-in
 environments. Environment classes are loaded lazily so a lightweight

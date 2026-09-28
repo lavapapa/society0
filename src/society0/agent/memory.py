@@ -237,7 +237,11 @@ class Memory:
                 (str(source_branch), int(fork_step))
                 for source_branch, fork_step in branch_lineage
             ]
-        if committed_write_epoch_ids is None:
+        from .memory_view import PublishedEpochs
+
+        if isinstance(committed_write_epoch_ids, PublishedEpochs):
+            self._committed_write_epoch_ids = committed_write_epoch_ids
+        elif committed_write_epoch_ids is None:
             self._committed_write_epoch_ids = None
         else:
             self._committed_write_epoch_ids = {
@@ -1706,109 +1710,3 @@ class Memory:
         except Exception as exc:
             logger.error("Failed to import memories for agent %s: %s", self.agent_id, exc)
             raise
-
-    async def apply_event(self, event):
-        """
-        Apply a MemoryChangeEvent during event replay to restore memory state.
-
-        This method handles memory-specific events during event sourcing replay,
-        ensuring that the memory system can be accurately restored from event logs.
-
-        Args:
-            event: MemoryChangeEvent instance to apply
-
-        Note:
-            This method is called by World._apply_memory_change during event replay
-        """
-        try:
-            from ..events import MemoryChangeEvent
-
-            if not isinstance(event, MemoryChangeEvent):
-                logger.warning(f"Memory.apply_event received non-memory event: {type(event)}")
-                return
-
-            operation = getattr(event, 'operation', 'unknown')
-            memory_id = getattr(event, 'memory_id', None)
-            memory_type = getattr(event, 'memory_type', '')
-            content = getattr(event, 'content', None)
-
-            logger.debug(f"Applying memory event for agent {self.agent_id}: {operation}")
-
-            if operation == "add":
-                # Restore a memory entry
-                if not memory_id or not content:
-                    logger.warning("Memory add event missing required fields (memory_id, content)")
-                    return
-                memory_id = self._normalize_memory_id(str(memory_id))
-
-                # Extract memory data from event
-                memory_data = content if isinstance(content, dict) else {"content": str(content)}
-
-                # Create memory entry for restoration
-                if "embedding" not in memory_data:
-                    logger.warning("Memory event missing embedding data, skipping...")
-                    return
-
-                memory_entry = MemoryEntry(
-                    id=memory_id,
-                    type=memory_type or "episodic",
-                    content=memory_data.get("content", ""),
-                    embedding=memory_data.get("embedding", []),
-                    timestamp=memory_data.get("timestamp", 0),
-                    base_importance=memory_data.get("base_importance", 3.0),
-                    metadata=memory_data.get("metadata", {})
-                )
-
-                # Insert directly into Chroma（避免重新嵌入）
-                try:
-                    collection = self._get_collection()
-                    record_metadata = self._build_metadata(
-                        memory_type=memory_entry.type,
-                        timestamp=memory_entry.timestamp,
-                        importance=memory_entry.base_importance,
-                        metadata=memory_entry.metadata,
-                    )
-
-                    if memory_entry.embedding:
-                        self._update_embedding_dim(memory_entry.embedding)
-
-                    collection.add(
-                        ids=[memory_entry.id],
-                        documents=[memory_entry.content],
-                        embeddings=[memory_entry.embedding],
-                        metadatas=[record_metadata],
-                    )
-
-                    logger.debug(f"Restored memory entry {memory_id} for agent {self.agent_id}")
-
-                except Exception as e:
-                    logger.error(f"Failed to restore memory entry {memory_id}: {e}")
-
-            elif operation == "delete":
-                # Remove a memory entry
-                if not memory_id:
-                    logger.warning("Memory delete event missing memory_id")
-                    return
-                memory_id = self._normalize_memory_id(str(memory_id))
-
-                try:
-                    collection = self._get_collection()
-                    delete_kwargs: Dict[str, Any] = {"ids": [memory_id]}
-                    delete_kwargs["where"] = self._memory_where_filter()
-                    collection.delete(**delete_kwargs)
-
-                    logger.debug(f"Deleted memory entry {memory_id} during replay for agent {self.agent_id}")
-
-                except Exception as e:
-                    logger.error(f"Failed to delete memory entry {memory_id} during replay: {e}")
-
-            elif operation == "update":
-                # Update a memory entry (if supported)
-                logger.debug(f"Memory update operation not fully implemented yet for agent {self.agent_id}")
-
-            else:
-                logger.warning(f"Unknown memory operation during replay: {operation}")
-
-        except Exception as e:
-            logger.error(f"Error applying memory event for agent {self.agent_id}: {e}")
-            # Don't raise to avoid breaking the entire replay process

@@ -191,7 +191,7 @@ def test_large_serializable_integer_keeps_original_json_path():
     incremental_checkpoint._validate_json_value(value)
 
 
-def test_json_containers_and_scalar_subclasses_keep_copy_and_serialization(monkeypatch):
+def test_json_containers_keep_copy_without_whole_encoding_and_validate_scalar_subclasses(monkeypatch):
     class IntSubclass(int):
         pass
 
@@ -222,11 +222,11 @@ def test_json_containers_and_scalar_subclasses_keep_copy_and_serialization(monke
     assert copied["items"] is not container["items"]
     assert container in copied_values
     assert subclass_value in copied_values
-    assert container in serialized_values
+    assert container not in serialized_values
     assert subclass_value in serialized_values
 
 
-def test_json_proxy_values_keep_copy_and_serialization_fallback(
+def test_json_proxy_values_keep_copy_without_whole_encoding(
     tmp_path,
     monkeypatch,
 ):
@@ -254,8 +254,9 @@ def test_json_proxy_values_keep_copy_and_serialization_fallback(
 
         assert copied == {"items": [1]}
         assert proxy in copied_values
-        assert copied in serialized_values
-        assert proxy._target_dict in serialized_values
+        assert copied is not proxy._target_dict
+        assert copied["items"] is not proxy._target_dict["items"]
+        assert serialized_values == []
     finally:
         world.event_logger.close()
 
