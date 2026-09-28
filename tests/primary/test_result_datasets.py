@@ -123,3 +123,93 @@ async def test_multi_step_epoch_datasets_commit_together_and_failed_epoch_stays_
         for ref in captured[2:]:
             with pytest.raises(ValueError, match='dataset_not_committed'):
                 reader.dataset_page(ref)
+
+
+def test_summary_partitions_publish_once_and_preserve_all_rows(tmp_path, monkeypatch):
+    from copy import deepcopy
+    from society0 import result_datasets as datasets
+    summary = {'failed': True, 'failure': {'type': 'injected'},
+               'groups': {str(i): {'by_tick': {str(j): {'value': i * 10 + j} for j in range(i)}} for i in range(8)}}
+    expected = deepcopy(summary)
+    published = []
+    original = datasets.write_records
+    def counted(path, records, **kwargs):
+        published.append(path)
+        return original(path, records, **kwargs)
+    monkeypatch.setattr(datasets, 'write_records', counted)
+    datasets.externalize_history(tmp_path, summary)
+    assert len(published) == 1
+    assert len(list((tmp_path / 'result_datasets').glob('*.sqlite'))) == 1
+    refs = [group['by_tick'] for group in summary['groups'].values()]
+    assert len({ref['path'] for ref in refs}) == 1
+    assert len({tuple(ref['record_path']) for ref in refs}) == 8
+    assert all(ref['publication'] == 'run_diagnostics' for ref in refs)
+    assert summary['failed'] is True
+    for index, ref in enumerate(refs):
+        rows, after = [], -1
+        while True:
+            page = datasets.read_dataset_page(tmp_path, ref, after_sequence=after, limit=2)
+            assert page['total'] == index
+            rows.extend(row['value'] for row in page['records'])
+            if page['next_sequence'] is None:
+                break
+            after = page['next_sequence']
+        assert rows == [{'key': str(j), 'value': {'value': index * 10 + j}} for j in range(index)]
+        assert list(datasets.iter_dataset(tmp_path, ref)) == rows
+        assert not datasets.dataset_is_committed(ref, {'annotations': {}})
+    assert datasets.load_history(tmp_path, summary) == expected
+
+
+def test_summary_partition_failure_does_not_replace_original_values(tmp_path, monkeypatch):
+    from society0 import result_datasets as datasets
+    value = {'by_tick': {'1': {'count': 2}}}
+    def fail(*args, **kwargs):
+        raise OSError('injected publish failure')
+    monkeypatch.setattr(datasets, 'write_records', fail)
+    with pytest.raises(OSError, match='injected'):
+        datasets.externalize_history(tmp_path, value)
+    assert value == {'by_tick': {'1': {'count': 2}}}
+
+
+def test_summary_large_partition_row_remains_fully_readable(tmp_path):
+    from society0.result_datasets import externalize_history, iter_dataset, read_dataset_page
+    text = '长记录' * 50000
+    summary = {'a': {'by_tick': {'large': {'text': text}}}, 'b': {'by_tick': {'small': 3}}}
+    externalize_history(tmp_path, summary)
+    large = summary['a']['by_tick']
+    page = read_dataset_page(tmp_path, large, max_bytes=512)
+    assert page['total'] == 1 and 'record_ref' in page['records'][0]
+    assert list(iter_dataset(tmp_path, large)) == [{'key': 'large', 'value': {'text': text}}]
+    assert list(iter_dataset(tmp_path, summary['b']['by_tick'])) == [{'key': 'small', 'value': 3}]
+
+
+@pytest.mark.asyncio
+async def test_failed_run_summary_partitions_stay_diagnostic(tmp_path):
+    from society0 import Society0, ObservationReader
+    from society0.result_datasets import load_history
+    engine = Society0(str(tmp_path), base_config={'agents': [], 'environment': {'type': 'plain', 'state': {}}})
+    @engine.step(name='fail')
+    async def fail(ctx):
+        raise RuntimeError('summary failure fixture')
+    with pytest.raises(RuntimeError, match='summary failure fixture'):
+        await engine.run(steps=1)
+    summary = json.loads((tmp_path / 'summary.json').read_text())
+    assert summary['failed'] is True
+    restored = load_history(tmp_path, summary)
+    refs = []
+    def collect(value):
+        if isinstance(value, dict):
+            if value.get('dataset') == 'society0_records_v1':
+                refs.append(value)
+            else:
+                for item in value.values():
+                    collect(item)
+    collect(summary)
+    assert refs and len({ref['path'] for ref in refs}) == 1
+    with ObservationReader(tmp_path, index_dir=tmp_path / 'query') as reader:
+        reader.sync()
+        assert reader.status()['committed_checkpoint']['step'] == 0
+        for ref in refs:
+            assert ref['publication'] == 'run_diagnostics'
+            assert reader.dataset_page(ref)['total'] == ref['count']
+    assert restored['failed'] is True

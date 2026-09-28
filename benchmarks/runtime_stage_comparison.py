@@ -122,6 +122,7 @@ async def worker(args):
 
 def main():
     parser=argparse.ArgumentParser()
+    parser.add_argument('--baseline', default='7e98f11')
     parser.add_argument('--worker', action='store_true')
     parser.add_argument('--run')
     parser.add_argument('--mode', choices=['environment','agent'])
@@ -137,7 +138,7 @@ def main():
         temp=Path(directory)
         archive=temp/'old.tar'
         with archive.open('wb') as stream:
-            subprocess.run(['git','archive','7e98f11','src'],cwd=repo,stdout=stream,check=True)
+            subprocess.run(['git','archive',args.baseline,'src'],cwd=repo,stdout=stream,check=True)
         old=temp/'old'
         old.mkdir()
         with tarfile.open(archive) as tar:
@@ -145,7 +146,7 @@ def main():
         for history in (5000,50000):
             for mode in ('environment','agent'):
                 pair=[]
-                for version,source in [('7e98f11',old/'src'),('working-tree',repo/'src')]:
+                for version,source in [(args.baseline,old/'src'),('working-tree',repo/'src')]:
                     stem=f'{history}-{mode}-{version}'
                     output=temp/(stem+'.json')
                     env={**os.environ,'PYTHONPATH':str(source),'SOCIETY0_RUN_REAL_E2E':'0'}
@@ -159,7 +160,7 @@ def main():
                     pair.append(data['evidence'])
                 assert pair[0] == pair[1], f'logical mismatch: {history}/{mode}'
                 print(f'Equivalent: history={history} mode={mode}',flush=True)
-    Path(args.output).write_text(json.dumps({'baseline':'7e98f11','active_entries':20,'steps':20,
+    Path(args.output).write_text(json.dumps({'baseline':args.baseline,'active_entries':20,'steps':20,
         'comparison':'equal initial/final/restored state, full Thread messages, DummyMemory text and provider message inputs',
         'memory_backend':'local DummyMemory, no Chroma or network; provider local deterministic tool response',
         'results':results},ensure_ascii=False,indent=2))

@@ -1,0 +1,38 @@
+.......F...F..                                                           [100%]
+=================================== FAILURES ===================================
+_______ test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e _______
+tests/e2e/test_society0_real_e2e.py:1164: in test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e
+    assert "Action semantics: required_actions configured [send_message_to_partner]" in diagnostics
+E   AssertionError: assert 'Action semantics: required_actions configured [send_message_to_partner]' in '# Society0 Runtime Diagnostic Report\n\n## Run Overview\n\n- Status: completed\n- Final step: 1\n- Total runtime: 5.5... If extractive memory is enabled, memory extraction and memory write costs are part of the faithful simulation path.\n'
+_____ test_real_society0_social_browse_completion_tags_default_memory_e2e ______
+tests/e2e/test_society0_real_e2e.py:1627: in test_real_society0_social_browse_completion_tags_default_memory_e2e
+    assert publish_metrics["publish_errors"] == 0
+E   assert 2 == 0
+=============================== warnings summary ===============================
+tests/e2e/test_society0_real_e2e.py:29
+  /mnt/data/l20/qin/runtime-observation-real-tests-20260929/source-final/tests/e2e/test_society0_real_e2e.py:29: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    pytestmark = [pytest.mark.e2e, pytest.mark.real_e2e, pytestmark]
+
+tests/e2e/test_society0_real_e2e.py:29
+  /mnt/data/l20/qin/runtime-observation-real-tests-20260929/source-final/tests/e2e/test_society0_real_e2e.py:29: PytestUnknownMarkWarning: Unknown pytest.mark.real_e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    pytestmark = [pytest.mark.e2e, pytest.mark.real_e2e, pytestmark]
+
+tests/e2e/test_society0_real_e2e.py:435
+  /mnt/data/l20/qin/runtime-observation-real-tests-20260929/source-final/tests/e2e/test_society0_real_e2e.py:435: PytestUnknownMarkWarning: Unknown pytest.mark.saturation - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.saturation
+
+tests/e2e/test_society0_real_e2e.py:535
+  /mnt/data/l20/qin/runtime-observation-real-tests-20260929/source-final/tests/e2e/test_society0_real_e2e.py:535: PytestUnknownMarkWarning: Unknown pytest.mark.saturation - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.saturation
+
+../../../../../../Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/tests/e2e/test_real_process_recovery.py:19
+  /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/tests/e2e/test_real_process_recovery.py:19: PytestUnknownMarkWarning: Unknown pytest.mark.e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+
+../../../../../../Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/tests/e2e/test_real_process_recovery.py:19
+  /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/tests/e2e/test_real_process_recovery.py:19: PytestUnknownMarkWarning: Unknown pytest.mark.real_e2e - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e
+2 failed, 12 passed, 6 warnings in 248.10s (0:04:08)

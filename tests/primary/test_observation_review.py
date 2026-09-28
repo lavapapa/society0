@@ -47,11 +47,11 @@ def test_review_fixed_delta_index_work_does_not_scan_inactive_history(tmp_path):
             reader.sync()
             # 同一热键的历史版本；当前记录与本次增量保持不变。
             with reader.db:
-                scope = reader.db.execute("SELECT id FROM scope_names WHERE path=''").fetchone()[0]
+                scope = 0
                 for i in range(1, history + 1):
-                    reader.db.execute('INSERT INTO entries SELECT path_key,path,?,0,source,sequence,raw_bytes,operation,ordinal,structural FROM entries WHERE start=1', (-i,))
+                    reader.db.execute('INSERT INTO entries SELECT path_id,?,0,source,sequence,raw_bytes,ordinal,structural FROM entries WHERE start=1', (-i,))
                     entry_id = reader.db.execute('SELECT last_insert_rowid()').fetchone()[0]
-                    reader.db.execute('INSERT INTO scopes VALUES (?,?,?,0,0)', (scope, entry_id, -i))
+                    reader.db.execute('INSERT INTO scopes VALUES (?,0,?,0,?)', (scope, -i, entry_id))
             publish(store, 2, [{'operation': 'set', 'path': ['hot'], 'value': 2}])
             instructions = 0
             def count():
@@ -193,3 +193,47 @@ def test_review_normalized_scopes_preserve_ancestor_versions_and_same_epoch(tmp_
         current, total = collect(new['checkpoint_id'])
         assert total == len(current) == 2
         assert [(x['path'], x['value']) for x in current] == [(['parent'], {}), (['parent', 'a'], 4)]
+
+
+def test_review_current_page_snapshot_survives_concurrent_index_commit(tmp_path, monkeypatch):
+    store = V4CheckpointStore(tmp_path)
+    first = publish(store, 1, [{'operation': 'set', 'path': ['hot'], 'value': 'old'}])
+    with ObservationReader(tmp_path, index_dir=tmp_path / 'shared-index') as reader, ObservationReader(tmp_path, index_dir=tmp_path / 'shared-index') as writer:
+        reader.sync()
+        publish(store, 2, [{'operation': 'set', 'path': ['hot'], 'value': 'new'}])
+        original_status = reader.status
+        def status_then_concurrent_commit():
+            result = original_status()
+            writer.sync()
+            return result
+        monkeypatch.setattr(reader, 'status', status_then_concurrent_commit)
+        page = reader.state_page()
+        assert page['checkpoint_id'] == first['checkpoint_id']
+        assert page['items'][0]['value'] == 'old'
+
+
+def test_review_same_epoch_typed_paths_delete_recreate_counts(tmp_path):
+    store = V4CheckpointStore(tmp_path)
+    first = publish(store, 1, [
+        {'operation': 'set', 'path': ['rows'], 'value': {}},
+        {'operation': 'set', 'path': ['rows', 1], 'value': 'integer'},
+        {'operation': 'set', 'path': ['rows', '1'], 'value': 'string'},
+    ])
+    with ObservationReader(tmp_path) as reader:
+        reader.sync()
+        second = publish(store, 2, [
+            {'operation': 'delete', 'path': ['rows', 1]},
+            {'operation': 'set', 'path': ['rows', 1], 'value': 'new integer'},
+            {'operation': 'set', 'path': ['rows', '1'], 'value': 'new string'},
+            {'operation': 'set', 'path': ['rows', '1'], 'value': 'last string'},
+        ])
+        reader.sync()
+        current = reader.state_page(path=['rows'])
+        old = reader.state_page(first['checkpoint_id'], path=['rows'])
+        assert current['total'] == old['total'] == 3
+        assert {json.dumps(i['path']): i['value'] for i in current['items']} == {
+            '["rows"]': {}, '["rows", 1]': 'new integer', '["rows", "1"]': 'last string'}
+        assert {json.dumps(i['path']): i['value'] for i in old['items']} == {
+            '["rows"]': {}, '["rows", 1]': 'integer', '["rows", "1"]': 'string'}
+        reader.prepare_state(first['checkpoint_id'], path=['rows'])
+        assert reader.state_page(first['checkpoint_id'], path=['rows'])['items'] == old['items']

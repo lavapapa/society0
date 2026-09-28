@@ -1331,7 +1331,7 @@ class V4CheckpointStore:
 
     def publish_root(
         self,
-        entries: Sequence[Mapping[str, Any]],
+        entries: Iterable[Mapping[str, Any]],
         *,
         metadata: Mapping[str, Any] | None = None,
         step: int = 0,
@@ -1350,14 +1350,14 @@ class V4CheckpointStore:
             raise ValueError("root checkpoint step must be 0")
         delta = SealedTickDelta(
             step=0,
-            # 根条目来自 manager 已经脱离 World 的普通快照，发布调用又在
-            # 当前 worker 内同步消费；这里无需再冻结、解冻整棵初始状态。
+            # 根条目在发布 await 期间借用 World 的稳定视图；当前 worker
+            # 顺序消费，无需冻结、解冻或预扫整个根状态。
             replacements=entries,
             appends=(),
         )
         return self._publish_delta(
             delta,
-            root_metadata=metadata,
+            root_metadata={} if metadata is None else metadata,
             checkpoint_id=checkpoint_id,
             thread_manifest=thread_manifest,
             memory_view=memory_view,
@@ -1375,18 +1375,7 @@ class V4CheckpointStore:
             raise ValueError("fork branch_id must differ from its source")
         marker = self._read_marker(step)
         chain = self._manifest_chain(step)
-        parent_state = "0" * 64
-        for manifest in chain:
-            if manifest.get("component_codec") != checkpoint_records.CODEC:
-                raise ValueError("unsupported checkpoint component codec")
-            parent_state = self._validate_state_link(manifest, parent_state)
-            component = self.root / manifest["replacement_file"]
-            if self._file_sha256(component) != manifest["replacement_sha256"]:
-                raise ValueError("replacement content hash mismatch")
-            if manifest.get("thread_manifest"):
-                from .agent.thread_store import AgentThreadStore
-                AgentThreadStore.validate_tick_manifest_from(self.root, manifest["thread_manifest"],
-                    expected_checkpoint_id=manifest["checkpoint_id"], expected_step=manifest["step"])
+        self._validate_chain_components(chain)
         source = {"marker": marker, "manifest": chain[-1], "checkpoint_id": marker["checkpoint_id"]}
         branch = type(self)(self.root, branch_id=branch_id)
         if branch.available_steps():
@@ -1444,7 +1433,8 @@ class V4CheckpointStore:
                 count = checkpoint_records.merge_records(record_path, staged_records)
             else:
                 count = checkpoint_records.write_records(record_path,
-                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)))
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+                    record_count=None if is_root else len(delta.replacements) + len(delta.appends))
             replacement = {"path": self._relative(record_path),
                            "sha256": self._file_sha256(record_path)}
             bytes_written += record_path.stat().st_size
@@ -1556,15 +1546,11 @@ class V4CheckpointStore:
                 marker = self._read_marker(candidate)
                 chain = self._manifest_chain(candidate)
                 manifest_path = self.root / marker["manifest_file"]
-                manifest_bytes = manifest_path.read_bytes()
-                if self._sha256(manifest_bytes) != marker.get("manifest_sha256"):
-                    raise ValueError("manifest content hash mismatch")
                 manifest = chain[-1]
-                # Resolver validation includes component hashes and the state
-                # hash chain.  This keeps ``latest`` from selecting a marker
-                # whose manifest exists but whose replacement/segment is
-                # already damaged.
-                restored_state = self.restore(candidate)
+                if include_restored_state:
+                    restored_state = self._restore_chain(chain)
+                else:
+                    self._validate_chain_components(chain)
                 result = {
                     "step": candidate,
                     "checkpoint_id": marker["checkpoint_id"],
@@ -1723,10 +1709,43 @@ class V4CheckpointStore:
             raise ValueError("state hash chain mismatch")
         return expected_state
 
+    def _validate_manifest_component(self, manifest, parent_state):
+        thread_manifest = manifest.get("thread_manifest")
+        if isinstance(thread_manifest, Mapping):
+            from .agent.thread_store import AgentThreadStore
+            AgentThreadStore.validate_tick_manifest_from(
+                self.root, thread_manifest,
+                expected_checkpoint_id=manifest["checkpoint_id"], expected_step=manifest["step"])
+        if manifest.get("component_codec") != checkpoint_records.CODEC:
+            raise ValueError("unsupported checkpoint component codec")
+        component = self.root / manifest["replacement_file"]
+        if not component.is_file():
+            raise FileNotFoundError(f"replacement missing: {component}")
+        if self._file_sha256(component) != manifest["replacement_sha256"]:
+            raise ValueError("replacement content hash mismatch")
+        return component, self._validate_state_link(manifest, parent_state)
+
+    def _validate_chain_components(self, chain):
+        # 查询身份只流式校验不可变组件；正文由真正恢复路径读取一次。
+        base = (chain[0].get("root_metadata") or {}).get("base_checkpoint") if chain else None
+        if base:
+            source = type(self)((self.root / base["source_root"]).resolve(),
+                                branch_id=base.get("branch_id", "main"), create=False)
+            record = source.resolve(int(base["step"]))
+            if record["checkpoint_id"] != base["checkpoint_id"]:
+                raise ValueError("base checkpoint identity mismatch")
+        parent_state = "0" * 64
+        for manifest in chain:
+            component, parent_state = self._validate_manifest_component(manifest, parent_state)
+            if checkpoint_records.record_count(component) != manifest["record_count"]:
+                raise ValueError("checkpoint record count mismatch")
+
     def restore(self, step: int) -> dict[str, Any]:
+        return self._restore_chain(self._manifest_chain(step))
+
+    def _restore_chain(self, chain):
         state: dict[str, Any] = {}
         parent_state = "0" * 64
-        chain = self._manifest_chain(step)
         base = (chain[0].get("root_metadata") or {}).get("base_checkpoint") if chain else None
         if base:
             source_root = (self.root / base["source_root"]).resolve()
@@ -1736,30 +1755,13 @@ class V4CheckpointStore:
                 raise ValueError("base checkpoint identity mismatch")
             state = source.restore(int(base["step"]))
         for manifest in chain:
-            thread_manifest = manifest.get("thread_manifest")
-            if isinstance(thread_manifest, Mapping):
-                from .agent.thread_store import AgentThreadStore
-
-                AgentThreadStore.validate_tick_manifest_from(
-                    self.root,
-                    thread_manifest,
-                    expected_checkpoint_id=manifest["checkpoint_id"],
-                    expected_step=manifest["step"],
-                )
-            if manifest.get("component_codec") != checkpoint_records.CODEC:
-                raise ValueError("unsupported checkpoint component codec")
-            component_path = self.root / manifest["replacement_file"]
-            if not component_path.is_file():
-                raise FileNotFoundError(f"replacement missing: {component_path}")
-            if self._file_sha256(component_path) != manifest["replacement_sha256"]:
-                raise ValueError("replacement content hash mismatch")
+            component_path, parent_state = self._validate_manifest_component(manifest, parent_state)
             count = 0
             for operation in checkpoint_records.iter_records(component_path):
                 self._apply(state, operation)
                 count += 1
             if count != manifest["record_count"]:
                 raise ValueError("checkpoint record count mismatch")
-            parent_state = self._validate_state_link(manifest, parent_state)
 
         # Transient values are absent from replacement/segment files.  The
         # root manifest carries their schema defaults so the low-level store

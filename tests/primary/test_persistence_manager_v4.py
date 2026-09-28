@@ -611,3 +611,37 @@ async def test_epoch_merge_failure_keeps_previous_complete_step(tmp_path, monkey
     assert manager._v4_store.restore(0)['environment']['state']['price'] == 10
     assert manager._v4_epoch == []
     _close(manager, world)
+
+
+@pytest.mark.asyncio
+async def test_configure_and_discard_resolve_identity_without_world_materialization(tmp_path, monkeypatch):
+    world = _world(tmp_path)
+    manager = PersistenceManager(str(tmp_path / 'run'))
+    try:
+        manager.configure_v4(world, _declarations())
+        await manager.publish_root(world, object())
+        def forbidden(*args, **kwargs):
+            raise AssertionError('identity lookup materialized checkpoint World')
+        monkeypatch.setattr(V4CheckpointStore, 'restore', forbidden)
+        monkeypatch.setattr(V4CheckpointStore, '_restore_chain', forbidden)
+        manager.configure_v4(world, _declarations())
+        manager.discard_unpublished_epoch()
+        assert PersistenceManager.resolve_checkpoint_from(tmp_path / 'run')['step'] == 0
+    finally:
+        _close(manager, world)
+
+
+@pytest.mark.asyncio
+async def test_discard_uses_already_committed_epoch_without_rereading_history(tmp_path, monkeypatch):
+    world = _world(tmp_path)
+    manager = PersistenceManager(str(tmp_path / 'run'))
+    try:
+        manager.configure_v4(world, _declarations(), checkpoint_every=2)
+        await manager.publish_root(world, object())
+        await manager.publish_delta(_seal_delta(world, 1, price=11, fact_id='pending'), object())
+        monkeypatch.setattr(manager._v4_store, 'resolve', lambda *a, **k: (_ for _ in ()).throw(AssertionError('discard reread complete history')))
+        manager.discard_unpublished_epoch()
+        assert manager._v4_pending_memory_epoch_ids == set()
+        assert not manager._v4_staged_records
+    finally:
+        _close(manager, world)

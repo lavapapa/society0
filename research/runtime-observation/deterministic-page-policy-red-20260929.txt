@@ -1,0 +1,348 @@
+........................................................................ [ 11%]
+........................................................................ [ 23%]
+...........................................................FFF..FF...... [ 34%]
+........................................................................ [ 46%]
+........................................................................ [ 57%]
+........................................................................ [ 69%]
+........................................................................ [ 81%]
+........................................................................ [ 92%]
+.............................................                            [100%]
+=================================== FAILURES ===================================
+_______ test_index_metadata_does_not_repeat_paths_and_ancestor_versions ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-127/test_index_metadata_does_not_r0')
+
+    def test_index_metadata_does_not_repeat_paths_and_ancestor_versions(tmp_path):
+        store = V4CheckpointStore(tmp_path)
+>       store.publish_root(({'sequence':i,'path':['environment','state','entries',str(i)],'operation':'set','value':i} for i in range(4000)))
+
+tests/primary/test_observation_compact.py:10:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/incremental_checkpoint.py:1358: in publish_root
+    return self._publish_delta(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.incremental_checkpoint.V4CheckpointStore object at 0x10d95c650>
+delta = SealedTickDelta(step=0, replacements=<generator object test_index_metadata_does_not_repeat_paths_and_ancestor_versions.<locals>.<genexpr> at 0x10ac3c130>, appends=(), write_epoch_ids=(), annotations=None)
+staged_records = None, root_metadata = None
+checkpoint_id = '0ba12b66b7cf477697a2cd6e9221a12e', thread_manifest = None
+memory_view = None
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        staged_records: Sequence[Path] | None = None,
+        root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if self._publishing:
+            raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        if self._latest_step is not None and delta.step <= self._latest_step:
+            raise ValueError("checkpoint steps must increase")
+
+        self._publishing = True
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
+        bytes_written = 0
+        try:
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
+
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+>                   record_count=None if is_root else len(delta.replacements) + len(delta.appends))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: object of type 'generator' has no len()
+
+src/society0/incremental_checkpoint.py:1448: TypeError
+________________ test_page_total_does_not_scan_current_scope[1] ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-127/test_page_total_does_not_scan_0')
+limit = 1
+
+    @pytest.mark.parametrize("limit", [1,1000000])
+    def test_page_total_does_not_scan_current_scope(tmp_path,limit):
+        counts=[]
+        for n in (100,10000):
+            root=tmp_path/str(n);root.mkdir()
+            store=V4CheckpointStore(root)
+>           store.publish_root(({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(n)))
+
+tests/primary/test_observation_compact.py:23:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/incremental_checkpoint.py:1358: in publish_root
+    return self._publish_delta(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.incremental_checkpoint.V4CheckpointStore object at 0x10d95d4f0>
+delta = SealedTickDelta(step=0, replacements=<generator object test_page_total_does_not_scan_current_scope.<locals>.<genexpr> at 0x10d8f2b20>, appends=(), write_epoch_ids=(), annotations=None)
+staged_records = None, root_metadata = None
+checkpoint_id = '68e6d59f2adc44c7b7beb93a5f8fdefe', thread_manifest = None
+memory_view = None
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        staged_records: Sequence[Path] | None = None,
+        root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if self._publishing:
+            raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        if self._latest_step is not None and delta.step <= self._latest_step:
+            raise ValueError("checkpoint steps must increase")
+
+        self._publishing = True
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
+        bytes_written = 0
+        try:
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
+
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+>                   record_count=None if is_root else len(delta.replacements) + len(delta.appends))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: object of type 'generator' has no len()
+
+src/society0/incremental_checkpoint.py:1448: TypeError
+_____________ test_page_total_does_not_scan_current_scope[1000000] _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-127/test_page_total_does_not_scan_1')
+limit = 1000000
+
+    @pytest.mark.parametrize("limit", [1,1000000])
+    def test_page_total_does_not_scan_current_scope(tmp_path,limit):
+        counts=[]
+        for n in (100,10000):
+            root=tmp_path/str(n);root.mkdir()
+            store=V4CheckpointStore(root)
+>           store.publish_root(({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(n)))
+
+tests/primary/test_observation_compact.py:23:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/incremental_checkpoint.py:1358: in publish_root
+    return self._publish_delta(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.incremental_checkpoint.V4CheckpointStore object at 0x10d9099a0>
+delta = SealedTickDelta(step=0, replacements=<generator object test_page_total_does_not_scan_current_scope.<locals>.<genexpr> at 0x10d690660>, appends=(), write_epoch_ids=(), annotations=None)
+staged_records = None, root_metadata = None
+checkpoint_id = '7d869dae98e944469ac5aee995b32ae6', thread_manifest = None
+memory_view = None
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        staged_records: Sequence[Path] | None = None,
+        root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if self._publishing:
+            raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        if self._latest_step is not None and delta.step <= self._latest_step:
+            raise ValueError("checkpoint steps must increase")
+
+        self._publishing = True
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
+        bytes_written = 0
+        try:
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
+
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+>                   record_count=None if is_root else len(delta.replacements) + len(delta.appends))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: object of type 'generator' has no len()
+
+src/society0/incremental_checkpoint.py:1448: TypeError
+____________ test_deleted_keys_require_bounded_explicit_preparation ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-127/test_deleted_keys_require_boun0')
+
+    def test_deleted_keys_require_bounded_explicit_preparation(tmp_path):
+        import pytest
+        store=V4CheckpointStore(tmp_path)
+>       store.publish_root(({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(2000)))
+
+tests/primary/test_observation_compact.py:82:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/incremental_checkpoint.py:1358: in publish_root
+    return self._publish_delta(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.incremental_checkpoint.V4CheckpointStore object at 0x10d90bcb0>
+delta = SealedTickDelta(step=0, replacements=<generator object test_deleted_keys_require_bounded_explicit_preparation.<locals>.<genexpr> at 0x10d8f2a40>, appends=(), write_epoch_ids=(), annotations=None)
+staged_records = None, root_metadata = None
+checkpoint_id = '261f279337104d9fb3547ed0f0e9514a', thread_manifest = None
+memory_view = None
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        staged_records: Sequence[Path] | None = None,
+        root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if self._publishing:
+            raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        if self._latest_step is not None and delta.step <= self._latest_step:
+            raise ValueError("checkpoint steps must increase")
+
+        self._publishing = True
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
+        bytes_written = 0
+        try:
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
+
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+>                   record_count=None if is_root else len(delta.replacements) + len(delta.appends))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: object of type 'generator' has no len()
+
+src/society0/incremental_checkpoint.py:1448: TypeError
+_______ test_preparation_crash_keeps_old_projection_and_index_watermark ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-127/test_preparation_crash_keeps_o0')
+
+    def test_preparation_crash_keeps_old_projection_and_index_watermark(tmp_path):
+        import json
+        import subprocess
+        import sys
+        import time
+        store=V4CheckpointStore(tmp_path)
+>       marker=store.publish_root(({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(1200)))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_observation_compact.py:104:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/incremental_checkpoint.py:1358: in publish_root
+    return self._publish_delta(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.incremental_checkpoint.V4CheckpointStore object at 0x10d90b7a0>
+delta = SealedTickDelta(step=0, replacements=<generator object test_preparation_crash_keeps_old_projection_and_index_watermark.<locals>.<genexpr> at 0x10d8f2ea0>, appends=(), write_epoch_ids=(), annotations=None)
+staged_records = None, root_metadata = None
+checkpoint_id = 'a55f021850a44d6fa5c979b8ab19409c', thread_manifest = None
+memory_view = None
+
+    def _publish_delta(
+        self,
+        delta: SealedTickDelta,
+        *,
+        staged_records: Sequence[Path] | None = None,
+        root_metadata: Mapping[str, Any] | None = None,
+        checkpoint_id: str | None = None,
+        thread_manifest: Mapping[str, Any] | None = None,
+        memory_view: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if self._publishing:
+            raise RuntimeError("only one unfinished checkpoint is allowed")
+        is_root = root_metadata is not None
+        if is_root and delta.step != 0:
+            raise ValueError("root checkpoint step must be 0")
+        if self._latest_step is not None and delta.step <= self._latest_step:
+            raise ValueError("checkpoint steps must increase")
+
+        self._publishing = True
+        checkpoint_id = str(checkpoint_id or uuid.uuid4().hex)
+        if not checkpoint_id or Path(checkpoint_id).name != checkpoint_id:
+            raise ValueError("invalid checkpoint_id")
+        bytes_written = 0
+        try:
+            parent_manifest = None if is_root else self._latest_checkpoint_id
+            parent_state_sha256 = "0" * 64 if is_root else self._latest_state_sha256
+            run_id = (
+                str((root_metadata or {}).get("run_id") or uuid.uuid4().hex)
+                if is_root
+                else (self._run_id or uuid.uuid4().hex)
+            )
+
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
+>                   record_count=None if is_root else len(delta.replacements) + len(delta.appends))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^
+E                   TypeError: object of type 'generator' has no len()
+
+src/society0/incremental_checkpoint.py:1448: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_observation_compact.py::test_index_metadata_does_not_repeat_paths_and_ancestor_versions
+FAILED tests/primary/test_observation_compact.py::test_page_total_does_not_scan_current_scope[1]
+FAILED tests/primary/test_observation_compact.py::test_page_total_does_not_scan_current_scope[1000000]
+FAILED tests/primary/test_observation_compact.py::test_deleted_keys_require_bounded_explicit_preparation
+FAILED tests/primary/test_observation_compact.py::test_preparation_crash_keeps_old_projection_and_index_watermark
+5 failed, 616 passed, 14 deselected in 33.84s

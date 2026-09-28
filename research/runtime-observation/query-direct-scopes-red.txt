@@ -1,0 +1,34 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_direct_membership_storage_is_independent_of_path_depth __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-143/test_direct_membership_storage0')
+
+    def test_direct_membership_storage_is_independent_of_path_depth(tmp_path):
+        store = V4CheckpointStore(tmp_path)
+        store.publish_root({'sequence': i, 'path': ['a', 'b', 'c', str(i)], 'operation': 'set', 'value': i} for i in range(1000))
+        with ObservationReader(tmp_path) as reader:
+            reader.sync()
+>           assert reader.db.execute('SELECT count(*) FROM scopes').fetchone()[0] == 1000
+E           assert 5000 == 1000
+
+tests/primary/test_observation_compact.py:275: AssertionError
+_ test_many_active_scopes_require_preparation_and_deleted_scopes_do_not_accumulate _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-143/test_many_active_scopes_requir0')
+
+    def test_many_active_scopes_require_preparation_and_deleted_scopes_do_not_accumulate(tmp_path):
+        import json
+        store=V4CheckpointStore(tmp_path)
+        first=store.publish_root({'sequence': i, 'path': ['rows', str(i), 'leaf'], 'operation': 'set', 'value': i} for i in range(300))
+        with ObservationReader(tmp_path) as reader:
+            reader.sync()
+>           with pytest.raises(ValueError,match='prepare_state'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_observation_compact.py:288: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_observation_compact.py::test_direct_membership_storage_is_independent_of_path_depth
+FAILED tests/primary/test_observation_compact.py::test_many_active_scopes_require_preparation_and_deleted_scopes_do_not_accumulate
+2 failed, 13 deselected in 0.19s

@@ -1,0 +1,30 @@
+{
+  "revision": "working-tree",
+  "page_size": 4096,
+  "compression_level": 3,
+  "records": 204882,
+  "raw_bytes": 138454364,
+  "rss_unit": "bytes",
+  "write_seconds": 6.665774680674076,
+  "rss_before": 315109376,
+  "rss_peak": 325156864,
+  "rss_extra": 10047488,
+  "file_bytes": 46706688,
+  "table_bytes": {
+    "chunks": 37134336,
+    "key_blocks": 823296,
+    "key_fence": 4096,
+    "metadata_keys": 827392,
+    "prefixes": 4096,
+    "records": 4698112,
+    "records_path": 3203072,
+    "sqlite_autoindex_prefixes_1": 4096,
+    "sqlite_schema": 4096,
+    "totals": 4096
+  },
+  "page_seconds": 0.003948789089918137,
+  "random_range_median_seconds": 0.003966689109802246,
+  "random_range_p95_seconds": 0.00402575358748436,
+  "range_seconds": 0.0011244751513004303,
+  "range_bytes": 50
+}

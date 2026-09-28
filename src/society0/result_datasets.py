@@ -2,8 +2,9 @@
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 import uuid
+import json
 
-from .checkpoint_records import _json_parts, iter_records, read_page, write_records
+from .checkpoint_records import _json_parts, iter_records, iter_record_bytes, read_page, write_records
 
 
 def is_large_table(value):
@@ -43,13 +44,26 @@ def _dataset_path(run_dir, reference):
 
 
 def iter_dataset(run_dir, reference):
-    for record in iter_records(_dataset_path(run_dir, reference)):
-        yield record['value']
+    source = _dataset_path(run_dir, reference)
+    if 'record_path' not in reference:
+        for record in iter_records(source):
+            yield record['value']
+        return
+    after = -1
+    while True:
+        page = read_dataset_page(run_dir, reference, after_sequence=after)
+        for record in page['records']:
+            if 'record_ref' in record:
+                record = json.loads(b''.join(iter_record_bytes(source, record['sequence'])))
+            yield record['value']
+        if page['next_sequence'] is None:
+            return
+        after = page['next_sequence']
 
 
 def read_dataset_page(run_dir, reference, *, after_sequence=-1, limit=100, max_bytes=65536):
     return read_page(_dataset_path(run_dir, reference), after_sequence=after_sequence,
-                     limit=limit, max_bytes=max_bytes)
+                     limit=limit, max_bytes=max_bytes, path_filter=reference.get('record_path'))
 
 
 def iter_table(run_dir, value):
@@ -60,16 +74,31 @@ def iter_table(run_dir, value):
 
 
 def externalize_history(run_dir, value, *, path=()):
-    """逐个移出按步骤展开的字段；全局汇总继续保留在 summary 中。"""
-    if not isinstance(value, dict):
+    """一次发布所有总结分区，保留每个历史字段的独立读取引用。"""
+    partitions = []
+    def collect(container, prefix):
+        if not isinstance(container, dict):
+            return
+        for key, item in container.items():
+            record_path = (*prefix, key)
+            if key in {'by_tick', 'agent_batches', 'by_interaction'} and isinstance(item, dict):
+                partitions.append((container, key, item, list(record_path)))
+            elif isinstance(item, dict):
+                collect(item, record_path)
+    collect(value, path)
+    if not partitions:
         return
-    for key in list(value):
-        item = value[key]
-        if key in {'by_tick', 'agent_batches', 'by_interaction'} and isinstance(item, dict):
-            value[key] = write_dataset(run_dir, ({'key': name, 'value': row} for name, row in item.items()), step=None, name='/'.join((*path, key)))
-            value[key]['publication'] = 'run_diagnostics'
-        elif isinstance(item, dict):
-            externalize_history(run_dir, item, path=(*path, key))
+    relative = f'result_datasets/{uuid.uuid4().hex}.sqlite'
+    def records():
+        for _, _, history, record_path in partitions:
+            for name, row in history.items():
+                yield {'path': record_path, 'operation': 'row', 'value': {'key': name, 'value': row}}
+    write_records(Path(run_dir) / relative, records())
+    # 完整容器发布成功后才替换总结字段；失败时保留调用方的原数据。
+    for container, key, history, record_path in partitions:
+        container[key] = {'dataset': 'society0_records_v1', 'path': relative,
+                          'record_path': record_path, 'count': len(history),
+                          'step': None, 'publication': 'run_diagnostics'}
 
 
 def dataset_is_committed(reference, manifest):

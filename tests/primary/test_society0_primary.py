@@ -1637,7 +1637,7 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert manifest["replacement_file"].startswith("checkpoints/v4/replacements/")
     assert manifest["new_segments"] == []
     replacement_path = tmp_path / manifest["replacement_file"]
-    assert manifest["component_codec"] == "sqlite_records_v1"
+    assert manifest["component_codec"] == "sqlite_records_v3"
     with replacement_path.open("rb") as handle:
         assert handle.read(16) == b"SQLite format 3\x00"
     assert not list((tmp_path / "checkpoints" / "v4" / "segments").glob("*"))

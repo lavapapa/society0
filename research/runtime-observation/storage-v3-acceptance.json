@@ -1,0 +1,252 @@
+{
+  "codec": "sqlite_records_v3",
+  "baseline": "c2ad77b",
+  "product_status": "frozen; independent reviews passed; full-suite coordinated by spec",
+  "evidence": {
+    "real-key-dictionary-raw": {
+      "compressed": false,
+      "keys": 1283280,
+      "blocks": 1949,
+      "metadata_file_bytes": 194097152,
+      "build_seconds": 9.645952686667442,
+      "table_bytes": {
+        "key_blocks": 123813888,
+        "key_fence": 442368,
+        "prefixes": 12288,
+        "records": 46780416,
+        "records_path": 23031808,
+        "sqlite_autoindex_prefixes_1": 12288,
+        "sqlite_schema": 4096
+      },
+      "exact_query_median_seconds": 0.002649262547492981,
+      "exact_query_p95_seconds": 0.004320040345191956
+    },
+    "real-key-dictionary-compressed": {
+      "compressed": true,
+      "keys": 1283280,
+      "blocks": 1949,
+      "metadata_file_bytes": 97927168,
+      "build_seconds": 9.554670456796885,
+      "table_bytes": {
+        "key_blocks": 27643904,
+        "key_fence": 442368,
+        "prefixes": 12288,
+        "records": 46780416,
+        "records_path": 23031808,
+        "sqlite_autoindex_prefixes_1": 12288,
+        "sqlite_schema": 4096
+      },
+      "exact_query_median_seconds": 0.0028566457331180573,
+      "exact_query_p95_seconds": 0.004236642271280289
+    },
+    "real-key-order-amplification": {
+      "sequence_block_misses": 1137282,
+      "sequence_compressed_bytes_read": 21551600885,
+      "dictionary_compressed_bytes": 25518685,
+      "compressed": true,
+      "keys": 1283280,
+      "blocks": 1949,
+      "metadata_file_bytes": 97927168,
+      "build_seconds": 9.48726088181138,
+      "table_bytes": {
+        "key_blocks": 27643904,
+        "key_fence": 442368,
+        "prefixes": 12288,
+        "records": 46780416,
+        "records_path": 23031808,
+        "sqlite_autoindex_prefixes_1": 12288,
+        "sqlite_schema": 4096
+      },
+      "exact_query_median_seconds": 0.002901814877986908,
+      "exact_query_p95_seconds": 0.004258539527654648
+    },
+    "real-sequential-keys": {
+      "raw_bytes": 137496707,
+      "compressed_bytes": 27998451,
+      "blocks": 2102,
+      "seconds": 2.8296506293118
+    },
+    "real-payload-levels": {
+      "sample_blocks": 139,
+      "raw_bytes": 145752064,
+      "levels": {
+        "1": {
+          "bytes": 16937808,
+          "seconds": 0.6976393535733223
+        },
+        "3": {
+          "bytes": 15857067,
+          "seconds": 0.7270057164132595
+        },
+        "6": {
+          "bytes": 13656500,
+          "seconds": 1.5378886759281158
+        },
+        "9": {
+          "bytes": 13287683,
+          "seconds": 2.8692821227014065
+        }
+      }
+    },
+    "real-state-convert-v3": {
+      "mode": "convert",
+      "source": "/mnt/data/l20/qin/runs/lithium-accepted-repetitions-20260922/R3/8pct/attempt-003",
+      "target": "/mnt/data/l20/qin/runtime-observation-storage-20260929/converted-state-v3",
+      "scope": "state-only benchmark; no Thread or Chroma migration",
+      "checkpoint_id": "f3284ea9d83646928d24178aa9848ebe",
+      "component_bytes": 332935168,
+      "seconds": 90.20004473999143,
+      "rss_before": 5624164352,
+      "rss_retained": 5624164352,
+      "peak_rss": 9904168960,
+      "peak_before": 9904168960
+    },
+    "real-metadata-v3": {
+      "records": 1448471,
+      "seconds": 6.6275773122906685,
+      "decompression_calls": 2238,
+      "decoded_bytes": 137496707,
+      "compressed_bytes": 28020394,
+      "peak_rss": 18866176,
+      "table_bytes": {
+        "chunks": 205549568,
+        "key_blocks": 27185152,
+        "key_fence": 425984,
+        "metadata_keys": 29929472,
+        "prefixes": 12288,
+        "records": 46780416,
+        "records_path": 23031808,
+        "sqlite_autoindex_prefixes_1": 12288,
+        "sqlite_schema": 4096,
+        "totals": 4096
+      }
+    },
+    "storage-v3-local": {
+      "revision": "working-tree",
+      "page_size": 4096,
+      "compression_level": 3,
+      "records": 204882,
+      "raw_bytes": 138454364,
+      "rss_unit": "bytes",
+      "write_seconds": 2.6274951249943115,
+      "rss_before": 327073792,
+      "rss_peak": 341721088,
+      "rss_extra": 14647296,
+      "file_bytes": 46706688,
+      "table_bytes": {
+        "chunks": 37134336,
+        "key_blocks": 823296,
+        "key_fence": 4096,
+        "metadata_keys": 827392,
+        "prefixes": 4096,
+        "records": 4698112,
+        "records_path": 3203072,
+        "sqlite_autoindex_prefixes_1": 4096,
+        "sqlite_schema": 4096,
+        "totals": 4096
+      },
+      "page_seconds": 0.0009223340020980686,
+      "random_range_median_seconds": 0.0007649165054317564,
+      "random_range_p95_seconds": 0.0008694580028532073,
+      "range_seconds": 0.0002212919935118407,
+      "range_bytes": 50
+    },
+    "storage-v3-2m": {
+      "revision": "working-tree",
+      "page_size": 4096,
+      "compression_level": 3,
+      "records": 2048820,
+      "raw_bytes": 1361462465,
+      "rss_unit": "bytes",
+      "write_seconds": 28.21803804099909,
+      "rss_before": 24018944,
+      "rss_peak": 40026112,
+      "rss_extra": 16007168,
+      "file_bytes": 468451328,
+      "table_bytes": {
+        "chunks": 371605504,
+        "key_blocks": 8216576,
+        "key_fence": 45056,
+        "metadata_keys": 8220672,
+        "prefixes": 4096,
+        "records": 47472640,
+        "records_path": 32874496,
+        "sqlite_autoindex_prefixes_1": 4096,
+        "sqlite_schema": 4096,
+        "totals": 4096
+      },
+      "page_seconds": 0.0006594590086024255,
+      "random_range_median_seconds": 0.0026552705094218254,
+      "random_range_p95_seconds": 0.006135207993793301,
+      "range_seconds": 0.0004693340015364811,
+      "range_bytes": 50
+    },
+    "storage-v3-merge-local": {
+      "count_per_step": 20000,
+      "steps": 5,
+      "stage_seconds": 0.6638987500045914,
+      "merge_seconds": 0.19359045900637284,
+      "total_seconds": 0.8574892090109643,
+      "staged_bytes": 4186112,
+      "final_bytes": 5468160,
+      "rss_extra_bytes": 16842752
+    },
+    "ceph-v3-current": {
+      "revision": "working-tree",
+      "page_size": 4096,
+      "compression_level": 3,
+      "records": 204882,
+      "raw_bytes": 138454364,
+      "rss_unit": "bytes",
+      "write_seconds": 6.665774680674076,
+      "rss_before": 315109376,
+      "rss_peak": 325156864,
+      "rss_extra": 10047488,
+      "file_bytes": 46706688,
+      "table_bytes": {
+        "chunks": 37134336,
+        "key_blocks": 823296,
+        "key_fence": 4096,
+        "metadata_keys": 827392,
+        "prefixes": 4096,
+        "records": 4698112,
+        "records_path": 3203072,
+        "sqlite_autoindex_prefixes_1": 4096,
+        "sqlite_schema": 4096,
+        "totals": 4096
+      },
+      "page_seconds": 0.003948789089918137,
+      "random_range_median_seconds": 0.003966689109802246,
+      "random_range_p95_seconds": 0.00402575358748436,
+      "range_seconds": 0.0011244751513004303,
+      "range_bytes": 50
+    },
+    "ceph-v3-merge": {
+      "count_per_step": 20000,
+      "steps": 5,
+      "stage_seconds": 2.933102495968342,
+      "merge_seconds": 0.7332533150911331,
+      "total_seconds": 3.666355811059475,
+      "staged_bytes": 4186112,
+      "final_bytes": 5468160,
+      "rss_extra_bytes": 8654848
+    },
+    "real-range-v3": [
+      {
+        "component": "/mnt/data/l20/qin/runtime-observation-real-tests-20260929/converted-state/checkpoints/v4/replacements/61b5daef7d7e44918679df096b44f7c2.sqlite",
+        "random_median_seconds": 0.003665858879685402,
+        "random_p95_seconds": 0.005262192338705063,
+        "sequential_page_seconds": 0.004525758326053619,
+        "cache_bytes": 1048576
+      },
+      {
+        "component": "/mnt/data/l20/qin/runtime-observation-storage-20260929/converted-state-v3/checkpoints/v4/replacements/f3284ea9d83646928d24178aa9848ebe.sqlite",
+        "random_median_seconds": 0.003663940355181694,
+        "random_p95_seconds": 0.005134031176567078,
+        "sequential_page_seconds": 0.004351198673248291,
+        "cache_bytes": 1048576
+      }
+    ]
+  },
+  "remaining": "Unified deterministic/real suites owned by spec; actual converted-state-v3 retained for query validation."
+}

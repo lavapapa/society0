@@ -1,0 +1,11 @@
+{
+  "source_directory": "simulation:/mnt/data/l20/qin/runtime-observation-real-tests-20260929/source-final-v3",
+  "archive": "simulation:/mnt/data/l20/qin/runtime-observation-real-tests-20260929/society0-real-final-v3-source.tgz",
+  "comparison": "Exact relative file set and byte-for-byte contents after downloading deployed src/tests; excludes Python bytecode caches",
+  "equal": true,
+  "files": {
+    "src": 57,
+    "tests": 59
+  },
+  "binding": "Source and test files in the Git commit containing this report; no source changes after this comparison"
+}

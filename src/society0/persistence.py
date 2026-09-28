@@ -100,6 +100,7 @@ class PersistenceManager:
         self._v4_next_sequence = 0
         self._v4_publish_lock: Optional[asyncio.Lock] = None
         self._v4_root_published = False
+        self._v4_committed_step: int | None = None
         self._v4_run_id = uuid.uuid4().hex
         self._v4_branch_id = "main"
         self._v4_branch_lineage: list[tuple[str, int]] = []
@@ -626,13 +627,15 @@ class PersistenceManager:
         self._v4_publish_lock = asyncio.Lock()
         self._v4_root_published = 0 in self._v4_store.available_steps()
         if self._v4_root_published:
-            manifest = self._v4_store.resolve(0)["manifest"]
-            self._v4_run_id = str(manifest["run_id"])
-            latest_step = self._v4_store.resolve()["step"]
+            latest = self._v4_store.resolve()
+            self._v4_run_id = str(latest["manifest"]["run_id"])
+            latest_step = latest["step"]
+            self._v4_committed_step = latest_step
             self._v4_committed_memory_epoch_ids = (
                 self._v4_store.committed_memory_epoch_ids(latest_step)
             )
         else:
+            self._v4_committed_step = None
             # 跨目录恢复会把来源 checkpoint 的记忆视图挂在新 World 上。
             # 新运行的 root 必须继承该提交边界，不能把已恢复记忆重置为空。
             self._v4_branch_id = str(
@@ -827,6 +830,7 @@ class PersistenceManager:
 
             marker = await self._await_v4_publication(publish_root_transaction)
             self._v4_root_published = True
+            self._v4_committed_step = int(marker["step"])
             world.set_memory_checkpoint_view(
                 target_step=memory_target_step,
                 branch_id=self._v4_branch_id,
@@ -861,7 +865,8 @@ class PersistenceManager:
                 try:
                     await self._await_v4_publication(checkpoint_records.write_records,
                         staged_path, heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)),
-                        sequence_offset=self._v4_next_sequence)
+                        sequence_offset=self._v4_next_sequence, pending=True,
+                        record_count=len(delta.replacements) + len(delta.appends))
                 except BaseException:
                     self._v4_epoch.clear()
                     self._clear_staged_records()
@@ -917,6 +922,7 @@ class PersistenceManager:
                 raise
             self._v4_epoch.clear()
             self._clear_staged_records()
+            self._v4_committed_step = int(marker["step"])
             self._v4_committed_memory_epoch_ids.update(combined.write_epoch_ids)
             committed = self._v4_committed_memory_epoch_ids
             self._v4_pending_memory_epoch_ids.clear()
@@ -949,13 +955,9 @@ class PersistenceManager:
         self._v4_epoch.clear()
         self._clear_staged_records()
         self._v4_pending_memory_epoch_ids.clear()
-        if self._v4_store is not None and self._v4_world is not None:
-            latest = self._v4_store.resolve()
-            self._v4_committed_memory_epoch_ids = (
-                self._v4_store.committed_memory_epoch_ids(latest["step"])
-            )
+        if self._v4_committed_step is not None and self._v4_world is not None:
             self._v4_world.set_memory_checkpoint_view(
-                target_step=int(latest["step"]),
+                target_step=self._v4_committed_step,
                 branch_id=self._v4_branch_id,
                 branch_lineage=self._v4_branch_lineage,
                 committed_write_epoch_ids=self._v4_committed_memory_epoch_ids,
