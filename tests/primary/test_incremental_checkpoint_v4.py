@@ -51,7 +51,7 @@ def test_replaceable_and_append_only_restore_each_tick_without_copying_old_facts
     }
     manifest = json.loads((tmp_path / marker["manifest_file"]).read_text())
     entries = list(store.iter_operations(marker["checkpoint_id"]))
-    assert manifest["component_codec"] == "sqlite_records_v1"
+    assert manifest["component_codec"] == "sqlite_records_v3"
     assert [entry.get("id") for entry in entries if entry["operation"] != "set"] == ["f2", None]
 
 

@@ -1,0 +1,53 @@
+........................................................................ [ 11%]
+.......................FF............................................... [ 22%]
+........................................................................ [ 33%]
+........................................................................ [ 44%]
+........................................................................ [ 55%]
+........................................................................ [ 66%]
+........................................................................ [ 78%]
+........................................................................ [ 89%]
+......................................................................   [100%]
+=================================== FAILURES ===================================
+______ test_metadata_random_key_order_decodes_each_sequential_block_once _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-158/test_metadata_random_key_order0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d1abec0>
+
+    def test_metadata_random_key_order_decodes_each_sequential_block_once(tmp_path, monkeypatch):
+        import random
+        import society0.checkpoint_records as records
+        keys = list(range(6000)); random.Random(71).shuffle(keys)
+        rows = [{'sequence': i * 2, 'path': ['scope', str(key) + 'x' * 300], 'operation': 'set', 'value': i}
+                for i, key in enumerate(keys)]
+        path = tmp_path / 'metadata.sqlite'; records.write_records(path, rows)
+        original = records.gzip.decompress; calls = []
+        def decode(value):
+            calls.append(len(value)); return original(value)
+        monkeypatch.setattr(records.gzip, 'decompress', decode)
+        assert [item['path'] for item in records.iter_metadata(path)] == [r['path'] for r in rows]
+>       assert len(calls) < 50
+E       assert 5794 < 50
+E        +  where 5794 = len([887, 890, 889, 889, 889, 887, ...])
+
+tests/primary/test_checkpoint_records.py:373: AssertionError
+__________ test_record_reader_reuses_one_connection_and_payload_block __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-158/test_record_reader_reuses_one_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d1b1160>
+
+    def test_record_reader_reuses_one_connection_and_payload_block(tmp_path, monkeypatch):
+        import society0.checkpoint_records as records
+        path = tmp_path / 'reader.sqlite'
+        records.write_records(path, ({'sequence': i, 'path': ['x', i], 'operation': 'set', 'value': i} for i in range(100)))
+        original_open = records._open; opens=[]; decodes=[]; original_decode=records.gzip.decompress
+        monkeypatch.setattr(records, '_open', lambda path: (opens.append(path), original_open(path))[1])
+        monkeypatch.setattr(records.gzip, 'decompress', lambda payload: (decodes.append(len(payload)),original_decode(payload))[1])
+>       with records.RecordReader(path) as reader:
+             ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'society0.checkpoint_records' has no attribute 'RecordReader'
+
+tests/primary/test_checkpoint_records.py:384: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_checkpoint_records.py::test_metadata_random_key_order_decodes_each_sequential_block_once
+FAILED tests/primary/test_checkpoint_records.py::test_record_reader_reuses_one_connection_and_payload_block
+2 failed, 644 passed, 14 deselected in 34.34s

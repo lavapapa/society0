@@ -1,0 +1,619 @@
+{
+  "prefix": "verified",
+  "tests": [
+    {
+      "name": "test_real_endpoint_smoke_llm_and_embedding",
+      "seconds": 2.667,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_endpoint_saturation_llm_and_embedding_managers",
+      "seconds": 0.336,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_interview_e2e_writes_artifacts",
+      "seconds": 12.642,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "seconds": 44.325,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "seconds": 21.479,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_memory_roundtrip_e2e",
+      "seconds": 19.396,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_explicit_transactions_memory_roundtrip_e2e",
+      "seconds": 21.773,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "seconds": 20.533,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_social_publish_action_e2e",
+      "seconds": 19.392,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_environment_action_tag_e2e",
+      "seconds": 12.549,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "seconds": 8.584,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "seconds": 18.763,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_society0_multi_tick_social_workflow_e2e",
+      "seconds": 19.037,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_exit_restore_memory_and_observation",
+      "seconds": 32.537,
+      "status": "passed"
+    }
+  ],
+  "counts": {
+    "passed": 14
+  },
+  "suite_seconds": 254.069,
+  "runs": [
+    {
+      "run": "artifacts-verified/test_real_exit_restore_memory_0/resumed",
+      "calls": {
+        "embedding:started": 1,
+        "embedding:success": 1,
+        "llm:started": 1,
+        "llm:success": 1
+      },
+      "resource_timings": {
+        "embedding:provider_duration_sec": {
+          "count": 1,
+          "sum": 0.9235985279083252,
+          "min": 0.9235985279083252,
+          "max": 0.9235985279083252
+        },
+        "embedding:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.0018367767333984375,
+          "min": 0.0018367767333984375,
+          "max": 0.0018367767333984375
+        },
+        "embedding:duration_sec": {
+          "count": 1,
+          "sum": 0.9254803657531738,
+          "min": 0.9254803657531738,
+          "max": 0.9254803657531738
+        },
+        "llm:provider_duration_sec": {
+          "count": 1,
+          "sum": 0.792402982711792,
+          "min": 0.792402982711792,
+          "max": 0.792402982711792
+        },
+        "llm:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.000949859619140625,
+          "min": 0.000949859619140625,
+          "max": 0.000949859619140625
+        },
+        "llm:duration_sec": {
+          "count": 1,
+          "sum": 0.8217101097106934,
+          "min": 0.8217101097106934,
+          "max": 0.8217101097106934
+        }
+      },
+      "run_total_time": 5.708231210708618,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_exit_restore_memory_0/source",
+      "calls": {
+        "llm:started": 2,
+        "llm:success": 2,
+        "embedding:started": 1,
+        "embedding:success": 1
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 2,
+          "sum": 3.5555636882781982,
+          "min": 1.7000837326049805,
+          "max": 1.8554799556732178
+        },
+        "llm:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.001967191696166992,
+          "min": 0.0004112720489501953,
+          "max": 0.0015559196472167969
+        },
+        "llm:duration_sec": {
+          "count": 2,
+          "sum": 3.599245071411133,
+          "min": 1.7276356220245361,
+          "max": 1.8716094493865967
+        },
+        "embedding:provider_duration_sec": {
+          "count": 1,
+          "sum": 0.04370999336242676,
+          "min": 0.04370999336242676,
+          "max": 0.04370999336242676
+        },
+        "embedding:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.0013821125030517578,
+          "min": 0.0013821125030517578,
+          "max": 0.0013821125030517578
+        },
+        "embedding:duration_sec": {
+          "count": 1,
+          "sum": 0.0451359748840332,
+          "min": 0.0451359748840332,
+          "max": 0.0451359748840332
+        }
+      },
+      "run_total_time": 10.249807357788086,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_explicit_transaction0",
+      "calls": {
+        "llm:started": 3,
+        "llm:success": 3,
+        "embedding:started": 2,
+        "embedding:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 3,
+          "sum": 2.953139305114746,
+          "min": 0.7755472660064697,
+          "max": 1.391728401184082
+        },
+        "llm:queue_duration_sec": {
+          "count": 3,
+          "sum": 0.002095460891723633,
+          "min": 0.00032639503479003906,
+          "max": 0.0013897418975830078
+        },
+        "llm:duration_sec": {
+          "count": 3,
+          "sum": 3.0467777252197266,
+          "min": 0.8112499713897705,
+          "max": 1.4093890190124512
+        },
+        "embedding:provider_duration_sec": {
+          "count": 2,
+          "sum": 0.0919959545135498,
+          "min": 0.043239593505859375,
+          "max": 0.04875636100769043
+        },
+        "embedding:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0018887519836425781,
+          "min": 0.0004372596740722656,
+          "max": 0.0014514923095703125
+        },
+        "embedding:duration_sec": {
+          "count": 2,
+          "sum": 0.0939028263092041,
+          "min": 0.04470014572143555,
+          "max": 0.049202680587768555
+        }
+      },
+      "run_total_time": 13.044819116592407,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_environment0",
+      "calls": {
+        "llm:started": 1,
+        "llm:success": 1
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 1,
+          "sum": 0.7500209808349609,
+          "min": 0.7500209808349609,
+          "max": 0.7500209808349609
+        },
+        "llm:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.0014548301696777344,
+          "min": 0.0014548301696777344,
+          "max": 0.0014548301696777344
+        },
+        "llm:duration_sec": {
+          "count": 1,
+          "sum": 0.7664668560028076,
+          "min": 0.7664668560028076,
+          "max": 0.7664668560028076
+        }
+      },
+      "run_total_time": 5.194336175918579,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_explicit_ag0",
+      "calls": {
+        "llm:started": 2,
+        "llm:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 2,
+          "sum": 1.5395967960357666,
+          "min": 0.7601234912872314,
+          "max": 0.7794733047485352
+        },
+        "llm:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0017170906066894531,
+          "min": 0.0003285408020019531,
+          "max": 0.0013885498046875
+        },
+        "llm:duration_sec": {
+          "count": 2,
+          "sum": 1.5856311321258545,
+          "min": 0.787846565246582,
+          "max": 0.7977845668792725
+        }
+      },
+      "run_total_time": 7.771676301956177,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_interview_e0",
+      "calls": {
+        "llm:started": 1,
+        "llm:success": 1
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 1,
+          "sum": 1.2152774333953857,
+          "min": 1.2152774333953857,
+          "max": 1.2152774333953857
+        },
+        "llm:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.001481771469116211,
+          "min": 0.001481771469116211,
+          "max": 0.001481771469116211
+        },
+        "llm:duration_sec": {
+          "count": 1,
+          "sum": 1.2686796188354492,
+          "min": 1.2686796188354492,
+          "max": 1.2686796188354492
+        }
+      },
+      "run_total_time": 6.476835012435913,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_memory_roun0",
+      "calls": {
+        "llm:started": 3,
+        "llm:success": 3,
+        "embedding:started": 2,
+        "embedding:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 3,
+          "sum": 2.7077765464782715,
+          "min": 0.8018202781677246,
+          "max": 1.0694925785064697
+        },
+        "llm:queue_duration_sec": {
+          "count": 3,
+          "sum": 0.0023698806762695312,
+          "min": 0.0003452301025390625,
+          "max": 0.0016434192657470703
+        },
+        "llm:duration_sec": {
+          "count": 3,
+          "sum": 2.839062452316284,
+          "min": 0.8481874465942383,
+          "max": 1.1185863018035889
+        },
+        "embedding:provider_duration_sec": {
+          "count": 2,
+          "sum": 0.11289286613464355,
+          "min": 0.05600595474243164,
+          "max": 0.056886911392211914
+        },
+        "embedding:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0015532970428466797,
+          "min": 0.0004756450653076172,
+          "max": 0.0010776519775390625
+        },
+        "embedding:duration_sec": {
+          "count": 2,
+          "sum": 0.11446404457092285,
+          "min": 0.05709195137023926,
+          "max": 0.057372093200683594
+        }
+      },
+      "run_total_time": 12.481099128723145,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_multi_tick_0",
+      "calls": {
+        "llm:started": 4,
+        "llm:success": 4,
+        "embedding:started": 2,
+        "embedding:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 4,
+          "sum": 5.801476716995239,
+          "min": 0.973616361618042,
+          "max": 2.078970432281494
+        },
+        "llm:queue_duration_sec": {
+          "count": 4,
+          "sum": 0.0023212432861328125,
+          "min": 0.0002989768981933594,
+          "max": 0.001371622085571289
+        },
+        "llm:duration_sec": {
+          "count": 4,
+          "sum": 6.036929607391357,
+          "min": 1.0204493999481201,
+          "max": 2.1925580501556396
+        },
+        "embedding:provider_duration_sec": {
+          "count": 2,
+          "sum": 0.13465666770935059,
+          "min": 0.06272339820861816,
+          "max": 0.07193326950073242
+        },
+        "embedding:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0015079975128173828,
+          "min": 0.0003581047058105469,
+          "max": 0.001149892807006836
+        },
+        "embedding:duration_sec": {
+          "count": 2,
+          "sum": 0.1361827850341797,
+          "min": 0.06309032440185547,
+          "max": 0.07309246063232422
+        }
+      },
+      "run_total_time": 10.715042114257812,
+      "steps_completed": 2
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_round_robin0",
+      "calls": {
+        "llm:started": 2,
+        "llm:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 2,
+          "sum": 1.8747856616973877,
+          "min": 0.8235569000244141,
+          "max": 1.0512287616729736
+        },
+        "llm:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0015728473663330078,
+          "min": 0.00028705596923828125,
+          "max": 0.0012857913970947266
+        },
+        "llm:duration_sec": {
+          "count": 2,
+          "sum": 1.949883222579956,
+          "min": 0.864678144454956,
+          "max": 1.085205078125
+        }
+      },
+      "run_total_time": 5.081058740615845,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_saturation_0",
+      "calls": {
+        "llm:started": 18,
+        "llm:success": 18,
+        "embedding:started": 3,
+        "embedding:success": 3
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 18,
+          "sum": 56.834792613983154,
+          "min": 0.7483482360839844,
+          "max": 11.025620460510254
+        },
+        "llm:queue_duration_sec": {
+          "count": 18,
+          "sum": 0.0069425106048583984,
+          "min": 0.0002815723419189453,
+          "max": 0.0014750957489013672
+        },
+        "llm:duration_sec": {
+          "count": 18,
+          "sum": 57.76991629600525,
+          "min": 0.8236207962036133,
+          "max": 11.083511114120483
+        },
+        "embedding:provider_duration_sec": {
+          "count": 3,
+          "sum": 0.26828765869140625,
+          "min": 0.05325508117675781,
+          "max": 0.12054300308227539
+        },
+        "embedding:queue_duration_sec": {
+          "count": 3,
+          "sum": 0.0021398067474365234,
+          "min": 0.0003867149353027344,
+          "max": 0.0011005401611328125
+        },
+        "embedding:duration_sec": {
+          "count": 3,
+          "sum": 0.2704582214355469,
+          "min": 0.053650856018066406,
+          "max": 0.12120556831359863
+        }
+      },
+      "run_total_time": 38.58021020889282,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_social_brow0",
+      "calls": {
+        "llm:started": 5,
+        "llm:success": 5,
+        "embedding:started": 2,
+        "embedding:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 5,
+          "sum": 6.575558423995972,
+          "min": 0.3889334201812744,
+          "max": 1.9614684581756592
+        },
+        "llm:queue_duration_sec": {
+          "count": 5,
+          "sum": 0.0026988983154296875,
+          "min": 0.0003204345703125,
+          "max": 0.0013833045959472656
+        },
+        "llm:duration_sec": {
+          "count": 5,
+          "sum": 7.2843687534332275,
+          "min": 0.408588171005249,
+          "max": 2.043412208557129
+        },
+        "embedding:provider_duration_sec": {
+          "count": 2,
+          "sum": 0.1412675380706787,
+          "min": 0.05260443687438965,
+          "max": 0.08866310119628906
+        },
+        "embedding:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0015370845794677734,
+          "min": 0.0002701282501220703,
+          "max": 0.0012669563293457031
+        },
+        "embedding:duration_sec": {
+          "count": 2,
+          "sum": 0.1428205966949463,
+          "min": 0.052881717681884766,
+          "max": 0.08993887901306152
+        }
+      },
+      "run_total_time": 12.878549575805664,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_social_publ0",
+      "calls": {
+        "llm:started": 2,
+        "llm:success": 2,
+        "embedding:started": 1,
+        "embedding:success": 1
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 2,
+          "sum": 2.950322389602661,
+          "min": 1.3241477012634277,
+          "max": 1.6261746883392334
+        },
+        "llm:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0017232894897460938,
+          "min": 0.00031447410583496094,
+          "max": 0.0014088153839111328
+        },
+        "llm:duration_sec": {
+          "count": 2,
+          "sum": 3.0371477603912354,
+          "min": 1.3663053512573242,
+          "max": 1.6708424091339111
+        },
+        "embedding:provider_duration_sec": {
+          "count": 1,
+          "sum": 0.04165458679199219,
+          "min": 0.04165458679199219,
+          "max": 0.04165458679199219
+        },
+        "embedding:queue_duration_sec": {
+          "count": 1,
+          "sum": 0.0009396076202392578,
+          "min": 0.0009396076202392578,
+          "max": 0.0009396076202392578
+        },
+        "embedding:duration_sec": {
+          "count": 1,
+          "sum": 0.04260444641113281,
+          "min": 0.04260444641113281,
+          "max": 0.04260444641113281
+        }
+      },
+      "run_total_time": 10.33534860610962,
+      "steps_completed": 1
+    },
+    {
+      "run": "artifacts-verified/test_real_society0_terminal_ac0",
+      "calls": {
+        "llm:started": 2,
+        "llm:success": 2
+      },
+      "resource_timings": {
+        "llm:provider_duration_sec": {
+          "count": 2,
+          "sum": 1.219111442565918,
+          "min": 0.602928638458252,
+          "max": 0.616182804107666
+        },
+        "llm:queue_duration_sec": {
+          "count": 2,
+          "sum": 0.0016827583312988281,
+          "min": 0.00029206275939941406,
+          "max": 0.001390695571899414
+        },
+        "llm:duration_sec": {
+          "count": 2,
+          "sum": 1.2915356159210205,
+          "min": 0.6316936016082764,
+          "max": 0.6598420143127441
+        }
+      },
+      "run_total_time": 4.982298374176025,
+      "steps_completed": 1
+    }
+  ],
+  "resource_scope": "Run resource logs count completed provider calls; direct smoke/saturation managers are captured by final stage plugin, and retries remain separately reported."
+}

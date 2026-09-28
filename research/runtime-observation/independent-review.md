@@ -51,3 +51,36 @@ Thread、记忆与数据集部分的修复由 threads 实现、storage 独立复
 ## 四、审查收束
 
 共享块最终布局增加独立复验：两个不同文件的路径 ID 顺序相反，合并后逐条恢复完整大字符串，并比较跨 1 MiB 块边界的 200 字节原文切片；全部相等。pending epoch 分别在第二次暂存和最终 publish 注入失败，确认原 marker 和根状态保持、两个 pending 记忆身份立即不可见、暂存列表与目录清空。存储独立测试共四项通过。观察独立测试十项通过。本审查范围内未解决 P1/P2 为零；性能代价按 stage-comparison 与 query-scale 报告保留。产品由原模块作者修复，以上复验由未参与该模块实现的 threads 执行。
+
+
+## 五、第二轮角色与复验
+
+2026-09-29 的 T17 索引优化由原审查者 threads 实现，因此本轮查询独立审查改由 storage 负责。storage 发现当前页并发提交混合版本的 P1，threads 修复整页 WAL 读事务后，storage 独立复验通过；类型化键、同 epoch 重建计数与旧 prepared 等价测试亦通过。父替换临时 ID 表、路径字节缓存及准备中进程退出保留旧 ready 已复查，查询范围无剩余产品项。
+
+threads 对未参与实现的 T16 存储优化继续独立审查。新增快/慢 JSON 编码对 Unicode、控制字符、引号、反斜线、整数/浮点/空值/布尔键的逐字节比较；超过 1 MiB 的正文区间读取；空首段、混合 pending/已索引来源与类型化路径的合并、精确总数及超大引用分页。新增两项与原四项共六项通过，本次未发现新增存储缺陷。查询和存储的作者验证与非作者复验分别记录，范围内未解决 P1/P2 为零。
+
+
+第二轮末尾存储私有构建库关闭重复 journal/sync 后，threads 再次进行非作者审查并新增三项测试。write 和 merge 的实际调用顺序均为 SQLite 连接关闭、文件 fsync、原子替换、目录 fsync；merge 源文件逐字节保持。注入记录目录最终 fsync 失败后，新步骤没有完整 marker，旧 checkpoint_id 与根状态恢复保持。存储交叉审查累计九项通过；优化仅作用于私有临时构建连接，查询 WAL 与记忆库未改动。最终全量记录独立保存为 deterministic-final-20260929.txt，609 项中间结果另存保留。
+
+
+存储随后按总条数选择 1,024 或 4,096 字节数据库页。threads 新增两组混合页来源测试，分别跨越小页到大页、大页到小页的目标重建路径，逐条比较完整记录、每路径精确总数和来源文件字节。耐久顺序探针区分新增只读源连接与目标构建连接；目标的 close/fsync/replace/fsync 顺序保持。存储独立组累计十一项通过，未新增产品发现。
+
+## 最终恢复与引用复验（2026-09-29）
+
+threads 作为 storage 非作者复验最新身份解析、根 generator 与 discard 热路径。新增独立测试禁止 iter_records 和 _restore_chain，确认 resolve/fork 保留完整组件资格检查且不读 value；损坏或缺失组件、缺失 Thread 的 latest 回到前一可信 marker，显式版本和 fork 拒绝；跨 base 被替换身份同样拒绝。存储独立测试共 13 项通过，结合 records/manager/memory/真实合同负例的复验 66 项通过。原根 metadata 缺省导致 generator len 错误的全量红灯保存在 deterministic-page-policy-red-20260929.txt。
+
+threads 作者修复观察引用中的 Python bool/int 相等问题：共享 canonical JSON 身份比较覆盖 state/thread/dataset cursor、watch、prepared 身份和 dataset 登记引用；checkpoint/dataset range 共用严格整数 sequence 的元数据入口。新 bool sequence 两例先失败后通过；含类型化 cursor 的 compact/review 24 项通过，storage 负责非作者复验。路径段本身由 JSON 编码保留类型，clear 请求无身份参数。
+
+真实测试合同由 threads 非作者复查：成功链 fixture 的 256 token 设置仅改变该测试提供方 profile 与对应 trace 断言，动作预算、回合上限及业务/记忆断言保留；diagnostics 按独立字段断言允许顺序变化。预算耗尽与输出截断两项确定性负例均通过，截断无动作、无成功记忆、仅一次模型调用且明确 incomplete/output_token_limit。真实结果用于功能及阶段绝对耗时，不与旧失败用例作总体提速比值。
+
+最终交叉复验由 storage 执行 storage_review、observation_review、compact，共 37 项通过，证据 independent-review-final-rerun.txt；确认共享身份比较与整数 sequence 修复。最终确定性全量为 632 passed、14 deselected、32.45 秒，证据 deterministic-final-20260929.txt。此报告覆盖的查询与存储独立审查无未解决 P1/P2。两个 204,882 条基准均已正常结束，TemporaryDirectory 大工件已随退出清理。
+
+## 真实产物驱动的末轮复验（2026-09-29）
+
+threads 作者完成 schema 3 直接集合、类型化压缩段字典、阶段内有界缓存、页内单来源 RecordReader 和存在性检查复用；storage 非作者以独立顺序模型覆盖 8 epoch 随机修改、类型化键、父删除重建、同 epoch 重复写入、历史及当前全页，另复验最后缓存失效与来源切换/异常关闭，共 31 项通过。spec 非作者对 HTTP 四连接饱和、503、断开释放、WAL 写事务下独立只读连接以及只读/rebuild 冲突复验三项通过；冲突参数曾触发删除索引的 P2 已修复。作者真实 TCP 子进程测试同时覆盖半截 body 和暂停接收 8 MiB 响应时其他 status 请求保持可用。
+
+threads 作为 storage 非作者新增随机长键、类型化 fence、published/pending 混合字典合并、超大 Unicode 键和范围字节读取，以及最后流式分页的百万 limit、小字节预算、恰好边界、重复 path 多页不丢不重验证。联合最后 records/storage_review 为 45 项通过，证据 storage-last-page-independent.txt。spec 另有 test_storage_v3_independent.py 五项独立验证，包含顺序元数据十倍规模的解压计数和末段 seek；storage 独立复验 summary 单容器分区，全部十项通过。
+
+本次最终确定性全量为 662 passed、14 deselected、35.43 秒，证据 deterministic-final-real-artifact-20260929.txt；此前 632、659 和中间 TDD 红灯保留原文件。覆盖范围内未解决 P1/P2 为零。真实模型测试和最终实际 HTTP 测量由统一验收报告记载。
+
+最后真实 v3 HTTP 组合验收完成：76.911 秒冷索引期间 304 次 status p95 4.832 毫秒、最大 13.212 毫秒；热页 p95 27.72 毫秒。索引先提交可查询水位、再完成 SQLite 自动 checkpoint 的两个时点分别记录，正常服务退出后关闭连接；全程 WAL 峰值和源完整性证据保留于 query-real-v3-http-final.json。没有新增未解决 P1/P2。

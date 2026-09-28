@@ -1,0 +1,18 @@
+{
+  "compressed": true,
+  "keys": 1283280,
+  "blocks": 1949,
+  "metadata_file_bytes": 97927168,
+  "build_seconds": 9.554670456796885,
+  "table_bytes": {
+    "key_blocks": 27643904,
+    "key_fence": 442368,
+    "prefixes": 12288,
+    "records": 46780416,
+    "records_path": 23031808,
+    "sqlite_autoindex_prefixes_1": 12288,
+    "sqlite_schema": 4096
+  },
+  "exact_query_median_seconds": 0.0028566457331180573,
+  "exact_query_p95_seconds": 0.004236642271280289
+}

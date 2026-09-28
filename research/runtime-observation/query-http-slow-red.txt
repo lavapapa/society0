@@ -1,0 +1,83 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_http_slow_request_body_does_not_block_status _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-172/test_http_slow_request_body_do0')
+
+    def test_http_slow_request_body_does_not_block_status(tmp_path):
+        import json,socket,subprocess,sys,time,urllib.request
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        process=subprocess.Popen([sys.executable,'-m','society0.observation',str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        slow=None
+        def status():
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=b'{"method":"status"}')
+            with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+                try:status();break
+                except OSError:
+                    assert time.monotonic()<deadline;time.sleep(.02)
+            slow=socket.create_connection(('127.0.0.1',port))
+            slow.sendall(b'POST / HTTP/1.0\r\nContent-Length: 100\r\n\r\n{')
+            time.sleep(.05)
+>           assert 'result' in status()
+                               ^^^^^^^^
+
+tests/primary/test_observation_compact.py:355:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/primary/test_observation_compact.py:345: in status
+    with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:215: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:515: in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:532: in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:492: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1373: in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1348: in do_open
+    r = h.getresponse()
+        ^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1430: in getresponse
+    response.begin()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:331: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:292: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <socket.SocketIO object at 0x1097c0be0>, b = <memory at 0x1096ae140>
+
+    def readinto(self, b):
+        """Read up to len(b) bytes into the writable buffer *b* and return
+        the number of bytes read.  If the socket is non-blocking and no bytes
+        are available, None is returned.
+
+        If *b* is non-empty, a 0 return value indicates that the connection
+        was shutdown at the other end.
+        """
+        self._checkClosed()
+        self._checkReadable()
+        if self._timeout_occurred:
+            raise OSError("cannot read from timed out object")
+        while True:
+            try:
+>               return self._sock.recv_into(b)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+E               TimeoutError: timed out
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:720: TimeoutError
+=========================== short test summary info ============================
+FAILED tests/primary/test_observation_compact.py::test_http_slow_request_body_does_not_block_status
+1 failed, 18 deselected in 0.85s

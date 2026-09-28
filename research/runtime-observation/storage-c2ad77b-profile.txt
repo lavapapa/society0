@@ -1,0 +1,41 @@
+         124982852 function calls (101625953 primitive calls) in 20.922 seconds
+
+   Ordered by: cumulative time
+   List reduced from 101 to 35 due to restriction <35>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    4.288    4.288   20.922   20.922 records.py:58(write_records)
+38108686/14751835    5.344    0.000   10.650    0.000 records.py:18(_json_parts)
+  4097990    1.820    0.000    4.255    0.000 __init__.py:183(dumps)
+  4097990    0.954    0.000    2.139    0.000 encoder.py:183(encode)
+      133    0.001    0.000    1.545    0.012 records.py:86(emit)
+ 32577165    1.535    0.000    1.535    0.000 {built-in method builtins.len}
+   409904    1.360    0.000    1.360    0.000 {method 'execute' of 'sqlite3.Connection' objects}
+ 13112800    0.922    0.000    1.337    0.000 {built-in method builtins.isinstance}
+      133    0.000    0.000    1.328    0.010 gzip.py:619(compress)
+      133    1.328    0.010    1.328    0.010 {built-in method zlib.compress}
+ 14546953    1.006    0.000    1.006    0.000 {method 'extend' of 'bytearray' objects}
+  3278464    0.443    0.000    0.443    0.000 {built-in method _json.encode_basestring}
+  3688226    0.425    0.000    0.425    0.000 {method 'encode' of 'str' objects}
+   819526    0.423    0.000    0.423    0.000 encoder.py:205(iterencode)
+  2048818    0.213    0.000    0.415    0.000 <frozen abc>:117(__instancecheck__)
+  4097990    0.297    0.000    0.297    0.000 encoder.py:105(__init__)
+  2048818    0.202    0.000    0.202    0.000 {built-in method _abc._abc_instancecheck}
+   204883    0.182    0.000    0.182    0.000 {method 'fetchone' of 'sqlite3.Cursor' objects}
+   614646    0.065    0.000    0.065    0.000 {method 'get' of 'dict' objects}
+   819532    0.058    0.000    0.058    0.000 {method 'join' of 'str' objects}
+   409763    0.037    0.000    0.037    0.000 {method 'items' of 'dict' objects}
+        1    0.014    0.014    0.014    0.014 {method '__exit__' of 'sqlite3.Connection' objects}
+        1    0.002    0.002    0.002    0.002 {built-in method _sqlite3.connect}
+        1    0.002    0.002    0.002    0.002 {method 'executescript' of 'sqlite3.Connection' objects}
+        2    0.000    0.000    0.000    0.000 {built-in method posix.fsync}
+        1    0.000    0.000    0.000    0.000 tempfile.py:321(mkstemp)
+        1    0.000    0.000    0.000    0.000 tempfile.py:243(_mkstemp_inner)
+        2    0.000    0.000    0.000    0.000 {built-in method posix.open}
+        1    0.000    0.000    0.000    0.000 pathlib.py:1366(replace)
+        1    0.000    0.000    0.000    0.000 {built-in method posix.replace}
+        1    0.000    0.000    0.000    0.000 contextlib.py:359(__exit__)
+        1    0.000    0.000    0.000    0.000 {method 'close' of 'sqlite3.Connection' objects}
+     32/8    0.000    0.000    0.000    0.000 <frozen abc>:121(__subclasscheck__)
+     32/8    0.000    0.000    0.000    0.000 {built-in method _abc._abc_subclasscheck}
+        3    0.000    0.000    0.000    0.000 pathlib.py:731(parent)

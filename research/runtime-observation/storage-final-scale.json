@@ -1,0 +1,71 @@
+[
+  {
+    "revision": "working-tree",
+    "page_size": 1024,
+    "compression_level": 3,
+    "records": 2048,
+    "write_seconds": 0.032215875005931593,
+    "rss_before": 29458432,
+    "rss_peak": 36995072,
+    "rss_extra": 7536640,
+    "file_bytes": 482304,
+    "table_bytes": {
+      "chunks": 387072,
+      "prefixes": 1024,
+      "records": 54272,
+      "records_path": 36864,
+      "sqlite_autoindex_prefixes_1": 1024,
+      "sqlite_schema": 1024,
+      "totals": 1024
+    },
+    "page_seconds": 0.0005441249959403649,
+    "range_seconds": 0.00013833299453835934,
+    "range_bytes": 50
+  },
+  {
+    "revision": "working-tree",
+    "page_size": 1024,
+    "compression_level": 3,
+    "records": 20488,
+    "write_seconds": 0.237504083008389,
+    "rss_before": 55885824,
+    "rss_peak": 67518464,
+    "rss_extra": 11632640,
+    "file_bytes": 4688896,
+    "table_bytes": {
+      "chunks": 3727360,
+      "prefixes": 1024,
+      "records": 567296,
+      "records_path": 390144,
+      "sqlite_autoindex_prefixes_1": 1024,
+      "sqlite_schema": 1024,
+      "totals": 1024
+    },
+    "page_seconds": 0.0009992080013034865,
+    "range_seconds": 0.0001989169977605343,
+    "range_bytes": 50
+  },
+  {
+    "revision": "working-tree",
+    "page_size": 1024,
+    "compression_level": 3,
+    "records": 204882,
+    "write_seconds": 2.3511699590017088,
+    "rss_before": 326746112,
+    "rss_peak": 343097344,
+    "rss_extra": 16351232,
+    "file_bytes": 47815680,
+    "table_bytes": {
+      "chunks": 37161984,
+      "prefixes": 1024,
+      "records": 6205440,
+      "records_path": 4444160,
+      "sqlite_autoindex_prefixes_1": 1024,
+      "sqlite_schema": 1024,
+      "totals": 1024
+    },
+    "page_seconds": 0.0005937090027146041,
+    "range_seconds": 0.00019333299132995307,
+    "range_bytes": 50
+  }
+]

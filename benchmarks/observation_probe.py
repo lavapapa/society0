@@ -41,7 +41,7 @@ def main():
                 increments.append(time.perf_counter()-before)
             before_checkpoint = {p.name:p.stat().st_size for p in (root/'local-index').iterdir() if p.is_file()}
             reader.db.execute('PRAGMA wal_checkpoint(PASSIVE)')
-            print(json.dumps({'index_files_before_passive_checkpoint':before_checkpoint,'records':args.records,'value_bytes':args.value_bytes,
+            print(json.dumps({'dbstat':dict(reader.db.execute('SELECT name,sum(pgsize) FROM dbstat GROUP BY name')), 'table_rows':{name:reader.db.execute('SELECT count(*) FROM '+name).fetchone()[0] for name in ('entries','scopes','paths','counts')}, 'index_files_before_passive_checkpoint':before_checkpoint,'records':args.records,'value_bytes':args.value_bytes,
                 'write_seconds':write_seconds,'initial_index_seconds':initial_index_seconds,
                 'page_samples_seconds':samples,'page_p95_seconds':sorted(samples)[18],
                 'increment_samples_seconds':increments,'total':page['total'],

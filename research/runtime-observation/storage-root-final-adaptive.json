@@ -1,0 +1,13 @@
+{
+  "route": "World -> PersistenceManager.publish_root",
+  "records": 204882,
+  "record_raw_bytes_total": 1899238802,
+  "record_raw_bytes_max": 9271,
+  "publish_seconds": 6.07019624998793,
+  "rss_before_bytes_macos": 108707840,
+  "rss_peak_bytes_macos": 116506624,
+  "rss_additional_bytes_macos": 7798784,
+  "bytes_written": 21600339,
+  "world_payload_strings_shared": true,
+  "whole_world_snapshot_forbidden": true
+}

@@ -13,7 +13,7 @@ python -m society0.observation runs/example --index-dir /tmp/example-index --met
 python -m society0.observation runs/example --index-dir /tmp/example-index --serve 8765
 ```
 
-服务监听 `127.0.0.1`，后台每 0.5 秒检查一次完整提交并更新索引。索引处理大批数据时，状态查询继续响应。单次 CLI `sync` 等待索引完成；服务中的 `sync` 返回当前水位，后台负责继续处理。在线与离线采用相同方法。
+服务监听 `127.0.0.1`，后台每轮追赶完成后等待 0.5 秒，再检查完整提交并更新索引。索引处理大批数据时，状态查询继续响应。单次 CLI `sync` 等待索引完成；服务中的 `sync` 返回当前水位，后台负责继续处理。在线与离线采用相同方法。
 
 ## 二、状态
 
@@ -59,6 +59,17 @@ with ObservationReader("runs/example", index_dir="/tmp/example-index") as reader
 ```
 
 每页包含 `items`、精确 `total`、`next_cursor` 和提交身份。条目按持久化状态的插入次序返回，数组位置保持数值顺序；替换已有条目保留位置，删除后重建产生新位置。`bytes` 统计紧凑 JSON `items` 数组的字节数，响应外层的身份与水位另计。返回 `next_cursor=null` 表示固定版本已经读完；新提交不会改变后续页面。
+
+当前祖先页最多合并 128 个活跃直属集合，范围超过该预算也需 `prepare_state`；根范围使用全局当前顺序索引。历史版本通常通过版本索引直接读取。若指定版本之前有大量删除条目，普通页面最多检查 256 个候选位置；超过该预算返回机器可读错误 `{"code":"index_pending","method":"prepare_state","checkpoint_id":"…","path":[…]}`。调用 `prepare_state(checkpoint_id, path)` 显式准备该固定版本范围，再使用原游标继续读取。准备只读取派生元数据，保持原始完整载荷引用。
+
+Python 和单次 CLI 的 `prepare_state` 等待准备完成；HTTP 服务将请求交给现有后台索引线程，立即返回 `queued`。`prepared_state` 返回已有准备结果，并在 `request` 中给出当前请求的 `queued`、`preparing`、`ready` 或 `failed` 状态；处理较多条目时包含 `prepared_entries` 和精确 `total`。状态查询和已有准备结果在后台工作期间继续可用。已有一个准备请求时返回 `preparation_busy`，调用方可稍后重试。
+
+```bash
+python -m society0.observation runs/example --index-dir /tmp/example-index \
+  --method prepare_state --params '{"checkpoint_id":"…","path":["environment","state"]}'
+```
+
+每个索引只保留一个固定版本范围的准备结果；新的准备完成后原子替换它。准备失败或进程退出会保留先前已完成的结果，`clear_prepared_state` 清理准备结果。清理和替换不改变原游标的检查点身份，重新准备相同版本和路径后可继续使用该游标。准备结果属于可重建本地缓存，不能替代运行目录中的权威记录。索引格式不符时返回 `index_format_mismatch`，使用既有 `--rebuild-index` 显式重建。
 
 最小分页单位是持久化声明中的可替换值、可替换映射 entry 或追加记录。可查询某个声明集合、祖先路径或完整 entry。一个 entry 内部的任意嵌套字段通过其完整内容取得；请求内部路径时，`unsupported_path` 给出最近可读祖先。普通代理的嵌套修改在 journal 中归并为完整 entry，因此页面能表示其最新值。直接调用底层存储构造的非规范父子交叠修改可能返回 `unsupported_operation`；恢复接口仍按原始操作顺序恢复这类检查点。
 
@@ -115,3 +126,9 @@ restorable = store.export_bundle("exports/example-restore", mode="restore")
 目标目录须尚不存在。`analysis` 包含状态、Thread 与已提交数据集，`bundle.json` 的 `full_restore` 为 false。`restore` 还复制恢复所需记忆库；涉及记忆时要求运行有最终状态且原生产者 PID 已退出，避免普通文件复制读取活动 Chroma。来源链使用相同检查；纯状态、无记忆依赖的运行无需等待记忆库关闭。移动导出目录时保留其整体结构，原始 source 依赖由包内相对引用替代。
 
 查询索引的初次建立随权威记录总数增长，此后按新提交增量更新。当前状态分页通过集合与顺序索引定位，不解压整个世界。World 本身的累计状态内存、完整恢复内存及任意大条目的完整解析开销，仍需由仿真和分析任务分别安排。性能数据保存在本次研究目录，接口可用不自动证明所有部署文件系统和真实模型链路都已验收。
+
+派生索引将每个 entry 登记到直接父集合，祖先页按 ordinal 合并活跃集合；单页最多打开 128 个集合。范围超过预算时，当前检查点也会返回带 `checkpoint_id`、`path` 和 `method=prepare_state` 的 `index_pending`，可按同一准备流程生成固定版本投影。根范围走全局当前顺序索引。已经删空的集合从当前范围索引移除，历史版本仍可准备读取。路径段采用保留 JSON 类型的可逆压缩字典；索引格式或压缩运行库版本变化时，使用 `--rebuild-index` 重建派生数据。
+
+总结中的引用可共用一个 dataset 文件，`record_path` 选择独立分区。调用 `dataset_page`、`read_content` 时原样传入完整引用，或使用 `load_run_summary(..., include_history=True)` 读回全部历史。
+
+HTTP 服务最多同时处理 4 个连接；容量已满时返回 HTTP 503 与 `server_busy`，客户端可稍后重试。连接读写超时为 5 秒，慢速发送请求或接收响应会占用一个连接名额。查询使用独立只读 SQLite 连接，后台索引写事务继续推进；`status` 展示生产者最近一次阶段上报及其年龄，后台每轮索引追赶结束后等待 0.5 秒，再检查新的完整 marker。长时间同步计算期间状态年龄会增长，阶段上报和完整检查点发布的时间各自保留。

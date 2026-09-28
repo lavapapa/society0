@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from society0 import EmbedModel, LLMModel, Society0, StateAccessMode
 from society0.incremental_checkpoint import V4CheckpointStore
+from society0.diagnostics import load_run_summary
 from tests.e2e.real_endpoint_config import EndpointConfigError, load_endpoint_env
 
 
@@ -640,7 +641,7 @@ async def test_real_society0_saturation_default_model_concurrency_memory_and_log
     seed_metrics = metrics[0]["metrics"]
     recall_metrics = metrics[1]["metrics"]
     events = _read_jsonl(tmp_path / "events.jsonl")
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
 
     assert events[0]["event"] == "run_started"
     assert events[0]["agent_concurrency"] == concurrency
@@ -796,7 +797,7 @@ async def test_real_society0_explicit_agent_group_concurrency_overrides_model_e2
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
 
     assert metrics == {"errors": 0, "success": agent_count, "max_in_flight": 1}
@@ -920,7 +921,7 @@ async def test_real_society0_memory_roundtrip_e2e(tmp_path):
     assert metrics[0]["metrics"]["memory_extract_errors"] == 0
     assert metrics[0]["metrics"]["recall_errors"] == 0
     assert metrics[0]["metrics"]["remembered_count"] >= 1
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     logic_executions = summary["events"]["logic_executions"]
     assert logic_executions["rule / set_memory_protocol"]["completed_count"] == 1
     assert logic_executions["rule / set_memory_protocol"]["success_count"] == 1
@@ -1079,6 +1080,7 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
             temperature=0,
             action_call_limits={"send_message_to_partner": 1},
             required_actions=["send_message_to_partner"],
+            completion_action_tags=["send_message_to_partner"],
             reasoning_stages=[
                 {
                     "name": "situate",
@@ -1110,7 +1112,7 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     checkpoint = _restore_latest(tmp_path)
@@ -1159,7 +1161,8 @@ async def test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e(tmp_p
     assert not [item for item in llm_traces if item.get("interaction_type") == "memory_extract"]
     assert "### rule / advance_round_robin_with_pairing" in diagnostics
     assert "### behavior / mark_conversation_participant" in diagnostics
-    assert "Action semantics: required_actions configured [send_message_to_partner]" in diagnostics
+    assert "required_actions configured [send_message_to_partner]" in diagnostics
+    assert "completion_action_tags configured [send_message_to_partner]" in diagnostics
     assert "Memory: retrieved 2/2, saved 0, extractive enabled 0" in diagnostics
 
 
@@ -1189,6 +1192,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
             temperature=0,
             action_call_limits={"publish_post": 1},
             required_actions=["publish_post"],
+            completion_action_tags=["publish_post"],
             name="publish_round",
         )
         duration = time.perf_counter() - started
@@ -1210,7 +1214,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     llm_request_count = _count_events(tmp_path, "llm", "llm_request_completed")
     events = _read_jsonl(tmp_path / "events.jsonl")
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
 
     assert metrics["publish_errors"] == 0
     assert metrics["publish_success"] == agent_count
@@ -1218,7 +1222,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     author_ids = {post.get("author_id") for post in posts.values()}
     assert len(posts) == agent_count
     assert {f"user_{idx}" for idx in range(agent_count)}.issubset(author_ids)
-    assert llm_request_count >= agent_count * 2
+    assert llm_request_count >= agent_count
     assert not any("embedding" in post for post in posts.values())
     assert any(event.get("event") == "code_step_started" and event.get("step_name") == "publish_once" for event in events)
     assert sum(1 for event in events if event.get("event_type") == "agent_action") >= agent_count
@@ -1242,7 +1246,7 @@ async def test_real_society0_social_publish_action_e2e(tmp_path):
     assert publish_batch["execution_options"]["required_actions"] == ["publish_post"]
     assert publish_batch["successful_action_counts"].get("publish_post") == agent_count
     assert publish_batch["failed_action_counts"] == {}
-    assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
+    assert publish_batch["termination_reason_counts"] == {"completion_action_tag": agent_count}
     assert publish_batch["action_semantics"]["required_actions"]["configured"] == ["publish_post"]
     assert publish_batch["action_semantics"]["required_actions"]["observed_counts"]["publish_post"] == agent_count
     llm_traces = _successful_resource_calls(resource_calls, "llm")
@@ -1342,6 +1346,7 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
             max_action_calls=1,
             action_call_limits={"get_trending_posts": 1},
             required_actions=["get_trending_posts"],
+            completion_action_tags=["get_trending_posts"],
             name="environment_action_lookup",
         )
         return ctx.result(
@@ -1356,7 +1361,7 @@ async def test_real_society0_environment_action_tag_e2e(tmp_path):
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     checkpoint = _restore_latest(tmp_path)
 
     assert metrics["lookup_errors"] == 0
@@ -1459,7 +1464,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
     await engine.run(steps=1)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")[0]["metrics"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     llm_traces = _successful_resource_calls(resource_calls, "llm")
@@ -1527,6 +1532,7 @@ async def test_real_society0_terminal_action_retry_preserves_agent_loop_e2e(tmp_
 
 @pytest.mark.asyncio
 async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tmp_path):
+    # 成功链路 profile 为 Qwen 工具响应预留 256 token；截断语义由独立负例覆盖。
     agent_count = _safe_int(os.getenv("SOCIETY0_REAL_E2E_BROWSE_AGENT_COUNT"), default=2)
     agent_count = max(2, min(agent_count, 6))
     llm_model, embed_model = _build_models(llm_concurrency=agent_count, embed_concurrency=10)
@@ -1545,7 +1551,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             actions=["publish_post"],
             output=None,
             max_turns=3,
-            max_tokens=80,
+            max_tokens=256,
             temperature=0,
             reasoning_stages=[
                 {
@@ -1555,6 +1561,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             ],
             action_call_limits={"publish_post": 1},
             required_actions=["publish_post"],
+            completion_action_tags=["publish_post"],
             name="publish_round",
         )
         return ctx.result(
@@ -1580,7 +1587,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
             actions=["get_trending_posts", "comment"],
             output=None,
             max_turns=3,
-            max_tokens=120,
+            max_tokens=256,
             temperature=0,
             reasoning_stages=[
                 {
@@ -1614,7 +1621,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
     publish_metrics = metrics[0]["metrics"]
     browse_metrics = metrics[1]["metrics"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     llm_traces = _successful_resource_calls(resource_calls, "llm")
     browse_llm_traces = [item for item in llm_traces if item.get("step_name") == "browse_once"]
@@ -1639,7 +1646,7 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     browse_agent_loop_traces = [item for item in browse_llm_traces if item.get("interaction_type") == "instruct"]
     assert len(browse_agent_loop_traces) <= agent_count * 3
     assert not [item for item in browse_llm_traces if item.get("interaction_type") == "memory_extract"]
-    assert all(item.get("max_tokens") == 120 for item in browse_agent_loop_traces)
+    assert all(item.get("max_tokens") == 256 for item in browse_agent_loop_traces)
     _assert_resource_timing(browse_llm_traces)
     publish_batch = summary["events"]["agent_batches"]["instruct / publish_round"]
     browse_batch = summary["events"]["agent_batches"]["instruct / browse_round"]
@@ -1658,14 +1665,14 @@ async def test_real_society0_social_browse_completion_tags_default_memory_e2e(tm
     assert publish_batch["action_duration_summary"]["bottleneck_action"] in publish_batch[
         "action_duration_summary"
     ]["by_action"]
-    assert publish_batch["termination_reason_counts"] == {"action_budget_exhausted": agent_count}
+    assert publish_batch["termination_reason_counts"] == {"completion_action_tag": agent_count}
     publish_duration_summary = publish_batch["agent_duration_summary"]
     assert publish_duration_summary["record_count"] == agent_count
     assert publish_duration_summary["total_sec"] >= publish_duration_summary["max_sec"] >= publish_duration_summary["min_sec"] > 0
     assert len(publish_duration_summary["slowest_agents"]) == agent_count
     assert {
         sample["termination_reason"] for sample in publish_duration_summary["slowest_agents"]
-    } == {"action_budget_exhausted"}
+    } == {"completion_action_tag"}
     publish_phase_summary = publish_batch["phase_timing_summary"]
     assert publish_phase_summary["record_count"] == agent_count
     assert publish_phase_summary["phases"]["agent_loop"]["record_count"] == agent_count
@@ -1727,6 +1734,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
             max_tokens=80,
             temperature=0,
             action_call_limits={"publish_post": 1},
+            completion_action_tags=["publish_post"],
             name="multi_tick_publish",
         )
         return ctx.result(
@@ -1765,7 +1773,7 @@ async def test_real_society0_multi_tick_social_workflow_e2e(tmp_path):
     await engine.run(steps=2)
 
     metrics = _read_jsonl(tmp_path / "metrics.jsonl")
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     checkpoint = _restore_latest(tmp_path)
     resource_calls = _read_jsonl(tmp_path / "resource_calls.jsonl")
     diagnostic_report = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
