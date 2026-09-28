@@ -1617,8 +1617,8 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert summary["total_time"] >= 0
     assert summary["total_execution_time"] == summary["total_time"]
     assert summary["agent_operations"] == {}
-    assert summary["outputs"]["files"]["events.jsonl"]["line_count"] >= 1
-    assert summary["outputs"]["files"]["steps.jsonl"]["line_count"] == 3
+    assert summary["outputs"]["files"]["events.jsonl"]["bytes"] == (tmp_path / "events.jsonl").stat().st_size
+    assert summary["outputs"]["files"]["steps.jsonl"]["bytes"] == (tmp_path / "steps.jsonl").stat().st_size
     assert summary["outputs"]["files"]["diagnostics.md"]["bytes"] == (tmp_path / "diagnostics.md").stat().st_size
     assert "env_hooks" not in summary["events"]
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
@@ -1637,7 +1637,9 @@ async def test_code_schedule_smoke_outputs_and_checkpoints(tmp_path):
     assert manifest["replacement_file"].startswith("checkpoints/v4/replacements/")
     assert manifest["new_segments"] == []
     replacement_path = tmp_path / manifest["replacement_file"]
-    assert replacement_path.read_bytes().startswith(b"\x1f\x8b")
+    assert manifest["component_codec"] == "sqlite_records_v1"
+    with replacement_path.open("rb") as handle:
+        assert handle.read(16) == b"SQLite format 3\x00"
     assert not list((tmp_path / "checkpoints" / "v4" / "segments").glob("*"))
 
 
@@ -7183,7 +7185,9 @@ async def test_agent_group_instruct_writes_heartbeat_events_while_in_flight(tmp_
     assert first_heartbeat["interaction_name"] == "slow_round"
     assert first_heartbeat["agent_count"] == 3
     assert first_heartbeat["concurrency"] == 2
-    assert first_heartbeat["concurrency_source"] == "world_default"
+    assert "concurrency_source" not in first_heartbeat
+    started = next(event["event_data"] for event in events if event.get("event_type") == "agent_batch_started")
+    assert started["concurrency_source"] == "world_default"
     assert first_heartbeat["started_count"] == 2
     assert first_heartbeat["in_flight_count"] == 2
     assert first_heartbeat["pending_count"] == 1
@@ -8295,6 +8299,9 @@ async def test_code_step_rule_and_behavior_helpers(tmp_path):
     assert logic_events[2]["event_data"]["param_keys"] == ["delta"]
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     logic_summary = summary["events"]["logic_executions"]
+    from society0.result_datasets import iter_dataset
+    for item in logic_summary.values():
+        item["by_tick"] = {row["key"]: row["value"] for row in iter_dataset(tmp_path, item["by_tick"])}
     assert logic_summary["rule / set_pressure"]["started_count"] == 2
     assert logic_summary["rule / set_pressure"]["completed_count"] == 2
     assert logic_summary["rule / set_pressure"]["success_count"] == 2
@@ -10403,12 +10410,6 @@ async def test_llm_manager_http_transport_preserves_tool_contract_flags():
     request_body = captured_requests[0]
     assert request_body["parallel_tool_calls"] is False
     assert request_body["tools"][0]["function"]["strict"] is True
-
-
-def test_legacy_schedule_importable():
-    from society0.legacy.schedule import Schedule
-
-    assert Schedule is not None
 
 
 @pytest.mark.asyncio

@@ -1,4 +1,5 @@
 import json
+from society0.diagnostics import load_run_summary
 from pathlib import Path
 
 import pytest
@@ -134,7 +135,7 @@ async def test_env_tick_hooks_order(tmp_path, hook_envs):
         ("env_hook_started", "after_tick"),
         ("env_hook_completed", "after_tick"),
     ]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     assert summary["events"]["env_hooks"]["before_tick"]["started_count"] == 1
     assert summary["events"]["env_hooks"]["before_tick"]["completed_count"] == 1
     assert summary["events"]["env_hooks"]["before_tick"]["failed_count"] == 0
@@ -172,7 +173,7 @@ async def test_env_tick_hook_summary_splits_repeated_hooks_by_tick(tmp_path, hoo
 
     await engine.run(steps=3)
 
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     before_hook = summary["events"]["env_hooks"]["before_tick"]
     after_hook = summary["events"]["env_hooks"]["after_tick"]
 
@@ -243,7 +244,7 @@ async def test_hook_failure_fails_run_and_saves_final_checkpoint(tmp_path, hook_
         ("env_hook_started", "before_tick"),
         ("env_hook_failed", "before_tick"),
     ]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     before_hook = summary["events"]["env_hooks"]["before_tick"]
     assert before_hook["started_count"] == 1
     assert before_hook["completed_count"] == 0

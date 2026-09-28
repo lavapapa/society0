@@ -1,4 +1,5 @@
 import json
+from society0.diagnostics import load_run_summary
 import subprocess
 import sys
 from collections import defaultdict
@@ -198,7 +199,7 @@ async def test_e2e_default_run_writes_expected_artifacts_and_state(tmp_path):
     steps = _jsonl(tmp_path / "steps.jsonl")
     metrics = _jsonl(tmp_path / "metrics.jsonl")
     events = _jsonl(tmp_path / "events.jsonl")
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     assert len(steps) == 24
     assert len(metrics) == 12
     assert events[0]["event"] == "run_started"
@@ -330,7 +331,7 @@ async def test_e2e_failed_step_records_failed_event_and_final_checkpoint(tmp_pat
     assert events[-1]["failed_step"] == 0
     assert not any(event["event"] == "run_completed" for event in events)
     assert (tmp_path / "checkpoints" / "checkpoint_final.json.gz").is_file()
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     assert summary["steps_requested"] == 2
     assert summary["steps_run"] == 0
     assert summary["steps_completed"] == 0
@@ -465,7 +466,7 @@ async def test_e2e_builtin_round_robin_rule_behavior_and_capabilities(tmp_path):
         restored["agents"]["participant_0"]["state"]["conversation_marker"]
         == "baseline-ready"
     )
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     rule_entries = summary["capabilities"]["by_kind"]["rules"]
     action_entries = summary["capabilities"]["by_kind"]["actions"]
     round_rule = next(entry for entry in rule_entries if entry["name"] == "advance_round_robin_with_pairing")
@@ -758,7 +759,7 @@ async def test_e2e_social_browse_completion_action_tags_stop_after_write_action(
     browse_step = next(item for item in steps if item["step_name"] == "browse_round")
     browse_metrics = browse_step["result"]["metrics"]
     browse_actions = browse_step["result"]["tables"]["browse_actions"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     final_checkpoint = read_last_v4_checkpoint(tmp_path)
     state = final_checkpoint["environment"]["state"]
 
@@ -915,7 +916,7 @@ async def test_e2e_social_browse_records_recoverable_action_failure(tmp_path, mo
 
     steps = _jsonl(tmp_path / "steps.jsonl")
     browse_actions = steps[0]["result"]["tables"]["browse_actions"]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     diagnostics = (tmp_path / "diagnostics.md").read_text(encoding="utf-8")
     final_checkpoint = read_last_v4_checkpoint(tmp_path)
 
@@ -1005,7 +1006,7 @@ async def test_e2e_instruct_rejects_fov_name_in_actions_before_llm_call(tmp_path
     assert llm_calls == []
     steps = _jsonl(tmp_path / "steps.jsonl")
     row = steps[0]["result"]["tables"]["result"][0]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     batch = summary["events"]["agent_batches"]["instruct / bad_action_filter"]
 
     assert row["status"] == "error"
@@ -1097,7 +1098,7 @@ async def test_e2e_instruct_rejects_unsatisfiable_required_actions_before_llm_ca
 
     assert llm_calls == []
     row = _jsonl(tmp_path / "steps.jsonl")[0]["result"]["tables"]["result"][0]
-    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(tmp_path, include_history=True)
     batch = summary["events"]["agent_batches"]["instruct / unsatisfiable_required_action"]
 
     assert row["status"] == "error"
@@ -1129,7 +1130,7 @@ def test_e2e_public_example_script_runs_from_user_perspective(tmp_path, script_n
 
     assert "complete" in result.stdout.lower()
     run_dir = tmp_path / expected_run_dir
-    summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    summary = load_run_summary(run_dir, include_history=True)
     assert summary["final_step"] > 0
     assert (run_dir / "steps.jsonl").is_file()
     assert (run_dir / "metrics.jsonl").is_file()

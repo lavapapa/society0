@@ -522,6 +522,14 @@ class Society0:
         # declared Environment/Agent state once; every later Tick contributes
         # only its sealed journal delta.
         if not self._v4_configured:
+            if self.restored_checkpoint is not None:
+                bootstrap_delta = world.seal_persistence_tick()
+                self.persistence_manager.set_checkpoint_base(
+                    self.restored_checkpoint["source_run"],
+                    self.restored_checkpoint["step"],
+                    branch_id=self.restored_checkpoint["marker"].get("branch_id", "main"),
+                    delta=bootstrap_delta,
+                )
             schema = world.compile_runtime_persistence_schema()
             self.persistence_manager.configure_v4(
                 world,
@@ -555,7 +563,7 @@ class Society0:
                 persistence_sealed = False
                 runtime_scope = world.begin_step_runtime_scope()
                 world.set_context_stack(ContextStack().push_step(f"step_{world.step}"))
-                self.event_logger.set_context(step=world.step)
+                self._write_runtime_status("tick_started", executing_step=world.step + 1)
                 tick_started = time.time()
                 hook_ctx = EnvironmentTickContext(
                     step=world.step,
@@ -567,6 +575,7 @@ class Society0:
                     await self._run_env_tick_hook(env, "before_tick", hook_ctx)
                     step_entries = await self.schedule.execute_tick(
                         tick=world.step,
+                        result_dir=self.save_dir,
                         world=world,
                         log=self.log_context,
                         on_step_event=lambda payload: self._write_jsonl(self.save_dir / "events.jsonl", payload),
@@ -604,6 +613,7 @@ class Society0:
                         force=tick == steps - 1,
                     )
                     world.advance_step()
+                    self._write_runtime_status("tick_completed", last_completed_step=world.step)
                     completed_ticks += 1
                 except BaseException:
                     if not persistence_sealed:
@@ -829,6 +839,7 @@ class Society0:
             "checkpoint_id": str(record["checkpoint_id"]),
             "marker": dict(record["marker"]),
         }
+        world.begin_persistence_tick(world.step)
         return world
 
     def _assert_restore_usable(self) -> None:
@@ -934,6 +945,7 @@ class Society0:
         }
 
     def _bind_world_runtime(self, world: World) -> None:
+        world._runtime_status_writer = self._write_runtime_status
         default_concurrency, concurrency_source = self._resolve_default_agent_concurrency()
         world._default_agent_concurrency = default_concurrency
         world._default_agent_concurrency_source = concurrency_source
@@ -1085,6 +1097,9 @@ class Society0:
     ) -> None:
         if self.current_world_state is None:
             return
+        operations = self._summarize_agent_operations(attach_resources=False)
+        events = self._summarize_events(attach_resources=False)
+        resources = self._summarize_resource_calls(operations=operations, agent_batches=events.get("agent_batches"))
         summary = {
             "steps_requested": steps_requested,
             "steps_run": steps_completed,
@@ -1107,25 +1122,21 @@ class Society0:
                 "embed_concurrency": self.embed_model.concurrency if self.embed_model else None,
             },
             "models": self._summarize_models(),
-            "agent_operations": self._summarize_agent_operations(),
-            "resources": self._summarize_resource_calls(),
-            "events": self._summarize_events(),
+            "agent_operations": operations,
+            "resources": resources,
+            "events": events,
             "capabilities": self._summarize_capabilities(),
-            "outputs": self._summarize_output_files(),
+            "outputs": {},
             "completed_at": time.time(),
         }
         if failure is not None:
             summary["failure"] = dict(failure)
-        path = self.save_dir / "summary.json"
-        self._write_summary_payload(path, summary)
-        for _ in range(10):
-            self._write_diagnostics_report(summary)
-            outputs = self._summarize_output_files()
-            if outputs == summary.get("outputs"):
-                return
-            summary["outputs"] = outputs
-            self._write_summary_payload(path, summary)
-        logger.warning("Run output summary did not stabilize after writing diagnostics.md")
+        self._write_diagnostics_report(summary)
+        from .result_datasets import externalize_history
+
+        externalize_history(self.save_dir, summary)
+        summary["outputs"] = self._summarize_output_files()
+        self._write_summary_payload(self.save_dir / "summary.json", summary)
 
     def _write_summary_payload(self, path: Path, summary: Dict[str, Any]) -> None:
         with path.open("w", encoding="utf-8") as handle:
@@ -1200,7 +1211,7 @@ class Society0:
             "by_kind": by_kind,
         }
 
-    def _summarize_agent_operations(self) -> Dict[str, Dict[str, Any]]:
+    def _summarize_agent_operations(self, *, attach_resources: bool = True) -> Dict[str, Dict[str, Any]]:
         """Aggregate agent-facing step outputs into a researcher-readable summary."""
         path = self.save_dir / "steps.jsonl"
         if not path.exists():
@@ -1351,9 +1362,8 @@ class Society0:
                 tick_bucket = tick_bucket_for(bucket, tick)
 
                 for rows in tables.values():
-                    if not isinstance(rows, list):
-                        continue
-                    for row in rows:
+                    from .result_datasets import iter_table
+                    for row in iter_table(self.save_dir, rows):
                         if not isinstance(row, dict):
                             continue
                         action_name = row.get("action_name")
@@ -1461,146 +1471,46 @@ class Society0:
                     tick_bucket["memory_summary"] = tick_memory_summary
             bucket["by_tick"] = dict(sorted(by_tick.items(), key=lambda item: item[0]))
             finalized[step_name] = bucket
-        self._attach_resource_calls_to_agent_operations(finalized)
+        if attach_resources:
+            self._summarize_resource_calls(operations=finalized)
         return finalized
 
-    def _attach_resource_calls_to_agent_operations(self, operations: Dict[str, Dict[str, Any]]) -> None:
-        """Attach resource-call cost attribution to agent operation summaries.
+    def _resource_attribution(self, operations, agent_batches):
+        batch_index = {
+            (str(batch.get("interaction_type")), str(batch.get("interaction_name"))): batch
+            for batch in (agent_batches or {}).values()
+        }
 
-        Agent operation rows come from user-designed step tables. Resource call
-        traces are written separately by model managers. Joining them by code
-        step keeps summary.json useful for runtime explanation without forcing
-        agents to scan resource_calls.jsonl for basic attribution.
-        """
-        if not operations:
-            return
+        def add(bucket, resource_type, record):
+            resources = bucket.setdefault("resources", {})
+            target = resources.setdefault(resource_type, self._new_operation_resource_bucket())
+            self._accumulate_operation_resource(target, record)
 
-        path = self.save_dir / "resource_calls.jsonl"
-        if not path.exists():
-            return
+        def consume(record):
+            resource_type = record.get("resource_type")
+            if not resource_type or record.get("status") == "started":
+                return
+            tick = str(record.get("step", "unknown"))
+            targets = []
+            for name in self._resource_record_step_names(record):
+                if name in (operations or {}):
+                    targets.append(operations[name])
+            for kind in self._resource_record_interaction_types(record):
+                for name in self._resource_record_interaction_names(record):
+                    batch = batch_index.get((str(kind), str(name)))
+                    if batch is not None:
+                        targets.append(batch)
+            for target in targets:
+                add(target, str(resource_type), record)
+                child = target.setdefault("by_tick", {}).setdefault(tick, {"step": tick})
+                add(child, str(resource_type), record)
 
-        def operation_resource_bucket(operation: Dict[str, Any], resource_type: str) -> Dict[str, Any]:
-            resources = operation.setdefault("resources", {})
-            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
-
-        def tick_resource_bucket(operation: Dict[str, Any], tick: str, resource_type: str) -> Dict[str, Any]:
-            tick_bucket = operation.setdefault("by_tick", {}).setdefault(
-                tick,
-                {
-                    "agent_count": 0,
-                    "success_count": 0,
-                    "error_count": 0,
-                    "turns_max": 0,
-                    "action_counts": {},
-                    "action_error_count": 0,
-                    "turns_avg": 0.0,
-                },
-            )
-            resources = tick_bucket.setdefault("resources", {})
-            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
-
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                if not line.strip():
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if record.get("status") == "started":
-                    continue
-                resource_type = record.get("resource_type")
-                if not resource_type:
-                    continue
-                step_names = self._resource_record_step_names(record)
-                if not step_names:
-                    continue
-                tick = str(record.get("step", "unknown"))
-                for step_name in step_names:
-                    operation = operations.get(step_name)
-                    if operation is None:
-                        continue
-                    self._accumulate_operation_resource(
-                        operation_resource_bucket(operation, str(resource_type)),
-                        record,
-                    )
-                    self._accumulate_operation_resource(
-                        tick_resource_bucket(operation, tick, str(resource_type)),
-                        record,
-                    )
-
-        for operation in operations.values():
-            self._finalize_operation_resource_map(operation.get("resources"))
-            for tick_bucket in operation.get("by_tick", {}).values():
-                self._finalize_operation_resource_map(tick_bucket.get("resources"))
-
-    def _attach_resource_calls_to_agent_batches(self, agent_batches: Dict[str, Dict[str, Any]]) -> None:
-        """Attach direct model-call cost attribution to agent-batch event summaries.
-
-        Agent batch events describe the selected agents and progress. Resource
-        traces describe the actual model calls. Joining exact
-        interaction_type/name matches keeps slow-run diagnosis local to the
-        `instruct` or `interview` batch without folding in separate fidelity
-        phases such as extractive memory.
-        """
-        if not agent_batches:
-            return
-
-        path = self.save_dir / "resource_calls.jsonl"
-        if not path.exists():
-            return
-
-        batch_index: Dict[tuple[str, str], Dict[str, Any]] = {}
-        for batch in agent_batches.values():
-            interaction_type = batch.get("interaction_type")
-            interaction_name = batch.get("interaction_name")
-            if interaction_type is None or interaction_name is None:
-                continue
-            batch_index[(str(interaction_type), str(interaction_name))] = batch
-        if not batch_index:
-            return
-
-        def batch_resource_bucket(batch: Dict[str, Any], resource_type: str) -> Dict[str, Any]:
-            resources = batch.setdefault("resources", {})
-            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
-
-        def tick_resource_bucket(batch: Dict[str, Any], tick: str, resource_type: str) -> Dict[str, Any]:
-            tick_batch = batch.setdefault("by_tick", {}).setdefault(tick, {"step": tick})
-            resources = tick_batch.setdefault("resources", {})
-            return resources.setdefault(resource_type, self._new_operation_resource_bucket())
-
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                if not line.strip():
-                    continue
-                try:
-                    record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if record.get("status") == "started":
-                    continue
-                resource_type = record.get("resource_type")
-                if not resource_type:
-                    continue
-                tick = str(record.get("step", "unknown"))
-                for interaction_type in self._resource_record_interaction_types(record):
-                    for interaction_name in self._resource_record_interaction_names(record):
-                        batch = batch_index.get((interaction_type, interaction_name))
-                        if batch is None:
-                            continue
-                        self._accumulate_operation_resource(
-                            batch_resource_bucket(batch, str(resource_type)),
-                            record,
-                        )
-                        self._accumulate_operation_resource(
-                            tick_resource_bucket(batch, tick, str(resource_type)),
-                            record,
-                        )
-
-        for batch in agent_batches.values():
-            self._finalize_operation_resource_map(batch.get("resources"))
-            for tick_batch in batch.get("by_tick", {}).values():
-                self._finalize_operation_resource_map(tick_batch.get("resources"))
+        def finish():
+            for target in [*(operations or {}).values(), *(agent_batches or {}).values()]:
+                self._finalize_operation_resource_map(target.get("resources"))
+                for child in target.get("by_tick", {}).values():
+                    self._finalize_operation_resource_map(child.get("resources"))
+        return consume, finish
 
     @staticmethod
     def _new_resource_metric_bucket() -> Dict[str, Any]:
@@ -1901,8 +1811,9 @@ class Society0:
                     )
                 )
 
-    def _summarize_resource_calls(self) -> Dict[str, Dict[str, Any]]:
+    def _summarize_resource_calls(self, *, operations=None, agent_batches=None) -> Dict[str, Dict[str, Any]]:
         """Aggregate resource call traces for the run summary."""
+        attribute, finish_attribution = self._resource_attribution(operations, agent_batches)
         path = self.save_dir / "resource_calls.jsonl"
         if not path.exists():
             return {}
@@ -1979,6 +1890,7 @@ class Society0:
                     record = json.loads(line)
                 except json.JSONDecodeError:
                     continue
+                attribute(record)
                 resource_type = record.get("resource_type")
                 if not resource_type:
                     continue
@@ -2413,58 +2325,37 @@ class Society0:
                         reverse=True,
                     )
                 )
+        finish_attribution()
         return summary
 
     def _summarize_output_files(self) -> Dict[str, Any]:
-        """Summarize run artifact sizes for monitoring and cleanup decisions."""
+        """一次遍历统计实际保存的普通文件逻辑大小，包括所有子目录。"""
+        import os
 
-        def summarize_file(path: Path) -> Dict[str, Any]:
-            record: Dict[str, Any] = {"bytes": path.stat().st_size}
-            if path.suffix == ".jsonl":
-                line_count = 0
-                with path.open("r", encoding="utf-8") as handle:
-                    for line in handle:
-                        if line.strip():
-                            line_count += 1
-                record["line_count"] = line_count
-            return record
-
-        files: Dict[str, Dict[str, Any]] = {}
-        total_bytes = 0
-        for name in ("events.jsonl", "steps.jsonl", "metrics.jsonl", "resource_calls.jsonl", "diagnostics.md"):
-            path = self.save_dir / name
-            if not path.exists():
-                continue
-            files[name] = summarize_file(path)
-            total_bytes += files[name]["bytes"]
-
-        checkpoints: Dict[str, Dict[str, Any]] = {}
-        checkpoint_total = 0
-        checkpoint_dir = self.save_dir / "checkpoints"
-        if checkpoint_dir.exists():
-            checkpoint_paths = [
-                *checkpoint_dir.glob("checkpoint*.json"),
-                *checkpoint_dir.glob("checkpoint*.json.gz"),
-            ]
-            for path in sorted(checkpoint_paths):
-                if not path.is_file():
+        files = {}
+        groups = {}
+        total = 0
+        count = 0
+        for directory, _, names in os.walk(self.save_dir):
+            for name in names:
+                path = Path(directory) / name
+                if path.is_symlink() or not path.is_file() or path == self.save_dir / "summary.json":
                     continue
-                checkpoints[path.name] = summarize_file(path)
-                checkpoint_total += checkpoints[path.name]["bytes"]
+                relative = path.relative_to(self.save_dir).as_posix()
+                size = path.stat().st_size
+                count += 1
+                total += size
+                group = relative.split('/')[0] if '/' in relative else 'root'
+                bucket = groups.setdefault(group, {"count": 0, "total_bytes": 0})
+                bucket["count"] += 1
+                bucket["total_bytes"] += size
+                if '/' not in relative:
+                    files[relative] = {"bytes": size}
+        return {"total_bytes": total, "file_count": count, "files": files,
+                "directories": groups, "checkpoints": groups.get("checkpoints", {"count": 0, "total_bytes": 0}),
+                "measurement": "logical bytes; each stored path counted once; excludes summary.json; before summary write"}
 
-        total_bytes += checkpoint_total
-        result: Dict[str, Any] = {
-            "total_bytes": total_bytes,
-            "files": files,
-            "checkpoints": {
-                "count": len(checkpoints),
-                "total_bytes": checkpoint_total,
-                "files": checkpoints,
-            },
-        }
-        return result
-
-    def _summarize_events(self) -> Dict[str, Any]:
+    def _summarize_events(self, *, attach_resources: bool = True) -> Dict[str, Any]:
         """Summarize events.jsonl for progress monitoring and quick inspection."""
         path = self.save_dir / "events.jsonl"
         if not path.exists():
@@ -3082,7 +2973,8 @@ class Society0:
                 )
             result["social_recommendations"] = dict(sorted(social_recommendations.items()))
         if agent_batches:
-            self._attach_resource_calls_to_agent_batches(agent_batches)
+            if attach_resources:
+                self._summarize_resource_calls(agent_batches=agent_batches)
             for batch in agent_batches.values():
                 if not batch.get("error_samples"):
                     batch.pop("error_samples", None)
@@ -3191,8 +3083,28 @@ class Society0:
         if self._embedding_manager is not None:
             await self._embedding_manager.close()
 
-    @staticmethod
-    def _write_jsonl(path: Path, payload: Dict[str, Any]) -> None:
+    def _write_runtime_status(self, phase: str, **fields: Any) -> None:
+        from .observation import write_runtime_status
+        world = self.current_world_state
+        status = {
+            "run_id": self.persistence_manager._v4_run_id,
+            "phase": phase,
+            "executing_step": world.step + 1 if world is not None else None,
+            "last_completed_step": world.step if world is not None else None,
+            **fields,
+        }
+        if phase in {"run_completed", "run_failed"}:
+            status["executing_step"] = None
+        try:
+            write_runtime_status(self.save_dir, **status)
+        except OSError as exc:
+            # 进度文件是派生观测；权威事件和检查点的错误仍正常传播。
+            logger.warning("Runtime observation status could not be written: %s", exc)
+
+    def _write_jsonl(self, path: Path, payload: Dict[str, Any]) -> None:
+        if path.name == "events.jsonl" and payload.get("event"):
+            self._write_runtime_status(payload["event"])
+
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload, ensure_ascii=False, default=str) + "\n")

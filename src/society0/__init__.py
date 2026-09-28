@@ -4,8 +4,9 @@ from __future__ import annotations
 from importlib import import_module
 from typing import Any, Dict, Tuple, TYPE_CHECKING
 
-__version__ = "4.1.12"
+__version__ = "5.0.0"
 __all__ = [
+    "ObservationReader",
     "Society0",
     "LLMModel",
     "EmbedModel",
@@ -43,6 +44,7 @@ __all__ = [
 
 # 延迟导入映射，避免在包初始化阶段触发重量级依赖
 _LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
+    "ObservationReader": ("society0.observation", "ObservationReader"),
     "Society0": ("society0.society", "Society0"),
     "LLMModel": ("society0.models", "LLMModel"),
     "EmbedModel": ("society0.models", "EmbedModel"),

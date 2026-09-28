@@ -74,6 +74,12 @@ checkpoints/
 chroma_store/
 ```
 
+## Runtime observation
+
+Use the read-only observation service to inspect a running or completed experiment.
+The [runtime observation guide](docs/runtime-observation.md) includes the Python API,
+CLI and HTTP requests, checkpoint visibility, paging, and local index recovery.
+
 ## Step-local state and recovery
 
 Every executing step owns a `StepRuntimeScope`. Environments can access it through

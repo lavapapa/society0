@@ -565,3 +565,49 @@ async def test_source_restore_only_reads_source_tree(tmp_path):
         source_world.event_logger.close()
         source.close()
         destination.close()
+
+
+@pytest.mark.asyncio
+async def test_epoch_staging_failure_and_committed_cleanup_failure(tmp_path, monkeypatch):
+    from society0 import checkpoint_records
+    manager = PersistenceManager(str(tmp_path))
+    world = _world(tmp_path)
+    schedule = _configure(manager, world, checkpoint_every=2)
+    await manager.publish_root(world, schedule)
+    original = checkpoint_records.write_records
+    monkeypatch.setattr(checkpoint_records, 'write_records', lambda *_a, **_k: (_ for _ in ()).throw(OSError('stage failure')))
+    with pytest.raises(OSError, match='stage failure'):
+        await manager.publish_delta(_seal_delta(world, 1, price=11, fact_id='f1'), schedule)
+    assert manager._v4_store.available_steps() == [0]
+    assert manager._v4_epoch == []
+    monkeypatch.setattr(checkpoint_records, 'write_records', original)
+    await manager.publish_delta(_seal_delta(world, 2, price=12, fact_id='f2'), schedule)
+    assert not manager._v4_epoch[0].replacements
+    assert not manager._v4_epoch[0].appends
+    real_unlink = Path.unlink
+    def unlink(path, *args, **kwargs):
+        if path.parent.name == 'pending' and path.suffix == '.sqlite':
+            raise OSError('cleanup failure')
+        return real_unlink(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'unlink', unlink)
+    marker = await manager.publish_delta(_seal_delta(world, 3, price=13, fact_id='f3'), schedule)
+    assert marker['step'] == 3
+    assert manager._v4_store.restore(3)['environment']['state']['price'] == 13
+    _close(manager, world)
+
+
+@pytest.mark.asyncio
+async def test_epoch_merge_failure_keeps_previous_complete_step(tmp_path, monkeypatch):
+    from society0 import checkpoint_records
+    manager = PersistenceManager(str(tmp_path))
+    world = _world(tmp_path)
+    schedule = _configure(manager, world, checkpoint_every=2)
+    await manager.publish_root(world, schedule)
+    await manager.publish_delta(_seal_delta(world, 1, price=11, fact_id='f1'), schedule)
+    monkeypatch.setattr(checkpoint_records, 'merge_records', lambda *_: (_ for _ in ()).throw(OSError('merge failure')))
+    with pytest.raises(OSError, match='merge failure'):
+        await manager.publish_delta(_seal_delta(world, 2, price=12, fact_id='f2'), schedule)
+    assert manager._v4_store.available_steps() == [0]
+    assert manager._v4_store.restore(0)['environment']['state']['price'] == 10
+    assert manager._v4_epoch == []
+    _close(manager, world)

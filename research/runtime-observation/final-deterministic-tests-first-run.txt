@@ -1,0 +1,90 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 48%]
+........................................................................ [ 61%]
+........................................................................ [ 73%]
+.............................................................FF......... [ 85%]
+........................................................................ [ 97%]
+.............                                                            [100%]
+=================================== FAILURES ===================================
+____ test_json_containers_and_scalar_subclasses_keep_copy_and_serialization ____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x119162ea0>
+
+    def test_json_containers_and_scalar_subclasses_keep_copy_and_serialization(monkeypatch):
+        class IntSubclass(int):
+            pass
+    
+        original_copy = incremental_checkpoint.copy.deepcopy
+        original_dumps = incremental_checkpoint.json.dumps
+        copied_values: list[object] = []
+        serialized_values: list[object] = []
+    
+        def record_copy(value, *args, **kwargs):
+            copied_values.append(value)
+            return original_copy(value, *args, **kwargs)
+    
+        def record_dumps(value, *args, **kwargs):
+            serialized_values.append(value)
+            return original_dumps(value, *args, **kwargs)
+    
+        monkeypatch.setattr(incremental_checkpoint.copy, "deepcopy", record_copy)
+        monkeypatch.setattr(incremental_checkpoint.json, "dumps", record_dumps)
+    
+        container = {"items": [1]}
+        copied = incremental_checkpoint._json_copy(container)
+        subclass_value = IntSubclass(2)
+        incremental_checkpoint._json_copy(subclass_value)
+        incremental_checkpoint._validate_json_value(subclass_value)
+    
+        assert copied == container
+        assert copied is not container
+        assert copied["items"] is not container["items"]
+        assert container in copied_values
+        assert subclass_value in copied_values
+>       assert container in serialized_values
+E       AssertionError: assert {'items': [1]} in [2, 2]
+
+tests/primary/test_state_persistence_api_v4.py:225: AssertionError
+_________ test_json_proxy_values_keep_copy_and_serialization_fallback __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-83/test_json_proxy_values_keep_co0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x118b0ddf0>
+
+    def test_json_proxy_values_keep_copy_and_serialization_fallback(
+        tmp_path,
+        monkeypatch,
+    ):
+        schema = persistent_state_schema(payload=replaceable())
+        world = _world(tmp_path, {"payload": {"items": [1]}}, schema)
+        original_copy = incremental_checkpoint.copy.deepcopy
+        original_dumps = incremental_checkpoint.json.dumps
+        copied_values: list[object] = []
+        serialized_values: list[object] = []
+    
+        def record_copy(value, *args, **kwargs):
+            copied_values.append(value)
+            return original_copy(value, *args, **kwargs)
+    
+        def record_dumps(value, *args, **kwargs):
+            serialized_values.append(value)
+            return original_dumps(value, *args, **kwargs)
+    
+        monkeypatch.setattr(incremental_checkpoint.copy, "deepcopy", record_copy)
+        monkeypatch.setattr(incremental_checkpoint.json, "dumps", record_dumps)
+        try:
+            proxy = world.create_environment_state_proxy()["payload"]
+            copied = incremental_checkpoint._json_copy(proxy)
+            incremental_checkpoint._validate_json_value(proxy)
+    
+            assert copied == {"items": [1]}
+            assert proxy in copied_values
+>           assert copied in serialized_values
+E           AssertionError: assert {'items': [1]} in []
+
+tests/primary/test_state_persistence_api_v4.py:257: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_state_persistence_api_v4.py::test_json_containers_and_scalar_subclasses_keep_copy_and_serialization
+FAILED tests/primary/test_state_persistence_api_v4.py::test_json_proxy_values_keep_copy_and_serialization_fallback
+2 failed, 587 passed, 13 deselected in 29.84s

@@ -1,4 +1,4 @@
-"""Society0/SimEngine v4 运行时生命周期的红灯合同。
+"""Society0 v4 运行时生命周期的红灯合同。
 
 这些用例只使用 rule agent、CodeSchedule 和一个最小自定义环境；状态变更通过
 Environment/Agent 公开代理发生，预期由运行器自动完成 v4 schema bootstrap、
@@ -19,7 +19,6 @@ from society0 import Environment, Society0
 from society0.decorators import env_type
 from society0.env import BUILTIN_ENVS
 from society0.persistence import PersistenceManager
-from society0.sim_engine import SimEngine
 from society0.incremental_checkpoint import V4CheckpointStore
 
 
@@ -383,71 +382,3 @@ async def test_society0_cancelled_business_tick_does_not_publish_runtime_delta(t
     assert engine.current_world_state.get_step_runtime_scope() is None
     with pytest.raises(RuntimeError, match="失效|scope"):
         scope_holder[0].namespace("test")
-
-
-@pytest.mark.asyncio
-async def test_simengine_bootstraps_same_v4_layout_for_rule_schedule(tmp_path, monkeypatch):
-    monkeypatch.setitem(BUILTIN_ENVS, "runtime_checkpoint_v4_test", RuntimeCheckpointEnvironment)
-    experiment_root = tmp_path / "experiment"
-    experiment_root.mkdir()
-    (experiment_root / "agent_set.json").write_text(
-        json.dumps(
-            {
-                "types": [
-                    {
-                        "id": "worker",
-                        "archetype": "rule",
-                        "state_schema": _AGENT_STATE_SCHEMA,
-                    }
-                ],
-                "agents": [
-                    {"id": "worker-a", "type": "worker", "state": {"score": 0}}
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    (experiment_root / "environment.json").write_text(
-        json.dumps(
-            {
-                "type": "runtime_checkpoint_v4_test",
-                "config": {},
-                "state_schema": _STATE_SCHEMA,
-                "state": {"counter": 0, "events": [], "cursor": 0},
-            }
-        ),
-        encoding="utf-8",
-    )
-    schedule = {
-        "dependencies": {
-            "agent_set": "agent_set",
-            "environment": "environment",
-            "logics": [],
-        },
-        "nodes": [],
-    }
-
-    run_dir = tmp_path / "simengine-run"
-    engine = SimEngine(
-        save_dir=str(run_dir),
-        base_config={"schedule": schedule},
-        experiment_root=experiment_root,
-    )
-
-    class _FakeLLMManager:
-        async def request(self, _payload):
-            return {"role": "assistant", "content": "ok", "tool_calls": []}
-
-        async def close(self):
-            return None
-
-    # SimEngine's legacy initialization asks for an LLM callable even for a
-    # rule-only schedule; the fake is never invoked by this empty CodeSchedule.
-    engine.set_resource_managers(llm_manager=_FakeLLMManager())
-    try:
-        await engine.run(steps=1)
-    finally:
-        engine.close()
-
-    assert _v4_steps(run_dir) == [0, 1]
-    _assert_no_v3_recoverable_outputs(run_dir)

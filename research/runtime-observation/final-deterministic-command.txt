@@ -1,0 +1,3 @@
+SOCIETY0_RUN_REAL_E2E=0 PYTHONPATH=src /Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python -m pytest -o addopts='' -q -m 'not real_e2e'
+
+git diff --check

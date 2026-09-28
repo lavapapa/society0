@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import gzip
 import hashlib
+import heapq
+import shutil
 import json
 import math
 import os
@@ -12,6 +14,7 @@ import tempfile
 import time
 import uuid
 from collections.abc import Mapping
+from . import checkpoint_records
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -85,7 +88,7 @@ def _json_copy(value: Any) -> Any:
         return value
     try:
         copied = copy.deepcopy(value)
-        json.dumps(copied, ensure_ascii=False, allow_nan=False)
+        _validate_json_value(copied)
     except (TypeError, ValueError, OverflowError) as exc:
         raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
     return copied
@@ -94,14 +97,38 @@ def _json_copy(value: Any) -> Any:
 def _validate_json_value(value: Any) -> None:
     """只检查 JSON 兼容性，不为只读校验额外复制整棵子树。"""
 
-    if _validate_exact_json_scalar(value):
-        return
-    raw = getattr(value, "_target_dict", value)
-    raw = getattr(raw, "_target_list", raw)
-    try:
-        json.dumps(raw, ensure_ascii=False, allow_nan=False)
-    except (TypeError, ValueError, OverflowError) as exc:
-        raise TypeError(f"persistence value is not JSON-compatible: {value!r}") from exc
+    active: set[int] = set()
+
+    def visit(current):
+        current = getattr(current, "_target_dict", current)
+        current = getattr(current, "_target_list", current)
+        if _validate_exact_json_scalar(current) or isinstance(current, str):
+            return
+        if isinstance(current, (dict, list, tuple)):
+            identity = id(current)
+            if identity in active:
+                raise TypeError("persistence value contains a circular reference")
+            active.add(identity)
+            try:
+                if isinstance(current, dict):
+                    for key, item in current.items():
+                        if key is not None and not isinstance(key, (str, int, float, bool)):
+                            raise TypeError("persistence map key is not JSON-compatible")
+                        visit(key)
+                        visit(item)
+                else:
+                    for item in current:
+                        visit(item)
+            finally:
+                active.remove(identity)
+            return
+        # 大整数与数值子类沿用 JSON 标准编码器的边界检查，标量不建整树副本。
+        try:
+            json.dumps(current, ensure_ascii=False, allow_nan=False)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise TypeError("persistence value is not JSON-compatible") from exc
+
+    visit(value)
 
 
 def _freeze_json(value: Any) -> Any:
@@ -1160,7 +1187,7 @@ class V4CheckpointStore:
 
     VERSION = "complete_step_v4"
 
-    def __init__(self, root: str | Path, *, branch_id: str = "main"):
+    def __init__(self, root: str | Path, *, branch_id: str = "main", create: bool = True):
         if not isinstance(branch_id, str) or not branch_id or any(
             part in branch_id for part in ("/", "\\", "..")
         ):
@@ -1183,7 +1210,9 @@ class V4CheckpointStore:
             self.manifests_dir,
             self.complete_dir,
         ):
-            directory.mkdir(parents=True, exist_ok=True)
+            if create:
+                directory.mkdir(parents=True, exist_ok=True)
+        self.latest_file = self.complete_dir.parent / "latest.json"
         self.metrics = {"history_entries_read_while_publishing": 0}
         self._publishing = False
         # A newer marker can be present but damaged.  Do not let one bad
@@ -1250,18 +1279,38 @@ class V4CheckpointStore:
             temporary.unlink(missing_ok=True)
         return len(data)
 
-    def _write_gzip_component(
-        self,
-        directory: Path,
-        payload: Any,
-        name: str,
-    ) -> dict[str, Any]:
-        canonical = self._canonical_bytes(payload)
-        compressed = gzip.compress(canonical, compresslevel=6, mtime=0)
-        digest = self._sha256(compressed)
-        path = directory / name
-        written = self._atomic_write(path, compressed)
-        return {"path": self._relative(path), "sha256": digest, "bytes": written}
+    @staticmethod
+    def _file_sha256(path: Path) -> str:
+        # 沿用 v4 原有组件完整性合同，读取缓冲与文件长度无关。
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(65536), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    def _record_path(self, checkpoint_id: str) -> Path:
+        manifest = json.loads((self.manifests_dir / f"{checkpoint_id}.json").read_text())
+        if manifest.get("component_codec") != checkpoint_records.CODEC:
+            raise ValueError("unsupported checkpoint component codec")
+        return self.root / manifest["replacement_file"]
+
+    def read_operations(self, checkpoint_id: str, *, after_sequence: int = -1,
+                        limit: int = 100, max_bytes: int = 1048576,
+                        path: Sequence[str] | None = None) -> dict[str, Any]:
+        """读取一个完整 epoch 的可定位记录；超大正文返回引用。"""
+        result = checkpoint_records.read_page(self._record_path(checkpoint_id),
+            after_sequence=after_sequence, limit=limit, max_bytes=max_bytes, path_filter=path)
+        for record in result["records"]:
+            if "record_ref" in record:
+                record["record_ref"]["checkpoint_id"] = checkpoint_id
+        return result
+
+    def iter_operations(self, checkpoint_id: str):
+        yield from checkpoint_records.iter_records(self._record_path(checkpoint_id))
+
+    def iter_operation_bytes(self, checkpoint_id: str, sequence: int, *, offset=0, max_bytes=None):
+        yield from checkpoint_records.iter_record_bytes(self._record_path(checkpoint_id), sequence,
+                                                        offset=offset, max_bytes=max_bytes)
 
     def publish(
         self,
@@ -1270,9 +1319,11 @@ class V4CheckpointStore:
         checkpoint_id: str | None = None,
         thread_manifest: Mapping[str, Any] | None = None,
         memory_view: Mapping[str, Any] | None = None,
+        staged_records: Sequence[Path] | None = None,
     ) -> dict[str, Any]:
         return self._publish_delta(
             delta,
+            staged_records=staged_records,
             checkpoint_id=checkpoint_id,
             thread_manifest=thread_manifest,
             memory_view=memory_view,
@@ -1301,7 +1352,7 @@ class V4CheckpointStore:
             step=0,
             # 根条目来自 manager 已经脱离 World 的普通快照，发布调用又在
             # 当前 worker 内同步消费；这里无需再冻结、解冻整棵初始状态。
-            replacements=tuple(dict(entry) for entry in entries),
+            replacements=entries,
             appends=(),
         )
         return self._publish_delta(
@@ -1322,7 +1373,21 @@ class V4CheckpointStore:
 
         if branch_id == self.branch_id:
             raise ValueError("fork branch_id must differ from its source")
-        source = self.resolve(step)
+        marker = self._read_marker(step)
+        chain = self._manifest_chain(step)
+        parent_state = "0" * 64
+        for manifest in chain:
+            if manifest.get("component_codec") != checkpoint_records.CODEC:
+                raise ValueError("unsupported checkpoint component codec")
+            parent_state = self._validate_state_link(manifest, parent_state)
+            component = self.root / manifest["replacement_file"]
+            if self._file_sha256(component) != manifest["replacement_sha256"]:
+                raise ValueError("replacement content hash mismatch")
+            if manifest.get("thread_manifest"):
+                from .agent.thread_store import AgentThreadStore
+                AgentThreadStore.validate_tick_manifest_from(self.root, manifest["thread_manifest"],
+                    expected_checkpoint_id=manifest["checkpoint_id"], expected_step=manifest["step"])
+        source = {"marker": marker, "manifest": chain[-1], "checkpoint_id": marker["checkpoint_id"]}
         branch = type(self)(self.root, branch_id=branch_id)
         if branch.available_steps():
             raise ValueError(f"branch already exists: {branch_id}")
@@ -1335,6 +1400,7 @@ class V4CheckpointStore:
         }
         marker_path = branch.complete_dir / f"step_{step:06d}.json"
         branch._atomic_write(marker_path, branch._canonical_bytes(marker))
+        branch._atomic_write(branch.latest_file, branch._canonical_bytes(marker))
         branch._latest_step = step
         branch._latest_checkpoint_id = source["checkpoint_id"]
         branch._latest_state_sha256 = marker["state_sha256"]
@@ -1345,6 +1411,7 @@ class V4CheckpointStore:
         self,
         delta: SealedTickDelta,
         *,
+        staged_records: Sequence[Path] | None = None,
         root_metadata: Mapping[str, Any] | None = None,
         checkpoint_id: str | None = None,
         thread_manifest: Mapping[str, Any] | None = None,
@@ -1372,39 +1439,16 @@ class V4CheckpointStore:
                 else (self._run_id or uuid.uuid4().hex)
             )
 
-            replacement_payload = {
-                "checkpoint_id": checkpoint_id,
-                "step": delta.step,
-                "entries": list(delta.replacements),
-            }
-            replacement = self._write_gzip_component(
-                self.replacements_dir,
-                replacement_payload,
-                f"{checkpoint_id}.json.gz",
-            )
-            bytes_written += replacement["bytes"]
-
+            record_path = self.replacements_dir / f"{checkpoint_id}.sqlite"
+            if staged_records:
+                count = checkpoint_records.merge_records(record_path, staged_records)
+            else:
+                count = checkpoint_records.write_records(record_path,
+                    heapq.merge(delta.replacements, delta.appends, key=lambda item: item.get("sequence", 0)))
+            replacement = {"path": self._relative(record_path),
+                           "sha256": self._file_sha256(record_path)}
+            bytes_written += record_path.stat().st_size
             segments = []
-            if delta.appends:
-                segment_payload = {
-                    "checkpoint_id": checkpoint_id,
-                    "step": delta.step,
-                    "entries": list(delta.appends),
-                }
-                segment_bytes = gzip.compress(
-                    self._canonical_bytes(segment_payload), compresslevel=6, mtime=0
-                )
-                segment_hash = self._sha256(segment_bytes)
-                segment_path = self.segments_dir / f"{segment_hash}.json.gz"
-                if not segment_path.exists():
-                    bytes_written += self._atomic_write(segment_path, segment_bytes)
-                segments.append(
-                    {
-                        "path": self._relative(segment_path),
-                        "sha256": segment_hash,
-                        "entry_count": len(delta.appends),
-                    }
-                )
 
             state_material = {
                 "parent_state_sha256": parent_state_sha256,
@@ -1428,6 +1472,8 @@ class V4CheckpointStore:
                 "branch_id": self.branch_id,
                 "parent_checkpoint_id": parent_manifest,
                 "replacement_file": replacement["path"],
+                "component_codec": checkpoint_records.CODEC,
+                "record_count": count,
                 "replacement_sha256": replacement["sha256"],
                 "new_segments": segments,
                 "state_sha256": state_sha256,
@@ -1474,6 +1520,11 @@ class V4CheckpointStore:
                 if not marker_path.is_file() or marker_path.read_bytes() != marker_bytes:
                     raise
                 bytes_written += len(marker_bytes)
+            # marker 已提交；latest 是可重建定位投影，失败不撤销完整步骤。
+            try:
+                self._atomic_write(self.latest_file, marker_bytes)
+            except OSError:
+                marker["latest_pointer_pending"] = True
             self._latest_step = delta.step
             self._latest_checkpoint_id = checkpoint_id
             self._latest_state_sha256 = state_sha256
@@ -1650,10 +1701,40 @@ class V4CheckpointStore:
         else:
             raise ValueError(f"unsupported state operation: {kind}")
 
+    def _validate_state_link(self, manifest, parent_state):
+        expected_state = self._sha256(
+            self._canonical_bytes(
+                {
+                    "parent_state_sha256": parent_state,
+                    "replacement_sha256": manifest["replacement_sha256"],
+                    "segment_sha256": [segment["sha256"] for segment in manifest["new_segments"]],
+                    "branch_id": manifest.get("branch_id", "main"),
+                    "thread_manifest_sha256": (
+                        str(manifest["thread_manifest"].get("sha256"))
+                        if isinstance(manifest.get("thread_manifest"), Mapping)
+                        else None
+                    ),
+                    "memory_view": manifest.get("memory_view") or {},
+                    "annotations": manifest.get("annotations") or {},
+                }
+            )
+        )
+        if expected_state != manifest["state_sha256"]:
+            raise ValueError("state hash chain mismatch")
+        return expected_state
+
     def restore(self, step: int) -> dict[str, Any]:
         state: dict[str, Any] = {}
         parent_state = "0" * 64
         chain = self._manifest_chain(step)
+        base = (chain[0].get("root_metadata") or {}).get("base_checkpoint") if chain else None
+        if base:
+            source_root = (self.root / base["source_root"]).resolve()
+            source = type(self)(source_root, branch_id=base.get("branch_id", "main"), create=False)
+            source_marker = source._read_marker(int(base["step"]))
+            if source_marker["checkpoint_id"] != base["checkpoint_id"]:
+                raise ValueError("base checkpoint identity mismatch")
+            state = source.restore(int(base["step"]))
         for manifest in chain:
             thread_manifest = manifest.get("thread_manifest")
             if isinstance(thread_manifest, Mapping):
@@ -1665,48 +1746,20 @@ class V4CheckpointStore:
                     expected_checkpoint_id=manifest["checkpoint_id"],
                     expected_step=manifest["step"],
                 )
-            replacement = self._read_json_component(
-                manifest["replacement_file"],
-                manifest["replacement_sha256"],
-                "replacement",
-            )
-            operations = list(replacement["entries"])
-            segment_hashes = []
-            for segment in manifest["new_segments"]:
-                payload = self._read_json_component(
-                    segment["path"], segment["sha256"], "segment"
-                )
-                if len(payload["entries"]) != segment["entry_count"]:
-                    raise ValueError("segment entry count mismatch")
-                operations.extend(payload["entries"])
-                segment_hashes.append(segment["sha256"])
-            # Delta entries share one monotonic sequence domain, even though
-            # replacements and append segments are stored separately.  Apply
-            # them in that original order when operations from a tick are
-            # interleaved.
-            operations.sort(key=lambda operation: operation.get("sequence", 0))
-            for operation in operations:
+            if manifest.get("component_codec") != checkpoint_records.CODEC:
+                raise ValueError("unsupported checkpoint component codec")
+            component_path = self.root / manifest["replacement_file"]
+            if not component_path.is_file():
+                raise FileNotFoundError(f"replacement missing: {component_path}")
+            if self._file_sha256(component_path) != manifest["replacement_sha256"]:
+                raise ValueError("replacement content hash mismatch")
+            count = 0
+            for operation in checkpoint_records.iter_records(component_path):
                 self._apply(state, operation)
-            expected_state = self._sha256(
-                self._canonical_bytes(
-                    {
-                        "parent_state_sha256": parent_state,
-                        "replacement_sha256": manifest["replacement_sha256"],
-                        "segment_sha256": segment_hashes,
-                        "branch_id": manifest.get("branch_id", "main"),
-                        "thread_manifest_sha256": (
-                            str(manifest["thread_manifest"].get("sha256"))
-                            if isinstance(manifest.get("thread_manifest"), Mapping)
-                            else None
-                        ),
-                        "memory_view": manifest.get("memory_view") or {},
-                        "annotations": manifest.get("annotations") or {},
-                    }
-                )
-            )
-            if expected_state != manifest["state_sha256"]:
-                raise ValueError("state hash chain mismatch")
-            parent_state = expected_state
+                count += 1
+            if count != manifest["record_count"]:
+                raise ValueError("checkpoint record count mismatch")
+            parent_state = self._validate_state_link(manifest, parent_state)
 
         # Transient values are absent from replacement/segment files.  The
         # root manifest carries their schema defaults so the low-level store
@@ -1781,6 +1834,117 @@ class V4CheckpointStore:
             annotations.update(copy.deepcopy(manifest.get("annotations") or {}))
         return annotations
 
+    def export_bundle(self, destination: str | Path, step: int | None = None, *, mode="analysis") -> Path:
+        """导出自包含状态与 Thread；restore 模式还要求记忆数据库写者已退出。"""
+        if mode not in {"analysis", "restore"}:
+            raise ValueError("bundle mode must be analysis or restore")
+        destination = Path(destination).resolve()
+        if destination.exists():
+            raise FileExistsError(destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = Path(tempfile.mkdtemp(prefix=f".{destination.name}.", dir=destination.parent))
+        exported = {}
+
+        def copy_file(root, target, relative):
+            output = target / relative
+            output.parent.mkdir(parents=True, exist_ok=True)
+            if not output.exists():
+                shutil.copyfile(root / relative, output)
+                with output.open("rb") as handle:
+                    os.fsync(handle.fileno())
+
+        def copy_run(store, selected_step, target):
+            key = (str(store.root.resolve()), store.branch_id, selected_step)
+            if key in exported:
+                return exported[key]
+            exported[key] = target
+            target.mkdir(parents=True, exist_ok=True)
+            chain = store._manifest_chain(selected_step)
+            has_memory = any((item.get("memory_view") or {}).get("write_epoch_ids") for item in chain)
+            chroma = store.root / "chroma_store"
+            if mode == "restore" and (has_memory or (chroma.exists() and any(chroma.iterdir()))):
+                status_file = store.root / "runtime-status.json"
+                status = json.loads(status_file.read_text()) if status_file.exists() else {}
+                if status.get("phase") not in {"run_completed", "run_failed"}:
+                    raise RuntimeError("memory restore bundle requires a finished offline writer")
+                pid = status.get("producer_pid")
+                if not isinstance(pid, int) or pid <= 0:
+                    raise RuntimeError("memory restore bundle requires an identified writer PID")
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    pass
+                else:
+                    raise RuntimeError("memory restore bundle requires the writer process to exit")
+                if not chroma.exists():
+                    raise FileNotFoundError("checkpoint memory database missing")
+                shutil.copytree(chroma, target / "chroma_store")
+            manifest_bytes = {}
+            for original in chain:
+                manifest = dict(original)
+                metadata = dict(manifest.get("root_metadata") or {})
+                base = metadata.get("base_checkpoint")
+                if base:
+                    source = type(store)((store.root / base["source_root"]).resolve(),
+                                         branch_id=base.get("branch_id", "main"), create=False)
+                    if source._read_marker(int(base["step"]))["checkpoint_id"] != base["checkpoint_id"]:
+                        raise ValueError("base checkpoint identity mismatch")
+                    dependency_target = temporary / "dependencies" / str(len(exported))
+                    dependency_target = copy_run(source, int(base["step"]), dependency_target)
+                    metadata["base_checkpoint"] = {**base, "source_root": os.path.relpath(dependency_target, target)}
+                    manifest["root_metadata"] = metadata
+                copy_file(store.root, target, manifest["replacement_file"])
+                for annotation in (manifest.get("annotations") or {}).values():
+                    if isinstance(annotation, Mapping) and annotation.get("dataset") == "society0_records_v1":
+                        copy_file(store.root, target, annotation["path"])
+                descriptor = manifest.get("thread_manifest") or {}
+                if descriptor:
+                    relative = descriptor.get("relative_path") or descriptor["path"]
+                    copy_file(store.root, target, relative)
+                    thread_manifest = json.loads((store.root / relative).read_text())
+                    for thread_id, reference in (thread_manifest.get("threads") or {}).items():
+                        thread_path = reference["path"]
+                        copy_file(store.root, target, thread_path)
+                        offsets = str(Path(thread_path).with_suffix(".offsets"))
+                        if (store.root / offsets).exists():
+                            copy_file(store.root, target, offsets)
+                        locator = f"agent_threads/locators/{thread_id}.json"
+                        if (store.root / locator).exists():
+                            copy_file(store.root, target, locator)
+                        with (store.root / thread_path).open() as handle:
+                            for line in handle:
+                                blob = (json.loads(line).get("payload_ref") or {}).get("path")
+                                if blob:
+                                    copy_file(store.root, target, blob)
+                raw = store._canonical_bytes(manifest)
+                relative = f"checkpoints/v4/manifests/{manifest['checkpoint_id']}.json"
+                store._atomic_write(target / relative, raw)
+                manifest_bytes[manifest["checkpoint_id"]] = raw
+            marker = dict(store._read_marker(selected_step))
+            marker["manifest_sha256"] = store._sha256(manifest_bytes[marker["checkpoint_id"]])
+            complete_relative = store.complete_dir.relative_to(store.root) / f"step_{selected_step:06d}.json"
+            store._atomic_write(target / complete_relative, store._canonical_bytes(marker))
+            store._atomic_write(target / store.latest_file.relative_to(store.root), store._canonical_bytes(marker))
+            return target
+
+        try:
+            if step is None:
+                steps = self.available_steps()
+                if not steps:
+                    raise FileNotFoundError("no complete checkpoints")
+                step = steps[-1]
+            copy_run(self, step, temporary)
+            self._atomic_write(temporary / "bundle.json", self._canonical_bytes({
+                "schema_version": 1, "mode": mode, "full_restore": mode == "restore",
+                "step": step, "branch_id": self.branch_id,
+                "scope": ["state", "threads", "datasets"] + (["memory"] if mode == "restore" else []),
+            }))
+            temporary.replace(destination)
+            return destination
+        finally:
+            if temporary.exists():
+                shutil.rmtree(temporary)
+
     def cleanup_orphans(self) -> list[str]:
         """删除没有被任何完整 marker 引用的 v4 组件。"""
 
@@ -1823,6 +1987,7 @@ class V4CheckpointStore:
         candidates = (
             list(self.manifests_dir.glob("*.json"))
             + list(self.replacements_dir.glob("*.json.gz"))
+            + list(self.replacements_dir.glob("*.sqlite"))
             + list(self.segments_dir.glob("*.json.gz"))
             + list((self.root / "agent_threads" / "manifests").glob("*.json"))
         )

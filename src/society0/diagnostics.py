@@ -7,10 +7,15 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 
-def load_run_summary(run_dir: str | Path) -> Dict[str, Any]:
+def load_run_summary(run_dir: str | Path, *, include_history: bool = False) -> Dict[str, Any]:
     """Load ``summary.json`` from a completed Society0 run directory."""
     summary_path = Path(run_dir) / "summary.json"
-    return json.loads(summary_path.read_text(encoding="utf-8"))
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    if include_history:
+        from .result_datasets import load_history
+
+        return load_history(run_dir, summary)
+    return summary
 
 
 def render_runtime_diagnostic_report(run_dir_or_summary: str | Path | Mapping[str, Any]) -> str:
@@ -23,7 +28,7 @@ def render_runtime_diagnostic_report(run_dir_or_summary: str | Path | Mapping[st
     summary = (
         dict(run_dir_or_summary)
         if isinstance(run_dir_or_summary, Mapping)
-        else load_run_summary(run_dir_or_summary)
+        else load_run_summary(run_dir_or_summary, include_history=True)
     )
 
     lines: List[str] = ["# Society0 Runtime Diagnostic Report", ""]
