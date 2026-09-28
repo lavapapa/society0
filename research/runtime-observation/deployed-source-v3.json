@@ -7,5 +7,8 @@
     "src": 57,
     "tests": 59
   },
-  "binding": "Source and test files in the Git commit containing this report; no source changes after this comparison"
+  "binding": "Source and test files in the Git commit containing this report; no source changes after this comparison",
+  "implementation_commit": "f646b0ba59a44ba4188e0e7e45f184a4e4cad5f4",
+  "remote_branch": "origin/codex/society0-runtime-observation",
+  "implementation_remote_exact_head": true
 }

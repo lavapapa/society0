@@ -31,6 +31,6 @@ v3 对同一原始 root 和原 schema 重新发布完整状态，组件为 332.9
 
 新目录 `runtime-observation-storage-20260929/converted-state-v3` 的完整 checkpoint 为 `f3284ea9d83646928d24178aa9848ebe`。独立新进程 metadata resolve 为 0.370 秒、峰值 46.37 MB；完整恢复为 34.117 秒、峰值和保留均约 5.638 GB。与 v2 恢复基本相同；相对旧原格式，消除了恢复过程约一份状态的临时峰值，常驻 World 仍保持完整内容。见[身份读取](real-state-resolve-v3.json)与[恢复](real-state-restore-v3.json)。
 
-v3 与原始状态完整逐值比较再次通过，见[完整等值](real-state-verify-v3.json)。比较阶段为 40.494 秒，另有原 gzip 解码准备阶段；同时保有两份状态约 10.219 GB 属于测试比较开销。最终查询布局的冷建立、并行 status 与热页记录由查询专项报告归档。
+v3 与原始状态完整逐值比较再次通过，见[完整等值](real-state-verify-v3.json)。比较阶段为 40.494 秒，另有原 gzip 解码准备阶段；同时保有两份状态约 10.219 GB 属于测试比较开销。最终查询布局的冷建立、并行 status 与热页记录见[最终 HTTP 实测](query-real-v3-http-final.json)与[查询专项报告](query-real-mechanism-20260929.md)。
 
 本组证据支持有界编码和独立观察读取，能够具体区分临时副本、完整活动状态以及派生索引的成本。状态数据中约九成为原 schema 的 replaceable 项，进一步降低其常驻内存需要单独验证按需访问后端与产业投影的使用方式，本轮未改变这些业务语义。
