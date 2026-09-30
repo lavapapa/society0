@@ -1,7 +1,7 @@
 interface:
   display_name: "Society0"
-  short_description: "Design env-first Society0 simulations from observations or papers."
-  default_prompt: "Use $society0 to turn my social science observation or simulation paper into an env-first runnable Society0 experiment."
+  short_description: "Guide LLM-Agent simulations and Society0 onboarding."
+  default_prompt: "Use $society0 and offer numbered paths to start an LLM-Agent social simulation, learn Society0 step by step, adapt a paper, or inspect an existing experiment."
 
 policy:
   allow_implicit_invocation: true

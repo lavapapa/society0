@@ -1,6 +1,6 @@
 # Study Patterns
 
-Use this reference when a researcher has a broad social phenomenon but not yet a runnable Society0 design. Treat these as starting patterns, not promises that every environment is built in.
+Use this reference when a researcher has a broad social phenomenon but has not yet shaped it into a concrete Society0 study. Treat these as starting patterns, not promises that every environment is built in.
 
 ## Communication And Platform Visibility
 
