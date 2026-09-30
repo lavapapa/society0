@@ -145,7 +145,7 @@ Do not use hooks to hide the main experimental mechanism. A researcher-facing ru
 
 Use for:
 
-- first runnable experiments.
+- first experiments.
 - survey/interview prototypes.
 - deterministic rule baselines.
 - experiments where the step function directly updates state.

@@ -8,10 +8,12 @@ The intended workflow is agent-assisted: researchers can use their own coding ag
 
 ## For Agent
 
-You can copy this into your coding agent:
+Install the [`skill/`](skill/) directory as a skill using your coding agent's instructions; the exact steps depend on the agent. This prompt starts the first-use conversation. The `pip install -e .` command in Quick Start installs the separate Python simulation engine, not the skill.
+
+After installing the Society0 skill in your coding agent, copy this prompt to choose how you want to begin:
 
 ```text
-Open https://github.com/lavapapa/society0/blob/main/README.md, install the Society0 skill, configure the environment, and guide me in stages to understand Society0, design my own simulation experiment, run it, and interpret the outputs.
+I am new to Society0. Offer me numbered paths to (1) start an LLM-Agent social simulation from my research question, (2) learn how Society0 works step by step, (3) adapt a paper, or (4) understand an existing project or run. Let me choose or describe another starting point, explain ideas in plain language, and help me set up only what my chosen path needs.
 ```
 
 Agents reading this repository directly should start from [skill/SKILL.md](skill/SKILL.md).
@@ -20,10 +22,11 @@ Agents reading this repository directly should start from [skill/SKILL.md](skill
 
 - Python `>=3.12`.
 - A coding agent that can read and edit a local repository, such as Codex, Claude Code, Gemini, CodeWhale, or another capable coding assistant.
-- An LLM provider, such as OpenAI, Ollama, Grok, Qwen, Claude-compatible routes, OpenRouter, SiliconFlow, or another OpenAI-compatible endpoint.
-- An embedding model. The engine does not require a specific model size.
+- For LLM-Agent experiments, an LLM provider and an embedding model. The engine does not require a specific embedding-model size. Rule-based experiments do not need model endpoints.
 
 ## Quick Start
+
+This example uses rule-based agents to show the engine structure without model endpoints. For a study where LLM Agents make decisions, continue to [LLM Agents](#llm-agents).
 
 ```bash
 cd society0core
