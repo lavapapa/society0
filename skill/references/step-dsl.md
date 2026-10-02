@@ -68,14 +68,21 @@ Call `.ids()` when you need stable ids for tables or direct state edits.
 Use `instruct` for behavior rounds where LLM agents may act.
 
 ```python
+thread_ids = {
+    agent_id: ctx.log.open_agent_thread(
+        agent_id=agent_id, checkpoint_step=ctx.step + 1,
+        scope={"kind": "feed_interaction", "tick": ctx.step},
+    )
+    for agent_id in users.ids()
+}
 result = await users.instruct(
     "浏览信息流，并决定是否点赞、评论、转发或发帖。",
     fovs=["recommended_feed"],
     actions=["environment", "memory"],
     output=ActionSchema,
-    memory=True,
+    retrieve_memory=True,
     memory_top_k=5,
-    extract_memory=True,
+    thread_ids_by_agent=thread_ids,
     model=None,
     max_tokens=120,
     temperature=0,
@@ -83,6 +90,14 @@ result = await users.instruct(
     name="feed_interaction",
     reasoning_stages=[{"name": "判断", "desc": "先判断信息可信度，再决定行动。"}],
 )
+if result.error_count:
+    raise RuntimeError(result.error_samples())
+memories = await users.extract_thread_memories(
+    thread_ids, timestamp=ctx.step,
+    idempotency_key=f"feed:{ctx.step}", name="remember_feed",
+)
+if memories.error_count:
+    raise RuntimeError(memories.error_samples())
 ```
 
 Parameters:
@@ -91,9 +106,9 @@ Parameters:
 - `fovs`: environment views to include.
 - `actions`: action tag filter; use `None` for default non-memory actions.
 - `output`: Pydantic model, dict schema, or `None`.
-- `memory`: retrieve and save memory when true.
+- `retrieve_memory`: retrieve existing memories; default `True`. This does not save the current interaction.
 - `memory_top_k`: maximum memories retrieved per agent when memory is enabled. Default is `10`; use a smaller value such as `3` or `5` for pilots, surveys, or large agent batches.
-- `extract_memory`: whether Society0 uses an additional LLM pass to save structured episodic memories. Default is `True` when `memory=True`; set `False` only for an explicitly lightweight pilot where the user accepts less faithful memory.
+- `thread_ids_by_agent`: optional map from each selected agent ID to an open Agent Thread. Use it when continuing an interaction or explicitly saving this round's experience.
 - `model`: optional model id.
 - `max_tokens`: optional cap for each LLM response in this operation. For action-only rounds, set a small value such as `80` or `120`; tool-call capable models otherwise may spend seconds generating unnecessary text.
 - `temperature`, `top_p`, `timeout`: optional per-operation LLM request controls.
@@ -107,7 +122,7 @@ Parameters:
 - `required_actions`: optional action names that must be successfully called by each selected agent for that agent record to count as success. Use this when the experiment design requires a concrete behavior, not just a valid LLM response. When turns remain, Society0 reminds the model to correct a missing required action instead of silently accepting a text-only answer.
 - `required_action_tags`: optional action tags that must be successfully called by each selected agent for that agent record to count as success. Use this when the exact action may vary but the behavior category is required. When turns remain, Society0 also reminds the model to satisfy a missing required tag.
 
-During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. If an action filter matches no available action, treat that as a configuration error: a FoV belongs in `fovs=[...]`, a rule belongs in `ctx.rule(...)`, and a behavior belongs in `ctx.behavior(...)` or `AgentGroup.behavior(...)`. Do not "fix" this by directly mutating state or bypassing the LLM tool loop when the study is about agent behavior. Use `actions=["memory"]` only when the study explicitly wants agents to call memory tools themselves; `memory=True` already performs framework-managed retrieval and saving.
+During prototypes, use `actions=None` to expose available non-memory actions. Narrow later with `actions=["environment"]` or exact action names after checking the env source or run logs. If an action filter matches no available action, treat that as a configuration error: a FoV belongs in `fovs=[...]`, a rule belongs in `ctx.rule(...)`, and a behavior belongs in `ctx.behavior(...)` or `AgentGroup.behavior(...)`. Use `actions=["memory"]` when autonomous memory-tool use is part of the study. Framework-managed retrieval and explicit thread extraction can be used with ordinary environment actions.
 
 Use terminal actions for explicit endpoints, not for performance shortcuts. Good examples are actions such as `submit_final_decision`, `cast_vote`, `leave_round`, or `submit_survey_response` when the experiment defines those as final acts in the current instruction.
 
@@ -116,7 +131,7 @@ decisions = await users.instruct(
     "Review the proposal, then submit your final decision for this round.",
     actions=["submit_final_decision"],
     output=None,
-    memory=False,
+    retrieve_memory=True,
     terminal_actions=["submit_final_decision"],
     max_turns=3,
 )
@@ -175,7 +190,6 @@ survey = await users.interview(
     output=TrustSurvey,
     retrieve_memory=True,
     memory_top_k=3,
-    save_memory=False,
     max_tokens=80,
     temperature=0,
     max_turns=2,
@@ -184,9 +198,13 @@ survey = await users.interview(
 )
 ```
 
-`interview` intentionally does not expose ordinary actions. It defaults to reading memory but not writing memory, which preserves a measurement-oriented meaning. Structured interview output still uses the agent's submit-result action loop by default; direct JSON output is a lower-fidelity optimization that should only be enabled explicitly in low-level code when the researcher accepts that tradeoff. For large surveys, lower `memory_top_k` first before increasing model concurrency; unnecessary memory snippets increase prompt size for every selected agent.
+`interview` defaults to reading memory and keeps the measurement outside durable memory. Set `retrieve_memory=False` for an explicitly independent survey. Structured output uses the submit-result action loop. If the study requires saving a measurement as an experience, open a thread, pass `thread_ids_by_agent`, and explicitly extract it afterward. For large surveys, inspect how retrieved memories affect the measurement and prompt size before changing `memory_top_k`.
 
 For surveys and other bounded measurements, set `max_tokens` deliberately. A short structured answer rarely needs a large generation budget, and lower caps make real provider latency easier to control.
+
+## Explicit Experience Memory
+
+`extract_thread_memories(thread_ids_by_agent, timestamp=ctx.step, idempotency_key=..., name=...)` performs an additional LLM extraction over the original thread, writes episodic memories and the commit receipt, and closes the thread. The map must match the selected group's IDs. Read `error_count`, `error_samples()` and the returned table. The same extraction key supports retrying the same commit; distinct rounds use distinct keys. Automatically created interaction threads provide traces, while explicit threads allow behavior and extraction to share a single recorded sequence. The complete two-tick pattern is in `../assets/minimal_experiment.py`.
 
 ## Concurrency
 

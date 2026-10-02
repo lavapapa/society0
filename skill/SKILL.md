@@ -9,7 +9,11 @@ Use this skill to help researchers translate a social-science question or paper 
 
 For a first-time or undecided user, or whenever someone asks to learn Society0, read [references/researcher-onboarding.md](references/researcher-onboarding.md) and offer its numbered starting paths. Do not assume the user already has a research question or force a tutorial when they ask for a specific task. In the step-by-step learning path, explain one idea at a time and end each teaching response with at least three relevant next questions under “你可能还想问：” when speaking Chinese; localize that label and the suggestions to the user's language. Before a formal experiment, ask whether the researcher wants a token-and-cost estimate; follow the onboarding guide only if they opt in.
 
-For new or complex designs, strongly prefer reading `references/founder-experience.md` before designing agents, writing code, or loading discipline-specific guides. Then load the relevant domain guide. The founder notes are the cross-domain guardrail for avoiding traditional ABM drift, prompt-only worldbuilding, over-structured event schemas, hidden macro assumptions, and scale before mechanism.
+For substantive new designs, paper adaptation, or complex mechanisms, read `references/founder-experience.md`, then the matching domain guide. The founder notes address evidence boundaries, subject layers, env-hosted consequences, and scale discipline. A simple introductory pilot can start from the operating loop below and the complete starter; load larger references when the question needs their methods.
+
+Before the first implementation or run, read [references/runtime-quickstart.md](references/runtime-quickstart.md). Adapt [assets/minimal_experiment.py](assets/minimal_experiment.py), which includes declared state, a real action loop, explicit thread-memory extraction, and measurement. Check the installed runtime's signatures once, reuse its existing environment, then initialize the configuration and run a small pilot. Domain code sketches require their own environment capabilities; use the complete starter for runtime wiring.
+
+Keep first-use reading focused: onboarding for learning, runtime quickstart plus the starter for a small first pilot, and workbench guide when a workbench is requested. Read `step-dsl.md`, agent/environment guides, or a domain guide to resolve a specific modeling or API question. Avoid loading the entire reference library for a two-tick introduction.
 
 ## Operating Loop
 
@@ -28,7 +32,7 @@ For new or complex designs, strongly prefer reading `references/founder-experien
 7. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
 8. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden. After running, verify batch-level `concurrency` and `concurrency_source` in `summary.json`.
 9. For LLM action rounds and surveys, set a bounded `max_tokens` when the expected response is short, and inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
-10. Treat memory as part of the simulation, not a speed optimization target. `memory=True` retrieves memory and saves extractive memory by default; use `extract_memory=False` only when the user explicitly accepts a lightweight pilot that is less faithful.
+10. Treat memory as part of the simulation. `retrieve_memory=True` retrieves existing experience; durable writes are explicit. Open an Agent Thread, pass `thread_ids_by_agent` to the behavior round, then call `extract_thread_memories(...)` after it succeeds. Include extraction in the cost estimate and verify its result separately. See `references/step-dsl.md` and the complete starter.
 11. Treat the tool/action loop as part of the model of the social situation. Do not replace an action-bearing `instruct` round with direct JSON output just to reduce latency; use direct structured output only for action-free measurement tasks.
 12. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
 13. Create one clean experiment folder per study. Strongly prefer a `versions/<version-id>/` folder for each experiment configuration, with its `runs/<run-id>/` folders inside; keep analysis and the workbench at the study level. Existing layouts may be retained when reorganizing them would disrupt the study. This is a researcher-facing organization convention, not a Society0 runtime requirement. Never overwrite an earlier configuration or mix its run outputs with a later version. Read [references/workbench-guide.md](references/workbench-guide.md) for the layout and conversion contract when a workbench is requested.
@@ -42,7 +46,7 @@ For new or complex designs, strongly prefer reading `references/founder-experien
 
 Treat the researcher as the domain expert and the agent as the technical assistant. Ask for the observed phenomenon, social setting, actors, information flow, possible actions, and intended measurements; translate those into env, agents, steps, and outputs without forcing the user to learn framework internals. Before each run, summarize the experiment in everyday research language, including provider readiness and concurrency: "This run will let up to N LLM agents think at the same time." After each run, explain both quantitative metrics and qualitative traces, and clearly separate simulation output from empirical evidence.
 
-Keep the todo list visible and update it as work progresses. The todo list should help the researcher see where they are in the experimental workflow, not expose incidental coding chores.
+Keep progress visible in a short researcher-facing status. First studies need a concise design summary and a small pilot; create a longer design document when its complexity warrants it or the researcher asks. Resolve routine implementation choices from the accepted design and ask about choices that change the research question, mechanism, or interpretation. A model's stated reasons are qualitative clues; causal attribution requires controls and repeated observations.
 
 ## Minimal Entrypoints
 
@@ -52,15 +56,23 @@ Imports:
 from society0 import EmbedModel, LLMModel, Society0
 ```
 
-Base config:
+For a complete first experiment, copy `assets/minimal_experiment.py` to the chosen version directory and adapt its configuration, FoV, action, and measurement. It supports initialization-only checking and a two-tick pilot. See `references/runtime-quickstart.md` for provider setup and commands.
+
+Every custom state field needs a schema and a persistence declaration. For example:
 
 ```python
 config = {
-    "agent_types": [{"id": "reader", "archetype": "llm"}],
+    "agent_types": [{"id": "reader", "archetype": "llm", "state_schema": {
+        "type": "object", "additionalProperties": False,
+        "properties": {"trust": {"type": "number", "persistence": {"kind": "replaceable"}}},
+    }}],
     "agents": [
         {"id": "alice", "type": "reader", "persona": "A skeptical reader.", "state": {"trust": 0.45}}
     ],
-    "environment": {"type": "plain", "state": {"topic": "misinformation"}},
+    "environment": {"type": "plain", "state": {"topic": "misinformation"}, "state_schema": {
+        "type": "object", "additionalProperties": False,
+        "properties": {"topic": {"type": "string", "persistence": {"kind": "replaceable"}}},
+    }},
 }
 ```
 
@@ -97,6 +109,12 @@ Do not reuse a run directory for a different experiment or model setup. Run arti
 Code step:
 
 ```python
+from pydantic import BaseModel, Field
+
+class TrustSurvey(BaseModel):
+    trust_score: int = Field(ge=1, le=7)
+    reason: str
+
 @engine.step(name="measure_trust")
 async def measure_trust(ctx):
     users = ctx.agents.where(type="reader")
@@ -128,6 +146,7 @@ async def rule_update(ctx):
 - `references/step-dsl.md`: CodeSchedule, StepContext, AgentGroup, instruct/interview, results, outputs.
 - `references/research-design.md`: Convert social science observations into simulation experiments.
 - `references/researcher-onboarding.md`: First-use paths, step-by-step Society0 learning, experiment preparation, and optional pre-run token/cost estimates.
+- `references/runtime-quickstart.md`: First implementation, existing Python setup, initialization check, explicit memory, provider verification, and complete pilot starter.
 - `references/study-patterns.md`: Reusable study patterns for communication, interview/deliberation, governance, city, organization, education, law/legal society, public health, consumer/marketplace, economy, and IR/security simulations.
 - `references/simulation-paper-distillation.md`: Meta-guide for reading full papers and distilling LLM-based social simulation methods into consolidated domain guides.
 - `references/domain-distillation-coverage-audit.md`: Compact audit of accepted, routed, duplicate, generic, and evidence-gap domain-specific LLM social simulation papers.

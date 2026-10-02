@@ -119,10 +119,12 @@ LLM agents can have Chroma-backed memory. The memory layer supports:
 - episodic and semantic memory entries.
 - per-agent separation in a shared collection.
 - retrieval before LLM calls.
-- memory write after `instruct` when enabled.
+- explicit thread-memory extraction and durable commit after an interaction.
 - memory actions such as remember/recall when available.
 
 Chroma is a required dependency in the current project direction. Do not present embedding as optional for LLM-agent experiments.
+
+`retrieve_memory=True` reads experience. To save a behavior round, open a thread through `ctx.log.open_agent_thread(...)`, pass `thread_ids_by_agent`, then call `group.extract_thread_memories(...)`. See `step-dsl.md` and `../assets/minimal_experiment.py` for the sequence.
 
 ## Model Layer
 

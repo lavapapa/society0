@@ -360,7 +360,7 @@ async def survey_wave(ctx):
         fovs=["survey_prior_fov"],
         output=PriorExpectation,
         name="prior_expectation",
-        memory=False,
+        retrieve_memory=False,
     )
 
     await ctx.rule("assign_or_reveal_treatment")
@@ -370,7 +370,7 @@ async def survey_wave(ctx):
         fovs=["survey_treatment_fov"],
         output=PosteriorExpectation,
         name="posterior_expectation",
-        memory=False,
+        retrieve_memory=False,
     )
 
     return ctx.result(
@@ -383,7 +383,7 @@ async def survey_wave(ctx):
     )
 ```
 
-Use `memory=False` for static survey interviews when the paper does not allow cross-wave memory. Use explicit state/history only when a dynamic panel or follow-up design requires the same agent to remember prior questions.
+Use `retrieve_memory=False` for static survey interviews when the paper does not allow cross-wave memory. Use explicit state/history only when a dynamic panel or follow-up design requires the same agent to remember prior questions.
 
 ## Baselines, Ablations, And Validation
 

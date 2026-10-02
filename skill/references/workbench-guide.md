@@ -56,6 +56,8 @@ experiments/study/
 
 复制出的请求例如 `{"type":"society0_config_change_request","baseVersionId":"v001","configSource":"versions/v001/experiment.py","changes":[{"op":"replace","path":"/agents/0/persona","before":"谨慎读者","after":"热心读者"}]}`。研究者可以在粘贴后附上原因或补充要求；agent 仍需以实验文件为准核对，不把浏览器里的草稿当作已生效配置。
 
+同名 Python 配置模块按各自绝对文件路径加载，例如用 `importlib.util.spec_from_file_location(f"config_{version_id}", path)`；先确认导入配置不会启动实验。逐版本核对实际字段，避免模块缓存把后续版本全部读成第一版。初始化检查的零 tick 记录标为“配置检查”，失败记录标明失败及其原因，完成的试运行才提供相应结果。根据 `summary.json` 的 `failed`、`steps_completed` 和 Agent 批次结果判断，目录存在本身不足以判断成功。
+
 ## 首次交付给研究者
 
 首页标题写研究项目名称，标题下写一句研究问题。左栏先放研究者最关心的主体，也可放“实验整体”“环境”“制度实体”等视角；各主体标明类型。配置版本尚无运行时，中间默认展示所选视角对应的配置树，研究者可改动字段，必要时展开完整 JSON 编辑器增删字段；右栏显示待发送变更。已有保存结果时，为 LLM Agent 准备默认的“可接触的信息”视图，按机制说明它在当前 tick 能接触哪类资料；右侧优先展示该 Agent 在当前 tick 的真实会话。没有记录时显示空状态，缺少依据的标签不添加。无论是否已有运行，顶部都要明确显示当前版本和试运行范围。
@@ -128,6 +130,28 @@ experiments/study/
 ## 会话与资料来源
 
 `sessions` 中每次触发单独一项，`id` 唯一，`label` 建议包含交互名称和顺序。右栏会按这些真实会话给出选择菜单。会话的 `events` 依次填写输入、可见输出、动作或工具、观察结果、错误等记录；每项可用 `kind`、`title`、`text`、`data`、`time`、`source`。只展示原始记录中可核实的内容，工具名写真实名称，不补写隐藏推理。没有会话的 tick 留空数组。
+
+会话转换优先复用引擎的读取接口，它会取回存为独立 payload 文件的长消息。先从原始 Thread 首行获取 `thread_id`、`agent_id`、`scope` 和 `checkpoint_step`，核对 tick 映射，再按该线程创建一个 session。以下片段可放进实验转换脚本：
+
+```python
+from society0.agent.thread_store import AgentThreadStore
+
+store = AgentThreadStore(run_dir, create=False)
+messages = store.read_messages(thread_id)
+events = []
+for index, message in enumerate(messages):
+    role = message["role"]
+    events.append({
+        "kind": {"system": "input", "user": "input", "assistant": "output", "tool": "tool"}.get(role, "observation"),
+        "title": {"system": "系统提示", "user": "输入", "assistant": "Agent 输出", "tool": "工具返回"}.get(role, role),
+        "text": message.get("content") or "",
+        **({"data": {"tool_calls": message["tool_calls"]}} if message.get("tool_calls") else {}),
+        "source": f"agent_threads / {thread_id} / message {index}",
+    })
+session = {"id": thread_id, "label": interaction_name, "events": events}
+```
+
+测量表和规则转发记录放入 `tabs` 或 `sideTabs` 的表格组件；`sessions` 用实际 LLM 会话。成功或失败的动作可从 `store.read_events(thread_id, materialize_payloads=True)` 中的工具执行记录补充。存在多个线程时按 `thread_id` 分开，保持原始顺序。取到的消息数量为零时展示缺少会话记录；已存在测量表仍可独立展示。将“仅有结果表”“完整会话”“截取的消息预览”等资料范围如实写在模块说明中。
 
 数据来源按用途读取：`summary.json` 给实验概况和能力目录，`steps.jsonl`、`metrics.jsonl` 给研究者设计的表格与指标，checkpoint 给当前状态，`events.jsonl` 给事件线索，`agent_threads/` 给会话细节。`resource_calls.jsonl` 用于模型调用与用量，不能替代会话。FoV 能力目录是全局登记信息；需要结合实验代码、调用条件和当时状态，判断当前主体能否接触某机制。会话线程中的 `checkpoint_step` 与事件中的 tick 可能采用不同计数位置，映射时核对实际交互顺序与记录，不靠字段名直接相等。
 

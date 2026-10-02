@@ -279,7 +279,7 @@ Survey measurement rules:
 - Use structured outputs for numeric answers and open-ended text.
 - Record the exact prompt/FoV version.
 - Keep prior and posterior responses separate.
-- Use `memory=False` unless the study explicitly uses same-agent history or follow-up.
+- Use `retrieve_memory=False` unless the study explicitly uses same-agent history or follow-up.
 - Keep survey-intent measurements separate from world-changing actions. A withdrawal-intent interview is not the same as a bank-balance-sheet withdrawal unless an action mode and liquidity rule are added.
 
 ## Memory, Reflection, And Reasoning

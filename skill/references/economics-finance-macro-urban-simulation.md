@@ -113,6 +113,10 @@ Records:
 
 ### Minimal Step Loop
 
+This domain sketch retrieves earlier experience. To preserve new experience across
+months, add explicit Agent Threads and `extract_thread_memories(...)` after
+successful household decisions, following `step-dsl.md`.
+
 ```python
 @engine.step(name="econagent_month")
 async def econagent_month(ctx):
@@ -128,7 +132,7 @@ async def econagent_month(ctx):
         terminal_actions=["submit_household_decision"],
         max_turns=2,
         max_tokens=120,
-        memory=True,
+        retrieve_memory=True,
         name="household_monthly_decision",
     )
 
