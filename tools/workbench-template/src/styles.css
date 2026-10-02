@@ -1444,6 +1444,7 @@ progress::-webkit-progress-value {
 .module {
   padding: 16px;
   min-height: 330px;
+  height: max-content;
 }
 .focused .module {
   overflow: visible;

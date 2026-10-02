@@ -13,7 +13,7 @@ For substantive new designs, paper adaptation, or complex mechanisms, read `refe
 
 Before the first implementation or run, read [references/runtime-quickstart.md](references/runtime-quickstart.md). Adapt [assets/minimal_experiment.py](assets/minimal_experiment.py), which includes declared state, a real action loop, explicit thread-memory extraction, and measurement. Check the installed runtime's signatures once, reuse its existing environment, then initialize the configuration and run a small pilot. Domain code sketches require their own environment capabilities; use the complete starter for runtime wiring.
 
-Keep first-use reading focused: onboarding for learning, runtime quickstart plus the starter for a small first pilot, and workbench guide when a workbench is requested. Read `step-dsl.md`, agent/environment guides, or a domain guide to resolve a specific modeling or API question. Avoid loading the entire reference library for a two-tick introduction.
+For an unchanged introductory example, the implementation reading set is runtime quickstart plus the starter, and workbench guide if requested. Read onboarding when teaching. Add `step-dsl.md`, agent/environment guides, founder notes or a domain guide when a concrete design or API question needs them. A topic such as message credibility alone does not require all domain references for a two-tick introduction.
 
 ## Operating Loop
 
