@@ -4,6 +4,12 @@
 
 Reduce to one step, one or two agents, and a fresh run directory. Confirm the base config loads before debugging large experiments.
 
+For a first implementation, follow `runtime-quickstart.md` and `../assets/minimal_experiment.py`. Use `engine.run(steps=0)` for real initialization checking, then verify the used call signatures and execute a small pilot. Initialization alone does not exercise the step body.
+
+## State And Interface Errors
+
+For `undeclared initial state field` or `missing persistence declaration`, add the field to the environment or agent type's `state_schema`, with its actual JSON type and appropriate `persistence.kind`. Plain environments have no custom fields predeclared. For an unexpected keyword error, inspect the installed method signature. Current CodeSchedule methods use `retrieve_memory`; saving experience requires explicit `extract_thread_memories(...)` over an Agent Thread. See `step-dsl.md`.
+
 ## Import Errors
 
 Symptom:
@@ -32,7 +38,7 @@ LLM agents require Society0(..., llm=LLMModel...)
 Fix:
 
 - Pass an `LLMModel`.
-- Pass an `EmbedModel` when using memory/retrieval.
+- Pass an `EmbedModel` for LLM agents.
 - For no-network smoke tests, use rule agents and avoid LLM `instruct` or `interview`.
 
 ## Provider Failures
@@ -91,7 +97,7 @@ If an LLM agent cannot call an expected environment action:
 
 ## State Or Output Inspection
 
-Default `events.jsonl` is for readable monitoring and does not include raw state-change rows. When checking whether state changed, inspect `checkpoints/checkpoint_final.json` first. If you need state-change summaries for a focused debugging run, use a fresh run directory and create the engine with `Society0(..., log_state_changes=True)`.
+Default `events.jsonl` is for monitoring. Read v4 checkpoints through `V4CheckpointStore(run_dir).restore(step)` for full saved state. If you need state-change summaries for focused debugging, use a fresh directory and `Society0(..., log_state_changes=True)`.
 
 If a run is unexpectedly slow or produces very large files, open `summary.json` and inspect:
 

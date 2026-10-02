@@ -98,6 +98,8 @@ Records:
 
 ### Minimal Step Loop
 
+This is a domain protocol sketch. For experience-bearing rounds, open and pass Agent Threads, check the action result, then explicitly call `extract_thread_memories(...)` as shown in `step-dsl.md`. `retrieve_memory=True` reads existing experience.
+
 ```python
 @engine.step(name="trading_day")
 async def trading_day(ctx):
@@ -111,7 +113,7 @@ async def trading_day(ctx):
         completion_action_tags=["trade_write"],
         max_turns=3,
         max_tokens=180,
-        memory=True,
+        retrieve_memory=True,
         name="trader_order_round",
     )
 
@@ -371,6 +373,8 @@ Use this analysis to refine message design. If LLMs mention the right factors bu
 
 ### Two Implementation Modes
 
+In action mode, save the accepted round's experience explicitly with the thread-memory pattern in `step-dsl.md` when later decisions should use it.
+
 Use **survey-intent mode** when reproducing the paper's core design:
 
 ```python
@@ -379,7 +383,7 @@ responses = await depositors.interview(
     fovs=["bank_run_survey_fov"],
     output=WithdrawalIntent,
     name="withdrawal_intent",
-    memory=False,
+    retrieve_memory=False,
 )
 await ctx.rule("propagate_withdrawal_propensities")
 ```
@@ -394,7 +398,7 @@ await depositors.instruct(
     required_actions=["withdraw_deposit", "keep_deposit"],
     terminal_actions=["withdraw_deposit", "keep_deposit"],
     max_turns=2,
-    memory=True,
+    retrieve_memory=True,
 )
 await ctx.rule("settle_withdrawals_and_update_liquidity")
 ```

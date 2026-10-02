@@ -13,6 +13,13 @@ config = {
             "id": "reader",
             "archetype": "llm",
             "persona": "A social media user who reads public health news.",
+            "state_schema": {
+                "type": "object", "additionalProperties": False,
+                "properties": {
+                    "trust": {"type": "number", "persistence": {"kind": "replaceable"}},
+                    "fatigue": {"type": "number", "persistence": {"kind": "replaceable"}},
+                },
+            },
         }
     ],
     "agents": [
@@ -136,8 +143,9 @@ When using LLM agents, state is part of the agent's self-description. That is us
 
 LLM agents can retrieve and save Chroma-backed memory.
 
-- `instruct(..., memory=True)` retrieves and saves memory.
-- `interview(..., retrieve_memory=True, save_memory=False)` measures without writing memory by default.
+- `instruct(..., retrieve_memory=True)` retrieves existing memory.
+- Saving experience is explicit: open a thread, pass `thread_ids_by_agent` to the interaction, then call `extract_thread_memories(...)`. See `step-dsl.md` for the complete pattern.
+- `interview(..., retrieve_memory=True)` measures using existing memory and leaves the measurement outside memory unless explicitly extracted.
 - Use memory when past exposure or relationship history should affect later behavior.
 - Avoid memory for a simple one-shot survey unless memory is part of the design.
 
@@ -175,7 +183,7 @@ interaction = await users.instruct(
     "Read your feed and decide whether to like, comment, repost, follow, or do nothing.",
     fovs=["recommended_feed"],
     actions=["environment"],
-    memory=True,
+    retrieve_memory=True,
     max_turns=3,
 )
 ```
@@ -188,7 +196,6 @@ survey = await users.interview(
     fovs=["recommended_feed"],
     output=TrustSurvey,
     retrieve_memory=True,
-    save_memory=False,
 )
 ```
 

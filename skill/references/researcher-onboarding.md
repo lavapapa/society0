@@ -4,11 +4,13 @@ Use this guide when someone has just installed the Society0 skill, is new to Soc
 
 The Society0 skill guides a coding agent. The Society0 Python package is the simulation engine used by an experiment. Explain this distinction before setup becomes relevant. LLM-Agent experiments need both an LLM provider and an embedding provider; rule-based baselines can be useful when they faithfully express a deterministic mechanism. Do not ask users to paste provider credentials into chat; explain how to configure them locally when the selected path needs them.
 
+When helping install this skill, finish with a short confirmation and offer the starting paths below in the same conversation. Installation provides instructions and templates; defer Python and model setup until the selected task needs an experiment. A researcher can continue with “带我入门”, “先讲原理” or a research question. Keep the user's sample prompts short.
+
 ## First response
 
 Welcome the researcher in the language they used, explain in one or two plain-language sentences that Society0 helps researchers study how LLM Agents behave inside a designed social setting, and state that simulated behavior can help explore mechanisms and compare assumptions but is not direct evidence about real people. Then offer a small numbered menu. Let the user choose a number, describe another goal, or skip the menu and state their request.
 
-1. **Start a study:** “I have a social-science question and want to design my first LLM-Agent social simulation.”
+1. **Start a study:** “Help me quickly try a small example or design my first LLM-Agent study.”
 2. **Learn Society0:** “Teach me how Society0 works, one idea at a time.”
 3. **Adapt a paper:** “Help me understand a paper and adapt its simulation design.”
 4. **Explore existing work:** “Help me understand or analyze an existing Society0 project, run, or output.”
@@ -17,7 +19,7 @@ For a Chinese-speaking researcher, a suitable opening is:
 
 > Society0 帮助研究者模拟由 LLM Agent 参与的社会情境，观察这些 Agent 在给定信息和互动规则下会怎样行动。模拟结果适合探索机制、比较假设，不能直接代表现实人群。你想从哪条路开始？
 >
-> 1. 我有一个研究问题，想设计第一项 LLM Agent 社会模拟。
+> 1. 快速上手：先试一个小例子，或用我的研究问题设计实验。
 > 2. 我想循序渐进地理解 Society0 的原理。
 > 3. 我想从一篇论文开始，讨论如何复现或改造。
 > 4. 我已有项目或运行结果，想弄清楚代码、数据或问题。
@@ -25,6 +27,8 @@ For a Chinese-speaking researcher, a suitable opening is:
 ## Follow the chosen path
 
 For a new study, begin with the phenomenon or puzzle in the researcher's own words. Accept an unfinished idea, a short description, or an optional paper or research artifact. Ask one high-value question at a time; gradually clarify the intended outcome, who participates, what they can see and do, how conditions differ, and what evidence the researcher wants to inspect. Do not make the researcher supply framework terminology. Periodically restate the emerging design in ordinary language and invite corrections.
+
+If they choose a quick example, propose one small social setting with a clear observation and use `runtime-quickstart.md` when implementation begins. For an uncomplicated first study, present a short design summary. Resolve routine technical decisions yourself; ask when the choice changes the phenomenon, treatment, or measurement. A stated reason can guide follow-up comparisons; one pilot checks whether the intended interaction and measurement occurred.
 
 Before implementation, summarize a small first study in plain language: the social setting, what participants can perceive and do, the conditions being compared, the observations to collect, and what the first analysis could and could not establish. Map this design to Society0's environment, LLM Agents, interactions, and measurements only as those concepts become useful. Explain provider and package setup when the selected study needs it, not as a prerequisite to discussing the research question.
 
@@ -65,6 +69,8 @@ Currency and billing unit: …
 
 For example, “input $2.00 / 1M tokens; output $8.00 / 1M tokens” shows the format only; it is not a current quote for any model. Do not guess current tariffs. If the user supplies a pricing page or a rate card, use the rates and conditions they provide; distinguish cached-input, reasoning-token, regional, batch, or embedding rates when they change the calculation.
 
+Use the provider's billing conversion when it specifies a fixed currency or credit conversion. A market exchange rate may differ from the provider's settlement rule. Explain that this estimate covers experiment model calls; the assisting application's own subscription, credits, or chat charges follow that application's billing.
+
 Estimate each interaction on each step: requests ≈ Σ(number of LLM Agents selected for that interaction on the step × times it runs per selected agent × expected model turns). Sum across steps and interactions, then add separate LLM work such as memory extraction, structured-output repair, surveys, or retries when applicable. A previous representative pilot is the best basis for input-token and embedding estimates. When no pilot exists, estimate from the planned context and state the assumptions; if prompt length cannot be converted reliably to tokens, give low, typical, and conservative scenarios instead of false precision.
 
 For a rough output ceiling, multiply the number of applicable requests by the per-response `max_tokens` cap. This cap applies to each response, not the whole experiment. `max_turns` bounds an agent interaction loop when set to a finite value; make that assumption explicit. Input tokens vary with instructions, visible environment state, available actions, and retrieved memory. Embeddings, retries, structured-output repair, and other model operations can add cost. Concurrency primarily affects how requests overlap and the time to finish; it does not by itself reduce token charges.
@@ -82,3 +88,5 @@ A clearly hypothetical example: suppose a plan has 1,000 requests, about 2,000 i
 If the conservative scenario exceeds the researcher's stated target, show which assumptions or study-scale choices drive the estimate and offer scientifically acceptable alternatives for the researcher to choose. Do not silently reduce agents, steps, memory, action loops, or measurement fidelity to reach a price target.
 
 After a run, use `summary.json -> resources.llm.prompt_tokens` and `completion_tokens` when the provider reports them, and use `resource_calls.jsonl` for call-level attribution. Society0's standard summary may report embedding call and text counts without a provider-independent embedding-token total; calculate that charge only when usage or a reliable tokenizer is available, otherwise mark it unknown. Apply the supplied rates to observed usage and clearly separate measured charges from projected future runs. See [run-monitor-analyze.md](run-monitor-analyze.md) for resource fields and output interpretation.
+
+Call a conversion from observed tokens “按所给费率估算的费用”. Call it an actual charge after the provider's account records confirm the billed amount. Report the assumptions behind a conservative estimate, including retries and explicit memory extraction; its amount is a planning estimate rather than an enforced spending limit.

@@ -126,7 +126,7 @@ Extract agent construction:
 - model/provider, prompt style, temperature, token limits, and output parser when given.
 - how heterogeneity is introduced and whether it is sampled, data-grounded, prompt-authored, or rule-derived.
 
-Separate actual paper details from a Society0 implementation choice. For example, "the paper uses bounded dialogue plus quarterly reflection" is different from "in Society0 also keep `memory=True` unless the study defines a no-memory condition."
+Separate actual paper details from a Society0 implementation choice. For example, "the paper uses bounded dialogue plus quarterly reflection" is different from "in Society0 also keep `retrieve_memory=True` unless the study defines a no-memory condition."
 
 ### Perception And FoV
 

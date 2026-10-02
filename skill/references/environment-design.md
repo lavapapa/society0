@@ -206,7 +206,7 @@ Read actions such as `get_trending_posts`, `get_post_details`, and `get_agent_pr
 
 `get_trending_posts` represents actively opening the trending panel, so it records exposure for the returned posts. The exposure is batched and flushed after the tick, just like `recommended_feed`. Use the trending FoV/preview-style inspection path only when the researcher wants to inspect ranking without creating an exposure event.
 
-For prototypes, call `instruct(..., actions=None)` or `actions=["environment"]`. `actions=None` exposes default non-memory actions. Narrow later by action name or short tag. Use `actions=["memory"]` only when the experiment explicitly needs agents to call memory tools; ordinary `memory=True` already handles retrieval and saving.
+For prototypes, call `instruct(..., actions=None)` or `actions=["environment"]`. `actions=None` exposes default non-memory actions. Narrow later by action name or short tag. Use `actions=["memory"]` for autonomous memory-tool use. Ordinary rounds retrieve memory through `retrieve_memory=True` and save experience explicitly through `extract_thread_memories(...)`; see `step-dsl.md`.
 
 Recommendation behavior:
 
