@@ -42,13 +42,13 @@ python versions/v001/experiment.py --check --run-dir versions/v001/runs/check-00
 python versions/v001/experiment.py --run-dir versions/v001/runs/pilot-001
 ```
 
-`--check` 调用真实 `engine.run(steps=0)`，检查初始状态、保存声明与注册步骤，生成零 tick 的检查记录。这一步没有验证实验分支中的全部调用参数、工具行为或服务连通性。AI 还需核对本次使用的接口签名，并分别以最小请求验证工具调用与 embedding 向量维度，再执行小规模真实试运行。检查记录和试运行使用不同目录；模型调用已经发生的失败运行也保留原目录，用新 run ID 重试。
+`--check` 调用真实 `engine.run(steps=0)`，检查初始状态、保存声明与注册步骤，生成零 tick 的检查记录。这一步没有验证实验分支中的全部调用参数、工具行为或服务连通性。核对本次使用的接口签名后，用配套的小规模真实试运行同时验证 LLM 动作、结构化测量、记忆写入与 embedding。研究者提供的渠道和向量维度已核实且费用估算适合该小试验时，可直接进入试运行，省去另写连接探针。维度未知或真实运行出现连接问题时，再按具体错误做最小核验。检查记录和试运行使用不同目录；模型调用已经发生的失败运行也保留原目录，用新 run ID 重试。
 
 每次调用模型前，在该 run 目录保存本次实验定义和非敏感的生效参数，例如 `experiment-source.py` 与 `config-used.json`。修复实现问题后为新尝试选新 run ID 并再保存源码；改变 persona、FoV、动作、记忆或测量规则时创建新配置版本。按 `run-monitor-analyze.md` 分析时用各次运行自己的源码和参数，保留成功与失败记录。
 
 核对条件标签是否影响 Agent 时，检查实际注入的提示词、FoV 和工具返回。目录名、版本名和研究者侧的分析标签用于组织资料，它们出现在运行元数据中不等于 Agent 接触了该标签。发现问题后保留原记录，按实际暴露路径判断是否需要新版本或新试运行。
 
-示例读取 `SOCIETY0_LLM_MODEL`、`SOCIETY0_LLM_BASE_URL`、`SOCIETY0_LLM_API_KEY`、`SOCIETY0_EMBED_MODEL`、`SOCIETY0_EMBED_BASE_URL`、`SOCIETY0_EMBED_API_KEY`、`SOCIETY0_EMBED_DIMENSIONS`。AI 可从研究者提供的本地配置文件加载到启动进程，不打印配置文件、密钥或密钥片段。embedding 维度采用实际模型值；示例设 `send_dimensions=False`，使用服务原生维度。代理沿用用户已有环境，LLM 与 embedding 分别确认连通性。
+示例读取 `SOCIETY0_LLM_MODEL`、`SOCIETY0_LLM_BASE_URL`、`SOCIETY0_LLM_API_KEY`、`SOCIETY0_EMBED_MODEL`、`SOCIETY0_EMBED_BASE_URL`、`SOCIETY0_EMBED_API_KEY`、`SOCIETY0_EMBED_DIMENSIONS`。AI 可从研究者提供的本地配置文件加载到启动进程，不打印配置文件、密钥或密钥片段。embedding 维度采用实际模型值；示例设 `send_dimensions=False`，使用服务原生维度。代理沿用用户已有环境，按真实请求结果核对 LLM 与 embedding。
 
 费用估算跟随研究者选择，按 `researcher-onboarding.md` 计算，包含动作多轮调用、显式记忆提炼、测量和可能的重试。运行后从 `summary.json` 核对 `failed`、`steps_completed`、Agent 成功数、动作成功数、记忆提炼结果及实际 token 用量。按报价换算的金额标为“按此费率估算”；实际扣费需账户账单确认。
 
