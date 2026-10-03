@@ -26,6 +26,8 @@ Python 的 free-threaded 构建提供额外选择，第三方扩展可能重新�
 
 新增 Rust 模块的触发证据是：长历史与大对象验收中，经过数据结构和查询优化后，仍存在占据主要耗时的纯 Python 计算；该计算具有稳定批量接口，并且原型在完整往返成本与内存下优于现成实现。届时保留 Python 插件 API，替换该计算实现。若压力测试显示协调层本身占据主要成本，再重新审查协调层语言。
 
+另一个实际适用点是成熟原生组件的接口连接。Bashkit 已有 OverlayFs 和稳定名称的文件系统 capsule 协议，当前 Python 绑定未直接提供增量层与动态目录所需的全部接口。小型 Rust 适配器可以委托既有文件系统实现，将必要操作接入 Python 的信息与持久化服务；其价值来自复用现成能力和消除重复全文快照。该路线先以真实解释器验证读、写、删除、重命名和恢复，再决定产品包装。公共插件继续使用 Python，普通规则运行无需创建 shell 或加载该适配器。
+
 本轮不以全语言重写作为先决条件。后续 shell 试验负责测原生解释器绑定和工作区驻留；存储试验负责测 SQLite Session 和大行影响；产品验收负责核实实际机制、模型、持久化和观察的占比，避免拿局部加速代替整步收益。
 
 官方实现依据包括 [APSW 执行模型](https://rogerbinns.github.io/apsw/execution.html)、[Python free-threading](https://docs.python.org/3/howto/free-threading-python.html)、[Node worker threads](https://nodejs.org/api/worker_threads.html) 和 [Bashkit Python API](https://bashkit.sh/api/python/)。本地实验及其限制见 [存储实验](storage-experiments.md)，具体原始数据保存在 research/core-next。
