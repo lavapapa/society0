@@ -26,7 +26,7 @@ ThreadStore 保存主体会话、完整消息、物理请求引用、响应和�
 
 `register_artifact(thread_id, reference, artifact_ref, actor=...)` 将 shell 返回的 reference 关联至 run 内封存路径，验证 Thread 主体并在同一次事务调用 Writer.include_artifact。`lookup_artifact(...)` 按主体和引用取得该路径；`read_artifact(..., offset=0, size=65536)` 返回 data、total_bytes、next_offset 和 source。原文件由 StageStore.prepare_artifact 创建，恢复从完整描述符复制文件，Thread 索引随 changeset 恢复。关联后引用不可改指其他文件。
 
-`append_input(thread_id, messages, consumer, cursor)` 在同一短事务追加整批输入消息并登记消费游标，返回最后事件序号。`input_cursor(thread_id, consumer)` 按索引读取该消费方的 JSON 游标，尚未登记时返回 None。消息或游标编码失败会共同回滚；完整步骤恢复同时还原消息与游标。游标正文复用分块事件编码，索引保存事件序号。
+`append_input(thread_id, messages, consumer, cursor, context=None)` 在同一短事务追加整批输入消息并登记消费游标，返回最后事件序号。`input_cursor(thread_id, consumer)` 按索引读取该消费方的 JSON 游标，尚未登记时返回 None。消息或游标编码失败会共同回滚；完整步骤恢复同时还原消息与游标。游标正文复用分块事件编码，索引保存事件序号。可选 context 是本次更新的完整 system 消息，先于本批输入追加；同一事务登记其序号。省略 context 时保留旧引用，`input_context(thread_id, consumer)` 读取该引用对应的原消息，尚未登记时返回 None，避免在游标里重复保存材料正文。
 
 ## 三、成本与恢复
 

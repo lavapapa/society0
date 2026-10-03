@@ -15,6 +15,7 @@ from jsonschema.validators import validator_for
 from ..async_utils import invoke_maybe_async
 from ..function_registry import normalize_strict_function_parameters
 from .interaction import ActionResult, Page, Query, Ref, Unavailable
+from .cognition import InputBatch
 from .models import ProviderFailure
 from .runtime import DriverResult
 
@@ -360,10 +361,14 @@ class LLMDriver:
         shell = None
         status, reason, structured = 'incomplete', 'driver_error', None
         try:
-            if self.memory is not None:
-                for message in await self.memory.before_activation(session, thread_id):
+            inputs = await invoke_maybe_async(self.input_builder, session)
+            if isinstance(inputs, InputBatch):
+                self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
+            else:
+                for message in inputs:
                     self.threads.append_message(thread_id, message)
-            for message in await invoke_maybe_async(self.input_builder, session):
+            recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
+            for message in recalled:
                 self.threads.append_message(thread_id, message)
             tools = self._tools()
             schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}

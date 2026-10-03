@@ -8,7 +8,7 @@ import zlib
 
 from ._json_chunks import CHUNK_BYTES, encode_chunks as _chunks, decode_chunks
 THREAD_SCHEMA = (
-    "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,PRIMARY KEY(thread_id,consumer))",
+    "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,context_seq INTEGER,PRIMARY KEY(thread_id,consumer))",
     '''CREATE TABLE thread_heads(
         id TEXT PRIMARY KEY NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,
         provider_session_id TEXT NOT NULL,status TEXT NOT NULL,
@@ -151,17 +151,29 @@ class ThreadStore:
         end = offset+len(data)
         return {'data':data,'total_bytes':total,'next_offset':end if end<total else None,'source':artifact}
 
-    def append_input(self, thread_id, messages, consumer, cursor):
+    def append_input(self, thread_id, messages, consumer, cursor, *, context=None):
         def write(writer):
+            previous=writer.query('SELECT context_seq FROM thread_input_cursors WHERE thread_id=? AND consumer=?',(thread_id,consumer))
+            context_seq=previous[0][0] if previous else None
+            if context is not None:
+                if type(context) is not dict:raise TypeError('context must be a JSON object')
+                context_seq=_append(writer,thread_id,'message',context)
             for message in messages:
                 if type(message) is not dict:
                     raise TypeError('message must be a JSON object')
                 _append(writer,thread_id,'message',message)
             sequence=_append(writer,thread_id,'input_cursor',{'consumer':consumer,'cursor':cursor})
-            writer.execute('INSERT INTO thread_input_cursors VALUES(?,?,?) ON CONFLICT(thread_id,consumer) DO UPDATE SET event_seq=excluded.event_seq',
-                           (thread_id,consumer,sequence))
+            writer.execute('INSERT INTO thread_input_cursors VALUES(?,?,?,?) ON CONFLICT(thread_id,consumer) DO UPDATE SET event_seq=excluded.event_seq,context_seq=excluded.context_seq',
+                           (thread_id,consumer,sequence,context_seq))
             return sequence
         return self.store.transaction(write)
+
+    def input_context(self, thread_id, consumer):
+        def read(view):
+            _head(view,thread_id)
+            rows=view.query('SELECT context_seq FROM thread_input_cursors WHERE thread_id=? AND consumer=?',(thread_id,consumer))
+            return _load(view,thread_id,rows[0][0]) if rows and rows[0][0] is not None else None
+        return self.store.read(read)
 
     def input_cursor(self, thread_id, consumer):
         def read(view):

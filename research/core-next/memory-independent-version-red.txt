@@ -1,0 +1,58 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_review_recall_at_fixed_step_keeps_old_version_if_update_occurs_during_embedding _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-396/test_review_recall_at_fixed_st0')
+
+    @pytest.mark.asyncio
+    async def test_review_recall_at_fixed_step_keeps_old_version_if_update_occurs_during_embedding(tmp_path):
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            job=memory.prepare_job('a',tid,'original',timestamp=1,visible_step=1,entries=[{'content':'old original'}])
+            identifier=(await memory.finish_job(job))[0]
+            changed=[]
+            async def interleave(texts,*,metadata):
+                if metadata['purpose']=='memory_recall' and not changed:
+                    changed.append(True)
+                    await memory.update(identifier,actor='a',content='future replacement',timestamp=2,visible_step=2)
+                return await embed(texts,metadata=metadata)
+            memory.embed=interleave
+            result=await memory.recall('a','query',current_step=1,top_k=10)
+>           assert [item['content'] for item in result]==['old original']
+E           AssertionError: assert [] == ['old original']
+E             
+E             Right contains one more item: 'old original'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_memory_review.py:20: AssertionError
+_ test_review_historical_candidate_never_uses_future_body_after_embedding_wait _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-396/test_review_historical_candida0')
+
+    @pytest.mark.asyncio
+    async def test_review_historical_candidate_never_uses_future_body_after_embedding_wait(tmp_path):
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            old=memory.prepare_job('a',tid,'old',timestamp=0,visible_step=0,entries=[{'content':'old current'}])
+            identifier=(await memory.finish_job(old))[0]
+            later=memory.prepare_job('a',tid,'later',timestamp=3,visible_step=3,entries=[{'content':'other future'}])
+            await memory.finish_job(later)
+            changed=[]
+            async def interleave(texts,*,metadata):
+                if metadata['purpose']=='memory_recall' and not changed:
+                    changed.append(True)
+                    await memory.update(identifier,actor='a',content='changed future',timestamp=4,visible_step=4)
+                return await embed(texts,metadata=metadata)
+            memory.embed=interleave
+            result=await memory.recall('a','query',current_step=1,top_k=10)
+>           assert [item['content'] for item in result]==['old current']
+E           AssertionError: assert ['changed future'] == ['old current']
+E             
+E             At index 0 diff: 'changed future' != 'old current'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_memory_review.py:40: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_review.py::test_review_recall_at_fixed_step_keeps_old_version_if_update_occurs_during_embedding
+FAILED tests/primary/test_kernel_memory_review.py::test_review_historical_candidate_never_uses_future_body_after_embedding_wait
+2 failed in 0.08s

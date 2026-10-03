@@ -1,0 +1,51 @@
+...............F                                                         [100%]
+=================================== FAILURES ===================================
+____ test_real_chroma_sql_vectors_rebuild_preserves_candidates_and_context _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-377/test_real_chroma_sql_vectors_r0')
+
+    @pytest.mark.asyncio
+    async def test_real_chroma_sql_vectors_rebuild_preserves_candidates_and_context(tmp_path):
+        import chromadb
+        store,threads,thread,memory,embed,_=setup(tmp_path,decay_rate=0.1)
+        memory.client=chromadb.EphemeralClient()
+        vectors={'near':[0.123456789012345,0.2],'far':[1.25,0.2],'query':[0.1,0.2]}
+        calls=[]
+        async def precise(texts,*,metadata):
+            calls.append(list(texts))
+            return [vectors[text] for text in texts]
+        memory.embed=precise
+        with store:
+            job=memory.prepare_job('a',thread,'real',timestamp=0,entries=[{'content':'near','importance':4},{'content':'far','importance':2}])
+>           ids=await memory.finish_job(job)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory.py:246: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/memory.py:143: in finish_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:166: in _finish_job
+    await self.sync_index()
+src/society0/kernel/memory.py:238: in sync_index
+    self._collection.modify(metadata=metadata)
+.venv/lib/python3.12/site-packages/chromadb/api/models/Collection.py:295: in modify
+    self._validate_modify_request(metadata)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Collection(name=society-memory-fd849b4732b34fa1975221c9c6298e23)
+metadata = {'hnsw:space': 'l2', 'source_run_id': 'fd849b4732b34fa1975221c9c6298e23', 'revision': 2}
+
+    def _validate_modify_request(self, metadata: Optional[CollectionMetadata]) -> None:
+        if metadata is not None:
+            validate_metadata(metadata)
+            if "hnsw:space" in metadata:
+>               raise ValueError(
+                    "Changing the distance function of a collection once it is created is not supported currently."
+                )
+E               ValueError: Changing the distance function of a collection once it is created is not supported currently.
+
+.venv/lib/python3.12/site-packages/chromadb/api/models/CollectionCommon.py:554: ValueError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_real_chroma_sql_vectors_rebuild_preserves_candidates_and_context
+1 failed, 15 passed in 1.17s
