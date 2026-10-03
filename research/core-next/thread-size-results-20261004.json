@@ -1,0 +1,43 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+  "rss_unit": "bytes on macOS",
+  "cases": [
+    {
+      "kind": "repeat",
+      "input_text_bytes": 11534336,
+      "current_bytes": 126976,
+      "initial_root_bytes": 53248,
+      "changeset_bytes": 66373,
+      "restored_root_bytes": 126976,
+      "write_wall_s": 0.028541832987684757,
+      "write_cpu_s": 0.028465000000000004,
+      "complete_wall_s": 0.0009195840102620423,
+      "complete_cpu_s": 0.0008370000000000044,
+      "restore_and_read_wall_s": 0.015177083027083427,
+      "session_capture_bytes": 28816,
+      "baseline_peak_rss_bytes": 35061760,
+      "write_peak_rss_bytes": 37257216,
+      "high_water_increment_bytes": 2195456,
+      "all_values_equal": true
+    },
+    {
+      "kind": "heterogeneous",
+      "input_text_bytes": 11184812,
+      "current_bytes": 8798208,
+      "initial_root_bytes": 53248,
+      "changeset_bytes": 8635713,
+      "restored_root_bytes": 8798208,
+      "write_wall_s": 0.2583193749887869,
+      "write_cpu_s": 0.23106200000000002,
+      "complete_wall_s": 0.009731291967909783,
+      "complete_cpu_s": 0.0043480000000000185,
+      "restore_and_read_wall_s": 0.06473154202103615,
+      "session_capture_bytes": 28240,
+      "baseline_peak_rss_bytes": 71778304,
+      "write_peak_rss_bytes": 77299712,
+      "high_water_increment_bytes": 5521408,
+      "all_values_equal": true
+    }
+  ]
+}

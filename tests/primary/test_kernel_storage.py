@@ -308,3 +308,71 @@ def test_read_scan_is_streamed_and_scope_bound(tmp_path):
         escaped = store.read(borrow)
         with pytest.raises(StorageError, match='scope'):
             next(escaped)
+
+
+def test_incremental_blob_read_bounded_and_scope_checked(tmp_path):
+    import apsw
+    with StageStore.create(tmp_path/'run',['CREATE TABLE docs(id INTEGER PRIMARY KEY,body BLOB NOT NULL)'],
+                           initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,zeroblob(?))',(16*1024*1024,))) as store:
+        apsw.status(apsw.SQLITE_STATUS_MEMORY_USED,True)
+        baseline = apsw.status(apsw.SQLITE_STATUS_MEMORY_USED)[0]
+        assert store.read(lambda r:r.read_blob('docs','body',1,offset=100000,size=64)) == (b'\0'*64,16*1024*1024)
+        assert apsw.status(apsw.SQLITE_STATUS_MEMORY_USED)[1] - baseline < 4*1024*1024
+        escaped = store.read(lambda r:r)
+        with pytest.raises(StorageError,match='scope'):
+            escaped.read_blob('docs','body',1,offset=0,size=1)
+        assert store.read(lambda r:r.read_blob('docs','body',1,offset=20*1024*1024,size=64)) == (b'',16*1024*1024)
+
+
+@pytest.mark.parametrize('parent,child',[('a_parent','z_child'),('z_parent','a_child')])
+def test_foreign_keys_and_native_apply_cross_table_order(tmp_path,parent,child):
+    import apsw
+    schema = [f'CREATE TABLE {parent}(id INTEGER PRIMARY KEY)',
+              f'CREATE TABLE {child}(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES {parent}(id))']
+    with pytest.raises(apsw.ConstraintError):
+        StageStore.create(tmp_path/'bad',schema,initialize=lambda w:w.execute(f'INSERT INTO {child} VALUES(1,999)'))
+    assert not (tmp_path/'bad').exists()
+    with StageStore.create(tmp_path/'run',schema) as store:
+        with pytest.raises(apsw.ConstraintError):
+            store.transaction(lambda w:w.execute(f'INSERT INTO {child} VALUES(1,999)'))
+        store.transaction(lambda w:(w.execute(f'INSERT INTO {parent} VALUES(1)'),w.execute(f'INSERT INTO {child} VALUES(1,1)')))
+        store.complete(1)
+    with StageStore.open(tmp_path/'run') as store:
+        with pytest.raises(apsw.ConstraintError):
+            store.transaction(lambda w:w.execute(f'DELETE FROM {parent}'))
+    with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
+        assert restored.read(lambda r:r.query(f'SELECT * FROM {child}')) == [(1,1)]
+        with pytest.raises(apsw.ConstraintError):
+            restored.transaction(lambda w:w.execute(f'INSERT INTO {child} VALUES(2,999)'))
+
+
+@pytest.mark.parametrize('parent,child',[('a_parent','z_child'),('z_parent','a_child')])
+def test_native_apply_preserves_foreign_key_cascade(tmp_path,parent,child):
+    schema = [f'CREATE TABLE {parent}(id INTEGER PRIMARY KEY)',
+              f'CREATE TABLE {child}(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES {parent}(id) ON DELETE CASCADE)']
+    with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute(f'INSERT INTO {parent} VALUES(1)'),w.execute(f'INSERT INTO {child} VALUES(1,1)'))) as store:
+        store.transaction(lambda w:w.execute(f'DELETE FROM {parent}'))
+        store.complete(1)
+    with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
+        assert restored.read(lambda r:r.query(f'SELECT * FROM {parent}')) == []
+        assert restored.read(lambda r:r.query(f'SELECT * FROM {child}')) == []
+
+
+def test_artifact_dependency_registration_is_transactional_and_restored(tmp_path):
+    with make(tmp_path/'run') as store:
+        reference = store.prepare_artifact([b'0123456789'])
+        def fail(writer):
+            writer.include_artifact(reference)
+            raise ValueError('rollback')
+        with pytest.raises(ValueError):store.transaction(fail)
+        assert store.complete(1)['artifacts'] == []
+        store.transaction(lambda writer:writer.include_artifact(reference))
+        marker = store.complete(2)
+        assert marker['artifacts'] == [{'path':reference,'size':10}]
+        assert store.complete(2) == marker
+        assert store.complete(3)['artifacts'] == []
+        with StageStore.restore(store.path,tmp_path/'restored') as restored:
+            from society0.kernel.storage import StageReader
+            assert StageReader(restored.path).read_artifact(reference,offset=3,size=4) == (b'3456',10)
+            restored.transaction(lambda writer:writer.include_artifact(reference))
+            assert restored.complete(4)['artifacts'] == []

@@ -59,7 +59,7 @@ class ShellResult:
 
 class ShellSession:
     def __init__(self, scope: InteractionScope, information: Information, actions: Actions | None = None,
-                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536):
+                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None):
         scope.check_active()
         if preview_bytes < 4:
             raise ValueError('preview_bytes must be at least 4')
@@ -69,6 +69,7 @@ class ShellSession:
             raise ValueError('provide actions or bound_actions')
         self.actions = bound_actions if bound_actions is not None else actions.bound(scope)
         self.preview_bytes = preview_bytes
+        self._result_reader = result_reader
         root = Path(result_dir)
         root.mkdir(parents=True, exist_ok=True)
         self.result_dir = Path(tempfile.mkdtemp(prefix='shell-', dir=root)).resolve()
@@ -152,6 +153,9 @@ class ShellSession:
             if operation != 'read':
                 raise ValueError('unknown result operation')
             options = json.loads(tail[0]) if tail else {}
+            if ref.startswith('shell-') and ref.split('/', 1)[0] != self.session_id and self._result_reader is not None:
+                self._check()
+                return self._result_reader(ref, **options)
             return self.read_result(ref, **options)
         operation, path, *tail = argv
         options = json.loads(tail[0]) if tail else {}

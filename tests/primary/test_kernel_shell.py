@@ -243,3 +243,29 @@ async def test_shell_accepts_bound_driver_action_facade_for_all_three_entries(tm
     result = json.loads((await shell.execute('action invoke ' + quoted({'target': target, 'name': 'x', 'arguments': {}}))).stdout)
     assert result['status'] == 'rejected' and calls == ['find', 'describe', 'invoke']
     await shell.aclose()
+
+
+@pytest.mark.asyncio
+async def test_persisted_result_reader_routes_old_session_without_reexecution(tmp_path):
+    shell, _, calls = build(tmp_path)
+    await shell.aclose()
+    seen = []
+    def persisted(reference, **options):
+        seen.append((reference, options))
+        return {'data': '旧结果🙂', 'encoding': 'utf-8', 'total_bytes': 13, 'next_offset': None}
+    scope = InteractionScope('alice', Moment(2, 'trade'))
+    shell = ShellSession(scope, Information(lambda *a: True), Actions(lambda *a: True),
+                         result_dir=tmp_path, result_reader=persisted)
+    try:
+        result = await shell.execute('result read shell-old/output/1.stdout')
+        assert json.loads(result.stdout)['data'] == '旧结果🙂'
+        assert seen == [('shell-old/output/1.stdout', {})] and calls == []
+        own = await shell.execute('printf current')
+        assert json.loads((await shell.execute('result read ' + own.stdout_ref)).stdout)['data'] == 'current'
+        assert len(seen) == 1
+        scope.close()
+        with pytest.raises(ScopeClosed):
+            await shell.execute('result read shell-old/output/1.stdout')
+        assert len(seen) == 1
+    finally:
+        await shell.aclose()

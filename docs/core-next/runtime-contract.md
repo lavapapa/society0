@@ -31,7 +31,7 @@ async def decide(ctx):
 # await runtime.run_step(1, '2026-10-04', [Phase('decide', decide)])
 ```
 
-示例最后三行需要应用实际安装的服务。`run_step(step, time, phases)` 的整数 step 紧接 `store.complete_step`。调用同步 `store.complete(step)` 成功返回后才更新 `runtime.last_completed`。存储写者保持所属线程，运行时不会为发布跨线程转移连接。
+示例最后三行需要应用实际安装的服务。`run_step(step, time, phases)` 的整数 step 紧接 `store.complete_step`。Session 与 PhaseContext 的 `prepare_artifact(chunks)` 将字节迭代器交给存储流式封存，并登记本步骤的产物引用。各阶段共用本步登记，退出后失效；完成或失败后清空增量引用，失败的准备操作不会登记为成功。调用同步 `store.complete(step, artifacts=tuple(refs))` 成功返回后才更新 `runtime.last_completed`。存储写者保持所属线程，运行时不会为发布跨线程转移连接。
 
 ## 二、阶段
 

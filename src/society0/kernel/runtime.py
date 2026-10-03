@@ -67,6 +67,10 @@ class Session:
     def state_ref(self):
         return self.actor.state_ref
 
+    def prepare_artifact(self, chunks):
+        self.scope.check_active()
+        return self._phase.prepare_artifact(chunks)
+
     def activate(self, actor_id, payload=None, *, dedupe_token=None):
         self.scope.check_active()
         return self._phase.activate(actor_id, payload, dedupe_token=dedupe_token)
@@ -87,8 +91,15 @@ class PhaseContext:
             concurrency_source='kernel runtime', max_activations=1 if self._exhausted else remaining,
         )
 
+    def prepare_artifact(self, chunks):
+        if not self._active:
+            raise RuntimeError('phase is closed')
+        reference = self._runtime.store.prepare_artifact(chunks)
+        self._runtime._artifacts.append(reference)
+        return reference
+
     def activate(self, actor_id, payload=None, *, dedupe_token=None):
-        if not self._active or not self._ready:
+        if not self._active or not self._ready or self._failure.done():
             raise RuntimeError('phase is not accepting activations')
         if self._exhausted:
             raise ActivationLimitError(maximum=self._runtime.max_activations,
@@ -97,6 +108,8 @@ class PhaseContext:
         actor = self._runtime._actors[actor_id]
 
         async def execute(batch):
+            if not self._active or self._failure.done():
+                raise RuntimeError('phase has failed')
             scope = InteractionScope(actor.id, self.moment)
             session = Session(
                 actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
@@ -144,6 +157,7 @@ class Runtime:
         self._moment = None
         self._cursors = {}
         self._activations_used = 0
+        self._artifacts = []
 
     async def _run_phase(self, time, phase):
         moment = Moment(time, phase.name)
@@ -182,11 +196,12 @@ class Runtime:
             raise ValueError('step must follow the last complete step')
         self._state = 'running'
         self._activations_used = 0
+        self._artifacts = []
         self._task = asyncio.current_task()
         try:
             for phase in phases:
                 await self._run_phase(time, phase)
-            publication = self.store.complete(step)
+            publication = self.store.complete(step, artifacts=tuple(self._artifacts))
         except BaseException:
             self._state = 'failed'
             self.last_completed = self.store.complete_step
@@ -198,6 +213,7 @@ class Runtime:
             return publication
         finally:
             self._task = None
+            self._artifacts.clear()
 
     async def close(self):
         task = self._task

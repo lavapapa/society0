@@ -89,6 +89,17 @@ class ReadView:
         if not self._active or threading.get_ident() != self._owner_thread:
             raise StorageError('callback scope expired or belongs to another thread')
 
+    def read_blob(self, table, column, rowid, *, offset=0, size=65536):
+        self._check()
+        if type(rowid) is not int or type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
+            raise ValueError('invalid BLOB range')
+        with self._connection.blob_open('main', table, column, rowid, False) as blob:
+            total = blob.length()
+            if offset >= total or size == 0:
+                return b'', total
+            blob.seek(offset)
+            return blob.read(min(size, total-offset)), total
+
     def iter_query(self, sql, bindings=()):
         self._check()
         cursor = self._connection.cursor()
@@ -121,6 +132,10 @@ class ReadView:
 
 
 class Writer(ReadView):
+    def include_artifact(self, reference):
+        self._check()
+        self._include_artifact(reference)
+
     def execute(self, sql, bindings=()):
         self._check()
         cursor = self._connection.execute(sql, bindings)
@@ -145,7 +160,7 @@ _ALLOWED = {apsw.SQLITE_SELECT, apsw.SQLITE_READ, apsw.SQLITE_FUNCTION, apsw.SQL
 
 
 def _authorizer(action, first, second, database, trigger):
-    if action == apsw.SQLITE_PRAGMA and first in ('table_info', 'table_xinfo'):
+    if action == apsw.SQLITE_PRAGMA and first in ('table_info', 'table_xinfo', 'table_list'):
         return apsw.SQLITE_OK
     if action not in _ALLOWED or (action in (apsw.SQLITE_INSERT, apsw.SQLITE_UPDATE, apsw.SQLITE_DELETE)
                                  and (first or '').startswith('_stage_')):
@@ -157,6 +172,18 @@ class StageReader:
     """独立只读观察者；完成水位是写入器已确认的下界。"""
     def __init__(self, path):
         self.path = Path(path).absolute()
+
+    def read_artifact(self, reference, *, offset=0, size=65536):
+        if type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
+            raise ValueError('invalid artifact range')
+        relative = Path(reference)
+        file = self.path / relative
+        if relative.is_absolute() or '..' in relative.parts or not relative.parts or relative.parts[0] != 'artifacts' or not file.resolve().is_relative_to(self.path):
+            raise StorageError('artifact must be run-local')
+        with file.open('rb') as stream:
+            total = os.fstat(stream.fileno()).st_size
+            stream.seek(offset)
+            return stream.read(size), total
 
     def read(self, callback, *, expected_revision=None):
         connection = apsw.Connection(str(self.path / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
@@ -184,6 +211,7 @@ class StageStore:
         connection = None
         try:
             connection = apsw.Connection(str(temporary / 'current.sqlite'))
+            connection.execute('PRAGMA foreign_keys=ON')
             for ddl in schema:
                 connection.execute(ddl)
             _tables(connection)
@@ -201,6 +229,8 @@ class StageStore:
             identity = run_id or uuid.uuid4().hex
             connection.execute('CREATE TABLE _stage_runtime(id INTEGER PRIMARY KEY,run_id TEXT,revision INTEGER,failed INTEGER,complete_step INTEGER)')
             connection.execute('INSERT INTO _stage_runtime VALUES(1,?,0,0,0)', (identity,))
+            connection.execute('CREATE TABLE _stage_artifacts(path TEXT PRIMARY KEY NOT NULL,size INTEGER NOT NULL,revision INTEGER NOT NULL)')
+            connection.execute('CREATE INDEX _stage_artifact_revision ON _stage_artifacts(revision)')
             manifest = {'format': 1, 'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
             cls._finish_initial(temporary, connection, manifest, [])
             connection.close()
@@ -223,7 +253,7 @@ class StageStore:
         _json(path / 'run.json', manifest)
         step = manifest['root_step']
         _json(path / 'steps' / f'{step:020d}.json', {'run_id': manifest['run_id'], 'step': step,
-              'parent': None, 'live_revision': 0, 'changeset': None, 'artifacts': artifacts})
+              'parent': None, 'live_revision': 0, 'changeset': None, 'artifacts': artifacts, 'requested_artifacts': []})
         _sync(path)
 
     @classmethod
@@ -252,6 +282,7 @@ class StageStore:
             if _schema(self._connection) != self._manifest['schema']:
                 raise StorageError('schema mismatch')
             self._validate_references(self.path, self._manifest, self._last['step'])
+            self._connection.execute('PRAGMA foreign_keys=ON')
             self._connection.execute('PRAGMA journal_mode=WAL')
             self._connection.execute('PRAGMA synchronous=FULL')
             self._connection.execute('UPDATE _stage_runtime SET complete_step=?', (self.complete_step,))
@@ -306,6 +337,7 @@ class StageStore:
         self._check()
         self._busy = True
         scope = Writer(self._connection)
+        scope._include_artifact = self._include_artifact
         try:
             self._connection.execute('BEGIN IMMEDIATE')
             self._connection.set_authorizer(_authorizer)
@@ -329,6 +361,19 @@ class StageStore:
     def read(self, callback, *, expected_revision=None):
         self._check()
         return StageReader(self.path).read(callback, expected_revision=expected_revision)
+
+    def read_artifact(self, reference, *, offset=0, size=65536):
+        self._check()
+        return StageReader(self.path).read_artifact(reference, offset=offset, size=size)
+
+    def _include_artifact(self, reference):
+        item = self._artifacts([reference])[0]
+        self._connection.set_authorizer(None)
+        try:
+            self._connection.execute('INSERT OR IGNORE INTO _stage_artifacts SELECT ?,?,revision+1 FROM _stage_runtime',
+                                     (item['path'],item['size']))
+        finally:
+            self._connection.set_authorizer(_authorizer)
 
     def prepare_artifact(self, chunks):
         """将字节流封存为独占的新文件；返回 run 内引用。"""
@@ -378,14 +423,17 @@ class StageStore:
             raise StorageError('complete step must be an integer')
         revision = self._connection.execute('SELECT revision FROM _stage_runtime').get
         if step == self.complete_step:
-            if revision == self._last['live_revision'] and sorted(set(artifacts)) == [x['path'] for x in self._last['artifacts']]:
+            if revision == self._last['live_revision'] and sorted(set(artifacts)) == self._last['requested_artifacts']:
                 return self._last.copy()
             raise StorageError('complete identity or artifacts differ')
         if type(step) is not int or step != self.complete_step + 1:
             raise StorageError('complete step must follow parent')
         temporary = self.path / 'changesets' / (uuid.uuid4().hex + '.tmp')
         try:
-            references = self._artifacts(artifacts)
+            requested = sorted(set(artifacts))
+            included = [row[0] for row in self._connection.execute('SELECT path FROM _stage_artifacts WHERE revision>? AND revision<=?',
+                                                                 (self._last['live_revision'], revision))]
+            references = self._artifacts([*requested,*included])
             final = temporary.with_suffix('.changeset')
             with temporary.open('xb') as stream:
                 def output(data):
@@ -397,7 +445,7 @@ class StageStore:
             _sync(final.parent)
             self._fault('before_publish')
             descriptor = {'run_id': self.run_id, 'step': step, 'parent': self.complete_step,
-                          'live_revision': revision, 'changeset': str(final.relative_to(self.path)), 'artifacts': references}
+                          'live_revision': revision, 'changeset': str(final.relative_to(self.path)), 'artifacts': references, 'requested_artifacts': requested}
             _json(self.path / 'steps' / f'{step:020d}.json', descriptor)
             self._last = descriptor
             self._session.close()
@@ -432,6 +480,7 @@ class StageStore:
             original.close()
             original = None
             connection = apsw.Connection(str(temporary / 'current.sqlite'))
+            connection.execute('PRAGMA foreign_keys=ON')
             references = {}
             for number in range(manifest['root_step'], selected + 1):
                 marker = source / 'steps' / f'{number:020d}.json'
@@ -446,7 +495,8 @@ class StageStore:
                     if not changeset.is_file():
                         raise StorageError('missing changeset')
                     with changeset.open('rb') as stream:
-                        apsw.Changeset.apply(stream.read, connection)
+                        # 级联结果已在 changeset 内；避免应用时再次触发级联。
+                        apsw.Changeset.apply(stream.read, connection, flags=apsw.SQLITE_CHANGESETAPPLY_FKNOACTION)
                 for artifact in descriptor['artifacts']:
                     name = artifact['path']
                     source_file = source / name
@@ -458,6 +508,8 @@ class StageStore:
                     _sync(target_file)
                     _sync(target_file.parent)
                     references[name] = artifact
+            connection.execute('DELETE FROM _stage_artifacts')
+            connection.executemany('INSERT INTO _stage_artifacts VALUES(?,?,0)', ((item['path'],item['size']) for item in references.values()))
             identity = run_id or uuid.uuid4().hex
             connection.execute('UPDATE _stage_runtime SET run_id=?,revision=0,failed=0,complete_step=?', (identity, selected))
             fresh = dict(manifest, run_id=identity, root_step=selected, source={'run_id': manifest['run_id'], 'step': selected})

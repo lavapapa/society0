@@ -1,0 +1,32 @@
+........................FF                                               [100%]
+=================================== FAILURES ===================================
+____ test_foreign_keys_and_native_apply_cross_table_order[a_parent-z_child] ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-283/test_foreign_keys_and_native_a0')
+parent = 'a_parent', child = 'z_child'
+
+    @pytest.mark.parametrize('parent,child',[('a_parent','z_child'),('z_parent','a_child')])
+    def test_foreign_keys_and_native_apply_cross_table_order(tmp_path,parent,child):
+        import apsw
+        schema = [f'CREATE TABLE {parent}(id INTEGER PRIMARY KEY)',
+                  f'CREATE TABLE {child}(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES {parent}(id))']
+>       with pytest.raises(apsw.ConstraintError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ConstraintError
+
+tests/primary/test_kernel_storage.py:332: Failed
+____ test_foreign_keys_and_native_apply_cross_table_order[z_parent-a_child] ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-283/test_foreign_keys_and_native_a1')
+parent = 'z_parent', child = 'a_child'
+
+    @pytest.mark.parametrize('parent,child',[('a_parent','z_child'),('z_parent','a_child')])
+    def test_foreign_keys_and_native_apply_cross_table_order(tmp_path,parent,child):
+        import apsw
+        schema = [f'CREATE TABLE {parent}(id INTEGER PRIMARY KEY)',
+                  f'CREATE TABLE {child}(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES {parent}(id))']
+>       with pytest.raises(apsw.ConstraintError):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ConstraintError
+
+tests/primary/test_kernel_storage.py:332: Failed
