@@ -17,6 +17,12 @@ class StorageError(RuntimeError):
     pass
 
 
+def _manifest(path):
+    value=json.loads((Path(path)/'run.json').read_text())
+    if value['format']!=2:raise StorageError('unsupported storage format')
+    return value
+
+
 def _sync(path):
     fd = os.open(path, os.O_RDONLY)
     try:
@@ -78,16 +84,26 @@ def _call(callback, scope):
 
 
 class ReadView:
-    def __init__(self, connection, revision=0, complete=0):
+    def __init__(self, connection, revision=0, complete=0, run_id=None):
         self._connection = connection
         self._active = True
         self._owner_thread = threading.get_ident()
+        self.run_id = run_id
         self.live_revision = revision
         self.complete_step = complete
 
     def _check(self):
         if not self._active or threading.get_ident() != self._owner_thread:
             raise StorageError('callback scope expired or belongs to another thread')
+
+    def revision_for(self, tables):
+        self._check()
+        names=tuple(dict.fromkeys(tables))
+        if not names:return 0
+        placeholders=','.join('?' for _ in names)
+        count,revision=self.query('SELECT count(*),coalesce(max(revision),0) FROM _stage_table_revisions WHERE name IN ('+placeholders+')',names)[0]
+        if count!=len(names):raise ValueError('unknown revision dependency table')
+        return revision
 
     def read_blob(self, table, column, rowid, *, offset=0, size=65536):
         self._check()
@@ -190,10 +206,10 @@ class StageReader:
         scope = None
         try:
             connection.execute('BEGIN')
-            revision, complete = connection.execute('SELECT revision,complete_step FROM _stage_runtime').get
+            revision, complete, run_id = connection.execute('SELECT revision,complete_step,run_id FROM _stage_runtime').get
             if expected_revision is not None and revision != expected_revision:
                 raise StorageError('read revision changed')
-            scope = ReadView(connection, revision, complete)
+            scope = ReadView(connection, revision, complete, run_id)
             connection.set_authorizer(_authorizer)
             return _call(callback, scope)
         finally:
@@ -205,7 +221,7 @@ class StageReader:
 class StageStore:
     @classmethod
     def validate_schema(cls, path, schema):
-        manifest = json.loads((Path(path) / 'run.json').read_text())
+        manifest = _manifest(path)
         connection = apsw.Connection(':memory:')
         try:
             for ddl in schema:
@@ -242,9 +258,11 @@ class StageStore:
             identity = run_id or uuid.uuid4().hex
             connection.execute('CREATE TABLE _stage_runtime(id INTEGER PRIMARY KEY,run_id TEXT,revision INTEGER,failed INTEGER,complete_step INTEGER)')
             connection.execute('INSERT INTO _stage_runtime VALUES(1,?,0,0,0)', (identity,))
+            connection.execute('CREATE TABLE _stage_table_revisions(name TEXT PRIMARY KEY NOT NULL,revision INTEGER NOT NULL)')
+            connection.executemany('INSERT INTO _stage_table_revisions VALUES(?,0)', ((name,) for name in _tables(connection)))
             connection.execute('CREATE TABLE _stage_artifacts(path TEXT PRIMARY KEY NOT NULL,size INTEGER NOT NULL,revision INTEGER NOT NULL)')
             connection.execute('CREATE INDEX _stage_artifact_revision ON _stage_artifacts(revision)')
-            manifest = {'format': 1, 'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
+            manifest = {'format': 2, 'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
             cls._finish_initial(temporary, connection, manifest, [])
             connection.close()
             connection = None
@@ -273,7 +291,7 @@ class StageStore:
     def open(cls, path):
         self = cls.__new__(cls)
         self.path = Path(path).absolute()
-        self._manifest = json.loads((self.path / 'run.json').read_text())
+        self._manifest = _manifest(self.path)
         self.run_id = self._manifest['run_id']
         self.source = self._manifest['source']
         self._last = self._latest(self.path)
@@ -351,12 +369,20 @@ class StageStore:
         self._busy = True
         scope = Writer(self._connection)
         scope._include_artifact = self._include_artifact
+        touched=set()
+        def authorize(action,first,second,database,trigger):
+            result=_authorizer(action,first,second,database,trigger)
+            if result==apsw.SQLITE_OK and action in (apsw.SQLITE_INSERT,apsw.SQLITE_UPDATE,apsw.SQLITE_DELETE):
+                touched.add(first)
+            return result
+        self._transaction_authorizer=authorize
         try:
             self._connection.execute('BEGIN IMMEDIATE')
-            self._connection.set_authorizer(_authorizer)
+            self._connection.set_authorizer(authorize)
             result = _call(callback, scope)
             self._connection.set_authorizer(None)
             self._connection.execute('UPDATE _stage_runtime SET revision=revision+1')
+            self._connection.executemany('UPDATE _stage_table_revisions SET revision=(SELECT revision FROM _stage_runtime) WHERE name=?', ((name,) for name in touched))
             self._connection.execute('COMMIT')
             return result
         except BaseException:
@@ -386,7 +412,7 @@ class StageStore:
             self._connection.execute('INSERT OR IGNORE INTO _stage_artifacts SELECT ?,?,revision+1 FROM _stage_runtime',
                                      (item['path'],item['size']))
         finally:
-            self._connection.set_authorizer(_authorizer)
+            self._connection.set_authorizer(self._transaction_authorizer)
 
     def prepare_artifact(self, chunks):
         """将字节流封存为独占的新文件；返回 run 内引用。"""
@@ -476,7 +502,7 @@ class StageStore:
     @classmethod
     def restore(cls, source, destination, *, step=None, run_id=None):
         source, destination = Path(source).absolute(), Path(destination).absolute()
-        manifest = json.loads((source / 'run.json').read_text())
+        manifest = _manifest(source)
         if run_id == manifest['run_id']:
             raise StorageError('restore requires a new run identity')
         selected = cls._latest(source)['step'] if step is None else step
@@ -525,6 +551,7 @@ class StageStore:
             connection.executemany('INSERT INTO _stage_artifacts VALUES(?,?,0)', ((item['path'],item['size']) for item in references.values()))
             identity = run_id or uuid.uuid4().hex
             connection.execute('UPDATE _stage_runtime SET run_id=?,revision=0,failed=0,complete_step=?', (identity, selected))
+            connection.execute('UPDATE _stage_table_revisions SET revision=0')
             fresh = dict(manifest, run_id=identity, root_step=selected, source={'run_id': manifest['run_id'], 'step': selected})
             cls._finish_initial(temporary, connection, fresh, list(references.values()))
             connection.close()

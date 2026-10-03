@@ -132,9 +132,10 @@ class ActorStore(Mapping):
         if active is not None and type(active) is not bool: raise TypeError('active must be boolean or None')
         identity=[self.store.run_id,role,active]
         def read(r):
+            revision=r.revision_for(('actor_selection','actor_counts'))
             after=0
             if cursor is not None:
-                if cursor['identity']!=identity or cursor['revision']!=r.live_revision: raise ValueError('actor cursor mismatch')
+                if cursor['identity']!=identity or cursor['revision']!=revision: raise ValueError('actor cursor mismatch')
                 after=cursor['after']
                 if type(after) is not int or after<0: raise ValueError('invalid actor cursor')
             where='kind=? AND role=?'
@@ -144,8 +145,8 @@ class ActorStore(Mapping):
             total=r.query('SELECT coalesce(sum(total),0) FROM actor_counts WHERE '+where,params)[0][0]
             rows=r.query('SELECT ordinal,actor FROM actor_selection WHERE '+where+' AND ordinal>? ORDER BY ordinal LIMIT ?',(*params,after,limit+1),max_rows=limit+1)
             page=rows[:limit]
-            next_cursor={'identity':identity,'revision':r.live_revision,'after':page[-1][0]} if len(rows)>limit else None
-            return Page([row[1] for row in page],total,next_cursor,r.live_revision)
+            next_cursor={'identity':identity,'revision':revision,'after':page[-1][0]} if len(rows)>limit else None
+            return Page([row[1] for row in page],total,next_cursor,revision)
         return self.store.read(read)
 
     def workspace_reference(self, actor):

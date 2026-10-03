@@ -5,6 +5,25 @@ from society0.kernel.composition import compose
 
 
 @pytest.mark.asyncio
+async def test_actor_selector_continues_after_activation_thread_writes(tmp_path):
+    from society0.kernel.plugins import Plugin
+    from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
+    plugins=[actor_plugin({'rule':lambda r:None},records=[ActorRecord(str(i),'rule',roles=('buyer',)) for i in range(3)]),
+             Plugin('thread_data',schema=THREAD_SCHEMA)]
+    async with compose(tmp_path/'run',plugins) as host:
+        actors=host.service('actors','actors');store=host.service('storage','store')
+        first=actors.select(role='buyer',limit=1)
+        threads=ThreadStore(store)
+        thread=threads.open(first.items[0],1,'decision')
+        threads.append_message(thread,{'role':'user','content':'first actor activation'})
+        second=actors.select(role='buyer',limit=1,cursor=first.next_cursor)
+        assert second.items==['1'] and second.revision==first.revision
+        actors.update('2',roles=('seller',))
+        with pytest.raises(ValueError,match='cursor'):
+            actors.select(role='buyer',limit=1,cursor=second.next_cursor)
+
+
+@pytest.mark.asyncio
 async def test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields(tmp_path):
     created=[]
     def driver(record):

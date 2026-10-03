@@ -100,14 +100,17 @@ def _cursor_offset(cursor):
 
 
 class Information:
-    def __init__(self, allows: Callable):
+    def __init__(self, allows: Callable, *, access_dependencies=()):
         self._allows = allows
         self._mounts = {}
+        self.access_dependencies=tuple(access_dependencies)
 
     def mount(self, prefix, provider):
         prefix = _path(prefix)
         if prefix in self._mounts:
             raise ValueError('resource prefix is already mounted')
+        bind=getattr(provider,'bind_access_dependencies',None)
+        if bind is not None:bind(self.access_dependencies)
         self._mounts[prefix] = provider
 
     async def _provider(self, scope, path, operation):
@@ -263,17 +266,20 @@ def _normalize_strict_value(value, schema):
 
 
 class Actions:
-    def __init__(self, allows: Callable, *, revision: Callable | None = None):
+    def __init__(self, allows: Callable, *, revision: Callable | None = None, dependency_revision=None, access_dependencies=()):
         self._allows = allows
         self._revision = revision
         self._actions = {}
         self._types = {}
         self._generation = 0
+        self._dependency_revision=dependency_revision
+        self._access_dependencies=tuple(access_dependencies)
+        self._dependencies={}
 
     def __len__(self):
         return len(self._actions)
 
-    def register(self, action: Action):
+    def register(self, action: Action, *, dependencies=()):
         if action.name in self._actions:
             raise ValueError('action name is already registered')
         parameters = deepcopy(action.parameters)
@@ -284,6 +290,7 @@ class Actions:
         action = replace(action, parameters=parameters, target_kind=tuple(action.target_kind))
         self._actions[action.name] = (action, validator_type(parameters))
         self._types.setdefault(action.target_kind, []).append(action.name)
+        self._dependencies.setdefault(action.target_kind,set()).update(dependencies)
         self._generation += 1
 
     async def _eligible(self, scope, action, target):
@@ -309,7 +316,12 @@ class Actions:
         scope.check_active()
         if limit < 1:
             raise ValueError('limit must be positive')
-        revision = await _resolve(self._revision(scope)) if self._revision else scope.revision
+        async def version():
+            if self._dependency_revision is not None:
+                tables=(*self._access_dependencies,*sorted(self._dependencies.get((target.namespace,target.kind),())))
+                return await _resolve(self._dependency_revision(scope,tables))
+            return await _resolve(self._revision(scope)) if self._revision else scope.revision
+        revision = await version()
         scope.check_active()
         identity = json.dumps([scope.actor, asdict(scope.moment), revision, asdict(target),
                                query, self._generation], ensure_ascii=False, sort_keys=True)
@@ -331,8 +343,8 @@ class Actions:
                 if offset <= total < offset + limit:
                     selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags))
                 total += 1
-        if self._revision is not None:
-            current = await _resolve(self._revision(scope))
+        if self._revision is not None or self._dependency_revision is not None:
+            current = await version()
             scope.check_active()
             if json.dumps(current, sort_keys=True) != json.dumps(revision, sort_keys=True):
                 raise ValueError('action discovery revision changed; restart discovery')
@@ -383,11 +395,12 @@ class _BoundActions:
         return await self.actions.invoke(self.scope, name, target, arguments)
 
 
-def interaction_plugin(allows, *, name='interaction', storage='storage'):
+def interaction_plugin(allows, *, name='interaction', storage='storage', access_dependencies=()):
     """为一个共享运行安装信息与行动服务，领域插件注册其自身内容。"""
     from .plugins import Plugin
     def install(context):
         store=context.require(storage,'store')
-        context.provide('information',Information(allows))
-        context.provide('actions',Actions(allows,revision=lambda scope:store.read(lambda r:r.live_revision)))
+        context.provide('information',Information(allows,access_dependencies=access_dependencies))
+        context.provide('actions',Actions(allows,access_dependencies=access_dependencies,
+            dependency_revision=lambda scope,tables:store.read(lambda r:[r.run_id,r.revision_for(tables)],expected_revision=scope.revision)))
     return Plugin(name,(storage,),install)

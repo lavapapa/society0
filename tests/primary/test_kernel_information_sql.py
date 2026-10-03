@@ -165,7 +165,7 @@ async def test_large_history_hot_query_vm_and_materialized_bytes_remain_bounded(
         finally: store.close()
     print(json.dumps({'history_sizes':[1000,10000],'measurements':measurements}))
     assert measurements[1]['vm'] <= measurements[0]['vm'] * 2
-    assert measurements[1]['rows'] == measurements[0]['rows'] == 7
+    assert measurements[1]['rows'] == measurements[0]['rows'] == 8
     assert measurements[1]['bytes'] == measurements[0]['bytes']
 
 
@@ -191,7 +191,7 @@ async def test_sampling_streams_only_keys_then_fetches_selected_projection(tmp_p
         page = await provider.query(InteractionScope('alice',Moment(0,'p')),'/market/orders',Query(limit=5,sample_seed=2))
         assert page.population_total==100
         assert [sql for kind,sql in queries if kind=='stream'] == ['SELECT "id" FROM "orders" WHERE (owner=?) ORDER BY "id"']
-        assert len([sql for kind,sql in queries if kind=='query'])==2
+        assert len([sql for kind,sql in queries if kind=='query'])==3
     finally:store.close()
 
 

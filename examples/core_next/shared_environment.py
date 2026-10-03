@@ -72,14 +72,14 @@ async def demonstrate(output: Path, *, history=2000):
             return bool(store.read(lambda r: r.query('SELECT 1 FROM orders WHERE id=? AND owner=? AND active=1', (int(target.key),scope.actor))))
         actions.register(Action('market.buy', ('world', 'orders'), '购买可用订单',
                                 {'type':'object','properties':{},'required':[],'additionalProperties':False},
-                                buy, available=available, terminal=True, strict=True, tags=('trade',)))
+                                buy, available=available, terminal=True, strict=True, tags=('trade',)),dependencies=('orders',))
 
     def messaging(ctx):
         store = ctx.require('storage', 'store')
         provider = SQLInformation('world', StageReader(store.path), {
             'orders': DatasetSpec('orders','id',('id','price','status'),
                 authorize=lambda s:('owner=? AND active=1',(s.actor,)),
-                base_count=lambda s:('SELECT total FROM counts WHERE owner=?',(s.actor,))),
+                base_count=lambda s:('SELECT total FROM counts WHERE owner=?',(s.actor,)),dependencies=('counts',)),
             'history': DatasetSpec('orders','id',('id','price','status'),authorize=lambda s:('owner=?',(s.actor,))),
             'messages': DatasetSpec('messages','id',('id','body'),authorize=lambda s:('recipient=?',(s.actor,))),
             'documents': DocumentSpec('documents','id','body'),
