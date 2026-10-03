@@ -36,7 +36,7 @@
 
 - [x] **K01 Core 插件主机 TDD**（threads，依 X01/I04）：正式主机与 runtime_plugin 通过真实持久化双机制消费者集成；依赖、实例、冲突、环、清理及无全局 registry 已验。证据：`test_kernel_plugins*.py` 和 `test_kernel_runtime_review.py`，入口使用独立 Core 服务，无旧 World 依赖。Actor/LLM 全能力继续归后续任务。
 - [ ] **K02 生命周期与运行 scope**（threads，依 K01）：按依赖启动、反向关闭、部分初始化失败、取消、总资源预算、task-local actor 绑定与失效；普通异常清理和业务回滚分别验收。由 spec 独立审查 X01 与产品差异。局部主机生命周期审查已通过；actor 绑定、运行总资源与消费者接入未完成。
-- [x] **K03 Actor/Object/ResourceRef**（spec，依 K01）：身份/类型/实例、主体主观状态与领域角色事实、对象引用按需解析；保持值精度/类型/顺序，禁止复制整个环境到每主体 runtime。证据：compose 的 Plugin schema/initialize（`ce83ef2`）与 ActorStore/Runtime 懒解析（`f7b4a42`）；`test_kernel_actors*.py`、`runtime-actor-independent-green.txt`。冷热分表、一级主观状态局部更新、角色索引和精确计数已验证；全量资料读取成本仍随被激活主体自身资料大小增长。
+- [x] **K03 Actor/Object/ResourceRef**（spec，依 K01）：身份/类型/实例、主体主观状态与领域角色事实、对象引用按需解析；保持值精度/类型/顺序，禁止复制整个环境到每主体 runtime。证据：compose 的 Plugin schema/initialize（`ce83ef2`）与 ActorStore/Runtime 懒解析（`f7b4a42`）；`test_kernel_actors*.py`、`runtime-actor-independent-green.txt`。冷热分表、一级主观状态局部更新、角色索引和精确计数已验证；`63675b8` 进一步使用按主体版本绑定的 ActorRecordView，激活先读短头，persona/config/state 按访问读取，state_values 可选字段。作者 23 项相关验证与非作者 4 项复验覆盖同一短快照版本检查、无关主体修改、恢复和固定两键读取；认知明确请求全部资料时仍承担完整材料成本。
 - [x] **K04 View 与 Access**（spec，非作者 storage/threads，依 X02）：Information 路由与 SQLInformation 提供主体绑定、授权数量、固定版本游标、原生 BLOB 范围和索引分页。真实两回合 LLM 组合发现的 Thread 写入使下一页失效问题已修复，`b60b7aa` 按查询与权限依赖表维护事务版本。84 项相关用例包含无关记录不打断、领域或权限变化失效、回滚、跨运行游标及 Actor 选择续页；其中 6 项由非作者从实际 LLMDriver 验证。证据：`test_kernel_domain_revisions.py`、`test_kernel_llm_paging_review.py`、`domain-revision-owner-green.txt`。单次外部传输总字节预算继续归 Q03。
 - [x] **K05 动态 Action 与 Intent**（spec，非作者 threads，依 X02）：模板、find/describe/invoke、schema、执行重验、outcome、相关依赖版本与权限变化失效已实现。`87c15e5` 将策略过滤下推到一次枚举，10000 模板的可用性检查从 1000000 次降至 10000 次，持久版本游标不再携带全部候选名；无版本的纯内存路径保留候选校验。证据：`test_kernel_action_discovery_cost.py`、`test_kernel_llm_paging_review.py` 与 `model-selection-discovery-independent-green.txt`，47 项相关独立复验通过。
 - [ ] **K06 workspace 与 LLM 交互适配**（指定 owner，依 K04/K05/X05）：私有资料读写查删、lazy VFS、完整原文/data query/分页/总数/tail；写世界经过 action，规则驱动直接用结构化服务。`f7b4a42` 已通过真实 Bashkit+LLMDriver+ActorStore 的跨 Moment 完整恢复及失败回归；完整工作区重复快照成本和真实模型自主分析继续验收。
@@ -59,12 +59,12 @@
 
 ### 4.2 时间、领域与结果
 
-- [ ] **T01 step/phase 调度插件**（threads，依 K07/X06）：S01/S02/S06，代码步骤顺序、hooks、同阶段共享视图、前序修改可见、跨 moment scope 失效；直接 rule/behavior 与模型测量均走新接口。
+- [x] **T01 step/phase 调度插件**（threads，依 K07/X06）：S01/S02/S06，代码步骤顺序、hooks、同阶段共享视图、前序修改可见、跨 moment scope 失效；直接 rule/behavior 与模型测量均走新接口。`63675b8` 的 CodeSchedule 沿唯一 Runtime 路径，Host 自动提供机制钩子和先排空后关资源的生命周期；实际 RuleDriver、LLM interview、ActorStore 与两个 Social 实例贯穿。作者及非作者相关 63 项通过，含二次取消导致收尾中断的独立红例修复，见 `schedule-results-independent-final-green.txt`。
 - [ ] **T02 动态激活与批处理**（threads，依 T01/D02）：A08/S03–S05，selector、并发优先级、同 actor 串行、信号合并、空槽立即补位、close 边界新任务、取消及未完成 activation；每主体错误范围明确。`f7b4a42` 的 collect 策略、稳定结果顺序、drain 消费及持久 ActorStore 按需加载已通过作者和独立集成；完整 selector 与认知组合继续验收。
 - [ ] **T03 plain 与外部机制扩展**（指定 owner，依 T01/K07）：B01/E01–E04，普通小状态、外部声明/schema/default、非 JSON 图/数值派生资源恢复；低依赖路径不加载无关重资源。
 - [x] **T04 round_robin 迁移**（spec，非作者 storage，依 T02/T03/D05）：B02，circle 配对、私信/广播、参与者、保留事实与当前收件范围、完整原文和恢复已实现，提交 `164fbe9`。2/4/6/20 人配对与旧算法对照；固定当前消息、历史从 100 增至 10000 时查询 VM 均为 111。独立发现的清空后重访旧轮次 total/items 不一致已修复，广播中途故障整批回滚、dirty 消息不进入恢复。证据：`test_plugin_round_robin.py`、`test_plugin_builtin_review.py`，15 项通过。交互游标版本调整仍须随 K04/K05 复验。
-- [ ] **T05 social 迁移**（指定 owner，依 T02/T03/D06）：B03–B05，拓扑与关系、post/comment/repost/like/follow/通知、推荐/热度/曝光/嵌入批处理；preview 无曝光，正文可完整取得，确定性逐事件和模型输入对照。`3f708cf` 已迁移独立 Social 实例、拓扑、关系、完整正文、通知、排名与恢复；28 项作者及独立相关用例通过，固定 5 个活动候选、历史 100→10000 的查询 VM 均为 480。实际 Runtime 自动收束钩子与组合恢复仍在审查，见 [Social 合同](social-contract.md)。
-- [ ] **T06 结果与诊断插件**（指定 owner，依 T01/D04）：O01–O04，metrics/steps/events/资源/summary、大表外置及分区、逐主体/工具错误/时长/并发/termination；结束扫描与历史增长计数，失败资料保诊断身份。
+- [x] **T05 social 迁移**（指定 owner，依 T02/T03/D06）：B03–B05，拓扑与关系、post/comment/repost/like/follow/通知、推荐/热度/曝光/嵌入批处理；preview 无曝光，正文可完整取得，确定性逐事件和模型输入对照。`3f708cf` 已迁移独立 Social 实例、拓扑、关系、完整正文、通知、排名与恢复；28 项作者及独立相关用例通过，固定 5 个活动候选、历史 100→10000 的查询 VM 均为 480。`63675b8` 补齐实际 Runtime 自动 after_tick，两个独立实例的嵌入与曝光在 complete 前收束并可恢复；独立调度组复验通过，见 [Social 合同](social-contract.md)。最终真实模型与整套能力对照继续归 V03/V05。
+- [ ] **T06 结果与诊断插件**（指定 owner，依 T01/D04）：O01–O04，metrics/steps/events/资源/summary、大表外置及分区、逐主体/工具错误/时长/并发/termination；结束扫描与历史增长计数，失败资料保诊断身份。`63675b8` 已实现 StepResult 原文、流式表、有界范围读取、当前指标和累积短计数、逐激活结果及独立进度快照；非作者大正文单块读取、编码后字节预算、失败恢复和跨运行游标复验通过。物理资源调用累计投影与外部服务消费继续实施。
 
 ### 4.3 数据、恢复与观察
 
