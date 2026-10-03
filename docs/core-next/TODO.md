@@ -37,8 +37,8 @@
 - [x] **K01 Core 插件主机 TDD**（threads，依 X01/I04）：正式主机与 runtime_plugin 通过真实持久化双机制消费者集成；依赖、实例、冲突、环、清理及无全局 registry 已验。证据：`test_kernel_plugins*.py` 和 `test_kernel_runtime_review.py`，入口使用独立 Core 服务，无旧 World 依赖。Actor/LLM 全能力继续归后续任务。
 - [ ] **K02 生命周期与运行 scope**（threads，依 K01）：按依赖启动、反向关闭、部分初始化失败、取消、总资源预算、task-local actor 绑定与失效；普通异常清理和业务回滚分别验收。由 spec 独立审查 X01 与产品差异。局部主机生命周期审查已通过；actor 绑定、运行总资源与消费者接入未完成。
 - [x] **K03 Actor/Object/ResourceRef**（spec，依 K01）：身份/类型/实例、主体主观状态与领域角色事实、对象引用按需解析；保持值精度/类型/顺序，禁止复制整个环境到每主体 runtime。证据：compose 的 Plugin schema/initialize（`ce83ef2`）与 ActorStore/Runtime 懒解析（`f7b4a42`）；`test_kernel_actors*.py`、`runtime-actor-independent-green.txt`。冷热分表、一级主观状态局部更新、角色索引和精确计数已验证；全量资料读取成本仍随被激活主体自身资料大小增长。
-- [x] **K04 View 与 Access**（spec，非作者 storage/threads，依 X02）：Information 路由与 SQLInformation 提供来源/时点/版本、主体绑定、授权数量、固定版本游标、原生 BLOB 范围和有索引分页。证据：`test_kernel_interaction*.py`、`test_kernel_information_sql*.py`、[SQL 合同](information-sql-contract.md)。四项 SQL 独立发现已进入回归；通用外部服务总字节预算继续归 Q03。
-- [x] **K05 动态 Action 与 Intent**（spec，非作者 threads，依 X02）：按目标类型注册模板，find/describe/invoke、schema、执行重验与结构化 outcome 已实现。证据：`test_kernel_interaction*.py`、`test_kernel_shell*.py` 与 [交互合同](interaction-contract.md)；LLM 内预算/terminal/required 组合继续归 D02/D03。
+- [ ] **K04 View 与 Access**（spec，非作者 storage/threads，依 X02）：Information 路由与 SQLInformation 已提供主体绑定、授权数量、固定版本游标、原生 BLOB 范围和索引分页，见 `test_kernel_information_sql*.py`。真实两回合 LLM 组合发现：保存自己的 Thread 会推进全局版本，使下一页无效，已重新打开验收。改为查询与权限相关表的事务版本；须同时验证无关记录不打断、领域或权限变化失效、回滚及跨运行游标。独立红灯见 `llm-paging-independent-red.txt`。
+- [ ] **K05 动态 Action 与 Intent**（spec，非作者 threads，依 X02）：模板、find/describe/invoke、schema、执行重验与 outcome 已实现；本轮重新打开完整分页验收，原因与 K04 相同。`llm-action-paging-old-policy-red.txt` 使用符合元工具参数合同的真实 Driver 复现旧版本策略问题。相关依赖版本、权限变化与候选枚举复杂度均完成独立复验后关闭；LLM 内预算/terminal/required 组合继续归 D02/D03。
 - [ ] **K06 workspace 与 LLM 交互适配**（指定 owner，依 K04/K05/X05）：私有资料读写查删、lazy VFS、完整原文/data query/分页/总数/tail；写世界经过 action，规则驱动直接用结构化服务。`f7b4a42` 已通过真实 Bashkit+LLMDriver+ActorStore 的跨 Moment 完整恢复及失败回归；完整工作区重复快照成本和真实模型自主分析继续验收。
 - [x] **K07 规则 Driver 与贯穿样例**（spec，依 X06/K04/K05）：`examples/core_next/shared_environment.py` 使用 PluginHost、StageStore、Runtime 与两个规则主体，实际完成 SQL 查询、抽样、jq 分析、动态行动和消息读取；封存输出与 workspace 后恢复逐值相等。证据：`test_kernel_information_sql.py` 中完整例及 `information-sql-green.txt`。跨 LLM 激活的 workspace/回执消费继续归 K06/D04。
 - [ ] **K08 P1 独立审查**（非作者，依 K01–K07）：角色伪造/范围泄漏的语义负例、失效对象、执行时条件变化、partial write 与资源累计、懒加载实际分配；按项目约束做能力正确性审查，不开展额外安全性研究。
@@ -54,7 +54,7 @@
 - [x] **D03 LLM 预算与失败组合**（threads，非作者 spec，依循环实现）：L05–L10 的总/逐 action/turn 预算、失败尝试、重复 call、parallel false、length/empty/schema/provider 错误已通过作者及独立测试。三个独立发现（物理请求水位漂移、诊断重复复制历史、恢复终止回执后多请求）已回归；见 `test_kernel_llm*.py`、`test_kernel_models_review.py` 和 `llm-manager-regression-green.txt`。真实服务与记忆组合留在 V05/D05。
 - [x] **D04 完整 Thread 与续激活**（storage/threads，非作者 spec，依 D02/K02）：ThreadStore 的分块原文、请求水位、tail/range 和完整恢复已通过作者与独立测试，见 [Thread 合同](thread-contract.md)。持久工具回执、跨进程同 moment 定位和 shell 旧产物消费已集成；`f7b4a42` 增加工作区恢复和固定记忆输入水位，`f273b15` 已将认知输入与消费游标原子发布；`cf08abc` 完成 CognitiveInput、变化背景追加、A→B→A 和独立进程恢复。证据：`test_kernel_threads*.py`、`test_kernel_cognition*.py`、`cognition-memory-integration-green.txt`，相关 99 项通过。长 Thread 不裁剪；真实提供方端到端继续归 V05。
 - [x] **D05 记忆插件与三个开关**（storage，依 D04/D01）：M03–M09；逐一验证召回/提取写入/主动记忆工具 2³ 组合、interview 默认测量、budget/length 无成功记忆、提取失败/空选择/同 Thread 重试/single-flight/pending→write→receipt。同一有效作业重试避免重复提取；完整步骤之后、崩溃前发生的外部调用可能重算，不从 dirty 诊断偷偷恢复。证据：`cf08abc`、`test_kernel_memory*.py`、`test_kernel_cognition.py` 默认真实组件组合；31 项 Memory 作者/独立用例及 99 项相关组合通过，含访谈默认不提取、长度失败不生成记忆、提取纠正和回执恢复。资源装配、传输及真实服务继续由 D01/D06/V05 验收。
-- [ ] **D06 记忆排序与真实后端适配**（storage，依 D05）：M06–M10；逐条向量/正文/时间/重要性、去重衰减/top_k、branch/active epoch/update/delete/export/import、读前等待必要写入；SQL 权威正文与向量、Chroma 派生候选，检索替换对比候选及最终主体上下文。当前核心及历史版本作者/非作者 25 项通过，见 `memory-independent-version-green.txt`；嵌入等待期间的版本变化曾导致漏旧版本/混未来正文，两项独立失败已修复。`cf08abc` 已补齐提取协议、主动四工具与配置召回数量；导入导出、seed/资源生命周期及真实提供方链仍未完成。
+- [x] **D06 记忆排序与后端适配**（storage，非作者 spec，依 D05）：M06–M10；SQL 权威正文和向量、Chroma 候选、历史可见版本、去重衰减、主动 CRUD 与配置召回数量已实现。`b0dab6a` 补齐 seed、原值原向量流式导出和批次原子导入、fork 隔离与关闭排空；独立审查发现的异步查询版本竞态、关闭与 update 竞态已回归。证据：`test_kernel_memory*.py`、`memory-transfer-independent-final.txt`，42 项作者及独立用例通过。完整 Memory 的真实 LLM/embedding 链继续由 V05 验收。
 - [ ] **D07 有界计算接入**（指定 owner，依 X08/适用封存接口）：产品使用有界线程压缩或已证明隔离的计算，维持顺序和总预算；多核完成顺序不决定业务优先权，单块过大显式处理。
 
 ### 4.2 时间、领域与结果
@@ -62,7 +62,7 @@
 - [ ] **T01 step/phase 调度插件**（threads，依 K07/X06）：S01/S02/S06，代码步骤顺序、hooks、同阶段共享视图、前序修改可见、跨 moment scope 失效；直接 rule/behavior 与模型测量均走新接口。
 - [ ] **T02 动态激活与批处理**（threads，依 T01/D02）：A08/S03–S05，selector、并发优先级、同 actor 串行、信号合并、空槽立即补位、close 边界新任务、取消及未完成 activation；每主体错误范围明确。`f7b4a42` 的 collect 策略、稳定结果顺序、drain 消费及持久 ActorStore 按需加载已通过作者和独立集成；完整 selector 与认知组合继续验收。
 - [ ] **T03 plain 与外部机制扩展**（指定 owner，依 T01/K07）：B01/E01–E04，普通小状态、外部声明/schema/default、非 JSON 图/数值派生资源恢复；低依赖路径不加载无关重资源。
-- [ ] **T04 round_robin 迁移**（指定 owner，依 T02/T03/D05）：B02，逐轮配对/私信/广播/参与者/保留消息/FoV/恢复；配置策略名逐项核实，未实现的旧枚举不冒称迁移完成。
+- [x] **T04 round_robin 迁移**（spec，非作者 storage，依 T02/T03/D05）：B02，circle 配对、私信/广播、参与者、保留事实与当前收件范围、完整原文和恢复已实现，提交 `164fbe9`。2/4/6/20 人配对与旧算法对照；固定当前消息、历史从 100 增至 10000 时查询 VM 均为 111。独立发现的清空后重访旧轮次 total/items 不一致已修复，广播中途故障整批回滚、dirty 消息不进入恢复。证据：`test_plugin_round_robin.py`、`test_plugin_builtin_review.py`，15 项通过。交互游标版本调整仍须随 K04/K05 复验。
 - [ ] **T05 social 迁移**（指定 owner，依 T02/T03/D06）：B03–B05，拓扑与关系、post/comment/repost/like/follow/通知、推荐/热度/曝光/嵌入批处理；preview 无曝光，正文可完整取得，确定性逐事件和模型输入对照。
 - [ ] **T06 结果与诊断插件**（指定 owner，依 T01/D04）：O01–O04，metrics/steps/events/资源/summary、大表外置及分区、逐主体/工具错误/时长/并发/termination；结束扫描与历史增长计数，失败资料保诊断身份。
 
