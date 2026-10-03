@@ -4,7 +4,7 @@ Use this guide when someone has just installed the Society0 skill, is new to Soc
 
 The Society0 skill guides a coding agent. The Society0 Python package is the simulation engine used by an experiment. Explain this distinction before setup becomes relevant. LLM-Agent experiments need both an LLM provider and an embedding provider; rule-based baselines can be useful when they faithfully express a deterministic mechanism. Do not ask users to paste provider credentials into chat; explain how to configure them locally when the selected path needs them.
 
-When helping install this skill, finish with a short confirmation and offer the starting paths below in the same conversation. Installation provides instructions and templates; defer Python and model setup until the selected task needs an experiment. A researcher can continue with “带我入门”, “先讲原理” or a research question. Keep the user's sample prompts short.
+When helping install this skill, finish with a short confirmation and offer the starting paths below in the same conversation. Installation provides instructions and templates; defer Python and model checks or setup until the selected task needs an experiment. Put technical installation details in a local note when useful, and lead the reply with the researcher's next choice. A researcher can continue with “带我入门”, “先讲原理” or a research question. Keep the user's sample prompts short.
 
 ## First response
 
@@ -36,7 +36,7 @@ For a paper, first explain its research question, mechanism, agents, setting, in
 
 ## Teach Society0 step by step
 
-When the user wants to understand the project, teach one concept per response and connect each concept to a concrete social-science example. Use this progression, adapting to the questions the researcher asks:
+When the user wants to understand the project, teach one concept per response and connect it to a concrete social-science example. For a plain-language or everyday-example request, explain who sees what, what can change, and what the researcher can observe; offer code and API details when the user chooses implementation. Reuse the example across lessons so each answer adds one idea. Use this progression, adapting to the questions the researcher asks:
 
 1. **Purpose and boundary:** what an LLM-Agent social simulation can help explore, and why its outputs do not by themselves establish facts about real populations.
 2. **LLM Agents:** how an agent receives instructions and information, generates a decision, and may use available actions; explain that its behavior depends on the model, prompt, and information it receives.
