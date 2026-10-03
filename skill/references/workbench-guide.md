@@ -66,7 +66,11 @@ experiments/study/
 
 首页标题写研究项目名称，标题下写一句研究问题。左栏先放研究者最关心的主体，也可放“实验整体”“环境”“制度实体”等视角；各主体标明类型。配置版本尚无运行时，中间默认展示所选视角对应的配置树，研究者可改动字段，必要时展开完整 JSON 编辑器增删字段；右栏显示待发送变更。已有保存结果时，为 LLM Agent 准备默认的“可接触的信息”视图，按机制说明它在当前 tick 能接触哪类资料；右侧优先展示该 Agent 在当前 tick 的真实会话。没有记录时显示空状态，缺少依据的标签不添加。无论是否已有运行，顶部都要明确显示当前版本和试运行范围。
 
+配置阶段也为每个 Agent 保留独立入口，用 `group` 标明所属实验条件；组级概览可额外添加。这样研究者能逐一检查 persona、属性和状态，并在试运行后沿用同一个主体入口查看会话。环境按其实际含义命名和归类，例如普通消息环境可以是 `overview`，政府等制度实体才使用相应类型。
+
 向第一次打开页面的研究者，简短介绍三种阅读路径：先选配置版本，检查主体和环境设定；如想提议修改，编辑字段并复制顶部变更请求发给 agent；如有试运行，切换到该版本的试运行，沿 tick 查看机制、会话与变化。对复杂机制的解释，可补充几个“你可能还想看”的入口，指向相关主体、相邻 tick 或专题视图。页面中的说明应围绕研究问题，不使用界面实现术语代替解释。
+
+在宿主应用内交付时，确认最后显示的是 HTML 页面，并让研究者知道如何从产物卡片重新打开。内嵌预览若未允许自动复制，模板会显示变更文本框；提示研究者选中文本、复制，再粘贴回同一会话即可。此时仍保留尚未发送的草稿，收到请求后再核对与创建版本。
 
 ## 转换的数据格式
 
@@ -137,14 +141,28 @@ experiments/study/
 
 `sessions` 中每次触发单独一项，`id` 唯一，`label` 建议包含交互名称和顺序。右栏会按这些真实会话给出选择菜单。会话的 `events` 依次填写输入、可见输出、动作或工具、观察结果、错误等记录；每项可用 `kind`、`title`、`text`、`data`、`time`、`source`。只展示原始记录中可核实的内容，工具名写真实名称，不补写隐藏推理。没有会话的 tick 留空数组。
 
-会话转换优先复用引擎的读取接口，它会取回存为独立 payload 文件的长消息。先从原始 Thread 首行获取 `thread_id`、`agent_id`、`scope` 和 `checkpoint_step`，核对 tick 映射，再按该线程创建一个 session。以下片段可放进实验转换脚本：
+会话转换优先复用引擎的读取接口，它会取回存为独立 payload 文件的长消息。先从原始 Thread 首行获取 `thread_id`、`agent_id`、`scope` 和 `checkpoint_step`，核对 tick 映射，再按该线程创建一个 session。
+
+`read_messages` 返回线程保存的会话尾部视图；再用 `read_events` 核对实际记录范围。某些结构化测量记录可能只有模型输出，provider 请求也可能仅保留消息数量；此时在该会话中明确写“已保存测量输出，原始输入未落盘”。把配置重新拼成提示词可用于解释设定，须标为重建，保留它与原始会话的区别。记忆提炼等附加调用也逐项核对，记录不足时按实际范围交付。
+
+以下片段展示消息与记录范围的呈现；附加调用仍需结合原始事件逐项核对：
 
 ```python
 from society0.agent.thread_store import AgentThreadStore
 
 store = AgentThreadStore(run_dir, create=False)
 messages = store.read_messages(thread_id)
-events = []
+raw_events = store.read_events(thread_id, materialize_payloads=True)
+requests = [event["payload"]["request"] for event in raw_events
+            if event["event_type"] == "provider_request"]
+has_input = any(message["role"] in ("system", "user") for message in messages)
+scope_note = "线程保存的消息视图；附加调用的记录范围见原始事件。"
+if not has_input:
+    scope_note = "已保存模型输出，原始输入未落盘。" if messages else "未保存会话消息。"
+if any("messages" not in request for request in requests):
+    scope_note += " 部分模型请求仅保存调用元数据，无法从此记录恢复全部请求正文。"
+events = [{"kind": "observation", "title": "记录范围", "text": scope_note,
+           "source": f"agent_threads / {thread_id}"}]
 for index, message in enumerate(messages):
     role = message["role"]
     events.append({
