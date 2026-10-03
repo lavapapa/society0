@@ -70,7 +70,7 @@
 
 - [ ] **P01 按需权威状态**（storage，依 X03/X04/K03）：P01/P02，新薄状态接口、持久事实/当前投影/临时数据、局部写入与必要原子组、值类型/精度/插入顺序；热查询不重放历史，查询不构建全量 World。
 - [ ] **P02 完整发布协议**（storage，依 P01/D04/D06/T01）：P03/P04，World/Actor/Thread/Memory 统一恢复身份，完整/诊断分离；多介质 prepare 与唯一完成权威按选定 SDD 实现，逐边界故障注入。checkpoint 与归档间隔若改变写入产品合同。
-- [ ] **P03 恢复、fork、export 与清理**（storage，依 P02）：P05/P06/P08，独立进程重新打开、来源身份、初始化差异、branch 隔离、实际旧版本、analysis/restore scope、来源丢失、可达清理；无旧 codec 兼容要求。`121923b` 已通过恢复包独立性、旧完整点、重复依赖仅复制一次、来源删除后再次恢复及离线清理的 52 项相关验收。独立审查发现的非根描述符缺失 changeset 导致误删问题已修复；全部身份与依赖验证先于删除。只读分析准备、统一跨插件恢复与大型占盘继续由 Q/P02/V04 验收，见 [生命周期合同](storage-lifecycle-design.md)。
+- [x] **P03 恢复、fork、export 与清理**（storage，依 P02）：P05/P06/P08，独立进程重新打开、来源身份、初始化差异、branch 隔离、选定历史完整点、来源丢失、可达清理；无旧 codec 兼容要求。`121923b` 已通过恢复包独立性、旧完整点、重复依赖仅复制一次、来源删除后再次恢复及离线清理的 52 项相关验收。独立审查发现的非根描述符缺失 changeset 导致误删问题已修复；全部身份与依赖验证先于删除。只读分析准备、统一跨插件恢复与大型占盘继续由 Q/P02/V04 验收，见 [生命周期合同](storage-lifecycle-design.md)。
 - [ ] **P04 大记录与持续成本**（storage，依 P01/P02）：P07，按块编码/记录定位/metadata 顺序访问、字节预算提前停止、范围下载不重解全前缀；宽 dict/单大 record、annotations/static metadata 下界单独报告。
 - [ ] **Q01 在线离线查询**（指定 owner，依 P02/K04）：Q01/Q02/Q04，status/版本水位、固定页/精确 total/typed cursor、索引追赶/准备/损坏重建、fork 源内容定位；查询进程与 producer 分离，冷追赶不能阻塞 status。
 - [ ] **Q02 实时信息与 Thread tail**（指定 owner，依 D04/Q01）：Q03/Q06/N03，Thread 目录及可继续 tail、live 与完整 prefix、完成步 observed revision、慢消费者与 view 过期；固定分页读完后仍可消费新增而无无限订阅队列。
