@@ -13,10 +13,12 @@ Install the [`skill/`](skill/) directory as a skill using your coding agent's in
 After installing the Society0 skill in your coding agent, copy this prompt to choose how you want to begin:
 
 ```text
-I am new to Society0. Offer me numbered paths to (1) start an LLM-Agent social simulation from my research question, (2) learn how Society0 works step by step, (3) adapt a paper, or (4) understand an existing project or run. Let me choose or describe another starting point, explain ideas in plain language, and help me set up only what my chosen path needs.
+I am new to Society0. Help me choose how to start, and guide me in plain language.
 ```
 
 Agents reading this repository directly should start from [skill/SKILL.md](skill/SKILL.md).
+
+For a screenshot-based, researcher-facing walkthrough, see [在 WorkBuddy 中开始 Society0 研究](docs/workbuddy-walkthrough.md). It covers installation through an ordinary conversation, configuration review, proposed changes, a small experiment, saved results, and analysis. The accompanying [validation record](docs/validation/workbuddy-2026-10-03.md) distinguishes observed successes from remaining verification work.
 
 ## Requirements
 
