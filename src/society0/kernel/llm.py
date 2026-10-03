@@ -5,6 +5,7 @@ from collections import Counter
 from contextvars import ContextVar
 from dataclasses import asdict, dataclass, is_dataclass, field
 import json
+import re
 import base64
 import codecs
 from pathlib import Path
@@ -90,8 +91,12 @@ class LLMPolicy:
     result_schema: dict | None = None
     direct_json: bool = False
     request_options: dict = field(default_factory=dict)
+    reasoning_stages: tuple = ()
 
     def __post_init__(self):
+        for stage in self.reasoning_stages:
+            if not isinstance(stage,dict) or not isinstance(stage.get('name'),str) or not stage['name'] or not isinstance(stage.get('desc',''),str):
+                raise ValueError('reasoning stage requires name and optional desc strings')
         if self.mode not in ('decision', 'interview'):
             raise ValueError('mode must be decision or interview')
         for value in (self.max_turns, self.max_action_calls, *self.per_action_limits.values()):
@@ -133,25 +138,14 @@ class _Ledger:
                 and (policy.allowed_tags is None or bool(set(action.tags) & set(policy.allowed_tags))))
 
     async def find(self, target, *, query='', limit=100, cursor=None):
-        # 只枚举目标类型的动作模板；不展开对象与模板的笛卡尔积。
-        candidates, continuation = [], None
-        while True:
-            page = await self.base.find(target, query=query, limit=100, cursor=continuation)
-            candidates.extend(action for action in page.items if self.allowed(action))
-            if page.next_cursor is None:
-                break
-            continuation = page.next_cursor
-        if type(limit) is not int or limit < 1:
-            raise ValueError('limit must be positive')
-        identity = _json([self.session.actor.id, asdict(self.session.moment), page.revision,
-                          self.driver.policy.allowed_names, self.driver.policy.allowed_tags,
-                          asdict(target), query, [item.name for item in candidates]])
-        offset = 0 if cursor is None else cursor['offset']
-        if type(offset) is not int or offset < 0 or (cursor is not None and cursor['identity'] != identity):
+        identity=_json([self.session.actor.id,asdict(self.session.moment),
+                        self.driver.policy.allowed_names,self.driver.policy.allowed_tags])
+        if cursor is not None and cursor['identity']!=identity:
             raise ValueError('action cursor mismatch')
-        end = min(offset + limit, len(candidates))
-        return Page(candidates[offset:end], len(candidates),
-                    {'identity': identity, 'offset': end} if end < len(candidates) else None, page.revision)
+        page=await self.base.find(target,query=query,limit=limit,cursor=None if cursor is None else cursor['cursor'],
+                                  names=self.driver.policy.allowed_names,tags=self.driver.policy.allowed_tags)
+        continuation=None if page.next_cursor is None else {'identity':identity,'cursor':page.next_cursor}
+        return Page(page.items,page.total,continuation,page.revision)
 
     async def describe(self, name, target):
         description = await self.base.describe(name, target)
@@ -257,10 +251,26 @@ def _schema(properties):
     return {'type': 'object', 'properties': properties, 'required': list(properties), 'additionalProperties': False}
 
 
+def _stage_segments(content, stages):
+    """阶段是输出解释信息，原始正文继续保留在 Thread。"""
+    names={stage['name'].casefold():stage['name'] for stage in stages}
+    matches=list(re.finditer(r'(?im)^[ \t]*->[ \t]*stage_begin[ \t]*:[ \t]*([^\s:]+)[ \t]*(?:\r?\n|$)',content))
+    segments=[]
+    first=matches[0].start() if matches else len(content)
+    if first:segments.append({'name':'default','known':True,'start':0,'end':first})
+    for index,match in enumerate(matches):
+        name=match.group(1)
+        end=matches[index+1].start() if index+1<len(matches) else len(content)
+        segments.append({'name':names.get(name.casefold(),name),'known':name.casefold() in names,
+                         'start':match.end(),'end':end})
+    return segments
+
+
 class LLMDriver:
-    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, workspace=None, memory=None):
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, workspace=None, memory=None, provider_selector=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
+        self.provider_selector = provider_selector
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
         self.workspace = workspace
@@ -360,7 +370,9 @@ class LLMDriver:
         ledger = _Ledger(self, session, thread_id)
         shell = None
         status, reason, structured = 'incomplete', 'driver_error', None
+        reasoning=[]
         try:
+            provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
             inputs = await invoke_maybe_async(self.input_builder, session)
             if isinstance(inputs, InputBatch):
                 self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
@@ -370,6 +382,12 @@ class LLMDriver:
             recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
             for message in recalled:
                 self.threads.append_message(thread_id, message)
+            if self.policy.reasoning_stages and self.policy.result_schema is None:
+                guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                    '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                    '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                    self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
             tools = self._tools()
             schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
             options = dict(self.policy.request_options)
@@ -392,7 +410,7 @@ class LLMDriver:
                 turns += 1
                 session.scope.check_active()
                 try:
-                    response = await self.provider.request(thread_id, options)
+                    response = await provider.request(thread_id, options)
                 except ProviderFailure as error:
                     reason = error.reason
                     break
@@ -403,7 +421,9 @@ class LLMDriver:
                     break
                 message = {key: value for key, value in response.items() if key in ('role', 'content', 'tool_calls', 'reasoning_content')}
                 message.setdefault('role', 'assistant')
-                self.threads.append_message(thread_id, message)
+                message_seq=self.threads.append_message(thread_id, message)
+                if self.policy.reasoning_stages and isinstance(message.get('content'),str):
+                    reasoning.append({'message_seq':message_seq,'segments':_stage_segments(message['content'],self.policy.reasoning_stages)})
                 calls = response.get('tool_calls') or []
                 content = response.get('content') or ''
                 if self.policy.direct_json:
@@ -507,7 +527,7 @@ class LLMDriver:
             else:
                 reason = 'max_turns'
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
-                                 'action_counts': dict(ledger.counts),
+                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,
                                  'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)
             if self.memory is not None and status in ('completed', 'waiting'):
                 await self.memory.after_activation(session, thread_id, result)

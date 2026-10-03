@@ -69,3 +69,9 @@ Action 支持不可变 tags、strict 与 read_only 元数据，describe 返回�
 作者测试位于 `tests/primary/test_kernel_interaction.py`。缺少模块时的首轮失败在 `research/core-next/interaction-red.txt`，current 候选集变动的失败在 `interaction-cursor-red.txt`，轻量摘要、JSON 游标、实际版本和读取期失效有对应作者回归测试；原始红测日志在后续同名写入中被覆盖，不再作为证据引用。负游标的非作者红测在 `interaction-independent-red.txt`，发现过程中版本变化的失败在 `interaction-revision-red.txt`，修复后结果在 `interaction-green.txt`。覆盖两主体订单与消息联动、独立权限、主体绑定、失效作用域、异步提供者、原文字节继续读取、十亿条逻辑集合惰性请求、schema、动作状态、终止判定、异常透传及发现游标。
 
 这些测试验证交互边界。真实存储查询、网络序列化、同阶段一致视图和完整 Driver 集成仍需相应阶段测试；提供者授权分页和版本合同须在每种实际机制中落实。
+
+### 发现策略与分页成本
+
+`Actions.find` 与绑定门面接受 `names=None, tags=None`。名称集合与标签集合共同过滤；标签取交集，空集合表示无候选，`None` 表示该维度不限制。一次请求枚举该对象类型的模板一次，计算完整授权总数并返回所需页。Driver 将研究策略下推到这个入口，实际 describe/invoke 仍由 Driver 策略门面及当前世界资格检查。
+
+提供实际数据版本时，游标绑定主体、时点、对象、查询、策略、注册代次与相关版本，保持小型引用。无版本的内存提供者仍携带候选集合，以检查可用性变化；其游标大小随候选数增长。分页改善取用方式，完整总数仍需检查全部相关模板。
