@@ -18,7 +18,7 @@
 - [x] **I02 main 增量归类**（spec，依 I01）：研究者 skill、完整 pilot、工作台与测试单列 U01–U05；拒绝把分支差异中的已废弃执行器当新功能。证据：[能力对照 1.1 与 5.1](capability-parity.md#11-身份与证据)。
 - [x] **I03 确定性旧版基线采集**（spec，依 I01）：显式 `PYTHONPATH=当前工作树/src`，运行合并基线已跟踪 primary/e2e 文件与 `-m 'not real_e2e'`。证据：[修前基线](../../research/core-next/baseline-tests-before-skill-fix.txt)，669 passed、1 failed、14 deselected、34.28s；失败为 skill 改文案后的旧逐字断言，修后结果见 I03a。首轮共享 venv 子进程导入旧 main 的 10 项额外失败保留于 [initial](../../research/core-next/baseline-tests-initial.txt)。默认未含 performance/Node，本轮新增测试未混入。
 - [x] **I03a 基线文案断言修复**（spec，依 I03）：保留 skill 可见实验 todo 与简短研究者进度的有效合同，修改 `test_society0_skill_requires_visible_experiment_todo_list` 过时句子断言。证据：[直接复验](../../research/core-next/baseline-skill-fix.txt)、[基线全量](../../research/core-next/baseline-tests.txt)：670 passed、14 deselected、32.96s；没有真实请求，未修改产品运行语义。
-- [ ] **I04 SDD 与验收绑定**（主智能体，依 I01/I02）：从 PRD 固定共享 Environment、公共引用/View/Action/Driver/Schedule、插件服务依赖、混合发布及失败合同；每个 capability ID 绑定责任插件与新测试。源码漂移、输入变化及破坏兼容范围写明。
+- [x] **I04 SDD 与验收绑定**（主智能体，依 I01/I02）：共享 Environment、公共交互、调度、SQLite/文件发布、Thread/记忆及失败合同见 [SDD](SDD.md)；全部 capability ID 的责任模块及预定新测试见 [实施验收映射](acceptance-map.md)。接口与旧格式破坏兼容已明确。此项完成规格与分工，实际逐项对标仍由 V01 验收。
 - [x] **X01 插件依赖与清理原型**（threads，无前置）：标准库拓扑与 context manager，先写缺 required、环、服务冲突、A 成功 B 半初始化失败、反向清理的失败用例；证明发生副作用前校验及提供者半失败责任，记录原型代码/红绿结果。证据：`tests/primary/test_kernel_plugins.py`、`test_kernel_plugins_review.py` 与 [作者红灯](../../research/core-next/plugin-host-red.txt)/[独立红灯](../../research/core-next/plugin-host-review-red.txt)/[独立复验](../../research/core-next/plugin-host-review-green.txt)。作者 14 + 独立 6 项共 20 项通过；两项独立发现（可变依赖、清理异常被其他资源抑制）已修复。该项不表示 K01/K02 的运行集成完成。
 - [x] **X02 信息与动作最小原型**（spec，独立审查 threads）：同环境订单与消息、主体绑定、discover/read/invoke、目标模板、执行重验、JSON 游标和实际版本已验证。证据：`kernel/interaction.py`、作者与非作者 `test_kernel_interaction*.py`、`interaction-shell-independent-green.txt`；真实大集合查询提供者继续归 K04/P04。
 - [x] **X03 存储权威与混合发布原型**（storage）：比较原生 SQLite 事务、JSONL 准备发布、长 reader 及 SQLite Session 根+增量，验证独立进程退出后的恢复边界。证据：[报告](storage-experiments.md)、`storage-session-green-20261004.txt` 20 passed；正式 Thread/Memory/长期分叉继续归 P02/P03。
@@ -37,10 +37,10 @@
 - [x] **K01 Core 插件主机 TDD**（threads，依 X01/I04）：正式主机与 runtime_plugin 通过真实持久化双机制消费者集成；依赖、实例、冲突、环、清理及无全局 registry 已验。证据：`test_kernel_plugins*.py` 和 `test_kernel_runtime_review.py`，入口使用独立 Core 服务，无旧 World 依赖。Actor/LLM 全能力继续归后续任务。
 - [ ] **K02 生命周期与运行 scope**（threads，依 K01）：按依赖启动、反向关闭、部分初始化失败、取消、总资源预算、task-local actor 绑定与失效；普通异常清理和业务回滚分别验收。由 spec 独立审查 X01 与产品差异。局部主机生命周期审查已通过；actor 绑定、运行总资源与消费者接入未完成。
 - [ ] **K03 Actor/Object/ResourceRef**（指定 owner，依 K01）：身份/类型/实例、主体主观状态与领域角色事实、对象引用按需解析；保持值精度/类型/顺序，禁止复制整个环境到每主体 runtime。
-- [ ] **K04 View 与 Access**（指定 owner，依 K03/X02）：document/dataset 元信息、来源/时点/版本、discover/read/invoke 与 runtime actor；目录统计/失败反馈也是信息范围；业务合法性由机制表达。
-- [ ] **K05 动态 Action 与 Intent**（指定 owner，依 K03/X02）：find/describe/invoke 或已选统一名称，template+targets、参数 schema、过期发现后的执行校验、受理/完成/拒绝/故障；跨机制部分写使运行失败，未修改的业务拒绝可继续。
+- [x] **K04 View 与 Access**（spec，非作者 storage/threads，依 X02）：Information 路由与 SQLInformation 提供来源/时点/版本、主体绑定、授权数量、固定版本游标、原生 BLOB 范围和有索引分页。证据：`test_kernel_interaction*.py`、`test_kernel_information_sql*.py`、[SQL 合同](information-sql-contract.md)。四项 SQL 独立发现已进入回归；通用外部服务总字节预算继续归 Q03。
+- [x] **K05 动态 Action 与 Intent**（spec，非作者 threads，依 X02）：按目标类型注册模板，find/describe/invoke、schema、执行重验与结构化 outcome 已实现。证据：`test_kernel_interaction*.py`、`test_kernel_shell*.py` 与 [交互合同](interaction-contract.md)；LLM 内预算/terminal/required 组合继续归 D02/D03。
 - [ ] **K06 workspace 与 LLM 交互适配**（指定 owner，依 K04/K05/X05）：私有资料读写查删、lazy VFS、完整原文/data query/分页/总数/tail；写世界经过 action，规则驱动直接用结构化服务；shell 适配不成为每 Driver 的必备层。
-- [ ] **K07 规则 Driver 与贯穿样例**（threads/指定 owner，依 K02–K06/X06）：同一环境订单、消息、公共市场的两机制交互；验证所有写入、观察和作用主体身份；不得用预置样例结果冒充执行。
+- [x] **K07 规则 Driver 与贯穿样例**（spec，依 X06/K04/K05）：`examples/core_next/shared_environment.py` 使用 PluginHost、StageStore、Runtime 与两个规则主体，实际完成 SQL 查询、抽样、jq 分析、动态行动和消息读取；封存输出与 workspace 后恢复逐值相等。证据：`test_kernel_information_sql.py` 中完整例及 `information-sql-green.txt`。跨 LLM 激活的 workspace/回执消费继续归 K06/D04。
 - [ ] **K08 P1 独立审查**（非作者，依 K01–K07）：角色伪造/范围泄漏的语义负例、失效对象、执行时条件变化、partial write 与资源累计、懒加载实际分配；按项目约束做能力正确性审查，不开展额外安全性研究。
 
 ## 四、P2 对标
@@ -52,8 +52,8 @@
 - [ ] **D01 Provider 插件**（指定 owner，依 K02）：R01–R05，多模型/端点/并发/timeout/取消/retry/trust_env/session、strict/parallel/tool_choice、embedding 维度/微合批；fake transport 先覆盖参数与逐物理调用。
 - [ ] **D02 LLM Driver 基础循环**（指定 owner，依 K05/D01）：A01–A07、L01–L04/L11/L12；persona/View/记忆输入、动态 meta tools 对实际领域 action 的关联、结构化测量、成功 terminal、required 纠正、完整 trace。通过真实 loop，无简化替身进入产品。
 - [ ] **D03 LLM 预算与失败组合**（指定 owner，依 D02）：L05–L10；总/逐 action/turn 预算、失败尝试、重复 call、parallel false、length/empty/schema/provider 错误；先红测证明不重执行既有成功 action、不追加硬预算后的 closing 请求、不把 accepted 当 completed。
-- [ ] **D04 完整 Thread 与续激活**（指定 owner，依 D02/K02）：M01/M02/A04/A05；请求响应与大正文原文、工具反馈、物理重试、session、同 moment 新内容、断尾、close/失败开放事实。长 Thread 输入无固定窗口，元工具或摘要不删旧信息。
-- [ ] **D05 记忆插件与三个开关**（指定 owner，依 D04/D01）：M03–M09；逐一验证召回/提取写入/主动记忆工具 2³ 组合、interview 默认测量、budget/length 无成功记忆、提取失败/空选择/同 Thread 重试/single-flight/pending→write→receipt、无重复 LLM 写入。
+- [ ] **D04 完整 Thread 与续激活**（storage/threads，非作者 spec，依 D02/K02）：ThreadStore 的分块原文、请求水位、tail/range 和完整恢复已通过作者与独立测试，见 [Thread 合同](thread-contract.md)。持久工具回执、跨进程同 moment 定位和 shell 旧产物消费正在集成；全部完成后验收 M01/M02/A04/A05，长 Thread 不裁剪。
+- [ ] **D05 记忆插件与三个开关**（storage，依 D04/D01）：M03–M09；逐一验证召回/提取写入/主动记忆工具 2³ 组合、interview 默认测量、budget/length 无成功记忆、提取失败/空选择/同 Thread 重试/single-flight/pending→write→receipt。同一有效作业重试避免重复提取；完整步骤之后、崩溃前发生的外部调用可能重算，不从 dirty 诊断偷偷恢复。
 - [ ] **D06 记忆排序与真实后端适配**（指定 owner，依 D05）：M06–M10；逐条向量/正文/时间/重要性、去重衰减/top_k、branch/active epoch/update/delete/export/import、读前等待必要写入；检索替换对比候选及最终主体上下文。
 - [ ] **D07 有界计算接入**（指定 owner，依 X08/适用封存接口）：产品使用有界线程压缩或已证明隔离的计算，维持顺序和总预算；多核完成顺序不决定业务优先权，单块过大显式处理。
 
