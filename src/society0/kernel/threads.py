@@ -8,6 +8,7 @@ import zlib
 
 from ._json_chunks import CHUNK_BYTES, encode_chunks as _chunks, decode_chunks
 THREAD_SCHEMA = (
+    "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,PRIMARY KEY(thread_id,consumer))",
     '''CREATE TABLE thread_heads(
         id TEXT PRIMARY KEY NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,
         provider_session_id TEXT NOT NULL,status TEXT NOT NULL,
@@ -150,13 +151,32 @@ class ThreadStore:
         end = offset+len(data)
         return {'data':data,'total_bytes':total,'next_offset':end if end<total else None,'source':artifact}
 
+    def append_input(self, thread_id, messages, consumer, cursor):
+        def write(writer):
+            for message in messages:
+                if type(message) is not dict:
+                    raise TypeError('message must be a JSON object')
+                _append(writer,thread_id,'message',message)
+            sequence=_append(writer,thread_id,'input_cursor',{'consumer':consumer,'cursor':cursor})
+            writer.execute('INSERT INTO thread_input_cursors VALUES(?,?,?) ON CONFLICT(thread_id,consumer) DO UPDATE SET event_seq=excluded.event_seq',
+                           (thread_id,consumer,sequence))
+            return sequence
+        return self.store.transaction(write)
+
+    def input_cursor(self, thread_id, consumer):
+        def read(view):
+            _head(view,thread_id)
+            rows=view.query('SELECT event_seq FROM thread_input_cursors WHERE thread_id=? AND consumer=?',(thread_id,consumer))
+            return _load(view,thread_id,rows[0][0])['cursor'] if rows else None
+        return self.store.read(read)
+
     def append_message(self, thread_id, message):
         if type(message) is not dict:
             raise TypeError('message must be a JSON object')
         return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', message))
 
     def event(self, thread_id, kind, payload):
-        if kind in ('message','opened','closed','reopened','request','tool_receipt'):
+        if kind in ('message','opened','closed','reopened','request','tool_receipt','input_cursor'):
             raise ValueError('reserved Thread event kind')
         return self.store.transaction(lambda writer:_append(writer, thread_id, kind, payload))
 

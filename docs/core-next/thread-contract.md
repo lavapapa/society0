@@ -22,9 +22,11 @@ ThreadStore 保存主体会话、完整消息、物理请求引用、响应和�
 
 `tail(thread_id, after_seq=0, limit=100, inline_payload_bytes=65536)` 返回 items、next_seq、total。每项包含 seq、kind，小正文内联 payload；超出阈值时返回含 thread_id、seq、total_bytes 和 read_method 的 payload_ref。total 和项目在一个短 SQLite 快照内读取。末尾页保持最后已读游标，之后可用同一游标继续查询新增事件。`list_threads(actor=None, after=0, limit=100)` 按创建 ordinal 分页，返回 items、next、total，目录计数在创建 Thread 时同步更新。`read_payload(thread_id, seq, offset=0, size=65536)` 返回原始 JSON 字节范围、total_bytes 和 next_offset。它用固定原始块大小直接定位关联的压缩块；中间范围无需解压之前正文。页数及内联阈值共同约束观察响应，模型所需的完整读取保持独立明确。
 
-`save_tool_result(thread_id, call, content)` 在一个事务中保存调用原文事件、tool 消息和 call_id 索引，返回消息序号。`get_tool_result(thread_id, call_id)` 通过索引还原 call 与 content，支持完整步骤恢复后的行动回执复用。相同 call_id 与相同内容返回原回执，不重复追加；不同调用或内容会拒绝。正文 content 由 tool 消息保存一份，索引引用该消息。它记录已经完成的结果，不能逆转数据库之外的行动副作用。
+`save_tool_result(thread_id, call, content, metadata=None)` 在一个事务中保存调用原文事件、tool 消息和 call_id 索引，返回消息序号。`get_tool_result(thread_id, call_id)` 通过索引还原 call、content 与 metadata，支持完整步骤恢复后的行动回执复用。相同 call_id 与相同内容返回原回执，不重复追加；不同调用或内容会拒绝。正文 content 由 tool 消息保存一份，索引引用该消息。它记录已经完成的结果，不能逆转数据库之外的行动副作用。
 
 `register_artifact(thread_id, reference, artifact_ref, actor=...)` 将 shell 返回的 reference 关联至 run 内封存路径，验证 Thread 主体并在同一次事务调用 Writer.include_artifact。`lookup_artifact(...)` 按主体和引用取得该路径；`read_artifact(..., offset=0, size=65536)` 返回 data、total_bytes、next_offset 和 source。原文件由 StageStore.prepare_artifact 创建，恢复从完整描述符复制文件，Thread 索引随 changeset 恢复。关联后引用不可改指其他文件。
+
+`append_input(thread_id, messages, consumer, cursor)` 在同一短事务追加整批输入消息并登记消费游标，返回最后事件序号。`input_cursor(thread_id, consumer)` 按索引读取该消费方的 JSON 游标，尚未登记时返回 None。消息或游标编码失败会共同回滚；完整步骤恢复同时还原消息与游标。游标正文复用分块事件编码，索引保存事件序号。
 
 ## 三、成本与恢复
 

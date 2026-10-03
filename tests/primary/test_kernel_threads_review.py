@@ -167,3 +167,29 @@ def test_review_artifact_actor_isolation_and_restored_full_range(tmp_path):
             if part['next_offset'] is None: break
             offset=part['next_offset']
         assert b''.join(pieces)==data
+
+
+def test_review_input_messages_and_cursor_rollback_together_and_restore_fixed_version(tmp_path):
+    store,threads=create(tmp_path/'run')
+    with store:
+        tid=threads.open('a',0,'decision')
+        first={'role':'user','content':'first original'}
+        threads.append_input(tid,[first],'operating_context',{'after':1,'nested':{'original':'甲🙂'}})
+        before=threads.describe(tid)
+        with pytest.raises(TypeError):
+            threads.append_input(tid,[{'role':'user','content':'uncommitted'}],'operating_context',{'invalid':object()})
+        assert threads.describe(tid)==before
+        assert threads.read_messages(tid)==[first]
+        assert threads.input_cursor(tid,'operating_context')=={'after':1,'nested':{'original':'甲🙂'}}
+        def broken_messages():
+            yield {'role':'user','content':'generator partial'}
+            raise RuntimeError('input generation failed')
+        with pytest.raises(RuntimeError): threads.append_input(tid,broken_messages(),'operating_context',{'after':2})
+        assert threads.describe(tid)==before
+        store.complete(1)
+        threads.append_input(tid,[{'role':'user','content':'unfinished tick'}],'operating_context',{'after':2})
+        with StageStore.restore(store.path,tmp_path/'restored',step=1) as restored:
+            actual=ThreadStore(restored)
+            assert actual.read_messages(tid)==[first]
+            assert actual.input_cursor(tid,'operating_context')=={'after':1,'nested':{'original':'甲🙂'}}
+            assert actual.input_cursor(tid,'another consumer') is None
