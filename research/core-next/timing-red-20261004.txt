@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_physical_queue_jitter_provider_times_survive_projection _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-672/test_physical_queue_jitter_pro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1090011c0>
+
+    @pytest.mark.asyncio
+    async def test_physical_queue_jitter_provider_times_survive_projection(tmp_path,monkeypatch):
+        import society0.resource_managers as module
+        monkeypatch.setattr(module.random,'uniform',lambda a,b:b)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            provider=ModelProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','trust_env':False,'concurrency':1}],threads,max_attempts=1,request_jitter=.03)
+            async def create(**kwargs):
+                await asyncio.sleep(.01)
+                return ChatCompletion(id='r',object='chat.completion',created=0,model='m',choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'full'}}])
+            provider.manager.clients['m'].chat.completions.create=create
+            await provider.manager._global_semaphore.acquire()
+            task=asyncio.create_task(provider.request(tid,{}))
+            await asyncio.sleep(.02);provider.manager._global_semaphore.release()
+            try:await task
+            finally:await provider.close()
+            counts=Observation(store.path).resource_usage()['totals']
+>           assert counts['queue_s']>=.015 and counts['jitter_s']>=.025 and counts['provider_s']>=.008
+                   ^^^^^^^^^^^^^^^^^
+E           KeyError: 'queue_s'
+
+tests/primary/test_kernel_timing.py:28: KeyError

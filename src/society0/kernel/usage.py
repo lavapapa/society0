@@ -1,10 +1,11 @@
 """事实写入事务内维护小型累计投影；共享批次的主体归属保持显式。"""
+TIMINGS=('duration_s','queue_s','jitter_s','provider_s')
 COUNTERS=('requests','responses','errors','input_tokens','output_tokens','total_tokens',
-          'input_reports','output_reports','total_reports','cancelled','decode_errors','embedding_uses')
+          'input_reports','output_reports','total_reports','cancelled','decode_errors','embedding_uses')+TIMINGS+tuple(name.removesuffix('_s')+'_reports' for name in TIMINGS)
 
 
 def schema(prefix):
-    columns=','.join(f'{name} INTEGER NOT NULL' for name in COUNTERS)
+    columns=','.join(f'{name} {"REAL" if name in TIMINGS else "INTEGER"} NOT NULL' for name in COUNTERS)
     return (
         f'CREATE TABLE {prefix}_usage_calls(id TEXT PRIMARY KEY NOT NULL,model TEXT NOT NULL,{columns})',
         f'CREATE TABLE {prefix}_usage_actors(call_id TEXT NOT NULL,actor TEXT NOT NULL,PRIMARY KEY(call_id,actor))',
@@ -36,7 +37,7 @@ def link(writer,prefix,identifier,actor):
     _add(writer,prefix,actor,row[0],row[1:])
 
 
-def finish(writer,prefix,identifier,*,outcome,body):
+def finish(writer,prefix,identifier,*,outcome,body,timing=None):
     rows=writer.query(f'SELECT model,{",".join(COUNTERS)} FROM {prefix}_usage_calls WHERE id=?',(identifier,))
     if not rows:raise KeyError('physical request not found')
     row=rows[0]
@@ -53,8 +54,13 @@ def finish(writer,prefix,identifier,*,outcome,body):
         if type(value) is int and value>=0 and not previous[target+'_reports']:
             values[target+'_tokens']=value
             values[target+'_reports']=1
+    for name in TIMINGS:
+        report=name.removesuffix('_s')+'_reports'
+        value=(timing or {}).get(name)
+        if type(value) in (int,float) and not previous[report]:
+            values[name]=value;values[report]=1
     # 一个响应可先成功留证，再暴露解码/后处理故障；用量只记第一次报告。
-    delta=tuple(values[name] if name.endswith('_tokens') or name.endswith('_reports')
+    delta=tuple(values[name] if name.endswith('_tokens') or name.endswith('_reports') or name in TIMINGS
                 else max(0,values[name]-previous[name]) for name in COUNTERS)
     writer.execute(f'UPDATE {prefix}_usage_calls SET '+','.join(f'{name}={name}+?' for name in COUNTERS)+' WHERE id=?',(*delta,identifier))
     _add(writer,prefix,None,model,delta)
@@ -64,7 +70,7 @@ def finish(writer,prefix,identifier,*,outcome,body):
 
 def logical_embedding(writer,model,payload):
     actor=payload.get('metadata',{}).get('actor')
-    values=(0,)*(len(COUNTERS)-1)+(1,)
+    values=tuple(int(name=='embedding_uses') for name in COUNTERS)
     _add(writer,'resource',None,model,values)
     if actor is not None:
         _add(writer,'resource',actor,model,values)
@@ -85,5 +91,5 @@ def read(view,*,actor=None,model=None):
             items.append({'kind':kind,'model':row[0],**counts,'unknown_usage_calls':counts['requests']-counts['total_reports']})
             for name,value in counts.items():totals[name]+=value
     totals['unknown_usage_calls']=totals['requests']-totals['total_reports']
-    return {'actor':actor,'attribution':'physical_calls_once' if actor is None else 'related_physical_calls_not_additive',
+    return {'actor':actor,'timing_scope':'sum_of_physical_attempt_wall_times','attribution':'physical_calls_once' if actor is None else 'related_physical_calls_not_additive',
             'totals':totals,'models':items}

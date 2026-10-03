@@ -48,12 +48,18 @@ class Phase:
     prepare: Callable | None = None
     execution: str = 'serial'
     incomplete: str = 'fail_step'
+    capacity: int | None = None
 
     def __post_init__(self):
         if self.execution not in ('serial', 'independent'):
             raise ValueError('phase execution must be serial or independent')
         if self.incomplete not in ('fail_step', 'collect'):
             raise ValueError('incomplete policy must be fail_step or collect')
+        if self.capacity is not None:
+            if type(self.capacity) is not int or self.capacity < 1:
+                raise ValueError('phase capacity must be a positive integer')
+            if self.execution == 'serial' and self.capacity != 1:
+                raise ValueError('serial phase capacity must be one')
 
 
 class IncompleteActivation(RuntimeError):
@@ -102,9 +108,11 @@ class PhaseContext:
         self._failure = asyncio.get_running_loop().create_future()
         remaining = None if runtime.max_activations is None else runtime.max_activations - runtime._activations_used
         self._exhausted = remaining == 0
+        self.capacity = 1 if phase.execution == 'serial' else (phase.capacity if phase.capacity is not None else runtime.capacity)
+        self.concurrency_source = 'serial phase' if phase.execution == 'serial' else ('phase' if phase.capacity is not None else 'runtime')
         self._pool = ActivationPool(
-            world=None, capacity=1 if phase.execution == 'serial' else runtime.capacity,
-            concurrency_source='kernel runtime', max_activations=1 if self._exhausted else remaining,
+            world=None, capacity=self.capacity,
+            concurrency_source=self.concurrency_source, max_activations=1 if self._exhausted else remaining,
         )
 
     def prepare_artifact(self, chunks):
@@ -180,6 +188,8 @@ class Runtime:
     def __init__(self, actors: Iterable[Actor], *, information, actions, store,
                  capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS,results=None,progress=None,
                  before=(),after=(),step_hooks=None):
+        if type(capacity) is not int or capacity < 1:
+            raise ValueError('runtime capacity must be a positive integer')
         if isinstance(actors, Mapping):
             self._actors = actors
         else:
@@ -198,6 +208,7 @@ class Runtime:
         self._step=None
         self._phase_name=None
         self._failure_reason=None
+        self.last_timing=None
         self.information = information
         self.actions = actions
         self.store = store
@@ -215,7 +226,7 @@ class Runtime:
     def _observe(self):
         if self.progress is not None:
             self.progress.update(state=self._state,step=self._step,phase=self._phase_name,
-                                 active=self._active_count,finished=self._finished_count,capacity=self.capacity,error=self._failure_reason)
+                                 active=self._active_count,finished=self._finished_count,capacity=self.capacity,error=self._failure_reason,timing=self.last_timing)
 
     async def _run_phase(self, time_value, phase,phase_index):
         started=time_module.perf_counter()
@@ -248,7 +259,8 @@ class Runtime:
                     activations=({'actor_id':item.actor_id,'round':item.round,'status':item.result.status,
                         'reason':item.result.reason,'value':item.result.value,
                         'elapsed_s':context._elapsed[(item.actor_id,item.round)]} for item in context.results),
-                    elapsed_s=time_module.perf_counter()-started)
+                    elapsed_s=time_module.perf_counter()-started,
+                    capacity=context.capacity,concurrency_source=context.concurrency_source)
         finally:
             context._active = False
             if not task.done():
@@ -273,6 +285,8 @@ class Runtime:
                      phases,(self._hook('after',name,hook) for name,hook in (*after,*self._after)))
         self._state = 'running'
         self._step=step
+        self.last_timing={'step':step,'phase_s':0.,'finalization_s':0.,'complete_s':0.,'total_s':0.,
+                          'failed':False,'complete_step':self.last_completed}
         self._active_count=self._finished_count=0
         self._phase_name=None
         self._failure_reason=None
@@ -284,23 +298,32 @@ class Runtime:
         phase_count=0
         try:
             for phase_index,phase in enumerate(phases):
-                await self._run_phase(time,phase,phase_index)
+                phase_started=time_module.perf_counter()
+                try:await self._run_phase(time,phase,phase_index)
+                finally:self.last_timing['phase_s']+=time_module.perf_counter()-phase_started
                 phase_count+=1
-            if self.results is not None:
-                self.results.write_step(step,time,phase_count=phase_count,activation_count=self._activations_used,
-                    elapsed_s=time_module.perf_counter()-started,capacity=self.capacity,max_activations=self.max_activations)
-            publication = self.store.complete(step, artifacts=tuple(self._artifacts))
+            finalization_started=time_module.perf_counter()
+            try:
+                if self.results is not None:
+                    self.results.write_step(step,time,phase_count=phase_count,activation_count=self._activations_used,
+                        elapsed_s=time_module.perf_counter()-started,capacity=self.capacity,max_activations=self.max_activations)
+                complete_started=time_module.perf_counter()
+                try:publication = self.store.complete(step, artifacts=tuple(self._artifacts))
+                finally:self.last_timing['complete_s']=time_module.perf_counter()-complete_started
+            finally:self.last_timing['finalization_s']=time_module.perf_counter()-finalization_started
         except BaseException as error:
             self._failure_reason=type(error).__name__
             self._state = 'failed'
             self.last_completed = self.store.complete_step
             self.store.abort_step()
+            self.last_timing.update(total_s=time_module.perf_counter()-started,failed=True,complete_step=self.last_completed)
             self._observe()
             raise
         else:
             self.last_completed = step
             self._state = 'ready'
             self._phase_name=None
+            self.last_timing.update(total_s=time_module.perf_counter()-started,complete_step=self.last_completed)
             self._observe()
             return publication
         finally:

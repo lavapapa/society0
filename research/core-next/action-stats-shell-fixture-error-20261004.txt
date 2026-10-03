@@ -1,0 +1,42 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_real_shell_multi_actions_and_replayed_receipt_count_once _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-666/test_real_shell_multi_actions_0')
+
+    @pytest.mark.asyncio
+    async def test_real_shell_multi_actions_and_replayed_receipt_count_once(tmp_path):
+        import json,shlex
+        from types import SimpleNamespace
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.interaction import Actions,Information,Action,ActionResult,InteractionScope,Moment
+        from society0.kernel.runtime import Session,Actor
+        from society0.kernel.shell import ShellSession
+        actions=Actions(lambda *args:True);information=Information(lambda *args:True);executed=[]
+        def work(*args):executed.append(1);return ActionResult('completed',{'whole':'result'})
+        actions.register(Action('work',('m','job'),'work',{'type':'object'},work,tags=('tag',)))
+        arguments={'name':'work','target':{'namespace':'m','kind':'job','key':'1'},'arguments':{}}
+        command='action invoke '+shlex.quote(json.dumps(arguments))
+        call={'id':'shell-call','type':'function','function':{'name':'bash','arguments':json.dumps({'command':command+'; '+command})}}
+        class Provider:
+            def __init__(self):self.replies=iter([{'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'},{'role':'assistant','content':'finished','finish_reason':'stop'}])
+            async def request(self,*args):return next(self.replies)
+        for label,source in (('run',None),('restored',tmp_path/'run')):
+            context=StageStore.create(tmp_path/label,THREAD_SCHEMA) if source is None else StageStore.restore(source,tmp_path/label)
+            with context as store:
+                threads=ThreadStore(store)
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],shell_factory=lambda s,ledger:ShellSession(s.scope,information,bound_actions=ledger,result_dir=tmp_path/'shell'))
+                scope=InteractionScope('a',Moment(1,'work'))
+                session=Session(Actor('a',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact))
+                assert (await driver.run(session)).status=='completed'
+                summary=Observation(store.path).action_summary()
+>               assert summary['action_counts']=={'work':2}
+E               AssertionError: assert {} == {'work': 2}
+E                 
+E                 Right contains 1 more item:
+E                 {'work': 2}
+E                 Use -v to get more diff
+
+tests/primary/test_kernel_action_stats.py:75: AssertionError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-666/test_real_shell_multi_actions_0/shell/shell-gqjwv_4y/output — scripts can modify host files

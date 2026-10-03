@@ -35,9 +35,9 @@ async def decide(ctx):
 
 ## 二、阶段
 
-Phase 按列表顺序执行，默认 `execution='serial'`。同批不同主体依提交顺序激活，后项可看到前项已执行行动产生的 live 状态。对于互不冲突或行动顺序无关的机制，可以显式选择 `execution='independent'`；这是一项领域声明，运行时不从读写声明自动证明其成立。共享冲突机制应采用 serial。独立阶段的并发上限取 Runtime.capacity，完成的槽位立即补入等待主体。
+Phase 按列表顺序执行，默认 `execution='serial'`。同批不同主体依提交顺序激活，后项可看到前项已执行行动产生的 live 状态。对于互不冲突或行动顺序无关的机制，可以显式选择 `execution='independent'`；这是一项领域声明，运行时不从读写声明自动证明其成立。共享冲突机制应采用 serial。独立阶段的并发上限优先取显式 Phase.capacity，随后取 Runtime.capacity；完成的槽位立即补入等待主体。
 
-`Phase(name, run, prepare=None, execution='serial')` 的 prepare 在激活前执行一次，其返回值以同一对象引用交给所有 Session.prepared。准备函数负责返回不可变、适合共享的结果。该能力不复制完整 World，不承诺任意信息请求都绑定历史版本；scope.revision 默认为 None，信息服务返回各次实际版本。准备过程中取得的 SQLite 读回调须先退出，再等待外部模型或网络。
+`Phase(name, run, prepare=None, execution='serial', capacity=None)` 的 prepare 在激活前执行一次，其返回值以同一对象引用交给所有 Session.prepared。准备函数负责返回不可变、适合共享的结果。该能力不复制完整 World，不承诺任意信息请求都绑定历史版本；scope.revision 默认为 None，信息服务返回各次实际版本。准备过程中取得的 SQLite 读回调须先退出，再等待外部模型或网络。
 
 `ctx.activate(actor_id, payload=None, dedupe_token=None)` 复用现有 ActivationPool。相同主体等待中的信号合并为一个 activation；执行中的新增信号合并为下一轮。Session.signals 保留本轮各项载荷，不丢弃合并内容；相同 dedupe_token 遵循池的去重合同。同主体同时有一个 Driver 写者，默认按主体身份作为激活键与串行域。`ctx.drain()` 可以显式等待当前工作，阶段末尾也自动等待全部后续激活。
 
@@ -69,3 +69,11 @@ Runtime 同时接受 `Iterable[Actor]` 或 `Mapping[str, Actor]`。Mapping 保�
 
 
 正式 runtime_plugin 自动取得所属主机注册的 before/after 步骤回调；回调按插件依赖安装顺序执行，包含 Runtime 安装后加入的机制。每次 run_step 先固定完整回调列表，全部 after 成功后才发布。独立 Runtime 可通过 before/after 传入显式低层回调。结果、进度与薄 CodeSchedule 的消费方式见 [调度结果与进度](results-contract.md)。
+
+## 阶段容量
+
+`Phase(execution='serial')` 的实际容量固定为 1。`execution='independent'` 时，显式 `Phase.capacity` 优先于 `Runtime.capacity`，运行默认容量为 1；两级参数均要求正整数。串行阶段若显式传入大于 1 的容量会在配置时抛错。
+
+阶段完成产物记录 `capacity` 与 `concurrency_source`，来源分别为 `serial phase`、`phase` 或 `runtime`。主体的串行键继续生效，同一主体的重复激活不会并行进入 Driver。模型和嵌入服务另有各自的请求槽位，因此独立主体可在调度容量范围内等待同一个受限模型服务；服务容量不会反向改变领域阶段的顺序。`test_kernel_capacity.py` 覆盖两级优先级、默认串行、非法值、主体串行键及独立资源等待容量。
+
+`Runtime.last_timing` 与独立 Progress 快照记录最近尝试步骤的阶段与完整发布时长，以及实际已完成下界；runner 可保存逐步诊断表。它们不改变 complete receipt 的恢复身份。具体字段和包含关系见 [行动与时长诊断](diagnostics-contract.md)。

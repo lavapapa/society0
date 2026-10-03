@@ -211,7 +211,7 @@ class ResourceCalls:
             sequence=self._append(writer,identifier,kind,payload)
             if (kind in ('response','error','decode_error','cancelled')
                     and writer.query('SELECT kind FROM resource_calls WHERE id=?',(identifier,))[0][0]=='embedding'):
-                usage.finish(writer,'resource',identifier,outcome=kind,body=payload.get('response'))
+                usage.finish(writer,'resource',identifier,outcome=kind,body=payload.get('response'),timing=payload.get('timing'))
             return sequence
         return self.store.transaction(write)
 
