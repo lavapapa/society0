@@ -1,0 +1,88 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+____ test_restore_copies_repeated_artifact_once_and_survives_source_removal ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_restore_copies_repeated_a0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106b63410>
+
+    def test_restore_copies_repeated_artifact_once_and_survives_source_removal(tmp_path,monkeypatch):
+        source=tmp_path/'source'
+        with StageStore.create(source,THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            payload=('不可变资料🙂'*10000).encode()
+            ref=store.prepare_artifact([payload])
+            threads.register_artifact(tid,'result',ref,actor='a')
+            for step in range(1,4):store.complete(step,artifacts=[ref])
+        copied=[];native=shutil.copyfile
+        def copy(src,dst,*args,**kwargs):
+            copied.append(Path(src));return native(src,dst,*args,**kwargs)
+        monkeypatch.setattr(shutil,'copyfile',copy)
+        target=tmp_path/'target'
+        with StageStore.restore(source,target) as restored:
+>           assert copied.count(source/ref)==1
+E           AssertionError: assert 3 == 1
+E            +  where 3 = <built-in method count of list object at 0x106b17040>((PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_restore_copies_repeated_a0/source') / 'artifacts/aa56feff64fa4cdb8e177d235b3f0e40.artifact'))
+E            +    where <built-in method count of list object at 0x106b17040> = [PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_restore_copies_r...test-of-marvin/pytest-536/test_restore_copies_repeated_a0/source/artifacts/aa56feff64fa4cdb8e177d235b3f0e40.artifact')].count
+
+tests/primary/test_kernel_storage_lifecycle.py:24: AssertionError
+_ test_collect_orphans_requires_offline_owner_and_keeps_all_complete_dependencies _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_collect_orphans_requires_0')
+
+    def test_collect_orphans_requires_offline_owner_and_keeps_all_complete_dependencies(tmp_path):
+        path=tmp_path/'run'
+        with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            old=store.prepare_artifact([b'old retained'])
+            store.complete(1,artifacts=[old])
+            new=store.prepare_artifact([b'new retained'])
+            store.complete(2,artifacts=[new])
+            orphan=store.prepare_artifact([b'unpublished'])
+            temporary=path/'changesets'/'unfinished.tmp';temporary.write_bytes(b'partial')
+            with pytest.raises(StorageError,match='writer'):
+>               StageStore.collect_orphans(path)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: type object 'StageStore' has no attribute 'collect_orphans'
+
+tests/primary/test_kernel_storage_lifecycle.py:48: AttributeError
+___ test_collect_orphans_validates_complete_chain_before_any_delete[missing] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_collect_orphans_validates0')
+damage = 'missing'
+
+    @pytest.mark.parametrize('damage',['missing','identity'])
+    def test_collect_orphans_validates_complete_chain_before_any_delete(tmp_path,damage):
+        path=tmp_path/'run'
+        with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            ref=store.prepare_artifact([b'complete'])
+            descriptor=store.complete(1,artifacts=[ref])
+            orphan=store.prepare_artifact([b'keep on failure'])
+        if damage=='missing':(path/descriptor['changeset']).unlink()
+        else:
+            marker=path/'steps'/'00000000000000000001.json'
+            body=json.loads(marker.read_text());body['run_id']='other';marker.write_text(json.dumps(body))
+>       with pytest.raises(StorageError):StageStore.collect_orphans(path)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'StageStore' has no attribute 'collect_orphans'
+
+tests/primary/test_kernel_storage_lifecycle.py:69: AttributeError
+__ test_collect_orphans_validates_complete_chain_before_any_delete[identity] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-536/test_collect_orphans_validates1')
+damage = 'identity'
+
+    @pytest.mark.parametrize('damage',['missing','identity'])
+    def test_collect_orphans_validates_complete_chain_before_any_delete(tmp_path,damage):
+        path=tmp_path/'run'
+        with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            ref=store.prepare_artifact([b'complete'])
+            descriptor=store.complete(1,artifacts=[ref])
+            orphan=store.prepare_artifact([b'keep on failure'])
+        if damage=='missing':(path/descriptor['changeset']).unlink()
+        else:
+            marker=path/'steps'/'00000000000000000001.json'
+            body=json.loads(marker.read_text());body['run_id']='other';marker.write_text(json.dumps(body))
+>       with pytest.raises(StorageError):StageStore.collect_orphans(path)
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: type object 'StageStore' has no attribute 'collect_orphans'
+
+tests/primary/test_kernel_storage_lifecycle.py:69: AttributeError

@@ -53,3 +53,10 @@ SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/
 StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 `compression_inflight_bytes=524288`。设置单 worker 时使用同步压缩；其他配置先读取至多 256KiB 前缀，短值直接压缩，大值惰性启动该 store 共享的线程池。Thread、Memory 和 ResourceCalls 使用同一入口与资源所有者。close 排空并关闭线程池，插件不各自创建压缩池。worker 数与待处理原始字节预算必须为正，字节预算至少容纳一个 64KiB 块。
 
 待处理字节预算衡量队列内的原始输入，整体驻留还包含有界前缀、当前块、压缩结果、原生工作区及 SQLite/Session 数据。同步 writer 会等待压缩结果，调用它的事件循环仍可能短时阻塞；该路径提高吞吐，独立只读观察者继续通过短 WAL 快照读取。事务外异步冻结与准备属于独立试验，未纳入此接口。
+
+
+## 离线导出与清理
+
+`restore` 同时生成独立可恢复包和压实后的新 root，保留来源 run_id/step；源删除后目标仍可继续与再次恢复。源完整链重复引用同一工件时按路径复制一次，声明长度冲突明确拒绝。SQL 中的累计 Thread、Memory 和业务历史仍保留，因此 current 与 root 的冷数据复制成本继续存在。源 root 的 schema、run_id、根步骤和初始 revision 必须与运行清单一致。
+
+`StageStore.collect_orphans(path)` 显式执行离线准备孤儿清理。它先取得独占 writer 锁，核对 root 身份及全部完整描述符链和引用文件，之后清除 artifacts、changesets 目录中未被任何保留完整身份引用的文件，返回已删除相对路径。活动 writer、缺组件或身份错误会在删除前报错。未完成步骤且没有完整引用的诊断文件属于可清理范围，应在诊断留存完成后调用。其工作量随完整历史增长，属于离线维护；不会进入短事务或 complete 热路径。详细空间边界见 [存储生命周期](storage-lifecycle-design.md)。
