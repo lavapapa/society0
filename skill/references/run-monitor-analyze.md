@@ -226,6 +226,8 @@ For each proposed follow-up, state the target factor, what varies, what stays fi
 
 Keep the underlying message content fixed when isolating a source cue. Adding an official debunk changes both the authority cue and the corrective information; that comparison measures a combined treatment, not an isolated familiarity or authority effect.
 
+Before handing off an analysis, recompute group totals and derived estimates, and check that each claimed inference follows from its comparison. A rule baseline needs a justified substantive meaning; exceeding an arbitrary fixed score does not establish a reasoning mechanism. An effect disappearing in a repeat weakens evidence for stability, without by itself proving the original difference was noise. State the uncertainty and competing explanations that remain.
+
 Typical checks:
 
 - trends over ticks.
