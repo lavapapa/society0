@@ -1,0 +1,85 @@
+[
+  {
+    "artifact_directory": "/tmp/society0-core-next-provider-evidence-20261004/provider-real-20261004",
+    "endpoint": "https://openrouter.ai/api/v1",
+    "reported_model": "qwen/qwen3.8-flash",
+    "samples": [
+      {
+        "kind": "schema",
+        "elapsed_s": 1.2892214999883436,
+        "error_type": "APIStatusError"
+      },
+      {
+        "kind": "tool",
+        "elapsed_s": 0.39513225003611296,
+        "error_type": "APIStatusError"
+      },
+      {
+        "kind": "embedding_endpoint_probe",
+        "model": "qwen/qwen3-embedding-8b",
+        "status": 402,
+        "elapsed_s": 1.7877223750110716
+      }
+    ]
+  },
+  {
+    "artifact_directory": "/tmp/society0-core-next-provider-evidence-20261004/provider-existing-20261004",
+    "endpoint": "http://10.244.93.52:4000/v1",
+    "reported_model": "qwen3.8-27b",
+    "samples": [
+      {
+        "kind": "schema",
+        "elapsed_s": 136.61796229332685,
+        "error_type": "ProviderFailure"
+      },
+      {
+        "kind": "tool",
+        "elapsed_s": 60.06455693766475,
+        "error_type": "ProviderFailure"
+      },
+      {
+        "kind": "embedding_endpoint_probe",
+        "model": "bge-large-zh-v1.5",
+        "status": 200,
+        "elapsed_s": 0.057814233005046844
+      }
+    ]
+  },
+  {
+    "artifact_directory": "/tmp/society0-core-next-provider-evidence-20261004/provider-embedding-adapter-20261004",
+    "endpoint": "http://10.244.93.52:4000/v1",
+    "reported_model": "qwen/qwen3.8-flash",
+    "samples": [
+      {
+        "kind": "embedding_adapter",
+        "elapsed_s": 0.9823489040136337,
+        "physical_calls": 1,
+        "restore_exact": true
+      }
+    ]
+  },
+  {
+    "artifact_directory": "/tmp/society0-gemini-profile-20261004",
+    "profile": {
+      "model": "gemini-3.5-flash-lite",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "timeout": 30,
+      "max_attempts": 1
+    },
+    "elapsed_s": 1.2268645410076715,
+    "extension_preserved": null,
+    "finish_reason": "tool_calls"
+  },
+  {
+    "artifact_directory": "/tmp/society0-gemini-roundtrip-20261004",
+    "profile": {
+      "model": "gemini-3.5-flash-lite",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+      "timeout": 30,
+      "max_attempts": 1
+    },
+    "elapsed_s": 1.8767367500113323,
+    "extension_preserved": true,
+    "finish_reason": "stop"
+  }
+]
