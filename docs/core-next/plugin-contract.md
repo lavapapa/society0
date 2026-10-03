@@ -89,3 +89,13 @@ plugin = Plugin("facts", schema=SCHEMA, prepare=prepare, install=install)
 同一插件同时提供两个入口时，先执行普通 `initialize`，再执行准备所得函数。准备函数按插件依赖顺序进入，其资源按逆序释放。后续准备失败、取消或根写入失败都会退出已取得的准备资源；根创建成功后写者立即交给外层资源栈，因此准备资源关闭时抛错也会关闭写者。此时已经发布的根仍是有效初始点，调用方收到清理异常。
 
 准备所得闭包在进入正式运行前释放，外部数据无需随整个运行驻留。恢复依据完整状态重建服务，跳过 `prepare` 与 `initialize`。`examples/core_next/graph_environment.py` 展示异步读取外部图、将节点与边保存到共享 SQL，再用 NetworkX 和标准库数值数组生成派生视图；恢复时原始外部文件可以已经移除。派生视图的全图算法成本由所请求节点与边的规模决定。
+
+图与数值派生的读取应按实际调度共享。例如阶段使用 `Phase('analysis', run, prepare=lambda context: graph.projection())`，各主体从 `session.prepared` 读取同一个 `(graph, values)`。该调用显式物化全部节点、边和数值数组，适合需要全图算法的阶段；它的成本由图规模决定，应由阶段准备承担。该共享引用是准备时点的派生结果，业务若要求看见随后写入，应按阶段模型重新准备相应视图。
+
+## 事实与投影
+
+`examples/core_next/typed_records.py` 给出一个可组合的实际记录机制。公开 `records.append` 行动追加事实，唯一 `(kind, key)` 拒绝重复事实，登记序号保持插入顺序；`records.project` 更新当前投影。两种行动在执行时重验主体归属。机制没有修改既有事实的公开行动，原生 SQL writer 则是受信的插件开发接口，承担该插件的领域规则。
+
+示例的键域明确为整数和字符串，以类型列加文本键保存，整数 1 与字符串 "1" 不碰撞。每条值使用标准 JSON 编码，保留大整数、浮点值、列表顺序及完整文本；读取按原登记顺序还原。当前投影和不可变事实正文分表，小投影更新不会让 SQLite Session 捕获相邻冷正文。复合领域事件可以在同一个 `store.transaction(writer)` 中调用 `append_to` 和 `project_to`；回调失败时原生事务撤销全部写入，回调外的 writer 借用失效。
+
+该例为显式 SQL 插件合同，未提供任意旧 Python dict 别名映射。被修改的单条 JSON 值仍按该值大小编码，巨型结构应由其领域 schema 拆分。`test_kernel_record_plugin.py` 验证类型与值精度、插入顺序、重复事实、无权主体、部分写入回滚、恢复，以及冷事实正文不进入小投影更新的捕获量。
