@@ -20,7 +20,7 @@ ActorStore 实现 Mapping[str, Actor]。按 id 获取时读取主体短头并调
 
 `workspace_plugin` 提供独立 WorkspaceStore，仍使用同一共享 StageStore 并通过 actor 外键关联主体。ShellSession 按当前主体开启短 lease，文件索引按 actor/path 保存，正文作为文件工件登记；完整步骤恢复保留跨 Moment 的私有文件。ActorStore 负责身份和主观资料，工作区读写见 [工作区合同](workspace-contract.md)。
 
-Bashkit 当前恢复接口需要完整快照，load_workspace 会物化该主体的整个私有工作区。重复保存相同内容仍产生新工件；未变化工作区的长期复制成本待专门实验，不以此接口宣称增量文件系统。运行中的共享 World 继续通过信息服务读取，不被纳入私有快照。
+私有文件按路径读取，成功激活保存本次变更的文件与 shell 状态。未变化文件复用已有工件，文件级 copy-up 的成本由本次修改文件的大小决定。共享 World 通过动态只读挂载和信息查询服务访问，独立于私有文件保存。
 
 ## 四、验收
 

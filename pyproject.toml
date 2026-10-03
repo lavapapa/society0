@@ -16,25 +16,16 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-dependencies = [
-    "apsw>=3.53.4.0",
-    "json-repair",
-    "jsonschema>=4.0.0",
-    "networkx",
-    "pydantic",
-    "chromadb",
-    "ollama",
-    "openai",
-    "PyYAML",
-    "jmespath",
-    "tenacity",
-]
+dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0"]
 
 [project.optional-dependencies]
+llm = ["openai", "ollama", "pydantic", "tenacity"]
+memory = ["chromadb", "json-repair"]
+social = ["networkx", "pydantic", "chromadb"]
 shell = ["bashkit==0.18.2", "society0-filesystem"]
 dev = [
-    "pytest",
-    "pytest-asyncio",
+    "pytest", "pytest-asyncio", "PyYAML", "jmespath",
+    "openai", "ollama", "pydantic", "tenacity", "chromadb", "json-repair", "networkx",
 ]
 
 [tool.setuptools.packages.find]

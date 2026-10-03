@@ -1,0 +1,4 @@
+independent base: actual rule Runtime+compose complete/restore and observer passed; no model/vector/legacy World import
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpi5askktg/out/shell-o7johcwu/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpi5askktg/out/shell-nrcfjk0e/output — scripts can modify host files
+clean shell wheel: private file complete/restore bytes passed; no model/vector/social dependencies
