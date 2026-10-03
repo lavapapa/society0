@@ -52,9 +52,9 @@
 - [ ] **D01 Provider 插件**（threads，依 K02）：R01–R05，多模型/端点/并发/timeout/取消/retry/trust_env/session、strict/parallel/tool_choice、embedding 维度/微合批。ModelProvider 薄适配及固定消息水位已实现；完整配置、embedding 合批留证与真实端点验收继续推进。
 - [ ] **D02 LLM Driver 基础循环**（threads，非作者 spec，依 K05/D01）：动态元工具、实际行动账本、结构化测量、terminal/required、完整 trace 已提交 `df3e805`，见 [模型合同](llm-contract.md)。默认 persona/View/记忆认知构造与模型选择继续接入，全部完成后验收 A01–A07、L01–L04/L11/L12。
 - [x] **D03 LLM 预算与失败组合**（threads，非作者 spec，依循环实现）：L05–L10 的总/逐 action/turn 预算、失败尝试、重复 call、parallel false、length/empty/schema/provider 错误已通过作者及独立测试。三个独立发现（物理请求水位漂移、诊断重复复制历史、恢复终止回执后多请求）已回归；见 `test_kernel_llm*.py`、`test_kernel_models_review.py` 和 `llm-manager-regression-green.txt`。真实服务与记忆组合留在 V05/D05。
-- [ ] **D04 完整 Thread 与续激活**（storage/threads，非作者 spec，依 D02/K02）：ThreadStore 的分块原文、请求水位、tail/range 和完整恢复已通过作者与独立测试，见 [Thread 合同](thread-contract.md)。持久工具回执、跨进程同 moment 定位和 shell 旧产物消费已集成；`f7b4a42` 增加工作区恢复和固定记忆输入水位，持久认知消费游标继续实现；全部完成后验收 M01/M02/A04/A05，长 Thread 不裁剪。
+- [ ] **D04 完整 Thread 与续激活**（storage/threads，非作者 spec，依 D02/K02）：ThreadStore 的分块原文、请求水位、tail/range 和完整恢复已通过作者与独立测试，见 [Thread 合同](thread-contract.md)。持久工具回执、跨进程同 moment 定位和 shell 旧产物消费已集成；`f7b4a42` 增加工作区恢复和固定记忆输入水位，`f273b15` 已将认知输入与消费游标原子发布，作者/非作者 20 项通过，认知消费者及跨进程组继续验收；全部完成后验收 M01/M02/A04/A05，长 Thread 不裁剪。
 - [ ] **D05 记忆插件与三个开关**（storage，依 D04/D01）：M03–M09；逐一验证召回/提取写入/主动记忆工具 2³ 组合、interview 默认测量、budget/length 无成功记忆、提取失败/空选择/同 Thread 重试/single-flight/pending→write→receipt。同一有效作业重试避免重复提取；完整步骤之后、崩溃前发生的外部调用可能重算，不从 dirty 诊断偷偷恢复。
-- [ ] **D06 记忆排序与真实后端适配**（storage，依 D05）：M06–M10；逐条向量/正文/时间/重要性、去重衰减/top_k、branch/active epoch/update/delete/export/import、读前等待必要写入；SQL 权威正文与向量、Chroma 派生候选，检索替换对比候选及最终主体上下文。
+- [ ] **D06 记忆排序与真实后端适配**（storage，依 D05）：M06–M10；逐条向量/正文/时间/重要性、去重衰减/top_k、branch/active epoch/update/delete/export/import、读前等待必要写入；SQL 权威正文与向量、Chroma 派生候选，检索替换对比候选及最终主体上下文。当前核心及历史版本作者/非作者 25 项通过，见 `memory-independent-version-green.txt`；嵌入等待期间的版本变化曾导致漏旧版本/混未来正文，两项独立失败已修复。提取协议、主动编辑、导入导出及真实提供方链仍未完成。
 - [ ] **D07 有界计算接入**（指定 owner，依 X08/适用封存接口）：产品使用有界线程压缩或已证明隔离的计算，维持顺序和总预算；多核完成顺序不决定业务优先权，单块过大显式处理。
 
 ### 4.2 时间、领域与结果
