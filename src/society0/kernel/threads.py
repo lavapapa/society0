@@ -19,8 +19,9 @@ THREAD_SCHEMA = (
     'CREATE UNIQUE INDEX thread_order ON thread_heads(ordinal)',
     'CREATE INDEX thread_actor_order ON thread_heads(actor,ordinal)',
     '''CREATE TABLE thread_counts(scope TEXT PRIMARY KEY NOT NULL,total INTEGER NOT NULL)''',
-    '''CREATE TABLE thread_events(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,kind TEXT NOT NULL,raw_bytes INTEGER NOT NULL,
+    '''CREATE TABLE thread_events(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,kind TEXT NOT NULL,raw_bytes INTEGER NOT NULL,publish_step INTEGER NOT NULL,
         PRIMARY KEY(thread_id,seq))''',
+    'CREATE INDEX thread_published ON thread_events(thread_id,publish_step,seq)',
     'CREATE INDEX thread_messages ON thread_events(thread_id,seq) WHERE kind=\'message\'',
     '''CREATE TABLE thread_chunks(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,chunk INTEGER NOT NULL,
         raw_bytes INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(thread_id,seq,chunk))''',
@@ -44,7 +45,7 @@ def _append(writer, thread_id, kind, payload, *, allow_closed=False):
     if head['status'] != 'open' and not allow_closed:
         raise ValueError('Thread is closed')
     seq = head['last_seq'] + 1
-    writer.execute('INSERT INTO thread_events VALUES(?,?,?,0)', (thread_id, seq, kind))
+    writer.execute('INSERT INTO thread_events VALUES(?,?,?,0,?)', (thread_id, seq, kind, writer.publish_step))
     total = 0
     def rows():
         nonlocal total

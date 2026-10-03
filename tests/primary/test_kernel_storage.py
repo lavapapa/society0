@@ -435,3 +435,15 @@ def test_table_revision_storage_format_is_explicit_and_old_format_rejected(tmp_p
     (path/'run.json').write_text(json.dumps(manifest))
     with pytest.raises(StorageError,match='format'):StageStore.open(path)
     with pytest.raises(StorageError,match='format'):StageStore.restore(path,tmp_path/'restore')
+
+
+def test_writer_publish_step_survives_complete_restore_and_empty_steps(tmp_path):
+    seen=[]
+    with StageStore.create(tmp_path/'source',SCHEMA,initialize=lambda writer:seen.append(writer.publish_step)) as store:
+        assert seen==[0]
+        assert store.transaction(lambda writer:writer.publish_step)==1
+        store.complete(1);store.complete(2)
+        assert store.transaction(lambda writer:writer.publish_step)==3
+        store.complete(3)
+    with StageStore.restore(tmp_path/'source',tmp_path/'restored') as restored:
+        assert restored.transaction(lambda writer:writer.publish_step)==4
