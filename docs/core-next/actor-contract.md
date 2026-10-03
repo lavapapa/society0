@@ -6,11 +6,11 @@
 
 `ActorRecord(id, driver, persona='', state={}, config={}, roles=(), active=True)` 保存驱动名称、原始 persona、主观 state、配置与角色集合。persona 和 config 各自独立存储，主体短 head 保存驱动名与 active。主观 state 为字符串键映射，按一级键存为独立记录并保持插入顺序；`set_state(actor,key,value)` 更新一项，`update(state=...)` 明确替换整个主观映射。巨大的单个 state 值仍承担该值自身的 JSON 编码成本。JSON 值保持原文内容；读取返回独立的 Python 值，修改通过 ActorStore.update 或 set_state 明确写入。角色读取采用稳定名称顺序。运行时临时提醒通过 Session.signals 或输入构建器提供，目录没有隐式提醒累积字段。
 
-`actor_plugin(drivers, records=(), name='actors')` 提供 actors 服务并声明自身 schema 与初始化。drivers 是驱动名到工厂的注册表，工厂接收一个 ActorRecord。初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按该主体配置构建轻量门面。
+`actor_plugin(drivers, records=(), name='actors')` 提供 actors 服务并声明自身 schema 与初始化。drivers 是驱动名到工厂的注册表，工厂接收一个按需读取的 ActorRecordView。初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按该主体配置构建轻量门面。
 
 ## 二、访问
 
-ActorStore 实现 Mapping[str, Actor]。按 id 获取时才读取 persona、state 与 config，并调用对应驱动工厂；返回 Actor.config 为完整 ActorRecord，state_ref 为该主体状态引用。显式迭代按首次登记顺序返回 id，分批读取数据库，不构建 Driver。Runtime 可以保留该 Mapping，在实际执行激活时取所需 Actor。
+ActorStore 实现 Mapping[str, Actor]。按 id 获取时读取主体短头并调用对应驱动工厂；返回 Actor.config 为 ActorRecordView，persona、state 与 config 在访问对应属性时读取，state_ref 为该主体状态引用。显式迭代按首次登记顺序返回 id，分批读取数据库，不构建 Driver。Runtime 可以保留该 Mapping，在实际执行激活时取所需 Actor。
 
 `select(role=None, active=True, limit=100, cursor=None)` 返回主体 id 的 Page，包含精确 total、revision 与继续游标。筛选直接使用角色、active 与登记序号的复合索引，并读取同一规范写入事务维护的计数；角色选择无需遍历其他角色的活跃主体。active=None 显式选择所有主体，允许获取全部人口。调用者可以按业务语义直接选择其他主体；active 是调度查询属性，不代表领域行动的授权。
 
@@ -26,7 +26,7 @@ Bashkit 当前恢复接口需要完整快照，load_workspace 会物化该主体
 
 tests/primary/test_kernel_actors.py 验证千主体初始化不构建 Driver、单主体读取、角色与 persona/state/config 恢复、游标水位、工作区脱源恢复、错误更新原子性及固定活跃集合下停用人口增长的 SQL 工作量。首轮缺实现失败在 research/core-next/actors-red.txt。`tests/primary/test_kernel_llm_workspace.py` 通过真实 LLMDriver、Bashkit、Runtime 与 ActorStore 验证完整恢复后下一 Moment 的文件、变量和 cwd；提供方为确定性替身。性能红测保留在 actors-storage-cost-red.txt：冷 persona/config 同行捕获和角色查询扫描已分别改为分表与直接索引计数。固定三名角色成员、无关活跃主体由 100 增至 10000 时，SQL VM 为 108/108；单个小值热点更新不复制相邻巨正文。进一步大规模驻留和未变工作区重复保存成本仍待专项试验。
 
-## 单主体字段读取
+## 五、字段读取
 
 `ActorStore[id]` 为实际激活创建短 `ActorRecordView`，包含身份、驱动、角色、活动状态和该主体数据版本。驱动工厂使用身份即可工作；访问 `persona`、`config`、`state` 时才读取相应正文。`state_values(keys)` 在一次短查询中读取指定主观状态键，`state_values()` 和 `state` 取得全部主观状态，`get_record(id)` 仍取得完整 ActorRecord。
 
