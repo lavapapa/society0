@@ -1,0 +1,249 @@
+....FFFFFFFFF                                                            [100%]
+=================================== FAILURES ===================================
+________ test_three_memory_switches_are_independent[False-False-False] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are0')
+auto_recall = False, auto_write = False, active_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[False-False-True] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are1')
+auto_recall = True, auto_write = False, active_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[False-True-False] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are2')
+auto_recall = False, auto_write = True, active_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[False-True-True] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are3')
+auto_recall = True, auto_write = True, active_tools = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[True-False-False] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are4')
+auto_recall = False, auto_write = False, active_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[True-False-True] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are5')
+auto_recall = True, auto_write = False, active_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+_________ test_three_memory_switches_are_independent[True-True-False] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are6')
+auto_recall = False, auto_write = True, active_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+__________ test_three_memory_switches_are_independent[True-True-True] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_three_memory_switches_are7')
+auto_recall = True, auto_write = True, active_tools = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('auto_recall',[False,True])
+    @pytest.mark.parametrize('auto_write',[False,True])
+    @pytest.mark.parametrize('active_tools',[False,True])
+    async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_write,active_tools):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append(messages)
+            return [{'content':'new experience','importance':3}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,
+            policy=MemoryPolicy(auto_recall,auto_write,active_tools),recall_query=lambda session:'known')
+        with store:
+            job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
+            await memory.finish_job(job)
+            embed.calls.clear()
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+>           messages=await memory.before_activation(session,thread)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'before_activation'
+
+tests/primary/test_kernel_memory.py:147: AttributeError
+____ test_two_activations_have_distinct_input_jobs_but_retry_reuses_receipt ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-358/test_two_activations_have_dist0')
+
+    @pytest.mark.asyncio
+    async def test_two_activations_have_distinct_input_jobs_but_retry_reuses_receipt(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        calls=[]
+        async def extract(actor,thread_id,messages,*,metadata):
+            calls.append((messages,metadata['through']))
+            return [{'content':messages[-1]['content'],'importance':2}]
+        store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,policy=MemoryPolicy(False,True,False))
+        with store:
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(0,'decision'))
+            for value in ('first fact','second fact'):
+                threads.append_message(thread,{'role':'user','content':value})
+                result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(thread)['last_seq']})
+>               await memory.after_activation(session,thread,result)
+                      ^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Memory' object has no attribute 'after_activation'
+
+tests/primary/test_kernel_memory.py:173: AttributeError

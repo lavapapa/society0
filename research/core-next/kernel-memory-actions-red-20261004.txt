@@ -1,0 +1,24 @@
+.....................F                                                   [100%]
+=================================== FAILURES ===================================
+_____________ test_active_memory_actions_include_update_and_delete _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-397/test_active_memory_actions_inc0')
+
+    @pytest.mark.asyncio
+    async def test_active_memory_actions_include_update_and_delete(tmp_path):
+        from society0.kernel.interaction import InteractionScope,Moment,Ref
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+            actions={action.name:action for action in memory.actions()}
+>           assert set(actions)=={'memory.remember','memory.recall','memory.update','memory.delete'}
+E           AssertionError: assert {'memory.reca...ory.remember'} == {'memory.dele...emory.update'}
+E             
+E             Extra items in the right set:
+E             'memory.delete'
+E             'memory.update'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_memory.py:326: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_active_memory_actions_include_update_and_delete
+1 failed, 21 passed in 0.89s

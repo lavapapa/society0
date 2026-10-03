@@ -1,0 +1,56 @@
+.................FFFF                                                    [100%]
+=================================== FAILURES ===================================
+____ test_thread_extractor_preserves_history_and_protocol_boundary[success] ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-393/test_thread_extractor_preserve0')
+mode = 'success'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['success','empty','retry','length'])
+    async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path,mode):
+>       from society0.kernel.memory import ThreadMemoryExtractor
+E       ImportError: cannot import name 'ThreadMemoryExtractor' from 'society0.kernel.memory' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/memory.py)
+
+tests/primary/test_kernel_memory.py:293: ImportError
+_____ test_thread_extractor_preserves_history_and_protocol_boundary[empty] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-393/test_thread_extractor_preserve1')
+mode = 'empty'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['success','empty','retry','length'])
+    async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path,mode):
+>       from society0.kernel.memory import ThreadMemoryExtractor
+E       ImportError: cannot import name 'ThreadMemoryExtractor' from 'society0.kernel.memory' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/memory.py)
+
+tests/primary/test_kernel_memory.py:293: ImportError
+_____ test_thread_extractor_preserves_history_and_protocol_boundary[retry] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-393/test_thread_extractor_preserve2')
+mode = 'retry'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['success','empty','retry','length'])
+    async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path,mode):
+>       from society0.kernel.memory import ThreadMemoryExtractor
+E       ImportError: cannot import name 'ThreadMemoryExtractor' from 'society0.kernel.memory' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/memory.py)
+
+tests/primary/test_kernel_memory.py:293: ImportError
+____ test_thread_extractor_preserves_history_and_protocol_boundary[length] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-393/test_thread_extractor_preserve3')
+mode = 'length'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['success','empty','retry','length'])
+    async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path,mode):
+>       from society0.kernel.memory import ThreadMemoryExtractor
+E       ImportError: cannot import name 'ThreadMemoryExtractor' from 'society0.kernel.memory' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/memory.py)
+
+tests/primary/test_kernel_memory.py:293: ImportError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[success]
+FAILED tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[empty]
+FAILED tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[retry]
+FAILED tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[length]
+4 failed, 17 passed in 0.85s

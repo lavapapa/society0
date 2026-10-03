@@ -1,0 +1,18 @@
+................F                                                        [100%]
+=================================== FAILURES ===================================
+______ test_historical_recall_uses_visible_versions_and_original_vectors _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-385/test_historical_recall_uses_vi0')
+
+    @pytest.mark.asyncio
+    async def test_historical_recall_uses_visible_versions_and_original_vectors(tmp_path):
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+>           job=memory.prepare_job('a',thread,'history',timestamp=-10,visible_step=0,entries=[{'content':'old'}])
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: Memory.prepare_job() got an unexpected keyword argument 'visible_step'
+
+tests/primary/test_kernel_memory.py:272: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_historical_recall_uses_visible_versions_and_original_vectors
+1 failed, 16 passed in 0.75s

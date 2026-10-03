@@ -683,7 +683,8 @@ async def test_memory_hooks_keep_original_input_boundary_and_thread_open(tmp_pat
         result=await driver.run(session)
         assert result.status=='completed'
         assert seen==[('before','open'),('after','open')]
-        assert provider.requests[0][2][0]['content']=='full recalled memory'
+        assert provider.requests[0][2][0]['role']=='system'
+        assert provider.requests[0][2][-1]['content']=='full recalled memory'
     finally:store.close()
 
 

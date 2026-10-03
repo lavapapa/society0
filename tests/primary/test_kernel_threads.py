@@ -240,3 +240,20 @@ def test_input_messages_and_consumer_cursor_commit_or_rollback_together(tmp_path
         store.complete(1)
         with StageStore.restore(store.path,tmp_path/'restore') as restored:
             assert ThreadStore(restored).input_cursor(thread,'fov')=={'position':2}
+
+
+def test_input_context_is_message_reference_and_survives_cursor_updates(tmp_path):
+    store,threads=setup(tmp_path/'run')
+    with store:
+        tid=threads.open('a',0,'decision')
+        first={'role':'system','content':'context1'}
+        assert threads.input_context(tid,'cognition') is None
+        threads.append_input(tid,[], 'cognition',1,context=first)
+        threads.append_input(tid,[{'role':'user','content':'new'}],'cognition',2)
+        assert threads.input_context(tid,'cognition')==first
+        assert threads.read_messages(tid)==[first,{'role':'user','content':'new'}]
+        with pytest.raises(TypeError):threads.append_input(tid,[],'cognition',object(),context={'role':'system','content':'discard'})
+        assert threads.input_context(tid,'cognition')==first
+        store.complete(1)
+        with StageStore.restore(store.path,tmp_path/'restored') as restored:
+            assert ThreadStore(restored).input_context(tid,'cognition')==first
