@@ -24,5 +24,7 @@ async def test_review_stage_result_keeps_ranges_instead_of_copying_large_body(tm
         result=await driver.run(session)
         stages=result.value['reasoning_stages']
         assert len(json.dumps(stages,ensure_ascii=False))<2048
+        segment=next(item for item in stages[0]['segments'] if item['name']=='observe')
+        assert original[segment['start']:segment['end']]=='完整正文🙂'*100000
         assert threads.read_messages(result.value['thread_id'])[-1]['content']==original
     finally:store.close()
