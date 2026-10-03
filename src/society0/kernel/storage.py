@@ -204,6 +204,19 @@ class StageReader:
 
 class StageStore:
     @classmethod
+    def validate_schema(cls, path, schema):
+        manifest = json.loads((Path(path) / 'run.json').read_text())
+        connection = apsw.Connection(':memory:')
+        try:
+            for ddl in schema:
+                connection.execute(ddl)
+            _tables(connection)
+            if _schema(connection) != manifest['schema']:
+                raise StorageError('declared schema differs from source run')
+        finally:
+            connection.close()
+
+    @classmethod
     def create(cls, path, schema, *, initialize=None, run_id=None):
         path = Path(path).absolute()
         temporary = path.with_name(path.name + '.building-' + uuid.uuid4().hex)

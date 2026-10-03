@@ -376,3 +376,11 @@ def test_artifact_dependency_registration_is_transactional_and_restored(tmp_path
             assert StageReader(restored.path).read_artifact(reference,offset=3,size=4) == (b'3456',10)
             restored.transaction(lambda writer:writer.include_artifact(reference))
             assert restored.complete(4)['artifacts'] == []
+
+
+def test_schema_preflight_does_not_open_dirty_writer(tmp_path):
+    with make(tmp_path/'run') as store:
+        store.transaction(lambda w:w.execute('UPDATE account SET balance=88'))
+        assert StageStore.validate_schema(store.path,SCHEMA) is None
+        with pytest.raises(StorageError,match='schema'):
+            StageStore.validate_schema(store.path,[*SCHEMA,'CREATE TABLE extra(id INTEGER PRIMARY KEY)'])

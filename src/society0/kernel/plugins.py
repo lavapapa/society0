@@ -18,9 +18,12 @@ class Plugin:
     name: str
     requires: tuple[str, ...] = ()
     install: Callable[["PluginContext"], Any] = _noop
+    schema: tuple[str, ...] = ()
+    initialize: Callable[[Any], Any] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "requires", tuple(self.requires))
+        object.__setattr__(self, "schema", tuple(self.schema))
 
 
 class PluginContext:
