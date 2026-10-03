@@ -1,0 +1,45 @@
+................FFF.                                                     [100%]
+=================================== FAILURES ===================================
+___ test_session_process_crash_rebuilds_only_complete_chain[before_export-2] ___
+
+phase = 'before_export', restored = 2
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立临时venv')
+    @pytest.mark.parametrize('phase,restored', [('before_export', 2), ('after_export', 2), ('after_marker', 3)])
+    def test_session_process_crash_rebuilds_only_complete_chain(phase, restored):
+>       result = module.session_recovery_probe(phase)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_recovery_probe'
+
+tests/experiments/test_core_next_storage.py:177: AttributeError
+___ test_session_process_crash_rebuilds_only_complete_chain[after_export-2] ____
+
+phase = 'after_export', restored = 2
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立临时venv')
+    @pytest.mark.parametrize('phase,restored', [('before_export', 2), ('after_export', 2), ('after_marker', 3)])
+    def test_session_process_crash_rebuilds_only_complete_chain(phase, restored):
+>       result = module.session_recovery_probe(phase)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_recovery_probe'
+
+tests/experiments/test_core_next_storage.py:177: AttributeError
+___ test_session_process_crash_rebuilds_only_complete_chain[after_marker-3] ____
+
+phase = 'after_marker', restored = 3
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立临时venv')
+    @pytest.mark.parametrize('phase,restored', [('before_export', 2), ('after_export', 2), ('after_marker', 3)])
+    def test_session_process_crash_rebuilds_only_complete_chain(phase, restored):
+>       result = module.session_recovery_probe(phase)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_recovery_probe'
+
+tests/experiments/test_core_next_storage.py:177: AttributeError
+=============================== warnings summary ===============================
+../../../../../../tmp/core-next-session-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /tmp/core-next-session-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

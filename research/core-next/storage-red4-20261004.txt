@@ -1,0 +1,68 @@
+..........FFF                                                            [100%]
+=================================== FAILURES ===================================
+___________________ test_process_exit_boundary[after_file-0] ___________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-206/test_process_exit_boundary_aft0')
+phase = 'after_file', revision = 0
+
+    @pytest.mark.parametrize('phase,revision', [('after_file', 0), ('before_commit', 0), ('after_commit', 1)])
+    def test_process_exit_boundary(tmp_path, phase, revision):
+        import subprocess
+        with Store(tmp_path) as store:
+            store.seed(1000)
+        code = '''import importlib.util,sys
+    s=importlib.util.spec_from_file_location('probe',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+    with m.Store(sys.argv[2]) as store:
+     store.stage([(0,99)],[{'id':0}],fail_at='exit_'+sys.argv[3])
+    '''
+        child = subprocess.run([sys.executable, '-c', code, module.__file__, str(tmp_path), phase], capture_output=True)
+>       assert child.returncode == 73, child.stderr.decode()
+E       AssertionError: 
+E       assert 0 == 73
+E        +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "impo...gp/T/pytest-of-marvin/pytest-206/test_process_exit_boundary_aft0', 'after_file'], returncode=0, stdout=b'', stderr=b'').returncode
+
+tests/experiments/test_core_next_storage.py:135: AssertionError
+_________________ test_process_exit_boundary[before_commit-0] __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-206/test_process_exit_boundary_bef0')
+phase = 'before_commit', revision = 0
+
+    @pytest.mark.parametrize('phase,revision', [('after_file', 0), ('before_commit', 0), ('after_commit', 1)])
+    def test_process_exit_boundary(tmp_path, phase, revision):
+        import subprocess
+        with Store(tmp_path) as store:
+            store.seed(1000)
+        code = '''import importlib.util,sys
+    s=importlib.util.spec_from_file_location('probe',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+    with m.Store(sys.argv[2]) as store:
+     store.stage([(0,99)],[{'id':0}],fail_at='exit_'+sys.argv[3])
+    '''
+        child = subprocess.run([sys.executable, '-c', code, module.__file__, str(tmp_path), phase], capture_output=True)
+>       assert child.returncode == 73, child.stderr.decode()
+E       AssertionError: 
+E       assert 0 == 73
+E        +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "impo...T/pytest-of-marvin/pytest-206/test_process_exit_boundary_bef0', 'before_commit'], returncode=0, stdout=b'', stderr=b'').returncode
+
+tests/experiments/test_core_next_storage.py:135: AssertionError
+__________________ test_process_exit_boundary[after_commit-1] __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-206/test_process_exit_boundary_aft1')
+phase = 'after_commit', revision = 1
+
+    @pytest.mark.parametrize('phase,revision', [('after_file', 0), ('before_commit', 0), ('after_commit', 1)])
+    def test_process_exit_boundary(tmp_path, phase, revision):
+        import subprocess
+        with Store(tmp_path) as store:
+            store.seed(1000)
+        code = '''import importlib.util,sys
+    s=importlib.util.spec_from_file_location('probe',sys.argv[1]); m=importlib.util.module_from_spec(s); s.loader.exec_module(m)
+    with m.Store(sys.argv[2]) as store:
+     store.stage([(0,99)],[{'id':0}],fail_at='exit_'+sys.argv[3])
+    '''
+        child = subprocess.run([sys.executable, '-c', code, module.__file__, str(tmp_path), phase], capture_output=True)
+>       assert child.returncode == 73, child.stderr.decode()
+E       AssertionError: 
+E       assert 0 == 73
+E        +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "impo.../T/pytest-of-marvin/pytest-206/test_process_exit_boundary_aft1', 'after_commit'], returncode=0, stdout=b'', stderr=b'').returncode
+
+tests/experiments/test_core_next_storage.py:135: AssertionError

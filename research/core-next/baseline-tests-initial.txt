@@ -1,0 +1,1060 @@
+Core-next deterministic baseline
+Commit: 738ba70cf7881649c38422d4b3f00ffed12ab51c
+Scope: tracked primary/e2e baseline; excludes real_e2e and new experiments; default testpaths exclude performance and Node tests.
+Command: ['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'pytest', '-m', 'not real_e2e', '--ignore=tests/experiments']
+
+........................................................................ [ 10%]
+................F....................................................... [ 21%]
+........................................................F......FF....... [ 32%]
+.FF..........FF......................................................... [ 42%]
+........................................................................ [ 53%]
+..............................F......................................... [ 64%]
+........................................................................ [ 75%]
+........................................................................ [ 85%]
+..............................................................F.......F. [ 96%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+______ test_process_exit_during_private_index_does_not_publish_checkpoint ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_process_exit_during_priva0')
+
+    def test_process_exit_during_private_index_does_not_publish_checkpoint(tmp_path):
+        import os
+        import subprocess
+        import sys
+        from society0.incremental_checkpoint import V4CheckpointStore
+        store = V4CheckpointStore(tmp_path)
+        store.publish_root([{'sequence': 0, 'path': ['x'], 'operation': 'set', 'value': 'old'}])
+        code = '''import os,sys
+    from society0 import checkpoint_records as r
+    from society0.incremental_checkpoint import V4CheckpointStore,SealedTickDelta
+    r._finish_index=lambda db: os._exit(91)
+    V4CheckpointStore(sys.argv[1]).publish(SealedTickDelta(1,({'sequence':0,'path':['x'],'operation':'set','value':'new'},),()))
+    '''
+        result = subprocess.run([sys.executable, '-c', code, str(tmp_path)], env=os.environ.copy())
+>       assert result.returncode == 91
+E       assert 1 == 91
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "impo...olders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_process_exit_during_priva0'], returncode=1).returncode
+
+tests/primary/test_checkpoint_records.py:270: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+ImportError: cannot import name 'checkpoint_records' from 'society0' (/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/src/society0/__init__.py)
+_________________ test_independent_query_while_producer_blocks _________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_independent_query_while_p0')
+
+    def test_independent_query_while_producer_blocks(tmp_path):
+        producer = subprocess.Popen([sys.executable, "-c", """
+    import sys,time
+    from society0.observation import write_runtime_status
+    write_runtime_status(sys.argv[1],run_id='blocked',phase='calculating',executing_step=1)
+    time.sleep(15)
+    """, str(tmp_path)])
+        try:
+            deadline = time.monotonic() + 10
+            while not (tmp_path / "runtime-status.json").exists():
+>               assert time.monotonic() < deadline
+E               assert 457449.387609791 < 457449.376302333
+E                +  where 457449.387609791 = <built-in function monotonic>()
+E                +    where <built-in function monotonic> = time.monotonic
+
+tests/primary/test_observation.py:38: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+ModuleNotFoundError: No module named 'society0.observation'
+________________ test_index_process_crash_and_explicit_rebuild _________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_index_process_crash_and_e0')
+
+    def test_index_process_crash_and_explicit_rebuild(tmp_path):
+        from society0.incremental_checkpoint import V4CheckpointStore, SealedTickDelta
+        store = V4CheckpointStore(tmp_path)
+        store.publish(SealedTickDelta(1, tuple({"sequence": i, "path": [str(i)], "operation": "set", "value": i} for i in range(20)), ()))
+        script = '''
+    import sys,time
+    from pathlib import Path
+    import society0.checkpoint_records as records
+    from society0.observation import ObservationReader
+    original = records.iter_metadata
+    def slow(*args, **kwargs):
+        for i, row in enumerate(original(*args, **kwargs)):
+            if i == 10:
+                Path(sys.argv[1], 'index-paused').touch()
+                time.sleep(30)
+            yield row
+    records.iter_metadata = slow
+    with ObservationReader(sys.argv[1],index_dir=Path(sys.argv[1])/'index') as reader:
+        reader.sync()
+    '''
+        process = subprocess.Popen([sys.executable, "-c", script, str(tmp_path)])
+        try:
+            deadline = time.monotonic() + 10
+            while not (tmp_path / "index-paused").exists():
+>               assert time.monotonic() < deadline
+E               assert 457459.50761975 < 457459.493216166
+E                +  where 457459.50761975 = <built-in function monotonic>()
+E                +    where <built-in function monotonic> = time.monotonic
+
+tests/primary/test_observation.py:193: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+ModuleNotFoundError: No module named 'society0.checkpoint_records'
+______________ test_http_status_remains_available_during_indexing ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_status_remains_avail0')
+
+    def test_http_status_remains_available_during_indexing(tmp_path):
+        import socket
+        import urllib.request
+        from society0.incremental_checkpoint import V4CheckpointStore, SealedTickDelta
+        store = V4CheckpointStore(tmp_path)
+        marker = store.publish(SealedTickDelta(1, tuple({"sequence": i, "path": [str(i)], "operation": "set", "value": i} for i in range(10)), ()))
+        write_runtime_status(tmp_path, run_id="http", phase="calculating")
+        with socket.socket() as socket_:
+            socket_.bind(("127.0.0.1", 0))
+            port = socket_.getsockname()[1]
+        script = '''
+    import sys,time
+    import society0.checkpoint_records as records
+    from society0.observation import main
+    original = records.iter_metadata
+    def slow(*args, **kwargs):
+        for row in original(*args, **kwargs):
+            time.sleep(.15)
+            yield row
+    records.iter_metadata = slow
+    main()
+    '''
+        process = subprocess.Popen([sys.executable, "-c", script, str(tmp_path), "--index-dir", str(tmp_path / "index"), "--serve", str(port)])
+        try:
+            deadline = time.monotonic() + 10
+            responses = []
+            while time.monotonic() < deadline:
+                try:
+                    request = urllib.request.Request(f"http://127.0.0.1:{port}", data=b'{"method":"status"}', headers={"Content-Type":"application/json"})
+                    before = time.monotonic()
+                    with urllib.request.urlopen(request, timeout=1) as response:
+                        status = json.load(response)["result"]
+                    responses.append(time.monotonic()-before)
+                    assert status["committed_checkpoint"]["checkpoint_id"] == marker["checkpoint_id"]
+                    if status["indexed_checkpoint"]:
+                        break
+                except OSError:
+                    time.sleep(.02)
+                    continue
+                time.sleep(.03)
+>           assert len(responses) >= 5
+E           assert 0 >= 5
+E            +  where 0 = len([])
+
+tests/primary/test_observation.py:252: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 3, in <module>
+ModuleNotFoundError: No module named 'society0.checkpoint_records'
+_______ test_preparation_crash_keeps_old_projection_and_index_watermark ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_preparation_crash_keeps_o0')
+
+    def test_preparation_crash_keeps_old_projection_and_index_watermark(tmp_path):
+        import json
+        import subprocess
+        import sys
+        import time
+        store=V4CheckpointStore(tmp_path)
+        marker=store.publish_root(({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(1200)))
+        index=tmp_path/'index'
+        with ObservationReader(tmp_path,index_dir=index) as reader:
+            reader.sync()
+            reader.prepare_state(marker['checkpoint_id'],['rows','0'])
+        script='''
+    import sys,time
+    from pathlib import Path
+    from society0.observation import ObservationReader
+    root=Path(sys.argv[1])
+    with ObservationReader(root,index_dir=root/'index') as reader:
+        def progress(value):
+            (root/'preparing').write_text('ready')
+            time.sleep(30)
+        reader._prepare_progress=progress
+        reader.prepare_state(sys.argv[2],['rows'])
+    '''
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path),marker['checkpoint_id']])
+        try:
+            deadline=time.monotonic()+5
+            while not (tmp_path/'preparing').exists() and time.monotonic()<deadline:
+                time.sleep(.01)
+>           assert (tmp_path/'preparing').exists()
+E           AssertionError: assert False
+E            +  where False = exists()
+E            +    where exists = (PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_preparation_crash_keeps_o0') / 'preparing').exists
+
+tests/primary/test_observation_compact.py:126: AssertionError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+ModuleNotFoundError: No module named 'society0.observation'
+_________ test_http_preparation_is_single_slot_and_survives_disconnect _________
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10dc37f80>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+>               h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1344: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1093: in _send_output
+    self.send(msg)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1037: in send
+    self.connect()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1003: in connect
+    self.sock = self._create_connection(
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:865: in create_connection
+    raise exceptions[0]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('127.0.0.1', 51830), timeout = 1, source_address = None
+all_errors = False
+
+    def create_connection(address, timeout=_GLOBAL_DEFAULT_TIMEOUT,
+                          source_address=None, *, all_errors=False):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        A host of '' or port 0 tells the OS to use the default. When a connection
+        cannot be created, raises the last error if *all_errors* is False,
+        and an ExceptionGroup of all errors if *all_errors* is True.
+        """
+    
+        host, port = address
+        exceptions = []
+        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket(af, socktype, proto)
+                if timeout is not _GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+>               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 61] Connection refused
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:850: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_preparation_is_singl0')
+
+    def test_http_preparation_is_single_slot_and_survives_disconnect(tmp_path):
+        import json
+        import socket
+        import subprocess
+        import sys
+        import time
+        import urllib.request
+        import urllib.error
+        store=V4CheckpointStore(tmp_path)
+        marker=store.publish_root([{'sequence':0,'path':['a'],'operation':'set','value':1}])
+        with ObservationReader(tmp_path,index_dir=tmp_path/'index') as reader:
+            reader.sync()
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        script='''
+    import time
+    from society0.observation import ObservationReader,main
+    original=ObservationReader.prepare_state
+    def slow(self,*a,**kw):
+        time.sleep(.8)
+        return original(self,*a,**kw)
+    ObservationReader.prepare_state=slow
+    main()
+    '''
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        def request(method,params=None):
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=json.dumps({'method':method,'params':params or {}}).encode())
+            try:
+                with urllib.request.urlopen(req,timeout=1) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as response:
+                return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+                try:
+>                   request('status');break
+                    ^^^^^^^^^^^^^^^^^
+
+tests/primary/test_observation_compact.py:173: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_observation_compact.py:165: in request
+    with urllib.request.urlopen(req,timeout=1) as response:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:215: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:515: in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:532: in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:492: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1373: in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10dc37f80>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+                h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+            except OSError as err: # timeout error
+>               raise URLError(err)
+E               urllib.error.URLError: <urlopen error [Errno 61] Connection refused>
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1347: URLError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_preparation_is_singl0')
+
+    def test_http_preparation_is_single_slot_and_survives_disconnect(tmp_path):
+        import json
+        import socket
+        import subprocess
+        import sys
+        import time
+        import urllib.request
+        import urllib.error
+        store=V4CheckpointStore(tmp_path)
+        marker=store.publish_root([{'sequence':0,'path':['a'],'operation':'set','value':1}])
+        with ObservationReader(tmp_path,index_dir=tmp_path/'index') as reader:
+            reader.sync()
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        script='''
+    import time
+    from society0.observation import ObservationReader,main
+    original=ObservationReader.prepare_state
+    def slow(self,*a,**kw):
+        time.sleep(.8)
+        return original(self,*a,**kw)
+    ObservationReader.prepare_state=slow
+    main()
+    '''
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        def request(method,params=None):
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=json.dumps({'method':method,'params':params or {}}).encode())
+            try:
+                with urllib.request.urlopen(req,timeout=1) as response:
+                    return json.load(response)
+            except urllib.error.HTTPError as response:
+                return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+                try:
+                    request('status');break
+                except OSError:
+>                   assert time.monotonic()<deadline
+E                   AssertionError: assert 457480.445831083 < 457480.426359416
+E                    +  where 457480.445831083 = <built-in function monotonic>()
+E                    +    where <built-in function monotonic> = <module 'time' (built-in)>.monotonic
+
+tests/primary/test_observation_compact.py:175: AssertionError
+______________ test_http_slow_request_body_does_not_block_status _______________
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10dccff20>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+>               h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1344: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1093: in _send_output
+    self.send(msg)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1037: in send
+    self.connect()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1003: in connect
+    self.sock = self._create_connection(
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:865: in create_connection
+    raise exceptions[0]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('127.0.0.1', 52051), timeout = 0.6, source_address = None
+all_errors = False
+
+    def create_connection(address, timeout=_GLOBAL_DEFAULT_TIMEOUT,
+                          source_address=None, *, all_errors=False):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        A host of '' or port 0 tells the OS to use the default. When a connection
+        cannot be created, raises the last error if *all_errors* is False,
+        and an ExceptionGroup of all errors if *all_errors* is True.
+        """
+    
+        host, port = address
+        exceptions = []
+        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket(af, socktype, proto)
+                if timeout is not _GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+>               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 61] Connection refused
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:850: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_slow_request_body_do0')
+
+    def test_http_slow_request_body_does_not_block_status(tmp_path):
+        import json,socket,subprocess,sys,time,urllib.request
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        process=subprocess.Popen([sys.executable,'-m','society0.observation',str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        slow=None
+        def status():
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=b'{"method":"status"}')
+            with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+>               try:status();break
+                    ^^^^^^^^
+
+tests/primary/test_observation_compact.py:349: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_observation_compact.py:345: in status
+    with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:215: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:515: in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:532: in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:492: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1373: in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10dccff20>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+                h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+            except OSError as err: # timeout error
+>               raise URLError(err)
+E               urllib.error.URLError: <urlopen error [Errno 61] Connection refused>
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1347: URLError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_slow_request_body_do0')
+
+    def test_http_slow_request_body_does_not_block_status(tmp_path):
+        import json,socket,subprocess,sys,time,urllib.request
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        process=subprocess.Popen([sys.executable,'-m','society0.observation',str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        slow=None
+        def status():
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=b'{"method":"status"}')
+            with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+                try:status();break
+                except OSError:
+>                   assert time.monotonic()<deadline;time.sleep(.02)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                   AssertionError: assert 457486.274960666 < 457486.274765625
+E                    +  where 457486.274960666 = <built-in function monotonic>()
+E                    +    where <built-in function monotonic> = <module 'time' (built-in)>.monotonic
+
+tests/primary/test_observation_compact.py:351: AssertionError
+_____________ test_http_slow_response_reader_does_not_block_status _____________
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10d37d2e0>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+>               h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1344: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1338: in request
+    self._send_request(method, url, body, headers, encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1384: in _send_request
+    self.endheaders(body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1333: in endheaders
+    self._send_output(message_body, encode_chunked=encode_chunked)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1093: in _send_output
+    self.send(msg)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1037: in send
+    self.connect()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/http/client.py:1003: in connect
+    self.sock = self._create_connection(
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:865: in create_connection
+    raise exceptions[0]
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+address = ('127.0.0.1', 52274), timeout = 0.6, source_address = None
+all_errors = False
+
+    def create_connection(address, timeout=_GLOBAL_DEFAULT_TIMEOUT,
+                          source_address=None, *, all_errors=False):
+        """Connect to *address* and return the socket object.
+    
+        Convenience function.  Connect to *address* (a 2-tuple ``(host,
+        port)``) and return the socket object.  Passing the optional
+        *timeout* parameter will set the timeout on the socket instance
+        before attempting to connect.  If no *timeout* is supplied, the
+        global default timeout setting returned by :func:`getdefaulttimeout`
+        is used.  If *source_address* is set it must be a tuple of (host, port)
+        for the socket to bind as a source address before making the connection.
+        A host of '' or port 0 tells the OS to use the default. When a connection
+        cannot be created, raises the last error if *all_errors* is False,
+        and an ExceptionGroup of all errors if *all_errors* is True.
+        """
+    
+        host, port = address
+        exceptions = []
+        for res in getaddrinfo(host, port, 0, SOCK_STREAM):
+            af, socktype, proto, canonname, sa = res
+            sock = None
+            try:
+                sock = socket(af, socktype, proto)
+                if timeout is not _GLOBAL_DEFAULT_TIMEOUT:
+                    sock.settimeout(timeout)
+                if source_address:
+                    sock.bind(source_address)
+>               sock.connect(sa)
+E               ConnectionRefusedError: [Errno 61] Connection refused
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/socket.py:850: ConnectionRefusedError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_slow_response_reader0')
+
+    def test_http_slow_response_reader_does_not_block_status(tmp_path):
+        import json,socket,subprocess,sys,time,urllib.request
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        script='''from society0.observation import ObservationReader,main
+    ObservationReader.read_content=lambda self,**kw:{"data":b"x"*(8*1024*1024),"total_bytes":8*1024*1024,"next_offset":None}
+    main()
+    '''
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        slow=None
+        def status():
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=b'{"method":"status"}')
+            with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+>               try:status();break
+                    ^^^^^^^^
+
+tests/primary/test_observation_compact.py:377: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_observation_compact.py:373: in status
+    with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:215: in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:515: in open
+    response = self._open(req, data)
+               ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:532: in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:492: in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1373: in http_open
+    return self.do_open(http.client.HTTPConnection, req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <urllib.request.HTTPHandler object at 0x10dc44080>
+http_class = <class 'http.client.HTTPConnection'>
+req = <urllib.request.Request object at 0x10d37d2e0>, http_conn_args = {}
+
+    def do_open(self, http_class, req, **http_conn_args):
+        """Return an HTTPResponse object for the request, using http_class.
+    
+        http_class must implement the HTTPConnection API from http.client.
+        """
+        host = req.host
+        if not host:
+            raise URLError('no host given')
+    
+        # will parse host:port
+        h = http_class(host, timeout=req.timeout, **http_conn_args)
+        h.set_debuglevel(self._debuglevel)
+    
+        headers = dict(req.unredirected_hdrs)
+        headers.update({k: v for k, v in req.headers.items()
+                        if k not in headers})
+    
+        # TODO(jhylton): Should this be redesigned to handle
+        # persistent connections?
+    
+        # We want to make an HTTP/1.1 request, but the addinfourl
+        # class isn't prepared to deal with a persistent connection.
+        # It will try to read all remaining data from the socket,
+        # which will block while the server waits for the next request.
+        # So make sure the connection gets closed after the (only)
+        # request.
+        headers["Connection"] = "close"
+        headers = {name.title(): val for name, val in headers.items()}
+    
+        if req._tunnel_host:
+            tunnel_headers = {}
+            proxy_auth_hdr = "Proxy-Authorization"
+            if proxy_auth_hdr in headers:
+                tunnel_headers[proxy_auth_hdr] = headers[proxy_auth_hdr]
+                # Proxy-Authorization should not be sent to origin
+                # server.
+                del headers[proxy_auth_hdr]
+            h.set_tunnel(req._tunnel_host, headers=tunnel_headers)
+    
+        try:
+            try:
+                h.request(req.get_method(), req.selector, req.data, headers,
+                          encode_chunked=req.has_header('Transfer-encoding'))
+            except OSError as err: # timeout error
+>               raise URLError(err)
+E               urllib.error.URLError: <urlopen error [Errno 61] Connection refused>
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/urllib/request.py:1347: URLError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_http_slow_response_reader0')
+
+    def test_http_slow_response_reader_does_not_block_status(tmp_path):
+        import json,socket,subprocess,sys,time,urllib.request
+        with socket.socket() as sock:
+            sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+        script='''from society0.observation import ObservationReader,main
+    ObservationReader.read_content=lambda self,**kw:{"data":b"x"*(8*1024*1024),"total_bytes":8*1024*1024,"next_offset":None}
+    main()
+    '''
+        process=subprocess.Popen([sys.executable,'-c',script,str(tmp_path),'--index-dir',str(tmp_path/'index'),'--serve',str(port)],stderr=subprocess.DEVNULL)
+        slow=None
+        def status():
+            req=urllib.request.Request(f'http://127.0.0.1:{port}',data=b'{"method":"status"}')
+            with urllib.request.urlopen(req,timeout=.6) as response:return json.load(response)
+        try:
+            deadline=time.monotonic()+5
+            while True:
+                try:status();break
+                except OSError:
+>                   assert time.monotonic()<deadline;time.sleep(.02)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                   AssertionError: assert 457491.39630325 < 457491.378386041
+E                    +  where 457491.39630325 = <built-in function monotonic>()
+E                    +    where <built-in function monotonic> = <module 'time' (built-in)>.monotonic
+
+tests/primary/test_observation_compact.py:379: AssertionError
+__________ test_society0_skill_requires_visible_experiment_todo_list ___________
+
+    def test_society0_skill_requires_visible_experiment_todo_list():
+        skill_text = Path(__file__).resolve().parents[2].joinpath("skill", "SKILL.md").read_text(encoding="utf-8")
+        assert "Start and maintain a visible todo list" in skill_text
+>       assert "Keep the todo list visible" in skill_text
+E       assert 'Keep the todo list visible' in '---\nname: society0\ndescription: "Help humanities, social science, communication, economics, finance, and interdisci...erclaim from one run. Treat outputs as simulated evidence requiring robustness checks and researcher interpretation.\n'
+
+tests/primary/test_society0_primary.py:2173: AssertionError
+_______ test_observer_is_read_only_in_fresh_process_and_writer_recovers ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_observer_is_read_only_in_0')
+
+    def test_observer_is_read_only_in_fresh_process_and_writer_recovers(tmp_path):
+        import os
+        import subprocess
+        import sys
+        writer, tid = opened(tmp_path)
+        path = writer._resolve_thread_path(tid)
+        with path.open('ab') as stream:
+            stream.write(b'{"incomplete":')
+        original = path.read_bytes()
+        code = '''import sys
+    from society0.agent.thread_store import AgentThreadStore
+    s = AgentThreadStore(sys.argv[1], create=False)
+    p = s.read_event_page(sys.argv[2])
+    assert p['total'] == 1
+    assert len(s.read_events(sys.argv[2])) == 1
+    '''
+>       subprocess.run([sys.executable, '-c', code, str(tmp_path), tid], check=True, env=os.environ)
+
+tests/primary/test_thread_observation.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = False, timeout = None, check = True
+popenargs = (['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "import sys\nfrom society0...rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_observer_is_read_only_in_0', 'thr_681f1184a1ac4209b620ddb95398b0e8'],)
+kwargs = {'env': environ({'BROWSER_USE_ACCESS_VERIFYING_IDENTITY': 'MCowBQYDK2VwAyEApVS3TuVZHeLSt+hbPHtm4WNvBbE9BbrPYl9a0FM2sD4...: 'tests/primary/test_thread_observation.py::test_observer_is_read_only_in_fresh_process_and_writer_recovers (call)'})}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "import sys\nfrom society0.agent.thread_store import AgentThreadStore\ns = AgentThreadStore(sys.argv[1], create=False)\np = s.read_event_page(sys.argv[2])\nassert p['total'] == 1\nassert len(s.read_events(sys.argv[2])) == 1\n", '/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_observer_is_read_only_in_0', 'thr_681f1184a1ac4209b620ddb95398b0e8']' returned non-zero exit status 1.
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/subprocess.py:571: CalledProcessError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+AttributeError: 'AgentThreadStore' object has no attribute 'read_event_page'. Did you mean: '_read_events_path'?
+_______ test_writer_process_exit_between_jsonl_and_offset_is_recoverable _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-208/test_writer_process_exit_betwe0')
+
+    def test_writer_process_exit_between_jsonl_and_offset_is_recoverable(tmp_path):
+        import subprocess
+        import sys
+        store, tid = opened(tmp_path)
+        script = '''
+    import os,sys
+    from pathlib import Path
+    from society0.agent.thread_store import AgentThreadStore
+    store = AgentThreadStore(sys.argv[1])
+    original = Path.open
+    def crash_before_offset(path, mode='r', *args, **kwargs):
+        if path.suffix == '.offsets' and mode == 'ab':
+            os._exit(23)
+        return original(path, mode, *args, **kwargs)
+    Path.open = crash_before_offset
+    store.append_event(sys.argv[2], 'written-before-crash')
+    '''
+        crashed = subprocess.run([sys.executable, '-c', script, str(tmp_path), tid])
+>       assert crashed.returncode == 23
+E       assert 0 == 23
+E        +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "\nim.../T/pytest-of-marvin/pytest-208/test_writer_process_exit_betwe0', 'thr_986bd8f942184363baedfbb5ee9b4a5b'], returncode=0).returncode
+
+tests/primary/test_thread_observation.py:205: AssertionError
+11 failed, 659 passed, 14 deselected in 80.84s (0:01:20)
+
+Exit code: 1
