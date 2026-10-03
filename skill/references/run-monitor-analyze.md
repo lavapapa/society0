@@ -220,6 +220,12 @@ For environment lifecycle maintenance, inspect `summary.json -> events.env_hooks
 
 ## Quantitative Analysis
 
+Anchor each explanation to the comparison actually made. Report group sizes, observed values and uncertainty before proposing a mechanism. Agent reasons are self-reported explanations that suggest hypotheses; repeated mentions of one cue do not establish that it caused the outcome or suppressed another cue. A small or absent difference also leaves multiple explanations open.
+
+For each proposed follow-up, state the target factor, what varies, what stays fixed, and which contrast tests the claim. For example, comparing two messages both forwarded by a familiar person while changing official endorsement tests the endorsement condition. To study familiarity at a fixed endorsement level, compare familiar and unfamiliar senders under that same level; to study how the two factors interact, cross both factors. Choose follow-ups to distinguish explanations, including a possible null result, and agree the design with the researcher before running.
+
+Keep the underlying message content fixed when isolating a source cue. Adding an official debunk changes both the authority cue and the corrective information; that comparison measures a combined treatment, not an isolated familiarity or authority effect.
+
 Typical checks:
 
 - trends over ticks.
