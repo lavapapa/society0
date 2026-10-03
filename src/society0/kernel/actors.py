@@ -16,7 +16,6 @@ ACTOR_SCHEMA = (
     'CREATE INDEX actor_selection_order ON actor_selection(kind,role,ordinal)',
     'CREATE INDEX actor_selection_actor ON actor_selection(actor)',
     'CREATE TABLE actor_counts(kind INTEGER NOT NULL,role TEXT NOT NULL,active INTEGER NOT NULL,total INTEGER NOT NULL,PRIMARY KEY(kind,role,active))',
-    'CREATE TABLE actor_workspaces(actor TEXT PRIMARY KEY NOT NULL,artifact TEXT NOT NULL,FOREIGN KEY(actor) REFERENCES actors(id))',
 )
 
 
@@ -204,32 +203,6 @@ class ActorStore(Mapping):
             next_cursor={'identity':identity,'revision':revision,'after':page[-1][0]} if len(rows)>limit else None
             return Page([row[1] for row in page],total,next_cursor,revision)
         return self.store.read(read)
-
-    def workspace_reference(self, actor):
-        def read(r):
-            if not r.query('SELECT 1 FROM actors WHERE id=?',(actor,)): raise KeyError(actor)
-            rows=r.query('SELECT artifact FROM actor_workspaces WHERE actor=?',(actor,))
-            return rows[0][0] if rows else None
-        return self.store.read(read)
-
-    def save_workspace(self, actor, chunks):
-        reference=self.store.prepare_artifact(chunks)
-        def write(w):
-            w.include_artifact(reference)
-            w.execute('INSERT INTO actor_workspaces VALUES(?,?) ON CONFLICT(actor) DO UPDATE SET artifact=excluded.artifact',(actor,reference))
-        self.store.transaction(write)
-        return reference
-
-    def load_workspace(self, actor):
-        reference=self.workspace_reference(actor)
-        if reference is None: return None
-        pieces=[]
-        offset=0
-        while True:
-            data,total=self.store.read_artifact(reference,offset=offset,size=65536)
-            pieces.append(data)
-            offset+=len(data)
-            if offset>=total: return b''.join(pieces)
 
 
 def actor_plugin(drivers, *, records=(), name='actors', storage='storage'):

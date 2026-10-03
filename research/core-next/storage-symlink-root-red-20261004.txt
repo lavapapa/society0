@@ -1,0 +1,46 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_run_under_symlink_parent_keeps_prepared_artifacts_usable _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-617/test_run_under_symlink_parent_0')
+
+    def test_run_under_symlink_parent_keeps_prepared_artifacts_usable(tmp_path):
+        physical=tmp_path/'physical';physical.mkdir()
+        link=tmp_path/'linked';link.symlink_to(physical,target_is_directory=True)
+        with StageStore.create(link/'run',[]) as store:
+            reference=store.prepare_artifact([b'full original'])
+>           store.transaction(lambda writer:writer.include_artifact(reference))
+
+tests/primary/test_kernel_storage.py:457: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+tests/primary/test_kernel_storage.py:457: in <lambda>
+    store.transaction(lambda writer:writer.include_artifact(reference))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:180: in include_artifact
+    self._include_artifact(reference)
+src/society0/kernel/storage.py:503: in _include_artifact
+    item = self._artifacts([reference])[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.storage.StageStore object at 0x1098c49e0>
+artifacts = ['artifacts/854bcb706a0648e8ac22cb68883b3cd5.artifact']
+
+    def _artifacts(self, artifacts):
+        result = []
+        for name in sorted(set(artifacts)):
+            relative = Path(name)
+            path = self.path / relative
+            if relative.is_absolute() or '..' in relative.parts or not relative.parts or relative.parts[0] != 'artifacts':
+                raise StorageError('artifact must be run-local under artifacts/')
+            if not path.is_file() or not path.resolve().is_relative_to(self.path):
+>               raise StorageError('missing run-local artifact')
+E               society0.kernel.storage.StorageError: missing run-local artifact
+
+src/society0/kernel/storage.py:544: StorageError

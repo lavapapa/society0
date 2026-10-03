@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "platform": "darwin",
+  "cases": [
+    {
+      "directory_entries": 100,
+      "directory_seconds": 0.017517041007522494,
+      "directory_peak_increment_bytes": 3031040,
+      "process_peak_rss_bytes": 55459840,
+      "directory_body_bytes_read": 0,
+      "directory_output_bytes": 290,
+      "actors": 1000,
+      "active_shells": 1,
+      "unchanged_file_bytes": 8388608,
+      "unchanged_activations": 10,
+      "unchanged_artifact_bytes": 0,
+      "unchanged_artifact_bytes_read": 0,
+      "unchanged_seconds": [
+        0.01643854199210182,
+        0.009321750025264919,
+        0.008224082994274795,
+        0.009268708003219217,
+        0.009662458032835275,
+        0.008615666010882705,
+        0.009625708975363523,
+        0.007454290986061096,
+        0.0066166670294478536,
+        0.008733124996069819
+      ]
+    },
+    {
+      "directory_entries": 10000,
+      "directory_seconds": 0.03636254201410338,
+      "directory_peak_increment_bytes": 7897088,
+      "process_peak_rss_bytes": 63340544,
+      "directory_body_bytes_read": 0,
+      "directory_output_bytes": 48890,
+      "actors": 1000,
+      "active_shells": 1,
+      "unchanged_file_bytes": 8388608,
+      "unchanged_activations": 10,
+      "unchanged_artifact_bytes": 0,
+      "unchanged_artifact_bytes_read": 0,
+      "unchanged_seconds": [
+        0.014977874991018325,
+        0.010518540977500379,
+        0.008640208980068564,
+        0.007448833028320223,
+        0.010522166034206748,
+        0.007504334033001214,
+        0.007411250029690564,
+        0.009707999997772276,
+        0.01072787499288097,
+        0.009480750013608485
+      ]
+    },
+    {
+      "directory_entries": 50000,
+      "directory_seconds": 0.14953816699562594,
+      "directory_peak_increment_bytes": 27459584,
+      "process_peak_rss_bytes": 81444864,
+      "directory_body_bytes_read": 0,
+      "directory_output_bytes": 288890,
+      "actors": 1000,
+      "active_shells": 1,
+      "unchanged_file_bytes": 8388608,
+      "unchanged_activations": 10,
+      "unchanged_artifact_bytes": 0,
+      "unchanged_artifact_bytes_read": 0,
+      "unchanged_seconds": [
+        0.02020299999276176,
+        0.010503500001505017,
+        0.009329665976110846,
+        0.009326500003226101,
+        0.008591124962549657,
+        0.007476082944776863,
+        0.008347374969162047,
+        0.008666582987643778,
+        0.007150124991312623,
+        0.008973209012765437
+      ]
+    }
+  ]
+}

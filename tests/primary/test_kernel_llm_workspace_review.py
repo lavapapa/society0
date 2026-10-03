@@ -9,10 +9,10 @@ async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes
     store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
     closed=[]
     async def close():closed.append(True)
-    shell=SimpleNamespace(snapshot=lambda:b'snapshot',aclose=close)
+    shell=SimpleNamespace(has_workspace=True,aclose=close)
     driver.shell_factory=lambda *a:shell
     def save(*a):raise OSError('disk full')
-    driver.workspace=SimpleNamespace(save_workspace=save)
+    shell.save_workspace=save
     try:
         with pytest.raises(OSError,match='disk full'):await driver.run(session)
         assert closed==[True]

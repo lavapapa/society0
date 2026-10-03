@@ -59,11 +59,16 @@ class ShellResult:
 
 class ShellSession:
     def __init__(self, scope: InteractionScope, information: Information, actions: Actions | None = None,
-                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None):
+                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None, workspace=None):
         scope.check_active()
         if preview_bytes < 4:
             raise ValueError('preview_bytes must be at least 4')
         self.scope = scope
+        if workspace is not None and workspace_snapshot is not None:
+            raise ValueError('workspace service and standalone snapshot are mutually exclusive')
+        self._workspace = workspace.open(scope) if workspace is not None else None
+        if self._workspace is not None:
+            workspace_snapshot=self._workspace.state
         self.information = information.bound(scope)
         if (actions is None) == (bound_actions is None):
             raise ValueError('provide actions or bound_actions')
@@ -88,8 +93,31 @@ class ShellSession:
             allowed_mount_paths=[str(self._output_dir)],
             custom_builtins={name: self._builtin(name) for name in ('data', 'action', 'result')},
         )
+        if self._workspace is not None and workspace_snapshot is None:
+            options['cwd']='/workspace'
         self._bash = (Bash(**options) if workspace_snapshot is None
                       else Bash.from_snapshot(workspace_snapshot, **options))
+        from bashkit import FileSystem
+        from society0_filesystem import Overlay, callback_filesystem
+        from .information_fs import InformationFiles
+        self._world_files=InformationFiles(self.information,scope)
+        self._bash.mount('/world',FileSystem.from_capsule(callback_filesystem(self._file_callback(self._world_files.callback))),read_only=True)
+        if self._workspace is not None:
+            self._overlay=Overlay(callback_filesystem(self._file_callback(self._workspace.callback)),*self._workspace.root)
+            self._bash.mount('/workspace',FileSystem.from_capsule(self._overlay.capsule()))
+
+    def _file_callback(self,callback):
+        async def call(operation,path):
+            try:
+                self._check()
+                if self._fault is not None:raise self._fault
+                return await callback(operation,path)
+            except (FileNotFoundError,IsADirectoryError,ValueError,Unavailable):raise
+            except asyncio.CancelledError:raise
+            except BaseException as exc:
+                self._fault=exc
+                raise
+        return call
 
     def _check(self):
         if self._closed:
@@ -230,6 +258,8 @@ class ShellSession:
             except asyncio.CancelledError:
                 self._closed = True
                 await self._cancel_callbacks()
+                await self._world_files.close()
+                if self._workspace is not None:await self._workspace.close()
                 raise
             finally:
                 self._running = None
@@ -245,7 +275,18 @@ class ShellSession:
         self._check()
         if self._running is not None:
             raise RuntimeError('cannot snapshot a running shell')
+        if self._workspace is not None:raise ValueError('persistent workspace uses save_workspace')
         return self._bash.snapshot()
+
+    @property
+    def has_workspace(self):
+        return self._workspace is not None
+
+    def save_workspace(self):
+        self._check()
+        if self._running is not None:raise RuntimeError('cannot save a running shell')
+        if self._workspace is None:raise ValueError('shell has no persistent workspace')
+        self._workspace.save(self._bash.snapshot(exclude_filesystem=True),self._overlay.changes())
 
     async def aclose(self):
         self._closed = True
@@ -253,4 +294,7 @@ class ShellSession:
             self._running.cancel()
             await asyncio.gather(self._running, return_exceptions=True)
         await self._cancel_callbacks()
+        await self._world_files.close()
+        if self._workspace is not None:await self._workspace.close()
         self._bash = None
+        if self._workspace is not None:self._overlay=None

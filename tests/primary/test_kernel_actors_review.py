@@ -30,11 +30,13 @@ async def test_review_duplicate_role_update_rolls_back_all_subjective_changes(tm
 
 @pytest.mark.asyncio
 async def test_review_workspace_of_unknown_actor_never_enters_actor_projection(tmp_path):
+    from society0.kernel.workspace import workspace_plugin
+    from society0.kernel.interaction import InteractionScope,Moment
     plugin=actor_plugin({'rule':lambda r:None},records=[ActorRecord('a','rule')])
-    async with compose(tmp_path/'run',[plugin]) as host:
-        actors=host.service('actors','actors')
-        with pytest.raises(Exception): actors.save_workspace('missing',[b'workspace'])
-        assert list(actors)==['a'] and actors.load_workspace('a') is None
+    async with compose(tmp_path/'run',[plugin,workspace_plugin()]) as host:
+        actors=host.service('actors','actors');workspace=host.service('workspace','workspace')
+        with pytest.raises(KeyError):workspace.open(InteractionScope('missing',Moment(1,'work')))
+        assert list(actors)==['a'] and workspace.open(InteractionScope('a',Moment(1,'work'))).state is None
 
 
 @pytest.mark.asyncio

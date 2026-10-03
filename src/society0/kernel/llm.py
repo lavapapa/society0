@@ -67,7 +67,7 @@ _TOOL_DESCRIPTIONS = {
     'data_list': 'List accessible shared resources. Returns total and cursor; pass returned cursor as JSON text to continue.',
     'data_read': 'Read original content by byte offset/size. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null.',
     'data_query': 'Query a dataset. query is JSON text containing fields, filters, order, limit, cursor or sample_seed supported by its provider.',
-    'bash': 'Run shell text against shared data/action commands and your private workspace. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
+    'bash': 'Run shell text with read-only /world information paths and data/action commands. With persistent workspace enabled, cwd defaults to /workspace: relative files persist between activations; /tmp is temporary. Large directories/files can be read with paginated data list/query/read. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
     'result_read': 'Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary.',
     'submit_result': 'Submit the final structured result matching this schema. Success completes this measurement or decision.',
 }
@@ -267,13 +267,12 @@ def _stage_segments(content, stages):
 
 
 class LLMDriver:
-    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, workspace=None, memory=None, provider_selector=None):
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, memory=None, provider_selector=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
         self.provider_selector = provider_selector
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
-        self.workspace = workspace
         self.memory = memory
 
     def _tools(self):
@@ -539,8 +538,9 @@ class LLMDriver:
             try:
                 if shell is not None:
                     try:
-                        if self.workspace is not None and status in ('completed', 'waiting'):
-                            self.workspace.save_workspace(session.actor.id, [shell.snapshot()])
+                        if status in ('completed', 'waiting'):
+                            if shell.has_workspace:
+                                shell.save_workspace()
                     except BaseException:
                         status = 'incomplete'
                         raise

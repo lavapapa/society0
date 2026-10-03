@@ -64,16 +64,21 @@ async def test_actor_updates_selection_cursor_and_restore_preserve_roles_and_ord
 @pytest.mark.asyncio
 async def test_workspace_is_actor_owned_and_survives_new_moment_and_source_removal(tmp_path):
     import shutil
+    from society0.kernel.workspace import workspace_plugin
+    from society0.kernel.interaction import InteractionScope,Moment
     plugin=actor_plugin({'rule':lambda r:None},records=[ActorRecord('a','rule'),ActorRecord('b','rule')])
     body=b'complete snapshot\x00\xff'*10000
-    async with compose(tmp_path/'run',[plugin]) as host:
-        actors=host.service('actors','actors')
-        actors.save_workspace('a',[body])
-        assert actors.load_workspace('a')==body and actors.load_workspace('b') is None
+    async with compose(tmp_path/'run',[plugin,workspace_plugin()]) as host:
+        workspace=host.service('workspace','workspace')
+        lease=workspace.open(InteractionScope('a',Moment(1,'work')))
+        lease.save(b'shell-state',{'removed':[],'entries':[{'path':'/raw','kind':'file','mode':420,'modified_ns':0,'created_ns':0,'content':body}]})
+        assert await lease.callback('read','/raw')==body
+        assert not await workspace.open(InteractionScope('b',Moment(1,'work'))).callback('exists','/raw')
         host.service('storage','store').complete(1)
-    async with compose(tmp_path/'restored',[plugin],source=tmp_path/'run') as host:
+    async with compose(tmp_path/'restored',[plugin,workspace_plugin()],source=tmp_path/'run') as host:
         shutil.rmtree(tmp_path/'run')
-        assert host.service('actors','actors').load_workspace('a')==body
+        lease=host.service('workspace','workspace').open(InteractionScope('a',Moment(2,'work')))
+        assert await lease.callback('read','/raw')==body
 
 
 @pytest.mark.asyncio

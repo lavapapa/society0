@@ -214,7 +214,7 @@ def _authorizer(action, first, second, database, trigger):
 class StageReader:
     """独立只读观察者；完成水位是写入器已确认的下界。"""
     def __init__(self, path):
-        self.path = Path(path).absolute()
+        self.path = Path(path).resolve()
         self._connection = None
         self._retain = False
         self._closed = False
@@ -305,7 +305,7 @@ class StageStore:
 
     @classmethod
     def create(cls, path, schema, *, initialize=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
-        path = Path(path).absolute()
+        path = Path(path).resolve()
         temporary = path.with_name(path.name + '.building-' + uuid.uuid4().hex)
         temporary.mkdir(parents=True)
         from ._json_chunks import ChunkEncoder
@@ -368,7 +368,7 @@ class StageStore:
         from ._json_chunks import ChunkEncoder
         self = cls.__new__(cls)
         self._encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
-        self.path = Path(path).absolute()
+        self.path = Path(path).resolve()
         self._manifest = _manifest(self.path)
         self.run_id = self._manifest['run_id']
         self.source = self._manifest['source']
@@ -603,7 +603,7 @@ class StageStore:
 
     @classmethod
     def restore(cls, source, destination, *, step=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
-        source, destination = Path(source).absolute(), Path(destination).absolute()
+        source, destination = Path(source).resolve(), Path(destination).resolve()
         manifest = _manifest(source)
         if run_id == manifest['run_id']:
             raise StorageError('restore requires a new run identity')
@@ -674,7 +674,7 @@ class StageStore:
     @classmethod
     def collect_orphans(cls, path):
         """离线清除未被完整身份引用的准备文件；不进入提交热路径。"""
-        path = Path(path).absolute()
+        path = Path(path).resolve()
         manifest = _manifest(path)
         with (path / 'writer.lock').open('a+b') as lock:
             try:

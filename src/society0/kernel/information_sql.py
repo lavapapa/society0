@@ -4,9 +4,9 @@ from __future__ import annotations
 import json
 import random
 from dataclasses import asdict, dataclass
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
-from .interaction import DocumentChunk, Page, Query, Ref, Unavailable
+from .interaction import DocumentChunk, Page, Query, Ref, ResourceStat, Unavailable
 
 
 def _quote(name):
@@ -144,14 +144,67 @@ class SQLInformation:
             raise Unavailable('resource unavailable')
         return await self.query(scope, path, Query(limit=limit, cursor=cursor))
 
+    async def list_files(self,scope,path,*,limit=100,cursor=None):
+        route,key=self._route(path)
+        if route is None:
+            page=await self.list(scope,path,limit=limit,cursor=cursor)
+            return Page([dict(item,kind='directory') for item in page.items],page.total,page.next_cursor,page.revision)
+        spec=self._routes.get(route)
+        if spec is None or key is not None:raise Unavailable('resource unavailable')
+        if type(limit) is not int or not 1<=limit<=self.max_page_size:raise ValueError('invalid file page limit')
+        where,values=self._where(scope,spec,())
+        identity=json.dumps([scope.actor,asdict(scope.moment),path,where,values],sort_keys=True)
+        def read(view):
+            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            if cursor is not None and (cursor['identity']!=identity or cursor['run_id']!=view.run_id or cursor['revision']!=revision):
+                raise ValueError('file cursor or revision changed')
+            if cursor is None:
+                if isinstance(spec,DatasetSpec) and spec.base_count:
+                    sql,bindings=spec.base_count(scope);counts=view.query(sql,bindings,max_rows=1);total=counts[0][0] if counts else 0
+                else:total=view.query('SELECT COUNT(*) FROM '+_quote(spec.table)+' WHERE '+where,values,max_rows=1)[0][0]
+            else:total=cursor['total']
+            suffix='' if cursor is None else ' AND '+_quote(spec.key)+'>?'
+            bindings=values if cursor is None else (*values,cursor['after'])
+            rows=view.query('SELECT '+_quote(spec.key)+' FROM '+_quote(spec.table)+' WHERE '+where+suffix+' ORDER BY '+_quote(spec.key)+' LIMIT ?',(*bindings,limit+1),max_rows=limit+1)
+            selected=rows[:limit]
+            continuation={'identity':identity,'run_id':view.run_id,'revision':revision,'total':total,'after':selected[-1][0]} if len(rows)>limit else None
+            return Page([{'path':path+'/'+quote(str(row[0]),safe=''),'ref':Ref(self.namespace,route,str(row[0])),'kind':'file'} for row in selected],total,continuation,revision)
+        return self.reader.read(read,expected_revision=scope.revision)
+
+    async def stat(self,scope,path):
+        scope.check_active()
+        route,key=self._route(path)
+        if route is None:return ResourceStat('directory',None,scope.revision,self.ref(path))
+        spec=self._routes.get(route)
+        if spec is None:raise Unavailable('resource unavailable')
+        if key is None:return ResourceStat('directory',None,scope.revision,self.ref(path))
+        where,values=self._where(scope,spec,())
+        expression='length('+_quote(spec.body)+')' if isinstance(spec,DocumentSpec) else 'NULL'
+        def read(view):
+            rows=view.query('SELECT '+expression+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+            if not rows:raise Unavailable('resource unavailable')
+            return ResourceStat('file',rows[0][0],view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies)),self.ref(path))
+        return self.reader.read(read,expected_revision=scope.revision)
+
     async def read(self, scope, path, *, offset=0, size=65536):
         scope.check_active()
         if offset < 0 or size < 1:
             raise ValueError('invalid document range')
         route, key = self._route(path)
         spec = self._routes.get(route)
-        if not isinstance(spec, DocumentSpec) or key is None:
+        if spec is None or key is None:
             raise Unavailable('resource unavailable')
+        if isinstance(spec,DatasetSpec):
+            where,values=self._where(scope,spec,())
+            def read_record(view):
+                rows=view.query('SELECT '+','.join(map(_quote,spec.columns))+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+                if not rows:raise Unavailable('resource unavailable')
+                record=dict(zip(spec.columns,rows[0]));record['ref']=asdict(self.ref(path))
+                data=json.dumps(record,ensure_ascii=False,separators=(',',':')).encode()
+                end=min(len(data),offset+size)
+                revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+                return DocumentChunk(data[offset:end],len(data),end if end<len(data) else None,revision,self.ref(path))
+            return self.reader.read(read_record,expected_revision=scope.revision)
         where, values = self._where(scope, spec, ())
         sql = ('SELECT ' + _quote(self._rowids[route]) + ' FROM ' + _quote(spec.table)
                + ' WHERE ' + where + ' AND ' + _quote(spec.key) + '=?')

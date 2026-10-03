@@ -1,0 +1,216 @@
+..................F...............................................       [100%]
+=================================== FAILURES ===================================
+_ test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-602/test_review_workspace_save_fai0')
+
+    @pytest.mark.asyncio
+    async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
+        closed=[]
+        async def close():closed.append(True)
+        shell=SimpleNamespace(snapshot=lambda:b'snapshot',aclose=close)
+        driver.shell_factory=lambda *a:shell
+        def save(*a):raise OSError('disk full')
+        driver.workspace=SimpleNamespace(save_workspace=save)
+        try:
+>           with pytest.raises(OSError,match='disk full'):await driver.run(session)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_workspace_review.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.llm.LLMDriver object at 0x10b4ee2d0>
+session = Session(actor=Actor(id='a', driver=<society0.kernel.llm.LLMDriver object at 0x10b4ee2d0>, state_ref=None, config=None)...are_artifact=<bound method StageStore.prepare_artifact of <society0.kernel.storage.StageStore object at 0x10b4ef680>>))
+
+    async def run(self, session):
+        session.scope.check_active()
+        thread_id = self.threads.find(session.actor.id, session.moment, kind=self.policy.mode)
+        if thread_id is None:
+            thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode)
+        else:
+            if self.threads.describe(thread_id)['status'] not in ('completed', 'waiting'):
+                raise RuntimeError('unfinished Thread requires explicit recovery; budgets are not reset')
+            self.threads.reopen(thread_id)
+        session.cursors['thread_id'] = thread_id
+        ledger = _Ledger(self, session, thread_id)
+        shell = None
+        status, reason, structured = 'incomplete', 'driver_error', None
+        reasoning=[]
+        try:
+            provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
+            inputs = await invoke_maybe_async(self.input_builder, session)
+            if isinstance(inputs, InputBatch):
+                self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
+            else:
+                for message in inputs:
+                    self.threads.append_message(thread_id, message)
+            recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
+            for message in recalled:
+                self.threads.append_message(thread_id, message)
+            if self.policy.reasoning_stages and self.policy.result_schema is None:
+                guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                    '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                    '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                    self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
+            tools = self._tools()
+            schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+            options = dict(self.policy.request_options)
+            options['tools'] = tools
+            options['parallel_tool_calls'] = self.policy.parallel_tool_calls
+            extra = dict(options.get('extra_body') or {})
+            metadata = dict(extra.get('metadata') or {})
+            metadata['session_id'] = self.threads.describe(thread_id)['provider_session_id']
+            extra['metadata'] = metadata
+            options['extra_body'] = extra
+            if self.policy.direct_json:
+                options.pop('tools')
+                options.pop('parallel_tool_calls')
+                options['response_format'] = {'type': 'json_schema', 'json_schema': {
+                    'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+            if self.shell_factory is not None:
+                shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+            turns = empty = parallel_errors = 0
+            while self.policy.max_turns is None or turns < self.policy.max_turns:
+                turns += 1
+                session.scope.check_active()
+                try:
+                    response = await provider.request(thread_id, options)
+                except ProviderFailure as error:
+                    reason = error.reason
+                    break
+                session.scope.check_active()
+                finish = response.get('finish_reason')
+                if finish == 'length':
+                    reason = 'output_token_limit'
+                    break
+                message = {key: value for key, value in response.items() if key in ('role', 'content', 'tool_calls', 'reasoning_content')}
+                message.setdefault('role', 'assistant')
+                message_seq=self.threads.append_message(thread_id, message)
+                if self.policy.reasoning_stages and isinstance(message.get('content'),str):
+                    reasoning.append({'message_seq':message_seq,'segments':_stage_segments(message['content'],self.policy.reasoning_stages)})
+                calls = response.get('tool_calls') or []
+                content = response.get('content') or ''
+                if self.policy.direct_json:
+                    try:
+                        candidate = json.loads(content)
+                        validator_for(self.policy.result_schema)(self.policy.result_schema).validate(candidate)
+                    except Exception:
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'Return a result matching the supplied JSON schema.'})
+                        continue
+                    structured, status, reason = candidate, 'completed', 'structured_result'
+                    break
+                if not calls:
+                    if not content.strip():
+                        empty += 1
+                        if empty > self.policy.empty_retries:
+                            reason = 'empty_response'
+                            break
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'The response was empty. Continue the current decision.'})
+                        continue
+                    if not ledger.requirements_met() or self.policy.result_schema is not None:
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': _json({
+                            'required_names': self.policy.required_names, 'required_tags': self.policy.required_tags,
+                            'completed': sorted(ledger.completed), 'submit_result_required': self.policy.result_schema is not None})})
+                        continue
+                    status, reason = 'completed', 'natural_completion'
+                    break
+                unique, seen = [], {}
+                for item in calls:
+                    identifier = item['id']
+                    if identifier in seen and seen[identifier] != item:
+                        raise ValueError('one tool call id has conflicting payloads')
+                    if identifier not in seen:
+                        unique.append(item)
+                        seen[identifier] = item
+                parsed = []
+                for item in unique:
+                    function = item['function']
+                    try:
+                        arguments = json.loads(function['arguments'])
+                        valid = function['name'] in schemas and schemas[function['name']].is_valid(arguments)
+                    except (ValueError, TypeError):
+                        arguments, valid = None, False
+                    parsed.append((item, arguments, valid))
+                if not self.policy.parallel_tool_calls and len(unique) > 1:
+                    parallel_errors += 1
+                    if parallel_errors > 1 or not all(valid for _, _, valid in parsed):
+                        reason = 'parallel_tool_contract'
+                        break
+                    for item, _, _ in parsed:
+                        self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': item['id'],
+                            'content': 'parallel_tool_calls is false; submit exactly one tool call.'})
+                    continue
+                receipts = {item['id']: self.threads.get_tool_result(thread_id, item['id']) for item in unique}
+                try:
+                    ledger.preflight(arguments['name'] for item, arguments, valid in parsed
+                                     if valid and item['function']['name'] == 'action_invoke' and receipts[item['id']] is None)
+                    for position, (item, arguments, valid) in enumerate(parsed):
+                        identifier, name = item['id'], item['function']['name']
+                        ledger.effects = []
+                        if receipts[identifier] is not None:
+                            previous, feedback = receipts[identifier]['call'], receipts[identifier]['content']
+                            if previous != item:
+                                raise ValueError('one tool call id has conflicting payloads')
+                            metadata = receipts[identifier]['metadata']
+                            ledger.replay(identifier, metadata)
+                            if metadata.get('structured') is not None:
+                                structured = metadata['structured']
+                        elif not valid:
+                            feedback = _json({'error': 'invalid_tool_arguments'})
+                        else:
+                            ledger.call_id, ledger.shell_call = identifier, name == 'bash'
+                            if name == 'submit_result':
+                                structured = arguments
+                                feedback = _json({'status': 'completed', 'result': arguments})
+                            else:
+                                try:
+                                    feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                                except _ToolInputError as error:
+                                    feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
+                        if receipts[identifier] is None:
+                            self.threads.save_tool_result(thread_id, item, feedback,
+                                metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                            ledger.applied_receipts.add(identifier)
+                        else:
+                            self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
+                        if structured is not None or ledger.terminal:
+                            for remaining, _, _ in parsed[position + 1:]:
+                                prior = receipts.get(remaining['id'])
+                                skipped = prior['content'] if prior else _json({'status': 'not_executed', 'reason': 'activation_completed'})
+                                self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': remaining['id'], 'content': skipped})
+                            break
+                except _BudgetReached as error:
+                    reason = str(error)
+                    break
+                if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
+                    status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
+                    break
+                if self.policy.max_action_calls is not None and ledger.used >= self.policy.max_action_calls and ledger.used:
+                    reason = 'action_budget_exhausted'
+                    break
+            else:
+                reason = 'max_turns'
+            result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
+                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,
+                                 'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)
+            if self.memory is not None and status in ('completed', 'waiting'):
+                await self.memory.after_activation(session, thread_id, result)
+            return result
+        except BaseException:
+            status = 'incomplete'
+            raise
+        finally:
+            try:
+                if shell is not None:
+                    try:
+                        if status in ('completed', 'waiting'):
+>                           if shell.has_workspace:
+                               ^^^^^^^^^^^^^^^^^^^
+E                           AttributeError: 'types.SimpleNamespace' object has no attribute 'has_workspace'
+
+src/society0/kernel/llm.py:543: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm_workspace_review.py::test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell
+1 failed, 65 passed in 1.60s
