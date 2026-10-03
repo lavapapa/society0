@@ -6,7 +6,7 @@ import json
 import uuid
 import zlib
 
-from ._json_chunks import CHUNK_BYTES, encode_chunks as _chunks, decode_chunks
+from ._json_chunks import CHUNK_BYTES, decode_chunks
 THREAD_SCHEMA = (
     "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,context_seq INTEGER,PRIMARY KEY(thread_id,consumer))",
     '''CREATE TABLE thread_heads(
@@ -48,7 +48,7 @@ def _append(writer, thread_id, kind, payload, *, allow_closed=False):
     total = 0
     def rows():
         nonlocal total
-        for index, (size, body) in enumerate(_chunks(payload)):
+        for index, (size, body) in enumerate(writer.encode_chunks(payload)):
             total += size
             yield thread_id, seq, index, size, body
     writer.executemany('INSERT INTO thread_chunks VALUES(?,?,?,?,?)', rows())

@@ -45,3 +45,11 @@ SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/
 规范写入器复用 SQLite authorizer，在每个事务准备 INSERT、UPDATE、DELETE 时收集目标表，再于同一次事务更新辅助版本表。失败回滚同步撤回版本；无匹配行的写语句可以保守地推进版本。每次事务设置和清除 authorizer，也覆盖语句缓存重新授权、外键级联和 WITHOUT ROWID 表。artifact 登记临时退出授权器后恢复本次事务的收集器，后续业务写入继续受跟踪。
 
 辅助版本表用于当前读取身份，不构成恢复权威，也不进入 Session 变化集。restore/fork 创建新 run_id，将新根的 live_revision 及各表版本一起归零，后续从新身份推进。当前格式面向新运行，旧库没有新增辅助表时需重新创建运行；本项目不提供格式迁移。
+
+## 压缩资源
+
+`Writer.encode_chunks(value)` 在当前同步写入作用域内，把完整 JSON 值编码为有序的 `(raw_bytes, compressed_bytes)` 块。每块原文至多 64KiB，独立 zlib 压缩，现有完整读取和按块范围读取保持相同内容。字符串分段转义；编码线程只持有已冻结的 bytes，SQLite 修改继续由规范 writer 执行。迭代器应在 callback 内消费；部分消费的后台工作会在作用域结束时收束。
+
+StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 `compression_inflight_bytes=524288`。设置单 worker 时使用同步压缩；其他配置先读取至多 256KiB 前缀，短值直接压缩，大值惰性启动该 store 共享的线程池。Thread、Memory 和 ResourceCalls 使用同一入口与资源所有者。close 排空并关闭线程池，插件不各自创建压缩池。worker 数与待处理原始字节预算必须为正，字节预算至少容纳一个 64KiB 块。
+
+待处理字节预算衡量队列内的原始输入，整体驻留还包含有界前缀、当前块、压缩结果、原生工作区及 SQLite/Session 数据。同步 writer 会等待压缩结果，调用它的事件循环仍可能短时阻塞；该路径提高吞吐，独立只读观察者继续通过短 WAL 快照读取。事务外异步冻结与准备属于独立试验，未纳入此接口。

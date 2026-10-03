@@ -1,0 +1,130 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.12.12",
+  "sqlite": "3.53.4",
+  "cpu_count": 12,
+  "filesystem_path": "/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/core-next-persistence-rwlihcv4",
+  "durability": [
+    {
+      "mode": "FULL",
+      "rounds": 30,
+      "messages": 90,
+      "complete_step": 1,
+      "short_transactions": 180,
+      "short_wall_seconds": 0.034613040974363685,
+      "short_cpu_seconds": 0.031789000000000005,
+      "short_transaction_sync_count": 183,
+      "short_transaction_sync_seconds": 0.006509169586934149,
+      "artifact_fsync_count": 150,
+      "artifact_fsync_seconds": 0.0006302463007159531,
+      "component_fsync_count": 64,
+      "component_fsync_seconds": 0.00010800367454066873,
+      "complete_wall_seconds": 0.002241707989014685,
+      "live_directory_bytes": 4481635,
+      "closed_directory_bytes": 299947
+    },
+    {
+      "mode": "NORMAL",
+      "rounds": 30,
+      "messages": 90,
+      "complete_step": 1,
+      "short_transactions": 180,
+      "short_wall_seconds": 0.02758995903423056,
+      "short_cpu_seconds": 0.025271000000000002,
+      "short_transaction_sync_count": 3,
+      "short_transaction_sync_seconds": 0.002293541037943214,
+      "artifact_fsync_count": 150,
+      "artifact_fsync_seconds": 0.0007850079564377666,
+      "component_fsync_count": 64,
+      "component_fsync_seconds": 9.554700227454305e-05,
+      "complete_wall_seconds": 0.0022291250061243773,
+      "live_directory_bytes": 4481642,
+      "closed_directory_bytes": 299954
+    }
+  ],
+  "reader": [
+    {
+      "tables": 20,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.0075335000292398036,
+        "cpu_seconds": 0.007528000000000007,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.0012005420285277069,
+        "cpu_seconds": 0.0011999999999999789,
+        "connections": 1,
+        "sum": 700
+      }
+    },
+    {
+      "tables": 200,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.021400915982667357,
+        "cpu_seconds": 0.021382000000000012,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.0014884590054862201,
+        "cpu_seconds": 0.00148100000000001,
+        "connections": 1,
+        "sum": 700
+      }
+    },
+    {
+      "tables": 1000,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.08322691603098065,
+        "cpu_seconds": 0.083117,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.001871249987743795,
+        "cpu_seconds": 0.0018720000000000958,
+        "connections": 1,
+        "sum": 700
+      }
+    }
+  ],
+  "event_loop": [
+    {
+      "raw_body_bytes": 131072,
+      "iterations": 10,
+      "wall_seconds": 0.02907291695009917,
+      "cpu_seconds": 0.02798299999999998,
+      "loop_max_seconds": 0.0032310410169884562,
+      "loop_median_seconds": 0.002850292017683387,
+      "loop_p95_seconds": 0.0032310410169884562,
+      "peak_rss_native": 40763392,
+      "rss_native_unit": "bytes"
+    },
+    {
+      "raw_body_bytes": 1048576,
+      "iterations": 10,
+      "wall_seconds": 0.276844208012335,
+      "cpu_seconds": 0.23042800000000008,
+      "loop_max_seconds": 0.07965849997708574,
+      "loop_median_seconds": 0.021433458023238927,
+      "loop_p95_seconds": 0.07965849997708574,
+      "peak_rss_native": 42401792,
+      "rss_native_unit": "bytes"
+    },
+    {
+      "raw_body_bytes": 10485760,
+      "iterations": 10,
+      "wall_seconds": 2.2148427910287865,
+      "cpu_seconds": 2.14689,
+      "loop_max_seconds": 0.22758324997266755,
+      "loop_median_seconds": 0.21905070799402893,
+      "loop_p95_seconds": 0.22758324997266755,
+      "peak_rss_native": 87785472,
+      "rss_native_unit": "bytes"
+    }
+  ]
+}
