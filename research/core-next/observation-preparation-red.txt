@@ -1,0 +1,12 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+_____ test_complete_preparation_is_explicit_fixed_and_status_remains_live ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-579/test_complete_preparation_is_e0')
+
+    def test_complete_preparation_is_explicit_fixed_and_status_remains_live(tmp_path):
+        import time
+>       from society0.kernel.observation import ObservationService
+E       ImportError: cannot import name 'ObservationService' from 'society0.kernel.observation' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/observation.py). Did you mean: 'ObservationReader'?
+
+tests/primary/test_kernel_observation.py:113: ImportError

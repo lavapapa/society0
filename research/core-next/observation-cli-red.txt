@@ -1,0 +1,18 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+________ test_cli_historical_one_read_and_lifecycle_error_are_concrete _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-601/test_cli_historical_one_read_a0')
+
+    def test_cli_historical_one_read_and_lifecycle_error_are_concrete(tmp_path):
+        import subprocess,sys,os
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision');store.complete(1)
+            threads.append_message(tid,{'role':'user','content':'pending'})
+            command=[sys.executable,'-m','society0.kernel.observation',str(store.path)]
+            invalid=subprocess.run([*command,'--request',json.dumps({'method':'prepare_complete','params':{'step':1}})],capture_output=True,env=os.environ.copy())
+>           assert invalid.returncode!=0
+E           assert 0 != 0
+E            +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 's...eturncode=0, stdout=b'{"state":"preparing","step":1,"source_run_id":"5d3461beb1cb439d86610b6671cc71f8"}\n', stderr=b'').returncode
+
+tests/primary/test_kernel_observation.py:244: AssertionError

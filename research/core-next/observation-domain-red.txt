@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_shared_domain_factories_read_original_documents_without_side_effects ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-591/test_shared_domain_factories_r0')
+
+    @pytest.mark.asyncio
+    async def test_shared_domain_factories_read_original_documents_without_side_effects(tmp_path):
+>       from society0.plugins.round_robin import round_robin_plugin,round_robin_information
+E       ImportError: cannot import name 'round_robin_information' from 'society0.plugins.round_robin' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/plugins/round_robin.py)
+
+tests/primary/test_kernel_observation_domains.py:12: ImportError
