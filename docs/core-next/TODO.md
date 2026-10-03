@@ -23,10 +23,10 @@
 - [x] **X02 信息与动作最小原型**（spec，独立审查 threads）：同环境订单与消息、主体绑定、discover/read/invoke、目标模板、执行重验、JSON 游标和实际版本已验证。证据：`kernel/interaction.py`、作者与非作者 `test_kernel_interaction*.py`、`interaction-shell-independent-green.txt`；真实大集合查询提供者继续归 K04/P04。
 - [x] **X03 存储权威与混合发布原型**（storage）：比较原生 SQLite 事务、JSONL 准备发布、长 reader 及 SQLite Session 根+增量，验证独立进程退出后的恢复边界。证据：[报告](storage-experiments.md)、`storage-session-green-20261004.txt` 20 passed；正式 Thread/Memory/长期分叉继续归 P02/P03。
 - [ ] **X04 大集合与热工作集原型**（storage，依 X03 初步）：固定活动量扩大历史，测定位、分页、range、typed 值/键、顺序、根载入与 schema 验证；小 doc 与大 dataset 分开；比较扫描/物化字节和 RSS，检查 SQL N+1 及 `.items()` 全量物化。
-- [ ] **X05 VFS 与自主分析原型**（threads 试验，spec 产品）：Bashkit 五项选型试验和 shell 产品读写/管道/完整文本输出/原文字节通路已通过；见 [试验](shell-experiments.md)、[合同](shell-contract.md)。懒文件整读与原生非法 UTF8 替换边界已明确；SQL 数据集的 tail/sample 与完整模型任务对照待接入。
+- [ ] **X05 VFS 与自主分析原型**（threads 试验，spec 产品）：Bashkit 五项选型试验和 shell 产品读写/管道/完整文本输出/原文字节通路已通过；见 [试验](shell-experiments.md)、[合同](shell-contract.md)。懒文件整读与原生非法 UTF8 替换边界已明确；SQL 数据集的 tail/sample 与完整模型任务对照待接入。新增 [工作区试验](workspace-experiments.md) 证明：8MiB 未改高熵私有文件十次激活仍生成约 84.23MB 快照；shell-only 快照可保变量/cwd，但缺成熟的版本化 FS 接口连接。真实 shared mount、私有增量与按需大文件继续实施，原型不作为 K06 完成。
 - [x] **X06 Driver/时间原型**（threads，独立审查 spec）：规则与假驱动、顺序阶段及显式独立并发、同 moment 游标、信号合并、waiting/incomplete、整步预算已验证。非作者加入真实 PluginHost+StageStore 双机制与恢复，作者/非作者共 21 项通过，见 `runtime-review-green.txt`；LLM 实际循环继续归 D02。
 - [x] **X07 OpenViking 复用判断**（指定 owner，无前置）：依主智能体研究核对 URI/目录/原文/摘要/检索资产、依赖成本与恢复边界；输出直接依赖、适配或借鉴的证据。不得用摘要默认裁剪 Thread。证据：[官方源码研究](openviking-study.md)，已核对版本/读取成本/快照/权限/依赖并建议 URI/View 借鉴与可选 SDK；直接集成与性能原型尚未实施。
-- [ ] **X08 有界多核小实验**（storage，依有明确块输入）：压缩线程、纯 Python 计算进程与串行，对相同完整数据逐值核对，计墙钟/CPU/在途字节/进程 RSS/IPC；与产品并行接入任务 D07 分开。
+- [ ] **X08 有界多核小实验**（storage，依有明确块输入）：压缩线程、纯 Python 计算进程与串行，对相同完整数据逐值核对，计墙钟/CPU/在途字节/进程 RSS/IPC；与产品并行接入任务 D07 分开。D07 已有本机同步/线程/事务外暂存的相同原文对照；独立进程计算、服务器多核和完整工作负载继续验收。
 - [ ] **X09 P0 独立审查与取舍**（非作者，依 X01–X08）：指出原型未覆盖的故障与语义，确定首版实现方案并更新 SDD；仅选择已有消费者支持的公共接口，保留失败实验数字。
 - [x] **X10 实现语言选择**（主智能体，用户新增要求）：Python 公共 Core/插件接口，成熟 C/Rust 组件处理数据与重计算，TypeScript 用于工作台；新增 Rust 扩展由实测热点触发。证据：[语言决策](language-decision.md)、原生压缩与 SQLite Session 试验。整步性能验收继续归 V04。
 
@@ -63,14 +63,14 @@
 - [ ] **T02 动态激活与批处理**（threads，依 T01/D02）：A08/S03–S05，selector、并发优先级、同 actor 串行、信号合并、空槽立即补位、close 边界新任务、取消及未完成 activation；每主体错误范围明确。`f7b4a42` 的 collect 策略、稳定结果顺序、drain 消费及持久 ActorStore 按需加载已通过作者和独立集成；完整 selector 与认知组合继续验收。
 - [ ] **T03 plain 与外部机制扩展**（指定 owner，依 T01/K07）：B01/E01–E04，普通小状态、外部声明/schema/default、非 JSON 图/数值派生资源恢复；低依赖路径不加载无关重资源。
 - [x] **T04 round_robin 迁移**（spec，非作者 storage，依 T02/T03/D05）：B02，circle 配对、私信/广播、参与者、保留事实与当前收件范围、完整原文和恢复已实现，提交 `164fbe9`。2/4/6/20 人配对与旧算法对照；固定当前消息、历史从 100 增至 10000 时查询 VM 均为 111。独立发现的清空后重访旧轮次 total/items 不一致已修复，广播中途故障整批回滚、dirty 消息不进入恢复。证据：`test_plugin_round_robin.py`、`test_plugin_builtin_review.py`，15 项通过。交互游标版本调整仍须随 K04/K05 复验。
-- [ ] **T05 social 迁移**（指定 owner，依 T02/T03/D06）：B03–B05，拓扑与关系、post/comment/repost/like/follow/通知、推荐/热度/曝光/嵌入批处理；preview 无曝光，正文可完整取得，确定性逐事件和模型输入对照。
+- [ ] **T05 social 迁移**（指定 owner，依 T02/T03/D06）：B03–B05，拓扑与关系、post/comment/repost/like/follow/通知、推荐/热度/曝光/嵌入批处理；preview 无曝光，正文可完整取得，确定性逐事件和模型输入对照。`3f708cf` 已迁移独立 Social 实例、拓扑、关系、完整正文、通知、排名与恢复；28 项作者及独立相关用例通过，固定 5 个活动候选、历史 100→10000 的查询 VM 均为 480。实际 Runtime 自动收束钩子与组合恢复仍在审查，见 [Social 合同](social-contract.md)。
 - [ ] **T06 结果与诊断插件**（指定 owner，依 T01/D04）：O01–O04，metrics/steps/events/资源/summary、大表外置及分区、逐主体/工具错误/时长/并发/termination；结束扫描与历史增长计数，失败资料保诊断身份。
 
 ### 4.3 数据、恢复与观察
 
 - [ ] **P01 按需权威状态**（storage，依 X03/X04/K03）：P01/P02，新薄状态接口、持久事实/当前投影/临时数据、局部写入与必要原子组、值类型/精度/插入顺序；热查询不重放历史，查询不构建全量 World。
 - [ ] **P02 完整发布协议**（storage，依 P01/D04/D06/T01）：P03/P04，World/Actor/Thread/Memory 统一恢复身份，完整/诊断分离；多介质 prepare 与唯一完成权威按选定 SDD 实现，逐边界故障注入。checkpoint 与归档间隔若改变写入产品合同。
-- [ ] **P03 恢复、fork、export 与清理**（storage，依 P02）：P05/P06/P08，独立进程重新打开、来源身份、初始化差异、branch 隔离、实际旧版本、analysis/restore scope、来源丢失、可达清理；无旧 codec 兼容要求。
+- [ ] **P03 恢复、fork、export 与清理**（storage，依 P02）：P05/P06/P08，独立进程重新打开、来源身份、初始化差异、branch 隔离、实际旧版本、analysis/restore scope、来源丢失、可达清理；无旧 codec 兼容要求。`121923b` 已通过恢复包独立性、旧完整点、重复依赖仅复制一次、来源删除后再次恢复及离线清理的 52 项相关验收。独立审查发现的非根描述符缺失 changeset 导致误删问题已修复；全部身份与依赖验证先于删除。只读分析准备、统一跨插件恢复与大型占盘继续由 Q/P02/V04 验收，见 [生命周期合同](storage-lifecycle-design.md)。
 - [ ] **P04 大记录与持续成本**（storage，依 P01/P02）：P07，按块编码/记录定位/metadata 顺序访问、字节预算提前停止、范围下载不重解全前缀；宽 dict/单大 record、annotations/static metadata 下界单独报告。
 - [ ] **Q01 在线离线查询**（指定 owner，依 P02/K04）：Q01/Q02/Q04，status/版本水位、固定页/精确 total/typed cursor、索引追赶/准备/损坏重建、fork 源内容定位；查询进程与 producer 分离，冷追赶不能阻塞 status。
 - [ ] **Q02 实时信息与 Thread tail**（指定 owner，依 D04/Q01）：Q03/Q06/N03，Thread 目录及可继续 tail、live 与完整 prefix、完成步 observed revision、慢消费者与 view 过期；固定分页读完后仍可消费新增而无无限订阅队列。
