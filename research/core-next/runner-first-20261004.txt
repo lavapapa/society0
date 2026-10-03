@@ -1,0 +1,30 @@
+..F.                                                                     [100%]
+=================================== FAILURES ===================================
+__________ test_timing_failure_keeps_complete_and_exposes_diagnostic ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-706/test_timing_failure_keeps_comp0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b9e31d0>
+
+    @pytest.mark.asyncio
+    async def test_timing_failure_keeps_complete_and_exposes_diagnostic(tmp_path,monkeypatch):
+        import society0.kernel.runner as module
+        def fail(*args):raise OSError('timing unavailable')
+        monkeypatch.setattr(module,'_append_timing',fail)
+        result=await run_plan(tmp_path/'run',plan([]))
+        assert result['status']=='completed' and result['complete_step']==2
+        assert result['diagnostic_errors']==2
+>       assert json.loads((tmp_path/'run'/'runner-status.json').read_text())==result
+E       AssertionError: assert {'run_id': '9...step': 2, ...} == {'run_id': '9...ic_errors': 2}
+E         
+E         Omitting 4 identical items, use -vv to show
+E         Left contains 1 more item:
+E         {'updated_at': 1791068768.392412}
+E         Use -v to get more diff
+
+tests/primary/test_kernel_runner.py:56: AssertionError
+=============================== warnings summary ===============================
+tests/primary/test_kernel_runner.py::test_timing_failure_keeps_complete_and_exposes_diagnostic
+  /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py:77: RuntimeWarning: step timing could not be saved
+    warnings.warn('step timing could not be saved', RuntimeWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

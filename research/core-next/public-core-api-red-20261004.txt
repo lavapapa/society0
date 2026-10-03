@@ -1,0 +1,55 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______________ test_public_rule_entrypoint_is_light_and_restores _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-713/test_public_rule_entrypoint_is0')
+
+    def test_public_rule_entrypoint_is_light_and_restores(tmp_path):
+        code = '''
+    import asyncio,sys
+    from society0 import compose,Plugin,ActorRecord,Phase,RuleDriver,StepResult,Ref,Query,Action,ActionResult
+    from society0.plugins import actor_plugin,interaction_plugin,runtime_plugin,plain_plugin,thread_plugin
+    from society0.kernel.runtime import DriverResult
+    from society0.kernel.observation import Observation
+    from pathlib import Path
+    async def main():
+        path=Path(sys.argv[1])
+        actor=ActorRecord('a','rule')
+        def build():
+            return [interaction_plugin(lambda *a:True),plain_plugin(),
+                actor_plugin({'rule':lambda record:RuleDriver(lambda session:DriverResult('completed',{'whole':'原文'}))},records=[actor]),
+                thread_plugin(),runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),actor_service=('actors','actors'))]
+        async def phase(context):context.activate('a')
+        async with compose(path/'run',build()) as host:
+            await host.service('runtime','runtime').run_step(1,1,[Phase('decision',phase)])
+            assert Observation(path/'run').status()['complete']['step']==1
+        async with compose(path/'restored',build(),source=path/'run') as host:
+            assert host.service('storage','store').complete_step==1
+        for module in ('society0.core_data','society0.society','openai','chromadb','networkx','bashkit'):
+            assert module not in sys.modules,module
+    asyncio.run(main())
+    '''
+        result=subprocess.run([sys.executable,'-c',code,str(tmp_path)],capture_output=True,text=True,env=os.environ.copy())
+>       assert result.returncode==0,result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 3, in <module>
+E         ImportError: cannot import name 'compose' from 'society0' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/__init__.py)
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-c', "\...e\' from \'society0\' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/__init__.py)\n').returncode
+
+tests/primary/test_public_core_api.py:33: AssertionError
+___________________ test_retired_root_symbols_are_not_public ___________________
+
+    def test_retired_root_symbols_are_not_public():
+        import society0
+>       assert not {'Society0','World','StateAccessMode','LLMModel','EmbedModel'} & set(society0.__all__)
+E       AssertionError: assert not ({'EmbedModel', 'LLMModel', 'Society0', 'StateAccessMode', 'World'} & {'ActivationBatch', 'ActivationLimitError', 'ActivationPool', 'ActivationPoolError', 'ActivationPoolSession', 'ActivationResult', ...})
+E        +  where {'ActivationBatch', 'ActivationLimitError', 'ActivationPool', 'ActivationPoolError', 'ActivationPoolSession', 'ActivationResult', ...} = set(['ObservationReader', 'Society0', 'LLMModel', 'EmbedModel', 'CodeSchedule', 'StepContext', ...])
+E        +    where ['ObservationReader', 'Society0', 'LLMModel', 'EmbedModel', 'CodeSchedule', 'StepContext', ...] = <module 'society0' from '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/__init__.py'>.__all__
+
+tests/primary/test_public_core_api.py:38: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_public_core_api.py::test_public_rule_entrypoint_is_light_and_restores
+FAILED tests/primary/test_public_core_api.py::test_retired_root_symbols_are_not_public
+2 failed in 0.20s
