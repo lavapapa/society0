@@ -1,0 +1,7 @@
+.............sssssss                                                     [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/experiments/test_core_next_storage.py:144: Session研究使用独立/tmp/core-next-session-venv，正式依赖未变
+SKIPPED [1] tests/experiments/test_core_next_storage.py:155: Session研究使用独立临时venv
+SKIPPED [1] tests/experiments/test_core_next_storage.py:165: Session研究使用独立临时venv
+SKIPPED [3] tests/experiments/test_core_next_storage.py:174: Session研究使用独立临时venv
+SKIPPED [1] tests/experiments/test_core_next_storage.py:184: Session研究使用独立临时venv

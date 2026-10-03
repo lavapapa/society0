@@ -1,0 +1,53 @@
+..FF..                                                                   [100%]
+=================================== FAILURES ===================================
+____ test_review_mutating_input_dependencies_does_not_expand_runtime_access ____
+
+    @pytest.mark.asyncio
+    async def test_review_mutating_input_dependencies_does_not_expand_runtime_access():
+        dependencies = ['provider']
+        captured = {}
+    
+        def consumer(ctx):
+            captured['ctx'] = ctx
+    
+        plugins = [Plugin('provider', install=lambda ctx: ctx.provide('value', 1)),
+                   Plugin('hidden', install=lambda ctx: ctx.provide('value', 2)),
+                   Plugin('consumer', dependencies, consumer)]
+        async with PluginHost(plugins):
+            dependencies.append('hidden')
+>           with pytest.raises(ValueError, match='undeclared'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_plugins_review.py:72: Failed
+_____ test_review_cleanup_failure_cannot_be_suppressed_by_another_resource _____
+
+    @pytest.mark.asyncio
+    async def test_review_cleanup_failure_cannot_be_suppressed_by_another_resource():
+        events = []
+    
+        @contextmanager
+        def suppressor():
+            try:
+                yield
+            except RuntimeError:
+                events.append('suppressed')
+            finally:
+                events.append('resource closed')
+    
+        async def install(ctx):
+            ctx.on_close(events.append, 'earliest closed')
+            await ctx.enter_context(suppressor())
+    
+            def failing_cleanup():
+                events.append('cleanup failed')
+                raise RuntimeError('lost cleanup error')
+    
+            ctx.on_close(failing_cleanup)
+    
+>       with pytest.raises(RuntimeError, match='lost cleanup error'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RuntimeError
+
+tests/primary/test_kernel_plugins_review.py:99: Failed
+2 failed, 4 passed in 0.03s

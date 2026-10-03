@@ -2170,7 +2170,7 @@ async def test_social_network_recommendation_recalls_old_high_engagement_posts(t
 def test_society0_skill_requires_visible_experiment_todo_list():
     skill_text = Path(__file__).resolve().parents[2].joinpath("skill", "SKILL.md").read_text(encoding="utf-8")
     assert "Start and maintain a visible todo list" in skill_text
-    assert "Keep the todo list visible" in skill_text
+    assert "Keep progress visible in a short researcher-facing status" in skill_text
 
 
 @pytest.mark.asyncio
