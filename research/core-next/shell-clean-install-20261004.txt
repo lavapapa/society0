@@ -1,0 +1,19 @@
+Using Python 3.12.12 environment at: /tmp/society0-core-shell-check
+Resolved 10 packages in 1.13s
+   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+Prepared 2 packages in 463ms
+Installed 10 packages in 11ms
+ + apsw==3.53.4.0
+ + attrs==26.1.0
+ + bashkit==0.18.2
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + society0==5.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)
+ + society0-filesystem==0.1.0 (from file:///tmp/society0-native-fs-target/wheels/society0_filesystem-0.1.0-cp39-abi3-macosx_11_0_arm64.whl)
+ + typing-extensions==4.16.0
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpj4ii_umw/out/shell-p1rom758/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpj4ii_umw/out/shell-2j87wbf5/output — scripts can modify host files
+clean shell wheel: private file complete/restore bytes passed; no model/vector/social dependencies

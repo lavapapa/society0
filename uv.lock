@@ -2085,47 +2085,71 @@ version = "5.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "apsw" },
-    { name = "chromadb" },
-    { name = "jmespath" },
-    { name = "json-repair" },
     { name = "jsonschema" },
-    { name = "networkx" },
-    { name = "ollama" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-    { name = "tenacity" },
 ]
 
 [package.optional-dependencies]
 dev = [
+    { name = "chromadb" },
+    { name = "jmespath" },
+    { name = "json-repair" },
+    { name = "networkx" },
+    { name = "ollama" },
+    { name = "openai" },
+    { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "pyyaml" },
+    { name = "tenacity" },
+]
+llm = [
+    { name = "ollama" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "tenacity" },
+]
+memory = [
+    { name = "chromadb" },
+    { name = "json-repair" },
 ]
 shell = [
     { name = "bashkit" },
     { name = "society0-filesystem" },
+]
+social = [
+    { name = "chromadb" },
+    { name = "networkx" },
+    { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "apsw", specifier = ">=3.53.4.0" },
     { name = "bashkit", marker = "extra == 'shell'", specifier = "==0.18.2" },
-    { name = "chromadb" },
-    { name = "jmespath" },
-    { name = "json-repair" },
+    { name = "chromadb", marker = "extra == 'dev'" },
+    { name = "chromadb", marker = "extra == 'memory'" },
+    { name = "chromadb", marker = "extra == 'social'" },
+    { name = "jmespath", marker = "extra == 'dev'" },
+    { name = "json-repair", marker = "extra == 'dev'" },
+    { name = "json-repair", marker = "extra == 'memory'" },
     { name = "jsonschema", specifier = ">=4.0.0" },
-    { name = "networkx" },
-    { name = "ollama" },
-    { name = "openai" },
-    { name = "pydantic" },
+    { name = "networkx", marker = "extra == 'dev'" },
+    { name = "networkx", marker = "extra == 'social'" },
+    { name = "ollama", marker = "extra == 'dev'" },
+    { name = "ollama", marker = "extra == 'llm'" },
+    { name = "openai", marker = "extra == 'dev'" },
+    { name = "openai", marker = "extra == 'llm'" },
+    { name = "pydantic", marker = "extra == 'dev'" },
+    { name = "pydantic", marker = "extra == 'llm'" },
+    { name = "pydantic", marker = "extra == 'social'" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "pyyaml", marker = "extra == 'dev'" },
     { name = "society0-filesystem", marker = "extra == 'shell'", directory = "native/society0-filesystem" },
-    { name = "pyyaml" },
-    { name = "tenacity" },
+    { name = "tenacity", marker = "extra == 'dev'" },
+    { name = "tenacity", marker = "extra == 'llm'" },
 ]
-provides-extras = ["shell", "dev"]
+provides-extras = ["llm", "memory", "social", "shell", "dev"]
 
 [[package]]
 name = "society0-filesystem"

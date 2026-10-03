@@ -1,0 +1,18 @@
+Using CPython 3.12.12 interpreter at: .venv/bin/python
+Creating virtual environment at: /tmp/society0-core-base-check
+Activate with: source /tmp/society0-core-base-check/bin/activate
+Using Python 3.12.12 environment at: /tmp/society0-core-base-check
+Resolved 8 packages in 515ms
+   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+Prepared 1 package in 458ms
+Installed 8 packages in 7ms
+ + apsw==3.53.4.0
+ + attrs==26.1.0
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + society0==5.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)
+ + typing-extensions==4.16.0
+clean base: compose SQL update complete restore passed; no model/vector/social/shell installed
