@@ -1,0 +1,39 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+______ test_real_interview_submit_result_aggregates_explicit_nested_field ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-662/test_real_interview_submit_res0')
+
+    @pytest.mark.asyncio
+    async def test_real_interview_submit_result_aggregates_explicit_nested_field(tmp_path):
+        import json
+        from society0.kernel.storage import StageStore
+        from society0.kernel.threads import ThreadStore, THREAD_SCHEMA
+        from society0.kernel.llm import LLMDriver, LLMPolicy
+        from society0.kernel.runtime import Actor, Runtime, Phase
+        from society0.kernel.interaction import Information, Actions
+        class Provider:
+            async def request(self, thread_id, options):
+                return {'role':'assistant','content':'完整测量说明','finish_reason':'tool_calls',
+                        'tool_calls':[{'id':'score','type':'function','function':{
+                            'name':'submit_result','arguments':json.dumps({'score':8})}}]}
+        schema={'type':'object','properties':{'score':{'type':'number'}},'required':['score'],'additionalProperties':False}
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            driver=LLMDriver(Provider(),threads,input_builder=lambda session:[{'role':'system','content':'完整访谈背景'}],
+                             policy=LLMPolicy(mode='interview',result_schema=schema))
+            runtime=Runtime([Actor('a',driver)],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
+            collected=[]
+            async def measure(context):
+                context.activate('a');collected.extend(await context.drain())
+            await runtime.run_step(1,1,[Phase('measurement',measure)])
+>           assert list(result_values(collected,('result','score')))==[8]
+E           assert [] == [8]
+E             
+E             Right contains one more item: 8
+E             Use -v to get more diff
+
+tests/primary/test_kernel_selection.py:82: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_selection.py::test_real_interview_submit_result_aggregates_explicit_nested_field
+1 failed, 3 passed in 0.54s

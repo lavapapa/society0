@@ -35,3 +35,11 @@ tests/primary/test_kernel_actors.py 验证千主体初始化不构建 Driver、�
 `deactivate(id)` 使常用 active 选择器停止调度该主体，保留身份、主观状态、角色及历史关联。`update(driver=..., roles=..., active=...)` 可明确改变驱动、角色和重新激活状态。完整恢复保留这些选择。
 
 LLM 的 CognitiveInput 继续请求完整人格和主观状态，因此获得的信息范围保持不变。字段按需接口使规则主体可以处理小任务而不加载巨型冷资料；单个被请求的主观键仍完整解码，其成本取决于该值本身。需要巨型独立材料时使用信息数据集和正文引用。
+
+## 六、显式分析
+
+`selection.select_ids(actors, role=None, active=True, predicate=None)` 复用主体索引分页，按登记顺序返回 id。可选 predicate 接收 ActorRecordView，可按需读取主观字段；它属于显式分析，成本随候选主体数及所请求字段增长。驱动工厂在这一过程中不会调用。遍历中的相关选择投影变更会使下一页过期。
+
+`sample_ids(identifiers, count, seed=None)` 使用流式 reservoir 抽样，遍历一次候选序列，驻留空间随样本数增长，最后按输入顺序返回。相同输入序列和种子可复现；这是新接口的算法合同。样本数超过总体时返回所有候选，零样本直接返回空列表。
+
+`result_rows(results)` 将 Runtime 的 ActorResult 逐行提供给 StepResult.tables 等消费者，保留 actor_id、round、status、reason 与完整 value。`result_values(results, field)` 逐项读取字典结果字段；字符串选直接字段，元组指定显式嵌套路径，例如真实 LLM 结构化访谈使用 `("result", "score")`，规则返回值可使用 `"score"`。`result_mean` 使用标准库 fmean 聚合数值，空数值范围返回 None。失败与开放结果仍保留其实际状态，调用方按研究口径选择统计范围。原始结果正文不被重写或缩短。
