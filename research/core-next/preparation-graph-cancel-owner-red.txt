@@ -1,0 +1,45 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+____ test_review_graph_repeated_cancel_drains_native_read_before_file_close ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-658/test_review_graph_repeated_can0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1093af9e0>
+
+    @pytest.mark.asyncio
+    async def test_review_graph_repeated_cancel_drains_native_read_before_file_close(tmp_path, monkeypatch):
+        import asyncio
+        import threading
+        from examples.core_next import graph_environment
+        source = tmp_path / 'graph.json'
+        source.write_text('{}')
+        entered = threading.Event()
+        release = threading.Event()
+        observed = []
+        def blocked_load(stream):
+            entered.set()
+            release.wait(5)
+            observed.append(stream.closed)
+            return {'nodes': [], 'edges': []}
+        monkeypatch.setattr(graph_environment.json, 'load', blocked_load)
+        async def run():
+            async with compose(tmp_path / 'run', [graph_environment.graph_plugin(source)]):
+                pass
+        task = asyncio.create_task(run())
+        try:
+            while not entered.is_set():
+                await asyncio.sleep(0)
+            task.cancel()
+            await asyncio.sleep(0)
+            task.cancel()
+            for _ in range(5):
+                await asyncio.sleep(0)
+>           assert not task.done(), 'native read must drain before closing its file'
+E           AssertionError: native read must drain before closing its file
+E           assert not True
+E            +  where True = <built-in method done of _asyncio.Task object at 0x109355780>()
+E            +    where <built-in method done of _asyncio.Task object at 0x109355780> = <Task cancelled name='Task-11' coro=<test_review_graph_repeated_cancel_drains_native_read_before_file_close.<locals>.r.../Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_preparation_review.py:45>>.done
+
+tests/primary/test_kernel_preparation_review.py:57: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_preparation_review.py::test_review_graph_repeated_cancel_drains_native_read_before_file_close
+1 failed, 2 passed in 0.04s

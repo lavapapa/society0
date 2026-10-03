@@ -1,0 +1,129 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_____ test_prepare_value_released_before_running_and_restore_skips_loader ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-641/test_prepare_value_released_be0')
+
+    @pytest.mark.asyncio
+    async def test_prepare_value_released_before_running_and_restore_skips_loader(tmp_path):
+        calls=[];references=[]
+        class Prepared:
+            def __init__(self):self.text='full prepared body'*10000
+        @asynccontextmanager
+        async def prepare():
+            calls.append('load');value=Prepared();references.append(weakref.ref(value))
+            await asyncio.sleep(0)
+            try:yield lambda writer:writer.execute('INSERT INTO facts VALUES(1,?)',(value.text,))
+            finally:calls.append('closed')
+>       plugin=Plugin('facts',schema=SCHEMA,prepare=prepare)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Plugin.__init__() got an unexpected keyword argument 'prepare'
+
+tests/primary/test_kernel_preparation.py:25: TypeError
+__ test_prepare_failures_release_resources_without_partial_root[next_prepare] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-641/test_prepare_failures_release_0')
+failure = 'next_prepare'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',['next_prepare','root_write','cancel'])
+    async def test_prepare_failures_release_resources_without_partial_root(tmp_path,failure):
+        events=[];entered=asyncio.Event()
+        @asynccontextmanager
+        async def first():
+            events.append('first open')
+            try:yield lambda w:w.execute("INSERT INTO facts VALUES(1,'initial')")
+            finally:events.append('first close')
+        @asynccontextmanager
+        async def second():
+            events.append('second open')
+            try:
+                if failure=='next_prepare':raise ValueError('prepare failed')
+                if failure=='cancel':entered.set();await asyncio.Event().wait()
+                def write(writer):raise ValueError('root failed')
+                yield write
+            finally:events.append('second close')
+>       plugins=[Plugin('one',schema=SCHEMA,prepare=first),Plugin('two',('one',),prepare=second)]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Plugin.__init__() got an unexpected keyword argument 'prepare'
+
+tests/primary/test_kernel_preparation.py:51: TypeError
+___ test_prepare_failures_release_resources_without_partial_root[root_write] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-641/test_prepare_failures_release_1')
+failure = 'root_write'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',['next_prepare','root_write','cancel'])
+    async def test_prepare_failures_release_resources_without_partial_root(tmp_path,failure):
+        events=[];entered=asyncio.Event()
+        @asynccontextmanager
+        async def first():
+            events.append('first open')
+            try:yield lambda w:w.execute("INSERT INTO facts VALUES(1,'initial')")
+            finally:events.append('first close')
+        @asynccontextmanager
+        async def second():
+            events.append('second open')
+            try:
+                if failure=='next_prepare':raise ValueError('prepare failed')
+                if failure=='cancel':entered.set();await asyncio.Event().wait()
+                def write(writer):raise ValueError('root failed')
+                yield write
+            finally:events.append('second close')
+>       plugins=[Plugin('one',schema=SCHEMA,prepare=first),Plugin('two',('one',),prepare=second)]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Plugin.__init__() got an unexpected keyword argument 'prepare'
+
+tests/primary/test_kernel_preparation.py:51: TypeError
+_____ test_prepare_failures_release_resources_without_partial_root[cancel] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-641/test_prepare_failures_release_2')
+failure = 'cancel'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',['next_prepare','root_write','cancel'])
+    async def test_prepare_failures_release_resources_without_partial_root(tmp_path,failure):
+        events=[];entered=asyncio.Event()
+        @asynccontextmanager
+        async def first():
+            events.append('first open')
+            try:yield lambda w:w.execute("INSERT INTO facts VALUES(1,'initial')")
+            finally:events.append('first close')
+        @asynccontextmanager
+        async def second():
+            events.append('second open')
+            try:
+                if failure=='next_prepare':raise ValueError('prepare failed')
+                if failure=='cancel':entered.set();await asyncio.Event().wait()
+                def write(writer):raise ValueError('root failed')
+                yield write
+            finally:events.append('second close')
+>       plugins=[Plugin('one',schema=SCHEMA,prepare=first),Plugin('two',('one',),prepare=second)]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Plugin.__init__() got an unexpected keyword argument 'prepare'
+
+tests/primary/test_kernel_preparation.py:51: TypeError
+_____________ test_prepare_cleanup_failure_closes_published_store ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-641/test_prepare_cleanup_failure_c0')
+
+    @pytest.mark.asyncio
+    async def test_prepare_cleanup_failure_closes_published_store(tmp_path):
+        @asynccontextmanager
+        async def prepare():
+            try:yield lambda w:w.execute("INSERT INTO facts VALUES(1,'valid root')")
+            finally:raise RuntimeError('cleanup failed')
+        with pytest.raises(RuntimeError,match='cleanup failed'):
+>           async with compose(tmp_path/'run',[Plugin('facts',schema=SCHEMA,prepare=prepare)]):pass
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: Plugin.__init__() got an unexpected keyword argument 'prepare'
+
+tests/primary/test_kernel_preparation.py:70: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_preparation.py::test_prepare_value_released_before_running_and_restore_skips_loader
+FAILED tests/primary/test_kernel_preparation.py::test_prepare_failures_release_resources_without_partial_root[next_prepare]
+FAILED tests/primary/test_kernel_preparation.py::test_prepare_failures_release_resources_without_partial_root[root_write]
+FAILED tests/primary/test_kernel_preparation.py::test_prepare_failures_release_resources_without_partial_root[cancel]
+FAILED tests/primary/test_kernel_preparation.py::test_prepare_cleanup_failure_closes_published_store
+5 failed in 0.04s
