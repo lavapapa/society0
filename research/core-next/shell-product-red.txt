@@ -1,0 +1,14 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/primary/test_kernel_shell.py ______________
+ImportError while importing test module '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_shell.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/importlib/__init__.py:88: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_shell.py:14: in <module>
+    from society0.kernel.shell import ShellSession
+E   ModuleNotFoundError: No module named 'society0.kernel.shell'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.14s

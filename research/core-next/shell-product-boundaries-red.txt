@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_handler_value_error_propagates_and_later_actions_do_not_run _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-226/test_handler_value_error_propa0')
+
+    @pytest.mark.asyncio
+    async def test_handler_value_error_propagates_and_later_actions_do_not_run(tmp_path):
+        actions = Actions(lambda *args: True)
+        calls = []
+        def broken(*args):
+            calls.append('broken')
+            raise ValueError('state write failed')
+        def later(*args):
+            calls.append('later')
+            return ActionResult('completed')
+        for name, fn in [('broken', broken), ('later', later)]:
+            actions.register(Action(name, ('m', 'job'), name, {}, fn))
+        shell = ShellSession(InteractionScope('alice', Moment(0, 'act')), Information(lambda *args: True), actions, result_dir=tmp_path)
+        def invoke(name):
+            return 'action invoke ' + quoted({'name': name, 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': {}})
+>       with pytest.raises(ValueError, match='state write failed'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_shell.py:190: Failed
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-226/test_handler_value_error_propa0/shell-99sjauet/output — scripts can modify host files
+_____________ test_summary_has_exact_output_continuation_metadata ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-226/test_summary_has_exact_output_0')
+
+    @pytest.mark.asyncio
+    async def test_summary_has_exact_output_continuation_metadata(tmp_path):
+        shell, _, _ = build(tmp_path)
+        result = await shell.execute('printf "%070000d" 1; printf "%070000d" 2 >&2')
+>       assert result.stdout_total_bytes == result.stderr_total_bytes == 70000
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'ShellResult' object has no attribute 'stdout_total_bytes'
+
+tests/primary/test_kernel_shell.py:200: AttributeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-226/test_summary_has_exact_output_0/shell-uw57ateb/output — scripts can modify host files
+2 failed, 8 deselected in 0.13s
