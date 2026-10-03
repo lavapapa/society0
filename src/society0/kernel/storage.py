@@ -88,6 +88,7 @@ class ReadView:
         self._connection = connection
         self._active = True
         self._owner_thread = threading.get_ident()
+        self._cursors = set()
         self.run_id = run_id
         self.live_revision = revision
         self.complete_step = complete
@@ -95,6 +96,12 @@ class ReadView:
     def _check(self):
         if not self._active or threading.get_ident() != self._owner_thread:
             raise StorageError('callback scope expired or belongs to another thread')
+
+    def _finish(self):
+        self._active = False
+        for cursor in tuple(self._cursors):
+            cursor.close()
+        self._cursors.clear()
 
     def revision_for(self, tables):
         self._check()
@@ -119,6 +126,7 @@ class ReadView:
     def iter_query(self, sql, bindings=()):
         self._check()
         cursor = self._connection.cursor()
+        self._cursors.add(cursor)
         try:
             cursor.execute(sql, bindings)
             while True:
@@ -129,6 +137,7 @@ class ReadView:
                 yield row
         finally:
             cursor.close()
+            self._cursors.discard(cursor)
 
     def query(self, sql, bindings=(), *, max_rows=1000):
         self._check()
@@ -161,9 +170,10 @@ class Writer(ReadView):
             stream.close()
             self._encodings.remove(stream)
 
-    def _finish_encodings(self):
+    def _finish(self):
         for stream in tuple(self._encodings):
             stream.close()
+        super()._finish()
 
     def include_artifact(self, reference):
         self._check()
@@ -205,8 +215,38 @@ class StageReader:
     """独立只读观察者；完成水位是写入器已确认的下界。"""
     def __init__(self, path):
         self.path = Path(path).absolute()
+        self._connection = None
+        self._retain = False
+        self._closed = False
+        self._reading = 0
+        self._owner_thread = None
+
+    def __enter__(self):
+        if self._closed:
+            raise StorageError('reader closed')
+        self._retain = True
+        self._owner_thread = threading.get_ident()
+        return self
+
+    def close(self):
+        if self._reading:
+            raise StorageError('reader has an active callback')
+        if self._connection is not None:
+            self._connection.close()
+            self._connection = None
+        self._closed = True
+
+    def __exit__(self, *exc):
+        self.close()
+
+    def _check(self):
+        if self._closed:
+            raise StorageError('reader closed')
+        if self._retain and threading.get_ident() != self._owner_thread:
+            raise StorageError('reader belongs to another thread')
 
     def read_artifact(self, reference, *, offset=0, size=65536):
+        self._check()
         if type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
             raise ValueError('invalid artifact range')
         relative = Path(reference)
@@ -219,7 +259,14 @@ class StageReader:
             return stream.read(size), total
 
     def read(self, callback, *, expected_revision=None):
-        connection = apsw.Connection(str(self.path / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+        self._check()
+        shared = self._retain and self._reading == 0
+        connection = self._connection if shared else None
+        if connection is None:
+            connection = apsw.Connection(str(self.path / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+            if shared:
+                self._connection = connection
+        self._reading += 1
         scope = None
         try:
             connection.execute('BEGIN')
@@ -230,9 +277,16 @@ class StageReader:
             connection.set_authorizer(_authorizer)
             return _call(callback, scope)
         finally:
-            if scope:
-                scope._active = False
-            connection.close()
+            try:
+                if scope:
+                    scope._finish()
+                connection.set_authorizer(None)
+                if not connection.get_autocommit():
+                    connection.execute('ROLLBACK')
+            finally:
+                self._reading -= 1
+                if not shared:
+                    connection.close()
 
 
 class StageStore:
@@ -266,14 +320,14 @@ class StageStore:
             definitions = _schema(connection)
             if initialize:
                 scope = Writer(connection)
+                scope.publish_step = 0
                 scope._encoder, scope._encodings = encoder, []
                 connection.execute('BEGIN')
                 connection.set_authorizer(_authorizer)
                 try:
                     _call(initialize, scope)
                 finally:
-                    scope._finish_encodings()
-                    scope._active = False
+                    scope._finish()
                     connection.set_authorizer(None)
                 connection.execute('COMMIT')
             identity = run_id or uuid.uuid4().hex
@@ -342,6 +396,7 @@ class StageStore:
             self._connection.execute('PRAGMA synchronous=FULL')
             self._connection.execute('UPDATE _stage_runtime SET complete_step=?', (self.complete_step,))
             self._start_session()
+            self._reader = StageReader(self.path).__enter__()
             return self
         except BaseException:
             self._connection.close()
@@ -405,6 +460,7 @@ class StageStore:
         self._check()
         self._busy = True
         scope = Writer(self._connection)
+        scope.publish_step = self.complete_step + 1
         scope._encoder, scope._encodings = self._encoder, []
         scope._include_artifact = self._include_artifact
         touched=set()
@@ -431,14 +487,13 @@ class StageStore:
                 self._failed = True
             raise
         finally:
-            scope._finish_encodings()
-            scope._active = False
+            scope._finish()
             self._connection.set_authorizer(None)
             self._busy = False
 
     def read(self, callback, *, expected_revision=None):
         self._check()
-        return StageReader(self.path).read(callback, expected_revision=expected_revision)
+        return self._reader.read(callback, expected_revision=expected_revision)
 
     def read_artifact(self, reference, *, offset=0, size=65536):
         self._check()
@@ -658,6 +713,7 @@ class StageStore:
 
     def close(self):
         if not self._closed:
+            self._reader.close()
             self._encoder.close()
             self._session.close()
             self._connection.close()

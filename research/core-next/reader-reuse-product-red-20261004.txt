@@ -1,0 +1,59 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_______ test_store_reuses_idle_reader_but_nested_read_gets_new_snapshot ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-569/test_store_reuses_idle_reader_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b11c350>
+
+    def test_store_reuses_idle_reader_but_nested_read_gets_new_snapshot(tmp_path,monkeypatch):
+        with StageStore.create(tmp_path/'run',SCHEMA,initialize=lambda w:w.execute('INSERT INTO item VALUES(1,7)')) as store:
+            connections=[];native=apsw.Connection
+            def connect(*args,**kwargs):
+                connection=native(*args,**kwargs);connections.append(connection);return connection
+            monkeypatch.setattr(apsw,'Connection',connect)
+            def outer(view):
+                assert view.query('SELECT value FROM item')==[(7,)]
+                store.transaction(lambda w:w.execute('UPDATE item SET value=9'))
+                assert store.read(lambda nested:nested.query('SELECT value FROM item'))==[(9,)]
+                assert view.query('SELECT value FROM item')==[(7,)]
+            store.read(outer)
+            for _ in range(10):assert store.read(lambda view:view.query('SELECT value FROM item'))==[(9,)]
+>           assert len(connections)==2
+E           assert 12 == 2
+E            +  where 12 = len([<apsw.Connection (closed) at 0x10b0ddd00>, <apsw.Connection (closed) at 0x10b0ddf80>, <apsw.Connection (closed) at 0x...on (closed) at 0x10b0de340>, <apsw.Connection (closed) at 0x10b0de480>, <apsw.Connection (closed) at 0x10b0de5c0>, ...])
+
+tests/primary/test_kernel_reader_reuse.py:23: AssertionError
+_____ test_reader_ends_partial_cursor_and_recovers_after_callback_failure ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-569/test_reader_ends_partial_curso0')
+
+    def test_reader_ends_partial_cursor_and_recovers_after_callback_failure(tmp_path):
+        with StageStore.create(tmp_path/'run',SCHEMA,initialize=lambda w:w.executemany('INSERT INTO item VALUES(?,?)',[(1,7),(2,8)])) as store:
+            escaped=[];connections=[]
+            def read(view):
+                stream=view.iter_query('SELECT * FROM item ORDER BY id')
+                next(stream);escaped.append(stream);connections.append(view._connection)
+                raise ValueError('callback failure')
+            with pytest.raises(ValueError,match='callback failure'):store.read(read)
+            with pytest.raises(StorageError,match='scope'):next(escaped[0])
+>           assert connections[0].get_autocommit()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           apsw.ConnectionClosedError: The connection has been closed
+
+tests/primary/test_kernel_reader_reuse.py:37: ConnectionClosedError
+_______ test_explicit_reader_context_reuses_connection_and_binds_thread ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-569/test_explicit_reader_context_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b182810>
+
+    def test_explicit_reader_context_reuses_connection_and_binds_thread(tmp_path,monkeypatch):
+        with StageStore.create(tmp_path/'run',SCHEMA):pass
+        native=apsw.Connection;opened=[]
+        def connect(*args,**kwargs):
+            connection=native(*args,**kwargs);opened.append(connection);return connection
+        monkeypatch.setattr(apsw,'Connection',connect)
+>       with StageReader(tmp_path/'run') as reader:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'StageReader' object does not support the context manager protocol
+
+tests/primary/test_kernel_reader_reuse.py:50: TypeError
