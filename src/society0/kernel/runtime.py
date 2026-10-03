@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import time as time_module
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
+from itertools import chain
 
 from ..activation_pool import ActivationPool, ActivationLimitError, DEFAULT_MAX_ACTIVATIONS
 from ..async_utils import invoke_maybe_async
@@ -94,6 +96,7 @@ class PhaseContext:
         self._incomplete = phase.incomplete
         self._actor_order = {}
         self._consumed_results = set()
+        self._elapsed = {}
         self._active = True
         self._ready = False
         self._failure = asyncio.get_running_loop().create_future()
@@ -124,6 +127,9 @@ class PhaseContext:
             if not self._active or self._failure.done():
                 raise RuntimeError('phase has failed')
             scope = None
+            started=time_module.perf_counter()
+            self._runtime._active_count+=1
+            self._runtime._observe()
             try:
                 actor = self._runtime._actors[actor_id]
                 if actor.id != actor_id:
@@ -144,6 +150,10 @@ class PhaseContext:
                     self._failure.set_result(error)
                 raise
             finally:
+                self._elapsed[(actor_id,batch.round)]=time_module.perf_counter()-started
+                self._runtime._active_count-=1
+                self._runtime._finished_count+=1
+                self._runtime._observe()
                 if scope is not None:
                     scope.close()
 
@@ -168,7 +178,8 @@ class PhaseContext:
 
 class Runtime:
     def __init__(self, actors: Iterable[Actor], *, information, actions, store,
-                 capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS):
+                 capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS,results=None,progress=None,
+                 before=(),after=(),step_hooks=None):
         if isinstance(actors, Mapping):
             self._actors = actors
         else:
@@ -177,6 +188,16 @@ class Runtime:
                 if actor.id in self._actors:
                     raise ValueError(f'duplicate actor: {actor.id}')
                 self._actors[actor.id] = actor
+        self._before=tuple(before)
+        self._after=tuple(after)
+        self._step_hooks=step_hooks
+        self.results=results
+        self.progress=progress
+        self._active_count=0
+        self._finished_count=0
+        self._step=None
+        self._phase_name=None
+        self._failure_reason=None
         self.information = information
         self.actions = actions
         self.store = store
@@ -185,13 +206,22 @@ class Runtime:
         self.last_completed = store.complete_step
         self._state = 'ready'
         self._task = None
+        self._close_task = None
         self._moment = None
         self._cursors = {}
         self._activations_used = 0
         self._artifacts = []
 
-    async def _run_phase(self, time, phase):
-        moment = Moment(time, phase.name)
+    def _observe(self):
+        if self.progress is not None:
+            self.progress.update(state=self._state,step=self._step,phase=self._phase_name,
+                                 active=self._active_count,finished=self._finished_count,capacity=self.capacity,error=self._failure_reason)
+
+    async def _run_phase(self, time_value, phase,phase_index):
+        started=time_module.perf_counter()
+        self._phase_name=phase.name
+        self._observe()
+        moment = Moment(time_value, phase.name)
         if moment != self._moment:
             self._cursors.clear()
             self._moment = moment
@@ -202,15 +232,23 @@ class Runtime:
             if phase.prepare is not None:
                 context.prepared = await invoke_maybe_async(phase.prepare, context)
             context._ready = True
-            await invoke_maybe_async(phase.run, context)
+            result=await invoke_maybe_async(phase.run, context)
             await context._pool.close()
+            return result
 
         task = asyncio.create_task(body())
         try:
             done, _ = await asyncio.wait((task, context._failure), return_when=asyncio.FIRST_COMPLETED)
             if context._failure in done:
                 raise context._failure.result()
-            await task
+            result=await task
+            context._active=False
+            if self.results is not None:
+                await self.results.write_phase(self._step,phase_index,phase.name,result,
+                    activations=({'actor_id':item.actor_id,'round':item.round,'status':item.result.status,
+                        'reason':item.result.reason,'value':item.result.value,
+                        'elapsed_s':context._elapsed[(item.actor_id,item.round)]} for item in context.results),
+                    elapsed_s=time_module.perf_counter()-started)
         finally:
             context._active = False
             if not task.done():
@@ -220,51 +258,96 @@ class Runtime:
             context._failure.cancel()
             self._activations_used += context._pool.activations_used
 
+    @staticmethod
+    def _hook(prefix,name,callback):
+        async def run(context):return await invoke_maybe_async(callback)
+        return Phase(prefix+':'+name,run)
+
     async def run_step(self, step: int, time, phases: Iterable[Phase]):
         if self._state != 'ready':
             raise RuntimeError('runtime is not ready')
         if type(step) is not int or step != self.store.complete_step + 1:
             raise ValueError('step must follow the last complete step')
+        before,after=self._step_hooks() if self._step_hooks is not None else ((),())
+        phases=chain((self._hook('before',name,hook) for name,hook in (*before,*self._before)),
+                     phases,(self._hook('after',name,hook) for name,hook in (*after,*self._after)))
         self._state = 'running'
+        self._step=step
+        self._active_count=self._finished_count=0
+        self._phase_name=None
+        self._failure_reason=None
+        self._observe()
         self._activations_used = 0
         self._artifacts = []
         self._task = asyncio.current_task()
+        started=time_module.perf_counter()
+        phase_count=0
         try:
-            for phase in phases:
-                await self._run_phase(time, phase)
+            for phase_index,phase in enumerate(phases):
+                await self._run_phase(time,phase,phase_index)
+                phase_count+=1
+            if self.results is not None:
+                self.results.write_step(step,time,phase_count=phase_count,activation_count=self._activations_used,
+                    elapsed_s=time_module.perf_counter()-started,capacity=self.capacity,max_activations=self.max_activations)
             publication = self.store.complete(step, artifacts=tuple(self._artifacts))
-        except BaseException:
+        except BaseException as error:
+            self._failure_reason=type(error).__name__
             self._state = 'failed'
             self.last_completed = self.store.complete_step
             self.store.abort_step()
+            self._observe()
             raise
         else:
             self.last_completed = step
             self._state = 'ready'
+            self._phase_name=None
+            self._observe()
             return publication
         finally:
             self._task = None
             self._artifacts.clear()
 
     async def close(self):
-        task = self._task
-        if task is not None and task is not asyncio.current_task():
-            task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-        self._state = 'closed'
-        self._cursors.clear()
+        if self._task is asyncio.current_task():
+            raise RuntimeError('runtime cannot close from its running step')
+        if self._close_task is None:
+            async def drain():
+                task=self._task
+                if task is not None:
+                    task.cancel()
+                    await asyncio.gather(task,return_exceptions=True)
+                self._state='closed'
+                self._observe()
+                self._cursors.clear()
+            self._close_task=asyncio.create_task(drain())
+        cancelled=False
+        while True:
+            try:
+                await asyncio.shield(self._close_task)
+                break
+            except asyncio.CancelledError:
+                if self._close_task.cancelled():raise
+                cancelled=True
+        if cancelled:raise asyncio.CancelledError
 
 
-def runtime_plugin(actors, *, information, actions, store, name='runtime',
-                   capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS):
-    """三项服务各以 (插件名, 服务名) 指定；复用主机的依赖生命周期。"""
+def runtime_plugin(actors=(), *, information, actions, store, name='runtime',
+                   capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS,
+                   actor_service=None,results=None,progress=None):
+    """服务依赖以 (插件名, 服务名) 声明，主体可按需从服务加载。"""
     actors = actors if isinstance(actors, Mapping) else tuple(actors)
+    dependencies=[information,actions,store]
+    dependencies.extend(item for item in (actor_service,results,progress) if item is not None)
 
     def install(context):
-        runtime = Runtime(actors, information=context.require(*information),
+        runtime = Runtime(context.require(*actor_service) if actor_service else actors,
+                          information=context.require(*information),
                           actions=context.require(*actions), store=context.require(*store),
-                          capacity=capacity, max_activations=max_activations)
-        context.on_close(runtime.close)
+                          capacity=capacity, max_activations=max_activations,
+                          results=context.require(*results) if results else None,
+                          progress=context.require(*progress) if progress else None,
+                          step_hooks=context.step_hooks)
+        context.on_quiesce(runtime.close)
         context.provide('runtime', runtime)
 
-    return Plugin(name, tuple(dict.fromkeys((information[0], actions[0], store[0]))), install)
+    return Plugin(name, tuple(dict.fromkeys(item[0] for item in dependencies)), install)

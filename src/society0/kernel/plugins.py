@@ -63,6 +63,24 @@ class PluginContext:
 
         self._host._stack.push_async_callback(close)
 
+    def on_step(self, *, before=None, after=None) -> None:
+        self._check_installing()
+        for destination,callback in ((self._host._before_step,before),(self._host._after_step,after)):
+            if callback is not None:
+                destination.append((self.name,callback))
+
+    def step_hooks(self):
+        if self._host._state != "ready":
+            raise RuntimeError("step hooks require a ready PluginHost")
+        return tuple(self._host._before_step),tuple(self._host._after_step)
+
+    def on_quiesce(self, callback: Callable, *args: Any, **kwargs: Any) -> None:
+        self._check_installing()
+        async def stop():
+            result=callback(*args,**kwargs)
+            if isawaitable(result):await result
+        self._host._quiesce.push_async_callback(stop)
+
     async def enter_context(self, manager: Any) -> Any:
         self._check_installing()
         resource = AsyncExitStack()
@@ -86,6 +104,9 @@ class PluginHost:
         self._plugins = tuple(plugins)
         self._services: dict[str, dict[str, Any]] = {}
         self._stack = AsyncExitStack()
+        self._quiesce = AsyncExitStack()
+        self._before_step = []
+        self._after_step = []
         self._state = "new"
         self._exit_exception = (None, None, None)
 
@@ -131,10 +152,15 @@ class PluginHost:
         self._state = "closing"
         self._exit_exception = (exc_type, exc, traceback)
         try:
-            await self._stack.aclose()
+            try:
+                await self._quiesce.aclose()
+            finally:
+                await self._stack.aclose()
         finally:
             self._exit_exception = (None, None, None)
             self._services.clear()
+            self._before_step.clear()
+            self._after_step.clear()
             self._state = "closed"
         return False
 

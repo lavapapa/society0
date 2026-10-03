@@ -60,3 +60,9 @@ asyncio.run(main())
 作者测试位于 `tests/primary/test_kernel_plugins.py`。首轮失败记录 `research/core-next/plugin-host-red.txt` 保留模块尚未实现时的导入失败，随后实现对应合同并保留 `plugin-host-green.txt`。测试覆盖依赖预检、服务冲突、依赖可见性、两个主机隔离、同步和异步管理器、部分安装失败、安装与作用域取消、清理异常及异常吞掉风险。独立审查另用 `test_kernel_plugins_review.py` 验证生命周期边界。
 
 这组验收证明插件主机的局部合同；完整 Core 的状态、调度、模型调用与持久化需由后续消费者接入并分别验证。
+
+## 完整步骤与资源收束
+
+机制在安装时调用 `context.on_step(before=..., after=...)` 声明零参数同步或异步步骤回调。回调按依赖安装顺序登记；`context.step_hooks()` 在 Host 就绪后返回 before、after 两个元组，每项为 `(plugin_name, callback)`。Runtime 在实际运行步骤时取得完整集合，因此 Runtime 先于其他机制安装也能看到后续登记。安装结束后声明冻结，Host 退出不执行领域步骤回调。
+
+需要先停止运行任务的服务使用 `context.on_quiesce(callback)`。Host 先按逆序收束这些任务，再按原资源栈逆序关闭机制、共享模型和存储。某个收束回调失败仍会继续其余收束与资源释放，异常向外传播。步骤回调与关闭回调具有不同用途：前者参与完整步骤，后者释放本次运行拥有的资源。

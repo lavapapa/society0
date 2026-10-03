@@ -25,3 +25,13 @@ Bashkit 当前恢复接口需要完整快照，load_workspace 会物化该主体
 ## 四、验收
 
 tests/primary/test_kernel_actors.py 验证千主体初始化不构建 Driver、单主体读取、角色与 persona/state/config 恢复、游标水位、工作区脱源恢复、错误更新原子性及固定活跃集合下停用人口增长的 SQL 工作量。首轮缺实现失败在 research/core-next/actors-red.txt。`tests/primary/test_kernel_llm_workspace.py` 通过真实 LLMDriver、Bashkit、Runtime 与 ActorStore 验证完整恢复后下一 Moment 的文件、变量和 cwd；提供方为确定性替身。性能红测保留在 actors-storage-cost-red.txt：冷 persona/config 同行捕获和角色查询扫描已分别改为分表与直接索引计数。固定三名角色成员、无关活跃主体由 100 增至 10000 时，SQL VM 为 108/108；单个小值热点更新不复制相邻巨正文。进一步大规模驻留和未变工作区重复保存成本仍待专项试验。
+
+## 单主体字段读取
+
+`ActorStore[id]` 为实际激活创建短 `ActorRecordView`，包含身份、驱动、角色、活动状态和该主体数据版本。驱动工厂使用身份即可工作；访问 `persona`、`config`、`state` 时才读取相应正文。`state_values(keys)` 在一次短查询中读取指定主观状态键，`state_values()` 和 `state` 取得全部主观状态，`get_record(id)` 仍取得完整 ActorRecord。
+
+每次惰性属性读取在同一个 SQL 快照中核对主体 head 的 `data_revision` 并读取字段。该主体内容变化后旧视图明确过期，调用方重新取得视图；其他主体或 Thread 留证的写入不改变它。规范写入器 `update`、`set_state` 在同一事务内推进该主体版本，事务失败保留原版本。插件通过 ActorStore 写入主体数据。
+
+`deactivate(id)` 使常用 active 选择器停止调度该主体，保留身份、主观状态、角色及历史关联。`update(driver=..., roles=..., active=...)` 可明确改变驱动、角色和重新激活状态。完整恢复保留这些选择。
+
+LLM 的 CognitiveInput 继续请求完整人格和主观状态，因此获得的信息范围保持不变。字段按需接口使规则主体可以处理小任务而不加载巨型冷资料；单个被请求的主观键仍完整解码，其成本取决于该值本身。需要巨型独立材料时使用信息数据集和正文引用。

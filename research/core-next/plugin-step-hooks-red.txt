@@ -1,0 +1,67 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_step_hooks_are_frozen_after_all_installers_in_dependency_order ______
+
+    @pytest.mark.asyncio
+    async def test_step_hooks_are_frozen_after_all_installers_in_dependency_order():
+        seen=[];contexts=[]
+        def install(name):
+            def run(ctx):
+                contexts.append(ctx)
+                ctx.on_step(before=lambda:seen.append('before:'+name),after=lambda:seen.append('after:'+name))
+            return run
+>       async with PluginHost([Plugin('later',('early',),install('later')),Plugin('early',install=install('early'))]):
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_plugins.py:277: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/plugins.py:119: in __aenter__
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ctx = <society0.kernel.plugins.PluginContext object at 0x106fba690>
+
+    def run(ctx):
+        contexts.append(ctx)
+>       ctx.on_step(before=lambda:seen.append('before:'+name),after=lambda:seen.append('after:'+name))
+        ^^^^^^^^^^^
+E       AttributeError: 'PluginContext' object has no attribute 'on_step'
+
+tests/primary/test_kernel_plugins.py:275: AttributeError
+________ test_quiesce_finishes_before_resources_even_when_quiesce_fails ________
+
+    @pytest.mark.asyncio
+    async def test_quiesce_finishes_before_resources_even_when_quiesce_fails():
+        seen=[]
+        async def broken():
+            seen.append('stop:broken')
+            raise OSError('quiesce failed')
+        def install(ctx):
+            ctx.on_close(lambda:seen.append('resource'))
+            ctx.on_quiesce(lambda:seen.append('stop:first'))
+            ctx.on_quiesce(broken)
+        with pytest.raises(OSError,match='quiesce'):
+>           async with PluginHost([Plugin('one',install=install)]):pass
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_plugins.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/plugins.py:119: in __aenter__
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ctx = <society0.kernel.plugins.PluginContext object at 0x106fbb0b0>
+
+    def install(ctx):
+        ctx.on_close(lambda:seen.append('resource'))
+>       ctx.on_quiesce(lambda:seen.append('stop:first'))
+        ^^^^^^^^^^^^^^
+E       AttributeError: 'PluginContext' object has no attribute 'on_quiesce'
+
+tests/primary/test_kernel_plugins.py:293: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_plugins.py::test_step_hooks_are_frozen_after_all_installers_in_dependency_order
+FAILED tests/primary/test_kernel_plugins.py::test_quiesce_finishes_before_resources_even_when_quiesce_fails
+2 failed, 14 deselected in 0.04s

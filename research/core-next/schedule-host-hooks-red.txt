@@ -1,0 +1,49 @@
+...FF                                                                    [100%]
+=================================== FAILURES ===================================
+________ test_runtime_host_hooks_include_late_plugins_and_quiesce_first ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-546/test_runtime_host_hooks_includ0')
+
+    @pytest.mark.asyncio
+    async def test_runtime_host_hooks_include_late_plugins_and_quiesce_first(tmp_path):
+        import asyncio
+        from society0.kernel.plugins import Plugin
+        from society0.kernel.composition import compose
+        from society0.kernel.interaction import interaction_plugin
+        from society0.kernel.runtime import runtime_plugin
+        from society0.kernel.results import results_plugin
+        order=[];started=asyncio.Event();alive=[True]
+        class Driver:
+            async def run(self,session):
+                started.set()
+                try:await asyncio.Event().wait()
+                finally:
+                    assert alive[0]
+                    order.append('driver-stopped')
+        def mechanism(name):
+            def install(ctx):
+                ctx.on_step(before=lambda:order.append('before-'+name),after=lambda:order.append('after-'+name))
+                def close():
+                    order.append('close-'+name);alive[0]=False
+                ctx.on_close(close)
+            return Plugin(name,('runtime',),install)
+        plugins=[interaction_plugin(lambda *a:True),results_plugin(),
+>           runtime_plugin([Actor('a',Driver())],information=('interaction','information'),actions=('interaction','actions'),
+                store=('storage','store'),results=('results','results')),
+            mechanism('first'),mechanism('second')]
+E       TypeError: runtime_plugin() got an unexpected keyword argument 'results'
+
+tests/primary/test_kernel_schedule.py:99: TypeError
+__________________ test_after_hook_failure_prevents_complete ___________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-546/test_after_hook_failure_preven0')
+
+    @pytest.mark.asyncio
+    async def test_after_hook_failure_prevents_complete(tmp_path):
+        def fail():raise RuntimeError('after failed')
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
+>           rt=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,
+                after=(('business',fail),))
+E           TypeError: Runtime.__init__() got an unexpected keyword argument 'after'
+
+tests/primary/test_kernel_schedule.py:117: TypeError
