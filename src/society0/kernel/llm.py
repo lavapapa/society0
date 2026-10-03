@@ -1,0 +1,506 @@
+"""完整 Thread 上的模型决定循环与实际领域行动账本。"""
+from __future__ import annotations
+
+from collections import Counter
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass, is_dataclass, field
+import json
+import base64
+import codecs
+from pathlib import Path
+from typing import Any
+
+from jsonschema.validators import validator_for
+
+from ..async_utils import invoke_maybe_async
+from ..function_registry import normalize_strict_function_parameters
+from .interaction import ActionResult, Page, Query, Ref, Unavailable
+from .models import ProviderFailure
+from .runtime import DriverResult
+
+current_action_call_id = ContextVar('kernel_action_call_id', default=None)
+
+
+def _json(value):
+    return json.dumps(value, ensure_ascii=False,
+                      default=lambda obj: asdict(obj) if is_dataclass(obj) else str(obj))
+
+
+class _ToolInputError(ValueError):
+    pass
+
+
+def _decode(value):
+    try:
+        return json.loads(value)
+    except (ValueError, TypeError) as error:
+        raise _ToolInputError(str(error)) from error
+
+
+async def _read_tool(fn, *args, **kwargs):
+    try:
+        return await fn(*args, **kwargs)
+    except (Unavailable, ValueError, TypeError, KeyError) as error:
+        return {'error': type(error).__name__, 'message': str(error)}
+
+
+def _text_range(data, offset, total, encoding):
+    if encoding == 'base64':
+        text, consumed = base64.b64encode(data).decode('ascii'), len(data)
+    else:
+        decoder = codecs.getincrementaldecoder('utf-8')()
+        try:
+            text = decoder.decode(data, final=offset + len(data) == total)
+        except UnicodeDecodeError as error:
+            raise _ToolInputError('binary content requires encoding=base64') from error
+        consumed = len(data) - len(decoder.getstate()[0])
+    end = offset + consumed
+    return {'data': text, 'encoding': encoding, 'total_bytes': total, 'next_offset': end if end < total else None}
+
+
+_TOOL_DESCRIPTIONS = {
+    'action_find': 'Find actions available for a target. Returns exact total and continuation cursor; pass returned cursor as JSON text.',
+    'action_describe': 'Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it.',
+    'action_invoke': 'Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget.',
+    'data_list': 'List accessible shared resources. Returns total and cursor; pass returned cursor as JSON text to continue.',
+    'data_read': 'Read original content by byte offset/size. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null.',
+    'data_query': 'Query a dataset. query is JSON text containing fields, filters, order, limit, cursor or sample_seed supported by its provider.',
+    'bash': 'Run shell text against shared data/action commands and your private workspace. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
+    'result_read': 'Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary.',
+    'submit_result': 'Submit the final structured result matching this schema. Success completes this measurement or decision.',
+}
+
+
+@dataclass(frozen=True)
+class LLMPolicy:
+    mode: str = 'decision'
+    max_turns: int | None = None
+    max_action_calls: int | None = None
+    per_action_limits: dict = field(default_factory=dict)
+    parallel_tool_calls: bool = False
+    empty_retries: int = 1
+    allowed_names: tuple | None = None
+    allowed_tags: tuple | None = None
+    required_names: tuple = ()
+    required_tags: tuple = ()
+    completion_names: tuple = ()
+    completion_tags: tuple = ()
+    strict_tools: bool = False
+    result_schema: dict | None = None
+    direct_json: bool = False
+    request_options: dict = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.mode not in ('decision', 'interview'):
+            raise ValueError('mode must be decision or interview')
+        for value in (self.max_turns, self.max_action_calls, *self.per_action_limits.values()):
+            if value is not None and (type(value) is not int or value < 0):
+                raise ValueError('budgets must be nonnegative integers or None')
+        if type(self.empty_retries) is not int or self.empty_retries < 0:
+            raise ValueError('empty_retries must be nonnegative')
+        if self.direct_json and self.result_schema is None:
+            raise ValueError('direct_json requires result_schema')
+
+
+class _BudgetReached(RuntimeError):
+    pass
+
+
+class _Ledger:
+    def __init__(self, driver, session, thread_id):
+        self.driver, self.session, self.thread_id = driver, session, thread_id
+        self.base = session.actions
+        self.counts = Counter()
+        self.completed = set()
+        self.tags = set()
+        self.terminal = False
+        self.facts = set()
+        self.feedback = None
+        self.call_id = None
+        self.shell_call = False
+        self.shell_index = 0
+        self.effects = []
+        self.applied_receipts = set()
+
+    @property
+    def used(self):
+        return sum(self.counts.values())
+
+    def allowed(self, action):
+        policy = self.driver.policy
+        return ((policy.allowed_names is None or action.name in policy.allowed_names)
+                and (policy.allowed_tags is None or bool(set(action.tags) & set(policy.allowed_tags))))
+
+    async def find(self, target, *, query='', limit=100, cursor=None):
+        # 只枚举目标类型的动作模板；不展开对象与模板的笛卡尔积。
+        candidates, continuation = [], None
+        while True:
+            page = await self.base.find(target, query=query, limit=100, cursor=continuation)
+            candidates.extend(action for action in page.items if self.allowed(action))
+            if page.next_cursor is None:
+                break
+            continuation = page.next_cursor
+        if type(limit) is not int or limit < 1:
+            raise ValueError('limit must be positive')
+        identity = _json([self.session.actor.id, asdict(self.session.moment), page.revision,
+                          self.driver.policy.allowed_names, self.driver.policy.allowed_tags,
+                          asdict(target), query, [item.name for item in candidates]])
+        offset = 0 if cursor is None else cursor['offset']
+        if type(offset) is not int or offset < 0 or (cursor is not None and cursor['identity'] != identity):
+            raise ValueError('action cursor mismatch')
+        end = min(offset + limit, len(candidates))
+        return Page(candidates[offset:end], len(candidates),
+                    {'identity': identity, 'offset': end} if end < len(candidates) else None, page.revision)
+
+    async def describe(self, name, target):
+        description = await self.base.describe(name, target)
+        if not self.allowed(description):
+            raise Unavailable('action outside activation selection')
+        return description
+
+    def preflight(self, names):
+        policy = self.driver.policy
+        extra = Counter(names)
+        if policy.max_action_calls is not None and self.used + sum(extra.values()) > policy.max_action_calls:
+            raise _BudgetReached('action_budget_exhausted')
+        for name, amount in extra.items():
+            maximum = policy.per_action_limits.get(name)
+            if maximum is not None and self.counts[name] + amount > maximum:
+                raise _BudgetReached('per_action_budget_exhausted')
+
+    async def invoke(self, name, target, arguments):
+        if self.terminal and self.requirements_met():
+            return ActionResult('rejected', {'reason': 'activation_completed'})
+        self.preflight([name])
+        self.counts[name] += 1
+        identifier = self.call_id
+        if self.shell_call:
+            self.shell_index += 1
+            identifier = f'{identifier}:{self.shell_index}'
+        token = current_action_call_id.set(identifier)
+        threads = self.driver.threads
+        try:
+            threads.event(self.thread_id, 'action_started', {'call_id': identifier, 'name': name,
+                          'target': asdict(target), 'arguments': arguments})
+            try:
+                try:
+                    description = await self.describe(name, target)
+                except Unavailable:
+                    description = None
+                decoded = arguments
+                if isinstance(arguments, str):
+                    try:
+                        decoded = json.loads(arguments)
+                    except ValueError:
+                        decoded = None
+                if description is None:
+                    result = ActionResult('rejected', {'reason': 'unavailable'})
+                elif not isinstance(decoded, dict):
+                    result = ActionResult('rejected', {'reason': 'invalid_arguments'})
+                else:
+                    result = await self.base.invoke(name, target, decoded)
+            except BaseException as error:
+                threads.event(self.thread_id, 'action_error', {'call_id': identifier, 'name': name,
+                              'error_type': type(error).__name__, 'error': str(error)})
+                raise
+            threads.event(self.thread_id, 'action_result', {'call_id': identifier, 'name': name,
+                          'result': asdict(result)})
+            effect = {'name': name, 'status': result.status,
+                      'tags': list(description.tags) if description is not None else [],
+                      'terminal': bool(result.terminal),
+                      'read_only': bool(description and description.read_only),
+                      'facts': result.value.get('facts', []) if isinstance(result.value, dict) else [],
+                      'changed': result.value.get('changed', True) if isinstance(result.value, dict) else True}
+            self.effects.append(effect)
+            self.apply_effect(effect)
+            return result
+        finally:
+            current_action_call_id.reset(token)
+
+    def apply_effect(self, effect):
+        self.feedback = None
+        if effect['status'] != 'completed':
+            return
+        self.completed.add(effect['name'])
+        self.tags.update(effect['tags'])
+        policy = self.driver.policy
+        self.terminal |= bool(effect['terminal'] or effect['name'] in policy.completion_names
+                              or set(effect['tags']) & set(policy.completion_tags))
+        if effect['read_only']:
+            refs = {Ref(**item) for item in effect['facts']}
+            repeated = refs & self.facts
+            self.facts.update(refs)
+            self.feedback = {'known_facts': [asdict(ref) for ref in sorted(self.facts, key=lambda r: (r.namespace, r.kind, r.key))],
+                             'repeated_facts': [asdict(ref) for ref in sorted(repeated, key=lambda r: (r.namespace, r.kind, r.key))]}
+        elif effect['changed']:
+            self.facts.clear()
+
+    def replay(self, identifier, metadata):
+        if identifier in self.applied_receipts:
+            return
+        for effect in metadata.get('actions', ()):
+            self.counts[effect['name']] += 1
+            self.apply_effect(effect)
+        self.applied_receipts.add(identifier)
+
+    def requirements_met(self):
+        policy = self.driver.policy
+        return set(policy.required_names) <= self.completed and set(policy.required_tags) <= self.tags
+
+
+_REF = {'type': 'object', 'properties': {key: {'type': 'string'} for key in ('namespace', 'kind', 'key')},
+        'required': ['namespace', 'kind', 'key'], 'additionalProperties': False}
+
+
+def _schema(properties):
+    return {'type': 'object', 'properties': properties, 'required': list(properties), 'additionalProperties': False}
+
+
+class LLMDriver:
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None):
+        self.provider, self.threads = provider, threads
+        self.input_builder = input_builder
+        self.policy = policy or LLMPolicy()
+        self.shell_factory = shell_factory
+
+    def _tools(self):
+        schemas = {
+            'action_find': _schema({'target': _REF, 'query': {'type': 'string'}, 'limit': {'type': 'integer'},
+                                    'cursor': {'type': ['string', 'null']}}),
+            'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
+            'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': {'type': 'string'}}),
+            'data_list': _schema({'path': {'type': 'string'}, 'limit': {'type': 'integer'}, 'cursor': {'type': ['string', 'null']}}),
+            'data_read': {**_schema({'path': {'type': 'string'}, 'offset': {'type': 'integer'}, 'size': {'type': 'integer'},
+                                    'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}}),
+                          'required': ['path', 'offset', 'size']},
+            'data_query': _schema({'path': {'type': 'string'}, 'query': {'type': 'string'}}),
+        }
+        schemas['result_read'] = {**_schema({'reference': {'type': 'string'}, 'offset': {'type': 'integer'},
+                                  'size': {'type': 'integer'}, 'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}}),
+                                  'required': ['reference', 'offset', 'size']}
+        if self.policy.allowed_names == () or self.policy.allowed_tags == ():
+            schemas = {name: value for name, value in schemas.items() if not name.startswith('action_')}
+        if self.shell_factory is not None:
+            schemas['bash'] = _schema({'script': {'type': 'string'}})
+        if self.policy.result_schema is not None:
+            schemas['submit_result'] = self.policy.result_schema
+        if self.policy.mode == 'interview':
+            schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
+        if self.policy.direct_json:
+            schemas = {}
+        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name],
+                'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
+                **({'strict': True} if self.policy.strict_tools else {})}} for name, schema in schemas.items()]
+
+    async def _dispatch(self, name, arguments, session, ledger, shell):
+        if name == 'action_invoke':
+            result = await ledger.invoke(arguments['name'], Ref(**arguments['target']), arguments['arguments'])
+            return {'result': asdict(result), 'observation': ledger.feedback}
+        if name == 'action_find':
+            return await _read_tool(ledger.find, Ref(**arguments['target']), query=arguments['query'], limit=arguments['limit'],
+                                    cursor=_decode(arguments['cursor']) if arguments['cursor'] else None)
+        if name == 'action_describe':
+            return await _read_tool(ledger.describe, arguments['name'], Ref(**arguments['target']))
+        if name == 'data_list':
+            return await _read_tool(session.information.list, arguments['path'], limit=arguments['limit'],
+                                    cursor=_decode(arguments['cursor']) if arguments['cursor'] else None)
+        if name == 'data_read':
+            options = dict(arguments)
+            encoding = options.pop('encoding', None) or 'utf-8'
+            if encoding == 'utf-8' and options['size'] < 4:
+                raise _ToolInputError('utf-8 read size must be at least 4')
+            chunk = await _read_tool(session.information.read, **options)
+            if isinstance(chunk, dict):
+                return chunk
+            return {**_text_range(chunk.data, options['offset'], chunk.total_bytes, encoding),
+                    'revision': chunk.revision, 'source': chunk.source}
+        if name == 'data_query':
+            query = _decode(arguments['query'])
+            try:
+                query = Query(**query)
+            except (TypeError, ValueError) as error:
+                raise _ToolInputError(str(error)) from error
+            return await _read_tool(session.information.query, arguments['path'], query)
+        if name == 'result_read':
+            try:
+                return self.read_result(session, **arguments)
+            except (KeyError, ValueError, PermissionError) as error:
+                raise _ToolInputError(str(error)) from error
+        if name == 'bash':
+            result = await shell.execute(arguments['script'])
+            for reference in (result.stdout_ref, result.stderr_ref, *result.receipts):
+                with (shell.result_dir.parent / reference).open('rb') as stream:
+                    artifact = session.prepare_artifact(iter(lambda: stream.read(65536), b''))
+                self.threads.register_artifact(ledger.thread_id, reference, artifact, actor=session.actor.id)
+            return result
+        raise _ToolInputError('unknown tool')
+
+    def read_result(self, session, reference, *, offset=0, size=65536, encoding='utf-8'):
+        session.scope.check_active()
+        encoding = encoding or 'utf-8'
+        if encoding not in ('utf-8', 'base64') or (encoding == 'utf-8' and size < 4):
+            raise ValueError('invalid result encoding or byte budget')
+        chunk = self.threads.read_artifact(session.cursors['thread_id'], reference, actor=session.actor.id,
+                                           offset=offset, size=size)
+        return {**_text_range(chunk['data'], offset, chunk['total_bytes'], encoding), 'source': chunk['source']}
+
+    async def run(self, session):
+        session.scope.check_active()
+        thread_id = self.threads.find(session.actor.id, session.moment, kind=self.policy.mode)
+        if thread_id is None:
+            thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode)
+        else:
+            if self.threads.describe(thread_id)['status'] not in ('completed', 'waiting'):
+                raise RuntimeError('unfinished Thread requires explicit recovery; budgets are not reset')
+            self.threads.reopen(thread_id)
+        session.cursors['thread_id'] = thread_id
+        ledger = _Ledger(self, session, thread_id)
+        shell = None
+        status, reason, structured = 'incomplete', 'driver_error', None
+        try:
+            for message in await invoke_maybe_async(self.input_builder, session):
+                self.threads.append_message(thread_id, message)
+            tools = self._tools()
+            schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+            options = dict(self.policy.request_options)
+            options['tools'] = tools
+            options['parallel_tool_calls'] = self.policy.parallel_tool_calls
+            extra = dict(options.get('extra_body') or {})
+            metadata = dict(extra.get('metadata') or {})
+            metadata['session_id'] = self.threads.describe(thread_id)['provider_session_id']
+            extra['metadata'] = metadata
+            options['extra_body'] = extra
+            if self.policy.direct_json:
+                options.pop('tools')
+                options.pop('parallel_tool_calls')
+                options['response_format'] = {'type': 'json_schema', 'json_schema': {
+                    'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+            if self.shell_factory is not None:
+                shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+            turns = empty = parallel_errors = 0
+            while self.policy.max_turns is None or turns < self.policy.max_turns:
+                turns += 1
+                session.scope.check_active()
+                try:
+                    response = await self.provider.request(thread_id, options)
+                except ProviderFailure as error:
+                    reason = error.reason
+                    break
+                session.scope.check_active()
+                finish = response.get('finish_reason')
+                if finish == 'length':
+                    reason = 'output_token_limit'
+                    break
+                message = {key: value for key, value in response.items() if key in ('role', 'content', 'tool_calls', 'reasoning_content')}
+                message.setdefault('role', 'assistant')
+                self.threads.append_message(thread_id, message)
+                calls = response.get('tool_calls') or []
+                content = response.get('content') or ''
+                if self.policy.direct_json:
+                    try:
+                        candidate = json.loads(content)
+                        validator_for(self.policy.result_schema)(self.policy.result_schema).validate(candidate)
+                    except Exception:
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'Return a result matching the supplied JSON schema.'})
+                        continue
+                    structured, status, reason = candidate, 'completed', 'structured_result'
+                    break
+                if not calls:
+                    if not content.strip():
+                        empty += 1
+                        if empty > self.policy.empty_retries:
+                            reason = 'empty_response'
+                            break
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'The response was empty. Continue the current decision.'})
+                        continue
+                    if not ledger.requirements_met() or self.policy.result_schema is not None:
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': _json({
+                            'required_names': self.policy.required_names, 'required_tags': self.policy.required_tags,
+                            'completed': sorted(ledger.completed), 'submit_result_required': self.policy.result_schema is not None})})
+                        continue
+                    status, reason = 'completed', 'natural_completion'
+                    break
+                unique, seen = [], {}
+                for item in calls:
+                    identifier = item['id']
+                    if identifier in seen and seen[identifier] != item:
+                        raise ValueError('one tool call id has conflicting payloads')
+                    if identifier not in seen:
+                        unique.append(item)
+                        seen[identifier] = item
+                parsed = []
+                for item in unique:
+                    function = item['function']
+                    try:
+                        arguments = json.loads(function['arguments'])
+                        valid = function['name'] in schemas and schemas[function['name']].is_valid(arguments)
+                    except (ValueError, TypeError):
+                        arguments, valid = None, False
+                    parsed.append((item, arguments, valid))
+                if not self.policy.parallel_tool_calls and len(unique) > 1:
+                    parallel_errors += 1
+                    if parallel_errors > 1 or not all(valid for _, _, valid in parsed):
+                        reason = 'parallel_tool_contract'
+                        break
+                    for item, _, _ in parsed:
+                        self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': item['id'],
+                            'content': 'parallel_tool_calls is false; submit exactly one tool call.'})
+                    continue
+                receipts = {item['id']: self.threads.get_tool_result(thread_id, item['id']) for item in unique}
+                try:
+                    ledger.preflight(arguments['name'] for item, arguments, valid in parsed
+                                     if valid and item['function']['name'] == 'action_invoke' and receipts[item['id']] is None)
+                    for position, (item, arguments, valid) in enumerate(parsed):
+                        identifier, name = item['id'], item['function']['name']
+                        ledger.effects = []
+                        if receipts[identifier] is not None:
+                            previous, feedback = receipts[identifier]['call'], receipts[identifier]['content']
+                            if previous != item:
+                                raise ValueError('one tool call id has conflicting payloads')
+                            metadata = receipts[identifier]['metadata']
+                            ledger.replay(identifier, metadata)
+                            if metadata.get('structured') is not None:
+                                structured = metadata['structured']
+                        elif not valid:
+                            feedback = _json({'error': 'invalid_tool_arguments'})
+                        else:
+                            ledger.call_id, ledger.shell_call = identifier, name == 'bash'
+                            if name == 'submit_result':
+                                structured = arguments
+                                feedback = _json({'status': 'completed', 'result': arguments})
+                            else:
+                                try:
+                                    feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                                except _ToolInputError as error:
+                                    feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
+                        if receipts[identifier] is None:
+                            self.threads.save_tool_result(thread_id, item, feedback,
+                                metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                            ledger.applied_receipts.add(identifier)
+                        else:
+                            self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
+                        if structured is not None or ledger.terminal:
+                            for remaining, _, _ in parsed[position + 1:]:
+                                prior = receipts.get(remaining['id'])
+                                skipped = prior['content'] if prior else _json({'status': 'not_executed', 'reason': 'activation_completed'})
+                                self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': remaining['id'], 'content': skipped})
+                            break
+                except _BudgetReached as error:
+                    reason = str(error)
+                    break
+                if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
+                    status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
+                    break
+                if self.policy.max_action_calls is not None and ledger.used >= self.policy.max_action_calls and ledger.used:
+                    reason = 'action_budget_exhausted'
+                    break
+            else:
+                reason = 'max_turns'
+            return DriverResult(status, {'thread_id': thread_id, 'result': structured,
+                                        'action_counts': dict(ledger.counts)}, reason)
+        finally:
+            try:
+                if shell is not None:
+                    await shell.aclose()
+            finally:
+                self.threads.close(thread_id, status)
