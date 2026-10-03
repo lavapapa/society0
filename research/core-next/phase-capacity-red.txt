@@ -1,0 +1,94 @@
+FFFFFF.                                                                  [100%]
+=================================== FAILURES ===================================
+_________ test_invalid_phase_capacity_is_configuration_error[serial-2] _________
+
+execution = 'serial', capacity = 2
+
+    @pytest.mark.parametrize('execution,capacity',[('serial',2),('independent',0),('independent',-1),('independent',True),('independent',1.5)])
+    def test_invalid_phase_capacity_is_configuration_error(execution,capacity):
+>       with pytest.raises(ValueError):Phase('bad',lambda ctx:None,execution=execution,capacity=capacity)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:11: TypeError
+______ test_invalid_phase_capacity_is_configuration_error[independent-0] _______
+
+execution = 'independent', capacity = 0
+
+    @pytest.mark.parametrize('execution,capacity',[('serial',2),('independent',0),('independent',-1),('independent',True),('independent',1.5)])
+    def test_invalid_phase_capacity_is_configuration_error(execution,capacity):
+>       with pytest.raises(ValueError):Phase('bad',lambda ctx:None,execution=execution,capacity=capacity)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:11: TypeError
+______ test_invalid_phase_capacity_is_configuration_error[independent--1] ______
+
+execution = 'independent', capacity = -1
+
+    @pytest.mark.parametrize('execution,capacity',[('serial',2),('independent',0),('independent',-1),('independent',True),('independent',1.5)])
+    def test_invalid_phase_capacity_is_configuration_error(execution,capacity):
+>       with pytest.raises(ValueError):Phase('bad',lambda ctx:None,execution=execution,capacity=capacity)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:11: TypeError
+_____ test_invalid_phase_capacity_is_configuration_error[independent-True] _____
+
+execution = 'independent', capacity = True
+
+    @pytest.mark.parametrize('execution,capacity',[('serial',2),('independent',0),('independent',-1),('independent',True),('independent',1.5)])
+    def test_invalid_phase_capacity_is_configuration_error(execution,capacity):
+>       with pytest.raises(ValueError):Phase('bad',lambda ctx:None,execution=execution,capacity=capacity)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:11: TypeError
+_____ test_invalid_phase_capacity_is_configuration_error[independent-1.5] ______
+
+execution = 'independent', capacity = 1.5
+
+    @pytest.mark.parametrize('execution,capacity',[('serial',2),('independent',0),('independent',-1),('independent',True),('independent',1.5)])
+    def test_invalid_phase_capacity_is_configuration_error(execution,capacity):
+>       with pytest.raises(ValueError):Phase('bad',lambda ctx:None,execution=execution,capacity=capacity)
+                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:11: TypeError
+_______ test_phase_capacity_override_default_serial_and_recorded_source ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-673/test_phase_capacity_override_d0')
+
+    @pytest.mark.asyncio
+    async def test_phase_capacity_override_default_serial_and_recorded_source(tmp_path):
+        current=0;peak=0;peaks=[];actor_active=set()
+        class Driver:
+            async def run(self,session):
+                nonlocal current,peak
+                assert session.actor.id not in actor_active
+                actor_active.add(session.actor.id);current+=1;peak=max(peak,current)
+                await asyncio.sleep(0)
+                actor_active.remove(session.actor.id);current-=1
+                return DriverResult('completed')
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
+            results=Results(store)
+            runtime=Runtime([Actor(str(i),Driver()) for i in range(6)],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,results=results,capacity=3)
+            async def phase(ctx):
+                nonlocal peak
+                peak=0
+                for i in range(6):ctx.activate(str(i))
+                ctx.activate('0')
+                await ctx.drain();peaks.append(peak)
+>           await runtime.run_step(1,1,[Phase('serial',phase),Phase('runtime',phase,execution='independent'),Phase('override',phase,execution='independent',capacity=2)])
+                                                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: Phase.__init__() got an unexpected keyword argument 'capacity'
+
+tests/primary/test_kernel_capacity.py:34: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_capacity.py::test_invalid_phase_capacity_is_configuration_error[serial-2]
+FAILED tests/primary/test_kernel_capacity.py::test_invalid_phase_capacity_is_configuration_error[independent-0]
+FAILED tests/primary/test_kernel_capacity.py::test_invalid_phase_capacity_is_configuration_error[independent--1]
+FAILED tests/primary/test_kernel_capacity.py::test_invalid_phase_capacity_is_configuration_error[independent-True]
+FAILED tests/primary/test_kernel_capacity.py::test_invalid_phase_capacity_is_configuration_error[independent-1.5]
+FAILED tests/primary/test_kernel_capacity.py::test_phase_capacity_override_default_serial_and_recorded_source
+6 failed, 1 passed in 0.09s

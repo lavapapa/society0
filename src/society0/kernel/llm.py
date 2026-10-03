@@ -3,11 +3,14 @@ from __future__ import annotations
 
 from collections import Counter
 from contextvars import ContextVar
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, is_dataclass, field
 import json
 import re
 import base64
 import codecs
+import asyncio
+import time
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +111,13 @@ class LLMPolicy:
             raise ValueError('direct_json requires result_schema')
 
 
+@contextmanager
+def _timed(timings,name):
+    started=time.perf_counter()
+    try:yield
+    finally:timings[name]=timings.get(name,0.)+time.perf_counter()-started
+
+
 class _BudgetReached(RuntimeError):
     pass
 
@@ -174,8 +184,10 @@ class _Ledger:
             identifier = f'{identifier}:{self.shell_index}'
         token = current_action_call_id.set(identifier)
         threads = self.driver.threads
+        started=time.perf_counter()
+        description=None
         try:
-            threads.event(self.thread_id, 'action_started', {'call_id': identifier, 'name': name,
+            start_seq=threads.start_action(self.thread_id, {'call_id': identifier, 'name': name,
                           'target': asdict(target), 'arguments': arguments})
             try:
                 try:
@@ -195,11 +207,14 @@ class _Ledger:
                 else:
                     result = await self.base.invoke(name, target, decoded)
             except BaseException as error:
-                threads.event(self.thread_id, 'action_error', {'call_id': identifier, 'name': name,
-                              'error_type': type(error).__name__, 'error': str(error)})
+                threads.finish_action(self.thread_id,start_seq,{'call_id': identifier, 'name': name,
+                              'error_type': type(error).__name__, 'error': str(error)},
+                              status='cancelled' if isinstance(error,asyncio.CancelledError) else 'error',
+                              tags=description.tags if description is not None else (),elapsed_s=time.perf_counter()-started)
                 raise
-            threads.event(self.thread_id, 'action_result', {'call_id': identifier, 'name': name,
-                          'result': asdict(result)})
+            threads.finish_action(self.thread_id,start_seq,{'call_id': identifier, 'name': name,
+                          'result': asdict(result)},status=result.status,
+                          tags=description.tags if description is not None else (),elapsed_s=time.perf_counter()-started)
             effect = {'name': name, 'status': result.status,
                       'tags': list(description.tags) if description is not None else [],
                       'terminal': bool(result.terminal),
@@ -358,6 +373,7 @@ class LLMDriver:
 
     async def run(self, session):
         session.scope.check_active()
+        activation_started=time.perf_counter()
         thread_id = self.threads.find(session.actor.id, session.moment, kind=self.policy.mode)
         if thread_id is None:
             thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode)
@@ -370,46 +386,51 @@ class LLMDriver:
         shell = None
         status, reason, structured = 'incomplete', 'driver_error', None
         reasoning=[]
+        timings={}
         try:
-            provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
-            inputs = await invoke_maybe_async(self.input_builder, session)
-            if isinstance(inputs, InputBatch):
-                self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
-            else:
-                for message in inputs:
+            with _timed(timings,'prompt_s'):
+                provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
+                inputs = await invoke_maybe_async(self.input_builder, session)
+                if isinstance(inputs, InputBatch):
+                    self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
+                else:
+                    for message in inputs:
+                        self.threads.append_message(thread_id, message)
+            with _timed(timings,'memory_recall_s'):
+                recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
+                for message in recalled:
                     self.threads.append_message(thread_id, message)
-            recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
-            for message in recalled:
-                self.threads.append_message(thread_id, message)
-            if self.policy.reasoning_stages and self.policy.result_schema is None:
-                guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
-                    '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
-                    '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
-                if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
-                    self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
-            tools = self._tools()
-            schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
-            options = dict(self.policy.request_options)
-            options['tools'] = tools
-            options['parallel_tool_calls'] = self.policy.parallel_tool_calls
-            extra = dict(options.get('extra_body') or {})
-            metadata = dict(extra.get('metadata') or {})
-            metadata['session_id'] = self.threads.describe(thread_id)['provider_session_id']
-            extra['metadata'] = metadata
-            options['extra_body'] = extra
-            if self.policy.direct_json:
-                options.pop('tools')
-                options.pop('parallel_tool_calls')
-                options['response_format'] = {'type': 'json_schema', 'json_schema': {
-                    'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
-            if self.shell_factory is not None:
-                shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+            with _timed(timings,'setup_s'):
+                if self.policy.reasoning_stages and self.policy.result_schema is None:
+                    guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                        '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                        '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                    if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                        self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
+                tools = self._tools()
+                schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+                options = dict(self.policy.request_options)
+                options['tools'] = tools
+                options['parallel_tool_calls'] = self.policy.parallel_tool_calls
+                extra = dict(options.get('extra_body') or {})
+                metadata = dict(extra.get('metadata') or {})
+                metadata['session_id'] = self.threads.describe(thread_id)['provider_session_id']
+                extra['metadata'] = metadata
+                options['extra_body'] = extra
+                if self.policy.direct_json:
+                    options.pop('tools')
+                    options.pop('parallel_tool_calls')
+                    options['response_format'] = {'type': 'json_schema', 'json_schema': {
+                        'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+                if self.shell_factory is not None:
+                    shell = await invoke_maybe_async(self.shell_factory, session, ledger)
             turns = empty = parallel_errors = 0
             while self.policy.max_turns is None or turns < self.policy.max_turns:
                 turns += 1
                 session.scope.check_active()
                 try:
-                    response = await provider.request(thread_id, options)
+                    with _timed(timings,'model_s'):
+                        response = await provider.request(thread_id, options)
                 except ProviderFailure as error:
                     reason = error.reason
                     break
@@ -499,7 +520,8 @@ class LLMDriver:
                                 feedback = _json({'status': 'completed', 'result': arguments})
                             else:
                                 try:
-                                    feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                                    with _timed(timings,'tools_s'):
+                                        feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
                                 except _ToolInputError as error:
                                     feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
                         if receipts[identifier] is None:
@@ -526,25 +548,28 @@ class LLMDriver:
             else:
                 reason = 'max_turns'
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
-                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,
+                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings,
                                  'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)
             if self.memory is not None and status in ('completed', 'waiting'):
-                await self.memory.after_activation(session, thread_id, result)
+                with _timed(timings,'memory_write_s'):
+                    await self.memory.after_activation(session, thread_id, result)
             return result
-        except BaseException:
-            status = 'incomplete'
+        except BaseException as error:
+            status,reason = 'incomplete',type(error).__name__
             raise
         finally:
             try:
-                if shell is not None:
-                    try:
-                        if status in ('completed', 'waiting'):
-                            if shell.has_workspace:
+                with _timed(timings,'cleanup_s'):
+                    if shell is not None:
+                        try:
+                            if status in ('completed', 'waiting') and shell.has_workspace:
                                 shell.save_workspace()
-                    except BaseException:
-                        status = 'incomplete'
-                        raise
-                    finally:
-                        await shell.aclose()
+                        finally:
+                            await shell.aclose()
+            except BaseException as error:
+                status,reason='incomplete',type(error).__name__
+                raise
             finally:
-                self.threads.close(thread_id, status)
+                elapsed=time.perf_counter()-activation_started
+                timings['other_s']=max(0.,elapsed-sum(timings.values()))
+                self.threads.close(thread_id,status,reason=reason,elapsed_s=elapsed,phase_timings=timings)

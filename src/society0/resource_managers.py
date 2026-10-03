@@ -37,6 +37,18 @@ from .logging import ExperimentLogContext, LogField, ResourceEvent
 logger = logging.getLogger(__name__)
 
 
+def _attempt_timing(extras, started, provider_started, provider_duration=None):
+    """稳定终态记录短数字；许可等待包含事件循环调度，provider 为 SDK 等待。"""
+    now=time.time()
+    return {key:value for key,value in {
+        'duration_s':now-started,
+        'queue_s':extras.queue_duration_sec,
+        'jitter_s':getattr(extras,'jitter_duration_sec',None),
+        'provider_s':provider_duration if provider_duration is not None else (
+            now-provider_started if provider_started is not None else None),
+    }.items() if value is not None}
+
+
 def _build_httpx_client(*, trust_env: bool, max_connections: int = 200) -> Any:
     """按代理继承模式建立一个由管理器持有的 HTTPX 连接池。"""
 
@@ -1009,6 +1021,7 @@ class LLMManager:
                                         secrets=(endpoint.api_key,),
                                     )
                                     decode_payload["response"] = raw_response
+                                    decode_payload["timing"] = _attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration)
                                     self._append_agent_thread_event_best_effort(
                                         dict(metadata or {}) if isinstance(metadata, dict) else {},
                                         "provider_decode_error",
@@ -1029,6 +1042,7 @@ class LLMManager:
                                     "provider_response",
                                     payload={
                                         "message": result,
+                                        "timing": _attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration),
                                         "finish_reason": getattr(
                                             choice,
                                             "finish_reason",
@@ -1087,10 +1101,10 @@ class LLMManager:
                                 self._append_agent_thread_event_best_effort(
                                     dict(metadata or {}) if isinstance(metadata, dict) else {},
                                     "provider_cancelled",
-                                    payload=self._provider_error_payload(
+                                    payload={**self._provider_error_payload(
                                         exc,
                                         secrets=(endpoint.api_key,),
-                                    ),
+                                    ),'timing':_attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration)},
                                     provider_request_id=request_id,
                                     attempt_number=attempt_number,
                                     endpoint=endpoint,
@@ -1125,10 +1139,10 @@ class LLMManager:
                                     self._append_agent_thread_event_best_effort(
                                         dict(metadata or {}) if isinstance(metadata, dict) else {},
                                         "provider_error",
-                                        payload=self._provider_error_payload(
+                                        payload={**self._provider_error_payload(
                                             exc,
                                             secrets=(endpoint.api_key,),
-                                        ),
+                                        ),'timing':_attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration)},
                                         provider_request_id=request_id,
                                         attempt_number=attempt_number,
                                         endpoint=endpoint,
@@ -2089,6 +2103,9 @@ class EmbeddingManager:
 
             for attempt_number, request_deadline in enumerate(timeout_schedule, start=1):
                 provider_start_time: Optional[float] = None
+                physical_started_at=start_time if attempt_number==1 else time.time()
+                physical_sdk_started=physical_sdk_duration=None
+                physical_queue_s=extras.queue_duration_sec if attempt_number==1 else 0.
                 try:
                     extras.error = None
                     extras.error_type = None
@@ -2113,6 +2130,7 @@ class EmbeddingManager:
                             attempt_number=attempt_number,
                             endpoint=endpoint,
                         )
+                        physical_sdk_started=time.time()
                         response = await asyncio.wait_for(
                             client.embed(
                                 model=endpoint.model,
@@ -2120,6 +2138,7 @@ class EmbeddingManager:
                             ),
                             timeout=request_deadline,
                         )
+                        physical_sdk_duration=time.time()-physical_sdk_started
                         embedding_list = None
                         if isinstance(response, dict):
                             embedding_list = response.get("embeddings")
@@ -2141,6 +2160,8 @@ class EmbeddingManager:
                                 "model": endpoint.model,
                                 "dimensions": dimensions,
                                 "vectors_returned": len(embedding_list or []),
+                                "timing":{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),
+                                          "queue_s":physical_queue_s},
                             },
                             provider_request_id=request_id,
                             attempt_number=attempt_number,
@@ -2149,6 +2170,10 @@ class EmbeddingManager:
                     else:
                         batch_size = self._request_batch_size
                         for i in range(0, len(texts), batch_size):
+                            if i:
+                                physical_started_at=time.time()
+                                physical_queue_s=0.
+                            physical_sdk_started=physical_sdk_duration=None
                             batch_texts = texts[i:i + batch_size]
                             request_params = {
                                 "model": endpoint.model,
@@ -2165,7 +2190,9 @@ class EmbeddingManager:
                                 attempt_number=attempt_number,
                                 endpoint=endpoint,
                             )
+                            physical_sdk_started=time.time()
                             response = await client.embeddings.create(**request_params)
+                            physical_sdk_duration=time.time()-physical_sdk_started
                             response_embeddings = []
                             ordered = sorted(response.data, key=lambda item: item.index)
                             if [item.index for item in ordered] != list(range(len(batch_texts))):
@@ -2187,6 +2214,8 @@ class EmbeddingManager:
                                     "model": endpoint.model,
                                     "dimensions": dimensions,
                                     "vectors_returned": len(response_embeddings),
+                                    "timing":{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),
+                                              'queue_s':physical_queue_s},
                                 },
                                 provider_request_id=request_id,
                                 attempt_number=attempt_number,
@@ -2240,10 +2269,10 @@ class EmbeddingManager:
                     self._append_agent_thread_event_best_effort(
                         trace_fields,
                         "embedding_provider_cancelled",
-                        payload=LLMManager._provider_error_payload(
+                        payload={**LLMManager._provider_error_payload(
                             exc,
                             secrets=(endpoint.api_key,),
-                        ),
+                        ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
                         provider_request_id=request_id,
                         attempt_number=attempt_number,
                         endpoint=endpoint,
@@ -2254,10 +2283,10 @@ class EmbeddingManager:
                     self._append_agent_thread_event_best_effort(
                         trace_fields,
                         "embedding_provider_error",
-                        payload=LLMManager._provider_error_payload(
+                        payload={**LLMManager._provider_error_payload(
                             exc,
                             secrets=(endpoint.api_key,),
-                        ),
+                        ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
                         provider_request_id=request_id,
                         attempt_number=attempt_number,
                         endpoint=endpoint,

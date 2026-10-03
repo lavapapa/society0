@@ -66,3 +66,5 @@ HTTP 默认绑定本机，每个在途请求占一个工作槽。请求体和响
 `resource_usage(actor=None, model=None, max_bytes=65536)` 从事实写入时维护的短投影取得累计物理尝试、响应、错误、取消及提供方报告的 token，返回 run_id、live_revision、complete 和按 kind/model 的明细。默认读取 live，含未完成步骤诊断；服务调用传入已准备的 view 可读取对应完整步骤。累计查询不解压 Thread 或 ResourceCalls 原文。原请求与响应继续使用 Thread/resource 的分页和字节引用读取。
 
 全局 attribution 为 `physical_calls_once`；actor 查询为 `related_physical_calls_not_additive`，共享嵌入批次在每个关联主体视图中可见，跨主体求和会重复。embedding_uses 包括缓存逻辑使用，物理 requests 保持不变。每项 token 数配有 reports，unknown_usage_calls 单独显示未报告总 token 的次数。接口不将错误或未知用量推算成免费调用。详细字段语义与自定义提供方写入合同见 `models-contract.md`。
+
+`action_summary(actor=None, error_limit=5, max_bytes=65536)` 读取 LLM 实际工具行动、标签、失败原文引用、终止原因及阶段时长；Python、CLI 和 HTTP 共用该接口，prepared view 使用同一调用。统计范围与时长包含关系见 [行动与时长诊断](diagnostics-contract.md)。

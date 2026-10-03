@@ -7,7 +7,7 @@ import uuid
 import zlib
 
 from ._json_chunks import CHUNK_BYTES, decode_chunks
-from . import usage
+from . import usage, action_stats
 THREAD_SCHEMA = (
     "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,context_seq INTEGER,PRIMARY KEY(thread_id,consumer))",
     '''CREATE TABLE thread_heads(
@@ -26,7 +26,7 @@ THREAD_SCHEMA = (
     'CREATE INDEX thread_messages ON thread_events(thread_id,seq) WHERE kind=\'message\'',
     '''CREATE TABLE thread_chunks(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,chunk INTEGER NOT NULL,
         raw_bytes INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(thread_id,seq,chunk))''',
-)+usage.schema("thread")
+)+usage.schema("thread")+action_stats.SCHEMA
 
 
 def _load(view, thread_id, sequence):
@@ -194,6 +194,21 @@ class ThreadStore:
             raise ValueError('reserved Thread event kind')
         return self.store.transaction(lambda writer:_append(writer,thread_id,kind,payload))
 
+    def start_action(self,thread_id,payload):
+        def write(writer):
+            sequence=_append(writer,thread_id,'action_started',payload)
+            action_stats.start(writer,thread_id,sequence,_head(writer,thread_id)['actor'],payload['name'])
+            return sequence
+        return self.store.transaction(write)
+
+    def finish_action(self,thread_id,start_seq,payload,*,status,tags=(),elapsed_s):
+        def write(writer):
+            kind='action_error' if status in ('error','cancelled') else 'action_result'
+            sequence=_append(writer,thread_id,kind,{**payload,'start_seq':start_seq,'tags':list(tags),'elapsed_s':elapsed_s})
+            action_stats.finish(writer,thread_id,start_seq,sequence,status,tags,elapsed_s)
+            return sequence
+        return self.store.transaction(write)
+
     def record_provider_event(self,thread_id,kind,payload):
         """物理提供方适配器写事实与用量；普通诊断 event 保持通用。"""
         if kind not in ('provider_response','provider_error','provider_decode_error','provider_cancelled'):
@@ -202,7 +217,7 @@ class ThreadStore:
             sequence=_append(writer,thread_id,kind,payload)
             body=payload.get('payload',{})
             usage.finish(writer,'thread',json.dumps([thread_id,payload['physical_request_id']]),outcome=kind.removeprefix('provider_'),
-                         body=body.get('raw_response',body.get('response')))
+                         body=body.get('raw_response',body.get('response')),timing=body.get('timing'))
             return sequence
         return self.store.transaction(write)
 
@@ -259,11 +274,15 @@ class ThreadStore:
     def describe(self, thread_id):
         return self.store.read(lambda view:_head(view, thread_id))
 
-    def close(self, thread_id, outcome):
+    def close(self, thread_id, outcome, *, reason=None, elapsed_s=0.,phase_timings=None):
         if outcome not in ('completed','waiting','incomplete'):
             raise ValueError('unknown Thread outcome')
         def write(writer):
-            seq = _append(writer, thread_id, 'closed', {'outcome': outcome})
+            payload={'outcome':outcome}
+            if reason is not None:payload.update(reason=reason,elapsed_s=elapsed_s)
+            if phase_timings is not None:payload['phase_timings']=phase_timings
+            seq = _append(writer, thread_id, 'closed', payload)
+            if reason is not None:action_stats.activation(writer,_head(writer,thread_id)['actor'],outcome,reason,elapsed_s,phase_timings)
             writer.execute('UPDATE thread_heads SET status=? WHERE id=?', (outcome,thread_id))
             return seq
         return self.store.transaction(write)

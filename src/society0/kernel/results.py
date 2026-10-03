@@ -72,7 +72,7 @@ class Results:
         self.store.transaction(lambda w:w.execute('UPDATE result_sets SET finished=1 WHERE id=?',(identifier,)))
         return {'kind':'result_set','id':identifier,'origin':origin}
 
-    async def write_phase(self,step,phase_index,name,result,*,activations=(),elapsed_s=0):
+    async def write_phase(self,step,phase_index,name,result,*,activations=(),elapsed_s=0,capacity=None,concurrency_source=None):
         if result is None:result=StepResult()
         if not isinstance(result,StepResult):raise TypeError('phase must return StepResult or None')
         tables={}
@@ -82,7 +82,8 @@ class Results:
         metrics=await self._dataset(step,phase_index,'metrics','metrics',
             ({'name':key,'value':value} for key,value in result.metrics.items()))
         header={'metrics':metrics,'tables':tables,'artifacts':result.artifacts,
-                'observations':result.observations,'notes':result.notes,'activations':actors}
+                'observations':result.observations,'notes':result.notes,'activations':actors,
+                'capacity':capacity,'concurrency_source':concurrency_source}
         reference=await self._dataset(step,phase_index,'header','header',(header,))
         def finish(writer):
             writer.execute('INSERT INTO result_phases VALUES(?,?,?,?,?)',(step,phase_index,name,reference['id'],elapsed_s))
