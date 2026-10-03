@@ -18,13 +18,13 @@ ActorStore 实现 Mapping[str, Actor]。按 id 获取时读取主体短头并调
 
 ## 三、工作区
 
-save_workspace(actor, chunks) 将快照作为不可变工件准备，并在同一事务登记主体引用与完整步骤依赖；load_workspace(actor) 返回已登记快照的完整 bytes，没有工作区时返回 None。引用归属于主体，跨 Moment 或 Thread 的变化保持同一身份。完整检查点恢复复制依赖工件后可以脱离原运行目录读取。
+`workspace_plugin` 提供独立 WorkspaceStore，仍使用同一共享 StageStore 并通过 actor 外键关联主体。ShellSession 按当前主体开启短 lease，文件索引按 actor/path 保存，正文作为文件工件登记；完整步骤恢复保留跨 Moment 的私有文件。ActorStore 负责身份和主观资料，工作区读写见 [工作区合同](workspace-contract.md)。
 
 Bashkit 当前恢复接口需要完整快照，load_workspace 会物化该主体的整个私有工作区。重复保存相同内容仍产生新工件；未变化工作区的长期复制成本待专门实验，不以此接口宣称增量文件系统。运行中的共享 World 继续通过信息服务读取，不被纳入私有快照。
 
 ## 四、验收
 
-tests/primary/test_kernel_actors.py 验证千主体初始化不构建 Driver、单主体读取、角色与 persona/state/config 恢复、游标水位、工作区脱源恢复、错误更新原子性及固定活跃集合下停用人口增长的 SQL 工作量。首轮缺实现失败在 research/core-next/actors-red.txt。`tests/primary/test_kernel_llm_workspace.py` 通过真实 LLMDriver、Bashkit、Runtime 与 ActorStore 验证完整恢复后下一 Moment 的文件、变量和 cwd；提供方为确定性替身。性能红测保留在 actors-storage-cost-red.txt：冷 persona/config 同行捕获和角色查询扫描已分别改为分表与直接索引计数。固定三名角色成员、无关活跃主体由 100 增至 10000 时，SQL VM 为 108/108；单个小值热点更新不复制相邻巨正文。进一步大规模驻留和未变工作区重复保存成本仍待专项试验。
+tests/primary/test_kernel_actors.py 验证千主体初始化不构建 Driver、单主体读取、角色与 persona/state/config 恢复、游标水位、工作区脱源恢复、错误更新原子性及固定活跃集合下停用人口增长的 SQL 工作量。首轮缺实现失败在 research/core-next/actors-red.txt。`tests/primary/test_kernel_llm_workspace.py` 通过真实 LLMDriver、Bashkit、Runtime 与 ActorStore 验证完整恢复后下一 Moment 的文件、变量和 cwd；提供方为确定性替身。性能红测保留在 actors-storage-cost-red.txt：冷 persona/config 同行捕获和角色查询扫描已分别改为分表与直接索引计数。固定三名角色成员、无关活跃主体由 100 增至 10000 时，SQL VM 为 108/108；单个小值热点更新不复制相邻巨正文。未变工作区与目录规模试验见工作区合同及相应原始结果。
 
 ## 五、字段读取
 

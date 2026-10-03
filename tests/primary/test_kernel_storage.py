@@ -447,3 +447,16 @@ def test_writer_publish_step_survives_complete_restore_and_empty_steps(tmp_path)
         store.complete(3)
     with StageStore.restore(tmp_path/'source',tmp_path/'restored') as restored:
         assert restored.transaction(lambda writer:writer.publish_step)==4
+
+
+def test_run_under_symlink_parent_keeps_prepared_artifacts_usable(tmp_path):
+    physical=tmp_path/'physical';physical.mkdir()
+    link=tmp_path/'linked';link.symlink_to(physical,target_is_directory=True)
+    with StageStore.create(link/'run',[]) as store:
+        reference=store.prepare_artifact([b'full original'])
+        store.transaction(lambda writer:writer.include_artifact(reference))
+        store.complete(1)
+    with StageStore.restore(link/'run',link/'restored') as restored:
+        assert restored.read_artifact(reference)==(b'full original',13)
+    with StageStore.open(link/'run') as reopened:
+        assert reopened.read_artifact(reference)==(b'full original',13)

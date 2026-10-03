@@ -2104,6 +2104,7 @@ dev = [
 ]
 shell = [
     { name = "bashkit" },
+    { name = "society0-filesystem" },
 ]
 
 [package.metadata]
@@ -2120,10 +2121,16 @@ requires-dist = [
     { name = "pydantic" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
+    { name = "society0-filesystem", marker = "extra == 'shell'", directory = "native/society0-filesystem" },
     { name = "pyyaml" },
     { name = "tenacity" },
 ]
 provides-extras = ["shell", "dev"]
+
+[[package]]
+name = "society0-filesystem"
+version = "0.1.0"
+source = { directory = "native/society0-filesystem" }
 
 [[package]]
 name = "tenacity"

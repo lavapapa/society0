@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "society0-filesystem"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Bashkit native filesystem capsule adapter for Society0 shell"
+
+[tool.maturin]
+module-name = "society0_filesystem"
+features = ["pyo3/extension-module"]

@@ -31,7 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-shell = ["bashkit==0.18.2"]
+shell = ["bashkit==0.18.2", "society0-filesystem"]
 dev = [
     "pytest",
     "pytest-asyncio",
@@ -39,3 +39,6 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.uv.sources]
+society0-filesystem = { path = "native/society0-filesystem" }

@@ -1,15 +1,15 @@
 # Shell 交互合同
 
-ShellSession 将可选 Bashkit 解释器接到同一共享环境的信息与动作服务。主体自己写入的 workspace 留在解释器文件系统，世界材料通过 data 命令按需取得。普通规则 Driver 可以直接调用交互服务，无需创建 shell。
+ShellSession 将可选 Bashkit 解释器接到同一共享环境的信息与动作服务。共享材料同时通过 `/world` 动态只读文件路径与 data 命令取得；持久私有文件放在 `/workspace`。普通规则 Driver 可以直接调用交互服务，无需创建 shell。
 
 ## 一、入口
 
-安装 `shell` extra 后，由运行时创建 `ShellSession(scope,information,actions,result_dir=...,workspace_snapshot=None,preview_bytes=65536)`。Driver 可改用 `ShellSession(scope,information,bound_actions=facade,result_dir=...)` 注入已绑定门面，actions 与 bound_actions 二选一，发现、描述与执行都经过同一门面。result_dir 指向本运行拥有的工件目录，每个会话建立独立子目录。可选依赖只在 `kernel.shell` 中导入。
+安装 `shell` extra 后，由运行时创建 `ShellSession(scope,information,actions,result_dir=...,workspace=service,preview_bytes=65536)`。Driver 可改用 `ShellSession(scope,information,bound_actions=facade,result_dir=...)` 注入已绑定门面，actions 与 bound_actions 二选一，发现、描述与执行都经过同一门面。result_dir 指向本运行拥有的工件目录，每个会话建立独立子目录。可选依赖只在 `kernel.shell` 中导入。
 
 ```python
-shell = ShellSession(scope, information, actions, result_dir=run_dir / 'shell')
-result = await shell.execute('data list /')
-workspace = shell.snapshot()
+shell = ShellSession(scope, information, actions, result_dir=run_dir / 'shell', workspace=workspace_service)
+result = await shell.execute('ls /world; printf note > note.txt')
+shell.save_workspace()
 await shell.aclose()
 ```
 
@@ -42,7 +42,9 @@ rm /workspace/rows
 result read output/1.stdout '{"offset":65536,"size":65536}'
 ```
 
-Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。共享大材料没有挂载为 lazy 整文件；Bashkit 的原生 cat 大 lazy 文件会全量物化，该接口不承诺对其流式改造。
+默认 cwd 为 `/workspace`，普通相对文件名自然保存到主体私有目录。`/tmp` 及其他临时解释器文件在新激活时重新建立。
+
+Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。`/world` 通过 Information 的相同权限和数据版本路由动态列目录、读取文档与单条记录 JSON。构造 shell 不枚举世界对象，显式 ls 取得该目录全体文件名；目录元数据读取不加载记录正文。Bashkit 原生 read_file 为整文件读取，因此 head/cat 大单文档仍完整物化；大型集合可用 data list/query 分页，文档可用 data read 范围读取。
 
 ## 三、结果
 
@@ -54,7 +56,9 @@ Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` �
 
 ## 四、生命周期
 
-snapshot 保存私有 VFS、变量和 cwd，不打包输出挂载目录与共享 World。恢复时创建新的 ShellSession，重新绑定新的 scope 和服务，提供相同种类的文件系统挂载。已有结果工件由运行目录保留，工作区 snapshot 不代替 Thread 或结果历史。调用期间禁止 snapshot。
+`workspace_plugin` 的共享 SQL 文件索引成为持久工作区，下层按路径读取、上层使用原生 OverlayFs 保存本次改动。`save_workspace()` 登记改变的文件和删除路径，并保存 shell-only 变量/cwd；未改正文复用既有工件。下次激活新建 overlay，查询深度不随历史激活增长。单个文件改动仍可能整文件 copy-up。符号链接目标、权限和修改时间保存；Bashkit 链接保持 inert，可用 readlink 读取目标；持久 FIFO 在创建阶段明确拒绝。
+
+独立的 `workspace_snapshot`/`snapshot()` 仍可用于没有持久 WorkspaceStore 的单会话解释器实验，保存完整临时 VFS；两种入口互斥。持久工作区使用 save_workspace，完整步骤身份由 StageStore 发布。调用期间禁止保存。
 
 同一 session 的 execute 串行。aclose 取消并等待正在运行的命令以及已登记的异步回调，释放解释器；取消 execute 也会关闭该 session 并清理回调。关闭后新的执行、结果读取与 snapshot 抛出 ScopeClosed。scope 由运行时拥有，关闭 shell 不替运行时关闭其他交互入口。
 
@@ -64,4 +68,4 @@ snapshot 保存私有 VFS、变量和 cwd，不打包输出挂载目录与共享
 
 作者测试使用真实 Bashkit 0.18.2，位于 `tests/primary/test_kernel_shell.py`。首次缺失实现的失败在 `research/core-next/shell-product-red.txt`，root 目录发现失败在 `shell-root-list-red.txt`，动作异常与续读元数据的红测在 `shell-product-boundaries-red.txt`，联合绿测在 `shell-product-green.txt`。
 
-覆盖共享信息与动作、拒绝 actor 覆写、文本与二进制分块、workspace 增删与管道、变量和 cwd 恢复、新 scope 权限、超大单次动作结果完整续读、stderr 与 exit、异步取消清理及动作异常阻止后续行动。完整 Driver、模型工具请求、检查点引用和跨进程恢复仍由后续组合测试验证。
+覆盖共享信息与动作、拒绝 actor 覆写、文本与二进制分块、workspace 增删与管道、变量和 cwd 恢复、新 scope 权限、超大单次动作结果完整续读、stderr 与 exit、异步取消清理及动作异常阻止后续行动。真实 LLMDriver 跨 Moment、完整步骤恢复、工作区保存失败与 Thread incomplete 的组合用例位于 test_kernel_llm_workspace.py 及其独立复验文件。端点实测与最终全量验收另行记录。

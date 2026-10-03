@@ -9,6 +9,7 @@ from society0.kernel.interaction import Actions, Information
 from society0.kernel.runtime import Runtime, Phase
 from society0.kernel.llm import LLMDriver
 from society0.kernel.shell import ShellSession
+from society0.kernel.workspace import workspace_plugin
 
 
 class Provider:
@@ -29,7 +30,7 @@ async def test_llm_workspace_survives_complete_restore_and_next_moment(tmp_path)
         creations.append(record.id)
         return holder['driver']
     plugins=[actor_plugin({'llm':factory},records=[ActorRecord('alice','llm'),ActorRecord('idle','llm')]),
-             Plugin('threads',schema=THREAD_SCHEMA)]
+             Plugin('threads',schema=THREAD_SCHEMA),workspace_plugin()]
     async def run(host, step, moment, script, result_dir):
         actors=host.service('actors','actors')
         store=host.service('storage','store')
@@ -38,8 +39,8 @@ async def test_llm_workspace_survives_complete_restore_and_next_moment(tmp_path)
         actions=Actions(lambda *a:True)
         def shell(session, ledger):
             return ShellSession(session.scope,info,bound_actions=ledger,result_dir=result_dir,
-                                workspace_snapshot=actors.load_workspace(session.actor.id))
-        holder['driver']=LLMDriver(Provider(script),threads,input_builder=lambda s:[],shell_factory=shell,workspace=actors)
+                                workspace=host.service('workspace','workspace'))
+        holder['driver']=LLMDriver(Provider(script),threads,input_builder=lambda s:[],shell_factory=shell)
         runtime=Runtime(actors,information=info,actions=actions,store=store)
         async def activate(ctx):
             ctx.activate('alice')
@@ -48,7 +49,7 @@ async def test_llm_workspace_survives_complete_restore_and_next_moment(tmp_path)
         await runtime.run_step(step,moment,[Phase('work',activate)])
         tid=threads.find('alice',{'time':moment,'phase':'work'})
         receipt=threads.get_tool_result(tid,'shell1')
-        return json.loads(receipt['content']),actors.workspace_reference('alice')
+        return json.loads(receipt['content']),store.read(lambda r:r.query('SELECT state FROM workspace_heads WHERE actor=?',('alice',))[0][0])
     async with compose(tmp_path/'run',plugins) as host:
         first,workspace=await run(host,1,1,'mkdir -p /workspace; cd /workspace; saved=kept; printf "主体原文🙂" > note',tmp_path/'outputs1')
         assert workspace and creations==['alice']

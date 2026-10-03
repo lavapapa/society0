@@ -73,6 +73,14 @@ class DocumentChunk:
 
 
 @dataclass(frozen=True)
+class ResourceStat:
+    kind: str
+    total_bytes: int | None
+    revision: Any
+    source: Ref
+
+
+@dataclass(frozen=True)
 class Query:
     fields: tuple = ()
     filters: tuple = ()
@@ -154,6 +162,25 @@ class Information:
         scope.check_active()
         return result
 
+    async def list_files(self,scope,path,*,limit=100,cursor=None):
+        if _path(path)=='/' and '/' not in self._mounts:
+            page=await self.list(scope,path,limit=limit,cursor=cursor)
+            return Page([dict(item,kind='directory') for item in page.items],page.total,page.next_cursor,page.revision)
+        provider,path=await self._provider(scope,path,'discover')
+        result=await _resolve(provider.list_files(scope,path,limit=limit,cursor=cursor))
+        scope.check_active();return result
+
+    async def stat(self, scope, path):
+        if _path(path)=='/' and '/' not in self._mounts:
+            scope.check_active()
+            return ResourceStat('directory',None,scope.revision,Ref('','directory',''))
+        provider,path=await self._provider(scope,path,'discover')
+        result=await _resolve(provider.stat(scope,path))
+        if result.kind=='file' and not await _resolve(self._allows(scope,'read',result.source)):
+            raise Unavailable('resource unavailable')
+        scope.check_active()
+        return result
+
     async def read(self, scope, path, *, offset=0, size=65536):
         if offset < 0 or size < 1:
             raise ValueError('offset must be nonnegative and size positive')
@@ -181,6 +208,12 @@ class _BoundInformation:
 
     async def list(self, path, *, limit=100, cursor=None):
         return await self.information.list(self.scope, path, limit=limit, cursor=cursor)
+
+    async def list_files(self,path,*,limit=100,cursor=None):
+        return await self.information.list_files(self.scope,path,limit=limit,cursor=cursor)
+
+    async def stat(self,path):
+        return await self.information.stat(self.scope,path)
 
     async def read(self, path, *, offset=0, size=65536):
         return await self.information.read(self.scope, path, offset=offset, size=size)
