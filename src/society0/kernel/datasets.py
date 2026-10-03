@@ -2,15 +2,19 @@
 from contextlib import contextmanager
 import json
 import uuid
-import zlib
+import zstandard
 
 import apsw
 
-from ._json_chunks import CHUNK_BYTES, encode_chunks
+from ._json_chunks import CHUNK_BYTES, raw_chunks
 
 DATASET_SCHEMA = (
     'CREATE TABLE datasets(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,artifact TEXT NOT NULL,count INTEGER NOT NULL)',
 )
+
+
+def _decompress(decoder, body):
+    return decoder.decompress(body, max_output_size=CHUNK_BYTES)
 
 
 def _bytes(value):
@@ -32,20 +36,32 @@ class Datasets:
                 connection.execute('PRAGMA journal_mode=OFF')
                 connection.execute('PRAGMA synchronous=OFF')
                 connection.execute('PRAGMA cache_size=-2048')
-                connection.execute('CREATE TABLE records(ordinal INTEGER PRIMARY KEY,raw_bytes INTEGER NOT NULL)')
-                connection.execute('CREATE TABLE chunks(ordinal INTEGER NOT NULL,chunk INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(ordinal,chunk)) WITHOUT ROWID')
+                connection.execute('CREATE TABLE records(ordinal INTEGER PRIMARY KEY,raw_start INTEGER NOT NULL,raw_bytes INTEGER NOT NULL)')
+                connection.execute('CREATE TABLE blocks(id INTEGER PRIMARY KEY,payload BLOB NOT NULL)')
+                compressor = zstandard.ZstdCompressor(level=3)
+                buffer = bytearray()
+                position = 0
+                block = 0
+                def flush():
+                    nonlocal block
+                    if buffer:
+                        connection.execute('INSERT INTO blocks VALUES(?,?)', (block,compressor.compress(bytes(buffer))))
+                        block += 1
+                        buffer.clear()
                 with connection:
                     for ordinal, value in enumerate(rows):
-                        total = 0
-                        def chunks():
-                            nonlocal total
-                            for number, (size, body) in enumerate(encode_chunks(value)):
-                                total += size
-                                yield ordinal, number, body
-                        connection.executemany('INSERT INTO chunks VALUES(?,?,?)', chunks())
-                        connection.execute('INSERT INTO records VALUES(?,?)', (ordinal, total))
+                        start = position
+                        for raw in raw_chunks(value):
+                            position += len(raw)
+                            piece = memoryview(raw)
+                            while piece:
+                                size = min(CHUNK_BYTES-len(buffer),len(piece))
+                                buffer.extend(piece[:size]);piece=piece[size:]
+                                if len(buffer)==CHUNK_BYTES:flush()
+                        connection.execute('INSERT INTO records VALUES(?,?,?)', (ordinal,start,position-start))
                         count += 1
-                connection.execute('PRAGMA user_version=1')
+                    flush()
+                connection.execute('PRAGMA user_version=2')
             finally:
                 connection.close()
         artifact = self.store.prepare_artifact_file(build)
@@ -72,51 +88,57 @@ class Datasets:
         run_id, artifact, count = self.store.read(lookup)
         connection = apsw.Connection(str(self.store.path / artifact), flags=apsw.SQLITE_OPEN_READONLY)
         try:
-            yield connection, run_id, count
+            if connection.execute('PRAGMA user_version').get != 2:
+                raise ValueError('unsupported dataset codec')
+            yield connection, run_id, count, {'decoder': zstandard.ZstdDecompressor(), 'number': None, 'raw': b''}
         finally:
             connection.close()
 
     @staticmethod
-    def _size(connection, ordinal):
+    def _location(connection, ordinal):
         if type(ordinal) is not int or ordinal < 0:
             raise ValueError('invalid dataset ordinal')
-        row = connection.execute('SELECT raw_bytes FROM records WHERE ordinal=?', (ordinal,)).fetchone()
+        row = connection.execute('SELECT raw_start,raw_bytes FROM records WHERE ordinal=?', (ordinal,)).fetchone()
         if row is None: raise KeyError(ordinal)
-        return row[0]
+        return row
 
     @staticmethod
-    def _range(connection, ordinal, total, offset, size):
-        end = min(total, offset + size)
+    def _range(connection, start, total, offset, size, decoder):
+        end = start + min(total, offset + size)
+        offset += start
         if end <= offset: return b''
         output = bytearray()
         for number, body in connection.execute(
-            'SELECT chunk,payload FROM chunks WHERE ordinal=? AND chunk>=? AND chunk<=? ORDER BY chunk',
-            (ordinal, offset // CHUNK_BYTES, (end - 1) // CHUNK_BYTES),
+            'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id',
+            (offset // CHUNK_BYTES, (end - 1) // CHUNK_BYTES),
         ):
-            raw = zlib.decompress(body)
-            start = number * CHUNK_BYTES
-            output.extend(raw[max(0, offset-start):min(len(raw), end-start)])
+            if decoder['number'] != number:
+                decoder['raw'] = _decompress(decoder['decoder'], body)
+                decoder['number'] = number
+            raw = decoder['raw']
+            block_start = number * CHUNK_BYTES
+            output.extend(raw[max(0, offset-block_start):min(len(raw), end-block_start)])
         return bytes(output)
 
     def read_payload(self, reference, ordinal, *, offset=0, size=65536):
         if type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
             raise ValueError('invalid dataset byte range')
-        with self._open(reference) as (connection, _, _):
-            total = self._size(connection, ordinal)
-            data = self._range(connection, ordinal, total, offset, size)
+        with self._open(reference) as (connection, _, _, decoder):
+            start, total = self._location(connection, ordinal)
+            data = self._range(connection, start, total, offset, size, decoder)
             return {'data': data, 'total_bytes': total,
                     'next_offset': offset+len(data) if offset+len(data)<total else None}
 
     def get(self, reference, ordinal):
         """调用方明确请求一条完整 JSON 值，内存随该条值增长。"""
-        with self._open(reference) as (connection, _, _):
-            total = self._size(connection, ordinal)
-            return json.loads(self._range(connection, ordinal, total, 0, total))
+        with self._open(reference) as (connection, _, _, decoder):
+            start, total = self._location(connection, ordinal)
+            return json.loads(self._range(connection, start, total, 0, total, decoder))
 
     def page(self, reference, *, cursor=None, limit=100, max_bytes=65536):
         if type(limit) is not int or limit < 1 or type(max_bytes) is not int or max_bytes < 512:
             raise ValueError('positive limit and at least 512 page bytes required')
-        with self._open(reference) as (connection, run_id, total):
+        with self._open(reference) as (connection, run_id, total, decoder):
             identity = [run_id, reference['id'], reference['artifact']]
             if cursor is not None and cursor['identity'] != identity:
                 raise ValueError('dataset cursor mismatch')
@@ -127,10 +149,10 @@ class Datasets:
                 return {'items':items, 'total':total, 'next_cursor':
                         {'identity':identity,'after':last} if last+1<total else None}
             items=[];last=after;item_bytes=0
-            for ordinal, size in connection.execute('SELECT ordinal,raw_bytes FROM records WHERE ordinal>? ORDER BY ordinal LIMIT ?', (after,limit)):
+            for ordinal, start, size in connection.execute('SELECT ordinal,raw_start,raw_bytes FROM records WHERE ordinal>? ORDER BY ordinal LIMIT ?', (after,limit)):
                 item={'ordinal':ordinal,'raw_bytes':size,'payload_ref':{'dataset':reference,'ordinal':ordinal,'total_bytes':size}}
                 if size <= max_bytes//2:
-                    item={'ordinal':ordinal,'raw_bytes':size,'value':json.loads(self._range(connection,ordinal,size,0,size))}
+                    item={'ordinal':ordinal,'raw_bytes':size,'value':json.loads(self._range(connection,start,size,0,size,decoder))}
                 encoded_size = len(_bytes(item))
                 if len(_bytes(envelope([],ordinal))) + item_bytes + encoded_size + len(items) > max_bytes:
                     if not items: raise ValueError('dataset page budget too small for reference')
