@@ -17,3 +17,12 @@ def test_reader_probe_reuses_connection_without_changing_query_result(tmp_path):
     assert result['fresh']['connections']==5
     assert result['reused']['connections']==1
     assert result['fresh']['sum']==result['reused']['sum']==35
+
+
+def test_reader_reuse_preserves_outer_snapshot_and_nested_fresh_read(tmp_path):
+    from benchmarks.core_next_persistence_probe import nested_reader_probe
+    result=nested_reader_probe(tmp_path/'nested')
+    assert result['outer']==[7,7]
+    assert result['nested']==9
+    assert result['next_request']==9
+    assert result['connections']==2

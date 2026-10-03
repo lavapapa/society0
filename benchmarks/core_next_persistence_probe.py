@@ -15,7 +15,7 @@ import time
 from unittest.mock import patch
 
 import apsw
-from society0.kernel.storage import StageStore
+from society0.kernel.storage import StageStore,StageReader
 from society0.kernel.threads import ThreadStore,THREAD_SCHEMA
 
 
@@ -96,25 +96,13 @@ def reader_probe(path,tables=20,iterations=100):
         output={'tables':tables,'iterations':iterations}
         for reuse in (False,True):
             count=[0]
-            connection=None
-            if reuse:
-                connection=native(str(Path(path)/'current.sqlite'),flags=apsw.SQLITE_OPEN_READONLY)
-                count[0]=1
-            class Borrowed:
-                def __getattr__(self,name):return getattr(connection,name)
-                def close(self):
-                    connection.set_authorizer(None)
-                    if not connection.get_autocommit():connection.execute('ROLLBACK')
             def connect(*args,**kwargs):
-                if reuse:return Borrowed()
                 count[0]+=1
                 return native(*args,**kwargs)
+            read=store.read if reuse else StageReader(path).read
             wall=time.perf_counter();cpu=time.process_time()
-            try:
-                with patch('apsw.Connection',connect):
-                    total=sum(store.read(lambda view:view.query('SELECT value FROM table_0 WHERE id=1')[0][0]) for _ in range(iterations))
-            finally:
-                if connection:connection.close()
+            with patch('apsw.Connection',connect):
+                total=sum(read(lambda view:view.query('SELECT value FROM table_0 WHERE id=1')[0][0]) for _ in range(iterations))
             output['reused' if reuse else 'fresh']={'wall_seconds':time.perf_counter()-wall,'cpu_seconds':time.process_time()-cpu,'connections':count[0],'sum':total}
         return output
 
@@ -144,6 +132,28 @@ async def loop_probe(path,size,iterations=10):
                 'loop_p95_seconds':ordered[min(len(ordered)-1,int(len(ordered)*.95))],
                 'peak_rss_native':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
                 'rss_native_unit':'bytes' if platform.system()=='Darwin' else 'KiB'}
+
+
+def nested_reader_probe(path):
+    """实际产品复用外层空闲连接，嵌套读取独立连接保留不同快照。"""
+    with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY,value INTEGER)'],
+                           initialize=lambda writer:writer.execute('INSERT INTO item VALUES(1,7)')) as store:
+        native=apsw.Connection;connections=0
+        def connect(*args,**kwargs):
+            nonlocal connections
+            connections+=1
+            return native(*args,**kwargs)
+        result={}
+        def outer(view):
+            before=view.query('SELECT value FROM item')[0][0]
+            store.transaction(lambda writer:writer.execute('UPDATE item SET value=9'))
+            result['nested']=store.read(lambda nested:nested.query('SELECT value FROM item')[0][0])
+            return [before,view.query('SELECT value FROM item')[0][0]]
+        with patch('apsw.Connection',connect):
+            result['outer']=store.read(outer)
+            result['next_request']=store.read(lambda view:view.query('SELECT value FROM item')[0][0])
+        result['connections']=connections
+        return result
 
 
 def main():
