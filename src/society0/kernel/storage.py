@@ -354,7 +354,22 @@ class StageStore:
         latest = max(markers, default=None)
         if latest is None:
             raise StorageError('missing complete descriptor')
-        return json.loads(latest.read_text())
+        descriptor = json.loads(latest.read_text())
+        step = descriptor.get('step')
+        if type(step) is not int or latest.name != f'{step:020d}.json':
+            raise StorageError('complete descriptor filename and step identity differ')
+        return descriptor
+
+    @staticmethod
+    def _validate_descriptor(item, manifest, number):
+        parent = None if number == manifest['root_step'] else number - 1
+        if (item['run_id'], item['step'], item['parent']) != (manifest['run_id'], number, parent):
+            raise StorageError('complete chain identity mismatch')
+        if number == manifest['root_step']:
+            if item['changeset'] is not None:
+                raise StorageError('root descriptor must not contain a changeset')
+        elif not isinstance(item['changeset'], str) or not item['changeset']:
+            raise StorageError('non-root descriptor requires a changeset')
 
     @staticmethod
     def _validate_references(path, manifest, selected):
@@ -363,9 +378,7 @@ class StageStore:
             if not marker.is_file():
                 raise StorageError('missing complete descriptor')
             item = json.loads(marker.read_text())
-            parent = None if number == manifest['root_step'] else number - 1
-            if (item['run_id'], item['step'], item['parent']) != (manifest['run_id'], number, parent):
-                raise StorageError('complete chain identity mismatch')
+            StageStore._validate_descriptor(item, manifest, number)
             if item['changeset'] and not (path / item['changeset']).is_file():
                 raise StorageError('missing changeset')
             for artifact in item['artifacts']:
@@ -525,6 +538,14 @@ class StageStore:
         finally:
             temporary.unlink(missing_ok=True)
 
+    @staticmethod
+    def _validate_root(connection, manifest):
+        if _schema(connection) != manifest['schema']:
+            raise StorageError('root schema mismatch')
+        identity = connection.execute('SELECT run_id,revision,complete_step FROM _stage_runtime').get
+        if identity != (manifest['run_id'], 0, manifest['root_step']):
+            raise StorageError('root identity mismatch')
+
     @classmethod
     def restore(cls, source, destination, *, step=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
         source, destination = Path(source).absolute(), Path(destination).absolute()
@@ -539,8 +560,7 @@ class StageStore:
         connection = original = None
         try:
             original = apsw.Connection(str(source / 'root.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
-            if _schema(original) != manifest['schema']:
-                raise StorageError('root schema mismatch')
+            cls._validate_root(original, manifest)
             _backup(original, temporary / 'current.sqlite')
             original.close()
             original = None
@@ -552,9 +572,7 @@ class StageStore:
                 if not marker.is_file():
                     raise StorageError('missing complete descriptor')
                 descriptor = json.loads(marker.read_text())
-                parent = None if number == manifest['root_step'] else number - 1
-                if descriptor['run_id'] != manifest['run_id'] or descriptor['step'] != number or descriptor['parent'] != parent:
-                    raise StorageError('complete chain identity mismatch')
+                cls._validate_descriptor(descriptor, manifest, number)
                 if number != manifest['root_step']:
                     changeset = source / descriptor['changeset']
                     if not changeset.is_file():
@@ -564,6 +582,10 @@ class StageStore:
                         apsw.Changeset.apply(stream.read, connection, flags=apsw.SQLITE_CHANGESETAPPLY_FKNOACTION)
                 for artifact in descriptor['artifacts']:
                     name = artifact['path']
+                    if name in references:
+                        if references[name] != artifact:
+                            raise StorageError('artifact identity differs across complete descriptors')
+                        continue
                     source_file = source / name
                     if not source_file.is_file() or source_file.stat().st_size != artifact['size']:
                         raise StorageError('missing or changed artifact')
@@ -593,6 +615,44 @@ class StageStore:
             if connection:
                 connection.close()
             shutil.rmtree(temporary, ignore_errors=True)
+
+    @classmethod
+    def collect_orphans(cls, path):
+        """离线清除未被完整身份引用的准备文件；不进入提交热路径。"""
+        path = Path(path).absolute()
+        manifest = _manifest(path)
+        with (path / 'writer.lock').open('a+b') as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise StorageError('active writer prevents orphan collection') from error
+            if not (path / 'root.sqlite').is_file():
+                raise StorageError('missing root database')
+            root = apsw.Connection(str(path / 'root.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+            try:
+                cls._validate_root(root, manifest)
+            finally:
+                root.close()
+            selected = cls._latest(path)['step']
+            cls._validate_references(path, manifest, selected)
+            retained = set()
+            for number in range(manifest['root_step'], selected + 1):
+                descriptor = json.loads((path / 'steps' / f'{number:020d}.json').read_text())
+                if descriptor['changeset']:
+                    retained.add(descriptor['changeset'])
+                retained.update(item['path'] for item in descriptor['artifacts'])
+            removed = []
+            directories = set()
+            for name in ('artifacts', 'changesets'):
+                for file in (path / name).rglob('*'):
+                    relative = str(file.relative_to(path))
+                    if file.is_file() and relative not in retained:
+                        file.unlink()
+                        removed.append(relative)
+                        directories.add(file.parent)
+            for directory in directories:
+                _sync(directory)
+            return sorted(removed)
 
     fork = restore
 
