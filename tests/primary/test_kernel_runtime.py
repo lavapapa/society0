@@ -13,7 +13,7 @@ class Store:
         self.events = []
         self.complete_step = 0
 
-    def complete(self, step):
+    def complete(self, step, *, artifacts=()):
         self.events.append(('complete',))
         self.complete_step = step
         return 'published'
@@ -280,7 +280,7 @@ def test_publish_failure_and_phase_hook_failure_abort_without_advancing_watermar
     async def main():
         for failure in ('publish', 'hook'):
             rt, store = runtime([])
-            def broken(*args):
+            def broken(*args, **kwargs):
                 raise OSError('failed')
             if failure == 'publish':
                 store.complete = broken
@@ -359,4 +359,30 @@ def test_real_store_two_mechanisms_complete_restore_and_failed_step(tmp_path):
             store.close()
         with StageStore.restore(tmp_path / 'run', tmp_path / 'restored', step=1) as restored:
             assert restored.read(lambda r: r.query('SELECT namespace,value FROM ledger ORDER BY namespace')) == [('left', 1), ('right', 1)]
+    asyncio.run(main())
+
+
+def test_artifacts_from_session_and_phase_share_step_publication_and_reset():
+    async def main():
+        published = []
+        rt, store = runtime([])
+        store.prepare_artifact = lambda chunks: b''.join(chunks).decode()
+        def complete(step, *, artifacts=()):
+            published.append((step, artifacts))
+            store.complete_step = step
+        store.complete = complete
+        escaped = []
+        async def run(session):
+            escaped.append(session)
+            assert session.prepare_artifact([b'actor']) == 'actor'
+            return DriverResult('completed')
+        rt._actors['a'] = actor('a', run)
+        def phase(ctx):
+            assert ctx.prepare_artifact([b'phase']) == 'phase'
+            ctx.activate('a')
+        await rt.run_step(1, 1, [Phase('one', phase), Phase('two', lambda ctx: ctx.prepare_artifact([b'later']))])
+        await rt.run_step(2, 2, [])
+        assert published == [(1, ('phase', 'actor', 'later')), (2, ())]
+        with pytest.raises(ScopeClosed):
+            escaped[0].prepare_artifact([b'closed'])
     asyncio.run(main())

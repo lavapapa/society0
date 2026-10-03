@@ -13,7 +13,7 @@ workspace = shell.snapshot()
 await shell.aclose()
 ```
 
-execute 返回 ShellResult，包含 session_id、command_id、stdout、stderr、exit_code、error、两个输出的 truncated、total_bytes、next_offset 与文件引用，以及本命令产生的完整动作 receipts。传入的 result_dir 与会话限定的相对引用（如 `shell-abc/output/1.stdout`）共同定位工件。不同会话可以各有 command_id=1，完整引用仍有区别。运行存储复制封存这些工件后，外部研究者通过同一相对引用读取旧结果；机器绝对路径不进入结果身份。会话内 read_result 拒绝读取其他会话结果。shell stdout/stderr 的合同是 Bashkit 产生的 UTF-8 文本。原生 printf 非法 UTF-8 字节可能在解释器内已变成替换字符；这不具备任意 GNU bash 二进制兼容性。二进制世界材料经 data read 的显式 base64 通路保持原字节。输出摘要按字节预算读取，边界上的 UTF-8 字符留给下一次读取；退出码与输出完整性分别呈现。
+execute 返回 ShellResult，包含 session_id、command_id、stdout、stderr、exit_code、error、两个输出的 truncated、total_bytes、next_offset 与文件引用，以及本命令产生的完整动作 receipts。传入的 result_dir 与会话限定的相对引用（如 `shell-abc/output/1.stdout`）共同定位工件。不同会话可以各有 command_id=1，完整引用仍有区别。运行存储复制封存这些工件后，外部研究者通过同一相对引用读取旧结果；机器绝对路径不进入结果身份。会话内 read_result 拒绝读取其他会话结果。Driver 可注入同步 `result_reader(reference, offset=0, size=65536, encoding="utf-8")`；`result read` 对旧会话的限定引用调用该门面，由 Thread 登记的主体归属与持久工件映射定位原文，当前会话引用仍读取当前结果文件。该读取保持 scope 有效性检查，且不会重新执行原动作。shell stdout/stderr 的合同是 Bashkit 产生的 UTF-8 文本。原生 printf 非法 UTF-8 字节可能在解释器内已变成替换字符；这不具备任意 GNU bash 二进制兼容性。二进制世界材料经 data read 的显式 base64 通路保持原字节。输出摘要按字节预算读取，边界上的 UTF-8 字符留给下一次读取；退出码与输出完整性分别呈现。
 
 ## 二、命令
 

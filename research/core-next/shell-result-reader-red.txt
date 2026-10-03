@@ -1,0 +1,22 @@
+............F                                                            [100%]
+=================================== FAILURES ===================================
+_____ test_persisted_result_reader_routes_old_session_without_reexecution ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-317/test_persisted_result_reader_r0')
+
+    @pytest.mark.asyncio
+    async def test_persisted_result_reader_routes_old_session_without_reexecution(tmp_path):
+        shell, _, calls = build(tmp_path)
+        await shell.aclose()
+        seen = []
+        def persisted(reference, **options):
+            seen.append((reference, options))
+            return {'data': '旧结果🙂', 'encoding': 'utf-8', 'total_bytes': 13, 'next_offset': None}
+        scope = InteractionScope('alice', Moment(2, 'trade'))
+>       shell = ShellSession(scope, Information(lambda *a: True), Actions(lambda *a: True),
+                             result_dir=tmp_path, result_reader=persisted)
+E       TypeError: ShellSession.__init__() got an unexpected keyword argument 'result_reader'
+
+tests/primary/test_kernel_shell.py:257: TypeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-317/test_persisted_result_reader_r0/shell-qmogwd9w/output — scripts can modify host files

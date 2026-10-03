@@ -1,0 +1,67 @@
+..........................F.                                             [100%]
+=================================== FAILURES ===================================
+______ test_native_apply_preserves_foreign_key_cascade[a_parent-z_child] _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-286/test_native_apply_preserves_fo0')
+parent = 'a_parent', child = 'z_child'
+
+    @pytest.mark.parametrize('parent,child',[('a_parent','z_child'),('z_parent','a_child')])
+    def test_native_apply_preserves_foreign_key_cascade(tmp_path,parent,child):
+        schema = [f'CREATE TABLE {parent}(id INTEGER PRIMARY KEY)',
+                  f'CREATE TABLE {child}(id INTEGER PRIMARY KEY,parent_id INTEGER NOT NULL REFERENCES {parent}(id) ON DELETE CASCADE)']
+        with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute(f'INSERT INTO {parent} VALUES(1)'),w.execute(f'INSERT INTO {child} VALUES(1,1)'))) as store:
+            store.transaction(lambda w:w.execute(f'DELETE FROM {parent}'))
+            store.complete(1)
+>       with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:356: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+cls = <class 'society0.kernel.storage.StageStore'>
+source = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-286/test_native_apply_preserves_fo0/run')
+destination = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-286/test_native_apply_preserves_fo0/restored')
+step = None, run_id = None
+
+    @classmethod
+    def restore(cls, source, destination, *, step=None, run_id=None):
+        source, destination = Path(source).absolute(), Path(destination).absolute()
+        manifest = json.loads((source / 'run.json').read_text())
+        if run_id == manifest['run_id']:
+            raise StorageError('restore requires a new run identity')
+        selected = cls._latest(source)['step'] if step is None else step
+        if type(selected) is not int or selected < manifest['root_step']:
+            raise StorageError('invalid recovery step')
+        temporary = destination.with_name(destination.name + '.building-' + uuid.uuid4().hex)
+        temporary.mkdir(parents=True)
+        connection = original = None
+        try:
+            original = apsw.Connection(str(source / 'root.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+            if _schema(original) != manifest['schema']:
+                raise StorageError('root schema mismatch')
+            _backup(original, temporary / 'current.sqlite')
+            original.close()
+            original = None
+            connection = apsw.Connection(str(temporary / 'current.sqlite'))
+            connection.execute('PRAGMA foreign_keys=ON')
+            references = {}
+            for number in range(manifest['root_step'], selected + 1):
+                marker = source / 'steps' / f'{number:020d}.json'
+                if not marker.is_file():
+                    raise StorageError('missing complete descriptor')
+                descriptor = json.loads(marker.read_text())
+                parent = None if number == manifest['root_step'] else number - 1
+                if descriptor['run_id'] != manifest['run_id'] or descriptor['step'] != number or descriptor['parent'] != parent:
+                    raise StorageError('complete chain identity mismatch')
+                if number != manifest['root_step']:
+                    changeset = source / descriptor['changeset']
+                    if not changeset.is_file():
+                        raise StorageError('missing changeset')
+                    with changeset.open('rb') as stream:
+>                       apsw.Changeset.apply(stream.read, connection)
+E                       apsw.AbortError: query aborted
+
+src/society0/kernel/storage.py:463: AbortError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_storage.py::test_native_apply_preserves_foreign_key_cascade[a_parent-z_child]
+1 failed, 27 passed in 0.34s

@@ -1,0 +1,75 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_shared_environment_example_checkpoint_and_workspace ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-287/test_shared_environment_exampl0')
+
+    @pytest.mark.asyncio
+    async def test_shared_environment_example_checkpoint_and_workspace(tmp_path):
+        import runpy
+        from pathlib import Path
+        pytest.importorskip('bashkit')
+        example = runpy.run_path(str(Path(__file__).parents[2] / 'examples/core_next/shared_environment.py'))
+>       report = await example['demonstrate'](tmp_path / 'example', history=1000)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_information_sql.py:203: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+examples/core_next/shared_environment.py:130: in demonstrate
+    descriptor = await host.service('runtime','runtime').run_step(1,0,[Phase('trade',phase)])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:188: in run_step
+    await self._run_phase(time, phase)
+src/society0/kernel/runtime.py:167: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:595: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:651: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:106: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <<run_path>.demonstrate.<locals>.RuleDriver object at 0x10b90da30>
+session = Session(actor=Actor(id='alice', driver=<<run_path>.demonstrate.<locals>.RuleDriver object at 0x10b90da30>, state_ref=N...one)), cursors={}, prepared=None, signals=(None,), _phase=<society0.kernel.runtime.PhaseContext object at 0x10b918a70>)
+
+    async def run(self, session):
+        shell = ShellSession(session.scope, interfaces['information'],
+                             bound_actions=session.actions, result_dir=output / 'shell-results')
+        results = []
+        try:
+            if session.actor.id == 'alice':
+                results.append(await shell.execute('data read /world/documents/1 ' + argument({'size':64})))
+                results.append(await shell.execute('data query /world/history ' + argument({'fields':['id','price'],'limit':5,'sample_seed':7})))
+                listing = await shell.execute('data query /world/orders')
+                results.append(listing)
+                target = json.loads(listing.stdout)['items'][0]['ref']
+                results.append(await shell.execute('mkdir -p /workspace; data query /world/orders | jq "[.items[].price] | add" > /workspace/total; cat /workspace/total'))
+                found = await shell.execute('action find ' + argument({'target':target}))
+                results.append(found)
+                name = json.loads(found.stdout)['items'][0]['name']
+                results.append(await shell.execute('action describe ' + argument({'target':target,'name':name})))
+                results.append(await shell.execute('action invoke ' + argument({'target':target,'name':name,'arguments':{}})))
+            else:
+                results.append(await shell.execute('data query /world/messages'))
+                assert 'alice购买订单' in results[-1].stdout
+            evidence.append({'actor':session.actor.id,'commands':[asdict(item) for item in results]})
+            # 由 Runtime 登记本完整步骤依赖的实际工件。
+            for result in results:
+                for ref in (result.stdout_ref,result.stderr_ref,*result.receipts):
+                    with (output / 'shell-results' / ref).open('rb') as stream:
+>                       session.prepare_artifact(iter(lambda:stream.read(65536),b''))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E                       AttributeError: 'Session' object has no attribute 'prepare_artifact'
+
+examples/core_next/shared_environment.py:114: AttributeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-287/test_shared_environment_exampl0/example/shell-results/shell-ztocuzem/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-287/test_shared_environment_exampl0/example/shell-results/shell-ry7xlt5o/output — scripts can modify host files
+1 failed, 9 deselected in 0.26s

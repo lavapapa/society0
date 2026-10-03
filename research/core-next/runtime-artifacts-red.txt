@@ -1,0 +1,64 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_artifacts_from_session_and_phase_share_step_publication_and_reset ____
+
+    def test_artifacts_from_session_and_phase_share_step_publication_and_reset():
+        async def main():
+            published = []
+            rt, store = runtime([])
+            store.prepare_artifact = lambda chunks: b''.join(chunks).decode()
+            def complete(step, *, artifacts=()):
+                published.append((step, artifacts))
+                store.complete_step = step
+            store.complete = complete
+            escaped = []
+            async def run(session):
+                escaped.append(session)
+                assert session.prepare_artifact([b'actor']) == 'actor'
+                return DriverResult('completed')
+            rt._actors['a'] = actor('a', run)
+            def phase(ctx):
+                assert ctx.prepare_artifact([b'phase']) == 'phase'
+                ctx.activate('a')
+            await rt.run_step(1, 1, [Phase('one', phase), Phase('two', lambda ctx: ctx.prepare_artifact([b'later']))])
+            await rt.run_step(2, 2, [])
+            assert published == [(1, ('phase', 'actor', 'later')), (2, ())]
+            with pytest.raises(ScopeClosed):
+                escaped[0].prepare_artifact([b'closed'])
+>       asyncio.run(main())
+
+tests/primary/test_kernel_runtime.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+tests/primary/test_kernel_runtime.py:383: in main
+    await rt.run_step(1, 1, [Phase('one', phase), Phase('two', lambda ctx: ctx.prepare_artifact([b'later']))])
+src/society0/kernel/runtime.py:188: in run_step
+    await self._run_phase(time, phase)
+src/society0/kernel/runtime.py:168: in _run_phase
+    await task
+src/society0/kernel/runtime.py:160: in body
+    await invoke_maybe_async(phase.run, context)
+src/society0/async_utils.py:28: in invoke_maybe_async
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+ctx = <society0.kernel.runtime.PhaseContext object at 0x10b7d8680>
+
+    def phase(ctx):
+>       assert ctx.prepare_artifact([b'phase']) == 'phase'
+               ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'PhaseContext' object has no attribute 'prepare_artifact'
+
+tests/primary/test_kernel_runtime.py:381: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_runtime.py::test_artifacts_from_session_and_phase_share_step_publication_and_reset
+1 failed in 0.09s

@@ -4,9 +4,9 @@ StageStore 使用 APSW 暴露的 SQLite Session 捕获当前步骤的净行变�
 
 ## 一、接口
 
-`StageStore.create(path, schema, initialize=None, run_id=None)` 在新目录创建数据库，执行冻结的 DDL 和同步初始化回调，再用 SQLite backup 建立初始 root。权威表须为普通表并有显式非空主键；单列 INTEGER PRIMARY KEY 的原生规则可直接使用。表和索引定义随运行保存，后续回调禁止 DDL、ATTACH、PRAGMA 修改和自行控制事务。虚拟表等派生索引由后续组件单独管理。
+`StageStore.create(path, schema, initialize=None, run_id=None)` 在新目录创建数据库，执行冻结的 DDL 和同步初始化回调，再用 SQLite backup 建立初始 root。权威表须为普通表并有显式非空主键；单列 INTEGER PRIMARY KEY 的原生规则可直接使用。create、open 和 restore 均启用原生 foreign_keys。恢复使用原生 FKNOACTION apply 标志：级联产生的行变化已包含在 changeset 中，应用时按 NO ACTION 检查最终外键关系，避免再执行一次级联。表和索引定义随运行保存，后续回调禁止 DDL、ATTACH、PRAGMA 修改和自行控制事务。虚拟表等派生索引由后续组件单独管理。
 
-`transaction(fn)` 给同步回调一个 Writer。Writer 提供 `execute(sql, bindings)`、`executemany(sql, bindings)` 和 `query(sql, bindings, max_rows=1000)`。一轮回调对应原生事务，业务异常回滚；返回 awaitable 会被拒绝。callback 结束后借用失效。`iter_query(sql, bindings)` 提供 callback 内的流式扫描，每次迭代检查借用与线程，callback 返回后迭代器失效。query 超过行数上限显式报错，分页和行内大正文的分块布局由组件定义。行数上限不限制单行字节数，Session 也会保存被修改行的原值，因此巨大正文应作为小块追加行，热点字段和冷正文应分表。
+`transaction(fn)` 给同步回调一个 Writer。Writer 提供 `execute(sql, bindings)`、`executemany(sql, bindings)` 和 `query(sql, bindings, max_rows=1000)`。一轮回调对应原生事务，业务异常回滚；返回 awaitable 会被拒绝。callback 结束后借用失效。`read_blob(table, column, rowid, offset=0, size=65536)` 在当前短快照内调用原生增量 BLOB API，返回 bytes 与总长度，避免 SQL substr 物化整条大 BLOB；表必须具有可定位的原生 rowid。`iter_query(sql, bindings)` 提供 callback 内的流式扫描，每次迭代检查借用与线程，callback 返回后迭代器失效。query 超过行数上限显式报错，分页和行内大正文的分块布局由组件定义。行数上限不限制单行字节数，Session 也会保存被修改行的原值，因此巨大正文应作为小块追加行，热点字段和冷正文应分表。
 
 `read(fn, expected_revision=None)` 使用独立只读连接和短读事务。ReadView 提供有行数上限的 query、`live_revision` 和 `complete_step`。`StageReader(path).read(...)` 提供相同观察能力，可在生产者当前步骤未完成时使用；每次请求关闭读连接，调用方不得把读事务跨越异步等待。revision 不符会明确失败，跨页稳定性和继续读取合同由信息提供者实现。原生 WAL 快照允许回调中存在更晚的写入，长回调仍会阻止 WAL 回收。
 
@@ -28,8 +28,12 @@ current 中的 `complete_step` 是生产者已确认的完成下界。写入次�
 
 `prepare_artifact(chunks)` 消费 bytes 迭代器，产生独占 UUID 文件，完成 fsync 和目录同步后返回 run 内相对路径。它建立与源文件独立的封存副本；迭代器失败会清除临时文件。调用方应把返回引用交给 complete，并且不再修改该文件。准备与引用不会自动纳入其他数据库的事务。
 
+`Writer.include_artifact(reference)` 可在业务事务内登记文件依赖，登记与业务引用同时提交或回滚。内部辅助表按首次登记 revision 索引，complete 合并本步新增依赖与显式 artifacts，去重后写入完整描述符。复用旧依赖无须重扫历史；恢复从所选描述符链复制文件并重建辅助表。辅助表服务于准备与观察，完成权威仍是描述符。
+
 complete 也接受 `artifacts/` 内已经耐久且承诺不可变的合作式引用，记录路径和长度。该入口无法阻止外部代码以相同长度覆写文件；文件不可变性是组件合同。通过 prepare_artifact 可避免工作区文件后续修改影响恢复副本。当前没有通用外部数据库快照协调器，也没有 Chroma 自动备份保证。
 
 步骤发布前失败，恢复选取此前完整步骤。发布后进程退出，恢复选取已发布步骤。回执丢失后相同 complete 可幂等重试；文件系统 fsync 报错属于未知耐久结果，实例停止后由冷恢复判定可见完整身份。跨多个短事务的业务失败由调度器调用 abort_step；数据库之外的网络调用和原生 Python 副作用没有自动回滚。
 
 Session 导出流式消除了整个 changeset 的 Python bytes 副本；原生 Session 仍保存首次修改行的旧值，单行输出块也有内存下界。恢复应用净行变化，不以 changeset 重建动作顺序；动作审计或 Thread 顺序必须作为显式有主键的追加事实写入。读、捕获、恢复和压缩的完整量级验收仍需接入实际组件后进行。
+
+SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/session/c_changesetapply_fknoaction.html)。

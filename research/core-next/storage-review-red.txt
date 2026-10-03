@@ -1,0 +1,23 @@
+F.....                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_review_writer_lease_rejects_other_thread_even_inside_callback ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-247/test_review_writer_lease_rejec0')
+
+    def test_review_writer_lease_rejects_other_thread_even_inside_callback(tmp_path):
+        with create(tmp_path / 'run') as store:
+            errors = []
+            def callback(writer):
+                def cross_thread():
+                    try: writer.execute("UPDATE facts SET value='wrong' WHERE id=1")
+                    except BaseException as error: errors.append(error)
+                thread = threading.Thread(target=cross_thread)
+                thread.start()
+                thread.join()
+            store.transaction(callback)
+>           assert len(errors) == 1 and isinstance(errors[0], StorageError)
+E           assert (0 == 1)
+E            +  where 0 = len([])
+
+tests/primary/test_kernel_storage_review.py:33: AssertionError
+1 failed, 5 passed in 0.11s

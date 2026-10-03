@@ -116,3 +116,18 @@ def test_review_schema_filter_preserves_ordinary_table_names(tmp_path, table):
         store.complete(1)
     with StageStore.restore(path, tmp_path / 'restored', step=1) as restored:
         assert restored.read(lambda r: r.query(f'SELECT value FROM {table}')) == [('must persist',)]
+
+
+def test_review_native_restore_preserves_fk_update_cascade_and_set_null(tmp_path):
+    source=tmp_path/'fk'
+    with StageStore.create(source,[
+        'CREATE TABLE z_parent(id INTEGER PRIMARY KEY)',
+        'CREATE TABLE a_child(id INTEGER PRIMARY KEY,parent_id INTEGER REFERENCES z_parent(id) ON UPDATE CASCADE ON DELETE SET NULL)',
+    ],initialize=lambda w:(w.execute('INSERT INTO z_parent VALUES(1)'),w.execute('INSERT INTO a_child VALUES(1,1)'))) as store:
+        store.transaction(lambda w:w.execute('UPDATE z_parent SET id=2 WHERE id=1'))
+        store.complete(1)
+        store.transaction(lambda w:w.execute('DELETE FROM z_parent WHERE id=2'))
+        store.complete(2)
+    for step,parent_id in [(1,2),(2,None)]:
+        with StageStore.restore(source,tmp_path/str(step),step=step) as restored:
+            assert restored.read(lambda r:r.query('SELECT parent_id FROM a_child'))==[(parent_id,)]

@@ -11,7 +11,7 @@ from society0.kernel.runtime import Actor, DriverResult, Phase, Runtime
 class Store:
     complete_step = 0
     def __init__(self): self.events = []
-    def complete(self, step):
+    def complete(self, step, *, artifacts=()):
         self.complete_step = step
         self.events.append(('complete', step))
     def abort_step(self): self.events.append(('abort', self.complete_step))
@@ -45,7 +45,7 @@ async def test_review_concurrent_run_does_not_abort_existing_step():
 @pytest.mark.asyncio
 async def test_review_complete_receipt_failure_preserves_authoritative_watermark():
     runtime, store = make()
-    def publish_then_disconnect(step):
+    def publish_then_disconnect(step, *, artifacts=()):
         store.complete_step = step
         raise OSError('receipt lost after durable completion')
     store.complete = publish_then_disconnect
@@ -168,3 +168,21 @@ async def test_review_pluginhost_two_mechanisms_real_store_serial_then_restore(t
                      ('messages', [('messages', 0), ('orders', 1)])]
     with StageStore.restore(tmp_path / 'run', tmp_path / 'restored', step=1) as restored:
         assert restored.read(lambda r: r.query('SELECT name,value FROM facts ORDER BY name')) == [('messages', 1), ('orders', 1)]
+
+
+@pytest.mark.asyncio
+async def test_review_failed_serial_actor_prevents_queued_actor_start():
+    calls = []
+    async def run(session):
+        calls.append(session.actor.id)
+        if session.actor.id=='first': raise RuntimeError('first failed')
+        return DriverResult('completed')
+    store=Store()
+    runtime=Runtime([Actor(name,SimpleNamespace(run=run)) for name in ('first','second')],
+                    information=Information(lambda *args:True),actions=Actions(lambda *args:True),store=store)
+    def phase(ctx):
+        ctx.activate('first')
+        ctx.activate('second')
+    with pytest.raises(RuntimeError,match='first failed'):
+        await runtime.run_step(1,0,[Phase('serial',phase)])
+    assert calls==['first']

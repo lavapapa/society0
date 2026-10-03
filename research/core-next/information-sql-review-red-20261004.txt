@@ -1,0 +1,40 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_review_small_blob_range_does_not_materialize_whole_document _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-275/test_review_small_blob_range_d0')
+
+    @pytest.mark.asyncio
+    async def test_review_small_blob_range_does_not_materialize_whole_document(tmp_path):
+        with StageStore.create(tmp_path/'run', ['CREATE TABLE docs(id INTEGER PRIMARY KEY,body BLOB NOT NULL)'],
+                               initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,zeroblob(?))',(32*1024*1024,))) as store:
+            provider = SQLInformation('m',StageReader(store.path),{'docs':DocumentSpec('docs','id','body')})
+            apsw.status(apsw.SQLITE_STATUS_MEMORY_USED,True)
+            before = apsw.status(apsw.SQLITE_STATUS_MEMORY_USED)[0]
+            chunk = await provider.read(InteractionScope('a',Moment(0,'read')),'/m/docs/1',offset=16*1024*1024,size=64)
+            peak = apsw.status(apsw.SQLITE_STATUS_MEMORY_USED)[1]
+            assert chunk.data == b'\0'*64
+>           assert peak-before < 8*1024*1024, {'sqlite_temporary_peak':peak-before,'requested_bytes':64}
+E           AssertionError: {'sqlite_temporary_peak': 33819984, 'requested_bytes': 64}
+E           assert (33994496 - 174512) < ((8 * 1024) * 1024)
+
+tests/primary/test_kernel_information_sql_review.py:19: AssertionError
+_______ test_review_cursor_is_bound_to_moment_when_authorization_changes _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-275/test_review_cursor_is_bound_to0')
+
+    @pytest.mark.asyncio
+    async def test_review_cursor_is_bound_to_moment_when_authorization_changes(tmp_path):
+        with StageStore.create(tmp_path/'run', ['CREATE TABLE items(id INTEGER PRIMARY KEY,phase TEXT NOT NULL)'],
+                               initialize=lambda w:w.executemany('INSERT INTO items VALUES(?,?)',[(1,'morning'),(2,'morning'),(3,'night'),(4,'night')])) as store:
+            provider = SQLInformation('m',StageReader(store.path),{'items':DatasetSpec('items','id',('id',),authorize=lambda scope:('phase=?',(scope.moment.phase,)))})
+            cursor = (await provider.query(InteractionScope('a',Moment(0,'morning')),'/m/items',Query(limit=1))).next_cursor
+>           with pytest.raises(ValueError,match='cursor'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_information_sql_review.py:28: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_sql_review.py::test_review_small_blob_range_does_not_materialize_whole_document
+FAILED tests/primary/test_kernel_information_sql_review.py::test_review_cursor_is_bound_to_moment_when_authorization_changes
+2 failed in 0.18s
