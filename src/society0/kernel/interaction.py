@@ -312,7 +312,7 @@ class Actions:
         return ActionDescription(action.name, action.target_kind, action.description,
                                  deepcopy(action.parameters), action.terminal, action.tags, action.strict, action.read_only)
 
-    async def find(self, scope, target, *, query='', limit=100, cursor=None):
+    async def find(self, scope, target, *, query='', limit=100, cursor=None, names=None, tags=None):
         scope.check_active()
         if limit < 1:
             raise ValueError('limit must be positive')
@@ -321,10 +321,13 @@ class Actions:
                 tables=(*self._access_dependencies,*sorted(self._dependencies.get((target.namespace,target.kind),())))
                 return await _resolve(self._dependency_revision(scope,tables))
             return await _resolve(self._revision(scope)) if self._revision else scope.revision
+        names = None if names is None else frozenset(names)
+        tags = None if tags is None else frozenset(tags)
         revision = await version()
         scope.check_active()
         identity = json.dumps([scope.actor, asdict(scope.moment), revision, asdict(target),
-                               query, self._generation], ensure_ascii=False, sort_keys=True)
+                               query, self._generation, None if names is None else sorted(names),
+                               None if tags is None else sorted(tags)], ensure_ascii=False, sort_keys=True)
         offset = 0
         if cursor is not None:
             if cursor['identity'] != identity:
@@ -336,10 +339,15 @@ class Actions:
         candidates = []
         for name in self._types.get((target.namespace, target.kind), ()):
             action = self._actions[name][0]
+            if names is not None and name not in names:
+                continue
+            if tags is not None and not tags.intersection(action.tags):
+                continue
             if query.casefold() not in (name + ' ' + action.description).casefold():
                 continue
             if await self._eligible(scope, action, target):
-                candidates.append(name)
+                if revision is None:
+                    candidates.append(name)
                 if offset <= total < offset + limit:
                     selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags))
                 total += 1
@@ -348,10 +356,12 @@ class Actions:
             scope.check_active()
             if json.dumps(current, sort_keys=True) != json.dumps(revision, sort_keys=True):
                 raise ValueError('action discovery revision changed; restart discovery')
-        if cursor is not None and cursor['candidates'] != candidates:
+        if revision is None and cursor is not None and cursor['candidates'] != candidates:
             raise ValueError('action cursor candidates changed; restart discovery')
         end = offset + len(selected)
-        next_cursor = {'identity': identity, 'offset': end, 'candidates': candidates} if end < total else None
+        next_cursor = {'identity': identity, 'offset': end} if end < total else None
+        if next_cursor is not None and revision is None:
+            next_cursor['candidates'] = candidates
         return Page(selected, total, next_cursor, revision)
 
     async def describe(self, scope, name, target):
@@ -385,8 +395,8 @@ class _BoundActions:
     actions: Actions
     scope: InteractionScope
 
-    async def find(self, target, *, query='', limit=100, cursor=None):
-        return await self.actions.find(self.scope, target, query=query, limit=limit, cursor=cursor)
+    async def find(self, target, *, query='', limit=100, cursor=None, names=None, tags=None):
+        return await self.actions.find(self.scope, target, query=query, limit=limit, cursor=cursor, names=names, tags=tags)
 
     async def describe(self, name, target):
         return await self.actions.describe(self.scope, name, target)

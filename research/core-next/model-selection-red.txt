@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+________ ERROR collecting tests/primary/test_kernel_model_selection.py _________
+ImportError while importing test module '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_model_selection.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_model_selection.py:3: in <module>
+    from society0.kernel.model_selection import ModelResolver
+E   ModuleNotFoundError: No module named 'society0.kernel.model_selection'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

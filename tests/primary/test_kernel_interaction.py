@@ -481,3 +481,25 @@ def test_strict_action_requires_explicit_strict_schema():
     actions = Actions(lambda *args: True)
     with pytest.raises(ValueError, match='strict'):
         actions.register(Action('strict', ('m', 'job'), '', {'type': 'object'}, lambda *args: None, strict=True))
+
+@pytest.mark.asyncio
+async def test_find_policy_filters_version_cursor_and_empty_policy():
+    import json
+    calls=[]
+    actions=Actions(lambda *args:True,revision=lambda scope:['run',1])
+    for name,tags in [('one',('a',)),('two',('a',)),('three',('b',))]:
+        actions.register(Action(name,('world','item'),name,{'type':'object'},
+            lambda *args:ActionResult('completed'),tags=tags,
+            available=lambda scope,target,n=name:calls.append(n) or True))
+    bound=actions.bound(InteractionScope('alice',Moment(1,'p')))
+    target=Ref('world','item','x')
+    page=await bound.find(target,names=('one','two','three'),tags=('a',),limit=1)
+    assert calls==['one','two'] and page.total==2
+    assert 'candidates' not in page.next_cursor
+    cursor=json.loads(json.dumps(page.next_cursor))
+    next_page=await bound.find(target,names=('one','two','three'),tags=('a',),cursor=cursor)
+    assert [item.name for item in next_page.items]==['two']
+    with pytest.raises(ValueError,match='mismatch'):
+        await bound.find(target,tags=('a',),cursor=cursor)
+    assert (await bound.find(target,names=())).total==0
+    assert (await bound.find(target,tags=())).total==0
