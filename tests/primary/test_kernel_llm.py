@@ -285,9 +285,9 @@ async def test_required_thread_failure_never_retries_actual_model_request(tmp_pa
     def broken(*args, **kwargs):
         raise OSError('disk full')
     if failure == 'request':
-        threads.record_request = broken
+        threads.record_provider_request = broken
     else:
-        threads.event = broken
+        threads.record_provider_event = broken
     try:
         with pytest.raises(ThreadWriteError):
             await provider.request(tid, {})

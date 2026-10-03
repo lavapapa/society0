@@ -1,0 +1,29 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+_________ test_http_usage_and_prepared_complete_share_same_projection __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-646/test_http_usage_and_prepared_c0')
+
+    def test_http_usage_and_prepared_complete_share_same_projection(tmp_path):
+        import json,threading,http.client,time
+        from society0.kernel.observation import ObservationService,make_server
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            threads.record_provider_request(tid,provider_options={'model':'m'},physical_request_id='complete')
+            store.complete(1)
+            threads.record_provider_request(tid,provider_options={'model':'m'},physical_request_id='pending')
+            with ObservationService(store.path) as service:
+                server=make_server(service,port=0);runner=threading.Thread(target=server.serve_forever);runner.start()
+                try:
+                    connection=http.client.HTTPConnection('127.0.0.1',server.server_address[1],timeout=3)
+                    connection.request('POST','/',json.dumps({'method':'resource_usage','params':{'actor':'a'}}))
+                    response=connection.getresponse();live=json.loads(response.read());connection.close()
+                    assert response.status==200 and live['totals']['requests']==2 and live['complete']['step']==1
+                    service.prepare_complete(1);deadline=time.monotonic()+10
+                    while True:
+                        state=service.preparation_status()
+>                       if state['status']=='ready':break
+                           ^^^^^^^^^^^^^^^
+E                       KeyError: 'status'
+
+tests/primary/test_kernel_usage.py:195: KeyError

@@ -254,6 +254,18 @@ class Observation:
         return result
 
 
+    def resource_usage(self,*,actor=None,model=None,max_bytes=65536):
+        from .usage import read
+        _positive(max_bytes,'response budget',1024)
+        def snapshot(view):
+            result=read(view,actor=actor,model=model)
+            result.update(run_id=view.run_id,live_revision=view.live_revision,complete=self._complete(view))
+            return result
+        result=self.reader.read(snapshot)
+        if len(encoded(result))>max_bytes:
+            raise ObservationError('response_too_large','select a model or increase max_bytes')
+        return result
+
     def resource_tail(self,call_id,*,cursor=None,limit=100,max_bytes=65536):
         from ._json_chunks import decode_chunks
         _positive(limit,'limit')
@@ -461,7 +473,7 @@ class ObservationService:
         params = dict(params or {})
         if method in ('prepare_complete', 'preparation_status', 'clear_prepared'):
             return getattr(self, method)(**params)
-        if method not in ('status', 'list_threads', 'thread_tail', 'read_thread_payload','query','read_document','result_page','result_summary','result_phases','read_result_record','resource_tail','read_resource_payload','read_thread_artifact'):
+        if method not in ('status', 'list_threads', 'thread_tail', 'read_thread_payload','query','read_document','result_page','result_summary','result_phases','read_result_record','resource_usage','resource_tail','read_resource_payload','read_thread_artifact'):
             raise ObservationError('unknown_method')
         view = params.pop('view', None)
         def read(path):

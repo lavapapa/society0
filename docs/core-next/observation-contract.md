@@ -60,3 +60,9 @@ curl -s http://127.0.0.1:8711/ -H 'Content-Type: application/json' -d '{"method"
 HTTP 默认绑定本机，每个在途请求占一个工作槽。请求体和响应写入均有 socket timeout；槽满及时返回 503 与 server_busy，结束、超时或断连释放槽。默认请求体上限为 1 MiB、传输响应上限为 16 MiB；单次数据页还受所传 max_bytes 约束。HTTP 不提供无界事件队列，状态轮询得到最新快照，Thread tail 提供持续事实位置。CLI 失败输出 JSON error.code 并以非零状态退出，HTTP 失败使用结构化 error；Python 保留异常调用方式。
 
 外部读取的完整性来自持久身份、追加序号、完整步骤与原文范围。实时性应结合实际可见延迟、失败诊断和资源成本判断；轮询频率、服务启动以及单页成功均不足以代表全部数据已经消费完毕。
+
+## 资源累计
+
+`resource_usage(actor=None, model=None, max_bytes=65536)` 从事实写入时维护的短投影取得累计物理尝试、响应、错误、取消及提供方报告的 token，返回 run_id、live_revision、complete 和按 kind/model 的明细。默认读取 live，含未完成步骤诊断；服务调用传入已准备的 view 可读取对应完整步骤。累计查询不解压 Thread 或 ResourceCalls 原文。原请求与响应继续使用 Thread/resource 的分页和字节引用读取。
+
+全局 attribution 为 `physical_calls_once`；actor 查询为 `related_physical_calls_not_additive`，共享嵌入批次在每个关联主体视图中可见，跨主体求和会重复。embedding_uses 包括缓存逻辑使用，物理 requests 保持不变。每项 token 数配有 reports，unknown_usage_calls 单独显示未报告总 token 的次数。接口不将错误或未知用量推算成免费调用。详细字段语义与自定义提供方写入合同见 `models-contract.md`。

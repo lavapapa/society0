@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from functools import wraps
 
 import openai
+from . import usage
 
 from ..resource_managers import LLMManager, EmbeddingManager, _safe_provider_payload
 
@@ -86,14 +87,14 @@ class _Manager(LLMManager):
             raise ThreadWriteError('Thread write already failed')
         try:
             if event_type == 'provider_request':
-                sequence = trace.threads.record_request(
+                sequence = trace.threads.record_provider_request(
                     trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
                     physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
                 )
                 if trace.retry_of is None:
                     trace.retry_of = sequence
             else:
-                trace.threads.event(trace.thread_id, event_type, {
+                trace.threads.record_provider_event(trace.thread_id, event_type, {
                     'physical_request_id': provider_request_id, 'endpoint': endpoint.id,
                     'payload': {**payload, 'raw_response': trace.raw_response} if event_type == 'provider_response' else payload,
                 })
@@ -172,7 +173,7 @@ RESOURCE_SCHEMA = (
     'CREATE INDEX resource_calls_kind ON resource_calls(kind,id)',
     'CREATE TABLE resource_events(call_id TEXT NOT NULL,seq INTEGER NOT NULL,kind TEXT NOT NULL,raw_bytes INTEGER NOT NULL,PRIMARY KEY(call_id,seq))',
     'CREATE TABLE resource_chunks(call_id TEXT NOT NULL,seq INTEGER NOT NULL,chunk INTEGER NOT NULL,raw_start INTEGER NOT NULL,raw_bytes INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(call_id,seq,chunk))',
-)
+)+usage.schema("resource")
 
 
 class ResourceCalls:
@@ -200,11 +201,19 @@ class ResourceCalls:
         def write(writer):
             writer.execute('INSERT INTO resource_calls VALUES(?,?,?,?,0)',(identifier,kind,endpoint,model))
             self._append(writer,identifier,'request',payload)
+            if kind=='embedding':usage.begin(writer,'resource',identifier,model)
+            elif kind=='embedding_use':usage.logical_embedding(writer,model,payload)
         self.store.transaction(write)
         return identifier
 
     def event(self, identifier, kind, payload):
-        return self.store.transaction(lambda writer:self._append(writer,identifier,kind,payload))
+        def write(writer):
+            sequence=self._append(writer,identifier,kind,payload)
+            if (kind in ('response','error','decode_error','cancelled')
+                    and writer.query('SELECT kind FROM resource_calls WHERE id=?',(identifier,))[0][0]=='embedding'):
+                usage.finish(writer,'resource',identifier,outcome=kind,body=payload.get('response'))
+            return sequence
+        return self.store.transaction(write)
 
     def read(self, identifier):
         from ._json_chunks import decode_chunks
