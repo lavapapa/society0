@@ -16,8 +16,8 @@ This repository contains the standalone `society0` core simulation library. Futu
 - Do not replace LLM-based simulation behavior with shortcuts for speed.
 - A selected LLM agent must run the real agent loop through `World.instruct_agent()` or `World.interview_agent()`.
 - Default LLM simulations require both `LLMModel` and `EmbedModel`; memory must initialize successfully on the main `Society0` path.
-- `AgentGroup.instruct(..., memory=True)` must retrieve memory and save extractive memory by default. Do not downgrade to lightweight memory for speed unless a caller explicitly sets `extract_memory=False`.
-- Do not set `memory=False` or `extract_memory=False` in LLM-agent e2e tests merely to make them faster. Use those options only when the test or experiment is explicitly about a no-memory or lightweight-memory condition.
+- `AgentGroup.instruct(..., retrieve_memory=True)` retrieves existing memory. Durable experience is saved explicitly: open an Agent Thread, pass `thread_ids_by_agent`, then call `extract_thread_memories(...)` after the interaction succeeds.
+- Preserve retrieval and explicit extraction in memory-bearing experiments and LLM-agent e2e tests. Change those mechanisms only when the experiment explicitly studies a no-memory condition.
 - Preserve the full tool/action loop, including action filters, terminal actions, completion action tags, action call limits, reasoning stages, and per-call concurrency. These are semantic modeling controls, not performance shortcuts to remove.
 - `prefer_direct_json_output` is an opt-in path for action-free structured measurement. Do not use it for `instruct` rounds where ordinary tools/actions, terminal actions, required actions, or completion action tags are part of the experimental semantics.
 - Treat `terminal_actions` as semantic endpoints only after the terminal action succeeds. A failed terminal action should return feedback to the agent loop so the agent can correct arguments instead of ending the round prematurely.

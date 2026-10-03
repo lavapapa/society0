@@ -195,7 +195,10 @@ Design rules:
 - For stance change, maintain explicit state or evidence records. A transcript alone cannot
   explain whether movement came from evidence uptake, anchoring, sycophancy, or prompt drift.
 - Use memory as a modeled mechanism. In interview-grounded or multi-round deliberation
-  settings, `memory=True` is usually part of the design.
+  settings, `retrieve_memory=True` is usually part of the design.
+  When later rounds need newly formed experience, use explicit Agent Threads and
+  `extract_thread_memories(...)` as shown in `step-dsl.md`; decide separately
+  whether research interviews should become remembered experience.
 
 ## Paper-Derived Patterns
 
