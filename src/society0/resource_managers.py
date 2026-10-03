@@ -1204,16 +1204,8 @@ class LLMManager:
 
             # 处理tool_calls
             if hasattr(message, 'tool_calls') and message.tool_calls:
-                result["tool_calls"] = []
-                for tool_call in message.tool_calls:
-                    result["tool_calls"].append({
-                        "id": tool_call.id,
-                        "type": tool_call.type,
-                        "function": {
-                            "name": tool_call.function.name,
-                            "arguments": tool_call.function.arguments
-                        }
-                    })
+                # opaque 提供方扩展随原调用回传；不解释或重建签名字段。
+                result["tool_calls"] = [tool_call.model_dump(mode='json') for tool_call in message.tool_calls]
 
             return result
 
