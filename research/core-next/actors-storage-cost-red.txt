@@ -1,0 +1,53 @@
+F{'unrelated_active': [100, 10000], 'role_selector_vm': [1736, 160136]}
+F
+=================================== FAILURES ===================================
+_________ test_hot_actor_flag_does_not_capture_cold_persona_and_config _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-355/test_hot_actor_flag_does_not_c0')
+
+    @pytest.mark.asyncio
+    async def test_hot_actor_flag_does_not_capture_cold_persona_and_config(tmp_path):
+        giant='原文'*500000
+        async with compose(tmp_path/'run',[actor_plugin({'rule':lambda r:None},records=[
+            ActorRecord('a','rule',persona=giant,config={'original':giant})])]) as host:
+            actors=host.service('actors','actors')
+            store=host.service('storage','store')
+            actors.update('a',active=False)
+>           assert store._session.memory_used < 65536
+E           assert 6015520 < 65536
+E            +  where 6015520 = <apsw.Session of <apsw.Connection "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-355/test_hot_actor_flag_does_not_c0/run/current.sqlite" at 0x1093d7c40> at 0x109393eb0>.memory_used
+E            +    where <apsw.Session of <apsw.Connection "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-355/test_hot_actor_flag_does_not_c0/run/current.sqlite" at 0x1093d7c40> at 0x109393eb0> = <society0.kernel.storage.StageStore object at 0x10968be30>._session
+
+tests/primary/test_kernel_actors.py:103: AssertionError
+___ test_fixed_role_selection_seeks_without_scanning_unrelated_active_actors ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-355/test_fixed_role_selection_seek0')
+
+    @pytest.mark.asyncio
+    async def test_fixed_role_selection_seeks_without_scanning_unrelated_active_actors(tmp_path):
+        measured=[]
+        for count in (100,10000):
+            records=[ActorRecord('other'+str(i),'rule',roles=('other',)) for i in range(count)]
+            records.extend(ActorRecord('buyer'+str(i),'rule',roles=('buyer',)) for i in range(3))
+            async with compose(tmp_path/str(count),[actor_plugin({'rule':lambda r:None},records=records)]) as host:
+                actors=host.service('actors','actors')
+                original=actors.store.read
+                vm=[0]
+                def read(callback,**kwargs):
+                    def instrument(view):
+                        view._connection.set_progress_handler(lambda:vm.__setitem__(0,vm[0]+1) or False,1)
+                        return callback(view)
+                    return original(instrument,**kwargs)
+                actors.store.read=read
+                page=actors.select(role='buyer',limit=2)
+                assert page.total==3 and len(page.items)==2
+                measured.append(vm[0])
+        print({'unrelated_active':[100,10000],'role_selector_vm':measured})
+>       assert measured[1]<=measured[0]*2
+E       assert 160136 <= (1736 * 2)
+
+tests/primary/test_kernel_actors.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_actors.py::test_hot_actor_flag_does_not_capture_cold_persona_and_config
+FAILED tests/primary/test_kernel_actors.py::test_fixed_role_selection_seeks_without_scanning_unrelated_active_actors
+2 failed, 5 deselected in 0.23s

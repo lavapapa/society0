@@ -664,3 +664,43 @@ async def test_cancelled_provider_keeps_thread_incomplete_and_no_actions(tmp_pat
             await driver.run(session)
     finally:
         store.close()
+
+
+@pytest.mark.asyncio
+async def test_memory_hooks_keep_original_input_boundary_and_thread_open(tmp_path):
+    store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision')])
+    seen=[]
+    async def before(current,tid):
+        seen.append(('before',threads.describe(tid)['status']))
+        return [{'role':'user','content':'full recalled memory'}]
+    async def after(current,tid,result):
+        seen.append(('after',threads.describe(tid)['status']))
+        assert result.value['memory_input_through']==threads.describe(tid)['last_seq']
+        threads.append_message(tid,{'role':'user','content':'extract memory from complete decision'})
+        assert result.value['memory_input_through']<threads.describe(tid)['last_seq']
+    driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+    try:
+        result=await driver.run(session)
+        assert result.status=='completed'
+        assert seen==[('before','open'),('after','open')]
+        assert provider.requests[0][2][0]['content']=='full recalled memory'
+    finally:store.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure',[False,True])
+async def test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete(tmp_path,failure):
+    store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision',finish='stop' if failure else 'length')])
+    seen=[]
+    async def before(*args):return []
+    async def after(*args):
+        seen.append(True)
+        raise OSError('embedding evidence failed')
+    driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+    try:
+        if failure:
+            with pytest.raises(OSError,match='embedding evidence'):await driver.run(session)
+        else:assert (await driver.run(session)).status=='incomplete'
+        assert seen==([True] if failure else [])
+        assert threads.describe(session.cursors['thread_id'])['status']=='incomplete'
+    finally:store.close()

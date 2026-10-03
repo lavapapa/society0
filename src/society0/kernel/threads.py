@@ -188,10 +188,13 @@ class ThreadStore:
             return payload
         return self.store.read(read)
 
-    def snapshot_messages(self, thread_id):
+    def snapshot_messages(self, thread_id, *, through=None):
         def read(view):
-            through = _head(view,thread_id)['last_seq']
-            return {'messages':_messages(view,thread_id,through=through),'through':through}
+            latest = _head(view,thread_id)['last_seq']
+            watermark = latest if through is None else through
+            if type(watermark) is not int or not 0 <= watermark <= latest:
+                raise ValueError('invalid message watermark')
+            return {'messages':_messages(view,thread_id,through=watermark),'through':watermark}
         return self.store.read(read)
 
     def read_messages(self, thread_id, *, after_seq=0, max_messages=None):

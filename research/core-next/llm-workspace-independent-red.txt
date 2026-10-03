@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-354/test_review_workspace_save_fai0')
+
+    @pytest.mark.asyncio
+    async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
+        closed=[]
+        async def close():closed.append(True)
+        shell=SimpleNamespace(snapshot=lambda:b'snapshot',aclose=close)
+        driver.shell_factory=lambda *a:shell
+        def save(*a):raise OSError('disk full')
+        driver.workspace=SimpleNamespace(save_workspace=save)
+        try:
+            with pytest.raises(OSError,match='disk full'):await driver.run(session)
+            assert closed==[True]
+>           assert threads.describe(session.cursors['thread_id'])['status']=='incomplete'
+E           AssertionError: assert 'completed' == 'incomplete'
+E             
+E             - incomplete
+E             ? --
+E             + completed
+E             ?         +
+
+tests/primary/test_kernel_llm_workspace_review.py:19: AssertionError

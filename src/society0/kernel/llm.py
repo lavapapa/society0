@@ -257,11 +257,13 @@ def _schema(properties):
 
 
 class LLMDriver:
-    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None):
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, workspace=None, memory=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
+        self.workspace = workspace
+        self.memory = memory
 
     def _tools(self):
         schemas = {
@@ -358,6 +360,9 @@ class LLMDriver:
         shell = None
         status, reason, structured = 'incomplete', 'driver_error', None
         try:
+            if self.memory is not None:
+                for message in await self.memory.before_activation(session, thread_id):
+                    self.threads.append_message(thread_id, message)
             for message in await invoke_maybe_async(self.input_builder, session):
                 self.threads.append_message(thread_id, message)
             tools = self._tools()
@@ -496,11 +501,25 @@ class LLMDriver:
                     break
             else:
                 reason = 'max_turns'
-            return DriverResult(status, {'thread_id': thread_id, 'result': structured,
-                                        'action_counts': dict(ledger.counts)}, reason)
+            result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
+                                 'action_counts': dict(ledger.counts),
+                                 'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)
+            if self.memory is not None and status in ('completed', 'waiting'):
+                await self.memory.after_activation(session, thread_id, result)
+            return result
+        except BaseException:
+            status = 'incomplete'
+            raise
         finally:
             try:
                 if shell is not None:
-                    await shell.aclose()
+                    try:
+                        if self.workspace is not None and status in ('completed', 'waiting'):
+                            self.workspace.save_workspace(session.actor.id, [shell.snapshot()])
+                    except BaseException:
+                        status = 'incomplete'
+                        raise
+                    finally:
+                        await shell.aclose()
             finally:
                 self.threads.close(thread_id, status)

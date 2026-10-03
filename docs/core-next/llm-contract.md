@@ -4,7 +4,7 @@ LLMDriver 在主体当前会话内使用完整 Thread 做决定，通过与规�
 
 ## 一、调用
 
-构造 `LLMDriver(provider, threads, input_builder=..., policy=LLMPolicy(...), shell_factory=None)`，交给 `Actor`。`input_builder(session)` 返回本次需要追加的消息，可同步或异步，负责完整提供 persona、precision、reminder 与经营视图。此前消息继续存在，发送时读取整个 Thread；没有隐藏的消息窗口或自动摘要。调用返回 `DriverResult(status, value, reason)`，value 含 thread_id、结构结果和实际行动计数。
+构造 `LLMDriver(provider, threads, input_builder=..., policy=LLMPolicy(...), shell_factory=None, workspace=None)`，交给 `Actor`。`input_builder(session)` 返回本次需要追加的消息，可同步或异步，负责完整提供 persona、precision、reminder 与经营视图。此前消息继续存在，发送时读取整个 Thread；没有隐藏的消息窗口或自动摘要。调用返回 `DriverResult(status, value, reason)`，value 含 thread_id、结构结果和实际行动计数。
 
 `provider.request(thread_id, options)` 返回 assistant 消息及 finish_reason。`ModelProvider(endpoints, threads, max_attempts=2, retry_delay=0.1)` 为现有模型资源管理器的适配器；关闭时执行 `await provider.close()`。物理请求消息在一次短读内与 through 水位一起捕获，所有重试引用同一水位，SDK 获得同一完整消息列表。SDK 内置重试关闭；适配器仅重试连接、超时、限流及服务端错误。必需 Thread 写入失败直接传播，避免把已发送请求当作网络失败再次发送。上下文超限返回明确未完成原因。
 
@@ -21,6 +21,8 @@ LLMDriver 在主体当前会话内使用完整 Thread 做决定，通过与规�
 data_list 与 data_query 保留总数及继续读取游标，data_read 默认按 UTF-8 文本读取，可指定 base64 完整读取二进制。UTF-8 分块至少四字节，继续偏移避免拆开码点。数据提供方返回自身实际 revision，当前会话不宣称跨网络等待保持数据库快照。
 
 可选 shell_factory 接收 `(session, bound_action_ledger)`，返回 ShellSession。shell 使用同一行动账本，完整 stdout、stderr、工具回执封存为步骤产物并登记到 Thread；返回预览与引用。`driver.read_result(session, reference, offset=0, size=65536, encoding='utf-8')` 可用于 ShellSession 的 result_reader，也由 result_read 元工具调用。恢复后的旧引用仍通过 Thread 的主体关联索引定位。Bashkit 输出接口为 UTF-8 文本，精确二进制内容走 data 的 base64 通路。
+
+可选 workspace 接收 ActorStore。shell_factory 从该主体 load_workspace 恢复私有工作区；成功激活在 shell 空闲且尚未关闭时保存 snapshot，保存失败将 Thread 标记为 incomplete 并传播，Runtime 因而拒绝完成该步骤。主体工作区与 Thread 身份分别持久化，新的 Moment 仍可读取前一步工作区。
 
 同主体、同 Moment、同 mode 再激活使用持久化索引定位原 Thread，保留 provider_session_id。completed 或 waiting 可继续；incomplete 的诊断 Thread 要求显式恢复，避免换一次激活重置失败预算。恢复边界仍由完整步骤决定，未完成步骤内外部服务已经发生的事实保留在原运行诊断中。
 
