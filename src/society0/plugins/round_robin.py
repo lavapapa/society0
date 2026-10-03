@@ -142,6 +142,7 @@ class RoundRobin:
         return self.store.transaction(write)
 
     def register(self,information,actions):
+        dependencies=(self.name+'_members',self.name+'_head')
         def own(scope,target):
             return target.key==scope.actor and self.store.read(lambda r:bool(r.query(f'SELECT 1 FROM {self.table("members")} WHERE id=?',(scope.actor,))))
         def available(scope,target):
@@ -149,12 +150,12 @@ class RoundRobin:
         content={'type':'object','properties':{'content':{'type':'string'}},'required':['content'],'additionalProperties':False}
         for operation,broadcast in (('send_message_to_partner',False),('broadcast_to_group',True)):
             actions.register(Action(self.name+'.'+operation,(self.name,'participants'),'发送完整消息给当前伙伴。' if not broadcast else '向当前小组其他成员广播完整消息。',content,
-                lambda scope,target,args,broadcast=broadcast:self._send(scope.actor,args['content'],broadcast),available=available))
+                lambda scope,target,args,broadcast=broadcast:self._send(scope.actor,args['content'],broadcast),available=available),dependencies=dependencies)
         def mark(scope,target,args):
             self.actors.set_state(scope.actor,'conversation_marker',args['marker'])
             return ActionResult('completed',{'marker':args['marker'],**self.pairing(scope.actor)})
         actions.register(Action(self.name+'.mark_conversation_participant',(self.name,'participants'),'保存本主体的对话参与标记。',
-            {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own))
+            {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own),dependencies=dependencies)
         current=f'(SELECT current_round FROM {self.table("head")} WHERE id=1)'
         def inbox(scope): return ('receiver=? AND round='+current+f' AND id>(SELECT inbox_after FROM {self.table("head")} WHERE id=1)',(scope.actor,))
         def history(scope): return ('receiver=?',(scope.actor,))
@@ -163,8 +164,8 @@ class RoundRobin:
         columns=('id','sender','receiver','round','timestamp')
         info=SQLInformation(self.name,self.store,{
             'participants':DatasetSpec(self.name+'_members','id',('id','group_no','partner','round','active'),authorize=lambda scope:('id=?',(scope.actor,))),
-            'messages':DatasetSpec(self.name+'_messages','id',columns,authorize=inbox,base_count=counter(current)),
-            'history':DatasetSpec(self.name+'_messages','id',columns,authorize=history,base_count=counter('0')),
+            'messages':DatasetSpec(self.name+'_messages','id',columns,authorize=inbox,base_count=counter(current),dependencies=(self.name+'_head',self.name+'_counts')),
+            'history':DatasetSpec(self.name+'_messages','id',columns,authorize=history,base_count=counter('0'),dependencies=(self.name+'_counts',)),
             'content':DocumentSpec(self.name+'_messages','id','body',authorize=history),
         })
         information.mount('/'+self.name,info)

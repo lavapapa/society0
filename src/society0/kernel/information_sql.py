@@ -21,6 +21,7 @@ class DatasetSpec:
     authorize: object = None
     order_fields: tuple[str, ...] = ()
     base_count: object = None
+    dependencies: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class DocumentSpec:
     key: str
     body: str
     authorize: object = None
+    dependencies: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -37,10 +39,14 @@ class SamplePage(Page):
 
 
 class SQLInformation:
-    def __init__(self, namespace, reader, routes, *, max_page_size=1000):
+    def bind_access_dependencies(self,tables):
+        self.access_dependencies=tuple(dict.fromkeys((*self.access_dependencies,*tables)))
+
+    def __init__(self, namespace, reader, routes, *, max_page_size=1000, access_dependencies=()):
         self.max_page_size = max_page_size
         self.namespace = namespace
         self.reader = reader
+        self.access_dependencies = tuple(access_dependencies)
         self._routes = dict(routes)
         self._integer_keys = {}
         self._columns = {}
@@ -154,7 +160,8 @@ class SQLInformation:
             if not rows: raise Unavailable('resource unavailable')
             data, total = view.read_blob(spec.table, spec.body, rows[0][0], offset=offset, size=size)
             end = offset + len(data)
-            return DocumentChunk(data, total, end if end < total else None, view.live_revision, self.ref(path))
+            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            return DocumentChunk(data, total, end if end < total else None, revision, self.ref(path))
         return self.reader.read(read, expected_revision=scope.revision)
 
     async def query(self, scope, path, query):
@@ -182,8 +189,9 @@ class SQLInformation:
         ordering = ','.join(_quote(field) + ' ' + direction for field, direction in order)
 
         def read(view):
+            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
             if query.cursor is not None:
-                if query.cursor['identity'] != shape or query.cursor['revision'] != view.live_revision:
+                if query.cursor['identity'] != shape or query.cursor['revision'] != revision or query.cursor['run_id'] != view.run_id:
                     raise ValueError('query cursor or revision changed')
             if isinstance(spec, DatasetSpec) and spec.base_count and not query.filters:
                 sql, bindings = spec.base_count(scope)
@@ -209,7 +217,7 @@ class SQLInformation:
                                         (*values, *keys), max_rows=len(keys))
                     by_key = {row[selected.index(spec.key)]: row for row in picked}
                     rows = [by_key[key] for key in keys]
-                return SamplePage(self._items(route, fields, selected, rows), len(rows), None, view.live_revision, total)
+                return SamplePage(self._items(route, fields, selected, rows), len(rows), None, revision, total)
             select = 'SELECT ' + columns + ' FROM ' + table + ' WHERE ' + where
             ending = ' ORDER BY ' + ordering + ' LIMIT ?'
             sql, bindings = select + ending, [*values, query.limit + 1]
@@ -232,9 +240,9 @@ class SQLInformation:
             cursor = None
             if more:
                 tail = dict(zip(selected, rows[-1]))
-                cursor = {'identity': shape, 'revision': view.live_revision,
+                cursor = {'identity': shape, 'revision': revision, 'run_id': view.run_id,
                           'last': [tail[field] for field, _ in order]}
-            return Page(self._items(route, fields, selected, rows), total, cursor, view.live_revision)
+            return Page(self._items(route, fields, selected, rows), total, cursor, revision)
         return self.reader.read(read, expected_revision=scope.revision)
 
     def _items(self, route, fields, selected, rows):

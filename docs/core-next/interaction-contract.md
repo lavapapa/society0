@@ -54,7 +54,9 @@ Action 支持不可变 tags、strict 与 read_only 元数据，describe 返回�
 
 注册时采用现有 jsonschema 检查 schema，隔离注册参数及描述返回值的可变引用。strict=True 复用已有严格工具 schema 校验，要求显式闭合对象与必需字段；执行前保留旧 ActionSet 的 nullable 字符串归一化，再按原 schema 验证。显式枚举中的字符串 null 保持原值，参数不被原地修改，也不为注册自动放宽 schema。执行参数不符合 schema 时返回 rejected/invalid_arguments，handler 不执行。未知动作、类型不匹配和不可调用均返回 rejected/unavailable。动作函数返回 `ActionResult(status,value=None,process=None,terminal=False)`；status 为 completed、accepted 或 rejected。accepted 可携带后续过程 Ref。只有注册为 terminal 且完成的动作具有 terminal=True，handler 自行设置的 terminal 不会改变该合同。
 
-Actions 可注入 `revision(scope)` 取得当前实际版本，Page 与发现游标绑定这个版本，异步候选检查期间版本变化会拒绝整页并要求重读。未注入时采用 scope.revision；当前模式下仍校对候选序列。发现游标同时绑定主体、时点、target、搜索串、注册代次和当前可用模板序列。继续读取时可用模板变化将报游标失效，需要重新发现，避免 current 视图发生位移而漏读。游标不冻结业务条件，执行继续独立重验。动作游标可经 JSON 编码与解码往返，调用方将其作为不透明值传回。Moment.time 和 revision 须使用可 JSON 表达的标量或结构。
+正式共享环境使用 `interaction_plugin(allows, access_dependencies=())`，统一声明访问规则读取的表。业务插件 `Actions.register(action, dependencies=())` 按目标类型合并资格相关表；表版本由写入器维护。发现页与游标绑定运行身份和这些依赖版本，Thread 留证保持旧页有效，相关业务或权限变化明确过期。异步候选检查前后都核对版本。注册时应列全跨插件资格依赖，例如 Actor 角色选择表；缺省依赖为空，仍逐次核对实际可用候选序列。Information.mount 将统一访问依赖传给支持该声明的 SQLInformation。
+
+独立非 SQL Actions 可注入 `revision(scope)`，或采用 scope.revision 与候选序列校验。发现游标同时绑定主体、时点、target、搜索串、注册代次和当前可用模板序列，支持 JSON 往返。执行始终重新判断当前资格。SQL Page/DocumentChunk.revision 描述相关数据版本；显式 scope.revision 继续约束全局数据库 live_revision，两者用途不同。
 
 ## 四、故障与成本
 

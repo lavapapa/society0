@@ -384,3 +384,54 @@ def test_schema_preflight_does_not_open_dirty_writer(tmp_path):
         assert StageStore.validate_schema(store.path,SCHEMA) is None
         with pytest.raises(StorageError,match='schema'):
             StageStore.validate_schema(store.path,[*SCHEMA,'CREATE TABLE extra(id INTEGER PRIMARY KEY)'])
+
+
+def test_native_table_revisions_track_cached_sql_without_rowid_and_artifact_switch(tmp_path):
+    schema=('CREATE TABLE records(id INTEGER PRIMARY KEY,value INTEGER)',
+            'CREATE TABLE keyed(id TEXT PRIMARY KEY NOT NULL,value INTEGER) WITHOUT ROWID')
+    with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute('INSERT INTO records VALUES(1,0)'),w.execute("INSERT INTO keyed VALUES('a',0)"))) as store:
+        assert store.read(lambda v:(v.run_id,v.revision_for(['records']),v.revision_for([])))==(store.run_id,0,0)
+        previous=0
+        for _ in range(3):
+            store.transaction(lambda w:w.execute('UPDATE records SET value=value+1 WHERE id=1'))
+            current=store.read(lambda v:v.revision_for(['records']))
+            assert current>previous
+            assert store.read(lambda v:v.revision_for(['keyed']))==0
+            previous=current
+        artifact=store.prepare_artifact([b'content'])
+        store.transaction(lambda w:(w.include_artifact(artifact),w.execute("UPDATE keyed SET value=1 WHERE id='a'")))
+        assert store.read(lambda v:v.revision_for(['keyed']))>previous
+        with pytest.raises(ValueError,match='unknown'):
+            store.read(lambda v:v.revision_for(['missing']))
+        before=store.read(lambda v:v.revision_for(['records','keyed']))
+        def fail(w):
+            w.execute('UPDATE records SET value=999')
+            raise RuntimeError('rollback')
+        with pytest.raises(RuntimeError):store.transaction(fail)
+        assert store.read(lambda v:v.revision_for(['records','keyed']))==before
+        store.complete(1)
+        with StageStore.restore(store.path,tmp_path/'restored') as restored:
+            assert restored.run_id!=store.run_id
+            assert restored.read(lambda v:v.revision_for(['records','keyed']))==0
+            assert restored.read(lambda v:v.query('SELECT value FROM records'))==[(3,)]
+
+
+def test_native_table_revisions_include_foreign_key_cascade(tmp_path):
+    schema=('CREATE TABLE parent(id INTEGER PRIMARY KEY)',
+            'CREATE TABLE child(id INTEGER PRIMARY KEY,parent_id INTEGER REFERENCES parent(id) ON DELETE CASCADE)')
+    with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute('INSERT INTO parent VALUES(1)'),w.execute('INSERT INTO child VALUES(1,1)'))) as store:
+        store.transaction(lambda w:w.execute('DELETE FROM parent WHERE id=1'))
+        assert store.read(lambda v:v.revision_for(['child']))==1
+        assert store.read(lambda v:v.query('SELECT * FROM child'))==[]
+
+
+def test_table_revision_storage_format_is_explicit_and_old_format_rejected(tmp_path):
+    import json
+    path=tmp_path/'run'
+    with StageStore.create(path,('CREATE TABLE record(id INTEGER PRIMARY KEY)',)):
+        manifest=json.loads((path/'run.json').read_text())
+        assert manifest['format']==2
+    manifest['format']=1
+    (path/'run.json').write_text(json.dumps(manifest))
+    with pytest.raises(StorageError,match='format'):StageStore.open(path)
+    with pytest.raises(StorageError,match='format'):StageStore.restore(path,tmp_path/'restore')

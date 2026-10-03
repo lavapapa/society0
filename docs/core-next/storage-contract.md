@@ -37,3 +37,11 @@ complete 也接受 `artifacts/` 内已经耐久且承诺不可变的合作式引
 Session 导出流式消除了整个 changeset 的 Python bytes 副本；原生 Session 仍保存首次修改行的旧值，单行输出块也有内存下界。恢复应用净行变化，不以 changeset 重建动作顺序；动作审计或 Thread 顺序必须作为显式有主键的追加事实写入。读、捕获、恢复和压缩的完整量级验收仍需接入实际组件后进行。
 
 SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/session/c_changesetapply_fknoaction.html)。
+
+## 数据相关的分页版本
+
+`ReadView.run_id` 与 `revision_for(tables)` 在当前短读快照内提供运行身份及所声明表的版本。版本是这些表最近写入事务的最大 live_revision，空集合返回 0，未知表名拒绝。信息提供者声明数据、权限和计数所依赖的表，游标同时绑定 run_id 与该版本；Thread 留证等无关写入因而不会使业务分页失效。
+
+规范写入器复用 SQLite authorizer，在每个事务准备 INSERT、UPDATE、DELETE 时收集目标表，再于同一次事务更新辅助版本表。失败回滚同步撤回版本；无匹配行的写语句可以保守地推进版本。每次事务设置和清除 authorizer，也覆盖语句缓存重新授权、外键级联和 WITHOUT ROWID 表。artifact 登记临时退出授权器后恢复本次事务的收集器，后续业务写入继续受跟踪。
+
+辅助版本表用于当前读取身份，不构成恢复权威，也不进入 Session 变化集。restore/fork 创建新 run_id，将新根的 live_revision 及各表版本一起归零，后续从新身份推进。当前格式面向新运行，旧库没有新增辅助表时需重新创建运行；本项目不提供格式迁移。
