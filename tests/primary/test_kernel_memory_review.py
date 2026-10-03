@@ -105,3 +105,85 @@ async def test_review_index_watermark_failure_after_upsert_restores_without_reem
             assert record['embedding']==vectors and record['content']=='complete original'
             assert record['metadata']=={'x':[1,True,None]}
             assert recovered.job(job)['state']=='complete'
+
+
+@pytest.mark.asyncio
+async def test_review_close_collects_update_wait_before_shared_resources_can_close(tmp_path):
+    import asyncio
+    store,threads,tid,memory,embed,client=setup(tmp_path)
+    with store:
+        identifier=(await memory.seed('a','initial',timestamp=0,entries=[{'content':'before close'}]))[0]
+        started=asyncio.Event(); release=asyncio.Event(); settled=[]
+        async def pending(texts,*,metadata):
+            started.set()
+            try:await release.wait()
+            finally:settled.append(True)
+            return await embed(texts,metadata=metadata)
+        memory.embed=pending
+        update=asyncio.create_task(memory.update(identifier,actor='a',content='after close',timestamp=1))
+        await started.wait()
+        try:
+            await memory.close()
+            assert update.done(), 'close returned with an active embedding update'
+            assert settled==[True]
+            assert memory.get(identifier,actor='a')['content']=='before close'
+        finally:
+            release.set()
+            await asyncio.gather(update,return_exceptions=True)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation',['update','delete'])
+@pytest.mark.parametrize('case',['missing','other_actor'])
+async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+    from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+    store,threads,tid,memory,embed,client=setup(tmp_path)
+    with store:
+        identifier='missing'
+        if case=='other_actor':
+            identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+        actions=Actions(lambda *args:True)
+        for action in memory.actions():actions.register(action)
+        arguments={'memory_id':identifier}
+        if operation=='update':arguments['content']='changed'
+        before=len(embed.calls)
+        result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
+                                    Ref('memory','actor','a'),arguments)
+        assert result.status=='rejected'
+        assert len(embed.calls)==before
+        if case=='other_actor':assert memory.get(identifier,actor='b')['content']=='private b'
+
+
+@pytest.mark.asyncio
+async def test_review_memory_action_provider_failure_still_propagates(tmp_path):
+    from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+    store,threads,tid,memory,embed,client=setup(tmp_path)
+    with store:
+        identifier=(await memory.seed('a','seed',timestamp=0,entries=[{'content':'before'}]))[0]
+        async def failed(*args,**kwargs):raise OSError('embedding transport failure')
+        memory.embed=failed
+        actions=Actions(lambda *args:True)
+        for action in memory.actions():actions.register(action)
+        with pytest.raises(OSError,match='embedding transport failure'):
+            await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.update',
+                                 Ref('memory','actor','a'),{'memory_id':identifier,'content':'after'})
+        assert memory.get(identifier,actor='a')['content']=='before'
+
+
+@pytest.mark.asyncio
+async def test_review_import_generator_failure_preserves_existing_dimension_and_revision(tmp_path):
+    store,threads,tid,memory,embed,client=setup(tmp_path)
+    with store:
+        identifier=(await memory.seed('a','seed',timestamp=0,entries=[{'content':'before'}]))[0]
+        before=store.read(lambda r:r.query('SELECT * FROM memory_state'))
+        def records():
+            yield {'id':'new','content':'valid','timestamp':1,'embedding':[1.,2.]}
+            raise RuntimeError('interrupted transfer')
+        with pytest.raises(RuntimeError,match='interrupted transfer'):
+            memory.import_records('a',records(),visible_step=1)
+        assert store.read(lambda r:r.query('SELECT * FROM memory_state'))==before
+        assert store.read(lambda r:r.query('SELECT step FROM memory_visibility WHERE actor=?',('a',)))==[(0,)]
+        exported=[]
+        assert memory.export('a',exported.append)==1
+        assert exported[0]['id']==identifier
+        assert exported[0]['content']=='before'

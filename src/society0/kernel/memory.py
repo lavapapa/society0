@@ -5,6 +5,8 @@ import asyncio
 from dataclasses import dataclass
 import json
 import itertools
+import inspect
+from functools import wraps
 import math
 import struct
 import uuid
@@ -95,6 +97,20 @@ def _vectors(values, count, dimension=None):
     return expected
 
 
+def _operation(method):
+    @wraps(method)
+    async def scoped(self,*args,**kwargs):
+        self._check()
+        task=asyncio.current_task()
+        self._operations[task]=self._operations.get(task,0)+1
+        try:return await method(self,*args,**kwargs)
+        finally:
+            depth=self._operations[task]-1
+            if depth:self._operations[task]=depth
+            else:self._operations.pop(task)
+    return scoped
+
+
 class Memory:
     def __init__(self,store,threads,*,embed,client,extract=None,policy=None,recall_query=None,decay_rate=0.01,recall_top_k=10):
         self.store,self.threads=store,threads
@@ -106,6 +122,66 @@ class Memory:
         self.decay_rate=decay_rate
         self._collection=None
         self._flights={}
+        self._closed=False
+        self._operations={}
+
+    def _check(self):
+        if self._closed:raise RuntimeError('Memory is closed')
+
+    async def close(self):
+        self._closed=True
+        tasks=(set(self._flights.values())|set(self._operations))-{asyncio.current_task()}
+        for task in tasks:task.cancel()
+        if tasks:await asyncio.gather(*tasks,return_exceptions=True)
+        self._flights.clear()
+
+    @_operation
+    async def seed(self,actor,job_key,*,timestamp,entries,visible_step=None):
+        self._check()
+        job=self.prepare_job(actor,None,'seed:'+job_key,timestamp=timestamp,entries=entries,visible_step=visible_step)
+        return await self.finish_job(job)
+
+    def export(self,actor,consume):
+        def read(view):
+            count=0
+            for identifier,kind,timestamp,importance in view.iter_query("SELECT id,type,timestamp,importance FROM memory_rows WHERE actor=? AND state='ready' ORDER BY id",(actor,)):
+                item=_payload(view,identifier)
+                dimension,raw=view.query('SELECT dimension,vector FROM memory_vectors WHERE id=?',(identifier,))[0]
+                item.update(id=identifier,type=kind,timestamp=timestamp,importance=importance,
+                            embedding=list(struct.unpack('<'+str(dimension)+'d',raw)))
+                result=consume(item)
+                if inspect.isawaitable(result):
+                    if inspect.iscoroutine(result):result.close()
+                    raise TypeError('memory export consumer must be synchronous')
+                count+=1
+            return count
+        return self.store.read(read)
+
+    def import_records(self,actor,records,*,visible_step):
+        self._check()
+        if type(visible_step) is not int:raise ValueError('memory visible_step must be an integer')
+        def write(writer):
+            rows=writer.query('SELECT dimension FROM memory_state WHERE id=1')
+            dimension=rows[0][0] if rows else None
+            count=0
+            for record in records:
+                item=_entry(record)
+                timestamp=record['timestamp']
+                if type(timestamp) is not int:raise ValueError('memory timestamp must be an integer')
+                vector=record['embedding']
+                dimension=_vectors([vector],1,dimension)
+                identifier=record.get('id') or uuid.uuid4().hex
+                if count==0:_visible(writer,actor,visible_step)
+                revision=_next_revision(writer)
+                writer.execute('UPDATE memory_state SET dimension=? WHERE id=1',(dimension,))
+                writer.execute('INSERT INTO memory_rows VALUES(?,?,?,?,?,?,?,?)',
+                    (identifier,actor,item['type'],timestamp,item['importance'],'ready',revision,visible_step))
+                writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((identifier,index,size,payload)
+                    for index,(size,payload) in enumerate(encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                writer.execute('INSERT INTO memory_vectors VALUES(?,?,?)',(identifier,dimension,struct.pack('<'+str(dimension)+'d',*vector)))
+                count+=1
+            return count
+        return self.store.transaction(write)
 
     def job(self,job_id):
         def read(view):
@@ -131,6 +207,7 @@ class Memory:
         return self.store.read(read)
 
     def prepare_job(self,actor,thread_id,job_key,*,timestamp,entries,visible_step=None):
+        self._check()
         visible_step=timestamp if visible_step is None else visible_step
         if type(visible_step) is not int:raise ValueError('memory visible_step must be an integer')
         if type(timestamp) is not int:raise ValueError('memory timestamp must be an integer')
@@ -160,7 +237,9 @@ class Memory:
         self.store.transaction(write)
         return job_id
 
+    @_operation
     async def finish_job(self,job_id):
+        self._check()
         if job_id in self._flights:
             return await asyncio.shield(self._flights[job_id])
         task=asyncio.create_task(self._finish_job(job_id))
@@ -176,6 +255,7 @@ class Memory:
             texts=[record['content'] for record in records]
             vectors=await self.embed(texts,metadata={'actor':job['actor'],'thread_id':job['thread_id'],
                                                     'job_id':job_id,'memory_ids':job['memory_ids'],'purpose':'memory_write'}) if texts else []
+            self._check()
             rows=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))
             dimension=_vectors(vectors,len(texts),rows[0][0] if rows else None)
             def write(writer):
@@ -193,7 +273,9 @@ class Memory:
         self.store.transaction(lambda writer:writer.execute("UPDATE memory_jobs SET state='complete' WHERE id=?",(job_id,)))
         return job['memory_ids']
 
+    @_operation
     async def update(self,memory_id,*,actor,content,timestamp,importance=None,metadata=None,visible_step=None):
+        self._check()
         visible_step=timestamp if visible_step is None else visible_step
         if type(visible_step) is not int:raise ValueError('memory visible_step must be an integer')
         if type(timestamp) is not int:raise ValueError('memory timestamp must be an integer')
@@ -203,6 +285,7 @@ class Memory:
         item=_entry({'content':content,'type':old['type'],'importance':3.0 if importance is None else importance,
                      'metadata':{} if metadata is None else metadata})
         vectors=await self.embed([content],metadata={'actor':actor,'memory_ids':[memory_id],'purpose':'memory_update'})
+        self._check()
         dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
         _vectors(vectors,1,dimension)
         def write(writer):
@@ -221,7 +304,9 @@ class Memory:
         await self.sync_index()
         return memory_id
 
+    @_operation
     async def delete(self,memory_id,*,actor,visible_step=None):
+        self._check()
         def write(writer):
             rows=writer.query('SELECT actor,state FROM memory_rows WHERE id=?',(memory_id,))
             if not rows:raise KeyError(memory_id)
@@ -242,7 +327,9 @@ class Memory:
         await self.sync_index()
         return memory_id
 
+    @_operation
     async def sync_index(self):
+        self._check()
         if self._collection is None:
             self._collection=self.client.get_or_create_collection(name='society-memory-'+self.store.run_id,
                 metadata={'source_run_id':self.store.run_id,'revision':-1,'hnsw:space':'l2'},embedding_function=None)
@@ -273,7 +360,9 @@ class Memory:
         metadata.update(source_run_id=self.store.run_id,revision=target)
         self._collection.modify(metadata=metadata)
 
+    @_operation
     async def recall(self,actor,query,*,top_k=10,current_step=None,thread_id=None):
+        self._check()
         if type(top_k) is not int or top_k<1:raise ValueError('top_k must be positive')
         await self.finish_pending(actor)
         watermark=self.store.read(lambda view:view.query('SELECT step FROM memory_visibility WHERE actor=?',(actor,)))
@@ -311,6 +400,7 @@ class Memory:
         if not dimensions or dimensions[0][0] is None:return []
         if query_vectors is None:
             query_vectors=await self.embed([query],metadata={'actor':actor,'thread_id':thread_id,'purpose':'memory_recall'})
+        self._check()
         dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
         _vectors(query_vectors,1,dimension)
         name='society-history-'+uuid.uuid4().hex
@@ -347,13 +437,16 @@ class Memory:
             return sorted(candidates.values(),key=lambda item:item['score'],reverse=True)[:top_k]
         finally:self.client.delete_collection(name=name)
 
+    @_operation
     async def finish_pending(self,actor):
         while True:
             rows=self.store.read(lambda view:view.query("SELECT id FROM memory_jobs WHERE actor=? AND state IN ('prepared','written') ORDER BY id LIMIT 100",(actor,),max_rows=100))
             if not rows:return
             await asyncio.gather(*(self.finish_job(job_id) for (job_id,) in rows))
 
+    @_operation
     async def extract_job(self,actor,thread_id,*,through,timestamp):
+        self._check()
         key='thread:'+thread_id+':through:'+str(through)
         existing=self.store.read(lambda view:view.query('SELECT id FROM memory_jobs WHERE actor=? AND job_key=?',(actor,key)))
         if existing:return existing[0][0]
@@ -369,7 +462,9 @@ class Memory:
         try:return await task
         finally:self._flights.pop(flight,None)
 
+    @_operation
     async def before_activation(self,session,thread_id):
+        self._check()
         from ..async_utils import invoke_maybe_async
         messages=[]
         if self.policy.active_tools:
@@ -382,7 +477,9 @@ class Memory:
                 messages.append({'role':'user','content':json.dumps({'recalled_memories':[item['content'] for item in hits]},ensure_ascii=False)})
         return messages
 
+    @_operation
     async def after_activation(self,session,thread_id,result):
+        self._check()
         if not self.policy.auto_write or result.status not in ('completed','waiting'):return
         if self.threads.describe(thread_id)['kind']=='interview':return
         through=result.value['memory_input_through']
@@ -403,11 +500,15 @@ class Memory:
             return ActionResult('completed',{'memories':[{'id':item['id'],'type':item['type'],'content':item['content'],'score':item['score']} for item in hits]})
         async def update(scope,target,arguments):
             identifier=arguments['memory_id']
+            try:self.get(identifier,actor=scope.actor)
+            except (KeyError,PermissionError):return ActionResult('rejected',{'reason':'memory_unavailable'})
             await self.update(identifier,actor=scope.actor,content=arguments['content'],timestamp=scope.moment.time,
                               visible_step=scope.moment.time,importance=arguments.get('importance'))
             return ActionResult('completed',{'memory_id':identifier})
         async def delete(scope,target,arguments):
             identifier=arguments['memory_id']
+            try:self.get(identifier,actor=scope.actor)
+            except (KeyError,PermissionError):return ActionResult('rejected',{'reason':'memory_unavailable'})
             await self.delete(identifier,actor=scope.actor,visible_step=scope.moment.time)
             return ActionResult('completed',{'memory_id':identifier})
         def available(scope,target):return scope.actor==target.key
