@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from types import SimpleNamespace
+from openai.types.chat.chat_completion_message_function_tool_call import ChatCompletionMessageFunctionToolCall
 
 import pytest
 
@@ -23,8 +24,7 @@ def _tool(name: str) -> dict:
 
 class _FakeResponse:
     def __init__(self, tool_name: str) -> None:
-        function = SimpleNamespace(name=tool_name, arguments="{}")
-        tool_call = SimpleNamespace(id="call-1", type="function", function=function)
+        tool_call = ChatCompletionMessageFunctionToolCall(id="call-1", type="function", function={"name":tool_name,"arguments":"{}"})
         message = SimpleNamespace(
             role="assistant",
             content="",

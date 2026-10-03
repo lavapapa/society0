@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_tool_call_extensions_survive_normalized_response_and_next_request ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-490/test_tool_call_extensions_surv0')
+
+    @pytest.mark.asyncio
+    async def test_tool_call_extensions_survive_normalized_response_and_next_request(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            threads.append_message(tid,{'role':'user','content':'call a tool'})
+            provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'http://unused.invalid/v1','model':'m','concurrency':1,'trust_env':False}],threads,max_attempts=1)
+            extension={'google':{'thought_signature':'opaque-provider-data'}}
+            tool={'id':'call1','type':'function','function':{'name':'read','arguments':'{}'},'extra_content':extension}
+            requests=[]
+            async def create(**kwargs):
+                requests.append(kwargs)
+                message={'role':'assistant','content':None,'tool_calls':[tool]} if len(requests)==1 else {'role':'assistant','content':'done'}
+                return ChatCompletion.model_validate({'id':'completion','created':0,'model':'m','object':'chat.completion',
+                    'choices':[{'index':0,'message':message,'finish_reason':'tool_calls' if len(requests)==1 else 'stop'}]})
+            provider.manager.clients['p'].chat.completions.create=create
+            try:
+                first=await provider.request(tid,{})
+>               assert first['tool_calls'][0]['extra_content']==extension
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'extra_content'
+
+tests/primary/test_kernel_provider_fields.py:26: KeyError
