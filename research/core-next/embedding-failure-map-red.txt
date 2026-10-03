@@ -1,0 +1,34 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_failed_late_joiner_retains_every_original_position_and_partial_success __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-472/test_failed_late_joiner_retain0')
+
+    @pytest.mark.asyncio
+    async def test_failed_late_joiner_retains_every_original_position_and_partial_success(tmp_path):
+        import httpx,openai
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA]) as store:
+            threads=ThreadStore(store);a=threads.open('a',0,'decision');b=threads.open('b',0,'decision')
+            provider=EmbeddingProvider([{'id':'e','api_key':'unused','base_url':'http://unused.invalid/v1','model':'e','concurrency':2,'trust_env':False}],store,threads,dimensions=2,batch_texts=1,batch_wait_ms=0,max_attempts=1)
+            entered=asyncio.Event();release=asyncio.Event()
+            async def create(**kwargs):
+                if kwargs['input']==['bad']:
+                    entered.set();await release.wait()
+                    raise openai.APIStatusError('rejected',response=httpx.Response(401,request=httpx.Request('POST','http://unused.invalid')),body={})
+                return CreateEmbeddingResponse(model='e',object='list',usage={'prompt_tokens':1,'total_tokens':1},data=[{'object':'embedding','index':0,'embedding':[1.,2.]}])
+            provider.manager.clients['e'].embeddings.create=create
+            try:
+                first=asyncio.create_task(provider.embed(['bad','good','bad'],metadata={'actor':'a','thread_id':a}))
+                await entered.wait()
+                second=asyncio.create_task(provider.embed(['bad'],metadata={'actor':'b','thread_id':b}))
+                await asyncio.sleep(0);release.set()
+                results=await asyncio.gather(first,second,return_exceptions=True)
+                assert all(isinstance(item,openai.APIStatusError) for item in results)
+                for tid,expected in ((a,['bad','good','bad']),(b,['bad'])):
+>                   ref=[e['payload']['call_id'] for e in threads.tail(tid)['items'] if e['kind']=='resource_call_ref'][0]
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E                   IndexError: list index out of range
+
+tests/primary/test_kernel_embedding_provider.py:141: IndexError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2303 Embedding request failed on endpoint e after 1 attempts: rejected
