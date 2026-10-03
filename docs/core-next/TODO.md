@@ -72,9 +72,9 @@
 - [ ] **P02 完整发布协议**（storage，依 P01/D04/D06/T01）：P03/P04，World/Actor/Thread/Memory 统一恢复身份，完整/诊断分离；多介质 prepare 与唯一完成权威按选定 SDD 实现，逐边界故障注入。checkpoint 与归档间隔若改变写入产品合同。
 - [x] **P03 恢复、fork、export 与清理**（storage，依 P02）：P05/P06/P08，独立进程重新打开、来源身份、初始化差异、branch 隔离、选定历史完整点、来源丢失、可达清理；无旧 codec 兼容要求。`121923b` 已通过恢复包独立性、旧完整点、重复依赖仅复制一次、来源删除后再次恢复及离线清理的 52 项相关验收。独立审查发现的非根描述符缺失 changeset 导致误删问题已修复；全部身份与依赖验证先于删除。只读分析准备、统一跨插件恢复与大型占盘继续由 Q/P02/V04 验收，见 [生命周期合同](storage-lifecycle-design.md)。
 - [ ] **P04 大记录与持续成本**（storage，依 P01/P02）：P07，按块编码/记录定位/metadata 顺序访问、字节预算提前停止、范围下载不重解全前缀；宽 dict/单大 record、annotations/static metadata 下界单独报告。新增验收点：通用 SQLInformation 对查询所选巨字段的读取物化必须单列测量；HTTP 编码后拒绝超限响应仅控制传输字节。先验证现有 DocumentSpec/正文引用的正式机制，再确定 SQLite 原生长度预检等最小提供者改动，避免把 wire 预算当作底层内存上限。
-- [ ] **Q01 在线离线查询**（指定 owner，依 P02/K04）：Q01/Q02/Q04，status/版本水位、固定页/精确 total/typed cursor、索引追赶/准备/损坏重建、fork 源内容定位；查询进程与 producer 分离，冷追赶不能阻塞 status。
-- [ ] **Q02 实时信息与 Thread tail**（指定 owner，依 D04/Q01）：Q03/Q06/N03，Thread 目录及可继续 tail、live 与完整 prefix、完成步 observed revision、慢消费者与 view 过期；固定分页读完后仍可消费新增而无无限订阅队列。
-- [ ] **Q03 服务及大表读取**（指定 owner，依 Q01/Q02/T06）：Q05/O03，Python/CLI/HTTP 同合同、bounded 接纳、慢 body/response、取消、分区 dataset refs 和巨正文；最终序列化大小符合预算。
+- [x] **Q01 在线离线查询**（指定 owner，依 P02/K04）：Q01/Q02/Q04，status/版本水位、固定页/精确 total/typed cursor、索引追赶/准备/损坏重建、fork 源内容定位；查询进程与 producer 分离，冷追赶不能阻塞 status。证据：`17aeaa4`、[外部观察合同](observation-contract.md)、`test_kernel_observation*.py`。独立恢复进程准备固定完整视图，live status 持续可读；准备失败、清理、进程退出、稳定派生身份和真实 CLI 跨进程续读已验证。准备目录当前含 root/current 两份及工件，降低复制成本仍归 P04/V04。
+- [x] **Q02 实时信息与 Thread tail**（指定 owner，依 D04/Q01）：Q03/Q06/N03，Thread 目录及可继续 tail、live 与完整 prefix、完成步 observed revision、慢消费者与 view 过期；固定分页读完后仍可消费新增而无无限订阅队列。证据：`17aeaa4`、`test_kernel_observation.py` 与独立 review；Thread 末尾游标保留追加位置，publish_step 索引确定已完整前缀，运行中未完成事实明确区分；固定 tail 的历史增长开销和独立 producer 故障已验证。
+- [ ] **Q03 服务及大表读取**（指定 owner，依 Q01/Q02/T06）：Q05/O03，Python/CLI/HTTP 同合同、bounded 接纳、慢 body/response、取消、分区 dataset refs 和巨正文；最终序列化大小符合预算。`17aeaa4` 已实现 Python/CLI/HTTP、慢请求有界槽、最终编码预算、结果及物理资源原文范围、完整视图生命周期；作者组合与非作者重审通过，见 `observation-validation-20261004.md`。累计资源投影的外部消费待 T06 接通；任意 SQL 提供者巨字段的物化边界仍归 P04。
 
 ## 五、P3 验收
 
