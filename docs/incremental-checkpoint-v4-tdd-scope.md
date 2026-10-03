@@ -272,4 +272,4 @@ Thread 自身也有复杂度门禁：`append_event()` 和 checkpoint manifest �
 5. **分叉与 GC**：先做不可变引用分叉，再做可达性 GC。
 6. **状态机与性能**：只有语义测试闭合后才运行大规模基准；发现历史相关增长时回到具体热路径修复。
 
-每一阶段必须在前一阶段端到端可运行后推进。v3 兼容测试应改写为“v3 明确拒绝”；所有断言 v3 文件名、World gzip 或每 Tick Chroma backup 的测试都应删除或改为 v4 manifest/单库视图合同。
+每一阶段必须在前一阶段的端到端验证通过后推进。v3 兼容测试应改写为“v3 明确拒绝”；所有断言 v3 文件名、World gzip 或每 Tick Chroma backup 的测试都应删除或改为 v4 manifest/单库视图合同。
