@@ -7,6 +7,7 @@ import uuid
 import zlib
 
 from ._json_chunks import CHUNK_BYTES, decode_chunks
+from . import usage
 THREAD_SCHEMA = (
     "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,context_seq INTEGER,PRIMARY KEY(thread_id,consumer))",
     '''CREATE TABLE thread_heads(
@@ -25,7 +26,7 @@ THREAD_SCHEMA = (
     'CREATE INDEX thread_messages ON thread_events(thread_id,seq) WHERE kind=\'message\'',
     '''CREATE TABLE thread_chunks(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,chunk INTEGER NOT NULL,
         raw_bytes INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(thread_id,seq,chunk))''',
-)
+)+usage.schema("thread")
 
 
 def _load(view, thread_id, sequence):
@@ -191,9 +192,27 @@ class ThreadStore:
     def event(self, thread_id, kind, payload):
         if kind in ('message','opened','closed','reopened','request','tool_receipt','input_cursor'):
             raise ValueError('reserved Thread event kind')
-        return self.store.transaction(lambda writer:_append(writer, thread_id, kind, payload))
+        return self.store.transaction(lambda writer:_append(writer,thread_id,kind,payload))
 
-    def record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None, through=None):
+    def record_provider_event(self,thread_id,kind,payload):
+        """物理提供方适配器写事实与用量；普通诊断 event 保持通用。"""
+        if kind not in ('provider_response','provider_error','provider_decode_error','provider_cancelled'):
+            raise ValueError('invalid physical provider event')
+        def write(writer):
+            sequence=_append(writer,thread_id,kind,payload)
+            body=payload.get('payload',{})
+            usage.finish(writer,'thread',json.dumps([thread_id,payload['physical_request_id']]),outcome=kind.removeprefix('provider_'),
+                         body=body.get('raw_response',body.get('response')))
+            return sequence
+        return self.store.transaction(write)
+
+    def record_provider_request(self,thread_id,**options):
+        return self._record_request(thread_id,track_usage=True,**options)
+
+    def record_request(self,thread_id,**options):
+        return self._record_request(thread_id,track_usage=False,**options)
+
+    def _record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None, through=None,track_usage):
         def write(writer):
             head = _head(writer, thread_id)
             watermark = head['last_seq'] if through is None else through
@@ -206,7 +225,9 @@ class ThreadStore:
             payload = {'through': watermark, 'message_seqs': message_seqs, 'provider_options': provider_options,
                        'physical_request_id': physical_request_id, 'retry_of': retry_of,
                        'provider_session_id': head['provider_session_id']}
-            return _append(writer, thread_id, 'request', payload)
+            sequence=_append(writer, thread_id, 'request', payload)
+            if track_usage:usage.begin(writer,'thread',json.dumps([thread_id,physical_request_id]),provider_options.get('model',''),head['actor'])
+            return sequence
         return self.store.transaction(write)
 
     def read_request(self, thread_id, seq):

@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______________ test_physical_response_requires_its_request_thread ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-638/test_physical_response_require0')
+
+    def test_physical_response_requires_its_request_thread(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);a=threads.open('a',0,'decision');b=threads.open('b',0,'decision')
+            threads.record_provider_request(a,provider_options={'model':'m'},physical_request_id='p')
+            before=threads.describe(b)['last_seq']
+>           with pytest.raises((KeyError,IndexError)):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE any of (KeyError, IndexError)
+
+tests/primary/test_kernel_usage.py:149: Failed

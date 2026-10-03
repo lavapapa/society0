@@ -1,0 +1,21 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_response_decode_failure_and_cancellation_are_distinct_facts _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-632/test_response_decode_failure_a0')
+
+    def test_response_decode_failure_and_cancellation_are_distinct_facts(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            for identifier in ('decode','cancel','after_response'):
+                threads.record_provider_request(tid,provider_options={'model':'m'},physical_request_id=identifier)
+            body={'usage':{'prompt_tokens':5,'total_tokens':5}}
+            threads.record_provider_event(tid,'provider_decode_error',{'physical_request_id':'decode','payload':{'response':body}})
+            threads.record_provider_event(tid,'provider_cancelled',{'physical_request_id':'cancel','payload':{}})
+            threads.record_provider_event(tid,'provider_response',{'physical_request_id':'after_response','payload':{'raw_response':body}})
+            threads.record_provider_event(tid,'provider_decode_error',{'physical_request_id':'after_response','payload':{'response':body}})
+            counts=Observation(store.path).resource_usage()['totals']
+>           assert counts['requests']==3 and counts['responses']==2
+E           assert (3 == 3 and 1 == 2)
+
+tests/primary/test_kernel_usage.py:139: AssertionError

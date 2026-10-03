@@ -27,3 +27,15 @@ profile 可配置 dimensions、max_attempts、retry_delay、cache_max_items、ca
 真实端点试验脚本为 `benchmarks/core_next_provider_probe.py`，明确接收授权凭据文件路径和新输出目录。每次试验各发送一个结构化响应请求、工具请求和双文本嵌入请求，保留请求合同和失败结果；不修改业务仿真预算。各次实际模型目录、价格与结果保存在 research/core-next 的日期工件中，不作为长期固定配置。
 
 端点可用性、参数支持及检索效果应分别验证。目录声明支持工具或结构化输出仍需成功请求确认；嵌入返回有效向量也不自动证明记忆恢复和主体归属已经贯通。
+
+## 四、用量
+
+真实 ModelProvider 通过 ThreadStore 的 `record_provider_request` 和 `record_provider_event` 写入物理尝试；请求快照、完整响应或错误与累计投影在同一事务提交。自定义真实提供方也应调用这两个明确入口。一般 `record_request` 与 `event` 保留原文和请求引用，累计统计由上述物理入口负责。每次物理重试使用独立的 physical_request_id，重试关联保存在原请求事实中。完整正文继续由 Thread 或 ResourceCalls 保存。
+
+`Observation.resource_usage(actor=None, model=None, max_bytes=65536)` 返回运行身份、当前 revision、已发布完整步骤身份、totals 和按 kind/model 区分的 models。requests 统计实际物理尝试，responses 统计收到的响应，errors 统计提供方或解码故障，decode_errors 是其中的解码故障，cancelled 统计取消。响应到达后解码失败可以同时增加 responses 与 errors；这些列用于诊断，不能相加计算调用数。input_tokens、output_tokens、total_tokens 来自提供方报告，相应 reports 列保存实际报告次数；unknown_usage_calls 表示尚无 total_tokens 报告的物理尝试，包含失败、取消和仍在途的请求。零报告与已报告零值通过 reports 区分，系统不推算价格或缺失 token。
+
+嵌入的物理批次在全局计一次，embedding_uses 记录逻辑调用次数。缓存命中会增加逻辑使用数，并关联原物理调用；同一主体重复使用同一批次不重复增加关联物理数。全局返回 attribution=`physical_calls_once`，按主体查询返回 attribution=`related_physical_calls_not_additive`。主体值表示该主体关联的完整物理批次，多个主体共享同一批次时各自可追溯它；跨主体相加会重复计算这部分，工作台的全局数值应直接使用全局投影。没有 actor 归属的调用仍保留全局事实。
+
+累计投影按模型与主体维护，查询工作量随命中的模型行数增长，与累计调用正文数量无关。每次新物理尝试多写一个短元数据行，关联主体多写一个去重关系；响应写入只更新本次关联行及累计数。模型种类过多时可指定 model 或增加 wire 预算。live 统计包含未完成步骤已发生的事实，完整视图使用选定 complete 的投影；恢复丢弃未完成步骤投影，与原事实边界一致。
+
+共享嵌入正在等待时，全局物理尝试已可见；主体关系在该逻辑调用完成或失败、保存来源事实时建立。因此短暂进行中的 actor 统计可能落后于全局，响应对象的 revision 表示实际可见事实水位。取消的逻辑等待者若尚未保存来源事实，不会凭推测补造主体关系。

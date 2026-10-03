@@ -37,3 +37,9 @@ ThreadStore 保存主体会话、完整消息、物理请求引用、响应和�
 活动 append 和 tail 从 thread_heads、主键及消息索引取得当前投影，成本由本次正文大小和请求页决定。默认 request 水位记录是固定数量字段，避免逐轮复制完整 messages；显式重排请求仍按真实所选序列保存引用。完整读取历史与请求重建的工作量随所读内容增长，该成本服务于保留全部上下文的语义。
 
 本机小型试验及环境信息保存在 `research/core-next/thread-size-results-range-20261004.json`，原始测试输出保存在同目录 kernel-threads 文件。高重复与异质正文均逐值恢复相等；RSS 记录是进程历史高水位及其差值，输入生成本身的峰值可能遮住写入瞬时增量。磁盘数据包含独立 current、初始 root、changeset 和恢复后新 root，不能把压缩块大小视为整个运行目录大小。后续真实模型和记忆集成仍需独立验收。
+
+## 四、物理调用
+
+`record_provider_request(thread_id, **options)` 接收与 `record_request` 相同的请求参数，另外在本事务维护真实物理调用投影。每次物理尝试使用唯一 physical_request_id；provider_options.model 保存实际发送模型。`record_provider_event(thread_id, kind, payload)` 接收 provider_response、provider_error、provider_decode_error 或 provider_cancelled，payload 包含 physical_request_id 和 payload 正文。正常响应原始 SDK 数据位于内部 payload.raw_response，解码错误的原始数据位于内部 payload.response；token 用量读取原始数据的 usage。一般事件使用 `event`，不根据事件名称推断物理收费。
+
+例如，自定义提供方先调用 `record_provider_request(tid, provider_options={"model": "chosen-model"}, physical_request_id=request_id, through=watermark)`，发送对应完整快照后调用 `record_provider_event(tid, "provider_response", {"physical_request_id": request_id, "payload": {"raw_response": full_response}})`。留证失败向调用方传播；已经发送的物理请求不因本地统计或正文写入失败而重发。累计查询和主体共享批次归属见 `models-contract.md` 的用量部分。
