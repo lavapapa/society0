@@ -182,12 +182,11 @@ class ResourceCalls:
 
     @staticmethod
     def _append(writer, identifier, kind, payload):
-        from ._json_chunks import encode_chunks
         sequence = writer.query('SELECT last_seq FROM resource_calls WHERE id=?',(identifier,))[0][0]+1
         raw_bytes = 0
         def rows():
             nonlocal raw_bytes
-            for index,(size,body) in enumerate(encode_chunks(payload)):
+            for index,(size,body) in enumerate(writer.encode_chunks(payload)):
                 yield identifier,sequence,index,raw_bytes,size,body
                 raw_bytes += size
         writer.executemany('INSERT INTO resource_chunks VALUES(?,?,?,?,?,?)',rows())

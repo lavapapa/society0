@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/experiments/test_core_next_compression_probe.py ____
+ImportError while importing test module '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/experiments/test_core_next_compression_probe.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/experiments/test_core_next_compression_probe.py:7: in <module>
+    from benchmarks.core_next_compression_probe import raw_chunks, parallel_chunks, prepare
+E   ModuleNotFoundError: No module named 'benchmarks.core_next_compression_probe'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

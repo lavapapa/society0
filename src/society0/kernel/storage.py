@@ -148,6 +148,23 @@ class ReadView:
 
 
 class Writer(ReadView):
+    def encode_chunks(self, value):
+        """作用域内消费的 JSON 压缩块，线程不接触 SQLite。"""
+        self._check()
+        stream = self._encoder.encode(value)
+        self._encodings.append(stream)
+        try:
+            for item in stream:
+                self._check()
+                yield item
+        finally:
+            stream.close()
+            self._encodings.remove(stream)
+
+    def _finish_encodings(self):
+        for stream in tuple(self._encodings):
+            stream.close()
+
     def include_artifact(self, reference):
         self._check()
         self._include_artifact(reference)
@@ -233,10 +250,12 @@ class StageStore:
             connection.close()
 
     @classmethod
-    def create(cls, path, schema, *, initialize=None, run_id=None):
+    def create(cls, path, schema, *, initialize=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
         path = Path(path).absolute()
         temporary = path.with_name(path.name + '.building-' + uuid.uuid4().hex)
         temporary.mkdir(parents=True)
+        from ._json_chunks import ChunkEncoder
+        encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
         connection = None
         try:
             connection = apsw.Connection(str(temporary / 'current.sqlite'))
@@ -247,11 +266,13 @@ class StageStore:
             definitions = _schema(connection)
             if initialize:
                 scope = Writer(connection)
+                scope._encoder, scope._encodings = encoder, []
                 connection.execute('BEGIN')
                 connection.set_authorizer(_authorizer)
                 try:
                     _call(initialize, scope)
                 finally:
+                    scope._finish_encodings()
                     scope._active = False
                     connection.set_authorizer(None)
                 connection.execute('COMMIT')
@@ -270,8 +291,9 @@ class StageStore:
                 raise FileExistsError(path)
             os.rename(temporary, path)
             _sync(path.parent)
-            return cls.open(path)
+            return cls.open(path, compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
         finally:
+            encoder.close()
             if connection:
                 connection.close()
             shutil.rmtree(temporary, ignore_errors=True)
@@ -288,8 +310,10 @@ class StageStore:
         _sync(path)
 
     @classmethod
-    def open(cls, path):
+    def open(cls, path, *, compression_workers=4, compression_inflight_bytes=524288):
+        from ._json_chunks import ChunkEncoder
         self = cls.__new__(cls)
+        self._encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
         self.path = Path(path).absolute()
         self._manifest = _manifest(self.path)
         self.run_id = self._manifest['run_id']
@@ -368,6 +392,7 @@ class StageStore:
         self._check()
         self._busy = True
         scope = Writer(self._connection)
+        scope._encoder, scope._encodings = self._encoder, []
         scope._include_artifact = self._include_artifact
         touched=set()
         def authorize(action,first,second,database,trigger):
@@ -393,6 +418,7 @@ class StageStore:
                 self._failed = True
             raise
         finally:
+            scope._finish_encodings()
             scope._active = False
             self._connection.set_authorizer(None)
             self._busy = False
@@ -500,7 +526,7 @@ class StageStore:
             temporary.unlink(missing_ok=True)
 
     @classmethod
-    def restore(cls, source, destination, *, step=None, run_id=None):
+    def restore(cls, source, destination, *, step=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
         source, destination = Path(source).absolute(), Path(destination).absolute()
         manifest = _manifest(source)
         if run_id == manifest['run_id']:
@@ -560,7 +586,7 @@ class StageStore:
                 raise FileExistsError(destination)
             os.rename(temporary, destination)
             _sync(destination.parent)
-            return cls.open(destination)
+            return cls.open(destination, compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
         finally:
             if original:
                 original.close()
@@ -572,6 +598,7 @@ class StageStore:
 
     def close(self):
         if not self._closed:
+            self._encoder.close()
             self._session.close()
             self._connection.close()
             self._lock.close()

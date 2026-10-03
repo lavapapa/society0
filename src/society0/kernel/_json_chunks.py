@@ -1,5 +1,8 @@
 """JSON 值的有界 UTF8 编码与独立压缩块，供权威正文存储复用。"""
 import json
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor, wait
+from itertools import islice, chain
 import zlib
 
 CHUNK_BYTES = 65536
@@ -41,7 +44,7 @@ def _json_parts(value, ancestors=None):
         raise TypeError('Thread values must be JSON values')
 
 
-def encode_chunks(value):
+def raw_chunks(value):
     buffer = bytearray()
     for part in _json_parts(value):
         for offset in range(0, len(part), CHUNK_BYTES):
@@ -51,10 +54,65 @@ def encode_chunks(value):
                 buffer.extend(piece[:count])
                 piece = piece[count:]
                 if len(buffer) == CHUNK_BYTES:
-                    yield len(buffer), zlib.compress(buffer, 3)
+                    yield bytes(buffer)
                     buffer.clear()
     if buffer:
-        yield len(buffer), zlib.compress(buffer, 3)
+        yield bytes(buffer)
+
+
+def encode_chunks(value):
+    for raw in raw_chunks(value):
+        yield len(raw), zlib.compress(raw, 3)
+
+
+class ChunkEncoder:
+    """一个规范 writer 的惰性工作池；工作线程仅接收不可变原始字节。"""
+    def __init__(self, workers=4, inflight_bytes=8*CHUNK_BYTES):
+        if type(workers) is not int or workers < 1:
+            raise ValueError('compression_workers must be a positive integer')
+        if type(inflight_bytes) is not int or inflight_bytes < CHUNK_BYTES:
+            raise ValueError('compression_inflight_bytes must hold one 64KiB chunk')
+        self.workers, self.inflight_bytes = workers, inflight_bytes
+        self.pool = None
+        self.closed = False
+
+    def encode(self, value):
+        if self.closed:
+            raise RuntimeError('compression encoder closed')
+        source = raw_chunks(value)
+        prefix = list(islice(source, 4))
+        if self.workers == 1 or sum(map(len,prefix)) < 4*CHUNK_BYTES:
+            for raw in chain(prefix,source):
+                yield len(raw), zlib.compress(raw,3)
+            return
+        if self.pool is None:
+            self.pool = ThreadPoolExecutor(max_workers=self.workers,thread_name_prefix='society0-compress')
+        pending = deque()
+        retained = 0
+        try:
+            for raw in chain(prefix,source):
+                while pending and retained+len(raw)>self.inflight_bytes:
+                    size,future = pending[0]
+                    result = future.result()
+                    pending.popleft()
+                    retained -= size
+                    yield size,result
+                pending.append((len(raw),self.pool.submit(zlib.compress,raw,3)))
+                retained += len(raw)
+            while pending:
+                size,future = pending[0]
+                result = future.result()
+                pending.popleft()
+                yield size,result
+        finally:
+            for _,future in pending:
+                future.cancel()
+            wait([future for _,future in pending])
+
+    def close(self):
+        self.closed = True
+        if self.pool is not None:
+            self.pool.shutdown(wait=True,cancel_futures=True)
 
 
 def decode_chunks(chunks):

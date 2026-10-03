@@ -11,7 +11,7 @@ import math
 import struct
 import uuid
 
-from ._json_chunks import encode_chunks, decode_chunks
+from ._json_chunks import decode_chunks
 
 MEMORY_SCHEMA = (
     'CREATE TABLE memory_visibility(actor TEXT PRIMARY KEY NOT NULL,step INTEGER NOT NULL)',
@@ -177,7 +177,7 @@ class Memory:
                 writer.execute('INSERT INTO memory_rows VALUES(?,?,?,?,?,?,?,?)',
                     (identifier,actor,item['type'],timestamp,item['importance'],'ready',revision,visible_step))
                 writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((identifier,index,size,payload)
-                    for index,(size,payload) in enumerate(encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                    for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
                 writer.execute('INSERT INTO memory_vectors VALUES(?,?,?)',(identifier,dimension,struct.pack('<'+str(dimension)+'d',*vector)))
                 count+=1
             return count
@@ -232,7 +232,7 @@ class Memory:
             for ordinal,item in enumerate(entries):
                 memory_id=uuid.uuid4().hex
                 writer.execute('INSERT INTO memory_rows VALUES(?,?,?,?,?,?,0,?)',(memory_id,actor,item['type'],timestamp,item['importance'],'pending',visible_step))
-                writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((memory_id,index,size,payload) for index,(size,payload) in enumerate(encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((memory_id,index,size,payload) for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
                 writer.execute('INSERT INTO memory_job_items VALUES(?,?,?)',(job_id,ordinal,memory_id))
         self.store.transaction(write)
         return job_id
@@ -296,7 +296,7 @@ class Memory:
             next_revision=_next_revision(writer)
             writer.execute('DELETE FROM memory_chunks WHERE id=?',(memory_id,))
             writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((memory_id,index,size,payload)
-                for index,(size,payload) in enumerate(encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
             writer.execute('UPDATE memory_vectors SET vector=? WHERE id=?',(struct.pack('<'+str(dimension)+'d',*vectors[0]),memory_id))
             writer.execute('UPDATE memory_rows SET timestamp=?,importance=?,revision=?,visible_step=? WHERE id=?',
                            (timestamp,item['importance'],next_revision,visible_step,memory_id))

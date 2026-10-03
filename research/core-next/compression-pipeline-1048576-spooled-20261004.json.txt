@@ -1,0 +1,1 @@
+COMMAND: .venv/bin/python benchmarks/core_next_compression_probe.py --mode spooled --size 1048576 --output research/core-next/compression-pipeline-1048576-spooled-20261004.json
