@@ -220,3 +220,23 @@ def test_receipt_metadata_is_atomic_and_restorable(tmp_path):
             assert ThreadStore(restored).get_tool_result(thread,'finish')['metadata'] == metadata
         with pytest.raises(ValueError):
             threads.save_tool_result(thread,call,'done',metadata={'terminal':False})
+
+
+def test_input_messages_and_consumer_cursor_commit_or_rollback_together(tmp_path):
+    store,threads=setup(tmp_path/'run')
+    with store:
+        thread=threads.open('a',0,'decision')
+        assert threads.input_cursor(thread,'fov') is None
+        messages=[{'role':'user','content':'one'},{'role':'user','content':'two'}]
+        threads.append_input(thread,messages,'fov',{'position':2})
+        assert threads.read_messages(thread)==messages
+        assert threads.input_cursor(thread,'fov')=={'position':2}
+        before=threads.describe(thread)
+        with pytest.raises(TypeError):
+            threads.append_input(thread,[{'role':'user','content':'discard'}],'fov',{'bad':object()})
+        assert threads.describe(thread)==before
+        assert threads.input_cursor(thread,'fov')=={'position':2}
+        assert threads.read_messages(thread)==messages
+        store.complete(1)
+        with StageStore.restore(store.path,tmp_path/'restore') as restored:
+            assert ThreadStore(restored).input_cursor(thread,'fov')=={'position':2}
