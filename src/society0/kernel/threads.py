@@ -6,7 +6,7 @@ import json
 import uuid
 import zlib
 
-CHUNK_BYTES = 65536
+from ._json_chunks import CHUNK_BYTES, encode_chunks as _chunks, decode_chunks
 THREAD_SCHEMA = (
     '''CREATE TABLE thread_heads(
         id TEXT PRIMARY KEY NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,
@@ -26,69 +26,9 @@ THREAD_SCHEMA = (
 )
 
 
-def _json_parts(value, ancestors=None):
-    """字符串先切片再转义；不构造巨大 JSON 字符串。"""
-    if type(value) is str:
-        yield b'"'
-        for start in range(0, len(value), 8192):
-            yield json.dumps(value[start:start + 8192], ensure_ascii=False)[1:-1].encode('utf8')
-        yield b'"'
-    elif type(value) in (dict, list):
-        ancestors = set() if ancestors is None else ancestors
-        if id(value) in ancestors:
-            raise ValueError('circular JSON value')
-        ancestors.add(id(value))
-        try:
-            mapping = type(value) is dict
-            yield b'{' if mapping else b'['
-            for index, pair in enumerate(value.items() if mapping else value):
-                if index:
-                    yield b','
-                if mapping:
-                    key, item = pair
-                    if type(key) is not str:
-                        raise TypeError('JSON object keys must be strings')
-                    yield from _json_parts(key, ancestors)
-                    yield b':'
-                else:
-                    item = pair
-                yield from _json_parts(item, ancestors)
-            yield b'}' if mapping else b']'
-        finally:
-            ancestors.remove(id(value))
-    elif value is None or type(value) in (bool, int, float):
-        yield json.dumps(value, allow_nan=False).encode('ascii')
-    else:
-        raise TypeError('Thread values must be JSON values')
-
-
-def _chunks(value):
-    buffer = bytearray()
-    for part in _json_parts(value):
-        for offset in range(0, len(part), CHUNK_BYTES):
-            piece = memoryview(part)[offset:offset + CHUNK_BYTES]
-            while piece:
-                count = min(CHUNK_BYTES - len(buffer), len(piece))
-                buffer.extend(piece[:count])
-                piece = piece[count:]
-                if len(buffer) == CHUNK_BYTES:
-                    yield len(buffer), zlib.compress(buffer, 3)
-                    buffer.clear()
-    if buffer:
-        yield len(buffer), zlib.compress(buffer, 3)
-
-
 def _load(view, thread_id, sequence):
-    raw = bytearray()
-    after = -1
-    while True:
-        rows = view.query('SELECT chunk,payload FROM thread_chunks WHERE thread_id=? AND seq=? AND chunk>? ORDER BY chunk LIMIT 64',
-                          (thread_id, sequence, after), max_rows=64)
-        if not rows:
-            break
-        for after, payload in rows:
-            raw.extend(zlib.decompress(payload))
-    return json.loads(raw)
+    rows = view.iter_query('SELECT payload FROM thread_chunks WHERE thread_id=? AND seq=? ORDER BY chunk', (thread_id,sequence))
+    return decode_chunks(payload for (payload,) in rows)
 
 
 def _head(view, thread_id):
@@ -155,16 +95,17 @@ class ThreadStore:
         rows = self.store.read(lambda view:view.query('SELECT id FROM thread_heads WHERE actor=? AND moment=? AND kind=? ORDER BY ordinal DESC LIMIT 1', (actor,key,kind)))
         return rows[0][0] if rows else None
 
-    def save_tool_result(self, thread_id, call, content):
+    def save_tool_result(self, thread_id, call, content, *, metadata=None):
         def write(writer):
             rows = writer.query('SELECT event_seq,message_seq FROM thread_tool_receipts WHERE thread_id=? AND call_id=?', (thread_id,call['id']))
             if rows:
-                previous_call = _load(writer,thread_id,rows[0][0])['call']
+                previous = _load(writer,thread_id,rows[0][0])
+                previous_call = previous['call']
                 previous_content = _load(writer,thread_id,rows[0][1])['content']
-                if previous_call != call or previous_content != content:
+                if previous_call != call or previous_content != content or previous['metadata'] != metadata:
                     raise ValueError('tool call identity reused with different content')
                 return rows[0][1]
-            event = _append(writer,thread_id,'tool_receipt',{'call':call})
+            event = _append(writer,thread_id,'tool_receipt',{'call':call,'metadata':metadata})
             message = _append(writer,thread_id,'message',{'role':'tool','tool_call_id':call['id'],'content':content})
             writer.execute('INSERT INTO thread_tool_receipts VALUES(?,?,?,?)', (thread_id,call['id'],event,message))
             return message
@@ -176,7 +117,8 @@ class ThreadStore:
             rows = view.query('SELECT event_seq,message_seq FROM thread_tool_receipts WHERE thread_id=? AND call_id=?', (thread_id,call_id))
             if not rows:
                 return None
-            return {'call':_load(view,thread_id,rows[0][0])['call'], 'content':_load(view,thread_id,rows[0][1])['content']}
+            payload = _load(view,thread_id,rows[0][0])
+            return {'call':payload['call'],'metadata':payload['metadata'], 'content':_load(view,thread_id,rows[0][1])['content']}
         return self.store.read(read)
 
     def register_artifact(self, thread_id, reference, artifact_ref, *, actor):

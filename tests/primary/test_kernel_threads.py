@@ -178,7 +178,7 @@ def test_find_receipts_and_artifacts_survive_process_restore(tmp_path):
         call = {'id':'tool-1','function':{'name':'pay','arguments':'{"amount":5}'}}
         receipt = threads.save_tool_result(thread,call,'paid')
         assert threads.save_tool_result(thread,call,'paid') == receipt
-        assert threads.get_tool_result(thread,'tool-1') == {'call':call,'content':'paid'}
+        assert threads.get_tool_result(thread,'tool-1') == {'call':call,'content':'paid','metadata':None}
         with pytest.raises(ValueError):threads.save_tool_result(thread,{**call,'extra':1},'paid')
         ref = store.prepare_artifact([b'0123456789'])
         threads.register_artifact(thread,'shell://result-1',ref,actor='a')
@@ -187,7 +187,7 @@ def test_find_receipts_and_artifacts_survive_process_restore(tmp_path):
         with StageStore.restore(store.path,tmp_path/'restored') as restored:
             resumed = ThreadStore(restored)
             assert resumed.find('a',moment) == thread
-            assert resumed.get_tool_result(thread,'tool-1') == {'call':call,'content':'paid'}
+            assert resumed.get_tool_result(thread,'tool-1') == {'call':call,'content':'paid','metadata':None}
             assert resumed.lookup_artifact(thread,'shell://result-1',actor='a') == ref
             assert resumed.read_artifact(thread,'shell://result-1',actor='a',offset=3,size=4) == {'data':b'3456','total_bytes':10,'next_offset':7,'source':ref}
             assert resumed.read_messages(thread) == [{'role':'tool','tool_call_id':'tool-1','content':'paid'}]
@@ -206,3 +206,17 @@ def test_request_snapshot_watermark_survives_interleaved_append(tmp_path):
         for value in (-1,True,100000):
             with pytest.raises(ValueError):
                 threads.record_request(thread,provider_options={},physical_request_id='bad',through=value)
+
+
+def test_receipt_metadata_is_atomic_and_restorable(tmp_path):
+    store, threads = setup(tmp_path/'run')
+    with store:
+        thread = threads.open('a',0,'decision')
+        call = {'id':'finish','function':{'name':'end','arguments':'{}'}}
+        metadata = {'terminal':True,'ledger':[{'name':'end','status':'completed'}],'structured_result':{'ok':True}}
+        threads.save_tool_result(thread,call,'done',metadata=metadata)
+        store.complete(1)
+        with StageStore.restore(store.path,tmp_path/'restore') as restored:
+            assert ThreadStore(restored).get_tool_result(thread,'finish')['metadata'] == metadata
+        with pytest.raises(ValueError):
+            threads.save_tool_result(thread,call,'done',metadata={'terminal':False})

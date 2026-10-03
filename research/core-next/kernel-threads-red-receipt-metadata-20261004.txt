@@ -1,0 +1,16 @@
+..........F                                                              [100%]
+=================================== FAILURES ===================================
+________________ test_receipt_metadata_is_atomic_and_restorable ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-332/test_receipt_metadata_is_atomi0')
+
+    def test_receipt_metadata_is_atomic_and_restorable(tmp_path):
+        store, threads = setup(tmp_path/'run')
+        with store:
+            thread = threads.open('a',0,'decision')
+            call = {'id':'finish','function':{'name':'end','arguments':'{}'}}
+            metadata = {'terminal':True,'ledger':[{'name':'end','status':'completed'}],'structured_result':{'ok':True}}
+>           threads.save_tool_result(thread,call,'done',metadata=metadata)
+E           TypeError: ThreadStore.save_tool_result() got an unexpected keyword argument 'metadata'
+
+tests/primary/test_kernel_threads.py:217: TypeError

@@ -1,0 +1,53 @@
+..................................F.......                               [100%]
+=================================== FAILURES ===================================
+______ test_shell_output_artifact_survives_restore_and_result_read[True] _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-339/test_shell_output_artifact_sur1')
+via_shell = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("via_shell", [False, True])
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, via_shell):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+            await driver.run(session)
+            tid = session.cursors['thread_id']
+            result = json.loads([m for m in threads.read_messages(tid) if m['role'] == 'tool'][0]['content'])
+            reference = result['stdout_ref']
+            store.complete(1)
+        finally:
+            store.close()
+        import shutil
+        shutil.rmtree(tmp_path / 'results')
+        restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
+        try:
+            recovered_threads = ThreadStore(restored)
+            read_call = call('read', 'bash', {'script': f'result read {reference}'}) if via_shell else call('read', 'result_read', {'reference': reference, 'offset': 0, 'size': 100})
+            recovered_provider = FakeProvider(recovered_threads, [reply(read_call), reply(text='done')])
+            recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
+            recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
+                                session.actions, {}, None, (), None)
+            if via_shell:
+>               recovered._phase = SimpleNamespace(prepare_artifact=restored.prepare_artifact)
+                ^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:577: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Session(actor=Actor(id='a', driver=<society0.kernel.llm.LLMDriver object at 0x10dacd460>, state_ref=None, config=None)...Scope(actor='a', moment=Moment(time=1, phase='p'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+name = '_phase'
+value = namespace(prepare_artifact=<bound method StageStore.prepare_artifact of <society0.kernel.storage.StageStore object at 0x10dacd5b0>>)
+
+>   ???
+E   dataclasses.FrozenInstanceError: cannot assign to field '_phase'
+
+<string>:4: FrozenInstanceError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-339/test_shell_output_artifact_sur1/results/shell-3iwou_jg/output — scripts can modify host files

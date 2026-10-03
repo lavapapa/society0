@@ -769,46 +769,50 @@ class LLMManager:
             maybe_messages = payload.get("messages")
             if isinstance(maybe_messages, list):
                 messages_count = len(maybe_messages)
-                input_characters = 0
-                for message in maybe_messages:
-                    if not isinstance(message, dict):
-                        continue
-                    content = message.get("content")
-                    if isinstance(content, str):
-                        input_characters += len(content)
-                        continue
-                    if isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, str):
-                                input_characters += len(item)
-                            elif isinstance(item, dict):
-                                if isinstance(item.get("text"), str):
-                                    input_characters += len(item["text"])
-                                elif isinstance(item.get("input_text"), str):
-                                    input_characters += len(item["input_text"])
-                                elif isinstance(item.get("content"), str):
-                                    input_characters += len(item["content"])
-                                else:
+                if self._log_context is not None:
+                    input_characters = 0
+                    for message in maybe_messages:
+                        if not isinstance(message, dict):
+                            continue
+                        content = message.get("content")
+                        if isinstance(content, str):
+                            input_characters += len(content)
+                            continue
+                        if isinstance(content, list):
+                            for item in content:
+                                if isinstance(item, str):
+                                    input_characters += len(item)
+                                elif isinstance(item, dict):
+                                    if isinstance(item.get("text"), str):
+                                        input_characters += len(item["text"])
+                                    elif isinstance(item.get("input_text"), str):
+                                        input_characters += len(item["input_text"])
+                                    elif isinstance(item.get("content"), str):
+                                        input_characters += len(item["content"])
+                                    else:
+                                        input_characters += len(str(item))
+                                elif item is not None:
                                     input_characters += len(str(item))
-                            elif item is not None:
-                                input_characters += len(str(item))
-                        continue
-                    if content is not None:
-                        input_characters += len(str(content))
+                            continue
+                        if content is not None:
+                            input_characters += len(str(content))
             maybe_tools = payload.get("tools")
             if isinstance(maybe_tools, list):
                 tools_count = len(maybe_tools)
-                tools_characters = _safe_json_size(maybe_tools)
+                if self._log_context is not None:
+                    tools_characters = _safe_json_size(maybe_tools)
             elif maybe_tools is not None:
                 tools_count = 1
-                tools_characters = _safe_json_size(maybe_tools)
+                if self._log_context is not None:
+                    tools_characters = _safe_json_size(maybe_tools)
 
             payload_for_size = {
                 key: value
                 for key, value in payload.items()
                 if key not in {"metadata", "agent_id"}
             }
-            payload_characters = _safe_json_size(payload_for_size)
+            if self._log_context is not None:
+                payload_characters = _safe_json_size(payload_for_size)
             max_tokens = _optional_int(payload.get("max_tokens"))
             temperature = _optional_float(payload.get("temperature"))
             top_p = _optional_float(payload.get("top_p"))
@@ -921,11 +925,13 @@ class LLMManager:
                                 else:
                                     request_params["model"] = endpoint.model
 
-                                trace_request = self._traceable_provider_request(
-                                    request_params
-                                )
-                                trace_messages = trace_request.pop("messages", None)
-                                trace_tools = trace_request.pop("tools", None)
+                                # 消息正文由 Thread 请求水位保存，诊断只处理轻量选项。
+                                trace_request = self._traceable_provider_request({
+                                    key: value for key, value in request_params.items()
+                                    if key not in {"messages", "tools"}
+                                })
+                                trace_messages = request_params.get("messages")
+                                trace_tools = request_params.get("tools")
                                 if isinstance(trace_messages, list):
                                     trace_request["messages_count"] = len(trace_messages)
                                 if isinstance(trace_tools, list):

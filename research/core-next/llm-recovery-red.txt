@@ -1,0 +1,73 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_restore_same_moment_reuses_thread_and_prior_tool_receipt _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-312/test_restore_same_moment_reuse0')
+
+    @pytest.mark.asyncio
+    async def test_restore_same_moment_reuses_thread_and_prior_tool_receipt(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('stable')), reply(text='done')])
+        await driver.run(session)
+        tid = session.cursors['thread_id']
+        provider_session = threads.describe(tid)['provider_session_id']
+        store.complete(1)
+        store.close()
+        restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
+        try:
+            recovered_threads = ThreadStore(restored)
+            recovered_provider = FakeProvider(recovered_threads, [reply(invoke('stable')), reply(text='again')])
+            recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [{'role': 'user', 'content': 'resume'}])
+            recovered_scope = InteractionScope('a', Moment(1, 'p'))
+            recovered_session = Session(Actor('a', recovered_driver), recovered_scope, session.information,
+                                        session.actions, {}, None, (), None)
+            assert (await recovered_driver.run(recovered_session)).status == 'completed'
+>           assert recovered_session.cursors['thread_id'] == tid
+E           AssertionError: assert '02c28bb8ed7e...743e6047f8f87' == '14d0687d0735...cd45e9c3d8ec6'
+E             
+E             - 14d0687d073545b9a29cd45e9c3d8ec6
+E             + 02c28bb8ed7e4f54bc6743e6047f8f87
+
+tests/primary/test_kernel_llm.py:540: AssertionError
+_________ test_shell_output_artifact_survives_restore_and_result_read __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-312/test_shell_output_artifact_sur0')
+
+    @pytest.mark.asyncio
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+            await driver.run(session)
+            tid = session.cursors['thread_id']
+            result = json.loads([m for m in threads.read_messages(tid) if m['role'] == 'tool'][0]['content'])
+            reference = result['stdout_ref']
+            store.complete(1)
+        finally:
+            store.close()
+        import shutil
+        shutil.rmtree(tmp_path / 'results')
+        restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
+        try:
+            recovered_threads = ThreadStore(restored)
+            recovered_provider = FakeProvider(recovered_threads, [reply(call('read', 'result_read', {'reference': reference, 'offset': 0, 'size': 100})), reply(text='done')])
+            recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
+            recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
+                                session.actions, {}, None, (), None)
+            await recovered_driver.run(recovered)
+>           feedback = json.loads([m for m in recovered_threads.read_messages(tid) if m.get('tool_call_id') == 'read'][0]['content'])
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: list index out of range
+
+tests/primary/test_kernel_llm.py:575: IndexError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-312/test_shell_output_artifact_sur0/results/shell-rhjx4cdu/output — scripts can modify host files
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm.py::test_restore_same_moment_reuses_thread_and_prior_tool_receipt
+FAILED tests/primary/test_kernel_llm.py::test_shell_output_artifact_survives_restore_and_result_read
+2 failed in 0.61s

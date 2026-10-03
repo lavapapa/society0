@@ -137,7 +137,7 @@ def test_review_tool_receipt_failure_is_atomic_and_identity_survives_restore(tmp
         with StageStore.restore(store.path,tmp_path/'restored') as restored:
             recovered=ThreadStore(restored)
             assert recovered.find('alice',{'phase':'p','time':1}) == tid
-            assert recovered.get_tool_result(tid,'call1') == {'call':call,'content':'complete original result'}
+            assert recovered.get_tool_result(tid,'call1') == {'call':call,'content':'complete original result','metadata':None}
             assert recovered.read_messages(tid)==[{'role':'tool','tool_call_id':'call1','content':'complete original result'}]
 
 
