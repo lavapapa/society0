@@ -137,7 +137,8 @@ async def test_review_close_collects_update_wait_before_shared_resources_can_clo
 @pytest.mark.parametrize('case',['missing','other_actor'])
 async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
     from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
-    store,threads,tid,memory,embed,client=setup(tmp_path)
+    from society0.kernel.memory import MemoryPolicy
+    store,threads,tid,memory,embed,client=setup(tmp_path,policy=MemoryPolicy(False,False,True))
     with store:
         identifier='missing'
         if case=='other_actor':
@@ -147,8 +148,10 @@ async def test_review_memory_action_unavailable_record_is_business_rejection(tmp
         arguments={'memory_id':identifier}
         if operation=='update':arguments['content']='changed'
         before=len(embed.calls)
-        result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
-                                    Ref('memory','actor','a'),arguments)
+        from tests.primary.test_kernel_memory_activation import session
+        current=session('a',actions=actions)
+        async with memory.activation(current,tid):
+            result=await current.actions.invoke('memory.'+operation,Ref('memory','actor','a'),arguments)
         assert result.status=='rejected'
         assert len(embed.calls)==before
         if case=='other_actor':assert memory.get(identifier,actor='b')['content']=='private b'
@@ -157,16 +160,20 @@ async def test_review_memory_action_unavailable_record_is_business_rejection(tmp
 @pytest.mark.asyncio
 async def test_review_memory_action_provider_failure_still_propagates(tmp_path):
     from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
-    store,threads,tid,memory,embed,client=setup(tmp_path)
+    from society0.kernel.memory import MemoryPolicy
+    store,threads,tid,memory,embed,client=setup(tmp_path,policy=MemoryPolicy(False,False,True))
     with store:
         identifier=(await memory.seed('a','seed',timestamp=0,entries=[{'content':'before'}]))[0]
         async def failed(*args,**kwargs):raise OSError('embedding transport failure')
         memory.embed=failed
         actions=Actions(lambda *args:True)
         for action in memory.actions():actions.register(action)
-        with pytest.raises(OSError,match='embedding transport failure'):
-            await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.update',
-                                 Ref('memory','actor','a'),{'memory_id':identifier,'content':'after'})
+        from tests.primary.test_kernel_memory_activation import session
+        current=session('a',actions=actions)
+        async with memory.activation(current,tid):
+            with pytest.raises(OSError,match='embedding transport failure'):
+                await current.actions.invoke('memory.update',Ref('memory','actor','a'),
+                                             {'memory_id':identifier,'content':'after'})
         assert memory.get(identifier,actor='a')['content']=='before'
 
 

@@ -2,18 +2,17 @@
 from dataclasses import asdict
 import json
 
-from society0.kernel.datasets import DATASET_SCHEMA, Datasets
+from society0.kernel.datasets import Datasets
 from society0.kernel.interaction import DocumentChunk, Page, Ref, Unavailable
 from society0.kernel.plugins import Plugin
 
-SCHEMA = (*DATASET_SCHEMA,
-          'CREATE TABLE catalog_head(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,dataset TEXT NOT NULL)')
+SCHEMA = ('CREATE TABLE catalog_head(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,dataset TEXT NOT NULL)',)
 
 
 class Catalog:
-    def __init__(self, store):
+    def __init__(self, store, datasets=None):
         self.store = store
-        self.datasets = Datasets(store)
+        self.datasets = Datasets(store) if datasets is None else datasets
 
     def replace(self, owner, rows):
         return self.datasets.import_rows('catalog', rows, attach=lambda writer, ref:
@@ -52,5 +51,5 @@ class Catalog:
 
 def catalog_plugin():
     def install(context):
-        context.provide('catalog', Catalog(context.require('storage','store')))
-    return Plugin('catalog',('storage',),install,schema=SCHEMA)
+        context.provide('catalog', Catalog(context.require('storage','store'),context.require('datasets','datasets')))
+    return Plugin('catalog',('storage','datasets'),install,schema=SCHEMA)

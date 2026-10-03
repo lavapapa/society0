@@ -111,7 +111,8 @@ async def test_catalog_runtime_information_and_restored_readonly_consumer(tmp_pa
     from society0.kernel.composition import compose
     from society0.kernel.interaction import Information, InteractionScope, Moment, Query, Unavailable
     rows=[{'id':1,'body':'原文🙂'*100000},{'id':2,'value':[False,1,None]}]
-    async with compose(tmp_path/'run',[catalog_plugin()]) as host:
+    from society0.kernel.datasets import dataset_plugin
+    async with compose(tmp_path/'run',[dataset_plugin(),catalog_plugin()]) as host:
         store=host.service('storage','store');catalog=host.service('catalog','catalog')
         reference=catalog.replace('a',iter(rows))
         info=Information(lambda scope,operation,ref:True);info.mount('/catalog',catalog)
@@ -169,3 +170,23 @@ def test_page_decompresses_each_adjacent_block_once(tmp_path, monkeypatch):
         first=len(calls)
         data.page(ref,limit=1)
         assert len(calls)==first+1  # 每次请求重新读取，无跨请求常驻。
+
+
+def test_page_reuses_cached_block_without_fetching_blob_again(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+    values=[{'i':i} for i in range(1000)]
+    with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+        data=Datasets(store);ref=data.import_rows('small',values)
+        original=data._open;queries=[]
+        class Connection:
+            def __init__(self,connection):self.connection=connection
+            def execute(self,sql,bindings=()):
+                if 'FROM blocks' in sql:queries.append(sql)
+                return self.connection.execute(sql,bindings)
+        @contextmanager
+        def opened(reference):
+            with original(reference) as (connection,*rest):
+                yield Connection(connection),*rest
+        monkeypatch.setattr(data,'_open',opened)
+        assert len(data.page(ref,limit=1000,max_bytes=1000000)['items'])==1000
+        assert len(queries)==1

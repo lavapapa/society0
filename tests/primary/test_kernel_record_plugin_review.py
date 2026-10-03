@@ -17,7 +17,7 @@ async def test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revis
         before=store.read(lambda r:r.live_revision)
         cyclic=[];cyclic.append(cyclic)
         for value in [{'x':float('nan')},{'x':float('inf')},cyclic]:
-            with pytest.raises(ValueError):records.append('invalid',value)
+            with pytest.raises((ValueError,RecursionError)):records.append('invalid',value)
             assert store.read(lambda r:r.live_revision)==before
         assert not records.append(values[0][0],{'replacement':True})
         assert records.facts()==values

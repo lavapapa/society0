@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_activation_selection_requires_immutable_policy ______________
+
+    def test_activation_selection_requires_immutable_policy():
+>       with pytest.raises(TypeError,match='MemoryPolicy'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE TypeError
+
+tests/primary/test_kernel_memory_activation.py:155: Failed

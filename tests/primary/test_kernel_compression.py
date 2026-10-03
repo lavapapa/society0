@@ -33,18 +33,11 @@ def test_writer_small_path_and_shared_large_pool_close(tmp_path,monkeypatch):
         assert ThreadStore(restored).read_messages(tid)[-1]==body
 
 
-def test_writer_encoding_iterator_expires_and_partial_consumption_drains(tmp_path):
+def test_writer_encoding_callback_expires(tmp_path):
     with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
-        retained=[]
-        def write(writer):
-            stream=writer.encode_chunks({'body':'x'*1000000})
-            next(stream)
-            retained.append(stream)
-        store.transaction(write)
-        assert list(retained[0])==[]
-        expired=store.transaction(lambda writer:writer.encode_chunks({'body':'later'}))
+        expired=store.transaction(lambda writer:writer.write_json_chunks)
         with pytest.raises(StorageError,match='scope'):
-            next(expired)
+            expired({'body':'later'},lambda size,body:None)
 
 
 def test_parallel_encoder_matches_serial_and_drains_on_invalid_json(tmp_path,monkeypatch):
@@ -57,11 +50,12 @@ def test_parallel_encoder_matches_serial_and_drains_on_invalid_json(tmp_path,mon
     monkeypatch.setattr(codec.zlib,'compress',compress)
     with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
         value={'body':'\\"\n中文🙂'*100000,'tail':[1,2.5,None,True]}
-        chunks=store.transaction(lambda writer:list(writer.encode_chunks(value)))
+        chunks=[]
+        store.transaction(lambda writer:writer.write_json_chunks(value,lambda size,body:chunks.append((size,body))))
         assert json.loads(b''.join(zlib.decompress(body) for _,body in chunks))==value
         assert threading.get_ident() not in threads
         with pytest.raises(ValueError):
-            store.transaction(lambda writer:list(writer.encode_chunks([value,float('nan')])))
+            store.transaction(lambda writer:writer.write_json_chunks([value,float('nan')],lambda *args:None))
         store.transaction(lambda writer:writer.execute('INSERT INTO item VALUES(1)'))
         assert store.read(lambda reader:reader.query('SELECT * FROM item'))==[(1,)]
 
@@ -88,7 +82,8 @@ def test_encoder_byte_budget_is_enforced_before_next_submit(monkeypatch):
     monkeypatch.setattr(codec,'ThreadPoolExecutor',Pool)
     encoder=codec.ChunkEncoder(4,131072)
     try:
-        chunks=list(encoder.encode({'body':'x'*3000000}))
+        chunks=[]
+        encoder.write({'body':'x'*3000000},lambda size,body:chunks.append((size,body)))
         assert peak<=131072 and active==0
         assert json.loads(b''.join(zlib.decompress(body) for _,body in chunks))['body']=='x'*3000000
     finally:encoder.close()

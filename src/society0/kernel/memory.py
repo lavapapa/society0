@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
+from contextlib import asynccontextmanager, contextmanager
+from contextvars import ContextVar
 import json
 import itertools
 import inspect
@@ -36,11 +38,40 @@ MEMORY_SCHEMA = (
 )
 
 
+def _write_body(writer, identifier, item):
+    index = 0
+    def emit(size, payload):
+        nonlocal index
+        writer.execute('INSERT INTO memory_chunks VALUES(?,?,?,?)', (identifier,index,size,payload))
+        index += 1
+    writer.write_json_chunks({'content':item['content'],'metadata':item['metadata']},emit)
+
+
 @dataclass(frozen=True)
 class MemoryPolicy:
     auto_recall: bool = True
     auto_write: bool = True
     active_tools: bool = True
+
+
+@dataclass(frozen=True)
+class MemoryActivation:
+    policy: MemoryPolicy
+    recall_top_k: int = 10
+
+    def __post_init__(self):
+        if not isinstance(self.policy,MemoryPolicy):
+            raise TypeError('activation policy must be MemoryPolicy')
+        if type(self.recall_top_k) is not int or self.recall_top_k < 1:
+            raise ValueError('recall_top_k must be positive')
+
+
+@dataclass
+class _Binding:
+    scope: object
+    selection: MemoryActivation
+    step: int
+    active: bool = True
 
 
 def _payload(view, memory_id):
@@ -97,22 +128,28 @@ def _vectors(values, count, dimension=None):
     return expected
 
 
+@contextmanager
+def _operation_scope(memory):
+    memory._check()
+    task=asyncio.current_task()
+    memory._operations[task]=memory._operations.get(task,0)+1
+    try:yield
+    finally:
+        depth=memory._operations[task]-1
+        if depth:memory._operations[task]=depth
+        else:memory._operations.pop(task)
+
+
 def _operation(method):
     @wraps(method)
     async def scoped(self,*args,**kwargs):
-        self._check()
-        task=asyncio.current_task()
-        self._operations[task]=self._operations.get(task,0)+1
-        try:return await method(self,*args,**kwargs)
-        finally:
-            depth=self._operations[task]-1
-            if depth:self._operations[task]=depth
-            else:self._operations.pop(task)
+        with _operation_scope(self):
+            return await method(self,*args,**kwargs)
     return scoped
 
 
 class Memory:
-    def __init__(self,store,threads,*,embed,client,extract=None,policy=None,recall_query=None,decay_rate=0.01,recall_top_k=10):
+    def __init__(self,store,threads,*,embed,client,extract=None,policy=None,recall_query=None,decay_rate=0.01,recall_top_k=10,policy_selector=None):
         self.store,self.threads=store,threads
         self.embed,self.client,self.extract=embed,client,extract
         self.policy=policy or MemoryPolicy()
@@ -124,9 +161,58 @@ class Memory:
         self._flights={}
         self._closed=False
         self._operations={}
+        self.policy_selector=policy_selector
+        self._activation=ContextVar("memory_activation",default=None)
 
     def _check(self):
         if self._closed:raise RuntimeError('Memory is closed')
+
+    def _selected(self, *, scope=None, session=None):
+        self._check()
+        binding=self._activation.get()
+        if binding is None:
+            return MemoryActivation(self.policy,self.recall_top_k)
+        if not binding.active:
+            raise RuntimeError('memory activation is closed')
+        actual=scope if session is None else session.scope
+        if actual is not None and actual is not binding.scope:
+            raise RuntimeError('memory activation belongs to another scope')
+        binding.scope.check_active()
+        return binding.selection
+
+    def _step(self, *, session=None, scope=None):
+        self._selected(session=session,scope=scope)
+        binding=self._activation.get()
+        if binding is not None:return binding.step
+        if session is not None:return session.step
+        raise RuntimeError('memory action requires an activation scope')
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+                raise ValueError('automatic memory write requires an extractor')
+            if selection.policy.auto_recall and self.recall_query is None:
+                raise ValueError('automatic memory recall requires recall_query')
+            self.threads.event(thread_id,'memory_policy',{
+                **asdict(selection.policy),'recall_top_k':selection.recall_top_k,
+                'effective_auto_write':selection.policy.auto_write and head['kind']!='interview','step':session.step})
+            binding=_Binding(session.scope,selection,session.step)
+            token=self._activation.set(binding)
+            try:yield self
+            finally:
+                binding.active=False
+                self._activation.reset(token)
 
     async def close(self):
         self._closed=True
@@ -176,8 +262,7 @@ class Memory:
                 writer.execute('UPDATE memory_state SET dimension=? WHERE id=1',(dimension,))
                 writer.execute('INSERT INTO memory_rows VALUES(?,?,?,?,?,?,?,?)',
                     (identifier,actor,item['type'],timestamp,item['importance'],'ready',revision,visible_step))
-                writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((identifier,index,size,payload)
-                    for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                _write_body(writer,identifier,item)
                 writer.execute('INSERT INTO memory_vectors VALUES(?,?,?)',(identifier,dimension,struct.pack('<'+str(dimension)+'d',*vector)))
                 count+=1
             return count
@@ -232,7 +317,7 @@ class Memory:
             for ordinal,item in enumerate(entries):
                 memory_id=uuid.uuid4().hex
                 writer.execute('INSERT INTO memory_rows VALUES(?,?,?,?,?,?,0,?)',(memory_id,actor,item['type'],timestamp,item['importance'],'pending',visible_step))
-                writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((memory_id,index,size,payload) for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+                _write_body(writer,memory_id,item)
                 writer.execute('INSERT INTO memory_job_items VALUES(?,?,?)',(job_id,ordinal,memory_id))
         self.store.transaction(write)
         return job_id
@@ -295,8 +380,7 @@ class Memory:
             _archive(writer,memory_id,visible_step)
             next_revision=_next_revision(writer)
             writer.execute('DELETE FROM memory_chunks WHERE id=?',(memory_id,))
-            writer.executemany('INSERT INTO memory_chunks VALUES(?,?,?,?)',((memory_id,index,size,payload)
-                for index,(size,payload) in enumerate(writer.encode_chunks({'content':item['content'],'metadata':item['metadata']}))))
+            _write_body(writer,memory_id,item)
             writer.execute('UPDATE memory_vectors SET vector=? WHERE id=?',(struct.pack('<'+str(dimension)+'d',*vectors[0]),memory_id))
             writer.execute('UPDATE memory_rows SET timestamp=?,importance=?,revision=?,visible_step=? WHERE id=?',
                            (timestamp,item['importance'],next_revision,visible_step,memory_id))
@@ -466,13 +550,14 @@ class Memory:
     async def before_activation(self,session,thread_id):
         self._check()
         from ..async_utils import invoke_maybe_async
+        selection=self._selected(session=session)
         messages=[]
-        if self.policy.active_tools:
+        if selection.policy.active_tools:
             messages.append({'role':'user','content':json.dumps({'memory_actions_target':{'namespace':'memory','kind':'actor','key':session.actor.id}},ensure_ascii=False)})
-        if self.policy.auto_recall:
+        if selection.policy.auto_recall:
             if self.recall_query is None:raise ValueError('automatic memory recall requires recall_query')
             query=await invoke_maybe_async(self.recall_query,session)
-            hits=await self.recall(session.actor.id,query,top_k=self.recall_top_k,current_step=session.moment.time,thread_id=thread_id)
+            hits=await self.recall(session.actor.id,query,top_k=selection.recall_top_k,current_step=self._step(session=session),thread_id=thread_id)
             if hits:
                 messages.append({'role':'user','content':json.dumps({'recalled_memories':[item['content'] for item in hits]},ensure_ascii=False)})
         return messages
@@ -480,38 +565,37 @@ class Memory:
     @_operation
     async def after_activation(self,session,thread_id,result):
         self._check()
-        if not self.policy.auto_write or result.status not in ('completed','waiting'):return
+        if not self._selected(session=session).policy.auto_write or result.status not in ('completed','waiting'):return
         if self.threads.describe(thread_id)['kind']=='interview':return
         through=result.value['memory_input_through']
-        job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=session.moment.time)
+        job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=self._step(session=session))
         await self.finish_job(job)
 
     def actions(self):
         from .interaction import Action,ActionResult
-        if not self.policy.active_tools:return ()
         async def remember(scope,target,arguments):
             thread=self.threads.find(scope.actor,scope.moment)
-            job=self.prepare_job(scope.actor,thread,uuid.uuid4().hex,timestamp=scope.moment.time,entries=[arguments])
+            job=self.prepare_job(scope.actor,thread,uuid.uuid4().hex,timestamp=self._step(scope=scope),entries=[arguments])
             ids=await self.finish_job(job)
             return ActionResult('completed',{'memory_ids':ids})
         async def recall(scope,target,arguments):
             thread=self.threads.find(scope.actor,scope.moment)
-            hits=await self.recall(scope.actor,arguments['query'],top_k=arguments.get('top_k',10),current_step=scope.moment.time,thread_id=thread)
+            hits=await self.recall(scope.actor,arguments['query'],top_k=arguments.get('top_k',10),current_step=self._step(scope=scope),thread_id=thread)
             return ActionResult('completed',{'memories':[{'id':item['id'],'type':item['type'],'content':item['content'],'score':item['score']} for item in hits]})
         async def update(scope,target,arguments):
             identifier=arguments['memory_id']
             try:self.get(identifier,actor=scope.actor)
             except (KeyError,PermissionError):return ActionResult('rejected',{'reason':'memory_unavailable'})
-            await self.update(identifier,actor=scope.actor,content=arguments['content'],timestamp=scope.moment.time,
-                              visible_step=scope.moment.time,importance=arguments.get('importance'))
+            await self.update(identifier,actor=scope.actor,content=arguments['content'],timestamp=self._step(scope=scope),
+                              visible_step=self._step(scope=scope),importance=arguments.get('importance'))
             return ActionResult('completed',{'memory_id':identifier})
         async def delete(scope,target,arguments):
             identifier=arguments['memory_id']
             try:self.get(identifier,actor=scope.actor)
             except (KeyError,PermissionError):return ActionResult('rejected',{'reason':'memory_unavailable'})
-            await self.delete(identifier,actor=scope.actor,visible_step=scope.moment.time)
+            await self.delete(identifier,actor=scope.actor,visible_step=self._step(scope=scope))
             return ActionResult('completed',{'memory_id':identifier})
-        def available(scope,target):return scope.actor==target.key
+        def available(scope,target):return self._activation.get() is not None and self._selected(scope=scope).policy.active_tools and scope.actor==target.key
         return (
             Action('memory.update',('memory','actor'),'修改该主体已经保存的记忆',
                 {'type':'object','properties':{'memory_id':{'type':'string'},'content':{'type':'string','minLength':1},'importance':{'type':'number','minimum':0,'maximum':5}},'required':['memory_id','content'],'additionalProperties':False},

@@ -11,20 +11,18 @@ def thread_plugin(*, storage=('storage', 'store'), name='threads'):
 
 
 def memory_plugin(*, client, embedding, extraction=None, policy=None,
-                  recall_query=None, decay_rate=0.01, recall_top_k=10,
+                  recall_query=None, policy_selector=None, decay_rate=0.01, recall_top_k=10,
                   storage=('storage', 'store'), threads=('threads', 'threads'),
                   actions=('interaction', 'actions'), name='memory'):
     """具名模型配置三元组；向量客户端由声明的依赖插件管理。"""
     from .memory import MEMORY_SCHEMA, Memory, MemoryPolicy, ThreadMemoryExtractor
     policy = policy or MemoryPolicy()
-    if policy.auto_write and extraction is None:
-        raise ValueError('automatic memory write requires an extraction profile')
-    if policy.auto_recall and recall_query is None:
+    if policy_selector is None and policy.auto_recall and recall_query is None:
         raise ValueError('automatic memory recall requires recall_query')
     dependencies = [storage, threads, client, embedding]
     if extraction is not None:
         dependencies.append(extraction)
-    if policy.active_tools:
+    if policy.active_tools or policy_selector is not None:
         dependencies.append(actions)
 
     def install(context):
@@ -36,9 +34,9 @@ def memory_plugin(*, client, embedding, extraction=None, policy=None,
             extractor = ThreadMemoryExtractor(thread_store, provider)
         memory = Memory(context.require(*storage), thread_store, embed=embed.embed,
                         client=context.require(*client), extract=extractor, policy=policy,
-                        recall_query=recall_query, decay_rate=decay_rate, recall_top_k=recall_top_k)
+                        recall_query=recall_query, policy_selector=policy_selector, decay_rate=decay_rate, recall_top_k=recall_top_k)
         context.on_close(memory.close)
-        if policy.active_tools:
+        if policy.active_tools or policy_selector is not None:
             registry = context.require(*actions)
             for action in memory.actions():
                 registry.register(action)

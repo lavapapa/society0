@@ -60,7 +60,7 @@ def setup(tmp_path, replies, *, policy=None, handler=None, terminal=False, tags=
     ], policy=policy or LLMPolicy())
     actor = Actor('a', driver)
     scope = InteractionScope('a', Moment(1, 'p'))
-    session = Session(actor, scope, Information(lambda *a: True).bound(scope), actions.bound(scope), {}, None, (), SimpleNamespace(prepare_artifact=store.prepare_artifact))
+    session = Session(actor, scope, Information(lambda *a: True).bound(scope), actions.bound(scope), {}, None, (), SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
     return store, threads, provider, driver, session, calls
 
 
@@ -468,7 +468,7 @@ async def test_filtered_discovery_cursor_binds_subject_and_moment(tmp_path):
     try:
         cursor = (await first.find(target, limit=1)).next_cursor
         other = Session(Actor('b', driver), InteractionScope('b', session.moment), session.information,
-                        session.actions, {}, None, (), None)
+                        session.actions, {}, None, (), None, step=1)
         with pytest.raises(ValueError, match='cursor'):
             await _Ledger(driver, other, tid).find(target, limit=1, cursor=cursor)
     finally:
@@ -535,7 +535,7 @@ async def test_restore_same_moment_reuses_thread_and_prior_tool_receipt(tmp_path
         recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [{'role': 'user', 'content': 'resume'}])
         recovered_scope = InteractionScope('a', Moment(1, 'p'))
         recovered_session = Session(Actor('a', recovered_driver), recovered_scope, session.information,
-                                    session.actions, {}, None, (), None)
+                                    session.actions, {}, None, (), None, step=1)
         assert (await recovered_driver.run(recovered_session)).status == 'completed'
         assert recovered_session.cursors['thread_id'] == tid
         assert recovered_threads.describe(tid)['provider_session_id'] == provider_session
@@ -552,7 +552,7 @@ async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, 
     store, threads, provider, driver, session, calls = setup(tmp_path,
         [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
     phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
-    session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase)
+    session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase, step=1)
     driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
         bound_actions=ledger, result_dir=tmp_path / 'results')
     try:
@@ -572,7 +572,7 @@ async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, 
         recovered_provider = FakeProvider(recovered_threads, [reply(read_call), reply(text='done')])
         recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
         recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
-                            session.actions, {}, None, (), SimpleNamespace(prepare_artifact=restored.prepare_artifact))
+                            session.actions, {}, None, (), SimpleNamespace(prepare_artifact=restored.prepare_artifact), step=1)
         if via_shell:
             recovered_driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
                 bound_actions=ledger, result_dir=tmp_path / 'new-results',
@@ -630,7 +630,7 @@ async def test_two_concurrent_actors_have_task_local_action_call_ids(tmp_path):
     store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('a-call')), reply(invoke('b-call'))], terminal=True, handler=work)
     other_scope = InteractionScope('b', session.moment)
     other = Session(Actor('b', driver), other_scope, session.information.information.bound(other_scope),
-                    session.actions.actions.bound(other_scope), {}, None, (), None)
+                    session.actions.actions.bound(other_scope), {}, None, (), None, step=1)
     try:
         results = await asyncio.gather(driver.run(session), driver.run(other))
         assert all(result.status == 'completed' for result in results)
@@ -678,7 +678,8 @@ async def test_memory_hooks_keep_original_input_boundary_and_thread_open(tmp_pat
         assert result.value['memory_input_through']==threads.describe(tid)['last_seq']
         threads.append_message(tid,{'role':'user','content':'extract memory from complete decision'})
         assert result.value['memory_input_through']<threads.describe(tid)['last_seq']
-    driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+    from contextlib import nullcontext
+    driver.memory=SimpleNamespace(before_activation=before,after_activation=after,activation=lambda *args:nullcontext())
     try:
         result=await driver.run(session)
         assert result.status=='completed'
@@ -697,7 +698,8 @@ async def test_memory_success_hook_skips_incomplete_and_failure_marks_thread_inc
     async def after(*args):
         seen.append(True)
         raise OSError('embedding evidence failed')
-    driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+    from contextlib import nullcontext
+    driver.memory=SimpleNamespace(before_activation=before,after_activation=after,activation=lambda *args:nullcontext())
     try:
         if failure:
             with pytest.raises(OSError,match='embedding evidence'):await driver.run(session)

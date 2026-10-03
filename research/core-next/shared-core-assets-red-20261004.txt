@@ -1,0 +1,32 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___________ test_pool_has_no_world_dependency_and_refills_free_slot ____________
+
+    @pytest.mark.asyncio
+    async def test_pool_has_no_world_dependency_and_refills_free_slot():
+        from society0.activation_pool import ActivationPool
+>       pool=ActivationPool(capacity=2,concurrency_source='test')
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ActivationPool.__init__() missing 1 required keyword-only argument: 'world'
+
+tests/primary/test_shared_core_assets.py:10: TypeError
+_______ test_strict_schema_keeps_original_and_retired_registry_is_absent _______
+
+    def test_strict_schema_keeps_original_and_retired_registry_is_absent():
+        from society0 import function_registry as module
+        schema={'type':'object','properties':{'text':{'type':'string'},'values':{'type':'array','items':{'type':'integer'}}},'required':['text']}
+        original=copy.deepcopy(schema)
+        normalized=module.normalize_strict_function_parameters(schema)
+        module.validate_strict_function_parameters(normalized)
+        assert schema==original
+        assert normalized['required']==['text','values']
+        assert normalized['properties']['values']['type']==['array','null']
+>       assert not hasattr(module,'FunctionRegistry')
+E       AssertionError: assert not True
+E        +  where True = hasattr(<module 'society0.function_registry' from '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/function_registry.py'>, 'FunctionRegistry')
+
+tests/primary/test_shared_core_assets.py:36: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_shared_core_assets.py::test_pool_has_no_world_dependency_and_refills_free_slot
+FAILED tests/primary/test_shared_core_assets.py::test_strict_schema_keeps_original_and_retired_registry_is_absent
+2 failed in 0.05s

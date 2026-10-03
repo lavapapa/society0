@@ -18,9 +18,18 @@ import time
 from unittest.mock import patch
 import zlib
 
-from society0.kernel._json_chunks import _json_parts, CHUNK_BYTES
+from society0.kernel._json_chunks import CHUNK_BYTES
+# spool/threaded 对照保留 f4d03a6 Python 遍历成本；default 路径运行当前产品。
+import importlib.util
+_spec=importlib.util.spec_from_file_location('json_baseline',Path(__file__).parents[1]/'research/core-next/json-codec-baseline-f4d03a6.py')
+_baseline=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_baseline)
+_json_parts=_baseline._json_parts
 from society0.kernel.storage import StageStore, Writer
 from society0.kernel.threads import ThreadStore, THREAD_SCHEMA
+
+
+def emit_chunks(chunks,emit):
+    for size,body in chunks:emit(size,body)
 
 
 def raw_chunks(value):
@@ -147,14 +156,14 @@ async def probe(path, mode, size, *, iterations=4, workers=4):
                     temp_bytes += prepared.stats['raw_spool_bytes']+prepared.stats['compressed_spool_bytes']
                     stats.update(prepared.stats)
                     started=time.perf_counter()
-                    with patch.object(Writer,'encode_chunks',lambda writer,_:prepared.chunks()):
+                    with patch.object(Writer,'write_json_chunks',lambda writer,_,emit:emit_chunks(prepared.chunks(),emit)):
                         threads.append_message(tid,value if value is not None else {})
                     writer_seconds += time.perf_counter()-started
                 finally:
                     prepared.close()
             elif mode=='threaded':
                 started=time.perf_counter()
-                with patch.object(Writer,'encode_chunks',lambda writer,value:parallel_chunks(raw_chunks(value),workers=workers,stats=stats)):
+                with patch.object(Writer,'write_json_chunks',lambda writer,value,emit:emit_chunks(parallel_chunks(raw_chunks(value),workers=workers,stats=stats),emit)):
                     threads.append_message(tid,value)
                 writer_seconds += time.perf_counter()-started
             else:

@@ -12,6 +12,7 @@ _MODULES = {
     'schedule_plugin': 'society0.kernel.schedule',
     'progress_plugin': 'society0.kernel.schedule',
     'results_plugin': 'society0.kernel.results',
+    'dataset_plugin': 'society0.kernel.datasets',
     'thread_plugin': 'society0.kernel.services',
     'memory_plugin': 'society0.kernel.services',
     'model_plugin': 'society0.kernel.models',
@@ -42,6 +43,7 @@ if TYPE_CHECKING:
     from ..kernel.runtime import runtime_plugin
     from ..kernel.schedule import schedule_plugin, progress_plugin
     from ..kernel.results import results_plugin
+    from ..kernel.datasets import dataset_plugin
     from ..kernel.services import thread_plugin, memory_plugin
     from ..kernel.models import model_plugin, embedding_plugin
     from ..kernel.workspace import workspace_plugin

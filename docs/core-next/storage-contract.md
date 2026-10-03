@@ -48,7 +48,7 @@ SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/
 
 ## 压缩资源
 
-`Writer.encode_chunks(value)` 在当前同步写入作用域内，把完整 JSON 值编码为有序的 `(raw_bytes, compressed_bytes)` 块。每块原文至多 64KiB，独立 zlib 压缩，现有完整读取和按块范围读取保持相同内容。字符串分段转义；编码线程只持有已冻结的 bytes，SQLite 修改继续由规范 writer 执行。迭代器应在 callback 内消费；部分消费的后台工作会在作用域结束时收束。
+`Writer.write_json_chunks(value, emit)` 在当前同步写入作用域内调用 `emit(raw_bytes, compressed_bytes)`，依次交付完整 JSON 值的压缩块。每块原文至多 64 KiB，独立 zlib 压缩。成熟原生编码器同步遍历输入；线程仅压缩已冻结的 bytes，SQLite 修改由规范 writer 执行。首个 emit 错误停止后续写入，原生遍历结束后保留该异常，并收束已提交后台工作。Unicode 输入可能建立随该字符串存活的 UTF8 缓存，额外内存取决于本次值的字符串内容；失败不承诺即时中断原生遍历。
 
 StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 `compression_inflight_bytes=524288`。设置单 worker 时使用同步压缩；其他配置先读取至多 256KiB 前缀，短值直接压缩，大值惰性启动该 store 共享的线程池。Thread、Memory 和 ResourceCalls 使用同一入口与资源所有者。close 排空并关闭线程池，插件不各自创建压缩池。worker 数与待处理原始字节预算必须为正，字节预算至少容纳一个 64KiB 块。
 
@@ -67,3 +67,19 @@ StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 
 `prepare_artifact_file(build)` 向同步构建器提供独占临时路径，构建器应关闭所有文件和数据库连接后返回。Store 完成文件同步、改名和目录同步，返回已有工件引用。失败构建会清理临时文件，发布后引用事务失败形成离线可回收孤儿。`Datasets` 用此入口封存一个明确导入批次，正文复用原生 SQLite 索引和现有 JSON 分块编码；合同见 [不可变批次正文](cold-datasets-design.md)。
 
 `prepare_readonly(source, destination, step=None, run_id=None)` 与 restore 共用完整链物化过程，返回 StageReader，保留 source 身份及所选完整步骤，省去新 root.sqlite。该目录面向完整点观察，拒绝作为 writer 或恢复来源；可继续运行的分支使用 restore。Observation 的完整点视图使用稳定派生 run_id，使跨进程读取保持已有游标合同。准备失败清理目标临时目录；已可见的旧准备视图生命周期继续由 Observation 管理。
+
+研究者也可直接用它保存持久分析目录。关闭返回的 reader 后，目录及其已登记工件继续存在，能够脱离源运行读取 Thread、SQL 权威记忆原文/向量、结果与数据集。此路径读取完整步骤，源运行随后产生的未完成事实不进入该视图。记忆分析无需启动向量检索服务；调用召回则另按 Memory 索引合同处理。
+
+```python
+from society0.kernel.storage import StageStore, StageReader
+from society0.kernel.results import Results
+
+with StageStore.prepare_readonly(source_run, analysis_directory, step=10):
+    pass
+with StageReader(analysis_directory) as reader:
+    results = Results(reader)
+    header = results.phase(10, 0)
+    first_page = results.page(header['tables']['facts'])
+```
+
+`source_run`、`analysis_directory` 和表名由调用者选择。分析目录的物化成本随选中完整点的状态与依赖工件增长；准备过程完成后，分页读取沿现有索引和正文引用执行。继续仿真使用原完整运行创建恢复分支。

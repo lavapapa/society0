@@ -26,38 +26,41 @@ def test_review_partial_encoding_base_exception_drains_native_tasks_and_rolls_ba
             with lock:active-=1
     monkeypatch.setattr(codec.zlib,'compress',compress)
     with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)'],compression_workers=2,compression_inflight_bytes=262144) as store:
-        kept=[]
         def write(writer):
             writer.execute('INSERT INTO item VALUES(1)')
-            chunks=writer.encode_chunks({'body':'🙂'*400000})
-            next(chunks);kept.append(chunks)
-            threading.Timer(.02,release.set).start()
-            raise KeyboardInterrupt('simulated cancellation')
+            def emit(size,body):
+                threading.Timer(.02,release.set).start()
+                raise KeyboardInterrupt('simulated cancellation')
+            writer.write_json_chunks({'body':'🙂'*400000},emit)
         with pytest.raises(KeyboardInterrupt):store.transaction(write)
         assert active==0 and peak<=2 and main not in worker_ids
         assert store.read(lambda r:r.query('SELECT * FROM item'))==[]
-        assert list(kept[0])==[]
         store.transaction(lambda w:w.execute('INSERT INTO item VALUES(2)'))
 
 
 def test_review_chunk_encoder_prefetch_is_bounded_and_recovered_body_is_exact(tmp_path,monkeypatch):
     from society0.kernel import _json_chunks as codec
     generated=0
-    native=codec.raw_chunks
-    def counted(value):
-        nonlocal generated
-        for raw in native(value):generated+=1;yield raw
-    monkeypatch.setattr(codec,'raw_chunks',counted)
+    native=codec.write_json
+    def counted(value,emit):
+        def consume(raw):
+            nonlocal generated
+            generated+=1
+            emit(raw)
+        native(value,consume)
+    monkeypatch.setattr(codec,'write_json',counted)
     value={'role':'user','content':'多字节🙂\\\"\n'*100000}
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA,compression_workers=2,compression_inflight_bytes=65536) as store:
         # 四块小载荷判定预读为固定256KiB，实际提交队列另受64KiB上限。
+        first=[]
         def write(writer):
-            chunks=writer.encode_chunks(value)
-            first=next(chunks)
-            assert generated<=4
-            chunks.close()
-            return first
-        size,chunk=store.transaction(write)
+            def emit(size,body):
+                first.append((size,body))
+                assert generated<=4
+                raise InterruptedError('stop after first block')
+            writer.write_json_chunks(value,emit)
+        with pytest.raises(InterruptedError):store.transaction(write)
+        size,chunk=first[0]
         assert size==len(zlib.decompress(chunk))==65536
         threads=ThreadStore(store);tid=threads.open('a',0,'decision')
         threads.append_message(tid,value);store.complete(1)
@@ -94,7 +97,7 @@ def test_review_main_thread_interrupt_while_waiting_keeps_future_in_drain_set(tm
         timer.start()
         try:
             with pytest.raises(KeyboardInterrupt):
-                store.transaction(lambda w:next(w.encode_chunks({'body':'x'*1000000})))
+                store.transaction(lambda w:w.write_json_chunks({'body':'x'*1000000},lambda *args:None))
             assert finished.is_set(), 'transaction returned before interrupted native task drained'
         finally:
             release.set();timer.join()

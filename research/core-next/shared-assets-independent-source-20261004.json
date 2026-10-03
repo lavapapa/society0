@@ -1,0 +1,7 @@
+{
+  "base": "f4d03a6",
+  "exact_function_source": {
+    "validate_strict_function_parameters": true,
+    "normalize_strict_function_parameters": true
+  }
+}

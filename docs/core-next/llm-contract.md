@@ -41,3 +41,6 @@ interview 模式默认提供测量工具 submit_result，决策动作不自动�
 `LLMPolicy(reasoning_stages=({'name':'观察','desc':'检查当前完整材料'}, ...))` 给出可选的认知阶段指导。指导正文变化时追加到 Thread，同一正文在原会话中复用。它沿用旧循环的阶段名称与描述语义，阶段之间没有额外的强制模型请求或调度屏障。结构化提交模式按其 schema 输出合同工作。
 
 模型自愿输出 `-> stage_begin: 阶段名` 行时，返回值 reasoning_stages 按响应 message_seq 列出有序 segments，分别包含 name、known 与原始消息 content 的字符范围 start/end（左闭右开）。重复和未知阶段按原顺序保留；未识别标记的内容进入 default 段。消费者沿 thread_id/message_seq 取得原文，再按字符范围解释分段。原始完整消息继续保存在 Thread，解析结果不触发纠正请求，也不减少原文。各阶段对应模型提供的文字分段；它们不代表可以观测模型内部未公开的推理过程。
+
+
+记忆 hooks 遵循激活作用域协议：`activation(session, thread_id)` 返回异步 context manager，Driver 在确定 Thread kind 后进入，退出时统一清理；before_activation 与 after_activation 在该作用域内执行。标准 Memory 的策略选择器每次解析一次，固定自动召回、写入、主动工具及 recall_top_k，详细合同见 memory-contract.md。自定义 hook 也须显式提供其作用域，避免跨激活共享可变策略。

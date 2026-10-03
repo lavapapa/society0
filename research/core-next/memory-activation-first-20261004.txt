@@ -1,0 +1,57 @@
+F...                                                                     [100%]
+=================================== FAILURES ===================================
+___________ test_two_subjects_policy_is_frozen_and_actions_share_it ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-732/test_two_subjects_policy_is_fr0')
+
+    @pytest.mark.asyncio
+    async def test_two_subjects_policy_is_frozen_and_actions_share_it(tmp_path):
+        policies={'a':MemoryActivation(MemoryPolicy(False,False,False),1),
+                  'b':MemoryActivation(MemoryPolicy(False,False,True),3)}
+        selected=[]
+        def choose(current):selected.append(current.actor.id);return policies[current.actor.id]
+        with StageStore.create(tmp_path/'run',(*THREAD_SCHEMA,*MEMORY_SCHEMA)) as store:
+            threads=ThreadStore(store); memory=Memory(store,threads,embed=Embed(),client=Client(),policy_selector=choose)
+            actions=Actions(lambda *a:True)
+            for action in memory.actions():actions.register(action)
+            barrier=asyncio.Event(); entered=asyncio.Event()
+            async def run(actor):
+                current=session(actor,actions=actions)
+                tid=threads.open(actor,current.moment,'decision')
+                async with memory.activation(current,tid):
+                    if actor=='a':entered.set();await barrier.wait()
+                    else:await entered.wait();policies['a']=policies['b'];barrier.set()
+                    target=Ref('memory','actor',actor)
+                    found=await current.actions.find(target)
+                    assert found.total==(0 if actor=='a' else 4)
+                    if actor=='a':
+                        from society0.kernel.interaction import Unavailable
+                        with pytest.raises(Unavailable):
+                            await current.actions.invoke('memory.remember',target,{'content':'forbidden'})
+                    else:
+                        result=await current.actions.invoke('memory.remember',target,{'content':'主体 b 原文'})
+                        assert result.status=='completed'
+                current.scope.close()
+>           await asyncio.gather(run('a'),run('b'))
+
+tests/primary/test_kernel_memory_activation.py:49:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+actor = 'a'
+
+    async def run(actor):
+        current=session(actor,actions=actions)
+        tid=threads.open(actor,current.moment,'decision')
+        async with memory.activation(current,tid):
+            if actor=='a':entered.set();await barrier.wait()
+            else:await entered.wait();policies['a']=policies['b'];barrier.set()
+            target=Ref('memory','actor',actor)
+            found=await current.actions.find(target)
+            assert found.total==(0 if actor=='a' else 4)
+            if actor=='a':
+                from society0.kernel.interaction import Unavailable
+>               with pytest.raises(Unavailable):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE Unavailable
+
+tests/primary/test_kernel_memory_activation.py:43: Failed

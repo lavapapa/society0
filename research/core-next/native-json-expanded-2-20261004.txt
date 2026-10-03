@@ -1,0 +1,65 @@
+........................................................................ [ 52%]
+....................................F...........................         [100%]
+=================================== FAILURES ===================================
+__ test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revision ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-751/test_review_duplicate_fact_kee0')
+
+    @pytest.mark.asyncio
+    async def test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revision(tmp_path):
+        plugins=[interaction_plugin(lambda *a:True),record_plugin(owner='a')]
+        async with compose(tmp_path/'run',plugins) as host:
+            records=host.service('records','records');store=host.service('storage','store')
+            values=[(-(2**90),{'order':[None,False,0,-0.0]}),(str(-(2**90)),{'text':'原文🙂'})]
+            for key,value in values:assert records.append(key,value)
+            store.complete(1)
+            before=store.read(lambda r:r.live_revision)
+            cyclic=[];cyclic.append(cyclic)
+            for value in [{'x':float('nan')},{'x':float('inf')},cyclic]:
+>               with pytest.raises(ValueError):records.append('invalid',value)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_record_plugin_review.py:20:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+examples/core_next/typed_records.py:42: in append
+    return self.store.transaction(lambda writer:self.append_to(writer,key,value))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:470: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+examples/core_next/typed_records.py:42: in <lambda>
+    return self.store.transaction(lambda writer:self.append_to(writer,key,value))
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+examples/core_next/typed_records.py:34: in append_to
+    rows=writer.query('INSERT INTO record_facts(kind,key,body) VALUES(?,?,?) ON CONFLICT(kind,key) DO NOTHING RETURNING ordinal',(*_key(key),_body(value)))
+                                                                                                                                             ^^^^^^^^^^^^
+examples/core_next/typed_records.py:24: in _body
+    write_json(value,parts.append)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+value = [[[[[[[...]]]]]]]
+emit = <built-in method append of list object at 0x10e8340c0>
+
+    def write_json(value, emit):
+        """原生同步编码；首个写入错误后停止副作用，完成遍历后保留原异常。"""
+        import rapidjson
+        class Sink:
+            error = None
+            def write(self, raw):
+                if self.error is None:
+                    try:
+                        emit(raw)
+                    except BaseException as error:
+                        self.error = error
+        sink = Sink()
+        try:
+>           rapidjson.dump(value, sink, ensure_ascii=False, allow_nan=False,
+                          number_mode=rapidjson.NM_NONE, bytes_mode=rapidjson.BM_NONE,
+                          iterable_mode=rapidjson.IM_ONLY_LISTS,
+                          mapping_mode=rapidjson.MM_ONLY_DICTS, chunk_size=CHUNK_BYTES)
+E                         RecursionError: maximum recursion depth exceeded while JSONifying list object
+
+src/society0/kernel/_json_chunks.py:23: RecursionError

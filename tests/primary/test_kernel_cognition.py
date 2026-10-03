@@ -20,7 +20,7 @@ class Provider:
 def session(driver,phase='A'):
     scope=InteractionScope('a',Moment(1,phase))
     record=SimpleNamespace(persona={'type':'类型完整背景','instance':'主体完整背景'},state={'full':'主观状态'},config={})
-    return Session(Actor('a',driver,config=record),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None)
+    return Session(Actor('a',driver,config=record),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None, step=1)
 
 
 @pytest.mark.asyncio

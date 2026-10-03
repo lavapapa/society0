@@ -8,9 +8,9 @@ Thread 和记忆通过普通 Plugin 装入同一个运行主机。工厂位于 `
 
 ## 二、记忆
 
-`memory_plugin(client=..., embedding=..., extraction=..., policy=..., recall_query=...)` 提供 `memory.memory`。client 是 `(插件名, 服务名)`；embedding 和 extraction 是 `(插件名, 服务名, 配置名)`，分别选择标准 embedding_plugin 和 model_plugin 提供的配置。extraction 可以省略，自动写入开启时须提供提取模型；自动召回开启时须提供 recall_query。主动工具、自动召回和自动写入沿 MemoryPolicy 独立配置。
+`memory_plugin(client=..., embedding=..., extraction=..., policy=..., recall_query=...)` 提供 `memory.memory`。client 是 `(插件名, 服务名)`；embedding 和 extraction 是 `(插件名, 服务名, 配置名)`，分别选择标准 embedding_plugin 和 model_plugin 提供的配置。extraction 可以省略，decision 激活选择自动写入时须提供提取模型，检查发生于已知 Thread kind 的激活装配；自动召回开启时须提供 recall_query。主动工具、自动召回和自动写入沿 MemoryPolicy 独立配置。
 
-默认 storage、threads、actions 服务分别是 `storage.store`、`threads.threads`、`interaction.actions`。主动工具开启时，工厂向交互服务注册记忆动作；关闭时该依赖也随之省去。向量 client 由所声明的依赖插件提供并管理关闭，主机依赖顺序保证 Memory 收束后再释放嵌入、模型及向量客户端。客户端可由运行配置选择实际持久目录，工厂不会自行启动外部服务。
+默认 storage、threads、actions 服务分别是 `storage.store`、`threads.threads`、`interaction.actions`。主动工具开启时，工厂向交互服务注册记忆动作；未设置策略选择器且默认关闭时该依赖随之省去。设置 policy_selector 后保留常驻模板，并按激活策略控制实际可用性。向量 client 由所声明的依赖插件提供并管理关闭，主机依赖顺序保证 Memory 收束后再释放嵌入、模型及向量客户端。客户端可由运行配置选择实际持久目录，工厂不会自行启动外部服务。
 
 没有自动提取模型的组合可显式关闭 auto_write，继续使用种子导入、原文读取、召回和主动工具。完整步骤内保存的记忆正文、向量和作业随 StageStore 恢复；派生向量索引沿 Memory 既有重建与可见性合同使用。
 

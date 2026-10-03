@@ -23,13 +23,12 @@ SCHEMA=(
 def _save(writer, sequence, entry, *, replace=False):
     if replace:
         writer.execute('DELETE FROM fixture_chunks WHERE seq=?',(sequence,))
-    total=0
-    def rows():
-        nonlocal total
-        for index,(size,payload) in enumerate(writer.encode_chunks(entry)):
-            total+=size
-            yield sequence,index,size,payload
-    writer.executemany('INSERT INTO fixture_chunks VALUES(?,?,?,?)',rows())
+    total=index=0
+    def emit(size,payload):
+        nonlocal total,index
+        writer.execute('INSERT INTO fixture_chunks VALUES(?,?,?,?)',(sequence,index,size,payload))
+        total+=size;index+=1
+    writer.write_json_chunks(entry,emit)
     editable=int(type(entry.get('value')) is dict)
     if replace:
         writer.execute('UPDATE fixture_entries SET raw_bytes=?,editable=? WHERE seq=?',(total,editable,sequence))
