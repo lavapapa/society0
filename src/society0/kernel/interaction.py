@@ -381,3 +381,13 @@ class _BoundActions:
 
     async def invoke(self, name, target, arguments):
         return await self.actions.invoke(self.scope, name, target, arguments)
+
+
+def interaction_plugin(allows, *, name='interaction', storage='storage'):
+    """为一个共享运行安装信息与行动服务，领域插件注册其自身内容。"""
+    from .plugins import Plugin
+    def install(context):
+        store=context.require(storage,'store')
+        context.provide('information',Information(allows))
+        context.provide('actions',Actions(allows,revision=lambda scope:store.read(lambda r:r.live_revision)))
+    return Plugin(name,(storage,),install)
