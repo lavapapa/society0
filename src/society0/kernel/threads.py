@@ -47,13 +47,13 @@ def _append(writer, thread_id, kind, payload, *, allow_closed=False):
         raise ValueError('Thread is closed')
     seq = head['last_seq'] + 1
     writer.execute('INSERT INTO thread_events VALUES(?,?,?,0,?)', (thread_id, seq, kind, writer.publish_step))
-    total = 0
-    def rows():
-        nonlocal total
-        for index, (size, body) in enumerate(writer.encode_chunks(payload)):
-            total += size
-            yield thread_id, seq, index, size, body
-    writer.executemany('INSERT INTO thread_chunks VALUES(?,?,?,?,?)', rows())
+    total = index = 0
+    def emit(size, body):
+        nonlocal total, index
+        writer.execute('INSERT INTO thread_chunks VALUES(?,?,?,?,?)', (thread_id, seq, index, size, body))
+        total += size
+        index += 1
+    writer.write_json_chunks(payload, emit)
     writer.execute('UPDATE thread_events SET raw_bytes=? WHERE thread_id=? AND seq=?', (total,thread_id,seq))
     writer.execute('UPDATE thread_heads SET last_seq=?,message_count=message_count+? WHERE id=?', (seq, int(kind == 'message'), thread_id))
     return seq
@@ -227,7 +227,7 @@ class ThreadStore:
     def record_request(self,thread_id,**options):
         return self._record_request(thread_id,track_usage=False,**options)
 
-    def _record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None, through=None,track_usage):
+    def _record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None, through=None,track_usage,tool_choice_resolution=None):
         def write(writer):
             head = _head(writer, thread_id)
             watermark = head['last_seq'] if through is None else through
@@ -240,6 +240,8 @@ class ThreadStore:
             payload = {'through': watermark, 'message_seqs': message_seqs, 'provider_options': provider_options,
                        'physical_request_id': physical_request_id, 'retry_of': retry_of,
                        'provider_session_id': head['provider_session_id']}
+            if tool_choice_resolution is not None:
+                payload['tool_choice_resolution']=tool_choice_resolution
             sequence=_append(writer, thread_id, 'request', payload)
             if track_usage:usage.begin(writer,'thread',json.dumps([thread_id,physical_request_id]),provider_options.get('model',''),head['actor'])
             return sequence

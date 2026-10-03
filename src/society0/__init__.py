@@ -15,6 +15,8 @@ _LAZY_IMPORTS = {
     'RuleDriver': ('schedule', 'RuleDriver'),
     'CodeSchedule': ('schedule', 'CodeSchedule'),
     'StepResult': ('results', 'StepResult'),
+    'TableValue': ('results', 'TableValue'),
+    'DatasetTable': ('results', 'DatasetTable'),
     'Ref': ('interaction', 'Ref'),
     'Query': ('interaction', 'Query'),
     'Action': ('interaction', 'Action'),
@@ -42,5 +44,5 @@ if TYPE_CHECKING:
     from .kernel.actors import ActorRecord
     from .kernel.runtime import Phase, DriverResult
     from .kernel.schedule import RuleDriver, CodeSchedule
-    from .kernel.results import StepResult
+    from .kernel.results import StepResult, TableValue, DatasetTable
     from .kernel.interaction import Ref, Query, Action, ActionResult

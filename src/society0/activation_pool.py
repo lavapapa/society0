@@ -128,7 +128,6 @@ class ActivationPool:
     def __init__(
         self,
         *,
-        world: Any,
         capacity: int,
         concurrency_source: str,
         max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
@@ -139,7 +138,6 @@ class ActivationPool:
             raise ValueError("capacity must be a positive integer") from None
         if parsed_capacity <= 0:
             raise ValueError("capacity must be a positive integer")
-        self.world = world
         self.capacity = parsed_capacity
         self.concurrency_source = str(concurrency_source)
         if max_activations is None:
@@ -229,69 +227,6 @@ class ActivationPool:
             handler_id=handler_id,
         )
 
-    def instruct(
-        self,
-        agent_id: str,
-        instruction: str,
-        *,
-        key: ActivationKey | None = None,
-        payload: Any = None,
-        dedupe_token: Hashable | None = None,
-        fovs: list[str] | None = None,
-        actions: list[str] | None = None,
-        **options: Any,
-    ) -> ActivationSubmission:
-        """Queue one agent ``instruct`` call under the pool's global bound.
-
-        Static instructions submitted to the same queued round are de-duplicated
-        in arrival order and joined with a blank line.
-        """
-        if not isinstance(instruction, str) or not instruction.strip():
-            raise ValueError("instruction must be a non-empty string")
-        task_key = key if key is not None else ("instruct", str(agent_id))
-        normalized_instruction = instruction.strip()
-        resolved_fovs = tuple(fovs or ())
-        resolved_actions = tuple(actions) if actions is not None else None
-        handler_id = (
-            "instruct",
-            str(agent_id),
-            resolved_fovs,
-            resolved_actions,
-            self._freeze_handler_options(options),
-        )
-
-        async def run(batch: ActivationBatch) -> Any:
-            from .schedule import AgentGroup
-
-            instructions: list[str] = []
-            for signal in batch.signals:
-                text = signal.instruction
-                if text and text not in instructions:
-                    instructions.append(text)
-            return await AgentGroup(self.world, [str(agent_id)]).instruct(
-                "\n\n".join(instructions),
-                fovs=list(resolved_fovs),
-                actions=(
-                    list(resolved_actions)
-                    if resolved_actions is not None
-                    else None
-                ),
-                concurrency=1,
-                **options,
-            )
-
-        signal = ActivationSignal(
-            payload=payload,
-            dedupe_token=dedupe_token,
-            instruction=normalized_instruction,
-        )
-        return self._submit_signal(
-            task_key,
-            run,
-            signal,
-            serial_key=self.agent_serial_key(agent_id),
-            handler_id=handler_id,
-        )
 
     @staticmethod
     def agent_serial_key(agent_id: str) -> tuple[str, str]:
@@ -455,29 +390,6 @@ class ActivationPool:
             for state in self._states.values()
         )
 
-    @classmethod
-    def _freeze_handler_options(cls, value: Any) -> Hashable:
-        if isinstance(value, dict):
-            return tuple(
-                sorted(
-                    (
-                        str(key),
-                        cls._freeze_handler_options(item),
-                    )
-                    for key, item in value.items()
-                )
-            )
-        if isinstance(value, (list, tuple)):
-            return tuple(cls._freeze_handler_options(item) for item in value)
-        if isinstance(value, set):
-            return frozenset(
-                cls._freeze_handler_options(item) for item in value
-            )
-        try:
-            hash(value)
-        except TypeError:
-            return (type(value).__qualname__, repr(value))
-        return value
 
     async def close(self, *, raise_on_error: bool = True) -> None:
         if self.closed:
@@ -650,55 +562,3 @@ class ActivationPool:
         if accepts_batch:
             return await invoke_maybe_async(task, batch)
         return await invoke_maybe_async(task)
-
-
-class ActivationPoolSession:
-    """Bind an :class:`ActivationPool` to an environment for one step block."""
-
-    def __init__(
-        self,
-        *,
-        context: Any,
-        concurrency: int | None = None,
-        max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
-    ) -> None:
-        from .schedule import _resolve_agent_call_concurrency_info
-
-        self._env = context.env
-        self._previous_pool: Any = None
-        capacity, source = _resolve_agent_call_concurrency_info(
-            context.world,
-            explicit_concurrency=concurrency,
-            model_id=None,
-        )
-        self.pool = ActivationPool(
-            world=context.world,
-            capacity=capacity,
-            concurrency_source=source,
-            max_activations=max_activations,
-        )
-
-    async def __aenter__(self) -> ActivationPool:
-        active_pool = getattr(self._env, "activation_pool", None)
-        if active_pool is not None:
-            raise RuntimeError("Environment already has an active activation pool")
-        self._previous_pool = active_pool
-        self._env.activation_pool = self.pool
-        try:
-            await self.pool.start()
-        except BaseException:
-            if getattr(self._env, "activation_pool", None) is self.pool:
-                self._env.activation_pool = self._previous_pool
-            raise
-        return self.pool
-
-    async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
-        try:
-            if exc_type is None:
-                await self.pool.close()
-            else:
-                await self.pool.cancel()
-        finally:
-            if getattr(self._env, "activation_pool", None) is self.pool:
-                self._env.activation_pool = self._previous_pool
-        return False

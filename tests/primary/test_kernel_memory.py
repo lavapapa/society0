@@ -143,11 +143,17 @@ async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_w
         job=memory.prepare_job('a',thread,'initial',timestamp=0,entries=[{'content':'known','importance':3}])
         await memory.finish_job(job)
         embed.calls.clear()
-        session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
+        session=SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(1,'decision'))
         messages=await memory.before_activation(session,thread)
         assert any('known' in message['content'] for message in messages)==auto_recall
         assert len(embed.calls)==int(auto_recall)
-        assert bool(memory.actions())==active_tools
+        from society0.kernel.interaction import Actions,InteractionScope,Ref
+        actions=Actions(lambda *args:True)
+        for action in memory.actions():actions.register(action)
+        session.scope=InteractionScope('a',session.moment)
+        async with memory.activation(session,thread):
+            available=await actions.find(session.scope,Ref('memory','actor','a'))
+            assert bool(available.items)==active_tools
         threads.append_message(thread,{'role':'user','content':'new observation'})
         result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(thread)['last_seq']})
         await memory.after_activation(session,thread,result)
@@ -166,7 +172,7 @@ async def test_two_activations_have_distinct_input_jobs_but_retry_reuses_receipt
         return [{'content':messages[-1]['content'],'importance':2}]
     store,threads,thread,memory,embed,client=setup(tmp_path,extract=extract,policy=MemoryPolicy(False,True,False))
     with store:
-        session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(0,'decision'))
+        session=SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(0,'decision'))
         for value in ('first fact','second fact'):
             threads.append_message(thread,{'role':'user','content':value})
             result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(thread)['last_seq']})
@@ -320,7 +326,7 @@ async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path
 @pytest.mark.asyncio
 async def test_active_memory_actions_include_update_and_delete(tmp_path):
     from society0.kernel.interaction import InteractionScope,Moment,Ref
-    store,threads,thread,memory,embed,client=setup(tmp_path)
+    store,threads,thread,memory,embed,client=setup(tmp_path,policy=MemoryPolicy(False,False,True))
     with store:
         actions={action.name:action for action in memory.actions()}
         assert set(actions)=={'memory.remember','memory.recall','memory.update','memory.delete'}
@@ -328,9 +334,12 @@ async def test_active_memory_actions_include_update_and_delete(tmp_path):
         target=Ref('memory','actor','a')
         job=memory.prepare_job('a',thread,'a',timestamp=0,entries=[{'content':'old'}])
         identifier=(await memory.finish_job(job))[0]
-        await actions['memory.update'].handler(scope,target,{'memory_id':identifier,'content':'updated'})
-        assert memory.get(identifier,actor='a')['content']=='updated'
-        await actions['memory.delete'].handler(scope,target,{'memory_id':identifier})
+        from types import SimpleNamespace
+        current=SimpleNamespace(actor=SimpleNamespace(id='a'),scope=scope,step=1)
+        async with memory.activation(current,thread):
+            await actions['memory.update'].handler(scope,target,{'memory_id':identifier,'content':'updated'})
+            assert memory.get(identifier,actor='a')['content']=='updated'
+            await actions['memory.delete'].handler(scope,target,{'memory_id':identifier})
         assert await memory.recall('a','updated')==[]
 
 
@@ -376,7 +385,7 @@ async def test_interview_thread_default_policy_does_not_extract_experience(tmp_p
     with store:
         interview=threads.open('a',0,'interview')
         threads.append_message(interview,{'role':'system','content':'interview'})
-        session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(0,'interview'))
+        session=SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(0,'interview'))
         result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(interview)['last_seq']})
         await memory.after_activation(session,interview,result)
         assert store.read(lambda view:view.query('SELECT count(*) FROM memory_jobs'))==[(0,)]
@@ -395,6 +404,6 @@ async def test_automatic_recall_top_k_controls_candidates_and_complete_context(t
         requested=[]
         def query(**kwargs):requested.append(kwargs['n_results']);return original(**kwargs)
         memory._collection.query=query
-        messages=await memory.before_activation(SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(1,'decision')),thread)
+        messages=await memory.before_activation(SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(1,'decision')),thread)
         assert requested==[4]
         assert json.loads(messages[0]['content'])=={'recalled_memories':['x','yy']}

@@ -16,7 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0"]
+dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0", "python-rapidjson==1.25"]
 
 [project.optional-dependencies]
 llm = ["openai", "ollama", "pydantic", "tenacity"]

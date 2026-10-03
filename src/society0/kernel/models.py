@@ -90,6 +90,7 @@ class _Manager(LLMManager):
                 sequence = trace.threads.record_provider_request(
                     trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
                     physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
+                    tool_choice_resolution=payload.get("tool_choice_resolution"),
                 )
                 if trace.retry_of is None:
                     trace.retry_of = sequence
@@ -184,13 +185,13 @@ class ResourceCalls:
     @staticmethod
     def _append(writer, identifier, kind, payload):
         sequence = writer.query('SELECT last_seq FROM resource_calls WHERE id=?',(identifier,))[0][0]+1
-        raw_bytes = 0
-        def rows():
-            nonlocal raw_bytes
-            for index,(size,body) in enumerate(writer.encode_chunks(payload)):
-                yield identifier,sequence,index,raw_bytes,size,body
-                raw_bytes += size
-        writer.executemany('INSERT INTO resource_chunks VALUES(?,?,?,?,?,?)',rows())
+        raw_bytes = index = 0
+        def emit(size, body):
+            nonlocal raw_bytes, index
+            writer.execute('INSERT INTO resource_chunks VALUES(?,?,?,?,?,?)', (identifier, sequence, index, raw_bytes, size, body))
+            raw_bytes += size
+            index += 1
+        writer.write_json_chunks(payload, emit)
         writer.execute('INSERT INTO resource_events VALUES(?,?,?,?)',(identifier,sequence,kind,raw_bytes))
         writer.execute('UPDATE resource_calls SET last_seq=? WHERE id=?',(sequence,identifier))
         return sequence

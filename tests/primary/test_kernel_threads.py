@@ -106,7 +106,7 @@ def test_request_reference_validation_and_json_cycles_are_atomic(tmp_path):
         with pytest.raises(ValueError):
             threads.record_request(thread, message_seqs=[seq], provider_options={}, physical_request_id='bad')
         cyclic = {}; cyclic['self'] = cyclic
-        with pytest.raises(ValueError): threads.append_message(thread, cyclic)
+        with pytest.raises(RecursionError): threads.append_message(thread, cyclic)
         assert threads.tail(thread)['total'] == 1
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections import Counter
 from contextvars import ContextVar
-from contextlib import contextmanager
+from contextlib import contextmanager, AsyncExitStack
 from dataclasses import asdict, dataclass, is_dataclass, field
 import json
 import re
@@ -387,7 +387,10 @@ class LLMDriver:
         status, reason, structured = 'incomplete', 'driver_error', None
         reasoning=[]
         timings={}
+        memory_scope=AsyncExitStack()
         try:
+            if self.memory is not None:
+                await memory_scope.enter_async_context(self.memory.activation(session,thread_id))
             with _timed(timings,'prompt_s'):
                 provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
                 inputs = await invoke_maybe_async(self.input_builder, session)
@@ -572,4 +575,7 @@ class LLMDriver:
             finally:
                 elapsed=time.perf_counter()-activation_started
                 timings['other_s']=max(0.,elapsed-sum(timings.values()))
-                self.threads.close(thread_id,status,reason=reason,elapsed_s=elapsed,phase_timings=timings)
+                try:
+                    self.threads.close(thread_id,status,reason=reason,elapsed_s=elapsed,phase_timings=timings)
+                finally:
+                    await memory_scope.aclose()

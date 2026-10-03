@@ -61,8 +61,7 @@ async def test_standard_services_two_steps_and_restore(tmp_path):
 
 
 def test_auto_write_requires_extraction_and_disabled_write_keeps_other_policy():
-    with pytest.raises(ValueError,match='extraction'):
-        memory_plugin(client=('vectors','client'),embedding=('embeddings','embeddings','small'))
+    # 提取器要求在已知 Thread kind 的激活装配时检查；interview 默认不写入。
     plugin=memory_plugin(client=('vectors','client'),embedding=('embeddings','embeddings','small'),
         policy=MemoryPolicy(auto_write=False,auto_recall=False,active_tools=True))
     assert 'models' not in plugin.requires

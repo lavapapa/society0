@@ -158,23 +158,10 @@ class ReadView:
 
 
 class Writer(ReadView):
-    def encode_chunks(self, value):
-        """作用域内消费的 JSON 压缩块，线程不接触 SQLite。"""
+    def write_json_chunks(self, value, emit):
+        """同步写入有界压缩块；仅不可变字节交给工作线程。"""
         self._check()
-        stream = self._encoder.encode(value)
-        self._encodings.append(stream)
-        try:
-            for item in stream:
-                self._check()
-                yield item
-        finally:
-            stream.close()
-            self._encodings.remove(stream)
-
-    def _finish(self):
-        for stream in tuple(self._encodings):
-            stream.close()
-        super()._finish()
+        self._encoder.write(value, emit)
 
     def include_artifact(self, reference):
         self._check()
@@ -322,7 +309,7 @@ class StageStore:
             if initialize:
                 scope = Writer(connection)
                 scope.publish_step = 0
-                scope._encoder, scope._encodings = encoder, []
+                scope._encoder = encoder
                 connection.execute('BEGIN')
                 connection.set_authorizer(_authorizer)
                 try:
@@ -468,7 +455,7 @@ class StageStore:
         self._busy = True
         scope = Writer(self._connection)
         scope.publish_step = self.complete_step + 1
-        scope._encoder, scope._encodings = self._encoder, []
+        scope._encoder = self._encoder
         scope._include_artifact = self._include_artifact
         touched=set()
         def authorize(action,first,second,database,trigger):

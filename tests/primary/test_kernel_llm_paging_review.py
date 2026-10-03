@@ -49,7 +49,7 @@ async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp
                 actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
             driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
             scope=InteractionScope('actor',Moment(1,'read'))
-            session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact))
+            session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
             result=await driver.run(session)
             assert result.status=='completed'
             assert len(received)==2

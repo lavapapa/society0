@@ -43,12 +43,15 @@ async def test_activation_reports_memory_model_and_cleanup_stage_facts(tmp_path)
     class Provider:
         async def request(self,*args):await asyncio.sleep(.01);return {'role':'assistant','content':'done','finish_reason':'stop'}
     class Memory:
+        def activation(self,*args):
+            from contextlib import nullcontext
+            return nullcontext()
         async def before_activation(self,*args):await asyncio.sleep(.01);return []
         async def after_activation(self,*args):await asyncio.sleep(.01)
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],memory=Memory())
         scope=InteractionScope('a',Moment(1,'decision'))
-        session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None)
+        session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None, step=1)
         result=await driver.run(session)
         timings=result.value['phase_timings']
         for name in ('model_s','memory_recall_s','memory_write_s'):assert timings[name]>=.008

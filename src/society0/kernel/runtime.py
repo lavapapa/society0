@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import time as time_module
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from itertools import chain
 
@@ -76,6 +76,7 @@ class Session:
     prepared: Any
     signals: tuple
     _phase: PhaseContext
+    step: int = field(kw_only=True)
 
     @property
     def moment(self):
@@ -111,7 +112,7 @@ class PhaseContext:
         self.capacity = 1 if phase.execution == 'serial' else (phase.capacity if phase.capacity is not None else runtime.capacity)
         self.concurrency_source = 'serial phase' if phase.execution == 'serial' else ('phase' if phase.capacity is not None else 'runtime')
         self._pool = ActivationPool(
-            world=None, capacity=self.capacity,
+            capacity=self.capacity,
             concurrency_source=self.concurrency_source, max_activations=1 if self._exhausted else remaining,
         )
 
@@ -145,7 +146,7 @@ class PhaseContext:
                 scope = InteractionScope(actor.id, self.moment)
                 session = Session(
                     actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
-                    self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self,
+                    self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
                 )
                 result = await actor.driver.run(session)
                 if not isinstance(result, DriverResult):

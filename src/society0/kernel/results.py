@@ -2,6 +2,7 @@
 from __future__ import annotations
 import asyncio
 from dataclasses import dataclass,field
+from collections.abc import Mapping
 from itertools import chain,islice
 import json
 import uuid
@@ -28,18 +29,30 @@ class StepResult:
     notes: str|None=None
 
 
+@dataclass(frozen=True)
+class TableValue:
+    """把一个完整 JSON 值保存为表结果的一条记录。"""
+    value: object
+
+
+@dataclass(frozen=True)
+class DatasetTable:
+    """复用已经封存且登记在本运行中的数据集。"""
+    reference: dict
+
+
 class Results:
     def __init__(self,store):self.store=store
 
     @staticmethod
     def _row(writer,identifier,ordinal,value):
-        offset=0
-        def chunks():
-            nonlocal offset
-            for number,(size,body) in enumerate(writer.encode_chunks(value)):
-                yield identifier,ordinal,number,offset,size,body
-                offset+=size
-        writer.executemany('INSERT INTO result_chunks VALUES(?,?,?,?,?,?)',chunks())
+        offset = number = 0
+        def emit(size, body):
+            nonlocal offset, number
+            writer.execute('INSERT INTO result_chunks VALUES(?,?,?,?,?,?)', (identifier, ordinal, number, offset, size, body))
+            offset += size
+            number += 1
+        writer.write_json_chunks(value, emit)
         writer.execute('INSERT INTO result_rows VALUES(?,?,?)',(identifier,ordinal,offset))
 
     async def _dataset(self,step,phase_index,name,kind,rows):
@@ -75,9 +88,24 @@ class Results:
     async def write_phase(self,step,phase_index,name,result,*,activations=(),elapsed_s=0,capacity=None,concurrency_source=None):
         if result is None:result=StepResult()
         if not isinstance(result,StepResult):raise TypeError('phase must return StepResult or None')
+        for rows in result.tables.values():
+            if isinstance(rows,(TableValue,DatasetTable)):continue
+            if isinstance(rows,(Mapping,str,bytes,bytearray)) or hasattr(rows,'to_dict'):
+                raise TypeError('table requires rows or an explicit TableValue / DatasetTable')
+            iter(rows)
         tables={}
         for label,rows in result.tables.items():
-            tables[label]=await self._dataset(step,phase_index,label,'table',rows)
+            if isinstance(rows,DatasetTable):
+                from .datasets import Datasets
+                count=Datasets(self.store).describe(rows.reference)['count']
+                tables[label]=dict(rows.reference)
+                self.store.transaction(lambda writer:writer.execute(
+                    "INSERT INTO result_totals VALUES('row_count',?) ON CONFLICT(name) DO UPDATE SET value=value+excluded.value",(count,)))
+            else:
+                reference=await self._dataset(step,phase_index,label,'table',
+                    (rows.value,) if isinstance(rows,TableValue) else rows)
+                if isinstance(rows,TableValue):reference['shape']='value'
+                tables[label]=reference
         actors=await self._dataset(step,phase_index,'activations','activations',activations)
         metrics=await self._dataset(step,phase_index,'metrics','metrics',
             ({'name':key,'value':value} for key,value in result.metrics.items()))
@@ -139,6 +167,16 @@ class Results:
     def page(self,reference,*,cursor=None,limit=100,max_bytes=65536):
         if type(limit) is not int or limit<1 or type(max_bytes) is not int or max_bytes<512:
             raise ValueError('positive limit and at least 512 page bytes required')
+        if reference.get('kind')=='dataset':
+            from .datasets import Datasets
+            page=Datasets(self.store).page(reference,cursor=cursor,limit=limit,max_bytes=max_bytes)
+            items=[]
+            for item in page['items']:
+                if 'payload_ref' in item:
+                    items.append(dict(kind='record_ref',**item['payload_ref']))
+                else:items.append(item['value'])
+            # 去掉每条的 ordinal/raw_bytes 外壳，保留原分页预算与游标。
+            return dict(page,items=items)
         def read(view):
             origin,count,finished=self._identity(view,reference)
             identity=[view.run_id,reference['id'],origin]
@@ -171,6 +209,9 @@ class Results:
     def read_record(self,reference,*,offset=0,size=65536):
         if type(offset) is not int or offset<0 or type(size) is not int or size<1:
             raise ValueError('invalid result byte range')
+        if 'dataset' in reference:
+            from .datasets import Datasets
+            return Datasets(self.store).read_payload(reference['dataset'],reference['ordinal'],offset=offset,size=size)
         def read(view):
             self._identity(view,reference)
             ordinal=reference['ordinal']

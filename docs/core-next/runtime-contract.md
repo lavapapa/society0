@@ -77,3 +77,5 @@ Runtime 同时接受 `Iterable[Actor]` 或 `Mapping[str, Actor]`。Mapping 保�
 阶段完成产物记录 `capacity` 与 `concurrency_source`，来源分别为 `serial phase`、`phase` 或 `runtime`。主体的串行键继续生效，同一主体的重复激活不会并行进入 Driver。模型和嵌入服务另有各自的请求槽位，因此独立主体可在调度容量范围内等待同一个受限模型服务；服务容量不会反向改变领域阶段的顺序。`test_kernel_capacity.py` 覆盖两级优先级、默认串行、非法值、主体串行键及独立资源等待容量。
 
 `Runtime.last_timing` 与独立 Progress 快照记录最近尝试步骤的阶段与完整发布时长，以及实际已完成下界；runner 可保存逐步诊断表。它们不改变 complete receipt 的恢复身份。具体字段和包含关系见 [行动与时长诊断](diagnostics-contract.md)。
+
+Session 的只读 `step` 是当前正在执行的完整步骤编号，与任意 JSON 类型的 `moment.time` 分开。Runtime 创建会话时填写它；手工构造 Session 的测试或低层调用须显式提供 `step=`。记忆等需要整数版本的服务可在激活进入时固定这个编号，业务时间原文继续留在 Moment 和 Thread。

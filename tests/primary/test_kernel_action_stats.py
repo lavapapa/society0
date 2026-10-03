@@ -69,7 +69,7 @@ async def test_real_shell_multi_actions_and_replayed_receipt_count_once(tmp_path
             threads=ThreadStore(store)
             driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],shell_factory=lambda s,ledger:ShellSession(s.scope,information,bound_actions=ledger,result_dir=tmp_path/'shell'))
             scope=InteractionScope('a',Moment(1,'work'))
-            session=Session(Actor('a',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact))
+            session=Session(Actor('a',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
             assert (await driver.run(session)).status=='completed'
             summary=Observation(store.path).action_summary()
             assert summary['action_counts']=={'work':2}
@@ -121,7 +121,7 @@ async def test_nested_handler_is_one_explicit_llm_action_and_failure_is_diagnost
             return {'role':'assistant','content':'','finish_reason':'tool_calls','tool_calls':[{'id':'c','type':'function','function':{'name':'action_invoke','arguments':json.dumps({'name':'outer','target':{'namespace':'m','kind':'job','key':'1'},'arguments':'{}'})}}]}
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         store.complete(1);threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[])
-        scope=InteractionScope('a',Moment(2,'work'));session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),actions.bound(scope),{},None,(),None)
+        scope=InteractionScope('a',Moment(2,'work'));session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),actions.bound(scope),{},None,(),None, step=1)
         with pytest.raises(RuntimeError,match='domain fault'):await driver.run(session)
         store.abort_step()
         summary=Observation(store.path).action_summary()

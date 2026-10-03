@@ -1,0 +1,84 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_table_value_preserves_tight_dataframe_shape_and_restore _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-743/test_table_value_preserves_tig0')
+
+    @pytest.mark.asyncio
+    async def test_table_value_preserves_tight_dataframe_shape_and_restore(tmp_path):
+        value={'columns':['name','amount'],'index':[10,'10'],'data':[['甲',2**90],['乙',-3]],
+               'index_names':['主体'],'column_names':[None]}
+        with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA) as store:
+            results=module.Results(store)
+>           header=await results.write_phase(1,0,'analysis',module.StepResult(tables={'table':module.TableValue(value)}))
+                                                                                              ^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'society0.kernel.results' has no attribute 'TableValue'
+
+tests/primary/test_kernel_result_inputs.py:15: AttributeError
+__________ test_ambiguous_table_input_rejected_before_writing[value0] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-743/test_ambiguous_table_input_rej0')
+value = {'column': [1, 2]}
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('value',[{'column':[1,2]},'abc',b'abc'])
+    async def test_ambiguous_table_input_rejected_before_writing(tmp_path,value):
+        with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA) as store:
+            results=module.Results(store)
+>           revision=store.live_revision
+                     ^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StageStore' object has no attribute 'live_revision'
+
+tests/primary/test_kernel_result_inputs.py:28: AttributeError
+___________ test_ambiguous_table_input_rejected_before_writing[abc0] ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-743/test_ambiguous_table_input_rej1')
+value = 'abc'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('value',[{'column':[1,2]},'abc',b'abc'])
+    async def test_ambiguous_table_input_rejected_before_writing(tmp_path,value):
+        with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA) as store:
+            results=module.Results(store)
+>           revision=store.live_revision
+                     ^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StageStore' object has no attribute 'live_revision'
+
+tests/primary/test_kernel_result_inputs.py:28: AttributeError
+___________ test_ambiguous_table_input_rejected_before_writing[abc1] ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-743/test_ambiguous_table_input_rej2')
+value = b'abc'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('value',[{'column':[1,2]},'abc',b'abc'])
+    async def test_ambiguous_table_input_rejected_before_writing(tmp_path,value):
+        with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA) as store:
+            results=module.Results(store)
+>           revision=store.live_revision
+                     ^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StageStore' object has no attribute 'live_revision'
+
+tests/primary/test_kernel_result_inputs.py:28: AttributeError
+_____ test_dataset_table_reuses_body_and_reads_large_records_after_restore _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-743/test_dataset_table_reuses_body0')
+
+    @pytest.mark.asyncio
+    async def test_dataset_table_reuses_body_and_reads_large_records_after_restore(tmp_path):
+        values=[{'n':0,'body':'正文🙂'*20000},{'n':1,'body':'完整'}]
+        with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            datasets=Datasets(store);reference=datasets.import_rows('source',values)
+            results=module.Results(store)
+>           header=await results.write_phase(1,0,'analysis',module.StepResult(tables={'table':module.DatasetTable(reference)}))
+                                                                                              ^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'society0.kernel.results' has no attribute 'DatasetTable'
+
+tests/primary/test_kernel_result_inputs.py:40: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_result_inputs.py::test_table_value_preserves_tight_dataframe_shape_and_restore
+FAILED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[value0]
+FAILED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[abc0]
+FAILED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[abc1]
+FAILED tests/primary/test_kernel_result_inputs.py::test_dataset_table_reuses_body_and_reads_large_records_after_restore
+5 failed in 0.10s

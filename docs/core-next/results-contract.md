@@ -12,7 +12,13 @@ CodeSchedule 持有 Runtime 和顺序 Phase 列表，run_step 直接调用 Runti
 
 ## 二、事实
 
-Results 由插件声明原生 SQLite 表，正文调用 Writer.encode_chunks，与 Thread 和 Memory 共用编码资源。表接受单次迭代器，逐行写入，按有限行数分批事务；不先转成列表。每行保存原始 JSON 与完整字节数，大行以引用按范围取得，分页保留精确 total、固定读取上界和继续位置。
+Results 由插件声明原生 SQLite 表，正文调用规范 Writer 编码入口，与 Thread 和 Memory 共用编码资源。表接受单次迭代器，逐行写入，按有限行数分批事务；不先转成列表。每行保存原始 JSON 与完整字节数，大行以引用按范围取得，分页保留精确 total、固定读取上界和继续位置。
+
+`tables` 的普通列表和生成器表示逐行数据。`TableValue(value)` 表示一份完整 JSON 值，保存为一条记录；例如 DataFrame 使用 `TableValue(frame.to_dict(orient="tight"))`，显式保留列、索引、名称与数据次序。模型对象先调用其公开导出方法。裸 Mapping、字符串与 DataFrame 会收到输入形状错误，防止把字段名当成数据行。此入口无需安装 pandas。
+
+组合多个机制时，登记一次 `dataset_plugin()`；机制通过声明依赖取得共享 `datasets` 服务，自身 schema 仅声明领域表。普通行结果无须装配该服务。
+
+`DatasetTable(reference)` 复用已由 Datasets 封存并登记的数据集，正文文件保持原引用。`Results.page` 对两类存储都返回原始值、精确总数和继续游标；巨行统一返回 `record_ref`，`read_record` 读取完整原文。完整值占一条记录，数据集按其原记录数计入 `row_count`。DataFrame 或模型的显式转换成本由所选择的完整值大小决定。
 
 metrics、artifacts、observations、notes 同样保持完整 JSON 或字符串。当前指标索引引用原始结果行；汇总计数在规范写入时维护。`metric(phase, name)` 明确读取单个当前指标，阶段再次返回指标后用新的键集合替换该阶段投影；旧指标原文仍在历史结果中。`summary()` 返回累计阶段、表行和各激活状态的计数，不重放历史。`step(number)` 返回该次完整步骤候选的模拟时间、阶段数、实际激活数、耗时、容量和激活预算；是否正式完成依照步骤描述符。成功返回 DriverResult 的主体激活记录保存 actor、round、status、reason、时长和值（含显式 collect 的 incomplete），LLM 值沿既有 Thread/资源引用追溯原文。抛错或取消的阶段通过原始 Thread、失败标记和进度诊断追溯，阶段结果表不冒充已经完成。结果写入失败使完整步骤失败，已写的部分结果属于原运行诊断，恢复依照完整步骤描述符。
 

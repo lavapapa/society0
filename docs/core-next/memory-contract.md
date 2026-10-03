@@ -24,7 +24,7 @@ SQL 保留提供方原始双精度向量，Chroma 当前实现按 float32 存储
 
 ## 三、主体接口
 
-`MemoryPolicy` 的 auto_write、auto_recall、active_tools 独立配置。`before_activation` 根据召回查询构造器和服务级 recall_top_k（默认 10）取得原文记忆；主动 recall 的 top_k 参数保持独立。该钩子也可给出主动工具入口；`after_activation` 仅对 completed 或 waiting 结果写入成功记忆。incomplete 不触发成功提取。kind 为 interview 的 Thread 默认跳过自动经验写入，自动召回仍由独立开关决定。主动记忆通过既有 Actions 的 memory 命名空间提供 remember、recall、update、delete，权限绑定主体身份。
+`MemoryPolicy` 的 auto_write、auto_recall、active_tools 独立配置。服务默认 recall_top_k 为 10。`policy_selector(session)` 可返回冻结的 `MemoryActivation(MemoryPolicy(...), recall_top_k=...)`，每次激活进入时解析一次。`before_activation` 根据召回查询构造器和本次固定 recall_top_k 取得原文记忆；主动 recall 的 top_k 参数保持独立。该钩子也可给出主动工具入口；`after_activation` 仅对 completed 或 waiting 结果写入成功记忆。incomplete 不触发成功提取。kind 为 interview 的 Thread 默认跳过自动经验写入，自动召回仍由独立开关决定。主动记忆通过既有 Actions 的 memory 命名空间提供 remember、recall、update、delete，权限绑定主体身份。
 
 `ThreadMemoryExtractor` 在原 Thread 追加提取提示，经标准 ModelProvider 调用强制工具并记录完整响应。工具声明、提示与解析规则来自共用提取协议；合法空数组表示没有新增记忆。协议不合格时允许一次纠正回合，输出 length 直接记录为未完成。原始 Thread 上下文保持完整，提供方物理重试与资源限制由 ModelProvider 负责。
 
@@ -37,3 +37,14 @@ SQL 保留提供方原始双精度向量，Chroma 当前实现按 float32 存储
 `import_records(actor, records, visible_step=...)` 消费一个迭代批次，在一次原生事务中保存原文、原向量及当前索引水位，返回导入数量。整个批次出现维度或正文错误会回滚。调用者通过多个明确批次控制一次 Session 捕获量，并在全部成功后发布完整步骤；中间批次已提交时发生错误，应终止该步骤并依据完整边界恢复。导入保留逻辑 id，重名由原生唯一约束拒绝；该操作不再次调用嵌入服务。历史版本与删除事实的完整转移使用 StageStore restore/fork，当前记忆导出用于明确的记忆种子或资料交换。
 
 `close()` 取消并等待 Memory 自己持有的未完成作业任务，SQL 中的准备状态继续留作诊断或被明确纳入完整步骤。关闭后的写入、召回与提取入口拒绝继续执行，job/get 等原事实读取仍可用于诊断。注入的 Chroma 客户端、模型与嵌入提供方由创建者持有，Memory 不关闭共享资源。现有 Plugin 的依赖关系和逆序退出负责先收束 Memory，再关闭创建它们的资源插件。具体 Chroma 客户端的关闭动作由相应资源创建者提供，借用客户端不推定底层 system 为本实例独占。
+
+
+## 激活作用域
+
+LLMDriver 在已经打开并确定 kind 的 Thread 上进入 `async with memory.activation(session, thread_id)`，依次执行认知输入、自动召回、决定、成功记忆写入和清理。三个开关与 recall_top_k 同时冻结，记为该 Thread 的短 memory_policy 事件。不同主体可并发选择不同策略；同一主体、同一自然时点的下一次激活重新选择，原 Thread 和记忆正文保持完整。
+
+常驻主动动作模板的 find、describe 与 invoke 都按当前激活的 active_tools 和主体身份判断可用性。ContextVar 将选择绑定实际 InteractionScope；退出时恢复调用方上下文并使已继承到子任务的旧绑定失效。Memory.close 会收束其正在管理的激活与操作。没有进入激活作用域的显式规则调用使用服务默认配置；seed、recall、extract_job 等显式调度接口保持独立。
+
+自动写入要求在已知 Thread kind 的激活装配时检查。decision 选择 auto_write 却缺少 extractor 会明确失败；interview 保持默认跳过自动写入，仍可独立召回。恢复后下一次激活依据新运行的公开策略配置重新选择，已经记录的历史策略与原文不会被覆盖。
+
+记忆默认使用 `Session.step` 作为可见版本和衰减序号，衰减单位为完整步骤。激活进入时固定该整数，自动召回、提取和四个主动动作共用；`Moment.time` 保留任意业务时间原文，包括日期字符串和非连续编号。业务日历的特殊衰减可由领域的显式调用策略表达。主动工具须在 memory.activation 作用域内发现和执行；高级 seed、recall、extract_job 等接口仍接受调用方明确提供的逻辑序号。

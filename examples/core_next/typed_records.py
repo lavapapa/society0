@@ -2,7 +2,7 @@
 import json
 from society0.kernel.plugins import Plugin
 from society0.kernel.interaction import Action, ActionResult
-from society0.kernel._json_chunks import raw_chunks
+from society0.kernel._json_chunks import write_json
 
 SCHEMA = (
     'CREATE TABLE record_settings(id INTEGER PRIMARY KEY,owner TEXT NOT NULL)',
@@ -20,7 +20,9 @@ def _key(value):
 
 
 def _body(value):
-    return b''.join(raw_chunks(value)).decode('utf-8')
+    parts=[]
+    write_json(value,parts.append)
+    return b''.join(parts).decode('utf-8')
 
 
 class Records:

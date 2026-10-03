@@ -6,7 +6,7 @@ import zstandard
 
 import apsw
 
-from ._json_chunks import CHUNK_BYTES, raw_chunks
+from ._json_chunks import CHUNK_BYTES, write_json
 
 DATASET_SCHEMA = (
     'CREATE TABLE datasets(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,artifact TEXT NOT NULL,count INTEGER NOT NULL)',
@@ -48,16 +48,18 @@ class Datasets:
                         connection.execute('INSERT INTO blocks VALUES(?,?)', (block,compressor.compress(bytes(buffer))))
                         block += 1
                         buffer.clear()
+                def accept(raw):
+                    nonlocal position
+                    position += len(raw)
+                    piece = memoryview(raw)
+                    while piece:
+                        size = min(CHUNK_BYTES-len(buffer),len(piece))
+                        buffer.extend(piece[:size]);piece=piece[size:]
+                        if len(buffer)==CHUNK_BYTES:flush()
                 with connection:
                     for ordinal, value in enumerate(rows):
                         start = position
-                        for raw in raw_chunks(value):
-                            position += len(raw)
-                            piece = memoryview(raw)
-                            while piece:
-                                size = min(CHUNK_BYTES-len(buffer),len(piece))
-                                buffer.extend(piece[:size]);piece=piece[size:]
-                                if len(buffer)==CHUNK_BYTES:flush()
+                        write_json(value, accept)
                         connection.execute('INSERT INTO records VALUES(?,?,?)', (ordinal,start,position-start))
                         count += 1
                     flush()
@@ -77,6 +79,16 @@ class Datasets:
                     raise TypeError('dataset attach must be synchronous')
         self.store.transaction(publish)
         return reference
+
+    def describe(self, reference):
+        """读取规范登记的轻元数据，不打开冷正文文件。"""
+        def read(view):
+            rows=view.query('SELECT name,artifact,count FROM datasets WHERE id=?',
+                            (reference['id'],),max_rows=1)
+            if reference.get('kind')!='dataset' or not rows or rows[0][1]!=reference['artifact']:
+                raise ValueError('dataset reference unavailable')
+            return {'name':rows[0][0],'count':rows[0][2]}
+        return self.store.read(read)
 
     @contextmanager
     def _open(self, reference):
@@ -108,16 +120,21 @@ class Datasets:
         offset += start
         if end <= offset: return b''
         output = bytearray()
-        for number, body in connection.execute(
-            'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id',
-            (offset // CHUNK_BYTES, (end - 1) // CHUNK_BYTES),
-        ):
-            if decoder['number'] != number:
-                decoder['raw'] = _decompress(decoder['decoder'], body)
-                decoder['number'] = number
-            raw = decoder['raw']
+        first, last = offset // CHUNK_BYTES, (end - 1) // CHUNK_BYTES
+        def append(number, raw):
             block_start = number * CHUNK_BYTES
             output.extend(raw[max(0, offset-block_start):min(len(raw), end-block_start)])
+        if decoder['number'] == first:
+            append(first, decoder['raw'])
+            first += 1
+        if first <= last:
+            for number, body in connection.execute(
+                'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id',
+                (first, last),
+            ):
+                decoder['raw'] = _decompress(decoder['decoder'], body)
+                decoder['number'] = number
+                append(number, decoder['raw'])
         return bytes(output)
 
     def read_payload(self, reference, ordinal, *, offset=0, size=65536):
@@ -159,3 +176,10 @@ class Datasets:
                     break
                 items.append(item);last=ordinal;item_bytes+=encoded_size
             return envelope(items,last)
+
+
+def dataset_plugin(*,storage=('storage','store'),name='datasets'):
+    """多个机制共享同一份规范数据集登记和工件服务。"""
+    from .plugins import Plugin
+    def install(context):context.provide('datasets',Datasets(context.require(*storage)))
+    return Plugin(name,(storage[0],),install,schema=DATASET_SCHEMA)

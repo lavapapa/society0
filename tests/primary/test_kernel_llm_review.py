@@ -22,7 +22,7 @@ class Provider:
 def session(driver, actions):
     scope=InteractionScope('alice',Moment(1,'trade'))
     return Session(Actor('alice',driver),scope,Information(lambda *a:True).bound(scope),
-                   actions.bound(scope),{},None,(),None)
+                   actions.bound(scope),{},None,(),None, step=1)
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,83 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_review_date_and_nonconsecutive_business_time_use_step_memory_versions __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-750/test_review_date_and_nonconsec0')
+
+    @pytest.mark.asyncio
+    async def test_review_date_and_nonconsecutive_business_time_use_step_memory_versions(tmp_path):
+        async def extract(*args,**kwargs):return [{'content':'完整记忆','importance':3}]
+        class Provider:
+            async def request(self,*args,**kwargs):return {'role':'assistant','content':'done','finish_reason':'stop'}
+        async def run(store,number,business_time):
+            threads=ThreadStore(store)
+            memory=Memory(store,threads,embed=Embed(),client=Client(),extract=extract,
+                          policy=MemoryPolicy(False,True,False))
+            driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'完整背景'}],memory=memory)
+            runtime=Runtime([Actor('a',driver)],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
+            async def phase(context):context.activate('a');await context.drain()
+            try:await runtime.run_step(number,business_time,[Phase('decision',phase)])
+            finally:await runtime.close();await memory.close()
+            return threads.find('a',{'time':business_time,'phase':'decision'})
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA+MEMORY_SCHEMA) as store:
+>           tid=await run(store,1,'2026-10-04')
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_activation_review.py:44:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/primary/test_kernel_memory_activation_review.py:40: in run
+    try:await runtime.run_step(number,business_time,[Phase('decision',phase)])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:302: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:254: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:150: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:558: in run
+    await self.memory.after_activation(session, thread_id, result)
+src/society0/kernel/memory.py:146: in scoped
+    return await method(self,*args,**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:563: in after_activation
+    job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=session.moment.time)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:146: in scoped
+    return await method(self,*args,**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:538: in extract_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:535: in prepare
+    return self.prepare_job(actor,thread_id,key,timestamp=timestamp,entries=entries)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x107376450>, actor = 'a'
+thread_id = 'f974a95b06584726898cb6fb2bd736e5'
+job_key = 'thread:f974a95b06584726898cb6fb2bd736e5:through:4'
+timestamp = '2026-10-04', entries = [{'content': '完整记忆', 'importance': 3}]
+visible_step = '2026-10-04'
+
+    def prepare_job(self,actor,thread_id,job_key,*,timestamp,entries,visible_step=None):
+        self._check()
+        visible_step=timestamp if visible_step is None else visible_step
+>       if type(visible_step) is not int:raise ValueError('memory visible_step must be an integer')
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: memory visible_step must be an integer
+
+src/society0/kernel/memory.py:289: ValueError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_activation_review.py::test_review_date_and_nonconsecutive_business_time_use_step_memory_versions
+1 failed, 1 passed in 0.43s
