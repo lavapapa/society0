@@ -1,0 +1,29 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_review_resource_cleanup_failure_is_reported_after_complete ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-719/test_review_resource_cleanup_f0')
+
+    @pytest.mark.asyncio
+    async def test_review_resource_cleanup_failure_is_reported_after_complete(tmp_path):
+        candidate=plan([])
+        def install(context):
+            def close():raise RuntimeError('resource close failed')
+            context.on_close(close)
+        candidate.plugins.append(Plugin('resource',install=install))
+        path=tmp_path/'run'
+        with pytest.raises(RuntimeError,match='resource close failed'):
+            await run_plan(path,candidate)
+        # 已发布业务完整点仍可信，运行退出故障须在独立状态中可见。
+        saved=json.loads((path/'runner-status.json').read_text())
+        assert saved['complete_step']==2
+>       assert saved['status']=='failed' and saved['error']=='RuntimeError'
+E       AssertionError: assert ('completed' == 'failed'
+E         
+E         - failed
+E         + completed)
+
+tests/primary/test_kernel_runner_review.py:23: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_runner_review.py::test_review_resource_cleanup_failure_is_reported_after_complete
+1 failed, 1 passed in 0.09s

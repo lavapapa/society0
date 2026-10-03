@@ -1,123 +1,46 @@
-"""Society0: code-driven social simulation core."""
+"""Society0：共享环境、可组合机制与主体驱动。"""
 from __future__ import annotations
 
 from importlib import import_module
-from typing import Any, Dict, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-__version__ = "5.0.0"
-__all__ = [
-    "ObservationReader",
-    "Society0",
-    "LLMModel",
-    "EmbedModel",
-    "CodeSchedule",
-    "StepContext",
-    "StepResult",
-    "AgentBatchResult",
-    "AgentGroup",
-    "CapabilityCatalog",
-    "ActivationBatch",
-    "ActivationPool",
-    "ActivationPoolError",
-    "ActivationLimitError",
-    "ActivationResult",
-    "ActivationSignal",
-    "ActivationSubmission",
-    "ActivationPoolSession",
-    "World",
-    "StateAccessMode",
-    "StateTransactionConflict",
-    "Environment",
-    "EnvironmentTickContext",
-    "StepRuntimeScope",
-    "StepFailure",
-    "FunctionRegistry",
-    "load_run_summary",
-    "render_runtime_diagnostic_report",
-    "persistent_state_schema",
-    "replaceable",
-    "replaceable_map",
-    "append_only_map",
-    "append_only_list",
-    "transient",
-]
+__version__ = '5.0.0'
 
-# 延迟导入映射，避免在包初始化阶段触发重量级依赖
-_LAZY_IMPORTS: Dict[str, Tuple[str, str]] = {
-    "ObservationReader": ("society0.observation", "ObservationReader"),
-    "Society0": ("society0.society", "Society0"),
-    "LLMModel": ("society0.models", "LLMModel"),
-    "EmbedModel": ("society0.models", "EmbedModel"),
-    "CodeSchedule": ("society0.schedule", "CodeSchedule"),
-    "StepContext": ("society0.schedule", "StepContext"),
-    "StepResult": ("society0.schedule", "StepResult"),
-    "AgentBatchResult": ("society0.schedule", "AgentBatchResult"),
-    "AgentGroup": ("society0.schedule", "AgentGroup"),
-    "CapabilityCatalog": ("society0.schedule", "CapabilityCatalog"),
-    "ActivationBatch": ("society0.activation_pool", "ActivationBatch"),
-    "ActivationPool": ("society0.activation_pool", "ActivationPool"),
-    "ActivationPoolError": ("society0.activation_pool", "ActivationPoolError"),
-    "ActivationLimitError": ("society0.activation_pool", "ActivationLimitError"),
-    "ActivationResult": ("society0.activation_pool", "ActivationResult"),
-    "ActivationSignal": ("society0.activation_pool", "ActivationSignal"),
-    "ActivationSubmission": ("society0.activation_pool", "ActivationSubmission"),
-    "ActivationPoolSession": ("society0.activation_pool", "ActivationPoolSession"),
-    "World": ("society0.core_data", "World"),
-    "StateAccessMode": ("society0.state_transactions", "StateAccessMode"),
-    "StateTransactionConflict": (
-        "society0.state_transactions",
-        "StateTransactionConflict",
-    ),
-    "Environment": ("society0.environment", "Environment"),
-    "EnvironmentTickContext": ("society0.environment", "EnvironmentTickContext"),
-    "StepRuntimeScope": ("society0.runtime_scope", "StepRuntimeScope"),
-    "StepFailure": ("society0.recovery", "StepFailure"),
-    "FunctionRegistry": ("society0.function_registry", "FunctionRegistry"),
-    "load_run_summary": ("society0.diagnostics", "load_run_summary"),
-    "render_runtime_diagnostic_report": ("society0.diagnostics", "render_runtime_diagnostic_report"),
-    "persistent_state_schema": ("society0.state_persistence", "persistent_state_schema"),
-    "replaceable": ("society0.state_persistence", "replaceable"),
-    "replaceable_map": ("society0.state_persistence", "replaceable_map"),
-    "append_only_map": ("society0.state_persistence", "append_only_map"),
-    "append_only_list": ("society0.state_persistence", "append_only_list"),
-    "transient": ("society0.state_persistence", "transient"),
+_LAZY_IMPORTS = {
+    'compose': ('composition', 'compose'),
+    'Plugin': ('plugins', 'Plugin'),
+    'ActorRecord': ('actors', 'ActorRecord'),
+    'Phase': ('runtime', 'Phase'),
+    'DriverResult': ('runtime', 'DriverResult'),
+    'RuleDriver': ('schedule', 'RuleDriver'),
+    'CodeSchedule': ('schedule', 'CodeSchedule'),
+    'StepResult': ('results', 'StepResult'),
+    'Ref': ('interaction', 'Ref'),
+    'Query': ('interaction', 'Query'),
+    'Action': ('interaction', 'Action'),
+    'ActionResult': ('interaction', 'ActionResult'),
 }
+__all__ = list(_LAZY_IMPORTS)
 
 
-def __getattr__(name: str) -> Any:
-    """惰性加载关键类，降低初始化失败风险。"""
-    if name in _LAZY_IMPORTS:
-        module_name, attr_name = _LAZY_IMPORTS[name]
-        module = import_module(module_name)
-        value = getattr(module, attr_name)
-        globals()[name] = value  # 缓存结果，避免重复导入
-        return value
-    raise AttributeError(f"module 'society0' has no attribute '{name}'")
+def __getattr__(name):
+    if name not in _LAZY_IMPORTS:
+        raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+    module, attribute = _LAZY_IMPORTS[name]
+    value = getattr(import_module(f'.kernel.{module}', __name__), attribute)
+    globals()[name] = value
+    return value
 
 
-def __dir__() -> list[str]:
-    return sorted(list(globals().keys()) + __all__)
+def __dir__():
+    return sorted(set(globals()) | set(__all__))
 
 
-if TYPE_CHECKING:  # 类型检查阶段仍提供静态导入
-    from .society import Society0  # noqa: F401
-    from .models import LLMModel, EmbedModel  # noqa: F401
-    from .schedule import AgentBatchResult, AgentGroup, CapabilityCatalog, CodeSchedule, StepContext, StepResult  # noqa: F401
-    from .activation_pool import (  # noqa: F401
-        ActivationBatch,
-        ActivationPool,
-        ActivationPoolError,
-        ActivationLimitError,
-        ActivationPoolSession,
-        ActivationResult,
-        ActivationSignal,
-        ActivationSubmission,
-    )
-    from .core_data import World  # noqa: F401
-    from .state_transactions import StateAccessMode  # noqa: F401
-    from .state_transactions import StateTransactionConflict  # noqa: F401
-    from .environment import Environment, EnvironmentTickContext  # noqa: F401
-    from .runtime_scope import StepRuntimeScope  # noqa: F401
-    from .recovery import StepFailure  # noqa: F401
-    from .function_registry import FunctionRegistry  # noqa: F401
-    from .diagnostics import load_run_summary, render_runtime_diagnostic_report  # noqa: F401
+if TYPE_CHECKING:
+    from .kernel.composition import compose
+    from .kernel.plugins import Plugin
+    from .kernel.actors import ActorRecord
+    from .kernel.runtime import Phase, DriverResult
+    from .kernel.schedule import RuleDriver, CodeSchedule
+    from .kernel.results import StepResult
+    from .kernel.interaction import Ref, Query, Action, ActionResult

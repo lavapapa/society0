@@ -439,4 +439,3 @@ class RoundRobinConversationEnv:
             rotation = [rotation[0]] + [rotation[-1]] + rotation[1:-1]
 
         return schedule
-

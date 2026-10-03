@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_runner_freezes_manifest_and_timings_and_restores _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-715/test_runner_freezes_manifest_a0')
+
+    @pytest.mark.asyncio
+    async def test_runner_freezes_manifest_and_timings_and_restores(tmp_path):
+        seen=[]
+        result=await run_plan(tmp_path/'run',plan(seen))
+        assert result['complete_step']==2 and result['status']=='completed' and seen==[10,20]
+        manifest=json.loads((tmp_path/'run'/'runner.json').read_text())
+        assert manifest['run_id']==result['run_id']
+        assert manifest['contract']['release']=={'commit':'explicit-test-release'}
+>       assert manifest['effective_schedule']['capacity']==1
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'effective_schedule'
+
+tests/primary/test_kernel_runner.py:31: KeyError
