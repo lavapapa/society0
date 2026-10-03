@@ -1,0 +1,20 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_observer_live_tail_complete_prefix_and_fork_identity ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-570/test_observer_live_tail_comple0')
+
+    def test_observer_live_tail_complete_prefix_and_fork_identity(tmp_path):
+>       from society0.kernel.observation import Observation
+E       ModuleNotFoundError: No module named 'society0.kernel.observation'
+
+tests/primary/test_kernel_observation.py:10: ModuleNotFoundError
+________ test_status_descriptor_publication_before_current_confirmation ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-570/test_status_descriptor_publica0')
+
+    def test_status_descriptor_publication_before_current_confirmation(tmp_path):
+>       from society0.kernel.observation import Observation
+E       ModuleNotFoundError: No module named 'society0.kernel.observation'
+
+tests/primary/test_kernel_observation.py:48: ModuleNotFoundError

@@ -459,20 +459,31 @@ class Social:
                 return self.store.read(lambda r:bool(r.query(f'SELECT 1 FROM {table} WHERE id=?',(target.key,))))
             actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],empty,handler,available=available,
                 tags=('social_read','lookup'),read_only=read_only),dependencies=(self.name+'_members',self.name+'_posts'))
-        public=lambda scope:('EXISTS(SELECT 1 FROM '+self.table('members')+' WHERE id=?)',(scope.actor,))
-        info=SocialInformation(self,{
-            'feed':DatasetSpec(self.name+'_posts','id',('id',),authorize=public),
-            'participants':DatasetSpec(self.name+'_members','id',('id','post_count','followers','following'),authorize=public),
-            'posts':DatasetSpec(self.name+'_posts','id',('id','author','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),authorize=public,order_fields=('ordinal','created_tick'),
-                base_count=lambda scope:(f'SELECT post_count FROM {self.table("head")} WHERE id=1 AND EXISTS(SELECT 1 FROM {self.table("members")} WHERE id=?)',(scope.actor,)),dependencies=(self.name+'_head',self.name+'_members')),
-            'content':DocumentSpec(self.name+'_bodies','id','body',authorize=public,dependencies=(self.name+'_members',)),
-            'replies':DatasetSpec(self.name+'_replies','id',('id','post','author','tick'),authorize=public,order_fields=('tick',),dependencies=(self.name+'_members',)),
-            'reply_content':DocumentSpec(self.name+'_replies','id','body',authorize=public,dependencies=(self.name+'_members',)),
-            'notification_data':DocumentSpec(self.name+'_notice_data','id','data',authorize=lambda scope:(f'EXISTS(SELECT 1 FROM {self.table("notices")} n WHERE n.id={self.table("notice_data")}.id AND n.actor=?)',(scope.actor,)),dependencies=(self.name+'_notices',)),
-            'notifications':DatasetSpec(self.name+'_notices','id',('id','type','tick','consumed'),authorize=lambda scope:('actor=? AND consumed=0',(scope.actor,)),
-                base_count=lambda scope:(f'SELECT unread FROM {self.table("members")} WHERE id=?',(scope.actor,)),dependencies=(self.name+'_members',)),
-        })
-        information.mount('/'+self.name,info)
+        information.mount('/'+self.name,SocialInformation(self,_social_routes(self.name)))
+
+
+def _social_routes(name):
+    table=lambda suffix:_quote(name+'_'+suffix)
+    public=lambda scope:('EXISTS(SELECT 1 FROM '+table('members')+' WHERE id=?)',(scope.actor,))
+    return {
+        'feed':DatasetSpec(name+'_posts','id',('id',),authorize=public),
+        'participants':DatasetSpec(name+'_members','id',('id','post_count','followers','following'),authorize=public),
+        'posts':DatasetSpec(name+'_posts','id',('id','author','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),authorize=public,order_fields=('ordinal','created_tick'),
+            base_count=lambda scope:(f'SELECT post_count FROM {table("head")} WHERE id=1 AND EXISTS(SELECT 1 FROM {table("members")} WHERE id=?)',(scope.actor,)),dependencies=(name+'_head',name+'_members')),
+        'content':DocumentSpec(name+'_bodies','id','body',authorize=public,dependencies=(name+'_members',)),
+        'replies':DatasetSpec(name+'_replies','id',('id','post','author','tick'),authorize=public,order_fields=('tick',),dependencies=(name+'_members',)),
+        'reply_content':DocumentSpec(name+'_replies','id','body',authorize=public,dependencies=(name+'_members',)),
+        'notification_data':DocumentSpec(name+'_notice_data','id','data',authorize=lambda scope:(f'EXISTS(SELECT 1 FROM {table("notices")} n WHERE n.id={table("notice_data")}.id AND n.actor=?)',(scope.actor,)),dependencies=(name+'_notices',)),
+        'notifications':DatasetSpec(name+'_notices','id',('id','type','tick','consumed'),authorize=lambda scope:('actor=? AND consumed=0',(scope.actor,)),
+            base_count=lambda scope:(f'SELECT unread FROM {table("members")} WHERE id=?',(scope.actor,)),dependencies=(name+'_members',)),
+    }
+
+
+def social_information(reader,name='social'):
+    """只读 SQL 资料；推荐 feed 仍由活动机制的显式调用提供。"""
+    routes=_social_routes(name)
+    routes.pop('feed')
+    return SQLInformation(name,reader,routes)
 
 
 class SocialInformation(SQLInformation):

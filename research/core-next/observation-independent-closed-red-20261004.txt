@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_review_closed_service_cannot_launch_new_preparation ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-603/test_review_closed_service_can0')
+
+    def test_review_closed_service_cannot_launch_new_preparation(tmp_path):
+        with StageStore.create(tmp_path/'run',[]):pass
+        service=ObservationService(tmp_path/'run',cache_dir=tmp_path/'cache')
+        service.close()
+        try:
+>           with pytest.raises(ObservationError,match='closed'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ObservationError
+
+tests/primary/test_kernel_observation_review.py:12: Failed

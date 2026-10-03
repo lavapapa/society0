@@ -156,19 +156,24 @@ class RoundRobin:
             return ActionResult('completed',{'marker':args['marker'],**self.pairing(scope.actor)})
         actions.register(Action(self.name+'.mark_conversation_participant',(self.name,'participants'),'保存本主体的对话参与标记。',
             {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own),dependencies=dependencies)
-        current=f'(SELECT current_round FROM {self.table("head")} WHERE id=1)'
-        def inbox(scope): return ('receiver=? AND round='+current+f' AND id>(SELECT inbox_after FROM {self.table("head")} WHERE id=1)',(scope.actor,))
-        def history(scope): return ('receiver=?',(scope.actor,))
-        def counter(round_expression):
-            return lambda scope:(f'SELECT coalesce(sum(total),0) FROM {self.table("counts")} WHERE receiver=? AND round='+round_expression,(scope.actor,))
-        columns=('id','sender','receiver','round','timestamp')
-        info=SQLInformation(self.name,self.store,{
-            'participants':DatasetSpec(self.name+'_members','id',('id','group_no','partner','round','active'),authorize=lambda scope:('id=?',(scope.actor,))),
-            'messages':DatasetSpec(self.name+'_messages','id',columns,authorize=inbox,base_count=counter(current),dependencies=(self.name+'_head',self.name+'_counts')),
-            'history':DatasetSpec(self.name+'_messages','id',columns,authorize=history,base_count=counter('0'),dependencies=(self.name+'_counts',)),
-            'content':DocumentSpec(self.name+'_messages','id','body',authorize=history),
-        })
-        information.mount('/'+self.name,info)
+        information.mount('/'+self.name,round_robin_information(self.store,self.name))
+
+
+def round_robin_information(reader,name='conversation'):
+    """按主体读取既有资料；与运行机制使用同一组 SQL 路由。"""
+    table=lambda suffix:_quote(name+'_'+suffix)
+    current=f'(SELECT current_round FROM {table("head")} WHERE id=1)'
+    def inbox(scope): return ('receiver=? AND round='+current+f' AND id>(SELECT inbox_after FROM {table("head")} WHERE id=1)',(scope.actor,))
+    def history(scope): return ('receiver=?',(scope.actor,))
+    def counter(round_expression):
+        return lambda scope:(f'SELECT coalesce(sum(total),0) FROM {table("counts")} WHERE receiver=? AND round='+round_expression,(scope.actor,))
+    columns=('id','sender','receiver','round','timestamp')
+    return SQLInformation(name,reader,{
+        'participants':DatasetSpec(name+'_members','id',('id','group_no','partner','round','active'),authorize=lambda scope:('id=?',(scope.actor,))),
+        'messages':DatasetSpec(name+'_messages','id',columns,authorize=inbox,base_count=counter(current),dependencies=(name+'_head',name+'_counts')),
+        'history':DatasetSpec(name+'_messages','id',columns,authorize=history,base_count=counter('0'),dependencies=(name+'_counts',)),
+        'content':DocumentSpec(name+'_messages','id','body',authorize=history),
+    })
 
 
 def round_robin_plugin(members, *, group_size, name='conversation', session_duration_minutes=10,
