@@ -1,0 +1,39 @@
+{
+  "library": "bashkit 0.18.2",
+  "bridge": "native OverlayFs + stable capsule ABI",
+  "phases": [
+    {
+      "changed_body_bytes": 0,
+      "removed": [],
+      "shell_state_bytes": 1248,
+      "elapsed_seconds": 0.014384667039848864,
+      "rss_peak_increment_bytes": 20447232
+    },
+    {
+      "changed_body_bytes": 5,
+      "removed": [
+        "/new"
+      ],
+      "shell_state_bytes": 1254,
+      "elapsed_seconds": 0.0016130829462781549,
+      "rss_peak_increment_bytes": 245760
+    },
+    {
+      "changed_body_bytes": 0,
+      "removed": [
+        "/renamed"
+      ],
+      "shell_state_bytes": 1247,
+      "elapsed_seconds": 0.0011563749867491424,
+      "rss_peak_increment_bytes": 32768
+    }
+  ],
+  "lower_body_bytes_read": 16777224,
+  "large_append_changed_body_bytes": 8388609,
+  "old_complete_restored": true,
+  "callback_close_drained": true,
+  "closed_scope_rejected": true,
+  "sql_current_index_no_overlay_chain": true,
+  "first_head_file_bytes": 8388608,
+  "process_peak_rss_bytes": 102072320
+}

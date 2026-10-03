@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "library": "bashkit 0.18.2",
+  "unchanged": [
+    {
+      "workspace_bytes": 1048576,
+      "activations": 10,
+      "snapshot_bytes": [
+        1824,
+        1822,
+        1822,
+        1823,
+        1823,
+        1823,
+        1823,
+        1823,
+        1823,
+        1823
+      ],
+      "total_snapshot_bytes": 18229,
+      "median_snapshot_seconds": 0.0011174374958500266,
+      "shell_only_bytes": [
+        1253,
+        1250,
+        1250,
+        1249,
+        1250,
+        1250,
+        1250,
+        1250,
+        1249,
+        1251
+      ]
+    },
+    {
+      "workspace_bytes": 8388608,
+      "activations": 10,
+      "snapshot_bytes": [
+        1836,
+        1833,
+        1834,
+        1834,
+        1834,
+        1834,
+        1833,
+        1833,
+        1834,
+        1835
+      ],
+      "total_snapshot_bytes": 18340,
+      "median_snapshot_seconds": 0.007748853997327387,
+      "shell_only_bytes": [
+        1253,
+        1250,
+        1250,
+        1249,
+        1250,
+        1250,
+        1250,
+        1250,
+        1249,
+        1251
+      ]
+    }
+  ],
+  "mount": {
+    "read_only_real_mount": true,
+    "shell_only_restore_remount": true,
+    "snapshot_bytes": 1253
+  },
+  "lazy": {
+    "document_bytes": 8388608,
+    "loader_calls_after_listing": [],
+    "loader_calls_after_first_head": [
+      8388608
+    ],
+    "loader_calls_after_second_head": [
+      8388608
+    ],
+    "snapshot_bytes": 1232,
+    "shell_only_snapshot_bytes": 1232
+  }
+}
