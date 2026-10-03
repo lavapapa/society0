@@ -1,0 +1,31 @@
+..................F                                                      [100%]
+=================================== FAILURES ===================================
+_ test_social_intervention_trending_and_full_notification_content_survive_restore _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-481/test_social_intervention_trend0')
+
+    @pytest.mark.asyncio
+    async def test_social_intervention_trending_and_full_notification_content_survive_restore(tmp_path):
+        from society0.plugins.social_models import SocialNetworkConfig
+        import random
+        cfg=SocialNetworkConfig(social_media={'recommendation':{'use_embedding_similarity':False},'content_length_limit':-1})
+        plugins=plan(social_plugin('abc',edges=[],config=cfg))
+        async with compose(tmp_path/'run',plugins) as host:
+            social=host.service('social','mechanism')
+            first=social.execute('publish_post','a','a',{'content':'#policy source \n\n--- 原贴 post_0 ---\nold'},1).value['post_id']
+            second=social.execute('repost','b',first,{'commentary':'my comment'},1).value['post_id']
+>           assert social.post_details(second)['content']=='my comment\n\n--- 原帖 '+first+' ---\n#policy source'
+E           AssertionError: assert 'my comment\n...st_0 ---\nold' == 'my comment\n...policy source'
+E             
+E             Skipping 33 identical leading characters in diff, use -v to show
+E             - licy source
+E             + licy source 
+E             ?            ++
+E             + 
+E             + --- 原贴 post_0 ---
+E             + old
+
+tests/primary/test_plugin_social.py:250: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_intervention_trending_and_full_notification_content_survive_restore
+1 failed, 18 passed in 1.11s

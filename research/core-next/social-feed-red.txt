@@ -1,0 +1,47 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_social_feed_pages_expose_every_candidate_and_bind_business_version ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-496/test_social_feed_pages_expose_0')
+
+    @pytest.mark.asyncio
+    async def test_social_feed_pages_expose_every_candidate_and_bind_business_version(tmp_path):
+        import json
+        config={'social_media':{'recommendation':{'use_embedding_similarity':False,'post_count':1}}}
+        async with compose(tmp_path/'run',plan(social_plugin('abc',config=config,edges=[]))) as host:
+            social=host.service('social','mechanism');info=host.service('interaction','information')
+            store=host.service('storage','store')
+            for i in range(3):social.execute('publish_post','b','b',{'content':'原文'+str(i)},i)
+            scope=InteractionScope('a',Moment(3,'acting'))
+>           page=await info.query(scope,'/social/feed',Query(limit=1))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_plugin_social.py:275: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:168: in query
+    provider, path = await self._provider(scope, path, 'read')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:124: in _provider
+    ref = provider.ref(path)
+          ^^^^^^^^^^^^^^^^^^
+src/society0/kernel/information_sql.py:103: in ref
+    route, key = self._route(path)
+                 ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.information_sql.SQLInformation object at 0x10c03e690>
+path = '/social/feed'
+
+    def _route(self, path):
+        parts = path.strip('/').split('/')
+        if parts[0] != self.namespace or len(parts) > 3:
+            raise Unavailable('resource unavailable')
+        route = parts[1] if len(parts) > 1 else None
+        if route is not None and route not in self._routes:
+>           raise Unavailable('resource unavailable')
+E           society0.kernel.interaction.Unavailable: resource unavailable
+
+src/society0/kernel/information_sql.py:95: Unavailable
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_feed_pages_expose_every_candidate_and_bind_business_version
+1 failed, 19 deselected in 0.36s

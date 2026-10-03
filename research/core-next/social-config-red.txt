@@ -1,0 +1,18 @@
+.............F                                                           [100%]
+=================================== FAILURES ===================================
+_ test_social_topology_configuration_is_persisted_and_not_regenerated_on_restore _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-425/test_social_topology_configura0')
+
+    @pytest.mark.asyncio
+    async def test_social_topology_configuration_is_persisted_and_not_regenerated_on_restore(tmp_path):
+        from society0.env.social_network.models import SocialNetworkConfig
+        config=SocialNetworkConfig(distribution={'type':'complete'},is_directed=False)
+>       async with compose(tmp_path/'run',plan(social_plugin('abc',config=config,seed=13))) as host:
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: social_plugin() got an unexpected keyword argument 'config'
+
+tests/primary/test_plugin_social.py:106: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_topology_configuration_is_persisted_and_not_regenerated_on_restore
+1 failed, 13 passed in 0.34s
