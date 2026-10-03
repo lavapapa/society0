@@ -1,0 +1,17 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+______________ test_ten_mib_cold_record_exposes_full_rewrite_cost ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-593/test_ten_mib_cold_record_expos0')
+
+    def test_ten_mib_cold_record_exposes_full_rewrite_cost(tmp_path):
+        entry={'path':['large'],'operation':'set','value':{'cold':'x'*(10*1024*1024)}}
+        with build_fixture(tmp_path/'whole',[entry]) as store:
+            whole=modify_probe(store,[0],mode='whole',steps=1)[0]
+        with build_fixture(tmp_path/'split',[entry]) as store:
+            split=modify_probe(store,[0],mode='split',steps=1)[0]
+            assert load_entry(store,0)==entry
+>       assert whole['changeset_bytes']>split['changeset_bytes']*10
+E       assert 163 > (46 * 10)
+
+tests/experiments/test_core_next_large_root_probe.py:45: AssertionError
