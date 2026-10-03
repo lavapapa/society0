@@ -28,7 +28,7 @@ current 中的 `complete_step` 是生产者已确认的完成下界。写入次�
 
 `prepare_artifact(chunks)` 消费 bytes 迭代器，产生独占 UUID 文件，完成 fsync 和目录同步后返回 run 内相对路径。它建立与源文件独立的封存副本；迭代器失败会清除临时文件。调用方应把返回引用交给 complete，并且不再修改该文件。准备与引用不会自动纳入其他数据库的事务。
 
-`Writer.include_artifact(reference)` 可在业务事务内登记文件依赖，登记与业务引用同时提交或回滚。内部辅助表按首次登记 revision 索引，complete 合并本步新增依赖与显式 artifacts，去重后写入完整描述符。复用旧依赖无须重扫历史；恢复从所选描述符链复制文件并重建辅助表。辅助表服务于准备与观察，完成权威仍是描述符。
+`Writer.include_artifact(reference)` 可在业务事务内登记文件依赖，登记与业务引用同时提交或回滚。内部辅助表按首次登记 revision 索引，complete 合并本步新增依赖与显式 artifacts，去重后写入完整描述符。复用旧依赖无须重扫历史；恢复从所选描述符链建立工件文件并重建辅助表。辅助表服务于准备与观察，完成权威仍是描述符。
 
 complete 也接受 `artifacts/` 内已经耐久且承诺不可变的合作式引用，记录路径和长度。该入口无法阻止外部代码以相同长度覆写文件；文件不可变性是组件合同。通过 prepare_artifact 可避免工作区文件后续修改影响恢复副本。当前没有通用外部数据库快照协调器，也没有 Chroma 自动备份保证。
 
@@ -57,6 +57,13 @@ StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 
 
 ## 离线导出与清理
 
-`restore` 同时生成独立可恢复包和压实后的新 root，保留来源 run_id/step；源删除后目标仍可继续与再次恢复。源完整链重复引用同一工件时按路径复制一次，声明长度冲突明确拒绝。SQL 中的累计 Thread、Memory 和业务历史仍保留，因此 current 与 root 的冷数据复制成本继续存在。源 root 的 schema、run_id、根步骤和初始 revision 必须与运行清单一致。
+`restore` 同时生成独立可恢复包和压实后的新 root，保留来源 run_id/step；源删除后目标仍可继续与再次恢复。源完整链重复引用同一工件时按路径建立一次。不可变工件同文件系统用硬链接共享分配，EXDEV 时复制；其他文件错误传播。源目录删除后目标仍有独立文件入口，封存工件不可原地修改。声明长度冲突明确拒绝。SQL 中的累计 Thread、Memory 和业务历史仍保留，因此 current 与 root 的冷数据复制成本继续存在。源 root 的 schema、run_id、根步骤和初始 revision 必须与运行清单一致。
 
 `StageStore.collect_orphans(path)` 显式执行离线准备孤儿清理。它先取得独占 writer 锁，核对 root 身份及全部完整描述符链和引用文件，之后清除 artifacts、changesets 目录中未被任何保留完整身份引用的文件，返回已删除相对路径。活动 writer、缺组件或身份错误会在删除前报错。未完成步骤且没有完整引用的诊断文件属于可清理范围，应在诊断留存完成后调用。其工作量随完整历史增长，属于离线维护；不会进入短事务或 complete 热路径。详细空间边界见 [存储生命周期](storage-lifecycle-design.md)。
+
+
+## 不可变批次与只读准备
+
+`prepare_artifact_file(build)` 向同步构建器提供独占临时路径，构建器应关闭所有文件和数据库连接后返回。Store 完成文件同步、改名和目录同步，返回已有工件引用。失败构建会清理临时文件，发布后引用事务失败形成离线可回收孤儿。`Datasets` 用此入口封存一个明确导入批次，正文复用原生 SQLite 索引和现有 JSON 分块编码；合同见 [不可变批次正文](cold-datasets-design.md)。
+
+`prepare_readonly(source, destination, step=None, run_id=None)` 与 restore 共用完整链物化过程，返回 StageReader，保留 source 身份及所选完整步骤，省去新 root.sqlite。该目录面向完整点观察，拒绝作为 writer 或恢复来源；可继续运行的分支使用 restore。Observation 的完整点视图使用稳定派生 run_id，使跨进程读取保持已有游标合同。准备失败清理目标临时目录；已可见的旧准备视图生命周期继续由 Observation 管理。
