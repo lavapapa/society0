@@ -1,0 +1,30 @@
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_export_import_and_fork_keep_values_without_reembedding __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-419/test_export_import_and_fork_ke0')
+
+    @pytest.mark.asyncio
+    async def test_export_import_and_fork_keep_values_without_reembedding(tmp_path):
+        source,threads,thread,memory,embed,client=setup(tmp_path/'source')
+        with source:
+            ids=await memory.seed('a','seed1',timestamp=0,entries=[{'content':'seed content','metadata':{'nested':[True,1,'中']}}])
+            assert await memory.seed('a','seed1',timestamp=0,entries=[{'content':'seed content','metadata':{'nested':[True,1,'中']}}])==ids
+            exported=[]
+            assert memory.export('a',exported.append)==1
+            assert len(embed.calls)==1
+            target,target_threads,_,imported,target_embed,_=setup(tmp_path/'target')
+            with target:
+                assert imported.import_records('a',iter(exported),visible_step=2)==1
+                await imported.sync_index()
+                assert target_embed.calls==[]
+                assert imported.get(ids[0],actor='a')==memory.get(ids[0],actor='a')
+                target.complete(1)
+>               with target.fork(tmp_path/'fork') as fork:
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               TypeError: StageStore.restore() missing 1 required positional argument: 'destination'
+
+tests/primary/test_kernel_memory_transfer.py:26: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding
+1 failed, 2 passed in 0.09s

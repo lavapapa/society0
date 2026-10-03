@@ -1,0 +1,234 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_review_memory_action_unavailable_record_is_business_rejection[missing-update] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-429/test_review_memory_action_unav0')
+operation = 'update', case = 'missing'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+>           result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
+                                        Ref('memory','actor','a'),arguments)
+
+tests/primary/test_kernel_memory_review.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:362: in invoke
+    result = await _resolve(action.handler(scope, target, arguments))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:86: in _resolve
+    return await value if isawaitable(value) else value
+           ^^^^^^^^^^^
+src/society0/kernel/memory.py:474: in update
+    await self.update(identifier,actor=scope.actor,content=arguments['content'],timestamp=scope.moment.time,
+src/society0/kernel/memory.py:262: in update
+    old=self.get(memory_id,actor=actor)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:190: in get
+    return self.store.read(read)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:198: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+view = <society0.kernel.storage.ReadView object at 0x109264710>
+
+    def read(view):
+        rows=view.query('SELECT actor,type,timestamp,importance,state FROM memory_rows WHERE id=?',(memory_id,))
+>       if not rows:raise KeyError(memory_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'missing'
+
+src/society0/kernel/memory.py:181: KeyError
+_ test_review_memory_action_unavailable_record_is_business_rejection[missing-delete] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-429/test_review_memory_action_unav1')
+operation = 'delete', case = 'missing'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+>           result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
+                                        Ref('memory','actor','a'),arguments)
+
+tests/primary/test_kernel_memory_review.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:362: in invoke
+    result = await _resolve(action.handler(scope, target, arguments))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:86: in _resolve
+    return await value if isawaitable(value) else value
+           ^^^^^^^^^^^
+src/society0/kernel/memory.py:479: in delete
+    await self.delete(identifier,actor=scope.actor,visible_step=scope.moment.time)
+src/society0/kernel/memory.py:304: in delete
+    self.store.transaction(write)
+src/society0/kernel/storage.py:357: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x1092666f0>
+
+    def write(writer):
+        rows=writer.query('SELECT actor,state FROM memory_rows WHERE id=?',(memory_id,))
+>       if not rows:raise KeyError(memory_id)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'missing'
+
+src/society0/kernel/memory.py:290: KeyError
+_ test_review_memory_action_unavailable_record_is_business_rejection[other_actor-update] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-429/test_review_memory_action_unav2')
+operation = 'update', case = 'other_actor'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+>           result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
+                                        Ref('memory','actor','a'),arguments)
+
+tests/primary/test_kernel_memory_review.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:362: in invoke
+    result = await _resolve(action.handler(scope, target, arguments))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:86: in _resolve
+    return await value if isawaitable(value) else value
+           ^^^^^^^^^^^
+src/society0/kernel/memory.py:474: in update
+    await self.update(identifier,actor=scope.actor,content=arguments['content'],timestamp=scope.moment.time,
+src/society0/kernel/memory.py:262: in update
+    old=self.get(memory_id,actor=actor)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:190: in get
+    return self.store.read(read)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:198: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+view = <society0.kernel.storage.ReadView object at 0x10924b500>
+
+    def read(view):
+        rows=view.query('SELECT actor,type,timestamp,importance,state FROM memory_rows WHERE id=?',(memory_id,))
+        if not rows:raise KeyError(memory_id)
+        owner,kind,timestamp,importance,state=rows[0]
+>       if owner!=actor:raise PermissionError('memory owner differs')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       PermissionError: memory owner differs
+
+src/society0/kernel/memory.py:183: PermissionError
+_ test_review_memory_action_unavailable_record_is_business_rejection[other_actor-delete] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-429/test_review_memory_action_unav3')
+operation = 'delete', case = 'other_actor'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+>           result=await actions.invoke(InteractionScope('a',Moment(1,'act')),'memory.'+operation,
+                                        Ref('memory','actor','a'),arguments)
+
+tests/primary/test_kernel_memory_review.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:362: in invoke
+    result = await _resolve(action.handler(scope, target, arguments))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:86: in _resolve
+    return await value if isawaitable(value) else value
+           ^^^^^^^^^^^
+src/society0/kernel/memory.py:479: in delete
+    await self.delete(identifier,actor=scope.actor,visible_step=scope.moment.time)
+src/society0/kernel/memory.py:304: in delete
+    self.store.transaction(write)
+src/society0/kernel/storage.py:357: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x109310c80>
+
+    def write(writer):
+        rows=writer.query('SELECT actor,state FROM memory_rows WHERE id=?',(memory_id,))
+        if not rows:raise KeyError(memory_id)
+        owner,state=rows[0]
+>       if owner!=actor:raise PermissionError('memory owner differs')
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       PermissionError: memory owner differs
+
+src/society0/kernel/memory.py:292: PermissionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_review.py::test_review_memory_action_unavailable_record_is_business_rejection[missing-update]
+FAILED tests/primary/test_kernel_memory_review.py::test_review_memory_action_unavailable_record_is_business_rejection[missing-delete]
+FAILED tests/primary/test_kernel_memory_review.py::test_review_memory_action_unavailable_record_is_business_rejection[other_actor-update]
+FAILED tests/primary/test_kernel_memory_review.py::test_review_memory_action_unavailable_record_is_business_rejection[other_actor-delete]
+4 failed, 6 deselected in 0.27s

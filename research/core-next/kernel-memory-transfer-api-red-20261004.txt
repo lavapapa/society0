@@ -1,0 +1,58 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_export_import_and_fork_keep_values_without_reembedding __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-414/test_export_import_and_fork_ke0')
+
+    @pytest.mark.asyncio
+    async def test_export_import_and_fork_keep_values_without_reembedding(tmp_path):
+        source,threads,thread,memory,embed,client=setup(tmp_path/'source')
+        with source:
+>           ids=await memory.seed('a','seed1',timestamp=0,entries=[{'content':'seed content','metadata':{'nested':[True,1,'中']}}])
+                      ^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'seed'
+
+tests/primary/test_kernel_memory_transfer.py:14: AttributeError
+_______ test_import_batch_failure_rolls_back_every_record_and_dimension ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-414/test_import_batch_failure_roll0')
+
+    @pytest.mark.asyncio
+    async def test_import_batch_failure_rolls_back_every_record_and_dimension(tmp_path):
+        store,_,_,memory,_,_=setup(tmp_path)
+        with store:
+            def records():
+                yield {'id':'valid','content':'one','embedding':[1.,2.],'timestamp':0}
+                yield {'id':'invalid','content':'two','embedding':[1.,2.,3.],'timestamp':0}
+            with pytest.raises(ValueError,match='dimension'):
+>               memory.import_records('a',records(),visible_step=1)
+                ^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Memory' object has no attribute 'import_records'
+
+tests/primary/test_kernel_memory_transfer.py:42: AttributeError
+__________ test_close_cancels_owned_jobs_and_keeps_shared_client_open __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-414/test_close_cancels_owned_jobs_0')
+
+    @pytest.mark.asyncio
+    async def test_close_cancels_owned_jobs_and_keeps_shared_client_open(tmp_path):
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+            started=asyncio.Event()
+            async def pending(texts,*,metadata):
+                started.set()
+                await asyncio.Event().wait()
+            memory.embed=pending
+            job=memory.prepare_job('a',thread,'pending',timestamp=0,entries=[{'content':'pending'}])
+            task=asyncio.create_task(memory.finish_job(job))
+            await started.wait()
+>           await memory.close()
+                  ^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'close'
+
+tests/primary/test_kernel_memory_transfer.py:59: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding
+FAILED tests/primary/test_kernel_memory_transfer.py::test_import_batch_failure_rolls_back_every_record_and_dimension
+FAILED tests/primary/test_kernel_memory_transfer.py::test_close_cancels_owned_jobs_and_keeps_shared_client_open
+3 failed in 0.15s
