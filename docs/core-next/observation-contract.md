@@ -16,17 +16,17 @@ progress 是独立的允许落后快照，包括运行状态、阶段、活动�
 
 消息内容较大时，事件包含 payload_ref，`read_thread_payload(reference, offset=0, size=65536, max_bytes=131072)` 返回 base64 数据、完整原文字节数和 next_offset。分段读取以 JSON 原文字节为单位；应先拼接并解码完整 JSON，UTF-8 多字节字符可能跨段。`resource_tail` 与 `read_resource_payload` 对共享物理资源正文提供相同的追加及分段合同。resource_tail 的 kind 区分 embedding 物理尝试和 embedding_use 逻辑使用，逻辑缓存命中不代表新增收费物理请求。
 
-`read_thread_artifact(thread_id=..., reference=..., actor=..., ...)` 按 Thread 已登记的工件关联读取精确原始字节，并校验主体归属。`result_phases(step=...)` 发现阶段结果引用，`result_page(reference, ...)` 读取指标、表、激活结果与完整头部；单个巨行通过 `read_result_record` 取得。`result_summary()` 使用写入时维护的短计数。完整物理资源用量的按模型、主体汇总投影由 T06 的后续实际消费者接入，当前接口不扫描全历史替代该投影。
+`read_thread_artifact(thread_id=..., reference=..., actor=..., ...)` 按 Thread 已登记的工件关联读取精确原始字节，并校验主体归属。`result_phases(step=...)` 发现阶段结果引用，`result_page(reference, ...)` 读取指标、表、激活结果与完整头部；单个巨行通过 `read_result_record` 取得。`result_summary()` 使用写入时维护的短计数。`resource_usage()` 按模型、主体读取规范物理调用写入时维护的累计投影；共享批次的主体归属与全局计数口径见下文。
 
 这些接口的 max_bytes 约束最终紧凑 JSON 字节数，包含游标、字段和 base64 膨胀；HTTP 成功响应直接返回该对象，不再套额外结果信封。尾页与目录的最小预算为 1,024 字节，结果集页保持 Results 的 512 字节下限。预算容纳不了一个必需身份时明确报错，避免无进展空页。所有游标绑定运行身份；业务恢复分支重新查询，已有同源结果集引用依照 Results 合同仍可读取。完整步骤的派生只读视图使用 `source_run_id:complete:step` 显式身份，同一不可变完整点重建后可继续原游标和正文引用；换步骤或源运行会拒绝旧游标。这一身份约定适用于只读准备视图，业务分叉保持新运行身份。
 
 ## 三、视图
 
-`ObservationService` 提供 `prepare_complete(step)`、`preparation_status()` 和 `clear_prepared()`。准备在独立子进程中执行真实 StageStore.restore；状态由 preparing 转到 ready 或 failed。ready 返回 view、source_run_id、step、耗时及准备目录逻辑字节数。查询请求带 `view` 选择该准备视图；不带 view 始终读取原运行 live 数据。原运行 status 与准备操作分离，准备失败或被杀死不会改写其完成身份。
+`ObservationService` 提供 `prepare_complete(step)`、`preparation_status()` 和 `clear_prepared()`。准备在独立子进程中执行 StageStore.prepare_readonly，与 restore 共用完整链物化过程；状态由 preparing 转到 ready 或 failed。ready 返回 view、source_run_id、step、耗时及准备目录逻辑字节数。查询请求带 `view` 选择该准备视图；不带 view 始终读取原运行 live 数据。原运行 status 与准备操作分离，准备失败或被杀死不会改写其完成身份。
 
 一个服务同时允许一个准备任务和一个 ready 视图。新准备尚未成功时保留旧 ready，忙时返回 preparation_busy；成功后替换旧视图。clear_prepared 取消准备进程、等待退出并删除本服务拥有的构建目录和 ready 目录，失效 view 返回 view_expired。退出服务完成同样清理；关闭后公开准备入口拒绝分配新进程。
 
-这个策略的峰值包含旧 ready 和新 building，且每个恢复目录含 current 与 root 两份数据库，还可能复制完整链所声明的工件。源运行本身也继续占用空间。`logical_bytes` 是完成后的单个准备目录大小，不能代表整个过程峰值；实际大根报告需要另行统计源、ready、building 及 WAL 的峰值。取消按进程终止与退出确认实施，未宣称 SQLite native backup 内部可逐条协作取消。
+这个策略的峰值包含旧 ready 和新 building。每个只读准备目录保存一份 current.sqlite 和完整点身份，不生成可写分支的新 root.sqlite，也不接受 writer 打开或作为恢复来源。完整链声明的不可变工件在同文件系统共享硬链接，跨文件系统 EXDEV 时复制。源运行本身继续占用空间。`logical_bytes` 是完成后的单个准备目录大小，不能代表整个过程峰值；实际大根报告需要另行统计源、ready、building 及 WAL 的峰值。取消按进程终止与退出确认实施，未宣称 SQLite native backup 内部可逐条协作取消。
 
 领域信息通过显式 `information_factory(reader) -> Information` 接入。`query(actor=..., moment=..., path=..., query=...)` 使用提供者声明的数据及权限版本；同表另一主体写入也可能使当前页失效。测试中每页之间持续更新同表另一主体时，20 次续页均明确过期，停止更新后可读完。高更新率下可选择完整视图；不可变消息使用追加序号继续。
 

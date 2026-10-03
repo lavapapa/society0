@@ -1,0 +1,42 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_catalog_runtime_information_and_restored_readonly_consumer ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-680/test_catalog_runtime_informati0')
+
+    @pytest.mark.asyncio
+    async def test_catalog_runtime_information_and_restored_readonly_consumer(tmp_path):
+        from examples.core_next.immutable_catalog import catalog_plugin, Catalog
+        from society0.kernel.composition import compose
+        from society0.kernel.interaction import Information, InteractionScope, Moment, Query, Unavailable
+        rows=[{'id':1,'body':'原文🙂'*100000},{'id':2,'value':[False,1,None]}]
+        async with compose(tmp_path/'run',[catalog_plugin()]) as host:
+            store=host.service('storage','store');catalog=host.service('catalog','catalog')
+            reference=catalog.replace('a',iter(rows))
+            info=Information(lambda scope,operation,ref:True);info.mount('/catalog',catalog)
+            with InteractionScope('a',Moment(1,'catalog')) as scope:
+>               first=await info.query(scope,'/catalog',Query(limit=1))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_datasets.py:119: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:195: in query
+    provider, path = await self._provider(scope, path, 'read')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:132: in _provider
+    ref = provider.ref(path)
+          ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <examples.core_next.immutable_catalog.Catalog object at 0x10b3b9130>
+path = '/catalog'
+
+    def ref(self, path):
+>       return Ref('catalog', path)
+               ^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Ref.__init__() missing 1 required positional argument: 'key'
+
+examples/core_next/immutable_catalog.py:24: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_datasets.py::test_catalog_runtime_information_and_restored_readonly_consumer
+1 failed, 5 passed in 0.17s

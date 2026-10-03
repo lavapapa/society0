@@ -15,10 +15,11 @@ def test_restore_copies_repeated_artifact_once_and_survives_source_removal(tmp_p
         ref=store.prepare_artifact([payload])
         threads.register_artifact(tid,'result',ref,actor='a')
         for step in range(1,4):store.complete(step,artifacts=[ref])
-    copied=[];native=shutil.copyfile
+    import os
+    copied=[];native=os.link
     def copy(src,dst,*args,**kwargs):
         copied.append(Path(src));return native(src,dst,*args,**kwargs)
-    monkeypatch.setattr(shutil,'copyfile',copy)
+    monkeypatch.setattr(os,'link',copy)
     target=tmp_path/'target'
     with StageStore.restore(source,target) as restored:
         assert copied.count(source/ref)==1

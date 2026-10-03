@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import fcntl
+import errno
 import inspect
 import json
 import os
@@ -353,10 +354,14 @@ class StageStore:
             shutil.rmtree(temporary, ignore_errors=True)
 
     @staticmethod
-    def _finish_initial(path, connection, manifest, artifacts):
+    def _finish_initial(path, connection, manifest, artifacts, *, readonly=False):
         (path / 'steps').mkdir()
         (path / 'changesets').mkdir()
-        _backup(connection, path / 'root.sqlite')
+        if readonly:
+            manifest = dict(manifest, readonly=True)
+            _sync(path / 'current.sqlite')
+        else:
+            _backup(connection, path / 'root.sqlite')
         _json(path / 'run.json', manifest)
         step = manifest['root_step']
         _json(path / 'steps' / f'{step:020d}.json', {'run_id': manifest['run_id'], 'step': step,
@@ -370,6 +375,8 @@ class StageStore:
         self._encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
         self.path = Path(path).resolve()
         self._manifest = _manifest(self.path)
+        if self._manifest.get('readonly'):
+            raise StorageError('read-only prepared view cannot open a writer')
         self.run_id = self._manifest['run_id']
         self.source = self._manifest['source']
         self._last = self._latest(self.path)
@@ -528,6 +535,27 @@ class StageStore:
         finally:
             temporary.unlink(missing_ok=True)
 
+    def prepare_artifact_file(self, build):
+        """构建器关闭文件后，将其封存为唯一工件；失败文件由本入口清理。"""
+        self._check()
+        directory = self.path / 'artifacts'
+        directory.mkdir(exist_ok=True)
+        temporary = directory / (uuid.uuid4().hex + '.tmp')
+        final = temporary.with_suffix('.artifact')
+        try:
+            result = build(temporary)
+            if inspect.isawaitable(result):
+                if inspect.iscoroutine(result):
+                    result.close()
+                raise TypeError('artifact builder must be synchronous')
+            _sync(temporary)
+            os.rename(temporary, final)
+            _sync(directory)
+            _sync(self.path)
+            return str(final.relative_to(self.path))
+        finally:
+            temporary.unlink(missing_ok=True)
+
     def abort_step(self):
         self._check()
         self._connection.execute('UPDATE _stage_runtime SET failed=1')
@@ -603,8 +631,21 @@ class StageStore:
 
     @classmethod
     def restore(cls, source, destination, *, step=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
+        return cls._materialize(source, destination, step=step, run_id=run_id, readonly=False,
+                                compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
+
+    @classmethod
+    def prepare_readonly(cls, source, destination, *, step=None, run_id=None):
+        """物化完整点供观察，共用恢复链且省去可写运行的新根。"""
+        return cls._materialize(source, destination, step=step, run_id=run_id, readonly=True)
+
+    @classmethod
+    def _materialize(cls, source, destination, *, step=None, run_id=None, readonly=False,
+                     compression_workers=4, compression_inflight_bytes=524288):
         source, destination = Path(source).resolve(), Path(destination).resolve()
         manifest = _manifest(source)
+        if manifest.get('readonly'):
+            raise StorageError('read-only prepared view is not a recovery source')
         if run_id == manifest['run_id']:
             raise StorageError('restore requires a new run identity')
         selected = cls._latest(source)['step'] if step is None else step
@@ -646,7 +687,12 @@ class StageStore:
                         raise StorageError('missing or changed artifact')
                     target_file = temporary / name
                     target_file.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(source_file, target_file)
+                    try:
+                        os.link(source_file, target_file)
+                    except OSError as error:
+                        if error.errno != errno.EXDEV:
+                            raise
+                        shutil.copyfile(source_file, target_file)
                     _sync(target_file)
                     _sync(target_file.parent)
                     references[name] = artifact
@@ -656,13 +702,15 @@ class StageStore:
             connection.execute('UPDATE _stage_runtime SET run_id=?,revision=0,failed=0,complete_step=?', (identity, selected))
             connection.execute('UPDATE _stage_table_revisions SET revision=0')
             fresh = dict(manifest, run_id=identity, root_step=selected, source={'run_id': manifest['run_id'], 'step': selected})
-            cls._finish_initial(temporary, connection, fresh, list(references.values()))
+            cls._finish_initial(temporary, connection, fresh, list(references.values()), readonly=readonly)
             connection.close()
             connection = None
             if destination.exists():
                 raise FileExistsError(destination)
             os.rename(temporary, destination)
             _sync(destination.parent)
+            if readonly:
+                return StageReader(destination)
             return cls.open(destination, compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
         finally:
             if original:

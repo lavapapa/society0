@@ -1,0 +1,31 @@
+...................................................F.................... [ 98%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_restore_copies_repeated_artifact_once_and_survives_source_removal ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-679/test_restore_copies_repeated_a0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109a13a10>
+
+    def test_restore_copies_repeated_artifact_once_and_survives_source_removal(tmp_path,monkeypatch):
+        source=tmp_path/'source'
+        with StageStore.create(source,THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            payload=('不可变资料🙂'*10000).encode()
+            ref=store.prepare_artifact([payload])
+            threads.register_artifact(tid,'result',ref,actor='a')
+            for step in range(1,4):store.complete(step,artifacts=[ref])
+        copied=[];native=shutil.copyfile
+        def copy(src,dst,*args,**kwargs):
+            copied.append(Path(src));return native(src,dst,*args,**kwargs)
+        monkeypatch.setattr(shutil,'copyfile',copy)
+        target=tmp_path/'target'
+        with StageStore.restore(source,target) as restored:
+>           assert copied.count(source/ref)==1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = <built-in method count of list object at 0x109a29d00>((PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-679/test_restore_copies_repeated_a0/source') / 'artifacts/b6034a53aa32494f8cd483c5c60e9268.artifact'))
+E            +    where <built-in method count of list object at 0x109a29d00> = [].count
+
+tests/primary/test_kernel_storage_lifecycle.py:24: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_storage_lifecycle.py::test_restore_copies_repeated_artifact_once_and_survives_source_removal
+1 failed, 72 passed in 4.00s

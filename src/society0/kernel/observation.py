@@ -336,10 +336,10 @@ def _prepare_worker(source, destination, step, run_id, channel):
     try:
         if json.loads((Path(source) / 'run.json').read_text())['run_id'] != run_id:
             raise ObservationError('source_identity_changed')
-        with StageStore.restore(source, destination, step=step,run_id=f'{run_id}:complete:{step}') as store:
-            if store.source != {'run_id': run_id, 'step': step}:
+        with StageStore.prepare_readonly(source, destination, step=step,run_id=f'{run_id}:complete:{step}') as store:
+            if json.loads((Path(destination) / 'run.json').read_text())['source'] != {'run_id': run_id, 'step': step}:
                 raise ObservationError('source_identity_changed')
-            identity = store.run_id
+            identity = store.read(lambda view: view.run_id)
         channel.send({'state': 'ready', 'view': identity, 'step': step, 'source_run_id': run_id,
                       'elapsed_s': time.perf_counter() - started,
                       'logical_bytes': sum(item.stat().st_size for item in Path(destination).rglob('*') if item.is_file())})
