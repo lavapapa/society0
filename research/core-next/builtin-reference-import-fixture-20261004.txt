@@ -1,0 +1,112 @@
+......F....F..........................                                   [100%]
+=================================== FAILURES ===================================
+_____ test_social_topology_matches_existing_algorithm[True-distribution4] ______
+
+distribution = {'type': 'cv_targeted', 'params': {'target_cv_mean': 0.6, 'max_iterations': 25}}
+directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.plugins.social_models import SocialNetworkConfig
+        from tests.reference.builtin_algorithms import SocialNetworkEnv
+        from society0.plugins.social_topology import generate_topology
+        from types import SimpleNamespace
+        config=SocialNetworkConfig(distribution=distribution,is_directed=directed)
+        members=[str(i) for i in range(12)]
+        proxy=SimpleNamespace(_config=config)
+        for name in ('_create_traditional_graph','_create_cv_targeted_graph','_create_base_graph_for_cv','_get_base_distribution','_optimize_cv_distribution','_increase_mutual_connections','_decrease_mutual_connections','_calculate_cv_for_node','_calculate_average_cv_for_graph'):
+            setattr(proxy,name,getattr(SocialNetworkEnv,name).__get__(proxy))
+        saved=random.getstate()
+        try:
+            random.seed(913)
+>           original=SocialNetworkEnv._generate_topology(proxy,members)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_plugin_social.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/reference/builtin_algorithms.py:20: in _generate_topology
+    return self._create_cv_targeted_graph(agent_ids, self._config.distribution.params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/reference/builtin_algorithms.py:262: in _create_cv_targeted_graph
+    base_graph = self._create_base_graph_for_cv(agent_ids, params)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/reference/builtin_algorithms.py:276: in _create_base_graph_for_cv
+    distribution=self._get_base_distribution(params),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = namespace(_config=SocialNetworkConfig(distribution=CVTargetedDistribution(type=<NetworkDistributionType.CV_TARGETED: '....)>, _calculate_average_cv_for_graph=<bound method SocialNetworkEnv._calculate_average_cv_for_graph of namespace(...)>)
+params = CVTargetedParams(target_cv_mean=0.6, target_cv_std=0.05, base_algorithm=<NetworkDistributionType.SMALL_WORLD: 'small_world'>, base_params={}, max_iterations=25, convergence_threshold=0.01)
+
+    def _get_base_distribution(self, params: CVTargetedParams):
+        """获取基础图生成算法配置"""
+        if params.base_algorithm == NetworkDistributionType.SMALL_WORLD:
+>           from .models import SmallWorldDistribution, SmallWorldParams
+E           ModuleNotFoundError: No module named 'tests.reference.models'
+
+tests/reference/builtin_algorithms.py:285: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution4] _____
+
+distribution = {'type': 'cv_targeted', 'params': {'target_cv_mean': 0.6, 'max_iterations': 25}}
+directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.plugins.social_models import SocialNetworkConfig
+        from tests.reference.builtin_algorithms import SocialNetworkEnv
+        from society0.plugins.social_topology import generate_topology
+        from types import SimpleNamespace
+        config=SocialNetworkConfig(distribution=distribution,is_directed=directed)
+        members=[str(i) for i in range(12)]
+        proxy=SimpleNamespace(_config=config)
+        for name in ('_create_traditional_graph','_create_cv_targeted_graph','_create_base_graph_for_cv','_get_base_distribution','_optimize_cv_distribution','_increase_mutual_connections','_decrease_mutual_connections','_calculate_cv_for_node','_calculate_average_cv_for_graph'):
+            setattr(proxy,name,getattr(SocialNetworkEnv,name).__get__(proxy))
+        saved=random.getstate()
+        try:
+            random.seed(913)
+>           original=SocialNetworkEnv._generate_topology(proxy,members)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_plugin_social.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/reference/builtin_algorithms.py:20: in _generate_topology
+    return self._create_cv_targeted_graph(agent_ids, self._config.distribution.params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/reference/builtin_algorithms.py:262: in _create_cv_targeted_graph
+    base_graph = self._create_base_graph_for_cv(agent_ids, params)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/reference/builtin_algorithms.py:276: in _create_base_graph_for_cv
+    distribution=self._get_base_distribution(params),
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = namespace(_config=SocialNetworkConfig(distribution=CVTargetedDistribution(type=<NetworkDistributionType.CV_TARGETED: '....)>, _calculate_average_cv_for_graph=<bound method SocialNetworkEnv._calculate_average_cv_for_graph of namespace(...)>)
+params = CVTargetedParams(target_cv_mean=0.6, target_cv_std=0.05, base_algorithm=<NetworkDistributionType.SMALL_WORLD: 'small_world'>, base_params={}, max_iterations=25, convergence_threshold=0.01)
+
+    def _get_base_distribution(self, params: CVTargetedParams):
+        """获取基础图生成算法配置"""
+        if params.base_algorithm == NetworkDistributionType.SMALL_WORLD:
+>           from .models import SmallWorldDistribution, SmallWorldParams
+E           ModuleNotFoundError: No module named 'tests.reference.models'
+
+tests/reference/builtin_algorithms.py:285: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution4]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution4]
+2 failed, 36 passed in 1.42s

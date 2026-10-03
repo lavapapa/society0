@@ -71,7 +71,7 @@ async def test_social_two_instances_original_body_and_rejections(tmp_path):
 def test_social_topology_matches_existing_algorithm(distribution,directed):
     import random
     from society0.plugins.social_models import SocialNetworkConfig
-    from society0.env.social_network.env import SocialNetworkEnv
+    from tests.reference.builtin_algorithms import SocialNetworkEnv
     from society0.plugins.social_topology import generate_topology
     from types import SimpleNamespace
     config=SocialNetworkConfig(distribution=distribution,is_directed=directed)
@@ -118,7 +118,7 @@ async def test_social_topology_configuration_is_persisted_and_not_regenerated_on
 @pytest.mark.asyncio
 async def test_social_active_pool_and_scores_match_old_semantics_without_body_scan(tmp_path):
     from society0.plugins.social_models import SocialNetworkConfig
-    from society0.env.social_network.env import SocialNetworkEnv
+    from tests.reference.builtin_algorithms import SocialNetworkEnv
     from types import SimpleNamespace
     config=SocialNetworkConfig(social_media={'recommendation':{'full_scan_until':5,'recent_keep_count':3,'top_engagement_keep_count':2,'min_lifetime_ticks':2,'use_embedding_similarity':False}})
     async with compose(tmp_path/'run',plan(social_plugin('abc',edges=[('a','b')],config=config))) as host:
@@ -182,7 +182,7 @@ async def test_social_embedding_batch_original_vectors_restore_and_exposure_boun
 @pytest.mark.asyncio
 async def test_social_preference_preserves_recent_interaction_ties_and_read_actions(tmp_path):
     from society0.plugins.social_models import SocialNetworkConfig
-    from society0.env.social_network.env import SocialNetworkEnv
+    from tests.reference.builtin_algorithms import SocialNetworkEnv
     from types import SimpleNamespace
     cfg=SocialNetworkConfig(social_media={'recommendation':{'use_embedding_similarity':False,'interaction_limit':4,'include_following_in_query':True}})
     async with compose(tmp_path/'run',plan(social_plugin('abc',config=cfg,edges=[('a','b')]))) as host:

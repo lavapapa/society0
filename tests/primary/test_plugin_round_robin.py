@@ -104,7 +104,7 @@ async def test_clear_current_messages_preserves_history_and_precision_originals(
 
 @pytest.mark.parametrize('size',[2,4,6,20])
 def test_circle_schedule_matches_existing_builtin_order(size):
-    from society0.env.round_robin.env import RoundRobinConversationEnv
+    from tests.reference.builtin_algorithms import RoundRobinConversationEnv
     from society0.plugins.round_robin import _schedule
     members=[str(i) for i in range(size)]
     assert _schedule(members)==RoundRobinConversationEnv._build_round_robin_schedule(None,members)
