@@ -16,7 +16,7 @@ import math
 import re
 import time
 import uuid
-import hashlib
+import sys
 from typing import Dict, List, Any, Optional, Callable, Set, Mapping, Iterable
 from dataclasses import dataclass
 import random
@@ -37,14 +37,14 @@ from .logging import ExperimentLogContext, LogField, ResourceEvent
 logger = logging.getLogger(__name__)
 
 
-def _build_httpx_client(*, trust_env: bool) -> Any:
+def _build_httpx_client(*, trust_env: bool, max_connections: int = 200) -> Any:
     """按代理继承模式建立一个由管理器持有的 HTTPX 连接池。"""
 
     import httpx
 
     limits = httpx.Limits(
-        max_connections=200,
-        max_keepalive_connections=200,
+        max_connections=max_connections,
+        max_keepalive_connections=max_connections,
         keepalive_expiry=30.0,
     )
     return httpx.AsyncClient(
@@ -296,7 +296,7 @@ class EndpointConfig:
 
 @dataclass
 class _EmbeddingBatchItem:
-    cache_key: str
+    cache_key: tuple[str, int, str]
     text: str
     future: asyncio.Future
     model: str
@@ -364,7 +364,8 @@ class LLMManager:
     - 总并发能力反馈给Schedule
     """
 
-    def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None):
+    def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None,
+                 global_concurrency=None, http_connections=None, request_jitter=0.0):
         """
         初始化LLM管理器
 
@@ -388,8 +389,16 @@ class LLMManager:
         self._llm_timeout_schedule = [15.0, 30.0, 60.0]  # 仅用于兼容旧逻辑的占位，不再驱动timeout
         self._max_retries = 2
 
-        # 全局并发整形：为所有端点统一限制总并发，避免瞬时连接洪峰
-        self._global_semaphore = asyncio.Semaphore(200)
+        total = sum(endpoint['concurrency'] for endpoint in endpoints)
+        capacity = max(1, total) if global_concurrency is None else global_concurrency
+        connections = max(1, total) if http_connections is None else http_connections
+        if type(capacity) is not int or capacity < 1 or type(connections) is not int or connections < 1:
+            raise ValueError('resource capacity must be a positive integer')
+        if isinstance(request_jitter, bool) or not isinstance(request_jitter, (int, float)) or not math.isfinite(request_jitter) or request_jitter < 0:
+            raise ValueError('request_jitter must be finite and nonnegative')
+        self._http_connections = connections
+        self._request_jitter = request_jitter
+        self._global_semaphore = asyncio.Semaphore(capacity)
 
         # 按 trust_env 分组共享 HTTPX 连接池，最多各建立一个连接池。
         self._http_clients: Dict[bool, Any] = {}
@@ -414,11 +423,11 @@ class LLMManager:
         if key in self._http_clients:
             return self._http_clients[key]
 
-        client = _build_httpx_client(trust_env=key)
+        client = _build_httpx_client(trust_env=key, max_connections=self._http_connections)
         logger.info(
             "LLMManager: initialized HTTPX client "
-            "(trust_env=%s, max_conn=200, keepalive=200)",
-            key,
+            "(trust_env=%s, max_conn=%s, keepalive=%s)",
+            key, self._http_connections, self._http_connections,
         )
 
         self._http_clients[key] = client
@@ -878,12 +887,9 @@ class LLMManager:
                 # 许可取得后的 jitter 单独记录。
                 acquired_time = time.time()
                 extras.queue_duration_sec = acquired_time - start_time
-                # 抖动：降低瞬时突发（5ms~50ms）
                 jitter_started = time.time()
-                try:
-                    await asyncio.sleep(random.uniform(0.005, 0.05))
-                except Exception:
-                    pass
+                if self._request_jitter:
+                    await asyncio.sleep(random.uniform(0, self._request_jitter))
                 extras.jitter_duration_sec = time.time() - jitter_started
 
                 stats_entry = self.endpoint_stats[endpoint.id]
@@ -1267,7 +1273,8 @@ class EmbeddingManager:
     与LLMManager设计完全相同，但专门处理embedding请求
     """
 
-    def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None):
+    def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None,
+                 cache_max_items=None, cache_max_bytes=64 * 1024 * 1024, http_connections=None):
         """
         初始化Embedding管理器
 
@@ -1281,10 +1288,19 @@ class EmbeddingManager:
         self._log_context: Optional[ExperimentLogContext] = log_context
         self._retry_hooks: List[Callable[[str, Dict[str, Any]], None]] = []
         self._embedding_timeout_schedule = [30.0, 60.0, 120.0]  # 秒：Embedding 请求同步超时阶梯
+        connections = max(1,sum(endpoint["concurrency"] for endpoint in endpoints)) if http_connections is None else http_connections
+        if type(connections) is not int or connections < 1:
+            raise ValueError("http_connections must be a positive integer")
+        self._http_connections = connections
+        self._request_batch_size = 50
         self._cache_lock = asyncio.Lock()
         self._embedding_cache: "OrderedDict[str, List[float]]" = OrderedDict()
         self._pending_embeddings: Dict[str, asyncio.Future] = {}
-        self._cache_max_items = self._load_cache_max_items()
+        self._cache_max_items = self._load_cache_max_items() if cache_max_items is None else cache_max_items
+        if type(self._cache_max_items) is not int or self._cache_max_items < 0 or type(cache_max_bytes) is not int or cache_max_bytes < 0:
+            raise ValueError('embedding cache limits must be nonnegative integers')
+        self._cache_max_bytes = cache_max_bytes
+        self._cache_bytes = 0
         self._cache_hits = 0
         self._cache_misses = 0
         self._microbatch_max_batch_texts = self._load_microbatch_max_batch_texts()
@@ -1329,11 +1345,11 @@ class EmbeddingManager:
         if key in self._http_clients:
             return self._http_clients[key]
 
-        client = _build_httpx_client(trust_env=key)
+        client = _build_httpx_client(trust_env=key,max_connections=self._http_connections)
         logger.info(
             "EmbeddingManager: initialized HTTPX client "
-            "(trust_env=%s, max_conn=200, keepalive=200)",
-            key,
+            "(trust_env=%s, max_conn=%s, keepalive=%s)",
+            key,self._http_connections,self._http_connections,
         )
 
         self._http_clients[key] = client
@@ -1431,7 +1447,7 @@ class EmbeddingManager:
         trace_metadata: Dict[str, Any],
         *,
         endpoint: EndpointConfig,
-        cache_key: str,
+        cache_key: tuple[str, int, str],
         status: str,
         text_index: int,
     ) -> None:
@@ -1444,7 +1460,8 @@ class EmbeddingManager:
             metadata,
             "embedding_provider_cache_hit",
             payload={
-                "cache_key": cache_key,
+                "model": cache_key[0],
+                "dimensions": cache_key[1],
                 "cache_status": status,
                 "text_index": text_index,
             },
@@ -1477,9 +1494,8 @@ class EmbeddingManager:
         return max(0, value)
 
     @staticmethod
-    def _make_cache_key(model: str, dimensions: int, text: str) -> str:
-        digest = hashlib.sha1(text.encode("utf-8")).hexdigest()
-        return f"{model}|{dimensions}|{digest}"
+    def _make_cache_key(model: str, dimensions: int, text: str) -> tuple[str, int, str]:
+        return (model, dimensions, text)
 
     @staticmethod
     def _make_microbatch_bucket_key(model: str, dimensions: int) -> str:
@@ -1512,13 +1528,29 @@ class EmbeddingManager:
             value = 20000
         return max(1, value)
 
-    def _cache_put_unlocked(self, cache_key: str, embedding: List[float]) -> None:
+    @staticmethod
+    def _cache_size(key, embedding):
+        source = getattr(embedding, 'source', ())
+        attempts = getattr(embedding, 'attempts', ())
+        return (sys.getsizeof(key) + sum(sys.getsizeof(value) for value in key)
+                + sys.getsizeof(embedding) + sum(sys.getsizeof(value) for value in embedding)
+                + (sys.getsizeof(source) + sum(sys.getsizeof(value) for value in source) if source else 0)
+                + sys.getsizeof(attempts) + sum(sys.getsizeof(pair)+sum(sys.getsizeof(value) for value in pair) for pair in attempts))
+
+    def _cache_put_unlocked(self, cache_key, embedding):
         if self._cache_max_items <= 0:
             return
+        size = self._cache_size(cache_key, embedding)
+        if size > self._cache_max_bytes:
+            return
+        previous = self._embedding_cache.pop(cache_key, None)
+        if previous is not None:
+            self._cache_bytes -= self._cache_size(cache_key, previous)
         self._embedding_cache[cache_key] = embedding
-        self._embedding_cache.move_to_end(cache_key)
-        while len(self._embedding_cache) > self._cache_max_items:
-            self._embedding_cache.popitem(last=False)
+        self._cache_bytes += size
+        while len(self._embedding_cache) > self._cache_max_items or self._cache_bytes > self._cache_max_bytes:
+            key, value = self._embedding_cache.popitem(last=False)
+            self._cache_bytes -= self._cache_size(key, value)
 
     def _microbatch_parallel_flush_limit(self) -> int:
         """Return the bounded number of physical batch flushes allowed per bucket."""
@@ -1702,7 +1734,7 @@ class EmbeddingManager:
                 raise RuntimeError(f"Microbatch result mismatch: expected {len(batch)}, got {len(embeddings)}")
             await self._resolve_batch_success(batch, embeddings)
         except Exception as exc:
-            if len(batch) > 1:
+            if len(batch) > 1 and getattr(self, "_split_on_failure", True):
                 self._microbatch_stats["split_count"] += 1
                 mid = len(batch) // 2
                 left = batch[:mid]
@@ -1895,14 +1927,14 @@ class EmbeddingManager:
         for item in new_batch_items:
             await self._enqueue_microbatch_item(bucket_key, item)
 
-        for idx, embedding in enumerate(results):
-            if embedding is not None:
-                continue
-            key = cache_keys[idx]
-            future = wait_futures.get(key)
-            if future is None:
-                raise RuntimeError(f"Missing embedding future for cache key {key}")
-            results[idx] = await future
+        waiting=list(wait_futures)
+        resolved=await asyncio.gather(*(asyncio.shield(wait_futures[key]) for key in waiting),return_exceptions=True)
+        by_key=dict(zip(waiting,resolved))
+        for idx,embedding in enumerate(results):
+            if embedding is None:results[idx]=by_key[cache_keys[idx]]
+        self._record_logical_result(trace_metadata,model,texts,results)
+        failure=next((item for item in results if isinstance(item,BaseException)),None)
+        if failure is not None:raise failure
 
         final_results: List[List[float]] = []
         for idx, embedding in enumerate(results):
@@ -1911,6 +1943,10 @@ class EmbeddingManager:
             final_results.append(embedding)
 
         return {"result": final_results, "model": model, "dimensions": requested_dimensions}
+
+    def _record_logical_result(self, metadata, model, texts, results):
+        """适配器可在传播结果前登记完整逐输入来源。"""
+        return None
 
     @staticmethod
     def _combine_embedding_metadata(batch: List[_EmbeddingBatchItem]) -> Dict[str, Any]:
@@ -2056,7 +2092,7 @@ class EmbeddingManager:
         async with self.semaphores[endpoint.id]:
             extras.queue_duration_sec = time.time() - start_time
             stats_entry = self.endpoint_stats[endpoint.id]
-            timeout_schedule = self._embedding_timeout_schedule or [120.0]
+            timeout_schedule = self._embedding_timeout_schedule or [endpoint.timeout]
             max_attempts = len(timeout_schedule)
 
             for attempt_number, request_deadline in enumerate(timeout_schedule, start=1):
@@ -2119,7 +2155,7 @@ class EmbeddingManager:
                             endpoint=endpoint,
                         )
                     else:
-                        batch_size = 50
+                        batch_size = self._request_batch_size
                         for i in range(0, len(texts), batch_size):
                             batch_texts = texts[i:i + batch_size]
                             request_params = {
@@ -2139,7 +2175,10 @@ class EmbeddingManager:
                             )
                             response = await client.embeddings.create(**request_params)
                             response_embeddings = []
-                            for embedding_obj in response.data:
+                            ordered = sorted(response.data, key=lambda item: item.index)
+                            if [item.index for item in ordered] != list(range(len(batch_texts))):
+                                raise ValueError('embedding response indexes differ from input')
+                            for embedding_obj in ordered:
                                 response_embeddings.append(embedding_obj.embedding)
                             embeddings.extend(response_embeddings)
                             self._append_agent_thread_event_best_effort(

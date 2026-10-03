@@ -1,0 +1,128 @@
+.F..                                                                     [100%]
+=================================== FAILURES ===================================
+_________ test_one_cancelled_cache_waiter_does_not_cancel_other_actor __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-416/test_one_cancelled_cache_waite0')
+
+    @pytest.mark.asyncio
+    async def test_one_cancelled_cache_waiter_does_not_cancel_other_actor(tmp_path):
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA]) as store:
+            threads=ThreadStore(store); a=threads.open('a',0,'decision');b=threads.open('b',0,'decision')
+            provider=EmbeddingProvider([{'id':'e','api_key':'unused','base_url':'http://unused.invalid/v1','model':'e','concurrency':1,'dimensions':2,'trust_env':False}],store,threads,dimensions=2)
+            entered=asyncio.Event();release=asyncio.Event();calls=[]
+            async def create(**kwargs):
+                calls.append(kwargs);entered.set();await release.wait()
+                return CreateEmbeddingResponse(model='e',object='list',usage={'prompt_tokens':1,'total_tokens':1},data=[{'object':'embedding','index':0,'embedding':[1.,2.]}])
+            provider.manager.clients['e'].embeddings.create=create
+            try:
+                first=asyncio.create_task(provider.embed(['same'],metadata={'actor':'a','thread_id':a}))
+                second=asyncio.create_task(provider.embed(['same'],metadata={'actor':'b','thread_id':b}))
+                await entered.wait();first.cancel()
+                with pytest.raises(asyncio.CancelledError):await first
+                release.set()
+>               assert await second==[[1.,2.]] and len(calls)==1
+                       ^^^^^^^^^^^^
+
+tests/primary/test_kernel_embedding_provider.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:253: in embed
+    result = await self.manager.request(texts,dimensions=dimensions or self.dimensions,metadata=metadata)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models._EmbeddingManager object at 0x1090abaa0>
+texts = ['same'], dimensions = 2
+metadata = {'actor': 'b', 'thread_id': 'e2b5a763a6234342ac4ad6e42b5058c4'}
+
+    async def request(
+        self,
+        texts: List[str],
+        dimensions: Optional[int] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        统一的Embedding请求接口
+    
+        Args:
+            texts: 待向量化的文本列表
+            dimensions: 向量维度
+            metadata: optional trace metadata shared by this embedding request
+    
+        Returns:
+            {"result": List[List[float]], "model": str, "dimensions": int}
+        """
+        # 选择端点，主要用于确定当前模型名；实际请求在 flush 时再次按负载选择端点。
+        endpoint = self._select_endpoint()
+        if not endpoint:
+            raise RuntimeError("No available Embedding endpoints")
+        requested_dimensions = int(dimensions or self.default_dimensions)
+    
+        if not texts:
+            return {"result": [], "model": endpoint.model, "dimensions": requested_dimensions}
+    
+        model = endpoint.model
+        trace_metadata = dict(metadata or {})
+        bucket_key = self._make_microbatch_bucket_key(model, requested_dimensions)
+        loop = asyncio.get_running_loop()
+        results: List[Optional[List[float]]] = [None] * len(texts)
+        cache_keys: List[str] = []
+        wait_futures: Dict[str, asyncio.Future] = {}
+        new_batch_items: List[_EmbeddingBatchItem] = []
+        cache_provenance: List[tuple[int, str, str]] = []
+    
+        async with self._cache_lock:
+            for idx, text in enumerate(texts):
+                cache_key = self._make_cache_key(model, requested_dimensions, text)
+                cache_keys.append(cache_key)
+                cached = self._embedding_cache.get(cache_key)
+                if cached is not None:
+                    self._embedding_cache.move_to_end(cache_key)
+                    results[idx] = cached
+                    self._cache_hits += 1
+                    cache_provenance.append((idx, cache_key, "cache_hit"))
+                    continue
+    
+                self._cache_misses += 1
+                pending = self._pending_embeddings.get(cache_key)
+                if pending is None:
+                    pending = loop.create_future()
+                    self._pending_embeddings[cache_key] = pending
+                    new_batch_items.append(
+                        _EmbeddingBatchItem(
+                            cache_key=cache_key,
+                            text=text,
+                            future=pending,
+                            model=model,
+                            dimensions=requested_dimensions,
+                            enqueued_at=time.time(),
+                            metadata=dict(trace_metadata),
+                        )
+                    )
+                else:
+                    cache_provenance.append((idx, cache_key, "pending_reuse"))
+                wait_futures[cache_key] = pending
+    
+        for text_index, cache_key, status in cache_provenance:
+            self._append_cache_provenance(
+                trace_metadata,
+                endpoint=endpoint,
+                cache_key=cache_key,
+                status=status,
+                text_index=text_index,
+            )
+    
+        for item in new_batch_items:
+            await self._enqueue_microbatch_item(bucket_key, item)
+    
+        for idx, embedding in enumerate(results):
+            if embedding is not None:
+                continue
+            key = cache_keys[idx]
+            future = wait_futures.get(key)
+            if future is None:
+                raise RuntimeError(f"Missing embedding future for cache key {key}")
+>           results[idx] = await future
+                           ^^^^^^^^^^^^
+E           asyncio.exceptions.CancelledError
+
+src/society0/resource_managers.py:1928: CancelledError

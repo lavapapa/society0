@@ -1,0 +1,57 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_______ test_model_capacity_defaults_to_endpoint_capacity_and_no_jitter ________
+
+    @pytest.mark.asyncio
+    async def test_model_capacity_defaults_to_endpoint_capacity_and_no_jitter():
+        provider=ModelProvider([endpoint()],None)
+        try:
+>           assert provider.manager._global_semaphore._value==3
+E           assert 200 == 3
+E            +  where 200 = <asyncio.locks.Semaphore object at 0x108dca810 [unlocked, value:200]>._value
+E            +    where <asyncio.locks.Semaphore object at 0x108dca810 [unlocked, value:200]> = <society0.kernel.models._Manager object at 0x108f9bcb0>._global_semaphore
+E            +      where <society0.kernel.models._Manager object at 0x108f9bcb0> = <society0.kernel.models.ModelProvider object at 0x108f9b860>.manager
+
+tests/primary/test_kernel_models.py:15: AssertionError
+________________ test_model_capacity_is_explicitly_configurable ________________
+
+    @pytest.mark.asyncio
+    async def test_model_capacity_is_explicitly_configurable():
+>       provider=ModelProvider([endpoint()],None,global_concurrency=2,http_connections=4,request_jitter=0.001)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'global_concurrency'
+
+tests/primary/test_kernel_models.py:25: TypeError
+____ test_invalid_resource_capacity_fails_before_opening_clients[options0] _____
+
+options = {'global_concurrency': 0}
+
+    @pytest.mark.parametrize('options',[{'global_concurrency':0},{'http_connections':False},{'request_jitter':-1}])
+    def test_invalid_resource_capacity_fails_before_opening_clients(options):
+>       with pytest.raises(ValueError): ModelProvider([endpoint()],None,**options)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'global_concurrency'
+
+tests/primary/test_kernel_models.py:36: TypeError
+____ test_invalid_resource_capacity_fails_before_opening_clients[options1] _____
+
+options = {'http_connections': False}
+
+    @pytest.mark.parametrize('options',[{'global_concurrency':0},{'http_connections':False},{'request_jitter':-1}])
+    def test_invalid_resource_capacity_fails_before_opening_clients(options):
+>       with pytest.raises(ValueError): ModelProvider([endpoint()],None,**options)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'http_connections'
+
+tests/primary/test_kernel_models.py:36: TypeError
+____ test_invalid_resource_capacity_fails_before_opening_clients[options2] _____
+
+options = {'request_jitter': -1}
+
+    @pytest.mark.parametrize('options',[{'global_concurrency':0},{'http_connections':False},{'request_jitter':-1}])
+    def test_invalid_resource_capacity_fails_before_opening_clients(options):
+>       with pytest.raises(ValueError): ModelProvider([endpoint()],None,**options)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'request_jitter'
+
+tests/primary/test_kernel_models.py:36: TypeError
