@@ -66,3 +66,26 @@ asyncio.run(main())
 机制在安装时调用 `context.on_step(before=..., after=...)` 声明零参数同步或异步步骤回调。回调按依赖安装顺序登记；`context.step_hooks()` 在 Host 就绪后返回 before、after 两个元组，每项为 `(plugin_name, callback)`。Runtime 在实际运行步骤时取得完整集合，因此 Runtime 先于其他机制安装也能看到后续登记。安装结束后声明冻结，Host 退出不执行领域步骤回调。
 
 需要先停止运行任务的服务使用 `context.on_quiesce(callback)`。Host 先按逆序收束这些任务，再按原资源栈逆序关闭机制、共享模型和存储。某个收束回调失败仍会继续其余收束与资源释放，异常向外传播。步骤回调与关闭回调具有不同用途：前者参与完整步骤，后者释放本次运行拥有的资源。
+
+## 外部初始化
+
+`compose` 汇集插件的静态 `schema`，并在根事务内依依赖顺序调用 `initialize(writer)`。普通初始化保持同步。需要异步下载或外部资源的插件可以提供 `prepare()`，返回同步或异步上下文管理器，产出一个同步初始化函数。准备阶段先取得数据，根事务统一写入，随后关闭准备资源，再安装运行服务。
+
+```python
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def prepare():
+    async with open_source() as source:
+        rows = await source.load()
+        def initialize(writer):
+            for row in rows:
+                writer.execute("INSERT INTO facts VALUES(?,?)", row)
+        yield initialize
+
+plugin = Plugin("facts", schema=SCHEMA, prepare=prepare, install=install)
+```
+
+同一插件同时提供两个入口时，先执行普通 `initialize`，再执行准备所得函数。准备函数按插件依赖顺序进入，其资源按逆序释放。后续准备失败、取消或根写入失败都会退出已取得的准备资源；根创建成功后写者立即交给外层资源栈，因此准备资源关闭时抛错也会关闭写者。此时已经发布的根仍是有效初始点，调用方收到清理异常。
+
+准备所得闭包在进入正式运行前释放，外部数据无需随整个运行驻留。恢复依据完整状态重建服务，跳过 `prepare` 与 `initialize`。`examples/core_next/graph_environment.py` 展示异步读取外部图、将节点与边保存到共享 SQL，再用 NetworkX 和标准库数值数组生成派生视图；恢复时原始外部文件可以已经移除。派生视图的全图算法成本由所请求节点与边的规模决定。

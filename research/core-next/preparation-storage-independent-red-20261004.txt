@@ -1,0 +1,96 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_review_prepare_manager_cannot_suppress_fatal_failure[root] ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-649/test_review_prepare_manager_ca0')
+failure = 'root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',['root','later_cleanup'])
+    async def test_review_prepare_manager_cannot_suppress_fatal_failure(tmp_path,failure):
+        class Suppressor:
+            def __enter__(self):
+                def initialize(writer):
+                    if failure=='root':raise ValueError('original root failure')
+                return initialize
+            def __exit__(self,*exc):return True
+        class Later:
+            async def __aenter__(self):return lambda writer:None
+            async def __aexit__(self,*exc):raise ValueError('original cleanup failure')
+        plugins=[Plugin('first',prepare=Suppressor)]
+        if failure=='later_cleanup':plugins.append(Plugin('second',('first',),prepare=Later))
+        with pytest.raises(ValueError,match='original'):
+>           async with compose(tmp_path/'run',plugins):pass
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_preparation_review.py:23: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:28: in compose
+    store = await _create_prepared(path, schema, ordered, resources)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-649/test_review_prepare_manager_ca0/run')
+schema = ()
+plugins = [Plugin(name='first', requires=(), install=<function _noop at 0x10725b4c0>, schema=(), initialize=None, prepare=<class...rimary.test_kernel_preparation_review.test_review_prepare_manager_cannot_suppress_fatal_failure.<locals>.Suppressor'>)]
+resources = <contextlib.AsyncExitStack object at 0x1018a1a30>
+
+    async def _create_prepared(path, schema, plugins, resources):
+        # 准备闭包仅活在此函数中，正式运行不保留载入的数据。
+        initializers = []
+        try:
+            async with AsyncExitStack() as preparation:
+                for plugin in plugins:
+                    if plugin.initialize is not None:
+                        initializers.append(plugin.initialize)
+                    if plugin.prepare is not None:
+                        manager = plugin.prepare()
+                        if hasattr(type(manager), '__aenter__'):
+                            initializer = await preparation.enter_async_context(manager)
+                        else:
+                            initializer = preparation.enter_context(manager)
+                        initializers.append(initializer)
+    
+                def initialize(writer):
+                    for callback in initializers:
+                        result = callback(writer)
+                        if isawaitable(result):
+                            if iscoroutine(result):
+                                result.close()
+                            raise TypeError('plugin initialize must be synchronous')
+    
+                store = StageStore.create(path, schema, initialize=initialize)
+                # prepare 清理失败时，外层栈仍能释放已发布根的写者锁。
+                resources.enter_context(store)
+>           return store
+                   ^^^^^
+E           UnboundLocalError: cannot access local variable 'store' where it is not associated with a value
+
+src/society0/kernel/composition.py:64: UnboundLocalError
+___ test_review_prepare_manager_cannot_suppress_fatal_failure[later_cleanup] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-649/test_review_prepare_manager_ca1')
+failure = 'later_cleanup'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',['root','later_cleanup'])
+    async def test_review_prepare_manager_cannot_suppress_fatal_failure(tmp_path,failure):
+        class Suppressor:
+            def __enter__(self):
+                def initialize(writer):
+                    if failure=='root':raise ValueError('original root failure')
+                return initialize
+            def __exit__(self,*exc):return True
+        class Later:
+            async def __aenter__(self):return lambda writer:None
+            async def __aexit__(self,*exc):raise ValueError('original cleanup failure')
+        plugins=[Plugin('first',prepare=Suppressor)]
+        if failure=='later_cleanup':plugins.append(Plugin('second',('first',),prepare=Later))
+>       with pytest.raises(ValueError,match='original'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_preparation_review.py:22: Failed
