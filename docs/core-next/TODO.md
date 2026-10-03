@@ -55,7 +55,7 @@
 - [x] **D04 完整 Thread 与续激活**（storage/threads，非作者 spec，依 D02/K02）：ThreadStore 的分块原文、请求水位、tail/range 和完整恢复已通过作者与独立测试，见 [Thread 合同](thread-contract.md)。持久工具回执、跨进程同 moment 定位和 shell 旧产物消费已集成；`f7b4a42` 增加工作区恢复和固定记忆输入水位，`f273b15` 已将认知输入与消费游标原子发布；`cf08abc` 完成 CognitiveInput、变化背景追加、A→B→A 和独立进程恢复。证据：`test_kernel_threads*.py`、`test_kernel_cognition*.py`、`cognition-memory-integration-green.txt`，相关 99 项通过。长 Thread 不裁剪；真实提供方端到端继续归 V05。
 - [x] **D05 记忆插件与三个开关**（storage，依 D04/D01）：M03–M09；逐一验证召回/提取写入/主动记忆工具 2³ 组合、interview 默认测量、budget/length 无成功记忆、提取失败/空选择/同 Thread 重试/single-flight/pending→write→receipt。同一有效作业重试避免重复提取；完整步骤之后、崩溃前发生的外部调用可能重算，不从 dirty 诊断偷偷恢复。证据：`cf08abc`、`test_kernel_memory*.py`、`test_kernel_cognition.py` 默认真实组件组合；31 项 Memory 作者/独立用例及 99 项相关组合通过，含访谈默认不提取、长度失败不生成记忆、提取纠正和回执恢复。资源装配、传输及真实服务继续由 D01/D06/V05 验收。
 - [x] **D06 记忆排序与后端适配**（storage，非作者 spec，依 D05）：M06–M10；SQL 权威正文和向量、Chroma 候选、历史可见版本、去重衰减、主动 CRUD 与配置召回数量已实现。`b0dab6a` 补齐 seed、原值原向量流式导出和批次原子导入、fork 隔离与关闭排空；独立审查发现的异步查询版本竞态、关闭与 update 竞态已回归。证据：`test_kernel_memory*.py`、`memory-transfer-independent-final.txt`，42 项作者及独立用例通过。完整 Memory 的真实 LLM/embedding 链继续由 V05 验收。
-- [ ] **D07 有界计算接入**（指定 owner，依 X08/适用封存接口）：产品使用有界线程压缩或已证明隔离的计算，维持顺序和总预算；多核完成顺序不决定业务优先权，单块过大显式处理。
+- [x] **D07 有界计算接入**（storage，非作者 threads，依适用封存接口）：`8194e42` 由 StageStore 懒创建共享原生压缩池，Writer.encode_chunks 供 Thread/Memory/ResourceCalls 共用。默认 4 workers、512KiB 待处理原始块，另有固定前缀、结果及 zlib/SQLite 内存；256KiB 以下走同步短路径。按输入顺序回写，异常和主线程等待中断均排空已启动任务。145 项相关组合及 15 项最终独立/探针测试通过；本机产品 4×10MiB 三次中位 296ms，相对同步 912ms 缩短约 67.5%，同步事件循环空窗仍约 207ms。证据：[性能报告](../../research/core-next/persistence-performance-20261004.md)、`test_kernel_compression*.py`。服务器与整步成本继续归 X08/V04；事务外暂存保留为已测候选。
 
 ### 4.2 时间、领域与结果
 
