@@ -4,7 +4,7 @@ AI 在第一次编写或运行实验时读取本页；研究者继续用自然�
 
 ## 先确认现有环境
 
-在现有 Python 环境中检查 `society0` 的版本、安装路径及本次要调用的接口。确认 Python ≥3.12、LLM 与 embedding 两套模型配置。安装 skill 提供的是指导和模板；实验还需 Python 引擎。已装的引擎能满足本实验接口时直接复用，缺少或不匹配时再安装或更新。
+在现有 Python 环境中检查 `society0` 的版本、安装路径及本次要调用的接口。确认 Python ≥3.12、LLM 与 embedding 两套模型配置。安装 skill 提供的是指导和模板；实验还需 Python 引擎。导入失败的结论限定于该解释器；接着检查项目已有虚拟环境或环境管理器登记的环境，找到适用安装后复用。确实缺少或接口不匹配时再安装或更新。
 
 ```python
 import inspect
@@ -17,7 +17,7 @@ for name in ("instruct", "interview", "extract_thread_memories"):
     print(name, inspect.signature(getattr(AgentGroup, name)))
 ```
 
-安装命令只选一种，放在明确的 Python 环境中执行：发布包 `python -m pip install society0`，或用户指定的源码检出目录 `python -m pip install -e /path/to/society0`。下载长时间无进展时先看进程、连接和代理，避免在同一环境重复启动安装。用户取消回复后，也核对后台安装或实验进程是否仍在执行。
+需要安装引擎时，在选定解释器中从 Society0 源码安装。复用已有 Society0 仓库；若只有 skill，则从 `https://github.com/lavapapa/society0` 克隆源码到项目中的持久目录，再用选定解释器执行 `python -m pip install -e /absolute/path/to/society0-source`。可编辑安装持续依赖该源码目录，应与实验一起保留。下载长时间无进展时先看进程、连接和代理，避免在同一环境重复启动安装。用户取消回复后，也核对后台安装或实验进程是否仍在执行。
 
 ## 起步配置与两轮协议
 
@@ -35,7 +35,7 @@ for name in ("instruct", "interview", "extract_thread_memories"):
 
 ## 检查、连接验证与试运行
 
-先检查配置能初始化，再验证模型服务，最后执行实验。配套示例支持：
+先检查配置能初始化，再用小规模真实试运行验证模型服务与实验过程。配套示例支持：
 
 ```bash
 python versions/v001/experiment.py --check --run-dir versions/v001/runs/check-001
