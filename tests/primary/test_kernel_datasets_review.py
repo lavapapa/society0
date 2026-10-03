@@ -42,7 +42,25 @@ def test_review_dataset_large_range_and_final_page_budget(tmp_path,monkeypatch):
         assert len(json.dumps(page,ensure_ascii=False,separators=(',',':')).encode())<=512
         assert page['next_cursor'] is not None and 'payload_ref' in page['items'][0]
         raw=json.dumps(value,ensure_ascii=False,separators=(',',':')).encode()
-        decompress=module.zlib.decompress;calls=[]
-        monkeypatch.setattr(module.zlib,'decompress',lambda value:(calls.append(len(value)),decompress(value))[1])
+        decompress=module._decompress;calls=[]
+        monkeypatch.setattr(module,'_decompress',lambda decoder,value:(calls.append(len(value)),decompress(decoder,value))[1])
         assert data.read_payload(reference,0,offset=len(raw)-17,size=17)['data']==raw[-17:]
         assert len(calls)==1
+
+
+def test_review_shared_compression_blocks_preserve_adjacent_record_ranges(tmp_path,monkeypatch):
+    import society0.kernel.datasets as module
+    # 第一条原文总长恰好留下 7 字节；下一条的 UTF8 正文跨共享块边界。
+    first='x'*(module.CHUNK_BYTES-9)
+    second={'text':'相邻🙂'*20000}
+    with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+        data=Datasets(store);reference=data.import_rows('mixed',[first,second,{},None,True,2**90])
+        original=module._decompress;calls=[]
+        monkeypatch.setattr(module,'_decompress',lambda decoder,value:(calls.append(len(value)),original(decoder,value))[1])
+        raw=json.dumps(second,ensure_ascii=False,separators=(',',':')).encode()
+        assert data.read_payload(reference,1,offset=0,size=17)['data']==raw[:17]
+        assert len(calls)==2
+        assert [data.get(reference,index) for index in range(6)]==[first,second,{},None,True,2**90]
+        store.complete(1)
+    with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
+        assert Datasets(restored).get(reference,1)==second

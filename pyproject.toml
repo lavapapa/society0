@@ -22,10 +22,11 @@ dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0"]
 llm = ["openai", "ollama", "pydantic", "tenacity"]
 memory = ["chromadb", "json-repair"]
 social = ["networkx", "pydantic", "chromadb"]
+datasets = ["zstandard>=0.23"]
 shell = ["bashkit==0.18.2", "society0-filesystem"]
 dev = [
     "pytest", "pytest-asyncio", "PyYAML", "jmespath",
-    "openai", "ollama", "pydantic", "tenacity", "chromadb", "json-repair", "networkx",
+    "openai", "ollama", "pydantic", "tenacity", "chromadb", "json-repair", "networkx", "zstandard>=0.23",
 ]
 
 [tool.setuptools.packages.find]
