@@ -58,3 +58,11 @@ Driver、准备函数或阶段运行异常会停止该阶段，取消并等待�
 PluginHost 退出时关闭 Runtime。外部正在运行的步骤会被取消并等待结束，再释放依赖服务。一个 Runtime 实例由一个调用者拥有运行生命周期，同时执行第二个步骤会被拒绝。使用者须让后台工作在 Driver 的取消清理中结束，避免脱离作用域继续修改事实。
 
 作者证据在 `tests/primary/test_kernel_runtime.py`，首轮模块缺失红灯与整步骤预算红灯分别保留在 `research/core-next/runtime-red.txt`、`runtime-step-budget-red.txt`，绿灯记录在 `runtime-green.txt`。测试覆盖 PluginHost 两机制组合、顺序 live 行动、独立命名空间并发、同主体互斥与信号合并、共享准备引用、并发补位、同 Moment 游标、网络等待、取消清理、激活限制、开放等待与发布失败。本合同针对局部调度及其真实消费者，完整仿真恢复和 LLM 决策链仍需后续端到端验收。
+
+## 五、收集与按需加载
+
+阶段可显式设置 `incomplete='collect'`，收集 Driver 返回的 incomplete，并继续其余主体。默认 `fail_step` 保持未完成即失败；领域处理器、Thread 写入与其他执行异常始终使步骤失败。采用 collect 的机制负责解释未完成结果，完成步骤仍保留各主体的真实状态，不把 incomplete 改写为 completed。
+
+`await context.drain()` 返回此次尚未消费的 `ActorResult(actor_id, round, result)` 元组，其中 result 保留 status、reason、value。结果按主体首次提交顺序、同主体激活 round 排列，与网络返回顺序无关。同轮合并的多个信号对应一次实际执行与一个结果。重复 drain 没有新执行时返回空元组；`context.results` 提供该阶段全部已成功返回的结果视图，读取不增加激活计数。多次 drain 的各批各自保持上述顺序，机制可以消费结果后再激活下一批。
+
+Runtime 同时接受 `Iterable[Actor]` 或 `Mapping[str, Actor]`。Mapping 保持服务引用，实际 worker 开始执行时才取主体并构造 Driver，初始化和排队不枚举全体主体。查找异常仍按执行异常终止步骤。runtime_plugin 同样保留 Mapping 的按需访问语义，适合持久 ActorStore 与 selector 返回少量主体 ID 的组合。

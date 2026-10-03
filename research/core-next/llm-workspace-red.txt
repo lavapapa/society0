@@ -1,0 +1,63 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_llm_workspace_survives_complete_restore_and_next_moment _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-351/test_llm_workspace_survives_co0')
+
+    @pytest.mark.asyncio
+    async def test_llm_workspace_survives_complete_restore_and_next_moment(tmp_path):
+        holder={}
+        creations=[]
+        def factory(record):
+            creations.append(record.id)
+            return holder['driver']
+        plugins=[actor_plugin({'llm':factory},records=[ActorRecord('alice','llm'),ActorRecord('idle','llm')]),
+                 Plugin('threads',schema=THREAD_SCHEMA)]
+        async def run(host, step, moment, script, result_dir):
+            actors=host.service('actors','actors')
+            store=host.service('storage','store')
+            threads=ThreadStore(store)
+            info=Information(lambda *a:True)
+            actions=Actions(lambda *a:True)
+            def shell(session, ledger):
+                return ShellSession(session.scope,info,bound_actions=ledger,result_dir=result_dir,
+                                    workspace_snapshot=actors.load_workspace(session.actor.id))
+            holder['driver']=LLMDriver(Provider(script),threads,input_builder=lambda s:[],shell_factory=shell,workspace=actors)
+            runtime=Runtime(actors,information=info,actions=actions,store=store)
+            async def activate(ctx):
+                ctx.activate('alice')
+                results=await ctx.drain()
+                assert results[0].result.status=='completed'
+            await runtime.run_step(step,moment,[Phase('work',activate)])
+            tid=threads.find('alice',{'time':moment,'phase':'work'})
+            receipt=threads.get_tool_result(tid,'shell1')
+            return json.loads(receipt['content']),actors.workspace_reference('alice')
+        async with compose(tmp_path/'run',plugins) as host:
+>           first,workspace=await run(host,1,1,'mkdir -p /workspace; cd /workspace; saved=kept; printf "主体原文🙂" > note',tmp_path/'outputs1')
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_workspace.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+host = <society0.kernel.plugins.PluginHost object at 0x10ba53620>, step = 1
+moment = 1
+script = 'mkdir -p /workspace; cd /workspace; saved=kept; printf "主体原文🙂" > note'
+result_dir = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-351/test_llm_workspace_survives_co0/outputs1')
+
+    async def run(host, step, moment, script, result_dir):
+        actors=host.service('actors','actors')
+        store=host.service('storage','store')
+        threads=ThreadStore(store)
+        info=Information(lambda *a:True)
+        actions=Actions(lambda *a:True)
+        def shell(session, ledger):
+            return ShellSession(session.scope,info,bound_actions=ledger,result_dir=result_dir,
+                                workspace_snapshot=actors.load_workspace(session.actor.id))
+>       holder['driver']=LLMDriver(Provider(script),threads,input_builder=lambda s:[],shell_factory=shell,workspace=actors)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: LLMDriver.__init__() got an unexpected keyword argument 'workspace'
+
+tests/primary/test_kernel_llm_workspace.py:42: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm_workspace.py::test_llm_workspace_survives_complete_restore_and_next_moment
+1 failed in 0.50s

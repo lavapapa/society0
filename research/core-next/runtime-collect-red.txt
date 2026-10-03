@@ -1,0 +1,80 @@
+................FFF                                                      [100%]
+=================================== FAILURES ===================================
+________ test_collect_preserves_ordered_results_and_drain_consumes_once ________
+
+    @pytest.mark.asyncio
+    async def test_collect_preserves_ordered_results_and_drain_consumes_once():
+        released = asyncio.Event()
+        rounds = {}
+        async def run(session):
+            name = session.actor.id
+            rounds[name] = rounds.get(name, 0) + 1
+            if name == 'first' and rounds[name] == 1:
+                await released.wait()
+                return DriverResult('incomplete', {'signals': session.signals}, 'transport_error')
+            released.set()
+            return DriverResult('completed', {'signals': session.signals})
+        engine, store = runtime([actor('first', run), actor('second', run)], capacity=2)
+        captured = []
+        async def phase(ctx):
+            ctx.activate('first', 1)
+            ctx.activate('first', 2)
+            ctx.activate('second', 3)
+            captured.extend(await ctx.drain())
+            assert await ctx.drain() == ()
+            ctx.activate('first', 4)
+            captured.extend(await ctx.drain())
+            assert len(ctx.results) == 3
+>       await engine.run_step(1, 0, [Phase('p', phase, execution='independent', incomplete='collect')])
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Phase.__init__() got an unexpected keyword argument 'incomplete'
+
+tests/primary/test_kernel_runtime.py:414: TypeError
+_______________ test_collect_does_not_isolate_domain_exceptions ________________
+
+    @pytest.mark.asyncio
+    async def test_collect_does_not_isolate_domain_exceptions():
+        async def fail(session):
+            raise ValueError('partial domain write')
+        engine, store = runtime([actor('a', fail)])
+        with pytest.raises(ValueError, match='partial domain'):
+>           await engine.run_step(1, 0, [Phase('p', lambda ctx: ctx.activate('a'), incomplete='collect')])
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: Phase.__init__() got an unexpected keyword argument 'incomplete'
+
+tests/primary/test_kernel_runtime.py:428: TypeError
+____ test_mapping_actor_lookup_is_lazy_and_failed_queue_never_builds_driver ____
+
+    @pytest.mark.asyncio
+    async def test_mapping_actor_lookup_is_lazy_and_failed_queue_never_builds_driver():
+        from collections.abc import Mapping
+        loaded = []
+        async def fail(session):
+            raise ValueError('domain failure')
+        class Actors(Mapping):
+            def __getitem__(self, key):
+                loaded.append(key)
+                return actor(key, fail)
+            def __len__(self):
+                return 1000000
+            def __iter__(self):
+                raise AssertionError('must not enumerate actors')
+>       engine, store = runtime(Actors())
+                        ^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_runtime.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_kernel_runtime.py:27: in runtime
+    return Runtime(actors, information=Information(lambda *args: True),
+src/society0/kernel/runtime.py:145: in __init__
+    for actor in actors:
+                 ^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.primary.test_kernel_runtime.test_mapping_actor_lookup_is_lazy_and_failed_queue_never_builds_driver.<locals>.Actors object at 0x10b7cd9a0>
+
+    def __iter__(self):
+>       raise AssertionError('must not enumerate actors')
+E       AssertionError: must not enumerate actors
+
+tests/primary/test_kernel_runtime.py:445: AssertionError

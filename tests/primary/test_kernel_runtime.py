@@ -386,3 +386,69 @@ def test_artifacts_from_session_and_phase_share_step_publication_and_reset():
         with pytest.raises(ScopeClosed):
             escaped[0].prepare_artifact([b'closed'])
     asyncio.run(main())
+
+
+@pytest.mark.asyncio
+async def test_collect_preserves_ordered_results_and_drain_consumes_once():
+    released = asyncio.Event()
+    rounds = {}
+    async def run(session):
+        name = session.actor.id
+        rounds[name] = rounds.get(name, 0) + 1
+        if name == 'first' and rounds[name] == 1:
+            await released.wait()
+            return DriverResult('incomplete', {'signals': session.signals}, 'transport_error')
+        released.set()
+        return DriverResult('completed', {'signals': session.signals})
+    engine, store = runtime([actor('first', run), actor('second', run)], capacity=2)
+    captured = []
+    async def phase(ctx):
+        ctx.activate('first', 1)
+        ctx.activate('first', 2)
+        ctx.activate('second', 3)
+        captured.extend(await ctx.drain())
+        assert await ctx.drain() == ()
+        ctx.activate('first', 4)
+        captured.extend(await ctx.drain())
+        assert len(ctx.results) == 3
+    await engine.run_step(1, 0, [Phase('p', phase, execution='independent', incomplete='collect')])
+    assert [(r.actor_id, r.round, r.result.status) for r in captured] == [
+        ('first', 1, 'incomplete'), ('second', 1, 'completed'), ('first', 2, 'completed')]
+    assert captured[0].result.value['signals'] == (1, 2)
+    assert rounds == {'first': 2, 'second': 1}
+    assert engine._activations_used == 3 and store.events == [('complete',)]
+
+
+@pytest.mark.asyncio
+async def test_collect_does_not_isolate_domain_exceptions():
+    async def fail(session):
+        raise ValueError('partial domain write')
+    engine, store = runtime([actor('a', fail)])
+    with pytest.raises(ValueError, match='partial domain'):
+        await engine.run_step(1, 0, [Phase('p', lambda ctx: ctx.activate('a'), incomplete='collect')])
+    assert store.events == [('abort',)]
+
+
+@pytest.mark.asyncio
+async def test_mapping_actor_lookup_is_lazy_and_failed_queue_never_builds_driver():
+    from collections.abc import Mapping
+    loaded = []
+    async def fail(session):
+        raise ValueError('domain failure')
+    class Actors(Mapping):
+        def __getitem__(self, key):
+            loaded.append(key)
+            return actor(key, fail)
+        def __len__(self):
+            return 1000000
+        def __iter__(self):
+            raise AssertionError('must not enumerate actors')
+    engine, store = runtime(Actors())
+    assert loaded == []
+    def phase(ctx):
+        ctx.activate('first')
+        ctx.activate('second')
+        assert loaded == []
+    with pytest.raises(ValueError, match='domain failure'):
+        await engine.run_step(1, 0, [Phase('p', phase)])
+    assert loaded == ['first']

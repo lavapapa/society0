@@ -186,3 +186,38 @@ async def test_review_failed_serial_actor_prevents_queued_actor_start():
     with pytest.raises(RuntimeError,match='first failed'):
         await runtime.run_step(1,0,[Phase('serial',phase)])
     assert calls==['first']
+
+
+@pytest.mark.asyncio
+async def test_review_collect_with_persistent_actor_mapping_is_lazy_and_reactivates_same_moment(tmp_path):
+    from society0.kernel.actors import ActorRecord, actor_plugin
+    from society0.kernel.composition import compose
+    created=[]
+    seen=[]
+    class Driver:
+        async def run(self, session):
+            count=session.cursors.get('runs',0)+1
+            session.cursors['runs']=count
+            seen.append((session.actor.id,count))
+            return DriverResult('incomplete' if session.actor.id=='a' and count==1 else 'completed',reason='measurement')
+    def factory(record):
+        created.append(record.id)
+        return Driver()
+    records=[ActorRecord('a','rule'),ActorRecord('b','rule')]
+    records.extend(ActorRecord(str(i),'rule') for i in range(1000))
+    async with compose(tmp_path/'run',[actor_plugin({'rule':factory},records=records)]) as host:
+        actors=host.service('actors','actors')
+        store=host.service('storage','store')
+        runtime=Runtime(actors,information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
+        assert created==[]
+        async def collect(ctx):
+            ctx.activate('a'); ctx.activate('b')
+            results=await ctx.drain()
+            assert [(r.actor_id,r.result.status) for r in results]==[('a','incomplete'),('b','completed')]
+            assert await ctx.drain()==()
+            ctx.activate('a')
+            again=await ctx.drain()
+            assert len(again)==1 and again[0].actor_id=='a' and again[0].result.status=='completed'
+        await runtime.run_step(1,1,[Phase('measure',collect,incomplete='collect')])
+        assert store.complete_step==1 and created==['a','b','a']
+        assert seen==[('a',1),('b',1),('a',2)]

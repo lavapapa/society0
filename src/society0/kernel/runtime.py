@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -33,15 +33,25 @@ class DriverResult:
 
 
 @dataclass(frozen=True)
+class ActorResult:
+    actor_id: str
+    round: int
+    result: DriverResult
+
+
+@dataclass(frozen=True)
 class Phase:
     name: str
     run: Callable
     prepare: Callable | None = None
     execution: str = 'serial'
+    incomplete: str = 'fail_step'
 
     def __post_init__(self):
         if self.execution not in ('serial', 'independent'):
             raise ValueError('phase execution must be serial or independent')
+        if self.incomplete not in ('fail_step', 'collect'):
+            raise ValueError('incomplete policy must be fail_step or collect')
 
 
 class IncompleteActivation(RuntimeError):
@@ -81,6 +91,9 @@ class PhaseContext:
         self.moment = moment
         self.prepared = None
         self._runtime = runtime
+        self._incomplete = phase.incomplete
+        self._actor_order = {}
+        self._consumed_results = set()
         self._active = True
         self._ready = False
         self._failure = asyncio.get_running_loop().create_future()
@@ -105,21 +118,25 @@ class PhaseContext:
             raise ActivationLimitError(maximum=self._runtime.max_activations,
                                        used=self._runtime._activations_used,
                                        pending_keys=(actor_id,), active_keys=())
-        actor = self._runtime._actors[actor_id]
+        self._actor_order.setdefault(actor_id, len(self._actor_order))
 
         async def execute(batch):
             if not self._active or self._failure.done():
                 raise RuntimeError('phase has failed')
-            scope = InteractionScope(actor.id, self.moment)
-            session = Session(
-                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
-                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self,
-            )
+            scope = None
             try:
+                actor = self._runtime._actors[actor_id]
+                if actor.id != actor_id:
+                    raise ValueError('actor mapping key differs from actor identity')
+                scope = InteractionScope(actor.id, self.moment)
+                session = Session(
+                    actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                    self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self,
+                )
                 result = await actor.driver.run(session)
                 if not isinstance(result, DriverResult):
                     raise TypeError('driver must return DriverResult')
-                if result.status == 'incomplete':
+                if result.status == 'incomplete' and self._incomplete == 'fail_step':
                     raise IncompleteActivation(result.reason or 'driver incomplete')
                 return result
             except BaseException as error:
@@ -127,25 +144,39 @@ class PhaseContext:
                     self._failure.set_result(error)
                 raise
             finally:
-                scope.close()
+                if scope is not None:
+                    scope.close()
 
-        return self._pool.submit_agent(actor.id, actor.id, execute, payload=payload,
-                                       dedupe_token=dedupe_token, handler_id=actor.id)
+        return self._pool.submit_agent(actor_id, actor_id, execute, payload=payload,
+                                       dedupe_token=dedupe_token, handler_id=actor_id)
+
+    @property
+    def results(self):
+        results = (ActorResult(item.key, item.round, item.value) for item in self._pool.results
+                   if item.status == 'success')
+        return tuple(sorted(results, key=lambda item: (self._actor_order[item.actor_id], item.round)))
 
     async def drain(self):
         if not self._active:
             raise RuntimeError('phase is closed')
-        return await self._pool.drain()
+        await self._pool.drain()
+        results = tuple(item for item in self.results
+                        if (item.actor_id, item.round) not in self._consumed_results)
+        self._consumed_results.update((item.actor_id, item.round) for item in results)
+        return results
 
 
 class Runtime:
     def __init__(self, actors: Iterable[Actor], *, information, actions, store,
                  capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS):
-        self._actors = {}
-        for actor in actors:
-            if actor.id in self._actors:
-                raise ValueError(f'duplicate actor: {actor.id}')
-            self._actors[actor.id] = actor
+        if isinstance(actors, Mapping):
+            self._actors = actors
+        else:
+            self._actors = {}
+            for actor in actors:
+                if actor.id in self._actors:
+                    raise ValueError(f'duplicate actor: {actor.id}')
+                self._actors[actor.id] = actor
         self.information = information
         self.actions = actions
         self.store = store
@@ -227,7 +258,7 @@ class Runtime:
 def runtime_plugin(actors, *, information, actions, store, name='runtime',
                    capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS):
     """三项服务各以 (插件名, 服务名) 指定；复用主机的依赖生命周期。"""
-    actors = tuple(actors)
+    actors = actors if isinstance(actors, Mapping) else tuple(actors)
 
     def install(context):
         runtime = Runtime(actors, information=context.require(*information),
