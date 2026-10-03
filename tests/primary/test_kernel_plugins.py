@@ -265,3 +265,33 @@ def test_context_manager_receives_install_error():
 
     asyncio.run(run())
     assert received == ["original failure"]
+
+@pytest.mark.asyncio
+async def test_step_hooks_are_frozen_after_all_installers_in_dependency_order():
+    seen=[];contexts=[]
+    def install(name):
+        def run(ctx):
+            contexts.append(ctx)
+            ctx.on_step(before=lambda:seen.append('before:'+name),after=lambda:seen.append('after:'+name))
+        return run
+    async with PluginHost([Plugin('later',('early',),install('later')),Plugin('early',install=install('early'))]):
+        before,after=contexts[0].step_hooks()
+        for name,hook in (*before,*after):hook()
+        assert seen==['before:early','before:later','after:early','after:later']
+        with pytest.raises(RuntimeError):contexts[0].on_step(after=lambda:None)
+    with pytest.raises(RuntimeError):contexts[0].step_hooks()
+    assert len(seen)==4
+
+@pytest.mark.asyncio
+async def test_quiesce_finishes_before_resources_even_when_quiesce_fails():
+    seen=[]
+    async def broken():
+        seen.append('stop:broken')
+        raise OSError('quiesce failed')
+    def install(ctx):
+        ctx.on_close(lambda:seen.append('resource'))
+        ctx.on_quiesce(lambda:seen.append('stop:first'))
+        ctx.on_quiesce(broken)
+    with pytest.raises(OSError,match='quiesce'):
+        async with PluginHost([Plugin('one',install=install)]):pass
+    assert seen==['stop:broken','stop:first','resource']

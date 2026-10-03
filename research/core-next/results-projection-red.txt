@@ -1,0 +1,42 @@
+.FF                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_current_metrics_replace_phase_keys_and_preserve_restore _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-541/test_current_metrics_replace_p0')
+
+    @pytest.mark.asyncio
+    async def test_current_metrics_replace_phase_keys_and_preserve_restore(tmp_path):
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
+            results=Results(store)
+            await results.write_phase(1,0,'phase',StepResult(metrics={'gone':1,'value':'完整'*2000}),
+                activations=({'actor_id':'a','status':'waiting','round':1,'value':None,'reason':'pause','elapsed_s':.1},))
+            await results.write_phase(2,0,'phase',StepResult(metrics={'value':2}),
+                activations=({'actor_id':'a','status':'incomplete','round':1,'value':None,'reason':'budget','elapsed_s':.2},))
+>           assert results.metric('phase','value')==2
+                   ^^^^^^^^^^^^^^
+E           AttributeError: 'Results' object has no attribute 'metric'
+
+tests/primary/test_kernel_results.py:55: AttributeError
+___________ test_result_page_encodes_each_item_once_and_fixed_prefix ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-541/test_result_page_encodes_each_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1099957f0>
+
+    @pytest.mark.asyncio
+    async def test_result_page_encodes_each_item_once_and_fixed_prefix(tmp_path,monkeypatch):
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
+            results=Results(store)
+            header=await results.write_phase(1,0,'phase',StepResult(tables={'rows':({'i':i} for i in range(1000))}))
+            reference=header['tables']['rows']
+            encoded_items=0;original=json.dumps
+            def counted(value,*args,**kwargs):
+                nonlocal encoded_items
+                if isinstance(value,dict):encoded_items+=len(value.get('items',()))
+                return original(value,*args,**kwargs)
+            monkeypatch.setattr(json,'dumps',counted)
+            page=results.page(reference,limit=1000,max_bytes=65536)
+            assert len(page['items'])==1000
+>           assert encoded_items<=1000
+E           assert 500500 <= 1000
+
+tests/primary/test_kernel_results.py:77: AssertionError

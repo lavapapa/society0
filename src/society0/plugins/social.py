@@ -344,8 +344,9 @@ class Social:
 
     def preference_text(self,actor):
         cfg=self.config.social_media.recommendation
-        record=self.actors.get_record(actor);sections=[]
-        if record.persona:sections.append('Persona:\n'+str(record.persona))
+        record=self.actors.view(actor);sections=[]
+        persona=record.persona
+        if persona:sections.append('Persona:\n'+str(persona))
         if cfg.include_recent_posts_in_query and cfg.recent_post_limit:
             rows=self.store.read(lambda r:r.query(f'SELECT p.id,b.body,b.tags FROM {self.table("posts")} p JOIN {self.table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT ?',(actor,cfg.recent_post_limit)))
             lines=[]
@@ -536,6 +537,7 @@ def social_plugin(members,*,name='social',edges=None,config=None,seed=0,content_
         client=ctx.require(*vector_client) if vector_client else None
         social=Social(name,ctx.require(storage,'store'),ctx.require(actors,'actors'),embed,client)
         ctx.on_close(social.close)
+        ctx.on_step(after=social.after_tick)
         social.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'))
         ctx.provide('mechanism',social)
     requires=tuple(dict.fromkeys((storage,actors,interaction)+((embedding[0],) if embedding else ())+((vector_client[0],) if vector_client else ())))

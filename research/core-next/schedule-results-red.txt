@@ -1,0 +1,12 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_sync_rule_and_collect_results_include_duration_and_order _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-543/test_sync_rule_and_collect_res0')
+
+    @pytest.mark.asyncio
+    async def test_sync_rule_and_collect_results_include_duration_and_order(tmp_path):
+>       from society0.kernel.schedule import RuleDriver
+E       ImportError: cannot import name 'RuleDriver' from 'society0.kernel.schedule' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py)
+
+tests/primary/test_kernel_schedule.py:61: ImportError

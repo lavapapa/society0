@@ -55,7 +55,7 @@ DriverResult.status 包括 completed、waiting、incomplete。waiting 表示正�
 
 Driver、准备函数或阶段运行异常会停止该阶段，取消并等待所有已启动工作清理，再调用 store.abort_step。外部取消也遵循相同次序。运行实例随后保持 failed，拒绝继续调用 run_step；它不会自动重试成功行动。发布调用报错时回读权威存储的完成水位；如果故障发生在实际发布成功后，保留该完成身份，同时维持运行实例 failed，等待显式处理。StageStore.abort_step 的实际合同是废弃当前未完整状态并要求显式恢复，已经发生的外部副作用仍须由对应插件保留记录和处理。
 
-PluginHost 退出时关闭 Runtime。外部正在运行的步骤会被取消并等待结束，再释放依赖服务。一个 Runtime 实例由一个调用者拥有运行生命周期，同时执行第二个步骤会被拒绝。使用者须让后台工作在 Driver 的取消清理中结束，避免脱离作用域继续修改事实。
+PluginHost 退出时先在 quiesce 阶段关闭并排空 Runtime，随后逆序释放普通插件资源。外部正在运行的步骤会被取消并等待结束，再释放依赖服务。一个 Runtime 实例由一个调用者拥有运行生命周期，同时执行第二个步骤会被拒绝。使用者须让后台工作在 Driver 的取消清理中结束，避免脱离作用域继续修改事实。
 
 作者证据在 `tests/primary/test_kernel_runtime.py`，首轮模块缺失红灯与整步骤预算红灯分别保留在 `research/core-next/runtime-red.txt`、`runtime-step-budget-red.txt`，绿灯记录在 `runtime-green.txt`。测试覆盖 PluginHost 两机制组合、顺序 live 行动、独立命名空间并发、同主体互斥与信号合并、共享准备引用、并发补位、同 Moment 游标、网络等待、取消清理、激活限制、开放等待与发布失败。本合同针对局部调度及其真实消费者，完整仿真恢复和 LLM 决策链仍需后续端到端验收。
 
@@ -66,3 +66,6 @@ PluginHost 退出时关闭 Runtime。外部正在运行的步骤会被取消并�
 `await context.drain()` 返回此次尚未消费的 `ActorResult(actor_id, round, result)` 元组，其中 result 保留 status、reason、value。结果按主体首次提交顺序、同主体激活 round 排列，与网络返回顺序无关。同轮合并的多个信号对应一次实际执行与一个结果。重复 drain 没有新执行时返回空元组；`context.results` 提供该阶段全部已成功返回的结果视图，读取不增加激活计数。多次 drain 的各批各自保持上述顺序，机制可以消费结果后再激活下一批。
 
 Runtime 同时接受 `Iterable[Actor]` 或 `Mapping[str, Actor]`。Mapping 保持服务引用，实际 worker 开始执行时才取主体并构造 Driver，初始化和排队不枚举全体主体。查找异常仍按执行异常终止步骤。runtime_plugin 同样保留 Mapping 的按需访问语义，适合持久 ActorStore 与 selector 返回少量主体 ID 的组合。
+
+
+正式 runtime_plugin 自动取得所属主机注册的 before/after 步骤回调；回调按插件依赖安装顺序执行，包含 Runtime 安装后加入的机制。每次 run_step 先固定完整回调列表，全部 after 成功后才发布。独立 Runtime 可通过 before/after 传入显式低层回调。结果、进度与薄 CodeSchedule 的消费方式见 [调度结果与进度](results-contract.md)。

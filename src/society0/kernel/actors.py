@@ -8,7 +8,7 @@ from .plugins import Plugin
 from .runtime import Actor
 
 ACTOR_SCHEMA = (
-    'CREATE TABLE actors(ordinal INTEGER PRIMARY KEY,id TEXT NOT NULL UNIQUE,driver TEXT NOT NULL,active INTEGER NOT NULL)',
+    'CREATE TABLE actors(ordinal INTEGER PRIMARY KEY,id TEXT NOT NULL UNIQUE,driver TEXT NOT NULL,active INTEGER NOT NULL,data_revision INTEGER NOT NULL DEFAULT 0)',
     'CREATE TABLE actor_personas(actor TEXT PRIMARY KEY NOT NULL,body TEXT NOT NULL,FOREIGN KEY(actor) REFERENCES actors(id))',
     'CREATE TABLE actor_configs(actor TEXT PRIMARY KEY NOT NULL,body TEXT NOT NULL,FOREIGN KEY(actor) REFERENCES actors(id))',
     'CREATE TABLE actor_state(actor TEXT NOT NULL,key TEXT NOT NULL,ordinal INTEGER NOT NULL,value TEXT NOT NULL,PRIMARY KEY(actor,key),UNIQUE(actor,ordinal),FOREIGN KEY(actor) REFERENCES actors(id))',
@@ -38,6 +38,46 @@ class ActorRecord:
         object.__setattr__(self,'roles',tuple(self.roles))
         if type(self.active) is not bool:
             raise TypeError('active must be boolean')
+
+
+@dataclass(frozen=True)
+class ActorRecordView:
+    id: str
+    driver: str
+    active: bool
+    roles: tuple
+    revision: int
+    _store: object = field(repr=False,compare=False)
+
+    def _read(self,callback):
+        def read(view):
+            rows=view.query('SELECT data_revision FROM actors WHERE id=?',(self.id,))
+            if not rows or rows[0][0]!=self.revision:
+                raise ValueError('actor record revision changed; acquire a new view')
+            return callback(view)
+        return self._store.read(read)
+
+    @property
+    def persona(self):
+        return self._read(lambda r:json.loads(r.query('SELECT body FROM actor_personas WHERE actor=?',(self.id,))[0][0]))
+
+    @property
+    def config(self):
+        return self._read(lambda r:json.loads(r.query('SELECT body FROM actor_configs WHERE actor=?',(self.id,))[0][0]))
+
+    @property
+    def state(self):
+        return self.state_values()
+
+    def state_values(self,keys=None):
+        keys=None if keys is None else tuple(dict.fromkeys(keys))
+        def read(r):
+            where='actor=?';bindings=(self.id,)
+            if keys is not None:
+                if not keys:return {}
+                where+=' AND key IN ('+','.join('?' for _ in keys)+')';bindings+=keys
+            return {key:json.loads(value) for key,value in r.iter_query('SELECT key,value FROM actor_state WHERE '+where+' ORDER BY ordinal',bindings)}
+        return self._read(read)
 
 
 def _state_rows(actor, state):
@@ -80,8 +120,17 @@ class ActorStore(Mapping):
             return ActorRecord(actor,driver,persona,state,config,roles,bool(active))
         return self.store.read(read)
 
+    def view(self,actor):
+        def read(r):
+            rows=r.query('SELECT driver,active,data_revision FROM actors WHERE id=?',(actor,))
+            if not rows:raise KeyError(actor)
+            driver,active,revision=rows[0]
+            roles=tuple(row[0] for row in r.iter_query('SELECT role FROM actor_selection WHERE actor=? AND kind=1 ORDER BY role',(actor,)))
+            return ActorRecordView(actor,driver,bool(active),roles,revision,self.store)
+        return self.store.read(read)
+
     def __getitem__(self, actor):
-        record=self.get_record(actor)
+        record=self.view(actor)
         return Actor(actor,self.drivers[record.driver](record),Ref('actors','state',actor),record)
 
     def __len__(self):
@@ -106,6 +155,7 @@ class ActorStore(Mapping):
             rows=w.query('SELECT ordinal,active FROM actors WHERE id=?',(actor,))
             if not rows: raise KeyError(actor)
             ordinal,active=rows[0]
+            if changes:w.execute('UPDATE actors SET data_revision=data_revision+1 WHERE id=?',(actor,))
             if 'driver' in changes: w.execute('UPDATE actors SET driver=? WHERE id=?',(changes['driver'],actor))
             for key,table in (('persona','actor_personas'),('config','actor_configs')):
                 if key in changes: w.execute('UPDATE '+table+' SET body=? WHERE actor=?',(_json(changes[key]),actor))
@@ -125,7 +175,13 @@ class ActorStore(Mapping):
 
     def set_state(self, actor, key, value):
         if not isinstance(key,str): raise TypeError('subjective state key must be a string')
-        self.store.transaction(lambda w:w.execute('INSERT INTO actor_state VALUES(?,?,(SELECT coalesce(max(ordinal),0)+1 FROM actor_state WHERE actor=?),?) ON CONFLICT(actor,key) DO UPDATE SET value=excluded.value',(actor,key,actor,_json(value))))
+        def write(w):
+            w.execute('INSERT INTO actor_state VALUES(?,?,(SELECT coalesce(max(ordinal),0)+1 FROM actor_state WHERE actor=?),?) ON CONFLICT(actor,key) DO UPDATE SET value=excluded.value',(actor,key,actor,_json(value)))
+            w.execute('UPDATE actors SET data_revision=data_revision+1 WHERE id=?',(actor,))
+        self.store.transaction(write)
+
+    def deactivate(self,actor):
+        self.update(actor,active=False)
 
     def select(self, *, role=None, active=True, limit=100, cursor=None):
         if type(limit) is not int or limit<1: raise ValueError('limit must be positive')
