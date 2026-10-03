@@ -1,0 +1,20 @@
+.F...                                                                    [100%]
+=================================== FAILURES ===================================
+____ test_review_complete_receipt_failure_preserves_authoritative_watermark ____
+
+    @pytest.mark.asyncio
+    async def test_review_complete_receipt_failure_preserves_authoritative_watermark():
+        runtime, store = make()
+        def publish_then_disconnect(step):
+            store.complete_step = step
+            raise OSError('receipt lost after durable completion')
+        store.complete = publish_then_disconnect
+        with pytest.raises(OSError, match='receipt lost'):
+            await runtime.run_step(1, 0, [])
+>       assert runtime.last_completed == store.complete_step == 1
+E       assert 0 == 1
+E        +  where 0 = <society0.kernel.runtime.Runtime object at 0x109a8d0a0>.last_completed
+E        +  and   1 = <tests.primary.test_kernel_runtime_review.Store object at 0x109a8cc80>.complete_step
+
+tests/primary/test_kernel_runtime_review.py:54: AssertionError
+1 failed, 4 passed in 0.06s

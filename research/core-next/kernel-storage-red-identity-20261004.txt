@@ -1,0 +1,15 @@
+.....................F                                                   [100%]
+=================================== FAILURES ===================================
+______________ test_restore_requires_new_identity_and_strict_step ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-243/test_restore_requires_new_iden0')
+
+    def test_restore_requires_new_identity_and_strict_step(tmp_path):
+        with make(tmp_path / 'source') as store:
+            original_id = store.run_id
+            store.complete(1)
+>           with pytest.raises(StorageError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_storage.py:293: Failed

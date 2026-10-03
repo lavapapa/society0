@@ -17,6 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
+    "apsw>=3.53.4.0",
     "json-repair",
     "jsonschema>=4.0.0",
     "networkx",
@@ -30,6 +31,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+shell = ["bashkit==0.18.2"]
 dev = [
     "pytest",
     "pytest-asyncio",

@@ -1,0 +1,31 @@
+..............F..                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_lost_receipt_same_instance_and_cold_missing_reference __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-225/test_lost_receipt_same_instanc0')
+
+    def test_lost_receipt_same_instance_and_cold_missing_reference(tmp_path):
+        with make(tmp_path / 'source') as store:
+            def fault(phase):
+                if phase == 'after_publish':
+                    raise OSError('lost receipt')
+            store._fault = fault
+            with pytest.raises(OSError):
+                store.complete(1)
+>           descriptor = store.complete(1)
+                         ^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:194: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:306: in complete
+    self._check()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.storage.StageStore object at 0x107adb3e0>
+
+    def _check(self):
+        if self._closed or self._failed:
+>           raise StorageError('store unavailable; restore required')
+E           society0.kernel.storage.StorageError: store unavailable; restore required
+
+src/society0/kernel/storage.py:238: StorageError

@@ -1,0 +1,1 @@
+{"bytes": 8388608, "seconds": 0.0020294159767217934, "rss_before": 42336256, "rss_after": 66551808, "full_output_equal": false, "returned_bytes": 1048576, "stdout_truncated": true, "exit_code": 0, "mode": "transfer", "python": "3.13.0", "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O", "bashkit": "0.18.2", "peak_rss_native": 68386816}

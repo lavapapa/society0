@@ -1,0 +1,1 @@
+{"count": 100, "median_seconds": 3.241698141209781e-05, "p95_seconds": 3.933301195502281e-05, "rss_before": 32129024, "rss_released": 35225600, "rss_20_retained": 36159488, "rss_final": 36159488, "mode": "activations", "python": "3.13.0", "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O", "bashkit": "0.18.2", "peak_rss_native": 37994496}

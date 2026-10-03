@@ -1,0 +1,40 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_root_listing_discovers_only_authorized_mounts_with_refs _________
+
+    @pytest.mark.asyncio
+    async def test_root_listing_discovers_only_authorized_mounts_with_refs():
+        env, info, _ = setup_market()
+        with InteractionScope('alice', Moment(0, 'read')) as scope:
+>           page = await info.list(scope, '/', limit=1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_interaction.py:446: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:122: in list
+    provider, path = await self._provider(scope, path, 'discover')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.interaction.Information object at 0x1071406e0>
+scope = InteractionScope(actor='alice', moment=Moment(time=0, phase='read'), revision=None)
+path = '/', operation = 'discover'
+
+    async def _provider(self, scope, path, operation):
+        scope.check_active()
+        path = _path(path)
+        parts = path.strip('/').split('/')
+        for count in range(len(parts), -1, -1):
+            prefix = '/' + '/'.join(parts[:count])
+            provider = self._mounts.get(prefix)
+            if provider is not None:
+                ref = provider.ref(path)
+                if not await _resolve(self._allows(scope, operation, ref)):
+                    raise Unavailable('resource unavailable')
+                scope.check_active()
+                return provider, path
+>       raise Unavailable('resource unavailable')
+E       society0.kernel.interaction.Unavailable: resource unavailable
+
+src/society0/kernel/interaction.py:117: Unavailable
+1 failed, 24 deselected in 0.07s

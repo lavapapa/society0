@@ -1,0 +1,32 @@
+......................F                                                  [100%]
+=================================== FAILURES ===================================
+__________________ test_read_scan_is_streamed_and_scope_bound __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-261/test_read_scan_is_streamed_and0')
+
+    def test_read_scan_is_streamed_and_scope_bound(tmp_path):
+        with make(tmp_path / 'source') as store:
+            store.transaction(lambda w:w.executemany('INSERT INTO event VALUES(?,?)',((i,str(i)) for i in range(2000))))
+>           assert store.read(lambda r:sum(row[0] for row in r.iter_query('SELECT id FROM event'))) == sum(range(2000))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:303: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:317: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:157: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = <society0.kernel.storage.ReadView object at 0x1097f0d40>
+
+>   assert store.read(lambda r:sum(row[0] for row in r.iter_query('SELECT id FROM event'))) == sum(range(2000))
+                                                     ^^^^^^^^^^^^
+E   AttributeError: 'ReadView' object has no attribute 'iter_query'
+
+tests/primary/test_kernel_storage.py:303: AttributeError

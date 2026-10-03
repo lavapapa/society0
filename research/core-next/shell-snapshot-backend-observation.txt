@@ -1,0 +1,33 @@
+F...                                                                     [100%]
+=================================== FAILURES ===================================
+____________________ test_pipeline_and_workspace_roundtrip _____________________
+
+    def test_pipeline_and_workspace_roundtrip():
+>       assert probe['pipelines']()['workspace_restored']
+               ^^^^^^^^^^^^^^^^^^^^
+
+tests/experiments/test_core_next_shell.py:13: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def pipelines():
+        bash = Bash(files={'/rows': '1\n2\n3\n'})
+        assert checked(bash, 'cat /rows | head -n 1') == '1\n'
+        assert checked(bash, 'tail -n 1 /rows') == '3\n'
+        assert checked(bash, '''echo '{"x":2}' | jq '.x' ''') == '2\n'
+        checked(bash, 'mkdir -p /workspace; echo private > /workspace/note')
+        saved = bash.snapshot()
+>       restored = Bash.from_snapshot(saved)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       bashkit.BashError: snapshot capability mismatch: filesystem backend differs
+
+benchmarks/core_next_shell.py:33: BashError
+=============================== warnings summary ===============================
+../../../../../../private/tmp/society0-shell-study-venv/lib/python3.13/site-packages/_pytest/config/__init__.py:1464
+  /private/tmp/society0-shell-study-venv/lib/python3.13/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/experiments/test_core_next_shell.py::test_pipeline_and_workspace_roundtrip
+1 failed, 3 passed, 1 warning in 0.11s

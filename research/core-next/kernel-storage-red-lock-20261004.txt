@@ -1,0 +1,13 @@
+...................F.                                                    [100%]
+=================================== FAILURES ===================================
+___________________________ test_single_writer_lock ____________________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-233/test_single_writer_lock0')
+
+    def test_single_writer_lock(tmp_path):
+        with make(tmp_path / 'source') as first:
+>           with pytest.raises(StorageError, match='writer'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_storage.py:271: Failed

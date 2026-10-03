@@ -20,11 +20,11 @@
 - [x] **I03a 基线文案断言修复**（spec，依 I03）：保留 skill 可见实验 todo 与简短研究者进度的有效合同，修改 `test_society0_skill_requires_visible_experiment_todo_list` 过时句子断言。证据：[直接复验](../../research/core-next/baseline-skill-fix.txt)、[基线全量](../../research/core-next/baseline-tests.txt)：670 passed、14 deselected、32.96s；没有真实请求，未修改产品运行语义。
 - [ ] **I04 SDD 与验收绑定**（主智能体，依 I01/I02）：从 PRD 固定共享 Environment、公共引用/View/Action/Driver/Schedule、插件服务依赖、混合发布及失败合同；每个 capability ID 绑定责任插件与新测试。源码漂移、输入变化及破坏兼容范围写明。
 - [x] **X01 插件依赖与清理原型**（threads，无前置）：标准库拓扑与 context manager，先写缺 required、环、服务冲突、A 成功 B 半初始化失败、反向清理的失败用例；证明发生副作用前校验及提供者半失败责任，记录原型代码/红绿结果。证据：`tests/primary/test_kernel_plugins.py`、`test_kernel_plugins_review.py` 与 [作者红灯](../../research/core-next/plugin-host-red.txt)/[独立红灯](../../research/core-next/plugin-host-review-red.txt)/[独立复验](../../research/core-next/plugin-host-review-green.txt)。作者 14 + 独立 6 项共 20 项通过；两项独立发现（可变依赖、清理异常被其他资源抑制）已修复。该项不表示 K01/K02 的运行集成完成。
-- [ ] **X02 信息与动作最小原型**（主智能体/指定 owner，依 I04 草案）：两个 actor、同一公共市场与订单消息；不同 discover/read/invoke 范围、目标绑定、失效引用、调查成本、执行重新判条件；无需为每 actor 建全世界目录或全目标动作组合。
+- [x] **X02 信息与动作最小原型**（spec，独立审查 threads）：同环境订单与消息、主体绑定、discover/read/invoke、目标模板、执行重验、JSON 游标和实际版本已验证。证据：`kernel/interaction.py`、作者与非作者 `test_kernel_interaction*.py`、`interaction-shell-independent-green.txt`；真实大集合查询提供者继续归 K04/P04。
 - [x] **X03 存储权威与混合发布原型**（storage）：比较原生 SQLite 事务、JSONL 准备发布、长 reader 及 SQLite Session 根+增量，验证独立进程退出后的恢复边界。证据：[报告](storage-experiments.md)、`storage-session-green-20261004.txt` 20 passed；正式 Thread/Memory/长期分叉继续归 P02/P03。
 - [ ] **X04 大集合与热工作集原型**（storage，依 X03 初步）：固定活动量扩大历史，测定位、分页、range、typed 值/键、顺序、根载入与 schema 验证；小 doc 与大 dataset 分开；比较扫描/物化字节和 RSS，检查 SQL N+1 及 `.items()` 全量物化。
-- [ ] **X05 VFS 与自主分析原型**（指定 owner，依 X02）：actor 私有 workspace 读写查删，lazy view、data query/tail/sample 与 cat/jq；脚本使用明确数据接口，测试只读世界材料和领域 action 写入分界、推送/主动读一致来源。
-- [ ] **X06 Driver/时间原型**（threads，依 X02/I04）：rule 与 fake LLM 两驱动、step 与 phase 两调度方式；yield/resume、同 moment 再激活、前序行动可见与阶段快照；网络 await 不自动推进 simtime。
+- [ ] **X05 VFS 与自主分析原型**（threads 试验，spec 产品）：Bashkit 五项选型试验和 shell 产品读写/管道/完整文本输出/原文字节通路已通过；见 [试验](shell-experiments.md)、[合同](shell-contract.md)。懒文件整读与原生非法 UTF8 替换边界已明确；SQL 数据集的 tail/sample 与完整模型任务对照待接入。
+- [x] **X06 Driver/时间原型**（threads，独立审查 spec）：规则与假驱动、顺序阶段及显式独立并发、同 moment 游标、信号合并、waiting/incomplete、整步预算已验证。非作者加入真实 PluginHost+StageStore 双机制与恢复，作者/非作者共 21 项通过，见 `runtime-review-green.txt`；LLM 实际循环继续归 D02。
 - [x] **X07 OpenViking 复用判断**（指定 owner，无前置）：依主智能体研究核对 URI/目录/原文/摘要/检索资产、依赖成本与恢复边界；输出直接依赖、适配或借鉴的证据。不得用摘要默认裁剪 Thread。证据：[官方源码研究](openviking-study.md)，已核对版本/读取成本/快照/权限/依赖并建议 URI/View 借鉴与可选 SDK；直接集成与性能原型尚未实施。
 - [ ] **X08 有界多核小实验**（storage，依有明确块输入）：压缩线程、纯 Python 计算进程与串行，对相同完整数据逐值核对，计墙钟/CPU/在途字节/进程 RSS/IPC；与产品并行接入任务 D07 分开。
 - [ ] **X09 P0 独立审查与取舍**（非作者，依 X01–X08）：指出原型未覆盖的故障与语义，确定首版实现方案并更新 SDD；仅选择已有消费者支持的公共接口，保留失败实验数字。
@@ -34,7 +34,7 @@
 
 这一阶段形成可由用户调用的最小产品，承接 P0 结论。一个共享环境中的两个机制插件是最低集成消费者，普通单机制和规则主体仍有短路径。
 
-- [ ] **K01 Core 插件主机 TDD**（threads，依 X01/I04）：正式注册/依赖/服务绑定，稳定实例 ID、缺失/冲突/环预检，配置冻结；测试两同类实例的显式依赖和无消费者资源不预分配。新公开入口中使用，禁止只包旧 World。局部 `society0.kernel.PluginHost` 已实现且独立 20 测通过；共享环境入口集成尚待 K03–K07。
+- [x] **K01 Core 插件主机 TDD**（threads，依 X01/I04）：正式主机与 runtime_plugin 通过真实持久化双机制消费者集成；依赖、实例、冲突、环、清理及无全局 registry 已验。证据：`test_kernel_plugins*.py` 和 `test_kernel_runtime_review.py`，入口使用独立 Core 服务，无旧 World 依赖。Actor/LLM 全能力继续归后续任务。
 - [ ] **K02 生命周期与运行 scope**（threads，依 K01）：按依赖启动、反向关闭、部分初始化失败、取消、总资源预算、task-local actor 绑定与失效；普通异常清理和业务回滚分别验收。由 spec 独立审查 X01 与产品差异。局部主机生命周期审查已通过；actor 绑定、运行总资源与消费者接入未完成。
 - [ ] **K03 Actor/Object/ResourceRef**（指定 owner，依 K01）：身份/类型/实例、主体主观状态与领域角色事实、对象引用按需解析；保持值精度/类型/顺序，禁止复制整个环境到每主体 runtime。
 - [ ] **K04 View 与 Access**（指定 owner，依 K03/X02）：document/dataset 元信息、来源/时点/版本、discover/read/invoke 与 runtime actor；目录统计/失败反馈也是信息范围；业务合法性由机制表达。

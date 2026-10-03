@@ -1,0 +1,45 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________________ test_step_budget_is_shared_across_phases ___________________
+
+    def test_step_budget_is_shared_across_phases():
+        async def main():
+            seen = []
+            async def run(session):
+                seen.append(session.moment.phase)
+                return DriverResult('completed')
+            rt, store = runtime([actor('a', run)], max_activations=1)
+            with pytest.raises(Exception, match='maximum|max_activations|上限'):
+                await rt.run_step(1, 0, [Phase('one', lambda ctx: ctx.activate('a')),
+                                        Phase('two', lambda ctx: ctx.activate('a'))])
+            assert seen == ['one']
+            assert store.events == [('abort',)]
+>       asyncio.run(main())
+
+tests/primary/test_kernel_runtime.py:260: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:195: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:691: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    async def main():
+        seen = []
+        async def run(session):
+            seen.append(session.moment.phase)
+            return DriverResult('completed')
+        rt, store = runtime([actor('a', run)], max_activations=1)
+>       with pytest.raises(Exception, match='maximum|max_activations|上限'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE Exception
+
+tests/primary/test_kernel_runtime.py:255: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_runtime.py::test_step_budget_is_shared_across_phases
+1 failed in 0.08s
