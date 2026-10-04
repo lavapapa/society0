@@ -1,0 +1,80 @@
+{
+  "bashkit": "0.18.2",
+  "document_bytes": 1048576,
+  "keyword_offset": 65530,
+  "logical_path": "/world/document.json",
+  "cases": [
+    {
+      "name": "cat",
+      "command": "cat /world/document.json > /out/copied.json",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "read_file_calls": [
+        {
+          "offset": 0,
+          "requested_bytes": 1048576,
+          "returned_bytes": 1048576
+        }
+      ],
+      "supplied_bytes": 1048576,
+      "original_bytes_equal": true
+    },
+    {
+      "name": "head",
+      "command": "head -c 32 /world/document.json",
+      "exit_code": 0,
+      "stdout": "{\"padding\":\"xxxxxxxxxxxxxxxxxxxx",
+      "stderr": "",
+      "read_file_calls": [
+        {
+          "offset": 0,
+          "requested_bytes": 1048576,
+          "returned_bytes": 1048576
+        }
+      ],
+      "supplied_bytes": 1048576
+    },
+    {
+      "name": "grep",
+      "command": "grep -o -F 'CROSS_BOUNDARY_KEYWORD' /world/document.json",
+      "exit_code": 0,
+      "stdout": "CROSS_BOUNDARY_KEYWORD\n",
+      "stderr": "",
+      "read_file_calls": [
+        {
+          "offset": 0,
+          "requested_bytes": 1048576,
+          "returned_bytes": 1048576
+        }
+      ],
+      "supplied_bytes": 1048576
+    },
+    {
+      "name": "jq",
+      "command": "jq -r '.marker' /world/document.json",
+      "exit_code": 0,
+      "stdout": "CROSS_BOUNDARY_KEYWORD\n",
+      "stderr": "",
+      "read_file_calls": [
+        {
+          "offset": 0,
+          "requested_bytes": 1048576,
+          "returned_bytes": 1048576
+        }
+      ],
+      "supplied_bytes": 1048576
+    }
+  ],
+  "measurement": "记录 SQL 返回给 callback_filesystem 的正文实际字节；未测磁盘 I/O 或峰值内存。",
+  "sql_range": {
+    "offset": 65530,
+    "requested_bytes": 64,
+    "returned_bytes": 64,
+    "total_bytes": 1048576,
+    "original_bytes_equal": true,
+    "contains_cross_boundary_keyword": true,
+    "next_offset": 65594,
+    "revision": 0
+  }
+}

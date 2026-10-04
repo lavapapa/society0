@@ -1,0 +1,39 @@
+{
+  "bashkit": "0.18.2",
+  "cases": [
+    {
+      "name": "boundary_per_part",
+      "command": "grep -r -n '甲乙' /world/docs/texts/1/@text-eyJyZXZpc2lvbiI6MCwidG90YWwiOjEyNzIsInBhcnRfYnl0ZXMiOjc2OH0",
+      "exit_code": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "boundary_reassembled",
+      "command": "cat /world/docs/texts/1/@text-eyJyZXZpc2lvbiI6MCwidG90YWwiOjEyNzIsInBhcnRfYnl0ZXMiOjc2OH0/*.txt | grep -n '甲乙'",
+      "exit_code": 0,
+      "stdout": "2:甲乙\n",
+      "stderr": ""
+    },
+    {
+      "name": "representation_duplicates",
+      "command": "grep -r -l -E 'AAA|QUFB|total_bytes' /world/docs/texts/2",
+      "exit_code": 0,
+      "stdout": "/world/docs/texts/2/@manifest.json\n/world/docs/texts/2/@text-eyJyZXZpc2lvbiI6MCwidG90YWwiOjExMDQsInBhcnRfYnl0ZXMiOjc2OH0/000000000000.txt\n/world/docs/texts/2/@parts-eyJyZXZpc2lvbiI6MCwidG90YWwiOjExMDQsInBhcnRfYnl0ZXMiOjc2OH0/000000000000.b64\n",
+      "stderr": ""
+    },
+    {
+      "name": "base64_false_positive",
+      "command": "grep -r -l -F 'QUFB' /world/docs/texts/2",
+      "exit_code": 0,
+      "stdout": "/world/docs/texts/2/@parts-eyJyZXZpc2lvbiI6MCwidG90YWwiOjExMDQsInBhcnRfYnl0ZXMiOjc2OH0/000000000000.b64\n",
+      "stderr": ""
+    }
+  ],
+  "findings": {
+    "utf8_safe_parts_miss_cross_part_word": true,
+    "recursive_search_includes_metadata_and_both_representations": true,
+    "base64_representation_can_match_absent_source_text": true,
+    "scope": "小规模确定性语义试验；未测性能与真实模型。"
+  }
+}

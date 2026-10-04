@@ -2,6 +2,8 @@
 
 本文固定下一轮 PRD 的采用方案。各项分别说明直接依赖、保留应用语义及排除范围；备选仅在列明条件成立时重新评估，不进入首版自动切换路径。具体版本、隔离命令与结果保存在 [模型研究](../../research/core-next/provider-selection-20261004.md)、[存储研究](../../research/core-next/storage-selection-20261004.md)和[运行研究](../../research/core-next/runtime-selection-20261004.md)。这些选择已有源码或小型试验依据，完整产品、平台部署和账户可用性仍按 PRD 验收。
 
+文件工具与主体插件的后续收敛采用 [专项规格](agent-filesystem-design.md)。本轮新增选型为 ripgrep 的独立 grep-searcher／grep-regex 库处理逻辑原文搜索，路径匹配复用标准库，主体扩展复用 AsyncExitStack；Pi 与 OpenViking 为交互参考，Bashkit 继续承担 shell。研究与隔离反例见 [准备研究](../../research/core-next/filesystem-preparation-20261005/research.md)。这些调整的产品接线由 F01–F08 验收，不以依赖本身支持的 API 推定已实现。
+
 ## 一、模型
 
 首版选择 Python 进程内的 Pydantic AI Agent 与模型接口，研究运行、账户授权、完整 Thread 和领域行动事实由 Society0 管理。
@@ -56,11 +58,13 @@
 
 **14 插件主机：graphlib.TopologicalSorter 与 AsyncExitStack。** 保留名称、依赖、服务注册和两阶段关闭的小实现。schema 初始化先于服务安装，数据外键与安装 DAG 分开；Workspace 的服务依赖只有存储，Actor 驱动工厂可使用 Workspace。首版显式 Python 组合，暂无外部分发发现需求，不引 pluggy 或自动插件扫描。
 
-**15 时间：FixedStep 与明确的 PhasedSchedule。** 阶段、选择和机制函数复用已有 Python 路径；调度只承担真实的业务顺序。SimPy 适合以后独立离散事件机制，本轮不因未来 tick 想象增加 generator 持久化和时间桥。墙钟网络等待与模拟时间继续分开。
+**15 时间：Schedule 产生 StepPlan，Runtime 执行完整步骤。** 内置 SequenceSchedule 以明确时间序列和阶段序列覆盖固定步长及复杂阶段，阶段选择和机制函数复用已有 Python 路径。移除 FixedStep／PhasedSchedule／CodeSchedule 的重叠包装及 runner 的具体结构依赖，迁移范围见专项规格。SimPy 留给有实际离散事件需求的机制插件，墙钟网络等待与模拟时间继续分开。
 
 ### 3.2 文件与计算
 
-**16 VFS：Bashkit＋现有窄 Rust/Python 桥＋有界文件投影。** 实验发现 Bashkit 和 just-bash lazy 文件都可能整读，换 Node 解释器不能消除此成本；因此保留 Bashkit 并将大资料呈现为 manifest/parts 目录和数据页。文件命令、路径及 OverlayFs 由成熟库负责，范围投影按原文版本生成，全部内容仍可取得。私有巨文件 copy-up 和整体输出成本明确计量。OpenViking 仅参考信息组织，fsspec 无远端文件消费者时不引入。
+**16 VFS：Bashkit＋现有窄 Rust/Python 桥＋逻辑文件视图。** 原文路径保持文件类型，显式 manifest/parts 提供附加分片入口。Bashkit 和 just-bash lazy 文件都可能整读，换 Node 解释器不能消除此成本；专用范围读取与成熟流式搜索处理常用资料访问，原生 shell 完整文件命令按实际物化计量。文件命令、路径及 OverlayFs 由成熟库负责，视图按原文版本生成，全部内容仍可取得。私有巨文件 copy-up 和整体输出成本明确计量。OpenViking 仅参考信息组织，fsspec 无远端文件消费者时不引入。
+
+逻辑文件入口进一步收敛为 read／ls／find／grep 加 bash。传输分片与原文搜索分开：Pi 的整读工具和 Bashkit 的片目录 grep 不能直接提供跨片原文语义；ripgrep 的 Reader 搜索负责连续字节，现有信息范围接口供数。单行长度和多行搜索的内存边界、Rust/Python 回调及取消在正式接线中验收。大集合关系查询保留数据库下推和可读结果文件，避免自造 shell 查询优化器。
 
 **17 访问策略：小型绑定 Access 与数据库角色/关系索引。** discover/read/invoke 为共同入口，机制实现领域判断。首版不引 Casbin 策略语言，因为仍需自行连接当前版本、SQL 过滤和行动资格；常见逻辑通过共享普通函数和索引复用。不会为每条记录逐次运行通用策略器来替代可下推筛选。
 
