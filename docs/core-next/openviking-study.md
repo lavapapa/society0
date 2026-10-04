@@ -1,5 +1,7 @@
 # OpenViking 与主体信息视图研究
 
+本文保留选型阶段的试验条件、测量和当时结论。文中的“当前”“候选”“尚未实现”均指该次试验时点；现行接口与装配方式见[信息交互合同](interaction-contract.md)与[工作区合同](workspace-contract.md)。阶段状态与后续验收由 [TODO](TODO.md) 记录。
+
 本报告于 2026-10-04 核对 OpenViking 官方文档与源码，讨论 Society0 单一共享环境中的主体信息访问。固定研究版本为官方仓库 [9d9bc85e1f6a15afa7f23b0d7bf114a7c61cad14](https://github.com/volcengine/OpenViking/commit/9d9bc85e1f6a15afa7f23b0d7bf114a7c61cad14)，提交时间为 2026-10-03T11:10:51Z。以下源码链接均固定此版本；线上文档会继续变化。本轮下载源码至临时目录只读研究，没有安装服务、访问凭据或执行性能测试。建议采用其 URI、目录导航、分层信息与内容索引分离机制；核心的权威状态、行动资格、完整 Thread 和固定观察版本继续由 Society0 的运行合同定义。
 
 ## 一、定位

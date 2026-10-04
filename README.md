@@ -49,4 +49,4 @@ uv sync --all-extras
 uv run pytest -m 'not real_e2e'
 ```
 
-Architecture boundaries are in [PROJECT.md](PROJECT.md), semantic parity in [the capability map](docs/core-next/capability-parity.md), and historical investigations retain their original source versions under `research/`.
+The [implementation overview](docs/core-next/implementation-result.md) links the current contracts and measured limits. Architecture boundaries are in [PROJECT.md](PROJECT.md), semantic parity in [the capability map](docs/core-next/capability-parity.md), and historical investigations retain their original source versions under `research/`.

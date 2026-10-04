@@ -1,5 +1,7 @@
 # 小型存储试验规格与结果
 
+本文保留选型阶段的试验条件、测量和当时结论。文中的“当前”“候选”“尚未实现”均指该次试验时点；现行接口与装配方式见[存储合同](storage-contract.md)、[存储生命周期](storage-lifecycle-design.md)与[不可变批次正文](cold-datasets-design.md)。阶段状态与后续验收由 [TODO](TODO.md) 记录。
+
 本试验服务于 Core Next 的存储决策，使用标准库 SQLite、JSONL 和 gzip 验证最小机制。它包含固定领域表与有限查询，尚未成为正式持久化接口。现有结果支持活动索引与追加事实共存，也显示长读版本、跨步骤恢复和压缩内存需要分别预算。源码为 `benchmarks/core_next_storage.py`，规格测试为 `tests/experiments/test_core_next_storage.py`；正式 src 未修改。
 
 ## 一、合同

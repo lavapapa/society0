@@ -1,5 +1,7 @@
 # Shell 与信息视图选型试验
 
+本文保留选型阶段的试验条件、测量和当时结论。文中的“当前”“候选”“尚未实现”均指该次试验时点；现行接口与装配方式见[Shell 合同](shell-contract.md)、[工作区合同](workspace-contract.md)与[安装说明](installation.md)。阶段状态与后续验收由 [TODO](TODO.md) 记录。
+
 本次于 2026 年 10 月 4 日在临时虚拟环境试用 Bashkit 0.18.2，验证 Python Core 能否通过成熟 shell 实现连接共享信息服务与主体私有工作区。结论是优先采用 Python 调用原生 Rust Bashkit 的小适配层；共享 World 通过有界自定义命令读取，工作区存放主体主动生成的文件。产品依赖尚未修改，实验没有连接真实 World 或模型服务。
 
 ## 一、证据
