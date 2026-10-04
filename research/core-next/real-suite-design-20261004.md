@@ -4,7 +4,7 @@
 
 ## 一、运行
 
-入口使用 `SOCIETY0_RUN_CORE_REAL=1` 显式启用。提供方参数来自 `SOCIETY0_REAL_LLM_URL/MODEL/KEY` 与 `SOCIETY0_REAL_EMBED_URL/MODEL/KEY`；运行目录与代码身份分别使用 `SOCIETY0_REAL_OUTPUT`、`SOCIETY0_REAL_RELEASE`。凭据仅在进程内进入 SDK，runner 清单记录环境变量名称、去凭据后的端点参数以及实际依赖版本。
+入口使用 `SOCIETY0_RUN_CORE_REAL=1` 显式启用。提供方参数来自 `SOCIETY0_REAL_LLM_URL/MODEL/KEY` 与 `SOCIETY0_REAL_EMBED_URL/MODEL/KEY`；运行目录与代码身份分别使用 `SOCIETY0_REAL_OUTPUT`、`SOCIETY0_REAL_RELEASE`。模型端点使用 `SOCIETY0_REAL_LLM_TRUST_ENV=1` 时继承已授权的代理环境，此选择进入公开 profile；默认值 0 使用直连。内网 embedding 保持直连。凭据仅在进程内进入 SDK，runner 清单记录环境变量名称、去凭据后的端点参数以及实际依赖版本。
 
 正式执行前须由部署步骤确认干净且已推送的提交，并逐字节比较实际部署的 src/tests；RELEASE 字符串本身不构成此证据。每次尝试使用新的输出根目录。已有案例目录会被拒绝，失败原始 Thread、SDK 区间、未完成步骤与进程日志保留。测试不通过切换目录延续或增加既定尝试次数；修改合同后的新运行须说明变化与前次失败。
 
