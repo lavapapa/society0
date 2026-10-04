@@ -1,0 +1,14 @@
+{
+  "paths": [
+    "research/core-next/final-realtime-ci-storage-review-20261004.md",
+    "research/core-next/final-realtime-storage-independent-20261004.json",
+    "research/core-next/final-realtime-storage-independent-20261004.txt",
+    "research/core-next/final-realtime-storage-identity-20261004.json",
+    "research/core-next/final-ci-storage-independent-20261004.txt",
+    "research/core-next/final-ci-lock-storage-independent-20261004.txt"
+  ],
+  "include_manifest_itself": true,
+  "product_changes": false,
+  "finding": "no blocking finding in reviewed scope",
+  "limits": "Linux clean hosted CI remains unexecuted here; no model network"
+}

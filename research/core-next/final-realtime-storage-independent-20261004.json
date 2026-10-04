@@ -1,0 +1,149 @@
+{
+  "source": "current checkout; record git identity with invocation",
+  "python": "3.12.12",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "body_bytes": 10485760,
+  "messages": 4,
+  "writer_peak_rss_bytes": 84639744,
+  "event_loop": {
+    "samples": 5866,
+    "p95_s": 1.6207981389015913e-05,
+    "max_s": 0.07110329100396484
+  },
+  "writes": [
+    {
+      "seq": 2,
+      "start": 482277.666856291,
+      "returned": 482277.735701333,
+      "wall_s": 0.0688450419693254,
+      "start_to_visible_s": 0.06539362500188872,
+      "return_to_visible_s": -0.0034514169674366713
+    },
+    {
+      "seq": 3,
+      "start": 482277.755792458,
+      "returned": 482277.821578875,
+      "wall_s": 0.0657864169916138,
+      "start_to_visible_s": 0.05632649996550754,
+      "return_to_visible_s": -0.009459917026106268
+    },
+    {
+      "seq": 4,
+      "start": 482277.84162925,
+      "returned": 482277.909975833,
+      "wall_s": 0.06834658305160701,
+      "start_to_visible_s": 0.05506087501998991,
+      "return_to_visible_s": -0.013285708031617105
+    },
+    {
+      "seq": 5,
+      "start": 482277.93003675,
+      "returned": 482278.001086666,
+      "wall_s": 0.07104991603409871,
+      "start_to_visible_s": 0.05913408304331824,
+      "return_to_visible_s": -0.011915832990780473
+    }
+  ],
+  "complete_s": 0.04239991697249934,
+  "initial_status": {
+    "run_id": "5502ca10ed8744dfae1bbce96416a18a",
+    "live_revision": 1,
+    "complete_step_lower_bound": 0,
+    "complete": {
+      "run_id": "5502ca10ed8744dfae1bbce96416a18a",
+      "step": 0,
+      "live_revision": 0
+    },
+    "failed": false,
+    "progress": null
+  },
+  "observer": {
+    "seen": {
+      "2": 482277.732249916,
+      "3": 482277.812118958,
+      "4": 482277.896690125,
+      "5": 482277.989170833
+    },
+    "response": {
+      "samples": 58,
+      "p95_s": 0.0005680000176653266,
+      "max_s": 0.0010782080353237689
+    },
+    "poll_sleep_s": 0.005,
+    "watermarks": [
+      {
+        "at": 482277.666892416,
+        "value": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "at": 482277.732249916,
+        "value": [
+          0,
+          0,
+          2
+        ]
+      },
+      {
+        "at": 482277.812118958,
+        "value": [
+          0,
+          0,
+          3
+        ]
+      },
+      {
+        "at": 482277.896690125,
+        "value": [
+          0,
+          0,
+          4
+        ]
+      },
+      {
+        "at": 482277.989170833,
+        "value": [
+          0,
+          0,
+          5
+        ]
+      },
+      {
+        "at": 482278.064761708,
+        "value": [
+          1,
+          5,
+          5
+        ]
+      }
+    ],
+    "observer_peak_before_full_read_bytes": 30261248,
+    "observer_peak_after_full_read_bytes": 101990400,
+    "originals": [
+      {
+        "seq": 2,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 3,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 4,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 5,
+        "content_bytes": 10485760,
+        "equal": true
+      }
+    ]
+  },
+  "limits": "local filesystem; 5ms observer sleep is sampling cadence, visibility measured by actual first observation timestamps; return-to-visible may be negative because COMMIT precedes append return; full JSON verification materializes original body and has separate RSS high water"
+}
