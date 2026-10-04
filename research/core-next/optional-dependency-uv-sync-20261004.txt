@@ -1,0 +1,7 @@
+Resolved 96 packages in 1.68s
+   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+Prepared 1 package in 866ms
+Uninstalled 1 package in 0.89ms
+Installed 1 package in 1ms
+ ~ society0==5.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)

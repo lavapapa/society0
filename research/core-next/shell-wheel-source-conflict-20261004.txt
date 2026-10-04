@@ -1,0 +1,11 @@
+Using CPython 3.12.12 interpreter at: .venv/bin/python
+Creating virtual environment at: /tmp/society0-core-shell-check
+Activate with: source /tmp/society0-core-shell-check/bin/activate
+Using Python 3.12.12 environment at: /tmp/society0-core-shell-check
+  × Failed to resolve dependencies for `society0` (v5.0.0)
+  ╰─▶ Requirements contain conflicting URLs for package `society0-filesystem`:
+      - file:///tmp/society0-native-fs-target/wheels/society0_filesystem-0.1.0-cp39-abi3-macosx_11_0_arm64.whl
+      - file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next/native/society0-filesystem
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+ModuleNotFoundError: No module named 'society0'
