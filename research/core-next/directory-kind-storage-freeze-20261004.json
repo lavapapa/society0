@@ -1,0 +1,13 @@
+{
+  "paths": [
+    "tests/primary/test_core_directory_kind_review.py",
+    "research/core-next/directory-kind-storage-review-20261004.md",
+    "research/core-next/directory-kind-storage-independent-20261004.txt",
+    "research/core-next/directory-kind-storage-final-green-20261004.txt",
+    "research/core-next/performance-acceptance-20261004.md"
+  ],
+  "include_manifest_itself": true,
+  "product_changes": false,
+  "performance_document_change": "only adds final native realtime evidence link in section4.2; historic measurements retained",
+  "review": "67 passed; no unresolved finding"
+}

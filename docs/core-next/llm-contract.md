@@ -48,3 +48,5 @@ interview 模式默认提供测量工具 submit_result，决策动作不自动�
 提供方会话传输由 ModelProvider 的 `session_transport` 显式配置。默认 `None` 将稳定 `provider_session_id` 保存于 Thread 和请求记录；支持请求体 metadata 的提供方选择 `metadata`，适配器经 SDK 的 extra_body 将同一身份写入实际 JSON 请求体的 metadata.session_id，并保留其他显式 metadata。profile 中的选择保持固定，服务拒绝参数时按真实失败留证。Gemini OpenAI 兼容接口使用默认 None。
 
 行动发现的 `query` 按行动名称与描述做忽略大小写的字面子串匹配。传入空字符串可分页枚举全部可用行动；`*` 按普通字符处理，查询不提供通配或语义匹配。工具参数与描述同时向模型说明这项规则。`parallel_tool_calls=False` 时，每个工具说明要求每次模型响应至多一个工具调用；开启并行调用的策略不添加此限制。
+
+资料发现的工具说明区分目录、结构数据与具体原文。目录项的 `kind="directory"` 提示继续列举，结构数据集可用 `data_query` 查询；具体文件或 `document_ref` 的路径进入 `data_read`，正文引用的 `expected_revision` 在连续读取中原样传递。工具说明不包含领域路径、行动名称或预设读取顺序。
