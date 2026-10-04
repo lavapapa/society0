@@ -38,9 +38,17 @@ class InteractionScope:
     actor: str
     moment: Moment
     revision: Any = None
+    on_fault: Callable | None = field(default=None, repr=False, compare=False, kw_only=True)
+    _faults: list = field(default_factory=list,repr=False,compare=False,kw_only=True)
     _active: bool = field(default=True, init=False, repr=False, compare=False)
 
+    def fail(self,error):
+        if not self._faults:
+            self._faults.append(error)
+            if self.on_fault is not None:self.on_fault(error)
+
     def check_active(self):
+        if self._faults:raise self._faults[0]
         if not self._active:
             raise ScopeClosed('interaction scope is closed')
 
@@ -159,7 +167,9 @@ class Information:
             next_cursor = {'identity': identity, 'offset': end} if end < len(items) else None
             return Page(items[offset:end], len(items), next_cursor, scope.revision)
         provider, path = await self._provider(scope, path, 'discover')
-        result = await _resolve(provider.list(scope, path, limit=limit, cursor=cursor))
+        authorized = getattr(provider, 'list_authorized', None)
+        result = await _resolve(authorized(scope,path,allows=self._allows,limit=limit,cursor=cursor) if authorized is not None
+                                else provider.list(scope,path,limit=limit,cursor=cursor))
         scope.check_active()
         return result
 
@@ -168,7 +178,9 @@ class Information:
             page=await self.list(scope,path,limit=limit,cursor=cursor)
             return Page([dict(item,kind='directory') for item in page.items],page.total,page.next_cursor,page.revision)
         provider,path=await self._provider(scope,path,'discover')
-        result=await _resolve(provider.list_files(scope,path,limit=limit,cursor=cursor))
+        authorized=getattr(provider,'list_authorized',None)
+        result=await _resolve(authorized(scope,path,allows=self._allows,files=True,limit=limit,cursor=cursor) if authorized is not None
+                              else provider.list_files(scope,path,limit=limit,cursor=cursor))
         scope.check_active();return result
 
     async def stat(self, scope, path):
@@ -417,9 +429,13 @@ class Actions:
         if not registered[1].is_valid(arguments):
             return ActionResult('rejected', {'reason': 'invalid_arguments'})
         scope.check_active()
-        result = await _resolve(action.handler(scope, target, arguments))
-        if not isinstance(result, ActionResult):
-            raise TypeError('action handler must return ActionResult')
+        try:
+            result = await _resolve(action.handler(scope, target, arguments))
+            if not isinstance(result, ActionResult):
+                raise TypeError('action handler must return ActionResult')
+        except BaseException as error:
+            scope.fail(error)
+            raise
         return replace(result, terminal=action.terminal and result.status == 'completed')
 
     def bound(self, scope):
