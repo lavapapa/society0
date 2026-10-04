@@ -126,7 +126,7 @@ Extract agent construction:
 - model/provider, prompt style, temperature, token limits, and output parser when given.
 - how heterogeneity is introduced and whether it is sampled, data-grounded, prompt-authored, or rule-derived.
 
-Separate actual paper details from a Society0 implementation choice. For example, "the paper uses bounded dialogue plus quarterly reflection" is different from "in Society0 also keep `retrieve_memory=True` unless the study defines a no-memory condition."
+Separate actual paper details from a Society0 implementation choice. For example, "the paper uses bounded dialogue plus quarterly reflection" is different from "in Society0 also keep `MemoryPolicy(auto_recall=True)` unless the study defines a no-memory condition."
 
 ### Perception And FoV
 
@@ -275,9 +275,9 @@ Prefer these mappings:
 - Surveys, judgments, and post-hoc explanations -> `interview`.
 - Deterministic mechanisms -> rules or behaviors.
 - Hidden treatment labels -> `properties`, step params, or output tables, not visible `state`.
-- Metrics -> `ctx.result(metrics=..., tables=...)` plus analysis scripts.
+- Metrics -> `StepResult(metrics=..., tables=...)` plus analysis scripts.
 
-Do not weaken Society0's core semantics for convenience. Do not bypass `World.instruct_agent()` / `AgentGroup.instruct()` for action-bearing LLM behavior. Do not silently disable memory or action loops because the paper's run is expensive. Do not collapse careful survey, calibration, or analysis work into a single prompt if that work is what makes the study credible.
+Do not weaken Society0's core semantics for convenience. Do not bypass the `LLMDriver` decision loop for action-bearing LLM behavior. Do not silently disable memory or action loops because the paper's run is expensive. Do not collapse careful survey, calibration, or analysis work into a single prompt if that work is what makes the study credible.
 
 ## Guide Consolidation
 

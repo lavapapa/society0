@@ -309,18 +309,7 @@ conversation simulation with political vocabulary.
 
 Use free-text only inside typed institutional actions. Prefer:
 
-```python
-ctx.group(parties).instruct(
-    "Submit one negotiation move.",
-    output_schema={
-        "action": "offer_clause|accept_clause|reject_clause|counter_offer|walk_away",
-        "issue": "string",
-        "clause": "string",
-        "reason": "string",
-        "concession": "string"
-    },
-)
-```
+Register an institutional Action with an object schema containing action, issue, clause, reason and concession. Its action field enumerates offer_clause, accept_clause, reject_clause, counter_offer and walk_away. Execute it through the bound Session against the institutional object ref; the mechanism validates eligibility and writes the resulting institutional fact.
 
 Do not log only a transcript. Convert each move into an environment event with
 actor, target, issue, round, visibility, and downstream effect.

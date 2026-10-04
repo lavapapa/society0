@@ -168,7 +168,7 @@ Use this env-first split in every respondent or deliberation simulation:
 | Answer survey item, give qualitative explanation, report private final opinion, complete manipulation check | `interview` |
 | Speak, ask, critique, rank, vote, propose, revise, submit final group statement | `instruct` with typed env actions and semantic terminal actions |
 | Treatment delivery, candidate generation, statement ranking, social-choice aggregation, evidence ledger, stance update, moderator summary | env rules, behaviors, or code steps |
-| Metrics, raw responses, parsed outputs, invalid-output rows, ballots, critique rows, stance trajectories, benchmark comparisons | `ctx.result(metrics=..., tables=...)` plus analysis scripts |
+| Metrics, raw responses, parsed outputs, invalid-output rows, ballots, critique rows, stance trajectories, benchmark comparisons | `StepResult(metrics=..., tables=...)` plus analysis scripts |
 
 Design rules:
 
@@ -195,9 +195,9 @@ Design rules:
 - For stance change, maintain explicit state or evidence records. A transcript alone cannot
   explain whether movement came from evidence uptake, anchoring, sycophancy, or prompt drift.
 - Use memory as a modeled mechanism. In interview-grounded or multi-round deliberation
-  settings, `retrieve_memory=True` is usually part of the design.
+  settings, `MemoryPolicy(auto_recall=True)` is usually part of the design.
   When later rounds need newly formed experience, use explicit Agent Threads and
-  `extract_thread_memories(...)` as shown in `step-dsl.md`; decide separately
+  the explicit memory completion hook as shown in `step-dsl.md`; decide separately
   whether research interviews should become remembered experience.
 
 ## Paper-Derived Patterns
