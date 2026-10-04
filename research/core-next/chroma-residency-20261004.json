@@ -1,0 +1,134 @@
+[
+  {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.12",
+    "chroma": "1.5.9",
+    "backend": "chromadb.api.rust.RustBindingsAPI",
+    "settings_memory_limit_bytes": 0,
+    "settings_segment_cache_policy": null,
+    "native_hnsw_cache_entries": 209715,
+    "collection_configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "count": 1000,
+    "dimensions": 1024,
+    "input_batch_bytes": 1048576,
+    "rss_before_client_bytes": 74956800,
+    "rss_initialized_bytes": 94535680,
+    "rss_after_write_bytes": 125534208,
+    "rss_after_query_bytes": 126484480,
+    "peak_rss_bytes": 126255104,
+    "write_seconds": 0.1310162500012666,
+    "query_seconds": 0.0014429159928113222,
+    "query_first": "vector-3",
+    "vector_values_equal": true,
+    "disk_bytes": 9298044,
+    "wall_seconds": 0.18442741699982435,
+    "cpu_seconds": 0.33436699999999997,
+    "command": [
+      "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python",
+      "benchmarks/core_next_chroma_residency.py",
+      "--count",
+      "1000",
+      "--memory-limit",
+      "0"
+    ]
+  },
+  {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.12",
+    "chroma": "1.5.9",
+    "backend": "chromadb.api.rust.RustBindingsAPI",
+    "settings_memory_limit_bytes": 0,
+    "settings_segment_cache_policy": null,
+    "native_hnsw_cache_entries": 209715,
+    "collection_configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "count": 10000,
+    "dimensions": 1024,
+    "input_batch_bytes": 1048576,
+    "rss_before_client_bytes": 74891264,
+    "rss_initialized_bytes": 94896128,
+    "rss_after_write_bytes": 171507712,
+    "rss_after_query_bytes": 172326912,
+    "peak_rss_bytes": 172163072,
+    "write_seconds": 1.752041540981736,
+    "query_seconds": 0.0064264999818988144,
+    "query_first": "vector-3",
+    "vector_values_equal": true,
+    "disk_bytes": 46390532,
+    "wall_seconds": 1.8150621659588069,
+    "cpu_seconds": 8.576478999999999,
+    "command": [
+      "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python",
+      "benchmarks/core_next_chroma_residency.py",
+      "--count",
+      "10000",
+      "--memory-limit",
+      "0"
+    ]
+  },
+  {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.12",
+    "chroma": "1.5.9",
+    "backend": "chromadb.api.rust.RustBindingsAPI",
+    "settings_memory_limit_bytes": 1048576,
+    "settings_segment_cache_policy": "LRU",
+    "native_hnsw_cache_entries": 209715,
+    "collection_configuration": {
+      "hnsw": {
+        "space": "l2",
+        "ef_construction": 100,
+        "ef_search": 100,
+        "max_neighbors": 16,
+        "resize_factor": 1.2,
+        "sync_threshold": 1000
+      },
+      "spann": null,
+      "embedding_function": null
+    },
+    "count": 10000,
+    "dimensions": 1024,
+    "input_batch_bytes": 1048576,
+    "rss_before_client_bytes": 75071488,
+    "rss_initialized_bytes": 94699520,
+    "rss_after_write_bytes": 173326336,
+    "rss_after_query_bytes": 174161920,
+    "peak_rss_bytes": 173981696,
+    "write_seconds": 1.8344136250088923,
+    "query_seconds": 0.006265750038437545,
+    "query_first": "vector-3",
+    "vector_values_equal": true,
+    "disk_bytes": 46390532,
+    "wall_seconds": 1.8947749999933876,
+    "cpu_seconds": 8.617305,
+    "command": [
+      "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python",
+      "benchmarks/core_next_chroma_residency.py",
+      "--count",
+      "10000",
+      "--memory-limit",
+      "1048576"
+    ]
+  }
+]
