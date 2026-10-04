@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from contextlib import contextmanager, AsyncExitStack
 from dataclasses import asdict, dataclass, is_dataclass, field
 import json
+import math
 import re
 import base64
 import codecs
@@ -84,6 +85,10 @@ class LLMPolicy:
     per_action_limits: dict = field(default_factory=dict)
     parallel_tool_calls: bool = False
     empty_retries: int = 1
+    empty_retry_temperature_delta: float | None = None
+    empty_retry_temperature_max: float = 1.0
+    repeated_read_temperature_delta: float | None = None
+    repeated_read_temperature_max: float = 1.0
     allowed_names: tuple | None = None
     allowed_tags: tuple | None = None
     required_names: tuple = ()
@@ -107,6 +112,13 @@ class LLMPolicy:
                 raise ValueError('budgets must be nonnegative integers or None')
         if type(self.empty_retries) is not int or self.empty_retries < 0:
             raise ValueError('empty_retries must be nonnegative')
+        for name in ('empty_retry_temperature_delta', 'empty_retry_temperature_max',
+                     'repeated_read_temperature_delta', 'repeated_read_temperature_max'):
+            value = getattr(self, name)
+            if value is None and name.endswith('_delta'):
+                continue
+            if type(value) not in (int, float) or not math.isfinite(value) or value <= 0:
+                raise ValueError(f'{name} must be a positive finite number')
         if self.direct_json and self.result_schema is None:
             raise ValueError('direct_json requires result_schema')
 
@@ -131,6 +143,8 @@ class _Ledger:
         self.tags = set()
         self.terminal = False
         self.facts = set()
+        self.turn_repeated_read = False
+        self.turn_progress = False
         self.feedback = None
         self.call_id = None
         self.shell_call = False
@@ -239,11 +253,16 @@ class _Ledger:
         if effect['read_only']:
             refs = {Ref(**item) for item in effect['facts']}
             repeated = refs & self.facts
+            self.turn_progress |= bool(refs - self.facts)
+            if refs:
+                self.turn_repeated_read = not self.turn_progress
             self.facts.update(refs)
             self.feedback = {'known_facts': [asdict(ref) for ref in sorted(self.facts, key=lambda r: (r.namespace, r.kind, r.key))],
                              'repeated_facts': [asdict(ref) for ref in sorted(repeated, key=lambda r: (r.namespace, r.kind, r.key))]}
         elif effect['changed']:
+            self.turn_progress = True
             self.facts.clear()
+            self.turn_repeated_read = False
 
     def replay(self, identifier, metadata):
         if identifier in self.applied_receipts:
@@ -422,13 +441,33 @@ class LLMDriver:
                         'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
                 if self.shell_factory is not None:
                     shell = await invoke_maybe_async(self.shell_factory, session, ledger)
-            turns = empty = parallel_errors = 0
+            turns = empty = parallel_errors = repeated_read_streak = empty_retry_attempt = 0
             while self.policy.max_turns is None or turns < self.policy.max_turns:
                 turns += 1
                 session.scope.check_active()
+                turn_options = dict(options)
+                prior_read_streak = repeated_read_streak
+                repeated_read_streak = 0
+                adjustments = (
+                    (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+                     'provider_empty_response_retry', 'attempt'),
+                    (prior_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+                     'provider_repeated_read_diversification', 'streak'),
+                )
+                for count, delta, maximum, event, counter in adjustments:
+                    if count and delta is not None:
+                        defaults = getattr(provider, 'request_options', {})
+                        before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                        after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                        turn_options['temperature'] = after
+                        self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                            'temperature_after': after, 'retry_scope': 'agent_activation'})
+                empty_retry_attempt = 0
+                ledger.turn_repeated_read = False
+                ledger.turn_progress = False
                 try:
                     with _timed(timings,'model_s'):
-                        response = await provider.request(thread_id, options)
+                        response = await provider.request(thread_id, turn_options)
                 except ProviderFailure as error:
                     reason = error.reason
                     break
@@ -459,6 +498,7 @@ class LLMDriver:
                         if empty > self.policy.empty_retries:
                             reason = 'empty_response'
                             break
+                        empty_retry_attempt = empty
                         self.threads.append_message(thread_id, {'role': 'user', 'content': 'The response was empty. Continue the current decision.'})
                         continue
                     if not ledger.requirements_met() or self.policy.result_schema is not None:
@@ -537,6 +577,7 @@ class LLMDriver:
                 except _BudgetReached as error:
                     reason = str(error)
                     break
+                repeated_read_streak = prior_read_streak + 1 if ledger.turn_repeated_read else 0
                 if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
                     status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
                     break

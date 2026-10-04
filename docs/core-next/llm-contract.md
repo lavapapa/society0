@@ -16,6 +16,12 @@ LLMDriver 在主体当前会话内使用完整 Thread 做决定，通过与规�
 
 工具回执保存原调用、完整正文及独立的行动语义元数据。重复同一 call_id 读取既有结果，不重复业务动作，并恢复该结果的成功名称、标签、终止及事实覆盖状态。相同 ID 配不同调用被拒绝。只读结果可提供 facts 引用；重复发现提示追加在完整结果旁。写入默认清空本次事实覆盖，显式 changed=false 保留。该机制没有改变原始工具正文。
 
+可选 `empty_retry_temperature_delta` 与 `empty_retry_temperature_max` 控制空响应后的下一次请求；delta 缺省为 None，max 缺省为 1.0。基值取本次选定提供方的公开 request_options.temperature，再由激活策略的同名字段覆盖；未声明时按 0 计算。重试温度为 min(基值 + delta, max)，保留十二位小数。空响应预算仍由 empty_retries 与总 max_turns 约束；调温不增加轮次，非空响应后的正常请求恢复原基值。实际物理重试继续使用同一次请求的选项与完整消息水位。
+
+`repeated_read_temperature_delta` 与 `repeated_read_temperature_max` 提供另一项可选策略，缺省值同上。插件将行动声明为 read_only，并用稳定 facts 引用表示所读事实；该轮读取没有新增事实时，连续重复轮数增加，下一次请求按 min(基值 + 连续轮数 × delta, max) 调整。新事实、changed 写入及非重复轮使连续次数归零；changed=false 保留已覆盖事实。无 facts 的只读行动不触发此策略，全文仍保留在工具结果中。该接口以显式事实声明替代旧版任意返回值字符串比较；不会建立完整结果缓存或强制结束主体。
+
+两项策略的计数均属于本次激活，请求选项副本不修改提供方或策略默认配置。Thread 分别保存 provider_empty_response_retry 与 provider_repeated_read_diversification 的计数、调整前后温度；实际物理请求选项沿既有请求事实留证。循环预算不允许下一轮时，不生成该轮调温事件。
+
 ## 三、信息
 
 data_list 与 data_query 保留总数及继续读取游标，data_read 默认按 UTF-8 文本读取，可指定 base64 完整读取二进制。UTF-8 分块至少四字节，继续偏移避免拆开码点。数据提供方返回自身实际 revision，当前会话不宣称跨网络等待保持数据库快照。
