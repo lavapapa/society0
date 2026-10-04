@@ -4,13 +4,15 @@
 
 ## 一、组合
 
-`model_plugin(profiles, threads=('threads', 'threads'), name='models')` 从已安装依赖获取 ThreadStore，在 `models` 服务中提供按名字索引的 ModelProvider。每个 profile 的值是 ModelProvider 的关键字参数：endpoints、request_options、max_attempts、retry_delay、global_concurrency、http_connections、request_jitter。主机退出关闭所有提供方；安装后续 profile 失败也会清理已经注册的连接。
+`model_plugin(profiles, threads=('threads', 'threads'), name='models')` 从已安装依赖获取 ThreadStore，在 `models` 服务中提供按名字索引的 ModelProvider。每个 profile 的值是 ModelProvider 的关键字参数：endpoints、request_options、max_attempts、retry_delay、global_concurrency、http_connections、request_jitter、session_transport。主机退出关闭所有提供方；安装后续 profile 失败也会清理已经注册的连接。
 
 端点参数复用 id、api_key、base_url、model、concurrency、timeout、provider_type、api_version、deployment_name、trust_env 和 tool_choice_policy。凭据由调用方从环境或授权来源注入。端点按既有轮询选择，不把 weight 字段描述为已实现的加权调度。请求默认值与每次调用选项合并，后者覆盖同名顶层字段；extra_body 等嵌套选项按完整对象替换。
 
 ## 二、资源
 
 每个 profile 内的全局许可和 HTTP 连接池默认容量等于该 profile 配置端点并发之和，也可分别显式指定正整数。额外随机等待默认关闭；request_jitter 为调用方主动设置的最大秒数。每个端点仍有独立并发许可。多个 trust_env 配置分别持有对应 HTTP 池，关闭由管理器负责。global_concurrency 是单个 ModelProvider 的许可；多个 profile 各自持有管理器，当前没有共享的运行总额，缓存预算也按每个嵌入 profile 计算。
+
+默认 session_transport=None，会话身份保存在 Thread；支持该扩展的端点可显式选择 metadata，经 extra_body 将稳定 session_id 写入请求正文 metadata，并保留其他 metadata 字段。该选项不改变完整 Thread、请求水位或重试身份；提供方不支持此字段时保持默认配置。
 
 SDK 重试设为零，ModelProvider 对可重试的连接、超时、限流和服务端失败执行 max_attempts。请求 timeout 保持配置端点的既有实际超时路径。余额、授权等非重试 HTTP 状态返回 provider_request_error，调用者可以显式 collect 未完成结果。Thread 留证失败和领域动作异常继续作为失败传播。
 

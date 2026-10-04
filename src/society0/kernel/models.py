@@ -113,10 +113,13 @@ class _Manager(LLMManager):
 
 class ModelProvider(_Provider):
     def __init__(self, endpoints, threads, *, max_attempts=2, retry_delay=0.1,
-                 global_concurrency=None, http_connections=None, request_jitter=0.0, request_options=None, request_limit=None):
+                 global_concurrency=None, http_connections=None, request_jitter=0.0, request_options=None, request_limit=None, session_transport=None):
         super().__init__()
         if type(max_attempts) is not int or max_attempts < 1:
             raise ValueError('max_attempts must be positive')
+        if session_transport not in (None,'metadata'):
+            raise ValueError('unsupported session_transport')
+        self.session_transport = session_transport
         self.threads = threads
         self.request_options = dict(request_options or {})
         self.manager = _Manager(endpoints, global_concurrency=global_concurrency,
@@ -131,8 +134,14 @@ class ModelProvider(_Provider):
         endpoint = self.manager._select_endpoint()
         if endpoint is None:
             raise ProviderFailure('provider_unavailable', 'no model endpoint')
-        payload, resolution = self.manager._resolve_tool_choice(endpoint, {**self.request_options, **options})
-        through = self.threads.describe(thread_id)['last_seq']
+        selected = {**self.request_options, **options}
+        head = self.threads.describe(thread_id)
+        if self.session_transport is not None:
+            extra = dict(selected.get('extra_body') or {})
+            extra['metadata'] = {**(extra.get('metadata') or {}), 'session_id': head['provider_session_id']}
+            selected['extra_body'] = extra
+        payload, resolution = self.manager._resolve_tool_choice(endpoint, selected)
+        through = head['last_seq']
         recorded_options = {key: value for key, value in payload.items() if key != 'messages'}
         recorded_options['model'] = endpoint.deployment_name if endpoint.provider_type == 'azure' and endpoint.deployment_name else endpoint.model
         trace = _Trace(self.threads, thread_id, recorded_options, through)

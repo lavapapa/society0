@@ -415,11 +415,6 @@ class LLMDriver:
                 options = dict(self.policy.request_options)
                 options['tools'] = tools
                 options['parallel_tool_calls'] = self.policy.parallel_tool_calls
-                extra = dict(options.get('extra_body') or {})
-                metadata = dict(extra.get('metadata') or {})
-                metadata['session_id'] = self.threads.describe(thread_id)['provider_session_id']
-                extra['metadata'] = metadata
-                options['extra_body'] = extra
                 if self.policy.direct_json:
                     options.pop('tools')
                     options.pop('parallel_tool_calls')
