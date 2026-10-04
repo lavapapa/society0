@@ -112,3 +112,14 @@ async def test_official_actor_driver_factory_can_consume_persistent_workspace(tm
         workspace_plugin()]) as host:
         actor=host.service('actors','actors')['a']
         assert actor.id=='a' and calls[0][1] is host.service('workspace','workspace')
+
+
+@pytest.mark.parametrize('trust',['0','1'])
+def test_real_profile_freezes_explicit_llm_proxy_choice(monkeypatch,tmp_path,trust):
+    from tests.e2e.core_next_real_support import configuration,public_profile
+    for name,value in {'RELEASE':'test','OUTPUT':str(tmp_path),'LLM_URL':'https://unused.invalid/v1','LLM_MODEL':'m',
+            'LLM_KEY':'private-test','EMBED_URL':'http://unused.invalid/v1','EMBED_MODEL':'e','EMBED_KEY':'private-test',
+            'LLM_TRUST_ENV':trust}.items():monkeypatch.setenv('SOCIETY0_REAL_'+name,value)
+    config=configuration()
+    assert config['llm']['endpoints'][0]['trust_env']==(trust=='1')
+    assert config['embed']['endpoints'][0]['trust_env'] is False
