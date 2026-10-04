@@ -308,7 +308,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | P03 | [test_kernel_storage.py::test_process_crash_publication_boundary](../../tests/primary/test_kernel_storage.py#L162) | root/native changeset/complete边界已验；每步完整点替代旧多步epoch，重数据实测见V04。 |
 | P04 | [test_kernel_memory.py::test_pending_job_full_checkpoint_resumes_without_extraction](../../tests/primary/test_kernel_memory.py#L61) | 已有直接测试；最终全量与真实组合另验。 |
 | P05 | [test_kernel_storage_lifecycle.py::test_restore_copies_repeated_artifact_once_and_survives_source_removal](../../tests/primary/test_kernel_storage_lifecycle.py#L10) | fork脱源恢复、GC可达验证已验；native root复制成本显式保留，未承诺零复制fork。 |
-| P06 | [test_kernel_storage_lifecycle.py::test_foreign_root_identity_rejects_export_and_gc_without_deleting_files](../../tests/primary/test_kernel_storage_lifecycle.py#L73) | prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装，新增组待独立复验。 |
+| P06 | [test_kernel_storage_lifecycle.py::test_foreign_root_identity_rejects_export_and_gc_without_deleting_files](../../tests/primary/test_kernel_storage_lifecycle.py#L73) | prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装；Results/Dataset/Workbench 独立贯穿已通过，见 result-inputs-independent-consumer-green-20261004。 |
 | P07 | [test_kernel_storage.py::test_incremental_blob_read_bounded_and_scope_checked](../../tests/primary/test_kernel_storage.py#L313) | SQLite BLOB/Thread块范围与压缩流已验；实际大root下界由V04实测，不承诺任意JSON单值恒定内存。 |
 | P08 | [test_kernel_runtime.py::test_failed_driver_aborts_and_does_not_retry_successful_action](../../tests/primary/test_kernel_runtime.py#L143) | 已有直接测试；最终全量与真实组合另验。 |
 | Q01 | [test_kernel_observation.py::test_separate_producer_observer_tracks_pending_failure_without_model_import](../../tests/primary/test_kernel_observation.py#L83) | 已有直接测试；最终全量与真实组合另验。 |
@@ -317,12 +317,14 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | Q04 | [test_kernel_observation.py::test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files](../../tests/primary/test_kernel_observation.py#L148) | 新版权威SQL替代全World派生索引；固定完整点prepare使用prepare_readonly物化只读SQL，成本另测。 |
 | Q05 | [test_kernel_observation_http.py::test_http_slow_body_saturation_disconnect_and_final_wire_bytes](../../tests/primary/test_kernel_observation_http.py#L19) | 已有直接测试；最终全量与真实组合另验。 |
 | Q06 | [test_kernel_observation.py::test_observer_live_tail_complete_prefix_and_fork_identity](../../tests/primary/test_kernel_observation.py#L9) | live/current与完整点、Thread tail已有；产品语义以新Observation合同为准，不伪造额外sealed水位。 |
-| U01 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
-| U02 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
-| U03 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
-| U04 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
-| U05 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+| U01 | [test_kernel_runner.py::test_runner_freezes_manifest_and_timings_and_restores](../../tests/primary/test_kernel_runner.py) | 研究引导和技能参考已迁移至共享环境/正式插件；RunPlan 消费者验证配置清单、完整步骤与恢复，真实提供方及最终文档审查仍由 V05/V07 验收。 |
+| U02 | [test_skill_starter.py::test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory](../../tests/primary/test_skill_starter.py) | 正式工厂两轮 LLM starter 已确定性验证完整材料、显式提取和访谈；独立 test_skill_starter_review 验实际资源预检零调用与非空经验；新预算/依赖清单另有直接测试。真实网络运行单独留证。 |
+| U03 | [test_core_next_workbench.py::test_actual_result_rows_and_metrics_have_table_and_chart_views](../../tests/primary/test_core_next_workbench.py) | 真实 Results 表格/指标曲线及已有 React 渲染消费者已验；同名 phase 按 ordinal 分开，实体 namespace 与显式配置版本有独立用例。 |
+| U04 | [test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer](../../tests/primary/test_core_next_workbench.py) | 正式 pilot→完整点→新 workbench payload→既有单文件 renderer 已贯穿；巨行/原始 Thread 范围及 CLI 选取实际 run 另有消费者。 |
+| U05 | [test_public_core_api.py](../../tests/primary/test_public_core_api.py) | 新公共入口和可选依赖惰性导入有直接测试；macOS/Linux wheel 与独立轻安装证据见 installation.md。旧 WorkBuddy 案例保历史身份，新版未另行声称通过 WorkBuddy 场景。 |
 
 这份索引将尚缺的领域合同、公开入口与真实组合保留为待办。补齐对应消费者和最终验收后，再据实际证据调整迁移结论。
 
 两轮研究 starter 的召回提供方故障会使当前步骤失败并保留此前完整点；旧 starter 静默继续测量的行为已撤销。成功返回空记忆仍继续，当前消息原文仍在输入中；无召回实验应显式关闭 auto_recall。这项语义调整区分了服务故障与合法的空记忆条件。
+
+终审补充：目录可发现性与处理器异常的步骤失败边界由 `test_core_final_review.py` 两个非作者反例及 `test_kernel_final_boundaries.py` 覆盖。前者约束信息名称和 total，后者保证已写部分事实的 handler 异常即使被 Driver 捕获也不能发布完整点；本组最终审查与全量结果单独记录。
