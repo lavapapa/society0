@@ -1,0 +1,30 @@
+{
+  "head": "f7fe907f57892c2f1a0b70ff8f1891e337eceb4e",
+  "checked_at": "2026-10-04T09:26:58.477665+08:00",
+  "direct_byte_comparison": {
+    "src/society0/kernel/threads.py": {
+      "equals_2590cf3": true,
+      "equals_HEAD": true
+    },
+    "src/society0/kernel/storage.py": {
+      "equals_2590cf3": true,
+      "equals_HEAD": true
+    },
+    "src/society0/kernel/observation.py": {
+      "equals_2590cf3": true,
+      "equals_HEAD": true
+    },
+    "src/society0/kernel/_json_chunks.py": {
+      "equals_2590cf3": true,
+      "equals_HEAD": true
+    }
+  },
+  "commands": [
+    ".venv/bin/python benchmarks/core_next_final_realtime.py --output research/core-next/final-realtime-storage-independent-20261004.json",
+    "uv sync --frozen --all-extras --python 3.12 --dry-run --offline"
+  ],
+  "exit_codes": [
+    0,
+    0
+  ]
+}
