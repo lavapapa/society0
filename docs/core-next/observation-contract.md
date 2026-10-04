@@ -30,7 +30,9 @@ progress 是独立的允许落后快照，包括运行状态、阶段、活动�
 
 领域信息通过显式 `information_factory(reader) -> Information` 接入。`query(actor=..., moment=..., path=..., query=...)` 使用提供者声明的数据及权限版本；同表另一主体写入也可能使当前页失效。测试中每页之间持续更新同表另一主体时，20 次续页均明确过期，停止更新后可读完。高更新率下可选择完整视图；不可变消息使用追加序号继续。
 
-`read_document` 沿注册的 DocumentSpec 按字节读取原文。正式 `round_robin_information(reader, name)` 与 `social_information(reader, name)` 和运行机制共用同一组 SQL 路由；Social 只读工厂提供帖子、评论、通知等既有资料，不执行推荐 feed 的嵌入计算或消费曝光。普通 SQLInformation 对选定字段的内存物化仍受提供者实现影响，HTTP 的最终 wire 预算不等于任意插件 provider 的内存预算。超大字段应使用已声明文档范围入口或显式字段投影；通用 SQL 巨字段预检保留为 P04 的独立任务。
+`read_document(..., expected_revision=...)` 沿注册的 DocumentSpec 按字节读取原文。SQLInformation 的 DatasetSpec 可将正文列声明为文档引用，查询页返回路径、完整字节数与 expected_revision，SQL 原生 BLOB 接口也支持 TEXT 的原始 UTF-8 字节。后续每段携带同一 expected_revision；正文或访问资格变化时重新定位，无关 Thread 留证不使正文引用过期。SQL 查询在提供者内按 Query.max_bytes 形成可继续的页，Observation 同时检查最终响应预算。未声明的宽字段、正文过滤及抽样仍有各自的物化或扫描成本，详见 [SQL 信息提供者](information-sql-contract.md)。其他提供者须说明自身读取成本，响应预算本身不构成通用内存上限。
+
+正式 `round_robin_information(reader, name)` 与 `social_information(reader, name)` 和运行机制共用同一组 SQL 路由；Social 只读工厂提供帖子、评论、通知等既有资料，不执行推荐 feed 的嵌入计算或消费曝光。
 
 ## 四、调用
 

@@ -109,13 +109,13 @@ async def test_sample_is_repeatable_authorized_and_exposes_population(tmp_path):
     finally: store.close()
 
 
-def test_registered_schema_rejects_nullable_order_and_nonblob_documents(tmp_path):
+def test_registered_schema_rejects_nullable_order_and_nontext_documents(tmp_path):
     with StageStore.create(tmp_path / 'run', ['CREATE TABLE bad(id INTEGER PRIMARY KEY,sort INTEGER,body TEXT)']) as store:
         reader = StageReader(store.path)
         with pytest.raises(ValueError,match='nonnull'):
             SQLInformation('m',reader,{'bad':DatasetSpec('bad','id',('id','sort'),order_fields=('sort',))})
         with pytest.raises(ValueError,match='BLOB'):
-            SQLInformation('m',reader,{'bad':DocumentSpec('bad','id','body')})
+            SQLInformation('m',reader,{'bad':DocumentSpec('bad','id','sort')})
 
 
 @pytest.mark.asyncio
@@ -142,7 +142,14 @@ async def test_large_history_hot_query_vm_and_materialized_bytes_remain_bounded(
                     metrics['vm'] += 1
                     return False
                 view._connection.set_progress_handler(progress, 1)
-                query = view.query
+                query,iterate = view.query,view.iter_query
+                def streamed(sql,bindings=()):
+                    metrics['sql'].append(sql)
+                    for row in iterate(sql,bindings):
+                        metrics['rows']+=1
+                        metrics['bytes']+=sum(len(value) if isinstance(value,(str,bytes)) else 8 for value in row)
+                        yield row
+                view.iter_query=streamed
                 def counted(sql, bindings=(), **options):
                     metrics['sql'].append(sql)
                     rows = query(sql, bindings, **options)
@@ -221,7 +228,7 @@ async def test_mixed_indexed_seek_does_not_scan_prior_equal_rank(tmp_path):
         original=reader.read
         measured=[]
         for position in (100,9000):
-            cursor=(await provider.query(scope,'/m/items',Query(order=(('rank','desc'),('id','asc')),limit=position))).next_cursor
+            cursor=(await provider.query(scope,'/m/items',Query(order=(('rank','desc'),('id','asc')),limit=position,max_bytes=2_000_000))).next_cursor
             count=[0]
             def read(callback,**kwargs):
                 def wrapped(view):

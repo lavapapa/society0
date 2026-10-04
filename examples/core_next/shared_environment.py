@@ -76,12 +76,14 @@ async def demonstrate(output: Path, *, history=2000):
 
     def messaging(ctx):
         store = ctx.require('storage', 'store')
+        recipient=lambda s:('recipient=?',(s.actor,))
         provider = SQLInformation('world', StageReader(store.path), {
             'orders': DatasetSpec('orders','id',('id','price','status'),
                 authorize=lambda s:('owner=? AND active=1',(s.actor,)),
                 base_count=lambda s:('SELECT total FROM counts WHERE owner=?',(s.actor,)),dependencies=('counts',)),
             'history': DatasetSpec('orders','id',('id','price','status'),authorize=lambda s:('owner=?',(s.actor,))),
-            'messages': DatasetSpec('messages','id',('id','body'),authorize=lambda s:('recipient=?',(s.actor,))),
+            'messages': DatasetSpec('messages','id',('id','body'),authorize=recipient,documents=(('body','message_content'),)),
+            'message_content': DocumentSpec('messages','id','body',authorize=recipient),
             'documents': DocumentSpec('documents','id','body'),
         })
         ctx.require('interaction','information').mount('/world',provider)
@@ -106,6 +108,8 @@ async def demonstrate(output: Path, *, history=2000):
                     results.append(await shell.execute('action invoke ' + argument({'target':target,'name':name,'arguments':{}})))
                 else:
                     results.append(await shell.execute('data query /world/messages'))
+                    message_path=json.loads(results[-1].stdout)['items'][0]['body']['path']
+                    results.append(await shell.execute('data read '+message_path))
                     assert 'alice购买订单' in results[-1].stdout
                 evidence.append({'actor':session.actor.id,'commands':[asdict(item) for item in results]})
                 # 由 Runtime 登记本完整步骤依赖的实际工件。

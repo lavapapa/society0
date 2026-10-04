@@ -88,6 +88,7 @@ class Query:
     limit: int = 100
     cursor: Any = None
     sample_seed: int | None = None
+    max_bytes: int = 65536
 
 
 async def _resolve(value):
@@ -181,12 +182,14 @@ class Information:
         scope.check_active()
         return result
 
-    async def read(self, scope, path, *, offset=0, size=65536):
+    async def read(self, scope, path, *, offset=0, size=65536, expected_revision=None):
         if offset < 0 or size < 1:
             raise ValueError('offset must be nonnegative and size positive')
         provider, path = await self._provider(scope, path, 'read')
         result = await _resolve(provider.read(scope, path, offset=offset, size=size))
         scope.check_active()
+        if expected_revision is not None and json.dumps(result.revision,sort_keys=True)!=json.dumps(expected_revision,sort_keys=True):
+            raise ValueError('document revision changed; locate the document again')
         return result
 
     async def query(self, scope, path, query: Query):
@@ -215,8 +218,8 @@ class _BoundInformation:
     async def stat(self,path):
         return await self.information.stat(self.scope,path)
 
-    async def read(self, path, *, offset=0, size=65536):
-        return await self.information.read(self.scope, path, offset=offset, size=size)
+    async def read(self, path, *, offset=0, size=65536, expected_revision=None):
+        return await self.information.read(self.scope, path, offset=offset, size=size, expected_revision=expected_revision)
 
     async def query(self, path, query):
         return await self.information.query(self.scope, path, query)
