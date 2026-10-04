@@ -82,7 +82,8 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
             goal=goals(session) if callable(goals) else goals
             return ([{'role':'user','content':goal}],session.step)
         input_builder=CognitiveInput(threads,perception,environment=
-            '这是共享社会模拟。先用 data_list 查信息路径、action_find 查可用行动，再用 action_describe 获取参数。'
+            '这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。'
+            '需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。'
             'action_invoke.arguments 是编码后的 JSON 字符串。只执行本次任务要求的行动。',
             precision='所有已提供材料均为原文。')
         def shell(session,ledger):
