@@ -1,0 +1,61 @@
+{
+  "source_commit": "b51c5f94943d7e767504aaf578ef55516a26f4d7",
+  "remote": "/tmp/society0-core-next-20261004/x08-b51c5f9",
+  "files": [
+    {
+      "path": "src/society0/kernel/storage.py",
+      "bytes": 33249,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/_json_chunks.py",
+      "bytes": 3592,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/threads.py",
+      "bytes": 20317,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/models.py",
+      "bytes": 18132,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/runtime.py",
+      "bytes": 16044,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/results.py",
+      "bytes": 13568,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/memory.py",
+      "bytes": 37835,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/services.py",
+      "bytes": 2454,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/llm.py",
+      "bytes": 32772,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/kernel/interaction.py",
+      "bytes": 17667,
+      "byte_equal": true
+    },
+    {
+      "path": "src/society0/resource_managers.py",
+      "bytes": 104541,
+      "byte_equal": true
+    }
+  ]
+}
