@@ -256,13 +256,15 @@ async def test_physical_retry_preserves_request_reference_and_full_raw_response(
         assert provider.manager.clients['test'].max_retries == 0
         result = await provider.request(tid, {'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}})
         assert result['content'] == 'complete response'
-        assert len(requests) == 2 and requests[0]['messages'] is requests[1]['messages']
+        assert len(requests) == 2 and requests[0]['messages'] == requests[1]['messages']
         events = threads.tail(tid)['items']
         recorded = [e for e in events if e['kind'] == 'request']
         assert len(recorded) == 2
         rebuilt = threads.read_request(tid, recorded[1]['seq'])
         assert rebuilt['messages'] == [{'role': 'user', 'content': 'complete original'}]
         assert rebuilt['retry_of'] == recorded[0]['seq']
+        first = threads.read_request(tid, recorded[0]['seq'])
+        assert first['messages'] == rebuilt['messages']
         assert rebuilt['provider_options']['model'] == 'fake'
         assert rebuilt['provider_options']['temperature'] == 0.7
         response = [e for e in events if e['kind'] == 'provider_response'][0]

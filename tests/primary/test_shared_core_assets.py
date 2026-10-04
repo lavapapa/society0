@@ -34,3 +34,18 @@ def test_strict_schema_keeps_original_and_retired_registry_is_absent():
     assert normalized['required']==['text','values']
     assert normalized['properties']['values']['type']==['array','null']
     assert not hasattr(module,'FunctionRegistry')
+
+
+def test_shared_logging_does_not_construct_retired_agent_thread_store(tmp_path):
+    import subprocess,sys,os
+    script="""
+import sys
+from pathlib import Path
+from society0.logging import ExperimentLogContext
+context=ExperimentLogContext(Path(sys.argv[1]))
+assert not hasattr(context,'agent_thread_store')
+assert not any(name.startswith('society0.agent') for name in sys.modules)
+context.close()
+"""
+    result=subprocess.run([sys.executable,'-c',script,str(tmp_path/'logs')],capture_output=True,text=True,env={**os.environ,'PYTHONPATH':'src'})
+    assert result.returncode==0,result.stderr
