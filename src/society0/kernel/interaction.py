@@ -154,7 +154,7 @@ class Information:
             for prefix, provider in self._mounts.items():
                 ref = provider.ref(prefix)
                 if await _resolve(self._allows(scope, 'discover', ref)):
-                    items.append({'path': prefix, 'ref': ref})
+                    items.append({'path': prefix, 'ref': ref, 'kind': 'directory'})
                 scope.check_active()
             identity = json.dumps([scope.actor, asdict(scope.moment), scope.revision,
                                    [item['path'] for item in items]], sort_keys=True)

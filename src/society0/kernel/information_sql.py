@@ -174,8 +174,7 @@ class SQLInformation:
             if inspect.isawaitable(permitted):permitted=await permitted
             scope.check_active()
             if permitted:
-                item={'path':'/'+self.namespace+'/'+route,'ref':ref}
-                if files:item['kind']='directory'
+                item={'path':'/'+self.namespace+'/'+route,'ref':ref,'kind':'directory'}
                 items.append(item)
         after=self.reader.read(version,expected_revision=scope.revision)
         if after!=before:raise ValueError('directory authorization changed during discovery')

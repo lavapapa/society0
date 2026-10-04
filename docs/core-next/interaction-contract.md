@@ -1,12 +1,12 @@
 # 共享环境交互合同
 
-本模块提供运行时绑定主体的信息访问与动作模板入口。机制提供者仍拥有世界事实、授权子集和业务规则；这里的两个机制贯穿例以订单购买产生另一主体的消息，验证它们访问同一个世界。实现位于 `src/society0/kernel/interaction.py`，尚待接入持久化、Driver 和完整调度生命周期。
+本模块提供运行时绑定主体的信息访问与动作模板入口。机制提供者仍拥有世界事实、授权子集和业务规则；这里的两个机制贯穿例以订单购买产生另一主体的消息，验证它们访问同一个世界。实现位于 `src/society0/kernel/interaction.py`，由 Runtime 的 Session 绑定主体，SQLInformation、规则与 LLM Driver 共用该交互入口。
 
 ## 一、身份与作用域
 
 `Ref(namespace, kind, key)` 表示资源，`Moment(time, phase)` 表示仿真时点。相同类型的两个机制实例通过 namespace 区分。`InteractionScope(actor, moment, revision=None)` 由运行时创建，其三个公开字段不可重新赋值。工具适配器从 `information.bound(scope)` 与 `actions.bound(scope)` 取得，公开方法不接受模型传入 actor。
 
-scope 支持同步上下文管理与 `close()`。关闭后调用抛出 `ScopeClosed`；异步权限检查、候选检查及信息提供者返回后会再次检查有效性。已经开始的 handler 由运行时等待或取消，关闭 scope 不会撤销其中已发生的业务变化。资源引用和 scope 都属于 Python 运行接口，未来网络或模型适配器负责显式序列化。
+scope 支持同步上下文管理与 `close()`。关闭后调用抛出 `ScopeClosed`；异步权限检查、候选检查及信息提供者返回后会再次检查有效性。已经开始的 handler 由运行时等待或取消，关闭 scope 不会撤销其中已发生的业务变化。资源引用和 scope 属于 Python 运行接口；LLM 工具、Shell 与 Observation 适配器负责各自公开参数的显式序列化，并保持绑定主体的作用域。
 
 revision 为 None 表示由提供者读取当前版本。它不建立数据库快照；每次信息响应携带实际 revision。需要固定多次读取版本的机制应实现固定视图及游标验证。相同时点重新激活可取得更新后的信息，Moment 本身保持不变。
 
@@ -75,3 +75,5 @@ Action 支持不可变 tags、strict 与 read_only 元数据，describe 返回�
 `Actions.find` 与绑定门面接受 `names=None, tags=None`。名称集合与标签集合共同过滤；标签取交集，空集合表示无候选，`None` 表示该维度不限制。一次请求枚举该对象类型的模板一次，计算完整授权总数并返回所需页。Driver 将研究策略下推到这个入口，实际 describe/invoke 仍由 Driver 策略门面及当前世界资格检查。
 
 提供实际数据版本时，游标绑定主体、时点、对象、查询、策略、注册代次与相关版本，保持小型引用。无版本的内存提供者仍携带候选集合，以检查可用性变化；其游标大小随候选数增长。分页改善取用方式，完整总数仍需检查全部相关模板。
+
+普通 `Information.list` 在根目录返回虚拟挂载目录，项目含 `path`、`ref`、`kind="directory"`；挂载前缀代表提供者的命名空间目录，轻量提供者不必为该标记新增 `stat` 实现。SQL 提供者列出的静态资料路由同样标为目录，与 `list_files`、`stat` 一致。进入路由后，`list` 返回原有数据行，不向业务行追加或覆盖 `kind`。`list_files` 则继续返回可读取的具体文件项。外部 Observation 仍通过显式注册的查询与正文接口消费这些资料。
