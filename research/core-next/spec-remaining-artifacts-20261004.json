@@ -1,0 +1,66 @@
+{
+  "owner": "spec",
+  "artifacts": [
+    {
+      "path": "research/core-next/action-filter-owner-green.txt",
+      "bytes": 99,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    },
+    {
+      "path": "research/core-next/action-filter-owner-red.txt",
+      "bytes": 1396,
+      "decision": "retain",
+      "reason": "保留发现/验收过程的小型原始证据；失败或中间结果不作最终通过证据。"
+    },
+    {
+      "path": "research/core-next/builtin-review-owner-green.txt",
+      "bytes": 99,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    },
+    {
+      "path": "research/core-next/domain-revision-consumers-green.txt",
+      "bytes": 99,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    },
+    {
+      "path": "research/core-next/memory-transfer-independent-green.txt",
+      "bytes": 113,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    },
+    {
+      "path": "research/core-next/optional-dependency-uv-sync-20261004.txt",
+      "bytes": 531,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    },
+    {
+      "path": "research/core-next/retirement-collection-before-20261004.txt",
+      "bytes": 140466,
+      "decision": "retain",
+      "reason": "保留发现/验收过程的小型原始证据；失败或中间结果不作最终通过证据。"
+    },
+    {
+      "path": "research/core-next/retirement-collection-before-cleanup-20261004.txt",
+      "bytes": 110591,
+      "decision": "retain",
+      "reason": "保留发现/验收过程的小型原始证据；失败或中间结果不作最终通过证据。"
+    },
+    {
+      "path": "research/core-next/shell-wheel-source-conflict-20261004.txt",
+      "bytes": 779,
+      "decision": "retain",
+      "reason": "保留发现/验收过程的小型原始证据；失败或中间结果不作最终通过证据。"
+    },
+    {
+      "path": "research/core-next/skill-api-reference-inventory-20261004.json",
+      "bytes": 3415,
+      "decision": "retain",
+      "reason": "保留该阶段直接消费者/接口迁移或依赖验收的小型证据；最终状态引用后续全量。"
+    }
+  ],
+  "cleanup": "本组没有大二进制或秘密文件需要删除；其他未跟踪文件由对应storage/threads所有者分类。"
+}
