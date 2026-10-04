@@ -2,6 +2,8 @@
 
 ShellSession 将可选 Bashkit 解释器接到同一共享环境的信息与动作服务。共享材料同时通过 `/world` 动态只读文件路径与 data 命令取得；持久私有文件放在 `/workspace`。普通规则 Driver 可以直接调用交互服务，无需创建 shell。
 
+本页描述现行 ShellSession 入口。统一逻辑文件工具及原文路径的目标合同见 [专项规格](agent-filesystem-design.md)，消费者迁移状态见 F05；目标接口不能作为当前版本的调用示例。
+
 ## 一、入口
 
 安装 `shell` extra 后，由运行时创建 `ShellSession(scope,information,actions,result_dir=...,workspace=service,preview_bytes=65536)`。Driver 可改用 `ShellSession(scope,information,bound_actions=facade,result_dir=...)` 注入已绑定门面，actions 与 bound_actions 二选一，发现、描述与执行都经过同一门面。result_dir 指向本运行拥有的工件目录，每个会话建立独立子目录。可选依赖只在 `kernel.shell` 中导入。
@@ -44,7 +46,7 @@ result read output/1.stdout '{"offset":65536,"size":65536}'
 
 默认 cwd 为 `/workspace`，普通相对文件名自然保存到主体私有目录。`/tmp` 及其他临时解释器文件在新激活时重新建立。
 
-Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。`/world` 通过 Information 的相同权限和数据版本路由动态列目录、读取文档与单条记录 JSON。构造 shell 不枚举世界对象，显式 ls 取得该目录全体文件名；目录元数据读取不加载记录正文。Bashkit 原生 read_file 为整文件读取，因此 head/cat 大单文档仍完整物化；大型集合可用 data list/query 分页，文档可用 data read 范围读取。
+Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。`/world` 通过 Information 的相同权限和数据版本路由动态列目录、读取文档与单条记录 JSON。构造 shell 不枚举世界对象；当前 InformationFiles 用 `@page-` 继续目录分页，超过投影预算的大文档表现为 manifest、`@text-` 与 `@parts-` 目录。Bashkit 整读实际选中的投影文件；目录 stat 对未声明大正文映射的 SQL 记录仍可能物化完整 JSON。分片中的原文可以重组，但直接递归 grep 会有跨片漏匹配及编码副本命中，不能作为逻辑原文搜索。大型集合可用 data list/query 分页，原文可用 data read 范围读取。
 
 ## 三、结果
 

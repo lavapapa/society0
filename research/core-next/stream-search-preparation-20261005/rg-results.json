@@ -1,0 +1,59 @@
+{
+  "rg_version": "ripgrep 15.1.0",
+  "split_every_two_bytes": {
+    "exit_code": 0,
+    "writes": 9,
+    "input_bytes": 17,
+    "output_bytes": 14,
+    "preview": "1:7:关键词\n",
+    "elapsed_ms": 5.968500045128167
+  },
+  "one_mib_line": {
+    "exit_code": 0,
+    "writes": 16,
+    "input_bytes": 1048576,
+    "output_bytes": 18,
+    "preview": "1:65533:关键词\n",
+    "elapsed_ms": 5.323958001099527
+  },
+  "one_mib_line_json": {
+    "exit_code": 0,
+    "writes": 16,
+    "input_bytes": 1048576,
+    "output_bytes": 1049337,
+    "preview": "{\"type\":\"begin\",\"data\":{\"path\":{\"text\":\"<stdin>\"}}}\n{\"type\":\"match\",\"data\":{\"pat",
+    "elapsed_ms": 7.743333000689745
+  },
+  "separate_documents": [
+    {
+      "exit_code": 1,
+      "writes": 1,
+      "input_bytes": 6,
+      "output_bytes": 0,
+      "preview": "",
+      "elapsed_ms": 5.548416054807603
+    },
+    {
+      "exit_code": 1,
+      "writes": 1,
+      "input_bytes": 3,
+      "output_bytes": 0,
+      "preview": "",
+      "elapsed_ms": 4.96704108081758
+    },
+    {
+      "exit_code": 0,
+      "writes": 1,
+      "input_bytes": 9,
+      "output_bytes": 14,
+      "preview": "1:0:关键词\n",
+      "elapsed_ms": 5.4245839128270745
+    }
+  ],
+  "tiny_document_subprocess_ms": {
+    "n": 30,
+    "median": 4.755708505399525,
+    "min": 4.05616604257375,
+    "max": 5.872542038559914
+  }
+}

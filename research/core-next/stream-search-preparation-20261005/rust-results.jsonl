@@ -1,0 +1,10 @@
+{"case":"utf8_split_every_two_bytes","bytes_read":32,"read_calls":18,"max_read_returned":2,"max_read_requested":65536,"hits":1,"max_matched_line":32,"peak_heap_delta":73744,"largest_allocation_request":65536,"elapsed_us":76,"error":""}
+{"case":"keyword_across_64k_boundary","bytes_read":131072,"read_calls":4,"max_read_returned":65536,"max_read_requested":196608,"hits":1,"max_matched_line":131072,"peak_heap_delta":204816,"largest_allocation_request":196608,"elapsed_us":86,"error":""}
+{"case":"one_mib_single_line","bytes_read":1048576,"read_calls":18,"max_read_returned":65536,"max_read_requested":1769472,"hits":1,"max_matched_line":1048576,"peak_heap_delta":1777680,"largest_allocation_request":1769472,"elapsed_us":666,"error":""}
+{"case":"four_one_mib_lines","bytes_read":4194304,"read_calls":66,"max_read_returned":65536,"max_read_requested":1769472,"hits":4,"max_matched_line":1048576,"peak_heap_delta":1777680,"largest_allocation_request":1769472,"elapsed_us":2297,"error":""}
+{"case":"four_mib_short_lines","bytes_read":4194304,"read_calls":66,"max_read_returned":65536,"max_read_requested":65536,"hits":32768,"max_matched_line":128,"peak_heap_delta":73744,"largest_allocation_request":65536,"elapsed_us":2664,"error":""}
+{"case":"one_mib_line_64k_heap_limit","bytes_read":65536,"read_calls":2,"max_read_returned":65533,"max_read_requested":65533,"hits":0,"max_matched_line":0,"peak_heap_delta":73854,"largest_allocation_request":65536,"elapsed_us":32,"error":"configured allocation limit (65536) exceeded"}
+{"case":"stop_after_first_line","bytes_read":65536,"read_calls":2,"max_read_returned":65533,"max_read_requested":65533,"hits":1,"max_matched_line":128,"peak_heap_delta":73744,"largest_allocation_request":65536,"elapsed_us":31,"error":""}
+{"case":"logical_documents_separate","hits":[0, 0, 1]}
+{"case":"explicit_newline_regex_rejected","passed":true}
+{"case":"tiny_document_in_process","n":1000,"mean_us":0.070041}
