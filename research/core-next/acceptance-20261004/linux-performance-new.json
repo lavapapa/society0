@@ -1,0 +1,56 @@
+{
+  "platform": "Linux-5.4.119-19-0009.11-x86_64-with-glibc2.35",
+  "python": "3.12.9",
+  "records": 1448471,
+  "artifact_files": 2,
+  "source_space": {
+    "files": 9,
+    "logical_bytes": 203773253,
+    "summed_allocated_bytes": 203804672,
+    "unique_allocated_bytes": 203804672
+  },
+  "restored_space": {
+    "files": 7,
+    "logical_bytes": 203772973,
+    "summed_allocated_bytes": 203792384,
+    "unique_allocated_bytes": 203792384
+  },
+  "readonly_space": {
+    "files": 5,
+    "logical_bytes": 203736093,
+    "summed_allocated_bytes": 203755520,
+    "unique_allocated_bytes": 203755520
+  },
+  "combined_unique_allocated_bytes": 203931648,
+  "combined_summed_allocated_bytes": 611352576,
+  "body_shared_with_restore": true,
+  "readonly_root_files": 0,
+  "import_seconds": 64.21594866737723,
+  "import_encode_seconds": 20.254894599318504,
+  "import_compress_write_seconds": 7.904367055743933,
+  "import_source_decode_seconds": 29.54549392685294,
+  "import_explicit_fsync_seconds": 0.010691944509744644,
+  "import_sql_and_control_seconds": 6.50050114095211,
+  "complete_seconds": 0.0013059154152870178,
+  "restore_seconds": 0.005084112286567688,
+  "readonly_prepare_seconds": 0.004252780228853226,
+  "100_pages_seconds": 1.7629221491515636,
+  "verify_seconds": 111.2369567155838,
+  "session_bytes": 2392,
+  "python_explicit_fsync_before_restore": {
+    "file": 7,
+    "directory": 14
+  },
+  "python_explicit_fsync_all": {
+    "file": 15,
+    "directory": 26
+  },
+  "all_values_equal": true,
+  "wall_seconds": 177.23578450456262,
+  "cpu_seconds": 177.21593721099998,
+  "absolute_peak_rss_bytes": 321523712,
+  "limits": "fsync counts exclude native SQLite sync syscalls; OS page cache retained; one connection per dataset page; peak includes one decoded source value; compression timing includes seekable writes/flush; timing is single trial",
+  "source": "/tmp/society0-core-next-20261004/v04-root",
+  "limit": 1448471
+}
+

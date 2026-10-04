@@ -1,0 +1,26 @@
+{
+  "package": {
+    "python_files": 47,
+    "physical_lines": 11191
+  },
+  "kernel": {
+    "python_files": 31,
+    "physical_lines": 7975
+  },
+  "tests": {
+    "python_files": 166,
+    "physical_lines": 16605
+  },
+  "examples": {
+    "python_files": 8,
+    "physical_lines": 560
+  },
+  "benchmarks": {
+    "python_files": 59,
+    "physical_lines": 5260
+  },
+  "llm.py": {
+    "physical_lines": 647,
+    "head_lines": 617
+  }
+}

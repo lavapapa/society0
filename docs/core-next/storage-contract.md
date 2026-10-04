@@ -34,7 +34,7 @@ complete 也接受 `artifacts/` 内已经耐久且承诺不可变的合作式引
 
 步骤发布前失败，恢复选取此前完整步骤。发布后进程退出，恢复选取已发布步骤。回执丢失后相同 complete 可幂等重试；文件系统 fsync 报错属于未知耐久结果，实例停止后由冷恢复判定可见完整身份。跨多个短事务的业务失败由调度器调用 abort_step；数据库之外的网络调用和原生 Python 副作用没有自动回滚。
 
-Session 导出流式消除了整个 changeset 的 Python bytes 副本；原生 Session 仍保存首次修改行的旧值，单行输出块也有内存下界。恢复应用净行变化，不以 changeset 重建动作顺序；动作审计或 Thread 顺序必须作为显式有主键的追加事实写入。读、捕获、恢复和压缩的完整量级验收仍需接入实际组件后进行。
+Session 导出流式消除了整个 changeset 的 Python bytes 副本；原生 Session 仍保存首次修改行的旧值，单行输出块也有内存下界。恢复应用净行变化，不以 changeset 重建动作顺序；动作审计或 Thread 顺序必须作为显式有主键的追加事实写入。读、捕获、恢复和压缩的实际组件验收见 [验收清单](TODO.md)及其链接的存储证据。
 
 SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/session/c_changesetapply_fknoaction.html)。
 
@@ -48,12 +48,11 @@ SQLite 原生应用标志语义见 [Session apply flags](https://www.sqlite.org/
 
 ## 压缩资源
 
-`Writer.write_json_chunks(value, emit)` 在当前同步写入作用域内调用 `emit(raw_bytes, compressed_bytes)`，依次交付完整 JSON 值的压缩块。每块原文至多 64 KiB，独立 zlib 压缩。成熟原生编码器同步遍历输入；线程仅压缩已冻结的 bytes，SQLite 修改由规范 writer 执行。首个 emit 错误停止后续写入，原生遍历结束后保留该异常，并收束已提交后台工作。Unicode 输入可能建立随该字符串存活的 UTF8 缓存，额外内存取决于本次值的字符串内容；失败不承诺即时中断原生遍历。
+`Writer.write_json_chunks(value, emit)` 在当前同步写入作用域调用 `emit(raw_bytes, compressed_bytes)`。RapidJSON 推送原文字节，每块至多 64 KiB，backports-zstd 生成独立标准帧后立即由规范 writer 写入 SQL。Thread、Memory、ResourceCalls 和 Results 共用此入口。首个 emit 错误后停止副作用，原生遍历返回时保留原异常，使当前事务回滚。
 
-StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 `compression_inflight_bytes=524288`。设置单 worker 时使用同步压缩；其他配置先读取至多 256KiB 前缀，短值直接压缩，大值惰性启动该 store 共享的线程池。Thread、Memory 和 ResourceCalls 使用同一入口与资源所有者。close 排空并关闭线程池，插件不各自创建压缩池。worker 数与待处理原始字节预算必须为正，字节预算至少容纳一个 64KiB 块。
+StageStore 的 create、open、restore 使用同步原生编码压缩，调用者无需配置压缩线程或在途队列。Session changeset 流直接写入原生 zstd 文件，恢复通过解压流交给 APSW Changeset.apply；完整描述符仍是唯一恢复权威。格式身份由 storage.py 的 `_manifest` 与根创建入口共同定义，旧产物使用产生它的源码读取。
 
-待处理字节预算衡量队列内的原始输入，整体驻留还包含有界前缀、当前块、压缩结果、原生工作区及 SQLite/Session 数据。同步 writer 会等待压缩结果，调用它的事件循环仍可能短时阻塞；该路径提高吞吐，独立只读观察者继续通过短 WAL 快照读取。事务外异步冻结与准备属于独立试验，未纳入此接口。
-
+单次块缓冲之外仍有输入对象、Unicode UTF8 缓存、原生压缩器与 SQLite/Session 的驻留成本。同步编码会占用调用线程，独立观察者通过 WAL 短快照读取当前状态；CPU 和整步延迟的实测范围见 [验收清单](TODO.md)及对应性能工件。
 
 ## 离线导出与清理
 
@@ -64,7 +63,7 @@ StageStore 的 `create`、`open`、`restore` 接受 `compression_workers=4` 与 
 
 ## 不可变批次与只读准备
 
-`prepare_artifact_file(build)` 向同步构建器提供独占临时路径，构建器应关闭所有文件和数据库连接后返回。Store 完成文件同步、改名和目录同步，返回已有工件引用。失败构建会清理临时文件，发布后引用事务失败形成离线可回收孤儿。`Datasets` 用此入口封存一个明确导入批次，正文复用原生 SQLite 索引和现有 JSON 分块编码；合同见 [不可变批次正文](cold-datasets-design.md)。
+`prepare_artifact_file(build)` 向同步构建器提供独占临时路径，构建器应关闭所有文件和数据库连接后返回。Store 完成文件同步、改名和目录同步，返回已有工件引用。失败构建会清理临时文件，发布后引用事务失败形成离线可回收孤儿。`Datasets` 用此入口封存一个明确导入批次为单份不可变 SQLite 工件，记录目录保存原文字节起点与长度，blocks 主键索引连续共享的标准独立 zstd 帧；范围读取直接定位有限块。在线单值与冷批次共用 ChunkWriter 编码入口，合同见 [不可变批次正文](cold-datasets-design.md)。
 
 `prepare_readonly(source, destination, step=None, run_id=None)` 与 restore 共用完整链物化过程，返回 StageReader，保留 source 身份及所选完整步骤，省去新 root.sqlite。该目录面向完整点观察，拒绝作为 writer 或恢复来源；可继续运行的分支使用 restore。Observation 的完整点视图使用稳定派生 run_id，使跨进程读取保持已有游标合同。准备失败清理目标临时目录；已可见的旧准备视图生命周期继续由 Observation 管理。
 

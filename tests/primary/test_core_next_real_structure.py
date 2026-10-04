@@ -1,4 +1,5 @@
 """真实验收计划的离线结构检查；替代模型响应不作为真实服务证据。"""
+from tests.primary.scripted_provider import bind_scripted_request
 import json
 import pytest
 from tests.e2e.core_next_real_support import plan
@@ -20,7 +21,7 @@ async def test_official_real_plan_assembles_and_completes_with_explicit_stubs(tm
                 {'id':'extract' if extraction else 'answer','type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
         return {'role':'assistant','content':'主体原文','finish_reason':'stop'}
     async def embed(self,texts,**kwargs):return [[1.,0.,0.,0.] for _ in texts]
-    monkeypatch.setattr(ModelProvider,'request',request);monkeypatch.setattr(EmbeddingProvider,'embed',embed)
+    bind_scripted_request(monkeypatch, ModelProvider, request);monkeypatch.setattr(EmbeddingProvider,'embed',embed)
     endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':1}
     config={'release':'explicit-offline-fixture','llm':{'endpoints':[endpoint],'max_attempts':1},
         'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
@@ -47,13 +48,18 @@ async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch
     import asyncio,re
     from openai.resources.chat.completions import AsyncCompletions
     from openai.resources.embeddings import AsyncEmbeddings
-    from openai.types.chat import ChatCompletion
+    from openai.types.chat import ChatCompletion,ChatCompletionChunk
+    from openai import AsyncStream
+    import httpx2
+    from tests.primary.provider_http import chat_http_response
     from openai.types import CreateEmbeddingResponse
     from tests.e2e import test_core_next_real as suite
     async def create(self,**request):
         await asyncio.sleep(.02)
         from tests.e2e.core_next_stub_provider import chat_response
-        return ChatCompletion.model_validate(chat_response(request))
+        response=chat_http_response(chat_response(request))
+        response.request=httpx2.Request('POST','http://unused.invalid/v1/chat/completions')
+        return AsyncStream(cast_to=ChatCompletionChunk,response=response,client=self._client)
     async def embedding(self,**request):
         await asyncio.sleep(.01)
         inputs=request['input']
@@ -80,8 +86,11 @@ def test_real_process_fixture_runs_crash_and_restore_against_local_stub_http(tmp
                 body={'object':'list','model':value['model'],'usage':{'prompt_tokens':1,'total_tokens':1},
                     'data':[{'object':'embedding','index':i,'embedding':[1.,0.,0.,0.]} for i,_ in enumerate(value['input'])]}
             else:body=chat_response(value)
-            raw=json.dumps(body).encode()
-            self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+            if value.get('stream'):
+                from tests.primary.provider_http import chat_http_response
+                response=chat_http_response(body);raw=response.content;content_type='text/event-stream'
+            else:raw=json.dumps(body).encode();content_type='application/json'
+            self.send_response(200);self.send_header('Content-Type',content_type);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
     thread=Thread(target=server.serve_forever,daemon=True);thread.start()
     address='http://127.0.0.1:'+str(server.server_port)+'/v1'

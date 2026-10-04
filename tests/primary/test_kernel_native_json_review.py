@@ -19,11 +19,14 @@ def test_review_sink_failure_remains_primary_when_later_value_is_invalid():
 def test_review_native_pipeline_emits_only_on_writer_and_restores_full_unicode(tmp_path,monkeypatch):
     import society0.kernel._json_chunks as module
     owner=threading.get_ident();workers=[];emissions=[]
-    original=module.zlib.compress
-    def compress(*args):
-        workers.append(threading.get_ident())
-        return original(*args)
-    monkeypatch.setattr(module.zlib,'compress',compress)
+    original=module.zstd.ZstdCompressor
+    class Compressor:
+        FLUSH_FRAME=original.FLUSH_FRAME
+        def __init__(self,**kwargs):self.native=original(**kwargs)
+        def compress(self,*args):
+            workers.append(threading.get_ident())
+            return self.native.compress(*args)
+    monkeypatch.setattr(module.zstd,'ZstdCompressor',Compressor)
     value={'text':'汉字🙂\\\"\n'*100000,'large_integer':2**200,'nested':[True,None,-0.0]}
     with StageStore.create(tmp_path/'run',['CREATE TABLE blocks(id INTEGER PRIMARY KEY,raw_bytes INTEGER,payload BLOB)']) as store:
         def write(writer):
@@ -32,9 +35,9 @@ def test_review_native_pipeline_emits_only_on_writer_and_restores_full_unicode(t
                 writer.execute('INSERT INTO blocks VALUES(?,?,?)',(len(emissions),size,body))
             writer.write_json_chunks(value,emit)
         store.transaction(write)
-        assert workers and all(thread!=owner for thread in workers)
+        assert workers and all(thread==owner for thread in workers)
         assert emissions and all(thread==owner for thread in emissions)
         store.complete(1)
     with StageStore.restore(tmp_path/'run',tmp_path/'restored') as store:
         blocks=store.read(lambda view:view.query('SELECT payload FROM blocks ORDER BY id'))
-        assert json.loads(b''.join(module.zlib.decompress(body) for body, in blocks))==value
+        assert json.loads(b''.join(module.decode_chunk(body) for body, in blocks))==value

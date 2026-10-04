@@ -65,13 +65,13 @@ def _text_range(data, offset, total, encoding):
 
 
 _TOOL_DESCRIPTIONS = {
-    'action_find': 'Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text.',
+    'action_find': 'Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass the returned cursor to continue.',
     'action_describe': 'Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it.',
-    'action_invoke': 'Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget.',
-    'data_list': 'List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue.',
+    'action_invoke': 'Execute one domain action. arguments follows the described action schema; accepted is not completed. Every attempt uses the domain action budget.',
+    'data_list': 'List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass the returned cursor to continue.',
     'data_read': 'Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read.',
-    'data_query': 'Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read.',
-    'bash': 'Run shell text with read-only /world information paths and data/action commands. With persistent workspace enabled, cwd defaults to /workspace: relative files persist between activations; /tmp is temporary. Large directories/files can be read with paginated data list/query/read. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
+    'data_query': 'Query structured rows at a dataset path. query contains fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read.',
+    'bash': 'Run shell text with read-only /world information paths and data/action commands. With persistent workspace enabled, cwd defaults to /workspace: relative files persist between activations; /tmp is temporary. Large /world documents are directories: @manifest.json describes version and length, @parts contains base64 byte parts, and @text contains UTF-8-safe text parts. Follow @page- continuation directories when listed. Paginated data list/query/read provides the same complete information. Private giant files still have whole-file shell costs. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
     'result_read': 'Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary.',
     'submit_result': 'Submit the final structured result matching this schema. Success completes this measurement or decision.',
 }
@@ -208,18 +208,12 @@ class _Ledger:
                     description = await self.describe(name, target)
                 except Unavailable:
                     description = None
-                decoded = arguments
-                if isinstance(arguments, str):
-                    try:
-                        decoded = json.loads(arguments)
-                    except ValueError:
-                        decoded = None
                 if description is None:
                     result = ActionResult('rejected', {'reason': 'unavailable'})
-                elif not isinstance(decoded, dict):
+                elif not isinstance(arguments, dict):
                     result = ActionResult('rejected', {'reason': 'invalid_arguments'})
                 else:
-                    result = await self.base.invoke(name, target, decoded)
+                    result = await self.base.invoke(name, target, arguments)
             except BaseException as error:
                 threads.finish_action(self.thread_id,start_seq,{'call_id': identifier, 'name': name,
                               'error_type': type(error).__name__, 'error': str(error)},
@@ -310,16 +304,18 @@ class LLMDriver:
         self.memory = memory
 
     def _tools(self):
+        dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
+        cursor = {**dynamic, 'type': [dynamic['type'], 'null']}
         schemas = {
             'action_find': _schema({'target': _REF, 'query': {'type': 'string', 'description': 'Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching.'}, 'limit': {'type': 'integer'},
-                                    'cursor': {'type': ['string', 'null']}}),
+                                    'cursor': cursor}),
             'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
-            'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': {'type': 'string'}}),
-            'data_list': _schema({'path': {'type': 'string'}, 'limit': {'type': 'integer'}, 'cursor': {'type': ['string', 'null']}}),
+            'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': dynamic}),
+            'data_list': _schema({'path': {'type': 'string'}, 'limit': {'type': 'integer'}, 'cursor': cursor if self.policy.strict_tools else {}}),
             'data_read': {**_schema({'path': {'type': 'string'}, 'offset': {'type': 'integer'}, 'size': {'type': 'integer'},
                                     'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}, 'expected_revision': {}}),
                           'required': ['path', 'offset', 'size']},
-            'data_query': _schema({'path': {'type': 'string'}, 'query': {'type': 'string'}}),
+            'data_query': _schema({'path': {'type': 'string'}, 'query': dynamic}),
         }
         schemas['result_read'] = {**_schema({'reference': {'type': 'string'}, 'offset': {'type': 'integer'},
                                   'size': {'type': 'integer'}, 'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}}),
@@ -334,22 +330,30 @@ class LLMDriver:
             schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
         if self.policy.direct_json:
             schemas = {}
-        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
+        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'data_query', 'action_find', 'data_list') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
-                **({'strict': True} if self.policy.strict_tools else {})}} for name, schema in schemas.items()]
+                'strict': self.policy.strict_tools}} for name, schema in schemas.items()]
 
     async def _dispatch(self, name, arguments, session, ledger, shell):
+        field = {'action_invoke': 'arguments', 'data_query': 'query', 'action_find': 'cursor', 'data_list': 'cursor'}.get(name)
+        if self.policy.strict_tools and field and arguments[field] is not None:
+            arguments = dict(arguments)
+            try:
+                arguments[field] = _decode(arguments[field])
+            except _ToolInputError:
+                if name != 'action_invoke': raise
+                arguments[field] = None  # 严格协议中无效行动文本仍记一次失败尝试。
         if name == 'action_invoke':
             result = await ledger.invoke(arguments['name'], Ref(**arguments['target']), arguments['arguments'])
             return {'result': asdict(result), 'observation': ledger.feedback}
         if name == 'action_find':
             return await _read_tool(ledger.find, Ref(**arguments['target']), query=arguments['query'], limit=arguments['limit'],
-                                    cursor=_decode(arguments['cursor']) if arguments['cursor'] else None)
+                                    cursor=arguments['cursor'])
         if name == 'action_describe':
             return await _read_tool(ledger.describe, arguments['name'], Ref(**arguments['target']))
         if name == 'data_list':
             return await _read_tool(session.information.list, arguments['path'], limit=arguments['limit'],
-                                    cursor=_decode(arguments['cursor']) if arguments['cursor'] else None)
+                                    cursor=arguments['cursor'])
         if name == 'data_read':
             options = dict(arguments)
             encoding = options.pop('encoding', None) or 'utf-8'
@@ -361,7 +365,7 @@ class LLMDriver:
             return {**_text_range(chunk.data, options['offset'], chunk.total_bytes, encoding),
                     'revision': chunk.revision, 'source': chunk.source}
         if name == 'data_query':
-            query = _decode(arguments['query'])
+            query = arguments['query']
             try:
                 query = Query(**query)
             except (TypeError, ValueError) as error:
@@ -441,17 +445,25 @@ class LLMDriver:
                         'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
                 if self.shell_factory is not None:
                     shell = await invoke_maybe_async(self.shell_factory, session, ledger)
-            turns = empty = parallel_errors = repeated_read_streak = empty_retry_attempt = 0
-            while self.policy.max_turns is None or turns < self.policy.max_turns:
-                turns += 1
+            from pydantic_ai import Agent, Tool, ModelRequestNode
+            from pydantic_ai.messages import ModelRequest, UserPromptPart, ToolReturnPart
+            from .models import ThreadModel
+            from pydantic_ai.usage import UsageLimits
+            from pydantic_ai.exceptions import UsageLimitExceeded, UnexpectedModelBehavior
+            from .model_messages import history, display_response
+
+            empty = parallel_errors = repeated_read_streak = empty_retry_attempt = 0
+            pending_calls = {}
+            incomplete = None
+
+            async def request_model(messages):
+                nonlocal empty_retry_attempt, incomplete
                 session.scope.check_active()
                 turn_options = dict(options)
-                prior_read_streak = repeated_read_streak
-                repeated_read_streak = 0
                 adjustments = (
                     (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
                      'provider_empty_response_retry', 'attempt'),
-                    (prior_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+                    (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
                      'provider_repeated_read_diversification', 'streak'),
                 )
                 for count, delta, maximum, event, counter in adjustments:
@@ -463,129 +475,147 @@ class LLMDriver:
                         self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
                             'temperature_after': after, 'retry_scope': 'agent_activation'})
                 empty_retry_attempt = 0
-                ledger.turn_repeated_read = False
-                ledger.turn_progress = False
-                try:
-                    with _timed(timings,'model_s'):
-                        response = await provider.request(thread_id, turn_options)
-                except ProviderFailure as error:
-                    reason = error.reason
-                    break
+                with _timed(timings, 'model_s'):
+                    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
                 session.scope.check_active()
-                finish = response.get('finish_reason')
-                if finish == 'length':
-                    reason = 'output_token_limit'
-                    break
-                message = {key: value for key, value in response.items() if key in ('role', 'content', 'tool_calls', 'reasoning_content')}
-                message.setdefault('role', 'assistant')
-                message_seq=self.threads.append_message(thread_id, message)
-                if self.policy.reasoning_stages and isinstance(message.get('content'),str):
-                    reasoning.append({'message_seq':message_seq,'segments':_stage_segments(message['content'],self.policy.reasoning_stages)})
-                calls = response.get('tool_calls') or []
-                content = response.get('content') or ''
-                if self.policy.direct_json:
+                if self.policy.reasoning_stages:
+                    content = display_response(response)['content']
+                    if content: reasoning.append({'message_seq': sequence, 'segments': _stage_segments(content, self.policy.reasoning_stages)})
+                return response
+
+            async def execute(ctx, **arguments):
+                nonlocal structured
+                session.scope.check_active()
+                identifier, name = ctx.tool_call_id, ctx.tool_name
+                item = pending_calls[identifier]
+                receipt = self.threads.get_tool_result(thread_id, identifier)
+                ledger.effects = []
+                if receipt is not None:
+                    if receipt['call'] != item: raise ValueError('one tool call id has conflicting payloads')
+                    ledger.replay(identifier, receipt['metadata'])
+                    if receipt['metadata'].get('structured') is not None: structured = receipt['metadata']['structured']
+                    feedback = receipt['content']
+                    self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
+                    return feedback
+                if structured is not None or (ledger.terminal and ledger.requirements_met()):
+                    feedback = _json({'status': 'not_executed', 'reason': 'activation_completed'})
+                elif errors := list(schemas[name].iter_errors(arguments)):
+                    feedback = _json({'error': 'invalid_tool_arguments', 'details': [
+                        {'path': list(error.absolute_path), 'message': error.message,
+                         'validator': error.validator, 'expected': error.validator_value} for error in errors]})
+                elif name == 'submit_result':
+                    structured = arguments
+                    feedback = _json({'status': 'completed', 'result': arguments})
+                else:
+                    ledger.call_id, ledger.shell_call = identifier, name == 'bash'
                     try:
-                        candidate = json.loads(content)
-                        validator_for(self.policy.result_schema)(self.policy.result_schema).validate(candidate)
-                    except Exception:
-                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'Return a result matching the supplied JSON schema.'})
-                        continue
-                    structured, status, reason = candidate, 'completed', 'structured_result'
-                    break
-                if not calls:
-                    if not content.strip():
-                        empty += 1
-                        if empty > self.policy.empty_retries:
-                            reason = 'empty_response'
-                            break
-                        empty_retry_attempt = empty
-                        self.threads.append_message(thread_id, {'role': 'user', 'content': 'The response was empty. Continue the current decision.'})
-                        continue
-                    if not ledger.requirements_met() or self.policy.result_schema is not None:
-                        self.threads.append_message(thread_id, {'role': 'user', 'content': _json({
-                            'required_names': self.policy.required_names, 'required_tags': self.policy.required_tags,
-                            'completed': sorted(ledger.completed), 'submit_result_required': self.policy.result_schema is not None})})
-                        continue
-                    status, reason = 'completed', 'natural_completion'
-                    break
-                unique, seen = [], {}
-                for item in calls:
-                    identifier = item['id']
-                    if identifier in seen and seen[identifier] != item:
-                        raise ValueError('one tool call id has conflicting payloads')
-                    if identifier not in seen:
-                        unique.append(item)
-                        seen[identifier] = item
-                parsed = []
-                for item in unique:
-                    function = item['function']
-                    try:
-                        arguments = json.loads(function['arguments'])
-                        valid = function['name'] in schemas and schemas[function['name']].is_valid(arguments)
-                    except (ValueError, TypeError):
-                        arguments, valid = None, False
-                    parsed.append((item, arguments, valid))
-                if not self.policy.parallel_tool_calls and len(unique) > 1:
-                    parallel_errors += 1
-                    if parallel_errors > 1 or not all(valid for _, _, valid in parsed):
-                        reason = 'parallel_tool_contract'
-                        break
-                    for item, _, _ in parsed:
-                        self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': item['id'],
-                            'content': 'parallel_tool_calls is false; submit exactly one tool call.'})
-                    continue
-                receipts = {item['id']: self.threads.get_tool_result(thread_id, item['id']) for item in unique}
-                try:
-                    ledger.preflight(arguments['name'] for item, arguments, valid in parsed
-                                     if valid and item['function']['name'] == 'action_invoke' and receipts[item['id']] is None)
-                    for position, (item, arguments, valid) in enumerate(parsed):
-                        identifier, name = item['id'], item['function']['name']
-                        ledger.effects = []
-                        if receipts[identifier] is not None:
-                            previous, feedback = receipts[identifier]['call'], receipts[identifier]['content']
-                            if previous != item:
-                                raise ValueError('one tool call id has conflicting payloads')
-                            metadata = receipts[identifier]['metadata']
-                            ledger.replay(identifier, metadata)
-                            if metadata.get('structured') is not None:
-                                structured = metadata['structured']
-                        elif not valid:
-                            feedback = _json({'error': 'invalid_tool_arguments'})
-                        else:
-                            ledger.call_id, ledger.shell_call = identifier, name == 'bash'
-                            if name == 'submit_result':
-                                structured = arguments
-                                feedback = _json({'status': 'completed', 'result': arguments})
-                            else:
+                        with _timed(timings, 'tools_s'):
+                            feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                    except _ToolInputError as error:
+                        feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
+                self.threads.save_tool_result(thread_id, item, feedback,
+                    metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                ledger.applied_receipts.add(identifier)
+                return feedback
+
+            def feedback_node(content):
+                nonlocal repeated_read_streak
+                repeated_read_streak = 0
+                self.threads.append_message(thread_id, {'role': 'user', 'content': content})
+                return ModelRequestNode(ModelRequest(parts=[UserPromptPart(content)]))
+
+            agent_tools = [Tool.from_schema(execute, item['function']['name'], item['function']['description'],
+                            item['function']['parameters'], takes_ctx=True, sequential=True) for item in tools]
+            # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
+            agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
+            try:
+                # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
+                initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
+                if not initial:
+                    self.threads.append_message(thread_id, {'role': 'user', 'content': ''})
+                    initial = [ModelRequest(parts=[UserPromptPart('')])]
+                async with agent.iter(message_history=initial, conversation_id=thread_id,
+                                      usage_limits=UsageLimits(request_limit=self.policy.max_turns)) as run:
+                    del initial
+                    node = ModelRequestNode(ModelRequest(parts=[]))
+                    while not Agent.is_end_node(node):
+                        if Agent.is_call_tools_node(node):
+                            if incomplete:
+                                reason = incomplete
+                                break
+                            response = display_response(node.model_response)
+                            calls, content = response.get('tool_calls', []), response.get('content', '')
+                            pending_calls = {item['id']: item for item in calls}
+                            if self.policy.direct_json:
                                 try:
-                                    with _timed(timings,'tools_s'):
-                                        feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
-                                except _ToolInputError as error:
-                                    feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
-                        if receipts[identifier] is None:
-                            self.threads.save_tool_result(thread_id, item, feedback,
-                                metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
-                            ledger.applied_receipts.add(identifier)
-                        else:
-                            self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
-                        if structured is not None or ledger.terminal:
-                            for remaining, _, _ in parsed[position + 1:]:
-                                prior = receipts.get(remaining['id'])
-                                skipped = prior['content'] if prior else _json({'status': 'not_executed', 'reason': 'activation_completed'})
-                                self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': remaining['id'], 'content': skipped})
-                            break
-                except _BudgetReached as error:
-                    reason = str(error)
-                    break
-                repeated_read_streak = prior_read_streak + 1 if ledger.turn_repeated_read else 0
-                if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
-                    status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
-                    break
-                if self.policy.max_action_calls is not None and ledger.used >= self.policy.max_action_calls and ledger.used:
-                    reason = 'action_budget_exhausted'
-                    break
-            else:
-                reason = 'max_turns'
+                                    candidate = json.loads(content)
+                                    validator_for(self.policy.result_schema)(self.policy.result_schema).validate(candidate)
+                                except Exception:
+                                    node = feedback_node('Return a result matching the supplied JSON schema.')
+                                    continue
+                                structured, status, reason = candidate, 'completed', 'structured_result'
+                                break
+                            if not calls:
+                                if not content.strip():
+                                    empty += 1
+                                    if empty > self.policy.empty_retries:
+                                        reason = 'empty_response'
+                                        break
+                                    empty_retry_attempt = empty
+                                    node = feedback_node('The response was empty. Continue the current decision.')
+                                    continue
+                                if not ledger.requirements_met() or self.policy.result_schema is not None:
+                                    node = feedback_node(_json({'required_names': self.policy.required_names,
+                                        'required_tags': self.policy.required_tags, 'completed': sorted(ledger.completed),
+                                        'submit_result_required': self.policy.result_schema is not None}))
+                                    continue
+                            else:
+                                parsed = []
+                                for item in calls:
+                                    function = item['function']
+                                    try:
+                                        arguments = json.loads(function['arguments'])
+                                        valid = function['name'] in schemas and schemas[function['name']].is_valid(arguments)
+                                    except (ValueError, TypeError): arguments, valid = None, False
+                                    parsed.append((item, arguments, valid))
+                                if not self.policy.parallel_tool_calls and len(calls) > 1:
+                                    parallel_errors += 1
+                                    if parallel_errors > 1 or not all(valid for _, _, valid in parsed):
+                                        reason = 'parallel_tool_contract'
+                                        break
+                                    parts = []
+                                    for item in calls:
+                                        feedback = 'parallel_tool_calls is false; submit exactly one tool call.'
+                                        self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': item['id'], 'content': feedback})
+                                        parts.append(ToolReturnPart(item['function']['name'], feedback, item['id']))
+                                    repeated_read_streak = 0
+                                    node = ModelRequestNode(ModelRequest(parts=parts))
+                                    continue
+                                ledger.preflight(arguments['name'] for item, arguments, valid in parsed
+                                    if valid and item['function']['name'] == 'action_invoke'
+                                    and self.threads.get_tool_result(thread_id, item['id']) is None)
+                                ledger.turn_repeated_read = ledger.turn_progress = False
+                        executing_tools = Agent.is_call_tools_node(node)
+                        node = await run.next(node)
+                        if executing_tools and Agent.is_model_request_node(node):
+                            repeated_read_streak = repeated_read_streak + 1 if ledger.turn_repeated_read else 0
+                            if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
+                                status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
+                                break
+                            if self.policy.max_action_calls is not None and ledger.used >= self.policy.max_action_calls and ledger.used:
+                                reason = 'action_budget_exhausted'
+                                break
+                    else:
+                        status, reason = 'completed', 'natural_completion'
+            except ProviderFailure as error: reason = error.reason
+            except _BudgetReached as error: reason = str(error)
+            except UsageLimitExceeded: reason = 'max_turns'
+            except UnexpectedModelBehavior as error:
+                reason = 'model_protocol_error'
+                self.threads.event(thread_id, reason, {'error': str(error)})
+            finally:
+                # 记忆阶段会重新读取完整 Thread；进入前释放 Agent 的激活历史。
+                run = node = initial = None
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
                                  'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings,
                                  'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)

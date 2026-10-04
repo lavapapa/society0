@@ -1,4 +1,5 @@
 """认知输入持久游标与完整内容消费者。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import json
 from types import SimpleNamespace
 import pytest
@@ -34,7 +35,7 @@ async def test_cognition_phase_return_and_restore_only_add_new_fov_and_keep_all_
     def make(store):
         threads=ThreadStore(store); provider=Provider(threads)
         builder=CognitiveInput(threads,perception,environment='完整环境说明',precision={'detail':'full'},reminders=lambda s:'完整提醒')
-        return threads,provider,LLMDriver(provider,threads,input_builder=builder)
+        return threads,provider,LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=builder)
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads,provider,driver=make(store)
         await driver.run(session(driver,'A'))
@@ -61,7 +62,7 @@ async def test_cognition_phase_return_and_restore_only_add_new_fov_and_keep_all_
 async def test_input_batch_failure_keeps_cursor_and_messages_atomic(tmp_path):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store); provider=Provider(threads)
-        driver=LLMDriver(provider,threads,input_builder=lambda s:InputBatch([{'role':'user','content':'valid'},{'role':'user','content':object()}],'fov',1))
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=lambda s:InputBatch([{'role':'user','content':'valid'},{'role':'user','content':object()}],'fov',1))
         current=session(driver)
         with pytest.raises(TypeError):await driver.run(current)
         tid=current.cursors['thread_id']
@@ -75,13 +76,14 @@ async def test_cognition_cursor_survives_fresh_process(tmp_path):
     async def perception(current,position):return ([{'role':'user','content':'original full view'}],7)
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store)
-        driver=LLMDriver(Provider(threads),threads,input_builder=CognitiveInput(threads,perception))
+        driver=LLMDriver(TypedScriptProvider(Provider(threads), threads),threads,input_builder=CognitiveInput(threads,perception))
         await driver.run(session(driver))
         store.complete(1)
     script='''
 import asyncio,sys
 from pathlib import Path
 from tests.primary.test_kernel_cognition import Provider,session
+from tests.primary.scripted_provider import TypedScriptProvider
 from society0.kernel.cognition import CognitiveInput
 from society0.kernel.llm import LLMDriver
 from society0.kernel.threads import ThreadStore
@@ -92,7 +94,7 @@ async def main():
         return ([{'role':'user','content':'new after restart'}],8)
     with StageStore.restore(Path(sys.argv[1]),Path(sys.argv[2])) as store:
         threads=ThreadStore(store); provider=Provider(threads)
-        driver=LLMDriver(provider,threads,input_builder=CognitiveInput(threads,perception))
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=CognitiveInput(threads,perception))
         await driver.run(session(driver))
         texts=[m['content'] for m in provider.inputs[0]]
         assert texts.count('original full view')==1 and texts.count('new after restart')==1
@@ -119,7 +121,7 @@ async def test_default_cognition_and_actual_memory_keep_system_first_and_measure
         job=memory.prepare_job('a',None,'seed',timestamp=0,entries=[{'content':'此前完整记忆'}])
         await memory.finish_job(job)
         async def perception(current,position):return ([{'role':'user','content':'完整经营视图'}],1)
-        driver=LLMDriver(provider,threads,input_builder=CognitiveInput(threads,perception),memory=memory,policy=LLMPolicy(mode=mode))
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=CognitiveInput(threads,perception),memory=memory,policy=LLMPolicy(mode=mode))
         result=await driver.run(session(driver))
         assert result.status=='completed'
         decision_input=provider.requests[0][2]

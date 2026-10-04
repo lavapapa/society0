@@ -47,8 +47,8 @@ async def test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorizatio
         assert rows.items[0]['kind']=='directory'
         fs=InformationFiles(info.bound(scope),scope)
         try:
-            assert (await fs.callback('list','/data'))[0][1]=='directory'
-            assert (await fs.callback('list','/data/items'))[0][1]=='file'
+            assert dict((name,kind) for name,kind,*_ in await fs.callback('list','/data'))['items']=='directory'
+            assert dict((name,kind) for name,kind,*_ in await fs.callback('list','/data/items'))['1']=='file'
         finally:await fs.close()
         with Observation(store.path,information_factory=factory) as observer:
             observed=await observer.query(actor='a',moment={'time':1,'phase':'read'},path='/data/items')

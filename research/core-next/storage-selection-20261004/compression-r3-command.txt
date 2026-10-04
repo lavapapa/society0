@@ -1,0 +1,139 @@
+{
+  "environment": {
+    "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "cpu_count": 12,
+    "versions": {
+      "pyzstd": "0.19.1",
+      "backports-zstd": "1.7.0",
+      "zstandard": "0.25.0",
+      "apsw": "3.53.4.0",
+      "python-rapidjson": "1.25"
+    }
+  },
+  "results": [
+    {
+      "mode": "sqlite64",
+      "write_wall_s": 0.05675045901443809,
+      "write_cpu_s": 0.047689999999999996,
+      "write_peak_bytes": 32964608,
+      "disk_bytes": 13783040,
+      "range_queries": 502,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.029909208009485155,
+      "range_cpu_s": 0.029850000000000015,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": null
+    },
+    {
+      "mode": "seek64_0",
+      "write_wall_s": 0.041090000013355166,
+      "write_cpu_s": 0.035547999999999996,
+      "write_peak_bytes": 31457280,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00011416699271649122,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.03635408397531137,
+      "range_cpu_s": 0.030888,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek64_4",
+      "write_wall_s": 0.06658504204824567,
+      "write_cpu_s": 0.047933,
+      "write_peak_bytes": 31162368,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00010583398398011923,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.03337016701698303,
+      "range_cpu_s": 0.031004000000000004,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek1m_0",
+      "write_wall_s": 0.04501804197207093,
+      "write_cpu_s": 0.03731,
+      "write_peak_bytes": 32620544,
+      "disk_bytes": 13416210,
+      "range_queries": 502,
+      "reader_open_s": 4.93330298922956e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.23394470795756206,
+      "range_cpu_s": 0.22531700000000002,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "seek1m_4",
+      "write_wall_s": 0.04295545903733,
+      "write_cpu_s": 0.038998,
+      "write_peak_bytes": 36421632,
+      "disk_bytes": 13416153,
+      "range_queries": 502,
+      "reader_open_s": 6.17500045336783e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.23191491700708866,
+      "range_cpu_s": 0.228302,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "stream4",
+      "write_wall_s": 0.029688292008358985,
+      "write_cpu_s": 0.043558000000000006,
+      "write_peak_bytes": 67207168,
+      "disk_bytes": 13411484,
+      "range_queries": 0,
+      "full_bytes_equal": true
+    },
+    {
+      "mode": "zlib_pool",
+      "write_wall_s": 0.22186666703782976,
+      "write_cpu_s": 0.821801,
+      "write_peak_bytes": 78594048,
+      "disk_bytes": 32341980,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "zstd_serial64",
+      "write_wall_s": 0.1423794580041431,
+      "write_cpu_s": 0.11499999999999999,
+      "write_peak_bytes": 74579968,
+      "disk_bytes": 31489972,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "native_serial64",
+      "write_wall_s": 0.0977607499808073,
+      "write_cpu_s": 0.07248300000000002,
+      "write_peak_bytes": 74268672,
+      "disk_bytes": 31489972,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "seek1m4_event",
+      "write_wall_s": 0.10617674997774884,
+      "write_cpu_s": 0.080107,
+      "write_peak_bytes": 81477632,
+      "disk_bytes": 31466112,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    }
+  ],
+  "raw_bytes": 20791529
+}

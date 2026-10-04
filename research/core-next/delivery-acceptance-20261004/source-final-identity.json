@@ -1,0 +1,25 @@
+{
+  "source_kind": "frozen_worktree_archive",
+  "head": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "branch": "codex/society0-core-next",
+  "archive": "source-final.tar.gz",
+  "contains_uncommitted_changes": true,
+  "selected": [
+    "src",
+    "tests",
+    "examples",
+    "benchmarks",
+    "docs",
+    "skill",
+    "native",
+    "tools",
+    "README.md",
+    "PROJECT.md",
+    "AGENTS.md",
+    "pyproject.toml",
+    "uv.lock",
+    "pytest.ini",
+    "LICENSE"
+  ],
+  "includes": "Agent.iter empty protocol frame and jsonschema detail repair, all independent fixture migrations"
+}

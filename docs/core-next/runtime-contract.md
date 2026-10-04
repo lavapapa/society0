@@ -57,7 +57,7 @@ Driver、准备函数或阶段运行异常会停止该阶段，取消并等待�
 
 PluginHost 退出时先在 quiesce 阶段关闭并排空 Runtime，随后逆序释放普通插件资源。外部正在运行的步骤会被取消并等待结束，再释放依赖服务。一个 Runtime 实例由一个调用者拥有运行生命周期，同时执行第二个步骤会被拒绝。使用者须让后台工作在 Driver 的取消清理中结束，避免脱离作用域继续修改事实。
 
-作者证据在 `tests/primary/test_kernel_runtime.py`，首轮模块缺失红灯与整步骤预算红灯分别保留在 `research/core-next/runtime-red.txt`、`runtime-step-budget-red.txt`，绿灯记录在 `runtime-green.txt`。测试覆盖 PluginHost 两机制组合、顺序 live 行动、独立命名空间并发、同主体互斥与信号合并、共享准备引用、并发补位、同 Moment 游标、网络等待、取消清理、激活限制、开放等待与发布失败。本合同针对局部调度及其真实消费者，完整仿真恢复和 LLM 决策链仍需后续端到端验收。
+作者证据在 `tests/primary/test_kernel_runtime.py`，首轮模块缺失红灯与整步骤预算红灯分别保留在 `research/core-next/runtime-red.txt`、`runtime-step-budget-red.txt`，绿灯记录在 `runtime-green.txt`。测试覆盖 PluginHost 两机制组合、顺序 live 行动、独立命名空间并发、同主体互斥与信号合并、共享准备引用、并发补位、同 Moment 游标、网络等待、取消清理、激活限制、开放等待与发布失败。本合同说明局部调度及其消费者；完整仿真恢复和 LLM 决策链的实际验收范围见 [验收清单](TODO.md)。
 
 ## 五、收集与按需加载
 

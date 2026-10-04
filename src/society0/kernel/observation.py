@@ -6,7 +6,7 @@ from dataclasses import fields,is_dataclass
 import json
 from pathlib import Path
 
-from .storage import StageReader
+from .storage import StageReader, _manifest
 from .threads import ThreadStore, _head, _load
 
 
@@ -45,9 +45,7 @@ class Observation:
         self.path = Path(path).absolute()
         self.reader = StageReader(self.path)
         self.information_factory = information_factory
-        self.manifest = json.loads((self.path / 'run.json').read_text())
-        if self.manifest['format'] != 2:
-            raise ValueError('unsupported storage format')
+        self.manifest = _manifest(self.path)
 
     def __enter__(self):
         self.reader.__enter__()
@@ -312,8 +310,7 @@ class Observation:
         return self.reader.read(read)
 
     def read_resource_payload(self,reference,*,offset=0,size=65536,max_bytes=131072):
-        import zlib
-        from ._json_chunks import CHUNK_BYTES
+        from ._json_chunks import CHUNK_BYTES, decode_chunk
         _positive(offset,'offset',0)
         _positive(size,'size')
         _positive(reference['seq'],'sequence')
@@ -326,7 +323,7 @@ class Observation:
             total=rows[0][0];end=min(total,offset+min(size,(max_bytes-512)//4*3));raw=bytearray()
             if offset<end:
                 for start,body in view.iter_query('SELECT raw_start,payload FROM resource_chunks WHERE call_id=? AND seq=? AND chunk>=? AND chunk<=? ORDER BY chunk',(*args,offset//CHUNK_BYTES,(end-1)//CHUNK_BYTES)):
-                    value=zlib.decompress(body)
+                    value=decode_chunk(body)
                     raw.extend(value[max(0,offset-start):min(len(value),end-start)])
             result={'encoding':'base64','data':base64.b64encode(raw).decode(),'offset':offset,'total_bytes':total,'next_offset':end if end<total else None}
             if len(encoded(result))>max_bytes:raise ObservationError('response_budget_exceeded')
@@ -508,99 +505,122 @@ class ObservationService:
             return read(self._ready[0])
 
 
-def make_server(service, *, host='127.0.0.1', port=0, capacity=4, timeout=5,
-                max_request_bytes=1048576, max_response_bytes=16777216):
-    """标准库有界工作槽；慢客户端有读写超时，服务不持有运行写者。"""
-    import threading
-    from http.server import BaseHTTPRequestHandler, HTTPServer
-    from socketserver import ThreadingMixIn
+def make_app(service, *, capacity=4, timeout=5, max_request_bytes=1048576, max_response_bytes=16777216):
+    """ASGI传输；每次同步查询在同一worker内创建并关闭只读连接。"""
+    import asyncio
+    from contextlib import asynccontextmanager
+    try:
+        from starlette.applications import Starlette
+        from starlette.concurrency import run_in_threadpool
+        from starlette.requests import ClientDisconnect
+        from starlette.responses import Response
+        from starlette.routing import Route
+    except ImportError as error:
+        raise RuntimeError('HTTP observation requires society0[observe]') from error
     import apsw
     from .storage import StorageError
     _positive(capacity, 'capacity')
-    _positive(max_request_bytes,'request budget')
-    _positive(max_response_bytes,'response budget',1024)
+    slots = asyncio.Semaphore(capacity)
+    accepting = True
+    _positive(max_request_bytes, 'request budget')
+    _positive(max_response_bytes, 'response budget', 1024)
     if timeout <= 0:
-        raise ValueError('invalid socket timeout')
+        raise ValueError('invalid request timeout')
 
-    class Handler(BaseHTTPRequestHandler):
-        def setup(self):
-            super().setup()
-            self.connection.settimeout(timeout)
+    def execute(request):
+        if not isinstance(request, dict) or not isinstance(request.get('method'), str):
+            raise ObservationError('invalid_request')
+        params = request.get('params', {})
+        if not isinstance(params, dict):
+            raise ObservationError('invalid_params')
+        if 'max_bytes' in params and (type(params['max_bytes']) is not int or params['max_bytes'] > max_response_bytes):
+            raise ObservationError('response_budget_exceeded')
+        payload = encoded(service.call(request['method'], params))
+        if len(payload) > max_response_bytes:
+            raise ObservationError('response_budget_exceeded')
+        return payload
 
-        def do_POST(self):
+    async def endpoint(request):
+        try:
+            body = bytearray()
+            async with asyncio.timeout(timeout):
+                async for chunk in request.stream():
+                    if len(body) + len(chunk) > max_request_bytes:
+                        raise ObservationError('invalid_request_size')
+                    body.extend(chunk)
+            worker = asyncio.create_task(run_in_threadpool(execute, json.loads(body)))
             try:
-                length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= max_request_bytes:
-                    raise ValueError('invalid_request_size')
-                request = json.loads(self.rfile.read(length))
-                if not isinstance(request, dict) or not isinstance(request.get('method'), str):
-                    raise ValueError('invalid_request')
-                params = request.get('params', {})
-                if not isinstance(params, dict):
-                    raise ValueError('invalid_params')
-                if 'max_bytes' in params and (type(params['max_bytes']) is not int or params['max_bytes']>max_response_bytes):
-                    raise ObservationError('response_budget_exceeded')
-                payload = encoded(service.call(request['method'], params))
-                if len(payload) > max_response_bytes:
-                    raise ObservationError('response_budget_exceeded')
-                code = 200
-            except (ValueError, TypeError, KeyError, LookupError, OSError, StorageError, apsw.Error) as error:
-                payload = encoded({'error': {'code': getattr(error,'code',type(error).__name__), 'message': str(error)}})
-                code = 400
-            try:
-                self.send_response(code)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.send_header('Content-Length', str(len(payload)))
-                self.end_headers()
-                self.wfile.write(payload)
-            except OSError:
-                pass
-
-        def log_message(self, *args):
-            pass
-
-    class Server(ThreadingMixIn, HTTPServer):
-        daemon_threads = False
-        block_on_close = True
-
-        def __init__(self):
-            self._slots = threading.BoundedSemaphore(capacity)
-            self._counter_lock = threading.Lock()
-            self.active_requests = 0
-            super().__init__((host, port), Handler)
-
-        def process_request(self, request, address):
-            if not self._slots.acquire(blocking=False):
+                await asyncio.wait((worker,))
+            except asyncio.CancelledError as cancelled:
+                async def drain():
+                    try: await asyncio.wait((worker,))
+                    except asyncio.CancelledError: await asyncio.wait((worker,))
                 try:
-                    request.settimeout(.1)
-                    payload = b'{"error":{"code":"server_busy"}}'
-                    request.sendall(b'HTTP/1.0 503 Service Unavailable\r\nContent-Type: application/json\r\nContent-Length: '
-                                    + str(len(payload)).encode() + b'\r\n\r\n' + payload)
-                except OSError:
-                    pass
+                    async with asyncio.TaskGroup() as group: group.create_task(drain())
                 finally:
-                    self.shutdown_request(request)
-                return
-            with self._counter_lock:
-                self.active_requests += 1
-            try:
-                super().process_request(request, address)
-            except BaseException:
-                self._release()
+                    # 重复取消可在任务组退出时传播；原生失败仍须取回并保留。
+                    worker_error = worker.exception()
+                    if worker_error is not None: raise cancelled from worker_error
                 raise
+            payload = worker.result()
+            code = 200
+        except TimeoutError:
+            payload = encoded({'error': {'code': 'request_timeout'}})
+            code = 408
+        except ClientDisconnect:
+            payload = encoded({'error': {'code': 'client_disconnected'}})
+            code = 400
+        except (ValueError, TypeError, KeyError, LookupError, OSError, StorageError, apsw.Error) as error:
+            payload = encoded({'error': {'code': getattr(error, 'code', type(error).__name__), 'message': str(error)}})
+            code = 400
+        return Response(payload, status_code=code, media_type='application/json')
 
-        def _release(self):
-            with self._counter_lock:
-                self.active_requests -= 1
-            self._slots.release()
+    @asynccontextmanager
+    async def lifespan(app):
+        nonlocal accepting
+        try:
+            yield
+        finally:
+            accepting = False
+            from contextlib import AsyncExitStack
+            async with AsyncExitStack() as drained:
+                for _ in range(capacity): await drained.enter_async_context(slots)
+                await run_in_threadpool(service.close)
 
-        def process_request_thread(self, request, address):
-            try:
-                super().process_request_thread(request, address)
-            finally:
-                self._release()
+    application = Starlette(routes=[Route('/', endpoint, methods=['POST'])], lifespan=lifespan)
 
-    return Server()
+    async def app(scope, receive, send):
+        if scope['type'] != 'http':
+            return await application(scope, receive, send)
+        async def bounded_send(message):
+            # Uvicorn提供发送流控；此期限限制暂停读取的单个消费者。
+            async with asyncio.timeout(timeout):
+                await send(message)
+        if not accepting or slots.locked():
+            response = Response(encoded({'error': {'code': 'server_busy'}}),
+                                status_code=503, media_type='application/json')
+            return await response(scope, receive, bounded_send)
+        # 单事件循环内检查与取得许可之间无挂起；不创建等待请求队列。
+        async with slots:
+            await application(scope, receive, bounded_send)
+
+    return app
+
+
+def make_server(service, *, host='127.0.0.1', port=0, capacity=4, timeout=5,
+                max_request_bytes=1048576, max_response_bytes=16777216, connection_limit=None):
+    """返回Uvicorn Server；同步调用run，已有事件循环调用await serve。"""
+    try:
+        import uvicorn
+    except ImportError as error:
+        raise RuntimeError('HTTP observation requires society0[observe]') from error
+    _positive(capacity, 'capacity')
+    if connection_limit is not None:
+        _positive(connection_limit, 'connection limit', 2)
+    app = make_app(service, capacity=capacity, timeout=timeout, max_request_bytes=max_request_bytes,
+                   max_response_bytes=max_response_bytes)
+    return uvicorn.Server(uvicorn.Config(app, host=host, port=port, limit_concurrency=connection_limit,
+        timeout_keep_alive=timeout, timeout_graceful_shutdown=timeout, access_log=False))
 
 
 def main(argv=None):
@@ -612,7 +632,8 @@ def main(argv=None):
     parser.add_argument('run')
     parser.add_argument('--request', help='JSON object with method and params')
     parser.add_argument('--serve', type=int)
-    parser.add_argument('--capacity', type=int, default=4)
+    parser.add_argument('--capacity', type=int, default=4, help='同时处理的请求上限')
+    parser.add_argument('--connection-limit', type=int, help='可选Uvicorn连接/任务上限，至少2；包含空闲连接')
     parser.add_argument('--timeout', type=float, default=5)
     parser.add_argument('--cache-dir')
     parser.add_argument('--complete-step',type=int,help='Prepare this complete step, execute one read, then remove the temporary view')
@@ -628,13 +649,9 @@ def main(argv=None):
             if args.serve is not None:
                 if args.complete_step is not None:
                     raise ObservationError('invalid_params','Use prepare_complete requests with --serve.')
-                server = make_server(service, port=args.serve, capacity=args.capacity, timeout=args.timeout)
-                try:
-                    server.serve_forever()
-                except KeyboardInterrupt:
-                    pass
-                finally:
-                    server.server_close()
+                server = make_server(service, port=args.serve, capacity=args.capacity, timeout=args.timeout,
+                                     connection_limit=args.connection_limit)
+                server.run()
             else:
                 request = json.loads(args.request) if args.request else {'method': 'status'}
                 if not isinstance(request,dict):raise ObservationError('invalid_request')

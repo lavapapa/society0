@@ -407,3 +407,35 @@ async def test_automatic_recall_top_k_controls_candidates_and_complete_context(t
         messages=await memory.before_activation(SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(1,'decision')),thread)
         assert requested==[4]
         assert json.loads(messages[0]['content'])=={'recalled_memories':['x','yy']}
+
+
+@pytest.mark.asyncio
+async def test_registered_memory_recall_action_preserves_actor_original_and_thread_scope(tmp_path):
+    from types import SimpleNamespace
+    from society0.kernel.interaction import Actions,InteractionScope,Moment,Ref
+    store,threads,_,memory,embed,client=setup(tmp_path,policy=MemoryPolicy(False,False,True))
+    with store:
+        moment=Moment(1,'decision');thread=threads.open('a',moment,'decision')
+        original='采购三吨原料，每吨2000元。完整原文🙂'*1000
+        await memory.finish_job(memory.prepare_job('a',thread,'a',timestamp=0,entries=[{'content':original}]))
+        await memory.finish_job(memory.prepare_job('b',threads.open('b',moment,'decision'),'b',timestamp=0,entries=[{'content':'其他主体私有原文'}]))
+        recalls=[];native_recall=memory.recall
+        async def scoped_recall(*args,**kwargs):recalls.append((args,dict(kwargs)));return await native_recall(*args,**kwargs)
+        memory.recall=scoped_recall
+        calls=[];native_embed=memory.embed
+        async def recorded(texts,*,metadata):calls.append(dict(metadata));return await native_embed(texts,metadata=metadata)
+        memory.embed=recorded
+        actions=Actions(lambda *args:True)
+        for action in memory.actions():actions.register(action)
+        scope=InteractionScope('a',moment)
+        current=SimpleNamespace(actor=SimpleNamespace(id='a'),scope=scope,step=1)
+        async with memory.activation(current,thread):
+            result=await actions.bound(scope).invoke('memory.recall',Ref('memory','actor','a'),{'query':'采购原料','top_k':10})
+            assert result.status=='completed'
+            assert [item['content'] for item in result.value['memories']]==[original]
+            assert memory.get(result.value['memories'][0]['id'],actor='a')['content']==original
+            denied=await actions.bound(scope).invoke('memory.recall',Ref('memory','actor','b'),{'query':'其他主体'})
+            assert denied.status=='rejected' and denied.value=={'reason':'unavailable'}
+        assert calls==[{'actor':'a','thread_id':thread,'purpose':'memory_recall'}]
+        assert recalls==[(('a','采购原料'),{'top_k':10,'current_step':1,'thread_id':thread})]
+        await memory.close()

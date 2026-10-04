@@ -33,7 +33,7 @@ Start with:
 - environment: `plain` for first surveys; `round_robin_conversation` for structured pairings or discussion.
 - agents: LLM participants with clear persona and visible state; rule moderator if protocol must be deterministic.
 - FoVs: stimulus, partner message, prior round summary, local conversation context.
-- actions: use `interview(...)` for measurement; use `instruct(...)` with typed env actions when agents speak, critique, rank, vote, revise, or submit a group statement.
+- actions: use `LLMPolicy(mode="interview")` for measurement; use `LLMPolicy(mode="decision")` with typed env actions when agents speak, critique, rank, vote, revise, or submit a group statement.
 - measures: structured survey outputs plus qualitative explanations; for deliberation also record messages, critiques, ballots, rankings, and final statements.
 
 MVP: one stimulus, two or three participant types, one interview schema, repeated runs. For LLM respondents, survey experiments, social psychology experiment replication, silicon samples, focus groups, Habermas Machine-style common ground, or deliberation, load `interview-survey-deliberation-simulation-design.md` and include a human benchmark, validity-rate check, or repeated-seed validation plan.

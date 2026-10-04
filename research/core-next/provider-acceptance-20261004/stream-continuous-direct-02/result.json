@@ -1,0 +1,269 @@
+{
+  "chunks": [
+    {
+      "index": 0,
+      "usage": {
+        "completion_tokens": 0,
+        "prompt_tokens": 1574,
+        "total_tokens": 1574,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 846,
+      "finish_reasons": []
+    },
+    {
+      "index": 1,
+      "usage": {
+        "completion_tokens": 8,
+        "prompt_tokens": 1574,
+        "total_tokens": 1582,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 967,
+      "finish_reasons": []
+    },
+    {
+      "index": 2,
+      "usage": {
+        "completion_tokens": 36,
+        "prompt_tokens": 1574,
+        "total_tokens": 1610,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 1003,
+      "finish_reasons": []
+    },
+    {
+      "index": 3,
+      "usage": {
+        "completion_tokens": 45,
+        "prompt_tokens": 1574,
+        "total_tokens": 1619,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 938,
+      "finish_reasons": []
+    },
+    {
+      "index": 4,
+      "usage": {
+        "completion_tokens": 59,
+        "prompt_tokens": 1574,
+        "total_tokens": 1633,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 937,
+      "finish_reasons": []
+    },
+    {
+      "index": 5,
+      "usage": {
+        "completion_tokens": 71,
+        "prompt_tokens": 1574,
+        "total_tokens": 1645,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 939,
+      "finish_reasons": []
+    },
+    {
+      "index": 6,
+      "usage": {
+        "completion_tokens": 77,
+        "prompt_tokens": 1574,
+        "total_tokens": 1651,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 922,
+      "finish_reasons": []
+    },
+    {
+      "index": 7,
+      "usage": {
+        "completion_tokens": 77,
+        "prompt_tokens": 1574,
+        "total_tokens": 1651,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 850,
+      "finish_reasons": [
+        "tool_calls"
+      ]
+    },
+    {
+      "index": 8,
+      "usage": {
+        "completion_tokens": 77,
+        "prompt_tokens": 1574,
+        "total_tokens": 1651,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1574
+      },
+      "sdk_chunk_json_bytes": 687,
+      "finish_reasons": []
+    }
+  ],
+  "latency_s": 39.411904874956235,
+  "usage_reports": 9,
+  "last_usage": {
+    "completion_tokens": 77,
+    "prompt_tokens": 1574,
+    "total_tokens": 1651,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": null,
+      "audio_tokens": null,
+      "reasoning_tokens": 0,
+      "rejected_prediction_tokens": null,
+      "text_tokens": null
+    },
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cache_write_tokens": null,
+      "cached_tokens": 0,
+      "image_tokens": null,
+      "text_tokens": null
+    },
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 1574
+  },
+  "sum_prompt_tokens": 14166,
+  "sum_completion_tokens": 450,
+  "sum_cache_hit_tokens": 0,
+  "continuous_usage_stats": true,
+  "request_json_bytes": 5894,
+  "limits": "One physical SDK streaming call. No tool execution. Chunk bytes are reserialized SDK objects, not network byte counts. No assumption that chunk usage is delta or cumulative."
+}

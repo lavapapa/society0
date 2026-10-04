@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from graphlib import CycleError, TopologicalSorter
 from inspect import isawaitable
 import sys
+import asyncio
 from typing import Any
 
 
@@ -98,6 +99,10 @@ class PluginContext:
         return value
 
 
+class _HostStop(Exception):
+    """让标准任务组发起一次有序关闭。"""
+
+
 class PluginHost:
     """单次、串行安装的异步资源作用域；服务按插件名分区。"""
 
@@ -110,6 +115,7 @@ class PluginHost:
         self._after_step = []
         self._state = "new"
         self._exit_exception = (None, None, None)
+        self._install_error = None
 
     def _order(self) -> tuple[str, ...]:
         graph = {}
@@ -129,9 +135,61 @@ class PluginHost:
     async def __aenter__(self) -> "PluginHost":
         if self._state != "new":
             raise RuntimeError("PluginHost can only be entered once")
+        order = self._order()
         self._state = "installing"
+        self._ready = asyncio.Event()
+        self._stopped = asyncio.Event()
+        self._stop = asyncio.Event()
+        self._error = None
+        self._owner = asyncio.create_task(self._serve(order), name='plugin-host')
         try:
-            order = self._order()
+            await self._ready.wait()
+        except BaseException:
+            self._owner.cancel()
+            await self._wait_closed()
+            raise
+        if self._error is not None:
+            raise self._error
+        return self
+
+    async def _serve(self, order):
+        try:
+            try:
+                async with asyncio.TaskGroup() as group:
+                    group.create_task(self._own_resources(order), name='plugin-resources')
+                    group.create_task(self._stop_owner(), name='plugin-stop')
+                    await asyncio.Future()
+            except* _HostStop:
+                pass
+        except asyncio.CancelledError:
+            pass
+        except BaseExceptionGroup as errors:
+            self._error = errors.exceptions[0] if len(errors.exceptions) == 1 else errors
+        except BaseException as error:
+            self._error = error
+        finally:
+            if self._error is None:
+                self._error = self._install_error
+            self._ready.set()
+            self._stopped.set()
+
+    async def _wait_closed(self):
+        async def finish():
+            try:
+                await self._stopped.wait()
+            except asyncio.CancelledError:
+                await self._stopped.wait()
+        async with asyncio.TaskGroup() as group:
+            group.create_task(finish(), name='plugin-close')
+
+    async def _stop_owner(self):
+        await self._stop.wait()
+        if self._install_error is not None and not isinstance(self._install_error, asyncio.CancelledError):
+            raise self._install_error
+        raise _HostStop()
+
+    async def _own_resources(self, order):
+        try:
             plugins = {plugin.name: plugin for plugin in self._plugins}
             for name in order:
                 plugin = plugins[name]
@@ -144,25 +202,44 @@ class PluginHost:
                 finally:
                     context._installing = False
             self._state = "ready"
-            return self
-        except BaseException:
-            await self.__aexit__(*sys.exc_info())
+            self._ready.set()
+            await asyncio.Future()
+        except asyncio.CancelledError as error:
+            if not self._ready.is_set():
+                self._install_error = error
+                self._exit_exception = sys.exc_info()
+            if not self._stop.is_set() and self._exit_exception == (None, None, None):
+                self._exit_exception = sys.exc_info()
             raise
+        except BaseException as error:
+            self._exit_exception = sys.exc_info()
+            self._install_error = error
+            self._stop.set()
+            # 由stop任务先令整个组进入退出，再收束已安装资源。
+            await asyncio.Future()
+        finally:
+            self._state = "closing"
+            try:
+                try:
+                    await self._quiesce.aclose()
+                finally:
+                    await self._stack.aclose()
+            except asyncio.CancelledError as error:
+                raise RuntimeError('plugin resource cleanup was cancelled') from error
+            finally:
+                self._exit_exception = (None, None, None)
+                self._services.clear()
+                self._before_step.clear()
+                self._after_step.clear()
+                self._state = "closed"
+                self._stop.set()
 
     async def __aexit__(self, exc_type, exc, traceback) -> bool:
-        self._state = "closing"
         self._exit_exception = (exc_type, exc, traceback)
-        try:
-            try:
-                await self._quiesce.aclose()
-            finally:
-                await self._stack.aclose()
-        finally:
-            self._exit_exception = (None, None, None)
-            self._services.clear()
-            self._before_step.clear()
-            self._after_step.clear()
-            self._state = "closed"
+        self._stop.set()
+        await self._wait_closed()
+        if self._error is not None:
+            raise self._error
         return False
 
     def service(self, plugin: str, service: str) -> Any:

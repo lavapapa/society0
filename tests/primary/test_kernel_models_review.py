@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """真实 SDK 适配层的非作者请求身份验收。"""
 import pytest
 import httpx
@@ -25,7 +26,7 @@ async def test_review_retry_evidence_preserves_actual_request_when_thread_advanc
                 raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
             return ChatCompletion(id='r', created=0, model='fake', object='chat.completion',
                 choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'done'}}])
-        provider.manager.clients['test'].chat.completions.create = create
+        await bind_chat(provider, create)
         try:
             await provider.request(tid, {})
             records = [e for e in threads.tail(tid)['items'] if e['kind']=='request']
@@ -48,25 +49,21 @@ async def test_review_provider_diagnostics_do_not_encode_or_copy_full_history(tm
         provider=ModelProvider([{'id':'test','api_key':'unused','base_url':'http://unused.invalid/v1',
             'model':'fake','concurrency':1,'trust_env':False}],threads)
         encoded=[]
-        copied=[]
-        original_size=resource._safe_json_size
-        original_trace=provider.manager._traceable_provider_request
-        def size(value):
-            if isinstance(value,dict) and 'messages' in value: encoded.append(len(value['messages']))
-            return original_size(value)
-        def trace(value):
-            if 'messages' in value: copied.append(len(value['messages']))
-            return original_trace(value)
-        monkeypatch.setattr(resource,'_safe_json_size',size)
-        monkeypatch.setattr(provider.manager,'_traceable_provider_request',trace)
+        native=threads.record_provider_request
+        def record(*args,**kwargs):
+            assert 'messages' not in kwargs.get('provider_options',{})
+            encoded.append(kwargs.get('through'))
+            return native(*args,**kwargs)
+        monkeypatch.setattr(threads,'record_provider_request',record)
         async def create(**kwargs):
             assert kwargs['messages']==messages
             return ChatCompletion(id='r',created=0,model='fake',object='chat.completion',
                 choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'done'}}])
-        provider.manager.clients['test'].chat.completions.create=create
+        await bind_chat(provider, create)
         try:
-            assert provider.manager._log_context is None
             await provider.request(tid,{})
-            assert (encoded,copied)==([],[]), 'diagnostic-only full-history encoding/copy'
+            assert len(encoded)==1 and encoded[0]==len(messages)+1
+            request=[e for e in threads.tail(tid)['items'] if e['kind']=='request'][0]
+            assert 'messages' not in request.get('payload',{})
         finally:
             await provider.close()

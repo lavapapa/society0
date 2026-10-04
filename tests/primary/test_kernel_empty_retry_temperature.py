@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """空响应温度调整保持激活预算、完整历史与显式请求配置。"""
 import pytest
 from society0.kernel.llm import LLMPolicy
@@ -82,7 +83,7 @@ async def test_actual_provider_default_temperature_and_physical_retry_keep_full_
         if len(received)==1:return sdk_response('')
         if len(received)==2:raise openai.APITimeoutError(request=httpx.Request('POST','http://unused.invalid'))
         return sdk_response('完成')
-    provider.manager.clients['p'].chat.completions.create=create
+    await bind_chat(provider, create)
     driver.provider=provider
     try:
         assert (await driver.run(session)).status=='completed'

@@ -1,0 +1,11 @@
+{
+  "source_bytes": 8388608,
+  "part_bytes": 65536,
+  "parts": 128,
+  "head4_provider_bytes": 65536,
+  "tail_line_provider_bytes": 65536,
+  "full_cat_provider_bytes": 8388608,
+  "full_cat_equal": true,
+  "max_single_callback_bytes": 65536,
+  "original_body_resident_for_test": true
+}

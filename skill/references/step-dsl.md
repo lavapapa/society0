@@ -14,7 +14,7 @@ async def decide(ctx):
 schedule = CodeSchedule(runtime, [Phase('decide', decide)])
 ```
 
-serial 容量为 1；independent 的显式 Phase.capacity 覆盖 Runtime.capacity。物理模型请求并发由端点与共享请求额度另外约束。选择器支持角色、active、谓词和流式抽样；分析全人口是显式成本。
+serial 容量为 1；independent 的显式 Phase.capacity 覆盖 Runtime.capacity。物理模型请求并发由端点与共享请求额度另外约束。选择器支持角色、active、谓词和流式抽样；分析全人口是显式成本。主体调度容量、端点请求槽位与计算进程数分别控制各自资源。多核计算通过显式 `compute.run` 提交独立函数任务；单次调用的内部拆分由算法决定，接线见 [共享计算](../../docs/core-next/runner-contract.md#共享计算)。
 
 ## 二、认知与记忆
 

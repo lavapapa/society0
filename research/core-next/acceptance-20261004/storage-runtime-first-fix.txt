@@ -1,0 +1,8 @@
+................................F....................................... [ 96%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+____ test_table_revision_storage_format_is_explicit_and_old_format_rejected ____
+tests/primary/test_kernel_storage.py:433: in test_table_revision_storage_format_is_explicit_and_old_format_rejected
+    assert manifest['format']==2
+E   assert 3 == 2
+1 failed, 74 passed in 1.08s

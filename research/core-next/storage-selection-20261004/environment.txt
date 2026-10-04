@@ -1,0 +1,6 @@
+apsw==3.53.4.0
+backports-zstd==1.7.0
+python-rapidjson==1.25
+pyzstd==0.19.1
+typing-extensions==4.16.0
+zstandard==0.25.0

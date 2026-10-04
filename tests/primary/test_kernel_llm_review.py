@@ -1,4 +1,5 @@
 """LLM 循环的非作者恢复与取消验收。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import asyncio
 import json
 from types import SimpleNamespace
@@ -28,7 +29,7 @@ def session(driver, actions):
 @pytest.mark.asyncio
 async def test_review_replayed_terminal_receipt_ends_without_another_model_request(tmp_path):
     call={'id':'terminal1','type':'function','function':{'name':'action_invoke','arguments':json.dumps({
-        'name':'finish','target':{'namespace':'m','kind':'job','key':'one'},'arguments':'{}'})}}
+        'name':'finish','target':{'namespace':'m','kind':'job','key':'one'},'arguments':{}})}}
     reply={'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'}
     actions=Actions(lambda *a:True)
     executed=[]
@@ -37,12 +38,12 @@ async def test_review_replayed_terminal_receipt_ends_without_another_model_reque
         return ActionResult('completed', {'original':'done'})
     actions.register(Action('finish',('m','job'),'finish',{},finish,terminal=True))
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
-        first=LLMDriver(Provider([reply]),ThreadStore(store),input_builder=lambda s:[])
+        first=LLMDriver(TypedScriptProvider(Provider([reply]), ThreadStore(store)),ThreadStore(store),input_builder=lambda s:[])
         assert (await first.run(session(first,actions))).reason=='terminal_action'
         store.complete(1)
     with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
         provider=Provider([reply,{'role':'assistant','content':'unnecessary closing','finish_reason':'stop'}])
-        second=LLMDriver(provider,ThreadStore(restored),input_builder=lambda s:[])
+        second=LLMDriver(TypedScriptProvider(provider, ThreadStore(restored)),ThreadStore(restored),input_builder=lambda s:[])
         result=await second.run(session(second,actions))
         assert executed==[1]
         assert provider.requests==1
@@ -62,11 +63,11 @@ async def test_review_cancelled_domain_call_is_failed_evidence_without_success_r
     actions=Actions(lambda *a:True)
     actions.register(Action('pending',('m','job'),'wait',{},pending,terminal=True))
     call={'id':'call','type':'function','function':{'name':'action_invoke','arguments':json.dumps({
-        'name':'pending','target':{'namespace':'m','kind':'job','key':'one'},'arguments':'{}'})}}
+        'name':'pending','target':{'namespace':'m','kind':'job','key':'one'},'arguments':{}})}}
     response={'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'}
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store)
-        driver=LLMDriver(Provider([response]),threads,input_builder=lambda s:[])
+        driver=LLMDriver(TypedScriptProvider(Provider([response]), threads),threads,input_builder=lambda s:[])
         current=session(driver,actions)
         task=asyncio.create_task(driver.run(current))
         await started.wait()

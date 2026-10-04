@@ -1,4 +1,5 @@
 """标准 Thread/Memory 插件经过真实 Driver、Runtime 和恢复的消费者。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import json
 import pytest
 from society0.kernel.services import thread_plugin, memory_plugin
@@ -32,7 +33,7 @@ async def test_standard_services_two_steps_and_restore(tmp_path):
     def actors(ctx):
         threads=ctx.require('threads','threads'); memory=ctx.require('memory','memory')
         held.update(threads=threads,memory=memory)
-        driver=LLMDriver(ctx.require('resources','models')['small'],threads,
+        driver=LLMDriver(TypedScriptProvider(ctx.require('resources','models')['small'], threads),threads,
             input_builder=lambda s:[{'role':'system','content':'主体完整背景'}],memory=memory)
         ctx.provide('actors',{'a':Actor('a',driver)})
     def plugins():

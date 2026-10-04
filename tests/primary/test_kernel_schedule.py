@@ -1,4 +1,5 @@
 """唯一Runtime入口的步骤hooks、规则激活和流式结果消费者。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import pytest
 from society0.kernel.runtime import Runtime,Phase,Actor,DriverResult
 from society0.kernel.interaction import Information,Actions
@@ -180,7 +181,7 @@ async def test_schedule_lazy_selector_sync_rule_and_real_interview_driver(tmp_pa
         return RuleDriver(lambda session:DriverResult('completed',{'original':record.state}))
     def interview(record):
         built.append(record.id)
-        return LLMDriver(Provider(),holder['threads'],input_builder=lambda session:[{'role':'system','content':'完整访谈背景'}],policy=LLMPolicy(mode='interview'))
+        return LLMDriver(TypedScriptProvider(Provider(), holder['threads']),holder['threads'],input_builder=lambda session:[{'role':'system','content':'完整访谈背景'}],policy=LLMPolicy(mode='interview'))
     def thread_install(ctx):holder['threads']=ThreadStore(ctx.require('storage','store'))
     def select(role):
         cursor=None

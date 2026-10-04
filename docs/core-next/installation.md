@@ -1,10 +1,10 @@
 # 安装与原生扩展
 
-基础规则运行使用 Python 3.12 及以上版本，依赖 APSW、jsonschema 和 python-rapidjson。模型、记忆、社交与 shell 按功能选择安装，研究脚本可以组合这些插件。
+基础规则运行使用 Python 3.12 及以上版本，依赖 APSW、jsonschema、python-rapidjson 和 backports-zstd。模型、记忆、社交与 shell 按功能选择安装，研究脚本可以组合这些插件。
 
 ## 一、安装范围
 
-项目按能力提供可选依赖组。基础安装支持共享状态、规则驱动、调度和恢复；`llm` 增加提供方适配，`memory` 增加向量检索与提取协议，`social` 增加社交机制的图与向量依赖，`shell` 增加 Bashkit 与 Society0 文件系统适配器；`datasets` 增加不可变批次所用的 zstandard，普通行结果不需要该组。开发依赖包含确定性测试实际使用的模型、向量与图组件；纯基础安装的验收使用独立环境。
+项目按能力提供可选依赖组。基础安装支持共享状态、规则驱动、调度、恢复与不可变数据集，数据集复用 APSW 和现有原生 zstd 编码；`llm` 增加提供方适配，`memory` 增加向量检索与提取协议，`social` 增加社交机制的图与向量依赖，`shell` 增加 Bashkit 与 Society0 文件系统适配器；`observe` 增加 HTTP 服务使用的 Starlette/Uvicorn。`llm` 提供 Pydantic AI 的 OpenAI/Responses 与 Codex 订阅接入，`anthropic`、`google` 增加相应普通 API 提供方依赖。开发依赖包含确定性测试实际使用的模型、向量与图组件；纯基础安装的验收使用独立环境。
 
 当前源码工作树可使用 `uv sync --extra shell`。`tool.uv.sources` 将原生扩展指向 `native/society0-filesystem`；它是本项目工作树中的独立包，尚未作为公共包发行。基础规则安装无需构建这个扩展。
 

@@ -1,3 +1,4 @@
+from tests.primary.provider_http import count_dataset_frames
 """结果页明确区分任意业务 JSON 与原文引用，保封存块分页局部复用。"""
 import json
 from contextlib import contextmanager
@@ -38,23 +39,19 @@ async def test_record_reference_shaped_value_remains_exact_json(tmp_path,sealed)
 
 
 @pytest.mark.asyncio
-async def test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once(tmp_path,monkeypatch):
+async def test_workbench_thousand_small_dataset_rows_open_once_decode_shared_frame_once(tmp_path,monkeypatch):
     from society0.kernel.workbench import _rows
     values=[{'i':i} for i in range(1000)]
-    queries=[];opens=[];original=Datasets._open
-    class Connection:
-        def __init__(self,connection):self.connection=connection
-        def execute(self,sql,bindings=()):
-            if 'FROM blocks' in sql:queries.append(sql)
-            return self.connection.execute(sql,bindings)
+    opens=[];original=Datasets._open
     @contextmanager
     def opened(self,reference):
         opens.append(reference['id'])
-        with original(self,reference) as (connection,*rest):yield Connection(connection),*rest
+        with original(self,reference) as data:yield data
     with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
         ref=Datasets(store).import_rows('tiny',values)
         results=Results(store)
         header=await results.write_phase(1,0,'step',StepResult(tables={'data':DatasetTable(ref)}))
         monkeypatch.setattr(Datasets,'_open',opened)
+        calls=count_dataset_frames(monkeypatch)
         assert list(_rows(results,header['tables']['data']))==values
-        assert len(queries)==1 and len(opens)==1
+        assert len(calls)==1 and len(opens)==1

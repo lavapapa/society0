@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """非作者审查：真实提供方适配器的排队、快照失败与共享许可。"""
 import asyncio
 import pytest
@@ -23,7 +24,7 @@ async def test_review_cancelled_queued_profile_does_not_cancel_current_owner(tmp
         b=ModelProvider([endpoint('b')],threads,request_limit=limit)
         async def first(**kw):calls.append('a');entered.set();await release.wait();return response()
         async def second(**kw):calls.append('b');return response()
-        a.manager.clients['a'].chat.completions.create=first;b.manager.clients['b'].chat.completions.create=second
+        await bind_chat(a, first);await bind_chat(b, second)
         running=asyncio.create_task(a.request(one,{}));await asyncio.wait_for(entered.wait(),2)
         waiting=asyncio.create_task(b.request(two,{}));await asyncio.wait_for(queued.wait(),2)
         try:
@@ -49,7 +50,7 @@ async def test_review_snapshot_failure_releases_permits_for_next_complete_reques
         def broken(*args,**kwargs):raise OSError('snapshot unavailable')
         threads.snapshot_messages=broken
         async def create(**kwargs):calls.append(kwargs['messages']);return response()
-        provider.manager.clients['a'].chat.completions.create=create
+        await bind_chat(provider, create)
         try:
             with pytest.raises((ThreadWriteError,OSError),match='snapshot unavailable'):
                 await provider.request(tid,{})

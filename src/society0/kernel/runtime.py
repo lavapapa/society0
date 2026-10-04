@@ -8,6 +8,9 @@ from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 from itertools import chain
+from contextvars import ContextVar
+
+_running_runtime = ContextVar("society0_running_runtime", default=None)
 
 from ..activation_pool import ActivationPool, ActivationLimitError, DEFAULT_MAX_ACTIVATIONS
 from ..async_utils import invoke_maybe_async
@@ -221,7 +224,9 @@ class Runtime:
         self.last_completed = store.complete_step
         self._state = 'ready'
         self._task = None
-        self._close_task = None
+        self._idle = asyncio.Event()
+        self._idle.set()
+        self._closing = False
         self._moment = None
         self._cursors = {}
         self._activations_used = 0
@@ -242,23 +247,38 @@ class Runtime:
             self._cursors.clear()
             self._moment = moment
         context = PhaseContext(self, phase, moment)
-        await context._pool.start()
-
         async def body():
-            if phase.prepare is not None:
-                context.prepared = await invoke_maybe_async(phase.prepare, context)
-            context._ready = True
-            result=await invoke_maybe_async(phase.run, context)
-            await context._pool.close()
-            return result
+            try:
+                if phase.prepare is not None:
+                    context.prepared = await invoke_maybe_async(phase.prepare, context)
+                context._ready = True
+                result = await invoke_maybe_async(phase.run, context)
+                await context._pool.close()
+                return result
+            finally:
+                context._pool.cancel()
+                monitor.cancel()
 
-        task = asyncio.create_task(body())
+        async def watch_failure():
+            await context._failure
+            context._active = False
+            context._pool.cancel()
+            task.cancel()
+
         try:
-            done, _ = await asyncio.wait((task, context._failure), return_when=asyncio.FIRST_COMPLETED)
-            if context._failure in done:
+            try:
+                async with asyncio.TaskGroup() as group:
+                    await context._pool.start(group)
+                    monitor = group.create_task(watch_failure(), name='phase-failure')
+                    task = group.create_task(body(), name='phase-body')
+            except BaseExceptionGroup as errors:
+                if len(errors.exceptions) == 1:
+                    raise errors.exceptions[0]
+                raise
+            if context._failure.done() and not context._failure.cancelled():
                 raise context._failure.result()
-            result=await task
-            context._active=False
+            result = task.result()
+            context._active = False
             if self.results is not None:
                 await self.results.write_phase(self._step,phase_index,phase.name,result,
                     activations=({'actor_id':item.actor_id,'round':item.round,'status':item.result.status,
@@ -268,10 +288,6 @@ class Runtime:
                     capacity=context.capacity,concurrency_source=context.concurrency_source)
         finally:
             context._active = False
-            if not task.done():
-                task.cancel()
-            await asyncio.gather(task, return_exceptions=True)
-            await context._pool.cancel()
             context._failure.cancel()
             self._activations_used += context._pool.activations_used
 
@@ -281,6 +297,24 @@ class Runtime:
         return Phase(prefix+':'+name,run)
 
     async def run_step(self, step: int, time, phases: Iterable[Phase]):
+        if self._state != 'ready' or self._task is not None or self._closing:
+            raise RuntimeError('runtime is not ready')
+        self._task = asyncio.current_task()
+        self._idle.clear()
+        try:
+            try:
+                async with asyncio.TaskGroup() as group:
+                    task = group.create_task(self._run_step(step, time, phases), name='simulation-step')
+            except BaseExceptionGroup as errors:
+                if len(errors.exceptions) == 1:
+                    raise errors.exceptions[0]
+                raise
+            return task.result()
+        finally:
+            self._task = None
+            self._idle.set()
+
+    async def _run_step(self, step: int, time, phases: Iterable[Phase]):
         if self._state != 'ready':
             raise RuntimeError('runtime is not ready')
         if type(step) is not int or step != self.store.complete_step + 1:
@@ -299,9 +333,9 @@ class Runtime:
         self._activations_used = 0
         self._artifacts = []
         self._action_faults = []
-        self._task = asyncio.current_task()
         started=time_module.perf_counter()
         phase_count=0
+        owner_token = _running_runtime.set(self)
         try:
             for phase_index,phase in enumerate(phases):
                 phase_started=time_module.perf_counter()
@@ -333,31 +367,30 @@ class Runtime:
             self._observe()
             return publication
         finally:
-            self._task = None
+            _running_runtime.reset(owner_token)
             self._artifacts.clear()
 
     async def close(self):
-        if self._task is asyncio.current_task():
+        if _running_runtime.get() is self:
             raise RuntimeError('runtime cannot close from its running step')
-        if self._close_task is None:
-            async def drain():
-                task=self._task
-                if task is not None:
-                    task.cancel()
-                    await asyncio.gather(task,return_exceptions=True)
-                self._state='closed'
-                self._observe()
-                self._cursors.clear()
-            self._close_task=asyncio.create_task(drain())
-        cancelled=False
-        while True:
+        if not self._closing:
+            self._closing = True
+            if self._task is not None:
+                self._task.cancel()
+
+        async def finish():
             try:
-                await asyncio.shield(self._close_task)
-                break
+                await self._idle.wait()
             except asyncio.CancelledError:
-                if self._close_task.cancelled():raise
-                cancelled=True
-        if cancelled:raise asyncio.CancelledError
+                await self._idle.wait()
+            self._state = 'closed'
+            self._observe()
+            self._cursors.clear()
+
+        # 不直接 await 被取消的运行 task，避免第二次取消穿透其清理。
+        async with asyncio.TaskGroup() as group:
+            group.create_task(finish(), name='runtime-close')
+
 
 
 def runtime_plugin(actors=(), *, information, actions, store, name='runtime',

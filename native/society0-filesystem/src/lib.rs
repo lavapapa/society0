@@ -89,7 +89,8 @@ impl Overlay {
                     kind: VfsEntryKind::Directory,
                     mode: root_mode,
                 },
-            ]));
+            ]))
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e.to_string()))?;
         pyo3_async_runtimes::tokio::get_runtime()
             .block_on(
                 inner

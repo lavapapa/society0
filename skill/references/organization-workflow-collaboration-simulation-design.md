@@ -187,7 +187,7 @@ rights, or artifact handoffs matter, make them inspectable and replayable.
 
 ### Separate Work Actions From Measurement
 
-Use `instruct(...)` with typed env actions for work:
+Use `LLMPolicy(mode="decision")` with typed env actions for work:
 
 - `claim_task(task_id, rationale)`
 - `delegate_task(task_id, assignee_id, reason)`
@@ -200,7 +200,7 @@ Use `instruct(...)` with typed env actions for work:
 - `close_task(task_id, evidence)` as a terminal action only after validation or
   required evidence succeeds
 
-Use `interview(...)` for measurement:
+Use `LLMPolicy(mode="interview")` for measurement:
 
 - perceived workload, stress, trust, coordination quality, fairness, clarity,
   role conflict, psychological safety, or retrospective explanations.

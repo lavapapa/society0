@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """同运行多个模型配置与嵌入物理调用共用显式许可。"""
 import asyncio
 import pytest
@@ -44,9 +45,9 @@ async def test_two_profiles_and_embedding_share_physical_capacity(tmp_path):
         async def ac(**kw):return await physical('a',kw)
         async def bc(**kw):return await physical('b',kw)
         async def ec(**kw):return await physical('embedding',kw)
-        a.manager.clients['a'].chat.completions.create=ac
-        b.manager.clients['b'].chat.completions.create=bc
-        e.manager.clients['e'].embeddings.create=ec
+        await bind_chat(a, ac)
+        await bind_chat(b, bc)
+        await bind_embedding(e, ec)
         tasks=[asyncio.create_task(a.request(tid,{})),asyncio.create_task(b.request(tid,{})),
                asyncio.create_task(e.embed(['one','two'],metadata={'actor':'a','thread_id':tid}))]
         try:
@@ -73,12 +74,12 @@ async def test_cache_bypasses_busy_limit_and_close_drains_queued_physical_reques
         e=EmbeddingProvider([endpoint('e')],store,threads,dimensions=2,request_limit=limit,batch_wait_ms=0)
         async def ec(**kw):return vectors(kw['input'])
         async def mc(**kw):entered.set();await release.wait();return response()
-        e.manager.clients['e'].embeddings.create=ec
-        recorded=[];record=e.manager._append_agent_thread_event_best_effort
-        def evidence(metadata,event,**kw):
-            recorded.append(event);return record(metadata,event,**kw)
-        e.manager._append_agent_thread_event_best_effort=evidence
-        m.manager.clients['m'].chat.completions.create=mc
+        await bind_embedding(e, ec)
+        recorded=[];record=e.calls.event
+        def evidence(identifier,event,payload):
+            recorded.append(event);return record(identifier,event,payload)
+        e.calls.event=evidence
+        await bind_chat(m, mc)
         try:
             await e.embed(['cached'],metadata={'actor':'a'})
             task=asyncio.create_task(m.request(tid,{}));await asyncio.wait_for(entered.wait(),1)
@@ -90,7 +91,7 @@ async def test_cache_bypasses_busy_limit_and_close_drains_queued_physical_reques
             await asyncio.wait_for(e.close(),1)
             with pytest.raises(asyncio.CancelledError):await pending
             assert limit._value==0
-            assert recorded==['embedding_provider_request','embedding_provider_response']
+            assert recorded==['response']
             assert store.read(lambda r:r.query("SELECT count(*) FROM resource_calls WHERE kind='embedding'"))[0][0]==1
             release.set();await task
             assert limit._value==1
@@ -107,7 +108,7 @@ async def test_required_evidence_failure_and_cancelled_sdk_release_shared_permit
         provider=ModelProvider([endpoint('m')],threads,request_limit=limit)
         async def create(**kwargs):
             calls.append(kwargs);entered.set();await asyncio.Event().wait()
-        provider.manager.clients['m'].chat.completions.create=create
+        await bind_chat(provider, create)
         original=threads.record_provider_request
         def fail(*args,**kwargs):raise OSError('disk full')
         try:
@@ -134,7 +135,7 @@ async def test_factories_share_explicit_limit_across_every_profile(tmp_path):
     async with compose(tmp_path/'run',[thread_plugin(),model_plugin(models,request_limit=limit),
                                         embedding_plugin(embeddings,request_limit=limit)]) as host:
         providers=[*host.service('models','models').values(),*host.service('embeddings','embeddings').values()]
-        assert all(provider.manager._request_limit is limit for provider in providers)
+        assert all(all(endpoint.resources.shared is limit for endpoint in provider.endpoints) for provider in providers)
     assert limit._value==3
 
 class WaitingLimit(asyncio.Semaphore):
@@ -159,7 +160,7 @@ async def test_waiting_request_loads_no_history_and_keeps_original_watermark(tmp
         def snapshot(*args,**kw):snapshots.append(kw);return read(*args,**kw)
         monkeypatch.setattr(threads,'snapshot_messages',snapshot)
         async def create(**kw):calls.append(kw);return response()
-        provider.manager.clients['m'].chat.completions.create=create
+        await bind_chat(provider, create)
         task=asyncio.create_task(provider.request(tid,{}))
         try:
             await asyncio.wait_for(limit.waiting.wait(),1)
@@ -190,7 +191,7 @@ async def test_snapshot_failure_releases_admission_without_physical_attempt(tmp_
         monkeypatch.setattr(threads,'snapshot_messages',fail)
         try:
             with pytest.raises(OSError,match='snapshot read failed'):await provider.request(tid,{})
-            assert limit._value==1 and provider.manager._global_semaphore._value==4
+            assert limit._value==1 and provider.endpoints[0].resources.endpoint._value==4
             assert not [e for e in threads.tail(tid)['items'] if e['kind'] in {'request','provider_error'}]
         finally:await provider.close()
 
@@ -222,7 +223,7 @@ async def test_retry_backoff_releases_full_history_and_rebuilds_same_watermark(t
                 raise openai.APITimeoutError(request=httpx.Request('POST','http://unused.invalid'))
             assert kw['messages']==[original]
             return response()
-        provider.manager.clients['m'].chat.completions.create=create
+        await bind_chat(provider, create)
         task=asyncio.create_task(provider.request(tid,{}))
         try:
             await asyncio.wait_for(paused.wait(),1)

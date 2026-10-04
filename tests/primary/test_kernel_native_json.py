@@ -11,8 +11,8 @@ def test_native_push_preserves_values_and_scope(tmp_path):
     with StageStore.create(tmp_path/'run',['CREATE TABLE x(id INTEGER PRIMARY KEY)']) as store:
         compressed=[]
         store.transaction(lambda writer:writer.write_json_chunks(value,lambda size,body:compressed.append((size,body))))
-        import zlib
-        assert json.loads(b''.join(zlib.decompress(body) for _,body in compressed))==value
+        from society0.kernel._json_chunks import decode_chunk
+        assert json.loads(b''.join(decode_chunk(body) for _,body in compressed))==value
         callback=store.transaction(lambda writer:writer.write_json_chunks)
         with pytest.raises(StorageError,match='scope'):callback({},lambda *a:None)
 

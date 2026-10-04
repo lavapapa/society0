@@ -1,4 +1,5 @@
 import random
+from tests.primary.scripted_provider import TypedScriptProvider
 import pytest
 from society0.kernel.selection import select_ids, sample_ids, result_rows, result_values, result_mean
 from society0.kernel.actors import actor_plugin,ActorRecord
@@ -72,7 +73,7 @@ async def test_real_interview_submit_result_aggregates_explicit_nested_field(tmp
     schema={'type':'object','properties':{'score':{'type':'number'}},'required':['score'],'additionalProperties':False}
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store)
-        driver=LLMDriver(Provider(),threads,input_builder=lambda session:[{'role':'system','content':'完整访谈背景'}],
+        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda session:[{'role':'system','content':'完整访谈背景'}],
                          policy=LLMPolicy(mode='interview',result_schema=schema))
         runtime=Runtime([Actor('a',driver)],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
         collected=[]

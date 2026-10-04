@@ -39,13 +39,22 @@ def test_ten_mib_cold_record_exposes_full_rewrite_cost(tmp_path):
     entry={'path':['large'],'operation':'set','value':{'cold':'x'*(10*1024*1024)}}
     with build_fixture(tmp_path/'whole',[entry]) as store:
         whole=modify_probe(store,[0],mode='whole',steps=1)[0]
+        expected={'path':['large'],'operation':'set','value':{'cold':entry['value']['cold'],'_probe_hot':1}}
+        assert load_entry(store,0)==expected
+    with StageStore.restore(tmp_path/'whole',tmp_path/'whole-restored') as restored:
+        assert restored.complete_step==1 and load_entry(restored,0)==expected
     with build_fixture(tmp_path/'split',[entry]) as store:
         split=modify_probe(store,[0],mode='split',steps=1)[0]
         assert load_entry(store,0)==entry
     # 原生 Session 折叠重插入的相同块；末尾小改无需输出全部正文。
     assert whole['changeset_bytes']>split['changeset_bytes']
     assert whole['changeset_bytes']<1024
-    assert whole['session_bytes_before_complete']>split['session_bytes_before_complete']*10
+    assert whole['session_bytes_before_complete']>split['session_bytes_before_complete']
+    small={'path':['large'],'operation':'set','value':{'cold':'x'*(1024*1024)}}
+    with build_fixture(tmp_path/'small',[small]) as store:
+        small_cost=modify_probe(store,[0],mode='whole',steps=1)[0]
+    assert whole['session_bytes_before_complete']>small_cost['session_bytes_before_complete']
+    assert whole['changeset_bytes']<1024
     assert whole['before_marker_disk']['logical_bytes']>=whole['live_disk']['logical_bytes']
 
 

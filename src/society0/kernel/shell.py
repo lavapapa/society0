@@ -59,7 +59,8 @@ class ShellResult:
 
 class ShellSession:
     def __init__(self, scope: InteractionScope, information: Information, actions: Actions | None = None,
-                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None, workspace=None):
+                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None, workspace=None,
+                 projection_file_bytes=65536, projection_page_size=100):
         scope.check_active()
         if preview_bytes < 4:
             raise ValueError('preview_bytes must be at least 4')
@@ -88,6 +89,8 @@ class ShellSession:
         self._closed = False
         self._lock = asyncio.Lock()
         self._running = None
+        self._idle = asyncio.Event()
+        self._idle.set()
         options = dict(
             mounts=[{'host_path': str(self._output_dir), 'vfs_path': '/__output', 'writable': True}],
             allowed_mount_paths=[str(self._output_dir)],
@@ -100,7 +103,8 @@ class ShellSession:
         from bashkit import FileSystem
         from society0_filesystem import Overlay, callback_filesystem
         from .information_fs import InformationFiles
-        self._world_files=InformationFiles(self.information,scope)
+        self._world_files=InformationFiles(self.information,scope,
+            max_file_bytes=projection_file_bytes,page_size=projection_page_size)
         self._bash.mount('/world',FileSystem.from_capsule(callback_filesystem(self._file_callback(self._world_files.callback))),read_only=True)
         if self._workspace is not None:
             self._overlay=Overlay(callback_filesystem(self._file_callback(self._workspace.callback)),*self._workspace.root)
@@ -224,52 +228,77 @@ class ShellSession:
         async with self._lock:
             self._check()
             self._running = asyncio.current_task()
-            self._sequence += 1
-            command_id = str(self._sequence)
-            stdout_ref, stderr_ref = f'output/{command_id}.stdout', f'output/{command_id}.stderr'
-            first_receipt = len(self._receipts)
-            # 同一命令组保留变量与 cwd；完整输出写到本会话拥有的磁盘目录。
-            wrapped = '{\n' + script + '\n} > /__output/' + command_id + '.stdout 2> /__output/' + command_id + '.stderr'
+            self._idle.clear()
             try:
-                result = await self._bash.execute(wrapped)
-                if self._fault is not None:
-                    raise self._fault
-                self._check()
-                output = []
-                truncated = []
-                totals = []
-                offsets = []
-                for reference, fallback, native_truncated in (
-                    (stdout_ref, result.stdout, result.stdout_truncated),
-                    (stderr_ref, result.stderr, result.stderr_truncated),
-                ):
-                    path = self.result_dir / reference
-                    # 语法错误可能发生在重定向建立前。
-                    if not path.exists():
-                        path.write_text(fallback, encoding='utf-8')
-                    chunk = self.read_result(reference, size=self.preview_bytes)
-                    output.append(chunk['data'])
-                    totals.append(chunk['total_bytes'])
-                    offsets.append(chunk['next_offset'])
-                    truncated.append(native_truncated or chunk['next_offset'] is not None)
-                return ShellResult(self.session_id, command_id, *output, result.exit_code, *truncated,
-                                   self.session_id + '/' + stdout_ref, self.session_id + '/' + stderr_ref, tuple(self._receipts[first_receipt:]),
-                                   *totals, *offsets, result.error)
-            except asyncio.CancelledError:
-                self._closed = True
-                await self._cancel_callbacks()
-                await self._world_files.close()
-                if self._workspace is not None:await self._workspace.close()
-                raise
+                try:
+                    async with asyncio.TaskGroup() as group:
+                        task = group.create_task(self._execute(script), name='shell-command')
+                except BaseExceptionGroup as errors:
+                    if len(errors.exceptions) == 1:
+                        raise errors.exceptions[0]
+                    raise
+                return task.result()
             finally:
                 self._running = None
+                self._idle.set()
+
+    async def _execute(self, script):
+        self._sequence += 1
+        command_id = str(self._sequence)
+        stdout_ref, stderr_ref = f'output/{command_id}.stdout', f'output/{command_id}.stderr'
+        first_receipt = len(self._receipts)
+        # 同一命令组保留变量与 cwd；完整输出写到本会话拥有的磁盘目录。
+        wrapped = '{\n' + script + '\n} > /__output/' + command_id + '.stdout 2> /__output/' + command_id + '.stderr'
+        try:
+            result = await self._bash.execute(wrapped)
+            if self._fault is not None:
+                raise self._fault
+            self._check()
+            output = []
+            truncated = []
+            totals = []
+            offsets = []
+            for reference, fallback, native_truncated in (
+                (stdout_ref, result.stdout, result.stdout_truncated),
+                (stderr_ref, result.stderr, result.stderr_truncated),
+            ):
+                path = self.result_dir / reference
+                # 语法错误可能发生在重定向建立前。
+                if not path.exists():
+                    path.write_text(fallback, encoding='utf-8')
+                chunk = self.read_result(reference, size=self.preview_bytes)
+                output.append(chunk['data'])
+                totals.append(chunk['total_bytes'])
+                offsets.append(chunk['next_offset'])
+                truncated.append(native_truncated or chunk['next_offset'] is not None)
+            return ShellResult(self.session_id, command_id, *output, result.exit_code, *truncated,
+                               self.session_id + '/' + stdout_ref, self.session_id + '/' + stderr_ref, tuple(self._receipts[first_receipt:]),
+                               *totals, *offsets, result.error)
+        except asyncio.CancelledError:
+            self._closed = True
+            await self._cancel_callbacks()
+            await self._world_files.close()
+            if self._workspace is not None:await self._workspace.close()
+            raise
+
+    @staticmethod
+    async def _wait_callback(task):
+        # 原生桥创建的回调由桥拥有；等待者取消不能再次取消其 finally。
+        try:
+            await asyncio.wait((task,))
+        except asyncio.CancelledError:
+            await asyncio.wait((task,))
+        if not task.cancelled():
+            task.exception()
 
     async def _cancel_callbacks(self):
-        callbacks = tuple(self._callbacks)
-        for task in callbacks:
-            task.cancel()
-        if callbacks:
-            await asyncio.gather(*callbacks, return_exceptions=True)
+        callbacks = self._callbacks | self._world_files._tasks
+        if self._workspace is not None:
+            callbacks = callbacks | self._workspace._tasks
+        async with asyncio.TaskGroup() as group:
+            for task in tuple(callbacks):
+                if not task.cancelling():task.cancel()
+                group.create_task(self._wait_callback(task))
 
     def snapshot(self):
         self._check()
@@ -290,11 +319,22 @@ class ShellSession:
 
     async def aclose(self):
         self._closed = True
-        if self._running is not None and self._running is not asyncio.current_task():
-            self._running.cancel()
-            await asyncio.gather(self._running, return_exceptions=True)
-        await self._cancel_callbacks()
-        await self._world_files.close()
-        if self._workspace is not None:await self._workspace.close()
-        self._bash = None
-        if self._workspace is not None:self._overlay=None
+        task = self._running
+        if task is asyncio.current_task():
+            raise RuntimeError('shell cannot close from its running command')
+        if task is not None and not task.cancelling():
+            task.cancel()
+
+        async def finish():
+            try:
+                await self._idle.wait()
+            except asyncio.CancelledError:
+                await self._idle.wait()
+            await self._cancel_callbacks()
+            await self._world_files.close()
+            if self._workspace is not None:await self._workspace.close()
+            self._bash = None
+            if self._workspace is not None:self._overlay=None
+
+        async with asyncio.TaskGroup() as group:
+            group.create_task(finish(), name='shell-close')

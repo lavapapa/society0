@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """旧提供方策略证据通过新版真实适配器继续保存。"""
 import copy
 import pytest
@@ -20,7 +21,7 @@ async def test_auto_restrict_keeps_requested_and_effective_choice_with_thread_re
             return ChatCompletion.model_validate({'id':'response','object':'chat.completion','created':0,'model':'m',
                 'choices':[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','tool_calls':[
                     {'id':'c','type':'function','function':{'name':'required_action','arguments':'{}'}}]}}]})
-        provider.manager.clients['m'].chat.completions.create=create
+        await bind_chat(provider, create)
         options={'tools':[{'type':'function','function':{'name':name,'parameters':{'type':'object','properties':{}}}}
             for name in ('optional_action','required_action')],
             'tool_choice':{'type':'function','function':{'name':'required_action'}}}

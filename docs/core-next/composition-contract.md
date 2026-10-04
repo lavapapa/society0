@@ -4,7 +4,7 @@
 
 ## 一、声明
 
-`Plugin(name, requires=(), install=..., schema=(), initialize=None)` 的 schema 是 SQL DDL 字符串序列，initialize 是同步 Writer 回调。表名与索引名由插件工厂按实例明确命名，同类机制多实例可以声明不同前缀。重复表结构由 SQLite 报错；构建器没有改写插件 SQL。requires 同时确定初始化与服务安装顺序。
+`Plugin(name, requires=(), install=..., schema=(), initialize=None)` 的 schema 是 SQL DDL 字符串序列，initialize 是同步 Writer 回调。表名与索引名由插件工厂按实例明确命名，同类机制多实例可以声明不同前缀。重复表结构由 SQLite 报错；构建器没有改写插件 SQL。requires 同时确定初始化与服务安装顺序；步骤钩子按安装顺序登记。有因果关系的业务处理放入显式 Phase，见 [双机制设计例](../../skill/references/environment-design.md#从双机制例子构建自己的世界)。
 
 ```python
 plugin = Plugin(

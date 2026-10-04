@@ -12,6 +12,7 @@ import threading
 import uuid
 
 import apsw
+from backports import zstd
 
 
 class StorageError(RuntimeError):
@@ -20,7 +21,9 @@ class StorageError(RuntimeError):
 
 def _manifest(path):
     value=json.loads((Path(path)/'run.json').read_text())
-    if value['format']!=2:raise StorageError('unsupported storage format')
+    if (value['format'] != 3 or value.get('body_codec') != 'zstd-frames-64k'
+            or value.get('changeset_codec') != 'zstd-stream'):
+        raise StorageError('unsupported storage format')
     return value
 
 
@@ -159,9 +162,10 @@ class ReadView:
 
 class Writer(ReadView):
     def write_json_chunks(self, value, emit):
-        """同步写入有界压缩块；仅不可变字节交给工作线程。"""
+        """原生串行编码压缩，emit 始终在规范写入线程执行。"""
+        from ._json_chunks import write_chunks
         self._check()
-        self._encoder.write(value, emit)
+        write_chunks(value, emit)
 
     def include_artifact(self, reference):
         self._check()
@@ -292,12 +296,10 @@ class StageStore:
             connection.close()
 
     @classmethod
-    def create(cls, path, schema, *, initialize=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
+    def create(cls, path, schema, *, initialize=None, run_id=None):
         path = Path(path).resolve()
         temporary = path.with_name(path.name + '.building-' + uuid.uuid4().hex)
         temporary.mkdir(parents=True)
-        from ._json_chunks import ChunkEncoder
-        encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
         connection = None
         try:
             connection = apsw.Connection(str(temporary / 'current.sqlite'))
@@ -309,7 +311,6 @@ class StageStore:
             if initialize:
                 scope = Writer(connection)
                 scope.publish_step = 0
-                scope._encoder = encoder
                 connection.execute('BEGIN')
                 connection.set_authorizer(_authorizer)
                 try:
@@ -325,7 +326,8 @@ class StageStore:
             connection.executemany('INSERT INTO _stage_table_revisions VALUES(?,0)', ((name,) for name in _tables(connection)))
             connection.execute('CREATE TABLE _stage_artifacts(path TEXT PRIMARY KEY NOT NULL,size INTEGER NOT NULL,revision INTEGER NOT NULL)')
             connection.execute('CREATE INDEX _stage_artifact_revision ON _stage_artifacts(revision)')
-            manifest = {'format': 2, 'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
+            manifest = {'format': 3, 'body_codec': 'zstd-frames-64k', 'changeset_codec': 'zstd-stream',
+                        'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
             cls._finish_initial(temporary, connection, manifest, [])
             connection.close()
             connection = None
@@ -333,9 +335,8 @@ class StageStore:
                 raise FileExistsError(path)
             os.rename(temporary, path)
             _sync(path.parent)
-            return cls.open(path, compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
+            return cls.open(path)
         finally:
-            encoder.close()
             if connection:
                 connection.close()
             shutil.rmtree(temporary, ignore_errors=True)
@@ -356,10 +357,8 @@ class StageStore:
         _sync(path)
 
     @classmethod
-    def open(cls, path, *, compression_workers=4, compression_inflight_bytes=524288):
-        from ._json_chunks import ChunkEncoder
+    def open(cls, path):
         self = cls.__new__(cls)
-        self._encoder = ChunkEncoder(compression_workers, compression_inflight_bytes)
         self.path = Path(path).resolve()
         self._manifest = _manifest(self.path)
         if self._manifest.get('readonly'):
@@ -444,8 +443,8 @@ class StageStore:
     def complete_step(self):
         return self._last['step']
 
-    def _check(self):
-        if self._closed or self._failed:
+    def _check(self, *, allow_failed=False):
+        if self._closed or (self._failed and not allow_failed):
             raise StorageError('store unavailable; restore required')
         if threading.get_ident() != self._thread or self._busy:
             raise StorageError('single writer callback scope required')
@@ -455,7 +454,6 @@ class StageStore:
         self._busy = True
         scope = Writer(self._connection)
         scope.publish_step = self.complete_step + 1
-        scope._encoder = self._encoder
         scope._include_artifact = self._include_artifact
         touched=set()
         def authorize(action,first,second,database,trigger):
@@ -544,7 +542,7 @@ class StageStore:
             temporary.unlink(missing_ok=True)
 
     def abort_step(self):
-        self._check()
+        self._check(allow_failed=True)
         self._connection.execute('UPDATE _stage_runtime SET failed=1')
         self._failed = True
 
@@ -582,11 +580,12 @@ class StageStore:
             included = [row[0] for row in self._connection.execute('SELECT path FROM _stage_artifacts WHERE revision>? AND revision<=?',
                                                                  (self._last['live_revision'], revision))]
             references = self._artifacts([*requested,*included])
-            final = temporary.with_suffix('.changeset')
+            final = temporary.with_suffix('.changeset.zst')
             with temporary.open('xb') as stream:
-                def output(data):
-                    stream.write(data)
-                self._session.changeset_stream(output)
+                with zstd.ZstdFile(stream, 'wb', level=3) as compressed:
+                    # 空 changeset 不会调用 sink；仍需让原生库封存合法空帧。
+                    compressed.write(b'')
+                    self._session.changeset_stream(compressed.write)
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(temporary, final)
@@ -617,9 +616,8 @@ class StageStore:
             raise StorageError('root identity mismatch')
 
     @classmethod
-    def restore(cls, source, destination, *, step=None, run_id=None, compression_workers=4, compression_inflight_bytes=524288):
-        return cls._materialize(source, destination, step=step, run_id=run_id, readonly=False,
-                                compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
+    def restore(cls, source, destination, *, step=None, run_id=None):
+        return cls._materialize(source, destination, step=step, run_id=run_id, readonly=False)
 
     @classmethod
     def prepare_readonly(cls, source, destination, *, step=None, run_id=None):
@@ -627,8 +625,7 @@ class StageStore:
         return cls._materialize(source, destination, step=step, run_id=run_id, readonly=True)
 
     @classmethod
-    def _materialize(cls, source, destination, *, step=None, run_id=None, readonly=False,
-                     compression_workers=4, compression_inflight_bytes=524288):
+    def _materialize(cls, source, destination, *, step=None, run_id=None, readonly=False):
         source, destination = Path(source).resolve(), Path(destination).resolve()
         manifest = _manifest(source)
         if manifest.get('readonly'):
@@ -660,7 +657,7 @@ class StageStore:
                     changeset = source / descriptor['changeset']
                     if not changeset.is_file():
                         raise StorageError('missing changeset')
-                    with changeset.open('rb') as stream:
+                    with zstd.ZstdFile(changeset, 'rb') as stream:
                         # 级联结果已在 changeset 内；避免应用时再次触发级联。
                         apsw.Changeset.apply(stream.read, connection, flags=apsw.SQLITE_CHANGESETAPPLY_FKNOACTION)
                 for artifact in descriptor['artifacts']:
@@ -698,7 +695,7 @@ class StageStore:
             _sync(destination.parent)
             if readonly:
                 return StageReader(destination)
-            return cls.open(destination, compression_workers=compression_workers, compression_inflight_bytes=compression_inflight_bytes)
+            return cls.open(destination)
         finally:
             if original:
                 original.close()
@@ -749,7 +746,6 @@ class StageStore:
     def close(self):
         if not self._closed:
             self._reader.close()
-            self._encoder.close()
             self._session.close()
             self._connection.close()
             self._lock.close()

@@ -1,0 +1,2 @@
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-clean-consumer-kihz_105/output/shell-9fnemsz5/output — scripts can modify host files
+{"profile": "shell", "public_consumer": true, "wheel_import": "/tmp/society0-acceptance-clean-20261004/shell/lib/python3.12/site-packages/society0/__init__.py"}

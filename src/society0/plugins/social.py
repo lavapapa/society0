@@ -479,14 +479,24 @@ def _social_routes(name):
     }
 
 
+class _SocialSQLInformation(SQLInformation):
+    """帖子资料沿同一页面物化路径提供正文入口。"""
+    def _items(self, route, fields, selected, rows, view=None, revision=None):
+        items=super()._items(route,fields,selected,rows,view,revision)
+        if route=='posts':
+            for item in items:
+                item['content_path']='/'+self.namespace+'/content/'+item['ref'].key
+        return items
+
+
 def social_information(reader,name='social'):
     """只读 SQL 资料；推荐 feed 仍由活动机制的显式调用提供。"""
     routes=_social_routes(name)
     routes.pop('feed')
-    return SQLInformation(name,reader,routes)
+    return _SocialSQLInformation(name,reader,routes)
 
 
-class SocialInformation(SQLInformation):
+class SocialInformation(_SocialSQLInformation):
     """推荐次序由机制定义；页面传元数据，正文保留独立范围入口。"""
     def __init__(self,social,routes):
         self.social=social

@@ -1,0 +1,13 @@
+.......................................F.....                            [100%]
+=================================== FAILURES ===================================
+___ test_real_process_fixture_runs_crash_and_restore_against_local_stub_http ___
+tests/primary/test_core_next_real_structure.py:99: in test_real_process_fixture_runs_crash_and_restore_against_local_stub_http
+    try:test_real_exit_restore_memory_and_observation(configuration(),tmp_path/'process')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:236: in test_real_exit_restore_memory_and_observation
+    assert child('source')==91
+E   AssertionError: assert 1 == 91
+E    +  where 1 = <function test_real_exit_restore_memory_and_observation.<locals>.child at 0x119c6a0c0>('source')
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_next_real_structure.py::test_real_process_fixture_runs_crash_and_restore_against_local_stub_http
+1 failed, 44 passed in 6.77s

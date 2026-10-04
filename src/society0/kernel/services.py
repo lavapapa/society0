@@ -10,7 +10,7 @@ def thread_plugin(*, storage=('storage', 'store'), name='threads'):
     return Plugin(name, (storage[0],), install, schema=THREAD_SCHEMA)
 
 
-def memory_plugin(*, client, embedding, extraction=None, policy=None,
+def memory_plugin(*, client, embedding, extraction=None, extraction_options=None, policy=None,
                   recall_query=None, policy_selector=None, decay_rate=0.01, recall_top_k=10,
                   storage=('storage', 'store'), threads=('threads', 'threads'),
                   actions=('interaction', 'actions'), name='memory'):
@@ -31,7 +31,7 @@ def memory_plugin(*, client, embedding, extraction=None, policy=None,
         extractor = None
         if extraction is not None:
             provider = context.require(*extraction[:2])[extraction[2]]
-            extractor = ThreadMemoryExtractor(thread_store, provider)
+            extractor = ThreadMemoryExtractor(thread_store, provider, request_options=extraction_options)
         memory = Memory(context.require(*storage), thread_store, embed=embed.embed,
                         client=context.require(*client), extract=extractor, policy=policy,
                         recall_query=recall_query, policy_selector=policy_selector, decay_rate=decay_rate, recall_top_k=recall_top_k)

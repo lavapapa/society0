@@ -4,9 +4,8 @@ from __future__ import annotations
 from dataclasses import asdict, is_dataclass
 import json
 import uuid
-import zlib
 
-from ._json_chunks import CHUNK_BYTES, decode_chunks
+from ._json_chunks import CHUNK_BYTES, decode_chunks, decode_chunk
 from . import usage, action_stats
 THREAD_SCHEMA = (
     "CREATE TABLE thread_input_cursors(thread_id TEXT NOT NULL,consumer TEXT NOT NULL,event_seq INTEGER NOT NULL,context_seq INTEGER,PRIMARY KEY(thread_id,consumer))",
@@ -59,7 +58,7 @@ def _append(writer, thread_id, kind, payload, *, allow_closed=False):
     return seq
 
 
-def _messages(view, thread_id, *, after_seq=0, max_messages=None, through=None):
+def _messages(view, thread_id, *, after_seq=0, max_messages=None, through=None, raw=False):
     output = []
     through = _head(view, thread_id)['last_seq'] if through is None else through
     while max_messages is None or len(output) < max_messages:
@@ -69,7 +68,11 @@ def _messages(view, thread_id, *, after_seq=0, max_messages=None, through=None):
         if not rows:
             break
         for (after_seq,) in rows:
-            output.append(_load(view, thread_id, after_seq))
+            message = _load(view, thread_id, after_seq)
+            if not raw and "model_message" in message:
+                from .model_messages import display
+                message = display(message)
+            output.append(message)
     return output
 
 
@@ -221,6 +224,17 @@ class ThreadStore:
             return sequence
         return self.store.transaction(write)
 
+    def record_model_response(self, thread_id, physical, endpoint, message, summary):
+        """正文仅保存一份 typed 消息；物理响应事实引用它，并同事务维护用量。"""
+        def write(writer):
+            sequence = _append(writer, thread_id, 'message', {'model_message': message})
+            _append(writer, thread_id, 'provider_response', {'physical_request_id': physical,
+                'endpoint': endpoint, 'message_seq': sequence, 'payload': summary})
+            usage.finish(writer, 'thread', json.dumps([thread_id, physical]), outcome='response',
+                         body=summary['response'], timing=summary['timing'])
+            return sequence
+        return self.store.transaction(write)
+
     def record_provider_request(self,thread_id,**options):
         return self._record_request(thread_id,track_usage=True,**options)
 
@@ -253,19 +267,19 @@ class ThreadStore:
                 raise KeyError(seq)
             payload = _load(view, thread_id, seq)
             refs = payload.pop('message_seqs')
-            through = payload.pop('through')
-            payload['messages'] = (_messages(view, thread_id, through=through) if refs is None else
+            through = payload['through']
+            payload['messages'] = (_messages(view, thread_id, through=through, raw=True) if refs is None else
                                    [_load(view, thread_id, item) for item in refs])
             return payload
         return self.store.read(read)
 
-    def snapshot_messages(self, thread_id, *, through=None):
+    def snapshot_messages(self, thread_id, *, through=None, raw=False):
         def read(view):
             latest = _head(view,thread_id)['last_seq']
             watermark = latest if through is None else through
             if type(watermark) is not int or not 0 <= watermark <= latest:
                 raise ValueError('invalid message watermark')
-            return {'messages':_messages(view,thread_id,through=watermark),'through':watermark}
+            return {'messages':_messages(view,thread_id,through=watermark,raw=raw),'through':watermark}
         return self.store.read(read)
 
     def read_messages(self, thread_id, *, after_seq=0, max_messages=None):
@@ -331,7 +345,7 @@ class ThreadStore:
             if offset < end:
                 for chunk,payload in view.iter_query('SELECT chunk,payload FROM thread_chunks WHERE thread_id=? AND seq=? AND chunk>=? AND chunk<=? ORDER BY chunk',
                                                      (thread_id,seq,offset//CHUNK_BYTES,(end-1)//CHUNK_BYTES)):
-                    raw = zlib.decompress(payload)
+                    raw = decode_chunk(payload)
                     start = chunk*CHUNK_BYTES
                     data.extend(raw[max(0,offset-start):min(len(raw),end-start)])
             return {'data':bytes(data),'total_bytes':total,'next_offset':min(total,max(offset,end))}

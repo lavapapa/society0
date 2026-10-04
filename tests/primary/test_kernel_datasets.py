@@ -1,3 +1,4 @@
+from tests.primary.provider_http import count_dataset_frames
 import json
 import shutil
 
@@ -23,8 +24,7 @@ def test_batch_values_ranges_restore_share_and_source_independence(tmp_path, mon
             page=data.page(ref,cursor=page['next_cursor'],limit=100,max_bytes=1024)
         assert ids==list(range(len(values)))
         import society0.kernel.datasets as module
-        real=module._decompress;calls=[]
-        monkeypatch.setattr(module,'_decompress',lambda decoder,b:(calls.append(len(b)),real(decoder,b))[1])
+        calls=count_dataset_frames(monkeypatch)
         raw=json.dumps(values[3],ensure_ascii=False,separators=(',',':')).encode()
         part=data.read_payload(ref,3,offset=65530,size=64)
         assert part['data']==raw[65530:65594] and 1<=len(calls)<=2
@@ -132,8 +132,9 @@ async def test_catalog_runtime_information_and_restored_readonly_consumer(tmp_pa
                 assert page.total==2
 
 
-def test_small_rows_share_native_blocks_and_large_value_crosses_blocks(tmp_path):
+def test_shared_native_chunks_preserve_small_rows_and_large_value(tmp_path):
     import apsw
+    import society0.kernel.datasets as module
     values=[{'i':i,'shared':'共同🙂'*10} for i in range(1000)]
     values.insert(500,{'huge':'汉🙂\\"'*100000,'integer':2**90,'float':1.2345678901234567})
     with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
@@ -142,7 +143,7 @@ def test_small_rows_share_native_blocks_and_large_value_crosses_blocks(tmp_path)
         try:
             total=connection.execute('SELECT sum(raw_bytes) FROM records').get
             assert connection.execute('SELECT count(*) FROM blocks').get == (total+65535)//65536
-            assert connection.execute('PRAGMA user_version').get==2
+            assert connection.execute('PRAGMA user_version').get==4
         finally:connection.close()
         for ordinal in (0,499,500,501,1000):assert data.get(ref,ordinal)==values[ordinal]
         body=json.dumps(values[500],ensure_ascii=False,separators=(',',':')).encode()
@@ -153,16 +154,12 @@ def test_small_rows_share_native_blocks_and_large_value_crosses_blocks(tmp_path)
             assert Datasets(copy).get(ref,500)==values[500]
 
 
-def test_page_decompresses_each_adjacent_block_once(tmp_path, monkeypatch):
+def test_page_decompresses_each_adjacent_shared_frame_once(tmp_path, monkeypatch):
     import society0.kernel.datasets as module
     values=[{'n':i,'body':'顺序正文'*10} for i in range(1000)]
-    calls=[]
-    original=module._decompress
-    def counted(decoder,body):
-        result=original(decoder,body);calls.append(len(result));return result
     with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
         data=Datasets(store);ref=data.import_rows('page',values)
-        monkeypatch.setattr(module,'_decompress',counted)
+        calls=count_dataset_frames(monkeypatch)
         page=data.page(ref,limit=1000,max_bytes=1000000)
         assert [item['value'] for item in page['items']]==values
         total=sum(item['raw_bytes'] for item in page['items'])
@@ -172,21 +169,10 @@ def test_page_decompresses_each_adjacent_block_once(tmp_path, monkeypatch):
         assert len(calls)==first+1  # 每次请求重新读取，无跨请求常驻。
 
 
-def test_page_reuses_cached_block_without_fetching_blob_again(tmp_path, monkeypatch):
-    from contextlib import contextmanager
+def test_page_reuses_one_frame_only_within_request(tmp_path, monkeypatch):
     values=[{'i':i} for i in range(1000)]
     with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
         data=Datasets(store);ref=data.import_rows('small',values)
-        original=data._open;queries=[]
-        class Connection:
-            def __init__(self,connection):self.connection=connection
-            def execute(self,sql,bindings=()):
-                if 'FROM blocks' in sql:queries.append(sql)
-                return self.connection.execute(sql,bindings)
-        @contextmanager
-        def opened(reference):
-            with original(reference) as (connection,*rest):
-                yield Connection(connection),*rest
-        monkeypatch.setattr(data,'_open',opened)
+        calls=count_dataset_frames(monkeypatch)
         assert len(data.page(ref,limit=1000,max_bytes=1000000)['items'])==1000
-        assert len(queries)==1
+        assert len(calls)==1

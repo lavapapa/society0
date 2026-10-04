@@ -1,0 +1,10 @@
+{
+  "provider_type": "openai",
+  "llm_model": "Qwen/Qwen3.8-27B",
+  "embedding_model": "Qwen/Qwen3-Embedding-0.6B",
+  "embedding_expected_dimensions": 1024,
+  "embedding_send_dimensions": false,
+  "request_options": {"max_tokens":1024,"temperature":0,"parallel_tool_calls":false,"extra_body":{"enable_thinking":false}},
+  "max_attempts": 1,
+  "notes": "URL与凭据由主控环境注入；JSON未包含凭据。完整真实链须在Agent.iter候选冻结后执行。"
+}

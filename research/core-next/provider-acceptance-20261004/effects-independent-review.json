@@ -1,0 +1,28 @@
+[
+  {
+    "branch": "recall-off",
+    "thread_id": "c6b9465806fa493f8491b81588599030",
+    "raw_messages_equal_saved": true,
+    "policy": {
+      "auto_recall": false,
+      "auto_write": false,
+      "active_tools": false,
+      "recall_top_k": 10,
+      "effective_auto_write": false,
+      "step": 2
+    }
+  },
+  {
+    "branch": "recall-on",
+    "thread_id": "1ec389a7352748d5bfe6feb97a3255ea",
+    "raw_messages_equal_saved": true,
+    "policy": {
+      "auto_recall": true,
+      "auto_write": false,
+      "active_tools": false,
+      "recall_top_k": 10,
+      "effective_auto_write": false,
+      "step": 2
+    }
+  }
+]

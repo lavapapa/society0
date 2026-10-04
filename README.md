@@ -6,16 +6,13 @@ The package version is defined in [pyproject.toml](pyproject.toml). This branch 
 
 ## Start a study
 
-Install the [Society0 skill](skill/SKILL.md) in your coding assistant. It guides research design, provider setup, small pilots and analysis. The Python package is a separate installation. Python 3.12 or later and macOS or Linux are supported by the current storage implementation.
+Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) to install from a chosen source revision, run two rule actors, read actual results and continue the remaining time in a new directory. It uses the base package and needs no model account. Python 3.12 or later and macOS or Linux are supported by the storage implementation.
 
-```sh
-uv sync
-uv run python -m society0.kernel.runner --help
-```
+For assistant-guided research, install the complete [Society0 skill](skill/SKILL.md) folder in your coding assistant's skill directory, preserving its references and assets. The skill guides research design; the Python package executes experiments. A two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py). It includes persistent identity, perception, a domain action, explicit experience extraction and structured measurement. Its [quickstart](skill/references/runtime-quickstart.md) explains provider setup.
 
-A model-free plan is available in [rule_run.py](examples/core_next/rule_run.py). A complete two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py); it includes persistent identity, full perception, a domain action, explicit experience extraction and structured measurement. Follow [the quickstart](skill/references/runtime-quickstart.md) for its environment configuration.
+Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The optional native filesystem package has its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
 
-Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `datasets` and `shell`. Base rule runs need no model endpoints or Rust build. The optional native filesystem package has its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
+Codex subscription access is configured through the [subscription guide](docs/core-next/subscription-guide.md). The `llm` extra provides the Pydantic AI integration; simulation actions and complete Thread history remain owned by Society0. The [model and driver contracts](docs/core-next/llm-contract.md) describe the integration boundary.
 
 ## Compose an environment
 
@@ -36,7 +33,7 @@ python -m society0.kernel.observation /path/to/run
 python -m society0.kernel.observation /path/to/run --serve 8711
 ```
 
-Observation reads live diagnostics, Thread tails, resource usage, action outcomes and results. Fixed complete views support historical analysis. Large records retain original-content references and byte-range continuation. [The observation contract](docs/core-next/observation-contract.md) explains version boundaries, API examples and costs; the [workbench](docs/core-next/workbench-contract.md) renders recorded experiment outputs.
+Install the `observe` extra to start the HTTP server. Observation reads live diagnostics, Thread tails, resource usage, action outcomes and results. Fixed complete views support historical analysis. Large records retain original-content references and byte-range continuation. [The observation contract](docs/core-next/observation-contract.md) explains version boundaries, API examples and costs; the [workbench](docs/core-next/workbench-contract.md) renders recorded experiment outputs.
 
 ## Research and verification
 

@@ -1,0 +1,38 @@
+[
+  {
+    "case": "terminal",
+    "effects": 1,
+    "requests": 1,
+    "status": "completed"
+  },
+  {
+    "case": "required",
+    "effects": 1,
+    "requests": 3,
+    "status": "completed"
+  },
+  {
+    "case": "duplicate_across_turns",
+    "effects": 1,
+    "requests": 3,
+    "status": "completed"
+  },
+  {
+    "case": "batch_budget",
+    "effects": 0,
+    "requests": 1,
+    "status": "incomplete"
+  },
+  {
+    "case": "length",
+    "effects": 0,
+    "requests": 1,
+    "status": "incomplete"
+  },
+  {
+    "case": "sequential_terminal",
+    "effects": 1,
+    "requests": 1,
+    "status": "completed"
+  }
+]

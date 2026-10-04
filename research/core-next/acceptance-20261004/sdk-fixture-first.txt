@@ -1,0 +1,113 @@
+F....FFF.FFF.FFFF...............F.F..........................            [100%]
+=================================== FAILURES ===================================
+__ test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance ___
+tests/primary/test_kernel_embedding_provider.py:28: in test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance
+    assert a==[[1.,10.],[1.,10.]] and b==[[2.,10.],[1.,10.]]
+E   assert ([[2.0, 10.0], [2.0, 10.0]] == [[1.0, 10.0], [1.0, 10.0]]
+E     
+E     At index 0 diff: [2.0, 10.0] != [1.0, 10.0]
+E     Use -v to get more diff)
+__________ test_embedding_profile_controls_http_capacity_and_batching __________
+tests/primary/test_kernel_embedding_provider.py:101: in test_embedding_profile_controls_http_capacity_and_batching
+    assert provider.manager._http_clients[False]._transport._pool._max_connections==4
+           ^^^^^^^^^^^^^^^^
+E   AttributeError: 'EmbeddingProvider' object has no attribute 'manager'
+____ test_embedding_plugin_declares_shared_schema_and_closes_named_profiles ____
+tests/primary/test_kernel_embedding_provider.py:118: in test_embedding_plugin_declares_shared_schema_and_closes_named_profiles
+    assert all(client.is_closed for client in provider.manager._http_clients.values())
+                                              ^^^^^^^^^^^^^^^^
+E   AttributeError: 'EmbeddingProvider' object has no attribute 'manager'
+_ test_failed_late_joiner_retains_every_original_position_and_partial_success __
+tests/primary/test_kernel_embedding_provider.py:140: in test_failed_late_joiner_retains_every_original_position_and_partial_success
+    assert all(isinstance(item,openai.APIStatusError) for item in results)
+E   assert False
+E    +  where False = all(<generator object test_failed_late_joiner_retains_every_original_position_and_partial_success.<locals>.<genexpr> at 0x10a3d03c0>)
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[400] _
+tests/primary/test_kernel_models_storage_review.py:48: in test_review_nonretryable_embedding_status_keeps_one_complete_original_request
+    with pytest.raises(openai.APIStatusError):await resource.embed([text,'second'],metadata={'actor':'a'})
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:607: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: status_code: 400, model_name: e, body: {'status': 400}
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[401] _
+tests/primary/test_kernel_models_storage_review.py:48: in test_review_nonretryable_embedding_status_keeps_one_complete_original_request
+    with pytest.raises(openai.APIStatusError):await resource.embed([text,'second'],metadata={'actor':'a'})
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:607: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: status_code: 401, model_name: e, body: {'status': 401}
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[402] _
+tests/primary/test_kernel_models_storage_review.py:48: in test_review_nonretryable_embedding_status_keeps_one_complete_original_request
+    with pytest.raises(openai.APIStatusError):await resource.embed([text,'second'],metadata={'actor':'a'})
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:607: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: status_code: 402, model_name: e, body: {'status': 402}
+______ test_review_declared_embedding_dimension_is_validated_before_cache ______
+tests/primary/test_kernel_models_storage_review.py:84: in test_review_declared_embedding_dimension_is_validated_before_cache
+    await resource.embed(['text'],metadata={'actor':'a'})
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:607: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: embedding response count or dimensions differ from request
+__________ test_review_cache_eviction_retains_exact_physical_sources ___________
+tests/primary/test_kernel_models_storage_review.py:101: in test_review_cache_eviction_retains_exact_physical_sources
+    assert len(resource.manager._embedding_cache)<=1
+               ^^^^^^^^^^^^^^^^
+E   AttributeError: 'EmbeddingProvider' object has no attribute 'manager'
+______ test_review_failed_embedding_keeps_thread_to_physical_attempt_link ______
+tests/primary/test_kernel_models_storage_review.py:125: in test_review_failed_embedding_keeps_thread_to_physical_attempt_link
+    await resource.embed(['original'],metadata={'actor':'actor-a','thread_id':tid,'job_id':'memory-job'})
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:607: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: status_code: 401, model_name: e, body: {}
+_ test_review_retry_and_cached_consumer_retain_each_physical_attempt_after_restore _
+tests/primary/test_kernel_models_storage_review.py:170: in test_review_retry_and_cached_consumer_retain_each_physical_attempt_after_restore
+    assert events[0]['payload']['request']['input'][source['item_index']] == 'original'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'request'
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+tests/primary/test_kernel_llm.py:258: in test_physical_retry_preserves_request_reference_and_full_raw_response
+    assert provider.manager.clients['test'].max_retries == 0
+           ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+__ test_required_thread_failure_never_retries_actual_model_request[response] ___
+tests/primary/test_kernel_llm.py:296: in test_required_thread_failure_never_retries_actual_model_request
+    with pytest.raises(ThreadWriteError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ThreadWriteError
+13 failed, 48 passed in 2.61s

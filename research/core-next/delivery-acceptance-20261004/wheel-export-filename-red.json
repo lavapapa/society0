@@ -1,0 +1,8 @@
+{
+  "invalid_filename": "society0-6.0.0-social-final-py3-none-any.whl",
+  "reason": "InvalidWheelFilename: wrong number of parts",
+  "valid_filename": "social-final/society0-6.0.0-py3-none-any.whl",
+  "direct_bytes_equal": true,
+  "redundant_invalid_file_removed": true,
+  "build_lib_generated_cache_removed": true
+}

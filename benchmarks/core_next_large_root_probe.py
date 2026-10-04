@@ -10,7 +10,7 @@ import sys
 import time
 import zlib
 from society0.kernel.storage import StageStore
-from society0.kernel._json_chunks import CHUNK_BYTES, decode_chunks
+from society0.kernel._json_chunks import CHUNK_BYTES, decode_chunk, decode_chunks
 
 SCHEMA=(
     'CREATE TABLE fixture_entries(seq INTEGER PRIMARY KEY,raw_bytes INTEGER NOT NULL,editable INTEGER NOT NULL)',
@@ -63,7 +63,7 @@ def read_range(store, sequence, offset, size):
                         (sequence,first,last),max_rows=last-first+1)
         output=bytearray()
         for chunk,payload in rows:
-            raw=zlib.decompress(payload)
+            raw=decode_chunk(payload)
             start=max(0,offset-chunk*CHUNK_BYTES)
             end=min(len(raw),offset+size-chunk*CHUNK_BYTES)
             output.extend(raw[start:end])
@@ -139,7 +139,8 @@ def alignment_probe(path, *, body_bytes=10*1024*1024):
             import apsw
             changes={'rows':0,'old_blob_bytes':0,'new_blob_bytes':0,'operations':{}}
             descriptor=store._last
-            with (store.path/descriptor['changeset']).open('rb') as stream:
+            from backports import zstd
+            with zstd.ZstdFile(store.path/descriptor['changeset'], 'rb') as stream:
                 for change in apsw.Changeset.iter(stream.read):
                     changes['rows']+=1
                     changes['operations'][change.op]=changes['operations'].get(change.op,0)+1

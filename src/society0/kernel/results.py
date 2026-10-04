@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from itertools import chain,islice
 import json
 import uuid
-import zlib
+from ._json_chunks import decode_chunk
 
 RESULTS_SCHEMA=(
     'CREATE TABLE result_steps(step INTEGER PRIMARY KEY NOT NULL,time TEXT NOT NULL,phase_count INTEGER NOT NULL,activation_count INTEGER NOT NULL,elapsed_s REAL NOT NULL,capacity INTEGER NOT NULL,max_activations INTEGER)',
@@ -218,7 +218,7 @@ class Results:
             total=rows[0][0];data=bytearray()
             for start,payload in view.iter_query('SELECT raw_start,payload FROM result_chunks WHERE set_id=? AND ordinal=? AND chunk>=? ORDER BY chunk',
                                                 (reference['id'],ordinal,offset//65536)):
-                raw=zlib.decompress(payload)
+                raw=decode_chunk(payload)
                 data.extend(raw[max(0,offset-start):max(0,offset-start)+size-len(data)])
                 if len(data)==size:break
             end=offset+len(data)

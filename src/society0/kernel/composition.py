@@ -2,13 +2,95 @@
 from contextlib import AsyncExitStack, asynccontextmanager
 from inspect import isawaitable, iscoroutine
 import sys
+import asyncio
 
 from .plugins import Plugin, PluginHost
 from .storage import StageStore
 
 
+class _CompositionStop(Exception):
+    pass
+
+
 @asynccontextmanager
 async def compose(path, plugins, *, source=None, step=None):
+    """资源任务组由同一任务进入退出；调用方用信号等待完整收束。"""
+    ready, stopped, stop = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    exit_exception = (None, None, None)
+    host, failure = None, None
+
+    async def own():
+        nonlocal host, failure
+        manager = _compose(path, plugins, source=source, step=step)
+        entered = False
+        try:
+            host = await manager.__aenter__()
+            entered = True
+            ready.set()
+            await asyncio.Future()
+        except asyncio.CancelledError as error:
+            if not entered:
+                failure = error
+                raise
+        finally:
+            try:
+                if entered:
+                    try:
+                        await manager.__aexit__(*exit_exception)
+                    except asyncio.CancelledError as error:
+                        raise RuntimeError('composition resource cleanup was cancelled') from error
+            finally:
+                stop.set()
+
+    async def request_stop():
+        await stop.wait()
+        raise _CompositionStop()
+
+    async def serve():
+        nonlocal failure
+        try:
+            try:
+                async with asyncio.TaskGroup() as group:
+                    group.create_task(own(), name='simulation-resources')
+                    group.create_task(request_stop(), name='simulation-stop')
+                    await asyncio.Future()
+            except* _CompositionStop:
+                pass
+        except asyncio.CancelledError:
+            pass
+        except BaseExceptionGroup as errors:
+            failure = errors.exceptions[0] if len(errors.exceptions) == 1 else errors
+        except BaseException as error:
+            failure = error
+        finally:
+            ready.set()
+            stopped.set()
+
+    owner = asyncio.create_task(serve(), name='simulation-composition')
+    try:
+        await ready.wait()
+        if failure is not None:
+            raise failure
+        try:
+            yield host
+        except BaseException:
+            exit_exception = sys.exc_info()
+            raise
+    finally:
+        stop.set()
+        async def finish():
+            try:
+                await stopped.wait()
+            except asyncio.CancelledError:
+                await stopped.wait()
+        async with asyncio.TaskGroup() as group:
+            group.create_task(finish(), name='composition-close')
+        if failure is not None:
+            raise failure
+
+
+@asynccontextmanager
+async def _compose(path, plugins, *, source=None, step=None):
     """创建或恢复一个共享运行；schema 与 initialize 由领域插件声明。"""
     plugins = tuple(plugins)
     store = None

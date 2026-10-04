@@ -452,3 +452,19 @@ async def test_mapping_actor_lookup_is_lazy_and_failed_queue_never_builds_driver
     with pytest.raises(ValueError, match='domain failure'):
         await engine.run_step(1, 0, [Phase('p', phase)])
     assert loaded == ['first']
+
+
+@pytest.mark.asyncio
+async def test_real_store_publication_failure_retains_original_and_previous_complete(tmp_path):
+    from society0.kernel.storage import StageStore,StorageError
+    with StageStore.create(tmp_path/'run',[]) as store:
+        rt=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
+        def fault(phase):
+            if phase=='before_publish':raise OSError('publication fixture fault')
+        store._fault=fault
+        with pytest.raises(OSError,match='publication fixture fault'):
+            await rt.run_step(1,1,[])
+        assert rt._state=='failed' and rt.last_timing['failed'] and rt.last_completed==0
+        assert store.complete_step==0 and not (store.path/'steps'/'00000000000000000001.json').exists()
+        with pytest.raises(StorageError):store.transaction(lambda w:None)
+        with StageStore.restore(store.path,tmp_path/'restored') as restored:assert restored.complete_step==0

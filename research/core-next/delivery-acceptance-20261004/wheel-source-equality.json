@@ -1,0 +1,6 @@
+{
+  "wheel": "/tmp/society0-delivery-20261004-clean-wheels/society0-6.0.0-py3-none-any.whl",
+  "source_archive": "source-delivery.tar.gz",
+  "python_files_compared": 47,
+  "comparison": "direct_byte_equality_and_equal_file_set"
+}

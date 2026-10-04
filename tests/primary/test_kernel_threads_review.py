@@ -36,11 +36,11 @@ def test_review_range_late_payload_reads_one_block_and_preserves_complete_json(t
         seq=threads.append_message(thread,message)
         expected=json.dumps(message,ensure_ascii=False,separators=(',',':')).encode()
         calls=[]
-        decompress=module.zlib.decompress
+        decompress=module.decode_chunk
         def counted(data):
             calls.append(len(data))
             return decompress(data)
-        monkeypatch.setattr(module.zlib,'decompress',counted)
+        monkeypatch.setattr(module,'decode_chunk',counted)
         page=threads.tail(thread,after_seq=seq-1,inline_payload_bytes=16)
         assert 'payload_ref' in page['items'][0] and calls==[]
         chunk=threads.read_payload(thread,seq,offset=len(expected)-7,size=7)

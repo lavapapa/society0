@@ -318,7 +318,13 @@ class Actions:
         self._allows = allows
         self._revision = revision
         self._actions = {}
-        self._types = {}
+        import apsw
+        self._index = apsw.Connection(':memory:')
+        self._index.execute('CREATE TABLE action_templates(ordinal INTEGER PRIMARY KEY,name TEXT UNIQUE NOT NULL,namespace TEXT NOT NULL,kind TEXT NOT NULL,text TEXT NOT NULL)')
+        self._index.execute('CREATE INDEX action_types ON action_templates(namespace,kind,ordinal)')
+        self._index.execute('CREATE TABLE action_tags(name TEXT NOT NULL,tag TEXT NOT NULL,PRIMARY KEY(name,tag))')
+        self._index.execute("CREATE VIRTUAL TABLE action_search USING fts5(text,content='action_templates',content_rowid='ordinal',tokenize='trigram')")
+        self._closed = False
         self._generation = 0
         self._dependency_revision=dependency_revision
         self._access_dependencies=tuple(access_dependencies)
@@ -327,7 +333,24 @@ class Actions:
     def __len__(self):
         return len(self._actions)
 
+    def _check(self):
+        if self._closed:
+            raise ScopeClosed('action registry is closed')
+
+    def close(self):
+        if not self._closed:
+            self._index.close()
+            self._closed = True
+
+    def __enter__(self):
+        self._check()
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+
     def register(self, action: Action, *, dependencies=()):
+        self._check()
         if action.name in self._actions:
             raise ValueError('action name is already registered')
         parameters = deepcopy(action.parameters)
@@ -336,12 +359,20 @@ class Actions:
         if action.strict:
             validate_strict_function_parameters(parameters)
         action = replace(action, parameters=parameters, target_kind=tuple(action.target_kind))
+        ordinal = self._generation + 1
+        text = (action.name + ' ' + action.description).casefold()
+        with self._index:
+            self._index.execute('INSERT INTO action_templates VALUES(?,?,?,?,?)',
+                                (ordinal, action.name, *action.target_kind, text))
+            self._index.execute('INSERT INTO action_search(rowid,text) VALUES(?,?)', (ordinal,text))
+            self._index.executemany('INSERT INTO action_tags VALUES(?,?)',
+                                    ((action.name, tag) for tag in dict.fromkeys(action.tags)))
         self._actions[action.name] = (action, validator_type(parameters))
-        self._types.setdefault(action.target_kind, []).append(action.name)
         self._dependencies.setdefault(action.target_kind,set()).update(dependencies)
         self._generation += 1
 
     async def _eligible(self, scope, action, target):
+        self._check()
         scope.check_active()
         if action is None or action.target_kind != (target.namespace, target.kind):
             return False
@@ -360,7 +391,44 @@ class Actions:
         return ActionDescription(action.name, action.target_kind, action.description,
                                  deepcopy(action.parameters), action.terminal, action.tags, action.strict, action.read_only)
 
+    def _matching_names(self, target, query, names, tags):
+        # 三元字符索引保留字面子串语义；短中文等不足三字符的查询按类型扫描。
+        text = query.casefold()
+        clauses = ['t.namespace=?', 't.kind=?']
+        bindings = [target.namespace, target.kind]
+        source = 'action_templates t'
+        order = 't.ordinal'
+        if len(text) >= 3:
+            source += ' JOIN action_search ON action_search.rowid=t.ordinal'
+            clauses.append('action_search MATCH ?')
+            bindings.append('"' + text.replace('"', '""') + '"')
+            order = 'bm25(action_search),t.ordinal'
+        if text:
+            clauses.append('instr(t.text,?)>0')
+            bindings.append(text)
+        if names is not None:
+            if not names:
+                return
+            clauses.append('t.name IN (' + ','.join('?' for _ in names) + ')')
+            bindings.extend(sorted(names))
+        if tags is not None:
+            if not tags:
+                return
+            clauses.append('EXISTS(SELECT 1 FROM action_tags g WHERE g.name=t.name AND g.tag IN ('
+                           + ','.join('?' for _ in tags) + '))')
+            bindings.extend(sorted(tags))
+        cursor = self._index.cursor()
+        try:
+            cursor.execute('SELECT t.name FROM ' + source + ' WHERE ' + ' AND '.join(clauses)
+                           + ' ORDER BY ' + order, bindings)
+            for name, in cursor:
+                yield name
+        finally:
+            cursor.close()
+
     async def find(self, scope, target, *, query='', limit=100, cursor=None, names=None, tags=None):
+        """字面子串检索；三字符起按 FTS5 排名，短词和空查询按注册序返回。"""
+        self._check()
         scope.check_active()
         if limit < 1:
             raise ValueError('limit must be positive')
@@ -373,6 +441,7 @@ class Actions:
         tags = None if tags is None else frozenset(tags)
         revision = await version()
         scope.check_active()
+        generation = self._generation
         identity = json.dumps([scope.actor, asdict(scope.moment), revision, asdict(target),
                                query, self._generation, None if names is None else sorted(names),
                                None if tags is None else sorted(tags)], ensure_ascii=False, sort_keys=True)
@@ -385,20 +454,21 @@ class Actions:
         selected = []
         total = 0
         candidates = []
-        for name in self._types.get((target.namespace, target.kind), ()):
-            action = self._actions[name][0]
-            if names is not None and name not in names:
-                continue
-            if tags is not None and not tags.intersection(action.tags):
-                continue
-            if query.casefold() not in (name + ' ' + action.description).casefold():
-                continue
-            if await self._eligible(scope, action, target):
-                if revision is None:
-                    candidates.append(name)
-                if offset <= total < offset + limit:
-                    selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags))
-                total += 1
+        matching = self._matching_names(target, query, names, tags)
+        try:
+            for name in matching:
+                action = self._actions[name][0]
+                if await self._eligible(scope, action, target):
+                    if revision is None:
+                        candidates.append(name)
+                    if offset <= total < offset + limit:
+                        selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags))
+                    total += 1
+        finally:
+            matching.close()
+        self._check()
+        if generation != self._generation:
+            raise ValueError('action registry changed; restart discovery')
         if self._revision is not None or self._dependency_revision is not None:
             current = await version()
             scope.check_active()
@@ -463,6 +533,8 @@ def interaction_plugin(allows, *, name='interaction', storage='storage', access_
     def install(context):
         store=context.require(storage,'store')
         context.provide('information',Information(allows,access_dependencies=access_dependencies))
-        context.provide('actions',Actions(allows,access_dependencies=access_dependencies,
-            dependency_revision=lambda scope,tables:store.read(lambda r:[r.run_id,r.revision_for(tables)],expected_revision=scope.revision)))
+        actions = Actions(allows,access_dependencies=access_dependencies,
+            dependency_revision=lambda scope,tables:store.read(lambda r:[r.run_id,r.revision_for(tables)],expected_revision=scope.revision))
+        context.on_close(actions.close)
+        context.provide('actions',actions)
     return Plugin(name,(storage,),install)

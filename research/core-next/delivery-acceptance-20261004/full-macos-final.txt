@@ -1,0 +1,141 @@
+........................................................................ [  9%]
+.......................................FF............................... [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 37%]
+........................................................................ [ 46%]
+........................................................................ [ 55%]
+........................................................................ [ 65%]
+........................................................................ [ 74%]
+.......................................................................F [ 83%]
+F....................................................................... [ 93%]
+......................................................                   [100%]
+=================================== FAILURES ===================================
+_ test_review_changed_persona_environment_precision_are_visible_in_existing_thread _
+tests/primary/test_kernel_cognition_review.py:18: in test_review_changed_persona_environment_precision_are_visible_in_existing_thread
+    await driver.run(session(driver))
+src/society0/kernel/llm.py:592: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:475: in request_model
+    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Provider' object has no attribute 'request_model'
+__ test_review_none_perception_cursor_is_valid_after_completed_initial_input ___
+tests/primary/test_kernel_cognition_review.py:39: in test_review_none_perception_cursor_is_valid_after_completed_initial_input
+    await driver.run(session(driver))
+src/society0/kernel/llm.py:592: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:475: in request_model
+    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Provider' object has no attribute 'request_model'
+____ test_review_repeated_read_early_continue_resets_streak[required_text] _____
+tests/primary/test_kernel_temperature_review.py:38: in test_review_repeated_read_early_continue_resets_streak
+    assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1, .1]
+E   assert [0.1, 0.1, 0.3, 0.3, 0.1] == [0.1, 0.1, 0.3, 0.1, 0.1]
+E     
+E     At index 3 diff: 0.3 != 0.1
+E     Use -v to get more diff
+___ test_review_repeated_read_early_continue_resets_streak[invalid_parallel] ___
+tests/primary/test_kernel_temperature_review.py:38: in test_review_repeated_read_early_continue_resets_streak
+    assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1, .1]
+E   assert [0.1, 0.1, 0.3, 0.3, 0.1] == [0.1, 0.1, 0.3, 0.1, 0.1]
+E     
+E     At index 3 diff: 0.3 != 0.1
+E     Use -v to get more diff
+4 failed, 770 passed, 15 deselected in 39.68s

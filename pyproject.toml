@@ -17,17 +17,19 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
 ]
-dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0", "python-rapidjson==1.25"]
+dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0", "python-rapidjson==1.25", "backports-zstd==1.7.0"]
 
 [project.optional-dependencies]
-llm = ["openai", "ollama", "pydantic", "tenacity"]
+llm = ["pydantic-ai-slim[openai]==2.54.0", "Authlib==1.8.0", "httpx2", "aiolimiter"]
+anthropic = ["society0[llm]", "pydantic-ai-slim[anthropic]==2.54.0"]
+google = ["society0[llm]", "pydantic-ai-slim[google]==2.54.0"]
 memory = ["chromadb", "json-repair"]
 social = ["networkx", "pydantic", "chromadb"]
-datasets = ["zstandard>=0.23"]
 shell = ["bashkit==0.18.2", "society0-filesystem"]
+observe = ["starlette==1.7.0", "uvicorn==0.52.1"]
 dev = [
     "pytest", "pytest-asyncio",
-    "openai", "ollama", "pydantic", "tenacity", "chromadb", "json-repair", "networkx", "zstandard>=0.23",
+    "society0[llm,memory,social,observe]", "hypothesis",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="4" time="137.705" timestamp="2026-10-04T18:09:07.521094+08:00" hostname="marvin-mbp"><testcase classname="tests.e2e.test_core_next_real" name="test_real_social_publish_with_memory" time="17.187" /><testcase classname="tests.e2e.test_core_next_real" name="test_real_social_browse_completion_and_memory" time="32.225" /><testcase classname="tests.e2e.test_core_next_real" name="test_real_multi_tick_social_workflow" time="21.065" /><testcase classname="tests.e2e.test_core_next_real" name="test_real_vfs_discovery_pagination_original_and_action" time="67.149"><failure message="AssertionError: assert [('a', 12, 546, '原文校验成功。')] == [('a', 12, 546, '原文校验成功')]&#10;  &#10;  At index 0 diff: ('a', 12, 546, '原文校验成功。') != ('a', 12, 546, '原文校验成功')&#10;  Use -v to get more diff">config = &lt;real endpoint configuration; credentials omitted&gt;
+destination = PosixPath('research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_vfs_discovery_pagination_original_and_action')
+
+    @pytest.mark.asyncio
+    async def test_real_vfs_discovery_pagination_original_and_action(config,destination):
+        from society0.kernel.llm import LLMPolicy
+        task=('从共享根目录开始查找 catalog 信息。分页读取全部 prices，每页 limit=3，依据 total 和 next_cursor 读到结束，'
+              '然后用 bash 中的 jq 对这些完整报价复算，输出 JSON 对象含 count 记录数和 total 金额合计。找到 reports 正文引用，'
+              '每次 data_read 的 size=64，透传 expected_revision 并按 next_offset 续读直到结束，保留核对短语。'
+              '从 actors 找到属于你的 Ref，使用 action_find 和 action_describe 发现提交方法，'
+              '提交 count、total、phrase 三个字段，成功后结束。所有数字必须来自实际完整资料。')
+        held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+            workspace=True,extra_plugins=(discovery_catalog_plugin(),))
+        from society0.kernel.storage import StageReader
+        from society0.kernel.threads import ThreadStore
+        with StageReader(destination) as reader:
+&gt;           assert reader.read(lambda v:v.query('SELECT actor,count,total,phrase FROM submissions'))==[('a',12,546,'原文校验成功')]
+E           AssertionError: assert [('a', 12, 546, '原文校验成功。')] == [('a', 12, 546, '原文校验成功')]
+E             
+E             At index 0 diff: ('a', 12, 546, '原文校验成功。') != ('a', 12, 546, '原文校验成功')
+E             Use -v to get more diff
+
+tests/e2e/test_core_next_real.py:353: AssertionError</failure></testcase></testsuite></testsuites>

@@ -6,40 +6,30 @@ import pytest
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('provider_type', ['openai', 'ollama'])
-async def test_review_embedding_retry_timings_do_not_recount_previous_attempt(provider_type, monkeypatch):
-    import society0.resource_managers as module
-    manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
-        'base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type}])
-    manager._embedding_timeout_schedule = [10., 10.]
-    clock = [100.]
-    attempts = [0]
-    events = []
-    async def request(**kwargs):
-        attempts[0] += 1
-        clock[0] += 2.
-        if attempts[0] == 1:
-            raise RuntimeError('transient failure')
-        if provider_type == 'ollama':
-            return {'embeddings': [[1., 2.]]}
-        return SimpleNamespace(data=[SimpleNamespace(index=0, embedding=[1., 2.])])
-    async def pause(seconds):
-        clock[0] += seconds
-    original = manager.clients['m']
-    manager.clients['m'] = SimpleNamespace(embeddings=SimpleNamespace(create=request), embed=request)
-    monkeypatch.setattr(module, 'time', SimpleNamespace(time=lambda:clock[0]))
-    monkeypatch.setattr(module.asyncio, 'sleep', pause)
-    monkeypatch.setattr(manager, '_append_agent_thread_event_best_effort',
-        lambda metadata,kind,**kwargs:events.append((kind,kwargs['payload'])))
-    try:
-        await manager._execute_request(manager.endpoints[0], ['whole'], 2)
-        terminal = [body['timing'] for kind,body in events if kind in ('embedding_provider_error','embedding_provider_response')]
-        assert len(terminal) == 2
-        assert [item['provider_s'] for item in terminal] == [2., 2.]
-        assert sum(item['duration_s'] for item in terminal) == pytest.approx(4.)
-    finally:
-        manager.clients['m'] = original
-        await manager.close()
+@pytest.mark.parametrize('provider_type',['openai','ollama'])
+async def test_review_embedding_retry_timings_do_not_recount_previous_attempt(provider_type,monkeypatch,tmp_path):
+    import httpx2
+    from society0.kernel import models
+    from society0.kernel.storage import StageStore
+    from tests.primary.provider_http import bind_embedding
+    clock=[100.];sent=[];original_sleep=asyncio.sleep
+    async def pause(seconds):clock[0]+=seconds;await original_sleep(0)
+    with StageStore.create(tmp_path/'run',models.RESOURCE_SCHEMA) as store:
+        provider=models.EmbeddingProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type,'trust_env':False}],store,dimensions=2,retry_delay=.1,batch_wait_ms=0)
+        async def create(**wire):
+            sent.append(wire);clock[0]+=2.
+            if len(sent)==1:return httpx2.Response(503,json={'error':{'message':'transient'}})
+            return {'object':'list','model':'m','data':[{'object':'embedding','index':0,'embedding':[1.,2.]}],'usage':{'prompt_tokens':1,'total_tokens':1}}
+        await bind_embedding(provider,create)
+        monkeypatch.setattr(models.time,'perf_counter',lambda:clock[0]);monkeypatch.setattr(models.asyncio,'sleep',pause)
+        try:
+            assert await provider.embed(['whole'],metadata={'actor':'a'})==[[1.,2.]]
+            identifiers=store.read(lambda r:r.query("SELECT id FROM resource_calls WHERE kind='embedding' ORDER BY rowid"))
+            terminal=[provider.calls.read(identifier)[-1]['payload']['timing'] for identifier, in identifiers]
+            assert len(terminal)==2 and len(sent)==2 and sent[0]==sent[1]
+            assert [item['provider_s'] for item in terminal]==[2.,2.]
+            assert sum(item['duration_s'] for item in terminal)==pytest.approx(4.)
+        finally:await provider.close()
 
 
 def test_review_prepared_complete_keeps_resource_and_action_projection_fixed(tmp_path):

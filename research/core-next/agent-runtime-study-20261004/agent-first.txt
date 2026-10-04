@@ -1,0 +1,235 @@
+....................F..............FF.................................F. [ 98%]
+.                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_action_selection_and_live_rejection_are_feedback_not_domain_fault ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_action_selection_and_live0')
+
+    @pytest.mark.asyncio
+    async def test_action_selection_and_live_rejection_are_feedback_not_domain_fault(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')],
+                                                        policy=LLMPolicy(allowed_names=()))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+E           AssertionError: assert 'incomplete' == 'completed'
+E             
+E             - completed
+E             ?         -
+E             + incomplete
+E             ? ++
+
+tests/primary/test_kernel_llm.py:331: AssertionError
+______ test_shell_output_artifact_survives_restore_and_result_read[False] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_shell_output_artifact_sur0')
+via_shell = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("via_shell", [False, True])
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, via_shell):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase, step=1)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+            await driver.run(session)
+            tid = session.cursors['thread_id']
+            result = json.loads([m for m in threads.read_messages(tid) if m['role'] == 'tool'][0]['content'])
+            reference = result['stdout_ref']
+            store.complete(1)
+        finally:
+            store.close()
+        import shutil
+        shutil.rmtree(tmp_path / 'results')
+        restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
+        try:
+            recovered_threads = ThreadStore(restored)
+            read_call = call('read', 'bash', {'script': f'result read {reference}'}) if via_shell else call('read', 'result_read', {'reference': reference, 'offset': 0, 'size': 100})
+            recovered_provider = FakeProvider(recovered_threads, [reply(read_call), reply(text='done')])
+            recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
+            recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
+                                session.actions, {}, None, (), SimpleNamespace(prepare_artifact=restored.prepare_artifact), step=1)
+            if via_shell:
+                recovered_driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+                    bound_actions=ledger, result_dir=tmp_path / 'new-results',
+                    result_reader=lambda reference, **options: recovered_driver.read_result(s, reference, **options))
+            await recovered_driver.run(recovered)
+>           feedback = json.loads([m for m in recovered_threads.read_messages(tid) if m.get('tool_call_id') == 'read'][0]['content'])
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: list index out of range
+
+tests/primary/test_kernel_llm.py:596: IndexError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_shell_output_artifact_sur0/results/shell-sk_msafd/output — scripts can modify host files
+______ test_shell_output_artifact_survives_restore_and_result_read[True] _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_shell_output_artifact_sur1')
+via_shell = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("via_shell", [False, True])
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, via_shell):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase, step=1)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+            await driver.run(session)
+            tid = session.cursors['thread_id']
+            result = json.loads([m for m in threads.read_messages(tid) if m['role'] == 'tool'][0]['content'])
+            reference = result['stdout_ref']
+            store.complete(1)
+        finally:
+            store.close()
+        import shutil
+        shutil.rmtree(tmp_path / 'results')
+        restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
+        try:
+            recovered_threads = ThreadStore(restored)
+            read_call = call('read', 'bash', {'script': f'result read {reference}'}) if via_shell else call('read', 'result_read', {'reference': reference, 'offset': 0, 'size': 100})
+            recovered_provider = FakeProvider(recovered_threads, [reply(read_call), reply(text='done')])
+            recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
+            recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
+                                session.actions, {}, None, (), SimpleNamespace(prepare_artifact=restored.prepare_artifact), step=1)
+            if via_shell:
+                recovered_driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+                    bound_actions=ledger, result_dir=tmp_path / 'new-results',
+                    result_reader=lambda reference, **options: recovered_driver.read_result(s, reference, **options))
+            await recovered_driver.run(recovered)
+>           feedback = json.loads([m for m in recovered_threads.read_messages(tid) if m.get('tool_call_id') == 'read'][0]['content'])
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           IndexError: list index out of range
+
+tests/primary/test_kernel_llm.py:596: IndexError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_shell_output_artifact_sur1/results/shell-zrixyz1l/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_shell_output_artifact_sur1/new-results/shell-lvmse_n3/output — scripts can modify host files
+_________ test_activation_reports_memory_model_and_cleanup_stage_facts _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1002/test_activation_reports_memory0')
+
+    @pytest.mark.asyncio
+    async def test_activation_reports_memory_model_and_cleanup_stage_facts(tmp_path):
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.interaction import Actions,Information,InteractionScope,Moment
+        from society0.kernel.runtime import Session,Actor
+        class Provider:
+            async def request_model(self,*args,**kwargs):
+                from pydantic_ai.messages import ModelResponse,TextPart
+                await asyncio.sleep(.01)
+                return ModelResponse(parts=[TextPart('done')],finish_reason='stop'),0,None
+        class Memory:
+            def activation(self,*args):
+                from contextlib import nullcontext
+                return nullcontext()
+            async def before_activation(self,*args):await asyncio.sleep(.01);return []
+            async def after_activation(self,*args):await asyncio.sleep(.01)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],memory=Memory())
+            scope=InteractionScope('a',Moment(1,'decision'))
+            session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None, step=1)
+>           result=await driver.run(session)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_timing.py:59: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1602: in _make_request
+    request_context, run_context = await self._prepare_request(ctx, streaming=False)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ModelRequestNode(request=ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4, 9, 29, 39, 702360, tzinfo=datetime.timezone.utc), run_id='01a1063f-6275-75b5-b9f8-4a2dfd6b9508', conversation_id='14f1ad7653e24b59b94b95ecd097328c'))
+ctx = GraphRunContext(state=GraphAgentState(message_history=[ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4,...am_function=None), name=None, end_strategy='graceful', model_settings=None, output_type=<class 'str'>), model_id=None))
+streaming = False
+
+    async def _prepare_request(
+        self,
+        ctx: GraphRunContext[GraphAgentState, GraphAgentDeps[DepsT, NodeRunEndT]],
+        *,
+        streaming: bool,
+    ) -> tuple[ModelRequestContext, RunContext[DepsT]]:
+        if self._resume_suspended is not None:
+            return await self._prepare_resume_request(ctx, streaming=streaming)
+    
+        self.request.timestamp = now_utc()
+        if not self.is_resuming_without_prompt:
+            fill_run_metadata(self.request, run_id=ctx.state.run_id, conversation_id=ctx.state.conversation_id)
+        ctx.state.message_history.append(self.request)
+    
+        ctx.state.run_step += 1
+    
+        await _select_model(ctx)
+    
+        _refresh_loaded_capability_ids(ctx)
+    
+        _refresh_discovered_tool_names(ctx)
+    
+        run_context = build_run_context(ctx)
+        run_context = replace(
+            run_context,
+            retry=ctx.state.output_retries_used,
+            max_retries=ctx.deps.tool_manager.default_max_retries,
+        )
+    
+        # This will raise errors for any tool name conflicts.
+        # Note: for_run_step may already have been called by UserPromptNode for the
+        # resume-without-prompt path; ToolManager.for_run_step is a no-op for the same step.
+        ctx.deps.tool_manager = await ctx.deps.tool_manager.for_run_step(run_context)
+    
+        _display_first_run_banner(ctx)
+    
+        # Fetch instructions now that dynamic toolsets have been resolved by for_run_step.
+        instruction_parts = await _get_instructions(ctx, run_context)
+        if instruction_parts:
+            instruction_parts = _messages.InstructionPart.sorted(instruction_parts) or None
+        self.request.instructions = _messages.InstructionPart.join(instruction_parts) if instruction_parts else None
+    
+        # Validate after instructions are resolved; self.request was appended above so [:-1] is prior history
+        if not ctx.state.message_history[:-1] and not self.request.parts and not self.request.instructions:
+>           raise exceptions.UserError('No message history, user prompt, or instructions provided')
+E           pydantic_ai.exceptions.UserError: No message history, user prompt, or instructions provided
+
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1721: UserError

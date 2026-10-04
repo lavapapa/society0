@@ -1,3 +1,5 @@
+from society0.kernel.models import ProviderFailure
+from tests.primary.provider_http import bind_chat, bind_embedding
 """资源适配器缓存、关闭与逐项事实的非作者审查。"""
 import asyncio
 import pytest
@@ -23,7 +25,7 @@ async def test_review_closed_embedding_provider_rejects_cached_work_without_new_
     with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
         resource=provider(store)
         async def create(**kwargs):return response(len(kwargs['input']))
-        resource.manager.clients['e'].embeddings.create=create
+        await bind_embedding(resource, create)
         await resource.embed(['cached'],metadata={'actor':'a'})
         await resource.close()
         before=store.read(lambda view:view.live_revision)
@@ -41,15 +43,15 @@ async def test_review_nonretryable_embedding_status_keeps_one_complete_original_
         async def create(**kwargs):
             calls.append(kwargs)
             raise openai.APIStatusError('rejected',response=httpx.Response(status,request=httpx.Request('POST','http://unused.invalid')),body={'status':status})
-        resource.manager.clients['e'].embeddings.create=create
+        await bind_embedding(resource, create)
         text='完整中文🙂'*3000
         try:
-            with pytest.raises(openai.APIStatusError):await resource.embed([text,'second'],metadata={'actor':'a'})
+            with pytest.raises(ProviderFailure):await resource.embed([text,'second'],metadata={'actor':'a'})
             assert len(calls)==1
             rows=store.read(lambda view:view.query("SELECT id FROM resource_calls WHERE kind='embedding'"))
             assert len(rows)==1
             evidence=resource.calls.read(rows[0][0])
-            assert evidence[0]['payload']['request']['input']==[text,'second']
+            assert evidence[0]['payload']['texts']==[text,'second']
             assert evidence[-1]['kind']=='error'
         finally:await resource.close()
 
@@ -62,7 +64,7 @@ async def test_review_embedding_close_drains_waiter_before_return(tmp_path):
         async def create(**kwargs):
             entered.set()
             await asyncio.Event().wait()
-        resource.manager.clients['e'].embeddings.create=create
+        await bind_embedding(resource, create)
         waiter=asyncio.create_task(resource.embed(['pending'],metadata={'actor':'a'}))
         await entered.wait()
         await resource.close()
@@ -77,11 +79,11 @@ async def test_review_declared_embedding_dimension_is_validated_before_cache(tmp
         async def wrong(**kwargs):
             return CreateEmbeddingResponse(model='e',object='list',usage={'prompt_tokens':1,'total_tokens':1},
                 data=[{'object':'embedding','index':0,'embedding':[1.,2.,3.]}])
-        resource.manager.clients['e'].embeddings.create=wrong
+        await bind_embedding(resource, wrong)
         try:
-            with pytest.raises(ValueError,match='dimension'):
+            with pytest.raises(ProviderFailure,match='dimension'):
                 await resource.embed(['text'],metadata={'actor':'a'})
-            assert not resource.manager._embedding_cache
+            assert not resource._cache
         finally:await resource.close()
 
 
@@ -93,18 +95,18 @@ async def test_review_cache_eviction_retains_exact_physical_sources(tmp_path):
         async def create(**kwargs):
             inputs.append(list(kwargs['input']))
             return response(len(kwargs['input']))
-        resource.manager.clients['e'].embeddings.create=create
+        await bind_embedding(resource, create)
         try:
             for text in ('first','first','second','first'):
                 await resource.embed([text],metadata={'actor':'a','input':text})
-                assert len(resource.manager._embedding_cache)<=1
-                assert resource.manager._cache_bytes<=4096
+                assert len(resource._cache)<=1
+                assert resource._cache_bytes<=4096
             assert inputs==[['first'],['second'],['first']]
             uses=store.read(lambda view:view.query("SELECT id FROM resource_calls WHERE kind='embedding_use' ORDER BY rowid"))
             for (identifier,),text in zip(uses,('first','first','second','first')):
                 payload=resource.calls.read(identifier)[0]['payload']
                 source=payload['sources'][0]
-                original=resource.calls.read(source['call_id'])[0]['payload']['request']['input']
+                original=resource.calls.read(source['call_id'])[0]['payload']['texts']
                 assert original[source['item_index']]==text
         finally:await resource.close()
 
@@ -118,9 +120,9 @@ async def test_review_failed_embedding_keeps_thread_to_physical_attempt_link(tmp
             'concurrency':1,'dimensions':2,'trust_env':False}],store,threads,dimensions=2,batch_wait_ms=0,max_attempts=1)
         async def rejected(**kwargs):
             raise openai.APIStatusError('rejected',response=httpx.Response(401,request=httpx.Request('POST','http://unused.invalid')),body={})
-        resource.manager.clients['e'].embeddings.create=rejected
+        await bind_embedding(resource, rejected)
         try:
-            with pytest.raises(openai.APIStatusError):
+            with pytest.raises(ProviderFailure):
                 await resource.embed(['original'],metadata={'actor':'actor-a','thread_id':tid,'job_id':'memory-job'})
             refs=[item for item in threads.tail(tid)['items'] if item['kind']=='resource_call_ref']
             assert refs, 'failed physical attempt has no Thread/resource identity link'
@@ -145,7 +147,7 @@ async def test_review_retry_and_cached_consumer_retain_each_physical_attempt_aft
                 raise openai.InternalServerError('temporary', response=httpx.Response(500,
                     request=httpx.Request('POST','http://unused.invalid')), body={'reason':'temporary'})
             return response(len(kwargs['input']))
-        resource.manager.clients['e'].embeddings.create = create
+        await bind_embedding(resource, create)
         try:
             assert await resource.embed(['original'], metadata={'actor':'a','thread_id':first}) == [[0.,2.]]
             assert await resource.embed(['original','original'], metadata={'actor':'b','thread_id':second}) == [[0.,2.],[0.,2.]]
@@ -166,6 +168,6 @@ async def test_review_retry_and_cached_consumer_retain_each_physical_attempt_aft
                 assert len(sources)==2 and sources[0]['call_id'] != sources[1]['call_id']
                 for source in sources:
                     events = calls.read(source['call_id'])
-                    assert events[0]['payload']['request']['input'][source['item_index']] == 'original'
+                    assert events[0]['payload']['texts'][source['item_index']] == 'original'
                 assert calls.read(sources[0]['call_id'])[-1]['kind'] == 'error'
                 assert calls.read(sources[1]['call_id'])[-1]['kind'] == 'response'

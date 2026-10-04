@@ -1,0 +1,127 @@
+..FF                                                                     [100%]
+=================================== FAILURES ===================================
+___________ test_empty_first_thread_keeps_explicit_empty_input_frame ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1009/test_empty_first_thread_keeps_0')
+
+    @pytest.mark.asyncio
+    async def test_empty_first_thread_keeps_explicit_empty_input_frame(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='完成')])
+        driver.input_builder=lambda session: []
+        with store:
+>           result=await driver.run(session)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_agent_runtime_acceptance.py:37: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1602: in _make_request
+    request_context, run_context = await self._prepare_request(ctx, streaming=False)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ModelRequestNode(request=ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4, 9, 37, 40, 19004, tzinfo=datetime.timezone.utc), run_id='01a10646-b6b1-75b5-90a9-69c1d673a5a8', conversation_id='0fdc8d6a991040a4beb6324edbf96e07'))
+ctx = GraphRunContext(state=GraphAgentState(message_history=[ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4,...t at 0x10e167140>, name=None, end_strategy='graceful', model_settings=None, output_type=<class 'str'>), model_id=None))
+streaming = False
+
+    async def _prepare_request(
+        self,
+        ctx: GraphRunContext[GraphAgentState, GraphAgentDeps[DepsT, NodeRunEndT]],
+        *,
+        streaming: bool,
+    ) -> tuple[ModelRequestContext, RunContext[DepsT]]:
+        if self._resume_suspended is not None:
+            return await self._prepare_resume_request(ctx, streaming=streaming)
+    
+        self.request.timestamp = now_utc()
+        if not self.is_resuming_without_prompt:
+            fill_run_metadata(self.request, run_id=ctx.state.run_id, conversation_id=ctx.state.conversation_id)
+        ctx.state.message_history.append(self.request)
+    
+        ctx.state.run_step += 1
+    
+        await _select_model(ctx)
+    
+        _refresh_loaded_capability_ids(ctx)
+    
+        _refresh_discovered_tool_names(ctx)
+    
+        run_context = build_run_context(ctx)
+        run_context = replace(
+            run_context,
+            retry=ctx.state.output_retries_used,
+            max_retries=ctx.deps.tool_manager.default_max_retries,
+        )
+    
+        # This will raise errors for any tool name conflicts.
+        # Note: for_run_step may already have been called by UserPromptNode for the
+        # resume-without-prompt path; ToolManager.for_run_step is a no-op for the same step.
+        ctx.deps.tool_manager = await ctx.deps.tool_manager.for_run_step(run_context)
+    
+        _display_first_run_banner(ctx)
+    
+        # Fetch instructions now that dynamic toolsets have been resolved by for_run_step.
+        instruction_parts = await _get_instructions(ctx, run_context)
+        if instruction_parts:
+            instruction_parts = _messages.InstructionPart.sorted(instruction_parts) or None
+        self.request.instructions = _messages.InstructionPart.join(instruction_parts) if instruction_parts else None
+    
+        # Validate after instructions are resolved; self.request was appended above so [:-1] is prior history
+        if not ctx.state.message_history[:-1] and not self.request.parts and not self.request.instructions:
+>           raise exceptions.UserError('No message history, user prompt, or instructions provided')
+E           pydantic_ai.exceptions.UserError: No message history, user prompt, or instructions provided
+
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1721: UserError
+______ test_tool_argument_error_identifies_schema_path_and_expected_type _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1009/test_tool_argument_error_ident0')
+
+    @pytest.mark.asyncio
+    async def test_tool_argument_error_identifies_schema_path_and_expected_type(tmp_path):
+        from tests.primary.test_kernel_llm import call
+        target={'namespace':'m','kind':'job','key':'1'}
+        bad=call('bad','action_invoke',{'name':'work','target':target,'arguments':{'value':3}})
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(bad),reply(invoke('good'))],terminal=True)
+        with store:
+            assert (await driver.run(session)).status=='completed' and len(calls)==1
+            feedback=threads.get_tool_result(session.cursors['thread_id'],'bad')['content']
+            import json
+>           details=json.loads(feedback)['details']
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'details'
+
+tests/primary/test_kernel_agent_runtime_acceptance.py:52: KeyError

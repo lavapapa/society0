@@ -1,0 +1,15 @@
+{
+  "starlette": "1.7.0",
+  "uvicorn_installed": "0.52.1",
+  "asgi_client_http_status": 200,
+  "lifespan": [
+    "opened",
+    "closed"
+  ],
+  "sqlite_same_call_thread": true,
+  "sqlite_version": "3.50.4",
+  "fts5_ranked_names": [
+    "publish"
+  ],
+  "uvicorn_real_socket_test_performed": false
+}

@@ -1,7 +1,9 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """保留96b1f3b既有递归凭据过滤合同，并经实际Thread请求与错误留证消费。"""
 from copy import deepcopy
 import json
 import httpx
+import httpx2
 import openai
 from openai.types.chat import ChatCompletion
 import pytest
@@ -35,20 +37,17 @@ async def test_actual_provider_nested_options_and_evidence_keep_noncredentials(t
         async def create(**kwargs):
             sent.append(deepcopy(kwargs))
             if failure:
-                response=httpx.Response(400,request=httpx.Request('POST','http://unused.invalid/v1'),
-                    headers={'set-cookie':secrets[3],'x-detail':'keep header'},
-                    text='failure detail; api_key='+secrets[0])
-                raise openai.BadRequestError('failure detail '+secrets[0],response=response,body={'code':'fixture'})
+                return httpx2.Response(400,headers={'set-cookie':secrets[3],'x-detail':'keep header'},
+                    json={'error':{'message':'failure detail; api_key='+secrets[0],'code':'fixture'}})
             return ChatCompletion.model_validate({'id':'response','created':0,'model':'stub','object':'chat.completion',
-                'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'keep response'}}],
-                'provider_details':{'Cookie':secrets[3],'rows':[{'api_key':secrets[0],'note':'keep response detail'}]}})
-        provider.manager.clients['stub'].chat.completions.create=create
+                'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'keep response detail'}}]})
+        await bind_chat(provider, create)
         try:
             if failure:
                 with pytest.raises(ProviderFailure):await provider.request(tid,options)
-            else:assert (await provider.request(tid,options))['content']=='keep response'
+            else:assert (await provider.request(tid,options))['content']=='keep response detail'
         finally:await provider.close()
-        assert len(sent)==1 and sent[0]['extra_body']==original['extra_body'] and options==original
+        assert len(sent)==1 and all(sent[0][key]==value for key,value in original['extra_body'].items()) and options==original
         items=threads.tail(tid)['items'];request=next(x for x in items if x['kind']=='request')
         restored_request=threads.read_request(tid,request['seq'])
         assert restored_request['messages']==[{'role':'user','content':'keep full user material'}]

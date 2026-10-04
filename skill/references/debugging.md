@@ -4,7 +4,7 @@
 
 ## 一、入口
 
-确认实际解释器、依赖组、包路径与代码提交。公开入口是 compose、RunPlan/run_plan、Actor/Driver、Information/Actions 和 CodeSchedule。检查插件明确依赖与具名服务，schema 与初始化在资源安装前完成。规则路径不要求模型；LLM、记忆、social、datasets、shell 按所用功能安装。
+确认实际解释器、依赖组、包路径与代码提交。公开入口是 compose、RunPlan/run_plan、Actor/Driver、Information/Actions 和 CodeSchedule。检查插件明确依赖与具名服务，schema 与初始化在资源安装前完成。规则路径不要求模型；LLM、记忆、social、shell 按所用功能安装；不可变数据集属于基础安装。
 
 ## 二、证据
 

@@ -1,7 +1,8 @@
 """事实写入事务内维护小型累计投影；共享批次的主体归属保持显式。"""
 TIMINGS=('duration_s','queue_s','jitter_s','provider_s')
 COUNTERS=('requests','responses','errors','input_tokens','output_tokens','total_tokens',
-          'input_reports','output_reports','total_reports','cancelled','decode_errors','embedding_uses')+TIMINGS+tuple(name.removesuffix('_s')+'_reports' for name in TIMINGS)
+          'input_reports','output_reports','total_reports','cache_read_tokens','cache_write_tokens',
+          'cache_read_reports','cache_write_reports','cancelled','decode_errors','embedding_uses')+TIMINGS+tuple(name.removesuffix('_s')+'_reports' for name in TIMINGS)
 
 
 def schema(prefix):
@@ -49,7 +50,8 @@ def finish(writer,prefix,identifier,*,outcome,body,timing=None):
     if outcome in ('error','decode_error'):values['errors']=1
     if outcome=='decode_error':values['decode_errors']=1
     if outcome=='cancelled':values['cancelled']=1
-    for source,target in (('prompt_tokens','input'),('completion_tokens','output'),('total_tokens','total')):
+    for source,target in (('prompt_tokens','input'),('completion_tokens','output'),('total_tokens','total'),
+                          ('cache_read_tokens','cache_read'),('cache_write_tokens','cache_write')):
         value=usage.get(source)
         if type(value) is int and value>=0 and not previous[target+'_reports']:
             values[target+'_tokens']=value
@@ -78,6 +80,12 @@ def logical_embedding(writer,model,payload):
             link(writer,'resource',identifier,actor)
 
 
+def _unknown(counts):
+    return {name:counts['requests']-counts[report] for name,report in (
+        ('unknown_usage_calls','total_reports'), ('unknown_cache_read_calls','cache_read_reports'),
+        ('unknown_cache_write_calls','cache_write_reports'))}
+
+
 def read(view,*,actor=None,model=None):
     totals=dict.fromkeys(COUNTERS,0);items=[]
     for prefix,kind in (('thread','llm'),('resource','embedding')):
@@ -88,8 +96,8 @@ def read(view,*,actor=None,model=None):
         if model is not None:sql+=' AND model=?';parameters.append(model)
         for row in view.iter_query(sql+' ORDER BY model',parameters):
             counts=dict(zip(COUNTERS,row[1:]))
-            items.append({'kind':kind,'model':row[0],**counts,'unknown_usage_calls':counts['requests']-counts['total_reports']})
+            items.append({'kind':kind,'model':row[0],**counts,**_unknown(counts)})
             for name,value in counts.items():totals[name]+=value
-    totals['unknown_usage_calls']=totals['requests']-totals['total_reports']
+    totals.update(_unknown(totals))
     return {'actor':actor,'timing_scope':'sum_of_physical_attempt_wall_times','attribution':'physical_calls_once' if actor is None else 'related_physical_calls_not_additive',
             'totals':totals,'models':items}

@@ -1,0 +1,152 @@
+{
+  "embedding": {
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "latency_s": 1.7016332080238499,
+    "indices": [
+      0,
+      1
+    ],
+    "dimensions": [
+      1024,
+      1024
+    ],
+    "usage": {
+      "prompt_tokens": 29,
+      "total_tokens": 29,
+      "completion_tokens": 0
+    }
+  },
+  "requests": [
+    {
+      "label": "tool-first",
+      "latency_s": 3.6073347500059754,
+      "usage": {
+        "completion_tokens": 18,
+        "prompt_tokens": 291,
+        "total_tokens": 309,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 291
+      },
+      "finish_reason": "tool_calls"
+    },
+    {
+      "label": "tool-result",
+      "latency_s": 1.1836010420229286,
+      "usage": {
+        "completion_tokens": 5,
+        "prompt_tokens": 331,
+        "total_tokens": 336,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 331
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "label": "prefix-first",
+      "latency_s": 1.0778310419991612,
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 1379,
+        "total_tokens": 1380,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1379
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "label": "prefix-repeat",
+      "latency_s": 1.076846707961522,
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 1379,
+        "total_tokens": 1380,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1379
+      },
+      "finish_reason": "stop"
+    },
+    {
+      "label": "prefix-new-tail",
+      "latency_s": 1.078675500000827,
+      "usage": {
+        "completion_tokens": 1,
+        "prompt_tokens": 1393,
+        "total_tokens": 1394,
+        "completion_tokens_details": {
+          "accepted_prediction_tokens": null,
+          "audio_tokens": null,
+          "reasoning_tokens": 0,
+          "rejected_prediction_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_tokens_details": {
+          "audio_tokens": null,
+          "cache_write_tokens": null,
+          "cached_tokens": 0,
+          "image_tokens": null,
+          "text_tokens": null
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1393
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "limits": "三次长前缀为合成缓存探针，不涉及业务行动；实际token以usage为准；不根据延迟推断缓存命中。"
+}

@@ -1,20 +1,16 @@
-"""不可变导入批次：热引用在规范库，正文在已封存的原生 SQLite 工件。"""
+"""不可变导入批次：热引用在规范库，正文在按块索引的 SQLite 工件。"""
 from contextlib import contextmanager
 import json
 import uuid
-import zstandard
+from functools import lru_cache
 
 import apsw
 
-from ._json_chunks import CHUNK_BYTES, write_json
+from ._json_chunks import CHUNK_BYTES, ChunkWriter, write_json, decode_chunk
 
 DATASET_SCHEMA = (
     'CREATE TABLE datasets(id TEXT PRIMARY KEY NOT NULL,name TEXT NOT NULL,artifact TEXT NOT NULL,count INTEGER NOT NULL)',
 )
-
-
-def _decompress(decoder, body):
-    return decoder.decompress(body, max_output_size=CHUNK_BYTES)
 
 
 def _bytes(value):
@@ -26,50 +22,39 @@ class Datasets:
         self.store = store
 
     def import_rows(self, name, rows, *, attach=None):
-        """一个显式批次对应一个文件，attach 与批次头、文件依赖同事务。"""
+        """一个批次封存记录目录和原生 zstd 帧，文件与 attach 同事务登记。"""
         count = 0
         def build(path):
             nonlocal count
             connection = apsw.Connection(str(path))
             try:
-                # 私有构建文件，最终关闭和 fsync 后才发布。
                 connection.execute('PRAGMA journal_mode=OFF')
                 connection.execute('PRAGMA synchronous=OFF')
                 connection.execute('PRAGMA cache_size=-2048')
                 connection.execute('CREATE TABLE records(ordinal INTEGER PRIMARY KEY,raw_start INTEGER NOT NULL,raw_bytes INTEGER NOT NULL)')
                 connection.execute('CREATE TABLE blocks(id INTEGER PRIMARY KEY,payload BLOB NOT NULL)')
-                compressor = zstandard.ZstdCompressor(level=3)
-                buffer = bytearray()
-                position = 0
-                block = 0
-                def flush():
-                    nonlocal block
-                    if buffer:
-                        connection.execute('INSERT INTO blocks VALUES(?,?)', (block,compressor.compress(bytes(buffer))))
-                        block += 1
-                        buffer.clear()
-                def accept(raw):
-                    nonlocal position
-                    position += len(raw)
-                    piece = memoryview(raw)
-                    while piece:
-                        size = min(CHUNK_BYTES-len(buffer),len(piece))
-                        buffer.extend(piece[:size]);piece=piece[size:]
-                        if len(buffer)==CHUNK_BYTES:flush()
+                number = 0
+                def emit(size, body):
+                    nonlocal number
+                    connection.execute('INSERT INTO blocks VALUES(?,?)', (number, body))
+                    number += 1
+                sink = ChunkWriter(emit)
                 with connection:
                     for ordinal, value in enumerate(rows):
-                        start = position
-                        write_json(value, accept)
-                        connection.execute('INSERT INTO records VALUES(?,?,?)', (ordinal,start,position-start))
+                        start = sink.position
+                        write_json(value, sink.write)
+                        connection.execute('INSERT INTO records VALUES(?,?,?)',
+                                           (ordinal, start, sink.position-start))
                         count += 1
-                    flush()
-                connection.execute('PRAGMA user_version=2')
+                    sink.finish()
+                connection.execute('PRAGMA user_version=4')
             finally:
                 connection.close()
         artifact = self.store.prepare_artifact_file(build)
         reference = {'kind': 'dataset', 'id': uuid.uuid4().hex, 'artifact': artifact}
         def publish(writer):
-            writer.execute('INSERT INTO datasets VALUES(?,?,?,?)', (reference['id'], name, artifact, count))
+            writer.execute('INSERT INTO datasets VALUES(?,?,?,?)',
+                           (reference['id'], name, artifact, count))
             writer.include_artifact(artifact)
             if attach is not None:
                 result = attach(writer, reference)
@@ -80,30 +65,40 @@ class Datasets:
         self.store.transaction(publish)
         return reference
 
+    @staticmethod
+    def _registration(view, reference):
+        rows = view.query('SELECT name,artifact,count FROM datasets WHERE id=?',
+                          (reference['id'],), max_rows=1)
+        if (reference.get('kind') != 'dataset' or not rows
+                or rows[0][1] != reference['artifact']):
+            raise ValueError('dataset reference unavailable')
+        return rows[0]
+
     def describe(self, reference):
         """读取规范登记的轻元数据，不打开冷正文文件。"""
         def read(view):
-            rows=view.query('SELECT name,artifact,count FROM datasets WHERE id=?',
-                            (reference['id'],),max_rows=1)
-            if reference.get('kind')!='dataset' or not rows or rows[0][1]!=reference['artifact']:
-                raise ValueError('dataset reference unavailable')
-            return {'name':rows[0][0],'count':rows[0][2]}
+            name, _, count = self._registration(view, reference)
+            return {'name': name, 'count': count}
         return self.store.read(read)
 
     @contextmanager
     def _open(self, reference):
         def lookup(view):
-            rows = view.query('SELECT artifact,count FROM datasets WHERE id=?', (reference['id'],), max_rows=1)
-            if reference.get('kind') != 'dataset' or not rows or rows[0][0] != reference['artifact']:
-                raise ValueError('dataset reference unavailable')
-            return view.run_id, *rows[0]
+            _, artifact, count = self._registration(view, reference)
+            return view.run_id, artifact, count
         run_id, artifact, count = self.store.read(lookup)
-        connection = apsw.Connection(str(self.store.path / artifact), flags=apsw.SQLITE_OPEN_READONLY)
+        uri = (self.store.path / artifact).as_uri() + '?immutable=1'
+        connection = apsw.Connection(uri, flags=apsw.SQLITE_OPEN_READONLY | apsw.SQLITE_OPEN_URI)
+        @lru_cache(maxsize=1)
+        def decode(number):
+            body = connection.execute('SELECT payload FROM blocks WHERE id=?', (number,)).fetchone()[0]
+            return decode_chunk(body)
         try:
-            if connection.execute('PRAGMA user_version').get != 2:
+            if connection.execute('PRAGMA user_version').get != 4:
                 raise ValueError('unsupported dataset codec')
-            yield connection, run_id, count, {'decoder': zstandard.ZstdDecompressor(), 'number': None, 'raw': b''}
+            yield connection, run_id, count, decode
         finally:
+            decode.cache_clear()
             connection.close()
 
     @staticmethod
@@ -115,48 +110,41 @@ class Datasets:
         return row
 
     @staticmethod
-    def _range(connection, start, total, offset, size, decoder):
+    def _range(start, total, offset, size, decode):
         end = start + min(total, offset + size)
         offset += start
-        if end <= offset: return b''
+        if end <= offset:
+            return b''
         output = bytearray()
         first, last = offset // CHUNK_BYTES, (end - 1) // CHUNK_BYTES
-        def append(number, raw):
+        for number in range(first, last+1):
+            raw = decode(number)
             block_start = number * CHUNK_BYTES
             output.extend(raw[max(0, offset-block_start):min(len(raw), end-block_start)])
-        if decoder['number'] == first:
-            append(first, decoder['raw'])
-            first += 1
-        if first <= last:
-            for number, body in connection.execute(
-                'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id',
-                (first, last),
-            ):
-                decoder['raw'] = _decompress(decoder['decoder'], body)
-                decoder['number'] = number
-                append(number, decoder['raw'])
+        if len(output) != end-offset:
+            raise ValueError('dataset body shorter than registered record')
         return bytes(output)
 
     def read_payload(self, reference, ordinal, *, offset=0, size=65536):
         if type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
             raise ValueError('invalid dataset byte range')
-        with self._open(reference) as (connection, _, _, decoder):
+        with self._open(reference) as (connection, _, _, decode):
             start, total = self._location(connection, ordinal)
-            data = self._range(connection, start, total, offset, size, decoder)
+            data = self._range(start, total, offset, size, decode)
             return {'data': data, 'total_bytes': total,
                     'next_offset': offset+len(data) if offset+len(data)<total else None}
 
     def get(self, reference, ordinal):
         """调用方明确请求一条完整 JSON 值，内存随该条值增长。"""
-        with self._open(reference) as (connection, _, _, decoder):
+        with self._open(reference) as (connection, _, _, decode):
             start, total = self._location(connection, ordinal)
-            return json.loads(self._range(connection, start, total, 0, total, decoder))
+            return json.loads(self._range(start, total, 0, total, decode))
 
     def page(self, reference, *, cursor=None, limit=100, max_bytes=65536):
         if type(limit) is not int or limit < 1 or type(max_bytes) is not int or max_bytes < 512:
             raise ValueError('positive limit and at least 512 page bytes required')
-        with self._open(reference) as (connection, run_id, total, decoder):
-            identity = [run_id, reference['id'], reference['artifact']]
+        with self._open(reference) as (connection, run_id, total, decode):
+            identity = [run_id, reference['id']]
             if cursor is not None and cursor['identity'] != identity:
                 raise ValueError('dataset cursor mismatch')
             after = -1 if cursor is None else cursor['after']
@@ -169,7 +157,7 @@ class Datasets:
             for ordinal, start, size in connection.execute('SELECT ordinal,raw_start,raw_bytes FROM records WHERE ordinal>? ORDER BY ordinal LIMIT ?', (after,limit)):
                 item={'ordinal':ordinal,'raw_bytes':size,'payload_ref':{'dataset':reference,'ordinal':ordinal,'total_bytes':size}}
                 if size <= max_bytes//2:
-                    item={'ordinal':ordinal,'raw_bytes':size,'value':json.loads(self._range(connection,start,size,0,size,decoder))}
+                    item={'ordinal':ordinal,'raw_bytes':size,'value':json.loads(self._range(start,size,0,size,decode))}
                 encoded_size = len(_bytes(item))
                 if len(_bytes(envelope([],ordinal))) + item_bytes + encoded_size + len(items) > max_bytes:
                     if not items: raise ValueError('dataset page budget too small for reference')

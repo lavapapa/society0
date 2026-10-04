@@ -1,0 +1,5 @@
+{
+  "python": "/tmp/society0-acceptance-20261004/all/bin/python",
+  "product_import": "/tmp/society0-acceptance-20261004/all/lib/python3.12/site-packages/society0/__init__.py",
+  "native_extension": "/tmp/society0-acceptance-20261004/all/lib/python3.12/site-packages/society0_filesystem/society0_filesystem.abi3.so"
+}

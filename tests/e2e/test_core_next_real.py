@@ -2,6 +2,7 @@
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 import pytest
 
@@ -30,6 +31,32 @@ def policy(**options):
 def successful(held):
     assert held['outcomes']
     assert all(row.result.status=='completed' for row in held['outcomes']),[(row.actor_id,row.result) for row in held['outcomes']]
+
+
+def decision_answer(reader,actor,time):
+    """取得后置记忆提取之前的主体最终正文，排除user召回材料。"""
+    from society0.kernel.threads import ThreadStore
+    threads=ThreadStore(reader);tid=threads.find(actor,{'time':time,'phase':'decision'})
+    assert tid is not None
+    through=threads.describe(tid)['last_seq']
+    requests=reader.read(lambda view:list(view.iter_query(
+        "SELECT seq FROM thread_events WHERE thread_id=? AND kind='request' ORDER BY seq",(tid,))))
+    for (seq,) in requests:
+        options=threads.read_request(tid,seq)['provider_options']
+        if any(tool.get('function',{}).get('name')=='extract_memories' for tool in options.get('tools',[])):
+            through=seq-1
+            break
+    messages=threads.snapshot_messages(tid,through=through)['messages']
+    answers=[message['content'] for message in messages
+             if message.get('role')=='assistant' and isinstance(message.get('content'),str) and message['content'].strip()]
+    assert answers,'Decision must contain an assistant answer before memory extraction'
+    return answers[-1]
+
+
+def assert_order_answer(answer):
+    # 自动核对事实字段；保存完整句子以复核否定、猜测等语义。
+    assert re.search(r'(?<![A-Za-z0-9])B42(?![A-Za-z0-9])',answer),answer
+    assert re.search(r'(?<![0-9])500(?![0-9])|五百',answer),answer
 
 
 async def execute(config,destination,**options):
@@ -121,6 +148,11 @@ async def test_real_memory_roundtrip(config,destination):
     await run_plan(branch,second,source=destination)
     successful(restored)
     assert set(held['after'][0]).issubset(set(restored['after'][0]))
+    from society0.kernel.storage import StageReader
+    with StageReader(branch) as reader:answer=decision_answer(reader,'a',2)
+    (branch/'decision-answer.json').write_text(json.dumps({'answer':answer},ensure_ascii=False))
+    assert re.search(r'(?:3|三)\s*吨',answer),answer
+    assert re.search(r'(?<![0-9])(?:2000|2,000)(?![0-9])|两千|二千',answer),answer
 
 
 @pytest.mark.asyncio
@@ -208,6 +240,22 @@ async def test_real_social_browse_completion_and_memory(config,destination):
     goal='你的目标为 {"namespace":"social","kind":"participants","key":"a"}。查找并描述 get_trending_posts 行动，执行一次读取市场信息。'
     await execute(config,destination,goals=lambda s:goal if s.actor.id=='a' else '请回答已发布市场信息。',
         policy=policy(completion_names=('social.get_trending_posts',)),mechanism='social',memory=True,actors=('a','b'),setup=setup)
+    from society0.kernel.storage import StageReader
+    from society0.kernel.threads import ThreadStore
+    with StageReader(destination) as reader:
+        threads=ThreadStore(reader);tid=threads.find('a',{'time':1,'phase':'decision'})
+        messages=threads.read_messages(tid)
+        calls={call['id']:call for message in messages for call in message.get('tool_calls',[])}
+        feedback=[]
+        for message in messages:
+            if message['role']!='tool':continue
+            call=calls[message['tool_call_id']]
+            if call['function']['name']!='action_invoke':continue
+            arguments=json.loads(call['function']['arguments'])
+            if arguments['name']=='social.get_trending_posts':feedback.append(json.loads(message['content']))
+        assert any(item.get('result',{}).get('status')=='completed' and
+                   '重要市场信息：明日物流费用增加10%。' in json.dumps(item['result'].get('value'),ensure_ascii=False)
+                   for item in feedback),feedback
 
 
 @pytest.mark.asyncio
@@ -217,7 +265,9 @@ async def test_real_multi_tick_social_workflow(config,destination):
     await execute(config,destination,goals=goal,policy=policy(completion_names=('social.publish_post',)),mechanism='social',memory=True,moments=(1,2))
     from society0.kernel.storage import StageReader
     with StageReader(destination) as reader:
-        assert reader.read(lambda v:v.query('SELECT count(*) FROM social_posts'))[0][0]==2
+        assert reader.read(lambda v:v.query(
+            'SELECT p.author,p.created_tick,b.body FROM social_posts p JOIN social_bodies b ON b.id=p.id ORDER BY p.ordinal'))==[
+                ('a',1,'这是第1步的完整更新'.encode()),('a',2,'这是第2步的完整更新'.encode())]
 
 
 def test_real_exit_restore_memory_and_observation(config,destination):
@@ -251,7 +301,9 @@ def test_real_exit_restore_memory_and_observation(config,destination):
         threads=ThreadStore(reader)
         assert threads.read_messages(tid)==original
         second=threads.find('a',{'time':2,'phase':'decision'})
-        assert any('B42' in str(message) for message in threads.read_messages(second))
+        answer=decision_answer(reader,'a',2)
+        (destination/'restored-answer.json').write_text(json.dumps({'thread_id':second,'answer':answer},ensure_ascii=False))
+        assert_order_answer(answer)
     assert json.loads((destination/'restored-result.json').read_text())['complete_step']==2
 
 
@@ -295,10 +347,20 @@ async def test_real_vfs_discovery_pagination_original_and_action(config,destinat
           '提交 count、total、phrase 三个字段，成功后结束。所有数字必须来自实际完整资料。')
     held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
         workspace=True,extra_plugins=(discovery_catalog_plugin(),))
+    feedback=assert_vfs_artifacts(destination)
+    (destination/'tool-feedback.json').write_text(json.dumps(feedback,ensure_ascii=False))
+
+
+def assert_vfs_artifacts(destination):
+    """只读同一套真实工件断言，可复核已完成运行。"""
     from society0.kernel.storage import StageReader
     from society0.kernel.threads import ThreadStore
     with StageReader(destination) as reader:
-        assert reader.read(lambda v:v.query('SELECT actor,count,total,phrase FROM submissions'))==[('a',12,546,'原文校验成功')]
+        body=reader.read(lambda v:v.query('SELECT body FROM reports WHERE id=1'))[0][0]
+        marker='\n核对短语：'
+        assert body.count(marker)==1
+        expected_phrase=body.split(marker,1)[1]
+        assert reader.read(lambda v:v.query('SELECT actor,count,total,phrase FROM submissions'))==[('a',12,546,expected_phrase)]
         threads=ThreadStore(reader);tid=threads.find('a',{'time':1,'phase':'decision'})
         messages=threads.read_messages(tid)
         names=[call['function']['name'] for message in messages for call in message.get('tool_calls',[])]
@@ -311,7 +373,7 @@ async def test_real_vfs_discovery_pagination_original_and_action(config,destinat
             call=calls[message['tool_call_id']]
             args=json.loads(call['function']['arguments']);response=json.loads(message['content'])
             if call['function']['name']=='data_query' and args.get('path')=='/catalog/prices' and not response.get('error'):
-                pages.append((json.loads(args['query']),response))
+                pages.append((args['query'],response))
         assert len(pages)==4
         previous=None
         for query,page in pages:
@@ -321,6 +383,6 @@ async def test_real_vfs_discovery_pagination_original_and_action(config,destinat
         assert [row['id'] for _,page in pages for row in page['items']]==list(range(1,13))
         assert [row['amount'] for _,page in pages for row in page['items']]==[i*7 for i in range(1,13)]
         outputs=[json.loads(message['content']) for message in messages if message['role']=='tool']
-        (destination/'tool-feedback.json').write_text(json.dumps({'errors':[value['error'] for value in outputs if value.get('error')]},ensure_ascii=False))
         shell=next(value for value in outputs if 'stdout' in value)
         assert shell['exit_code']==0 and json.loads(shell['stdout'])=={'count':12,'total':546}
+        return {'errors':[value['error'] for value in outputs if value.get('error')]}

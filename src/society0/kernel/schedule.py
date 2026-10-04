@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import time
+from dataclasses import dataclass
 from ..async_utils import invoke_maybe_async
 from .runtime import Phase
 
@@ -48,6 +49,27 @@ async def activate(context,identifiers,*,payload=None):
     return await context.drain()
 
 
+@dataclass(frozen=True)
+class PhasedSchedule:
+    """显式有序阶段计划；绑定运行时后通过同一个完整步骤入口执行。"""
+    phases: tuple[Phase, ...]
+
+    def __post_init__(self):
+        object.__setattr__(self, 'phases', tuple(self.phases))
+        if any(not isinstance(phase, Phase) for phase in self.phases):
+            raise TypeError('schedule phases must be Phase instances')
+
+    def bind(self, runtime):
+        return CodeSchedule(runtime, self.phases)
+
+
+class FixedStep(PhasedSchedule):
+    """每一步重复执行一个明确阶段，业务时间由RunPlan.moments提供。"""
+    def __init__(self, run, *, name='step', prepare=None, execution='serial',
+                 incomplete='fail_step', capacity=None):
+        super().__init__((Phase(name, run, prepare, execution, incomplete, capacity),))
+
+
 class CodeSchedule:
     def __init__(self,runtime,phases):
         self.runtime=runtime
@@ -69,6 +91,6 @@ def progress_plugin(*,storage=('storage','store'),name='progress'):
 
 def schedule_plugin(phases,*,runtime=('runtime','runtime'),name='schedule'):
     from .plugins import Plugin
-    phases=tuple(phases)
-    def install(context):context.provide('schedule',CodeSchedule(context.require(*runtime),phases))
+    plan = phases if isinstance(phases, PhasedSchedule) else PhasedSchedule(tuple(phases))
+    def install(context):context.provide('schedule',plan.bind(context.require(*runtime)))
     return Plugin(name,(runtime[0],),install)

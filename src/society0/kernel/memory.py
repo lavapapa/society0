@@ -538,8 +538,8 @@ class Memory:
         if flight in self._flights:return await asyncio.shield(self._flights[flight])
         async def prepare():
             if self.extract is None:raise ValueError('memory extraction is not configured')
-            snapshot=self.threads.snapshot_messages(thread_id,through=through)
-            entries=await self.extract(actor,thread_id,snapshot['messages'],metadata={'through':through,'job_key':key})
+            entries=await self.extract(actor,thread_id,
+                self.threads.snapshot_messages(thread_id,through=through)['messages'],metadata={'through':through,'job_key':key})
             return self.prepare_job(actor,thread_id,key,timestamp=timestamp,entries=entries)
         task=asyncio.create_task(prepare())
         self._flights[flight]=task
@@ -614,20 +614,26 @@ class Memory:
 
 class ThreadMemoryExtractor:
     """在原 Thread 上追加提取回合，复用标准模型提供方的物理留证。"""
-    def __init__(self,threads,provider):
+    def __init__(self,threads,provider,*,request_options=None):
         self.threads,self.provider=threads,provider
+        self.request_options = {"max_tokens":4096} if request_options is None else dict(request_options)
+        if hasattr(provider,"validate_options"): provider.validate_options(self.request_options)
 
     async def __call__(self,actor,thread_id,messages,*,metadata):
         from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response
         if self.threads.describe(thread_id)['actor']!=actor:raise PermissionError('Thread owner differs')
         if not messages or messages[0].get('role')!='system':raise ValueError('memory extraction requires original system context')
+        # 提供方从权威 Thread 读取 typed 原文；释放检查用视图后再请求。
+        del messages
         self.threads.append_message(thread_id,{'role':'user','content':_extraction_prompt()})
         for attempt in range(2):
             response=await self.provider.request(thread_id,{'tools':[_extraction_tool()],
                 'tool_choice':{'type':'function','function':{'name':'extract_memories'}},
-                'parallel_tool_calls':False,'max_tokens':4096})
-            self.threads.append_message(thread_id,{key:value for key,value in response.items() if key!='finish_reason'})
-            if response.get('finish_reason')=='length':raise RuntimeError('memory extraction incomplete: length')
+                'parallel_tool_calls':False,**self.request_options})
+            if response.get('message_seq') is None:
+                self.threads.append_message(thread_id,{key:value for key,value in response.items() if key!='finish_reason'})
+            if response.get('incomplete_reason') or response.get('finish_reason')=='length':
+                raise RuntimeError('memory extraction incomplete: '+response.get('incomplete_reason','length'))
             entries,call_id,error=_parse_memories_from_response(response)
             for call in response.get('tool_calls') or []:
                 if isinstance(call,dict) and call.get('id'):

@@ -27,36 +27,27 @@ async def test_review_prepare_manager_cannot_suppress_fatal_failure(tmp_path,fai
 
 
 @pytest.mark.asyncio
-async def test_review_graph_repeated_cancel_drains_native_read_before_file_close(tmp_path, monkeypatch):
+async def test_review_prepare_cancellation_closes_file_before_root_publication(tmp_path, monkeypatch):
     import asyncio
-    import threading
+    from contextlib import asynccontextmanager
     from examples.core_next import graph_environment
-    source = tmp_path / 'graph.json'
-    source.write_text('{}')
-    entered = threading.Event()
-    release = threading.Event()
-    observed = []
-    def blocked_load(stream):
-        entered.set()
-        release.wait(5)
-        observed.append(stream.closed)
-        return {'nodes': [], 'edges': []}
-    monkeypatch.setattr(graph_environment.json, 'load', blocked_load)
+    source=tmp_path/'graph.json';source.write_text('{}')
+    entered=asyncio.Event();release=asyncio.Event();observed=[]
+    @asynccontextmanager
+    async def prepare():
+        with source.open() as stream:
+            try:
+                entered.set()
+                await release.wait()
+                yield lambda writer:None
+            finally:
+                observed.append(stream.closed)
+    plugin=graph_environment.graph_plugin(source)
+    from dataclasses import replace
+    plugin=replace(plugin,prepare=prepare)
     async def run():
-        async with compose(tmp_path / 'run', [graph_environment.graph_plugin(source)]):
-            pass
-    task = asyncio.create_task(run())
-    try:
-        while not entered.is_set():
-            await asyncio.sleep(0)
-        task.cancel()
-        await asyncio.sleep(0)
-        task.cancel()
-        for _ in range(5):
-            await asyncio.sleep(0)
-        assert not task.done(), 'native read must drain before closing its file'
-    finally:
-        release.set()
-        await asyncio.gather(task, return_exceptions=True)
-    assert observed == [False]
-    assert not (tmp_path / 'run').exists()
+        async with compose(tmp_path/'run',[plugin]):pass
+    task=asyncio.create_task(run());await entered.wait()
+    task.cancel();task.cancel()
+    with pytest.raises(asyncio.CancelledError):await task
+    assert observed==[False] and not (tmp_path/'run').exists()
