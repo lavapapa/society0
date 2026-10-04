@@ -1,0 +1,9 @@
+Resolved 97 packages in 4ms
+   Building society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
+      Built society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
+Prepared 1 package in 827ms
+Uninstalled 2 packages in 2ms
+Installed 1 package in 0.94ms
+ - jmespath==1.1.0
+ - society0==5.0.0 (from file:///path/to/workspace/.codex-worktrees/society0-core-next)
+ + society0==6.0.0 (from file:///path/to/workspace/.codex-worktrees/society0-core-next)
