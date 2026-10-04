@@ -109,7 +109,7 @@ def _export(selection):
                     for metric in metrics:
                         value=metric['value']
                         if type(value) not in (int,float) or abs(value)>2**53 or not math.isfinite(value):continue
-                        points=trends.setdefault((name,metric['name']),[])
+                        points=trends.setdefault((ordinal,name,metric['name']),[])
                         points.append({'x':str(step)+' · '+str(detail['time']),'y':value})
                         environment.append({'id':f'{ordinal}:metric:'+metric['name'],'title':name+' / '+metric['name'],'source':source,
                             'views':[{'id':'trend','type':'timeseries','title':'已选完整步骤趋势','rows':list(points),'maxPoints':len(points)}]})
