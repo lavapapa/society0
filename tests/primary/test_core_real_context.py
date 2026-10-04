@@ -15,9 +15,9 @@ async def test_actual_cognitive_input_explains_optional_discovery_without_rewrit
     async def request(self,tid,options):
         messages=self.threads.read_messages(tid);calls.append(messages)
         system=messages[0]['content']
-        assert '按当前目标需要' in system and '从根路径 /' in system
+        assert '按当前目标需要' in system and '从 /world 用 ls' in system
         assert 'total=0' in system and '无可访问的信息挂载' in system
-        assert '先用 data_list' not in system
+        assert 'ls 发现' in system and 'read 读取原文' in system and 'grep 搜索' in system
         assert any(goal in m.get('content','') for m in messages)
         if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
         target={'namespace':'chat','kind':'participants','key':'a'}

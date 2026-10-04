@@ -11,14 +11,15 @@ from pathlib import Path
 from society0.kernel.actors import ActorRecord,actor_plugin
 from society0.kernel.cognition import CognitiveInput
 from society0.kernel.interaction import Action,ActionResult,interaction_plugin
-from society0.kernel.llm import LLMDriver,LLMPolicy
+from society0.kernel.llm import LLMPolicy
+from society0.kernel.drivers import llm_driver_plugin
 from society0.kernel.memory import MemoryPolicy
 from society0.kernel.plugins import Plugin
 from society0.kernel.results import StepResult,results_plugin
 from society0.kernel.runner import RunPlan,RunContract,run_plan
 from society0.kernel.runtime import Phase,runtime_plugin
 from society0.activation_pool import DEFAULT_MAX_ACTIVATIONS
-from society0.kernel.schedule import CodeSchedule,activate
+from society0.kernel.schedule import SequenceSchedule,activate
 from society0.kernel.selection import result_mean,result_rows
 from society0.kernel.services import thread_plugin,memory_plugin
 
@@ -59,53 +60,44 @@ def build_plan(*,release,resource_plugins=None,model=None,embedding=None,moments
             return ActionResult('completed',{'message':MESSAGE,'source':'本地账号，未见官方证实'})
         ctx.require('interaction','actions').register(Action('news.view_details',('news','message'),
             '查看完整消息及来源，并记录查看事实。',{'type':'object','properties':{},'additionalProperties':False},detail))
-    def drivers(ctx):
-        threads=ctx.require('threads','threads');memory=ctx.require('memory','memory')
-        provider=ctx.require('resources','models')['main']
+    def cognition(ctx):
+        threads=ctx.require('threads','threads')
         async def perceive(session,cursor):
             task=('调用 news.view_details 查看详情，然后说明你的判断。目标为 '
                   '{"namespace":"news","kind":"message","key":"current"}。' if session.step==1 else '评价可信度，提交 1–7 分与理由。')
             return ([{'role':'user','content':MESSAGE+'\n'+task}],session.step)
         inputs=CognitiveInput(threads,perceive,environment='消息传播研究；信息与来源供主体自主判断。',precision='完整原文')
-        class ExposureMemory:
-            # 实验明确在浏览完成、原 Thread 关闭前提取；测量阶段不写入记忆。
-            activation=memory.activation
-            before_activation=memory.before_activation
-            async def after_activation(self,session,thread_id,result):
-                if result.status=='completed':
-                    job=await memory.extract_job(session.actor.id,thread_id,through=result.value['memory_input_through'],timestamp=session.step)
-                    await memory.finish_job(job)
-        browse=LLMDriver(provider,threads,input_builder=inputs,memory=ExposureMemory(),
-            policy=browse_policy)
-        interview=LLMDriver(provider,threads,input_builder=inputs,memory=memory,
-            policy=interview_policy)
-        class StudyDriver:
-            async def run(self,session):
-                return await (browse if session.step==1 else interview).run(session)
-        return {'reader':lambda record:StudyDriver()}
+        ctx.provide('input',inputs)
+    moments=tuple(moments)
     def schedule(ctx):
+        actors=ctx.require('actors','actors')
         async def study(phase):
+            actors.update('alice',driver='browse' if phase.moment.time==moments[0] else 'interview')
             outcomes=await activate(phase,('alice',))
             for item in outcomes:
                 if item.result.status!='completed':raise RuntimeError('主体未完成：'+str(item.result.reason))
             return StepResult(metrics={'mean_credibility':result_mean(outcomes,('result','credibility'))},tables={'responses':result_rows(outcomes)})
-        ctx.provide('schedule',CodeSchedule(ctx.require('runtime','runtime'),[Phase('study',study)]))
+        ctx.provide('schedule',SequenceSchedule(moments,[Phase('study',study)]))
     plugins=[thread_plugin(),interaction_plugin(lambda *args:True),results_plugin(),*resource_plugins,
         memory_plugin(client=('resources','client'),embedding=('resources','embeddings','main'),extraction=('resources','models','main'),
-            policy=MemoryPolicy(auto_write=False,auto_recall=True,active_tools=True),recall_query=lambda session:'此前看到的消息与判断'),
+            policy=MemoryPolicy(auto_write=True,auto_recall=True,active_tools=True),recall_query=lambda session:'此前看到的消息与判断'),
         Plugin('news',('storage','interaction'),news,schema=('CREATE TABLE news_views(ordinal INTEGER PRIMARY KEY,actor TEXT NOT NULL)',)),
-        actor_plugin(('reader',),records=[ActorRecord('alice','reader',persona='关注本地交通消息的通勤者。',state={'attention':'正常'})],
-            requires=('threads','memory','resources'),driver_factory=drivers),
+        Plugin('cognition',('threads',),cognition),
+        llm_driver_plugin(provider=('resources','models','main'),input_builder=('cognition','input'),policy=browse_policy,
+            extensions=(('memory','extension'),),name='browse_driver'),
+        llm_driver_plugin(provider=('resources','models','main'),input_builder=('cognition','input'),policy=interview_policy,
+            extensions=(('memory','extension'),),name='interview_driver'),
+        actor_plugin({'browse':('browse_driver','factory'),'interview':('interview_driver','factory')},
+            records=[ActorRecord('alice','browse',persona='关注本地交通消息的通勤者。',state={'attention':'正常'})]),
         runtime_plugin(actor_service=('actors','actors'),information=('interaction','information'),actions=('interaction','actions'),
             store=('storage','store'),results=('results','results'),capacity=1,max_activations=DEFAULT_MAX_ACTIVATIONS),
-        Plugin('schedule',('runtime','memory','news'),schedule)]
-    moments=tuple(moments)
+        Plugin('schedule',('runtime','memory','news','actors'),schedule)]
     profiles={name:{**options,'endpoints':[{key:value for key,value in endpoint.items() if key!='api_key'} for endpoint in options['endpoints']]}
         for name,options in (('llm',model),('embedding',embedding)) if options is not None}
     dependencies={name:version(name) for name in ('society0','apsw','jsonschema','python-rapidjson','backports-zstd','pydantic-ai-slim','openai','httpx2','chromadb','pydantic','json-repair')}
     dependencies['python']=platform.python_version()
-    return RunPlan(plugins,moments,RunContract(release=release,dependencies=dependencies,
-        configuration={'models':profiles,'message':MESSAGE,'memory':{'auto_write':False,'auto_recall':True,'active_tools':True},'survey':SURVEY},
+    return RunPlan(plugins,RunContract(release=release,dependencies=dependencies,
+        configuration={'models':profiles,'message':MESSAGE,'memory':{'auto_write':True,'auto_recall':True,'active_tools':True},'survey':SURVEY},
         time={'moments':list(moments)},budgets={'browse':asdict(browse_policy),'interview':asdict(interview_policy),
             'runtime':{'capacity':1,'max_activations':DEFAULT_MAX_ACTIVATIONS}},
         credential_env=('SOCIETY0_LLM_API_KEY','SOCIETY0_EMBED_API_KEY')))

@@ -4,13 +4,13 @@
 
 ## 一、安装范围
 
-项目按能力提供可选依赖组。基础安装支持共享状态、规则驱动、调度、恢复与不可变数据集，数据集复用 APSW 和现有原生 zstd 编码；`llm` 增加提供方适配，`memory` 增加向量检索与提取协议，`social` 增加社交机制的图与向量依赖，`shell` 增加 Bashkit 与 Society0 文件系统适配器；`observe` 增加 HTTP 服务使用的 Starlette/Uvicorn。`llm` 提供 Pydantic AI 的 OpenAI/Responses 与 Codex 订阅接入，`anthropic`、`google` 增加相应普通 API 提供方依赖。开发依赖包含确定性测试实际使用的模型、向量与图组件；纯基础安装的验收使用独立环境。
+项目按能力提供可选依赖组。基础安装支持共享状态、规则驱动、调度、恢复与不可变数据集，数据集复用 APSW 和现有原生 zstd 编码；`llm` 增加提供方适配与连续文件搜索所需的 Society0 原生文件组件，`memory` 增加向量检索与提取协议，`social` 增加社交机制的图与向量依赖，`shell` 增加 Bashkit 与 Society0 文件系统适配器；`observe` 增加 HTTP 服务使用的 Starlette/Uvicorn。`llm` 提供 Pydantic AI 的 OpenAI/Responses 与 Codex 订阅接入，`anthropic`、`google` 增加相应普通 API 提供方依赖。开发依赖包含确定性测试实际使用的模型、向量与图组件；纯基础安装的验收使用独立环境。
 
-当前源码工作树可使用 `uv sync --extra shell`。`tool.uv.sources` 将原生扩展指向 `native/society0-filesystem`；它是本项目工作树中的独立包，尚未作为公共包发行。基础规则安装无需构建这个扩展。
+当前源码工作树可使用 `uv sync --extra llm`，需要 Bashkit 命令和管道时再加 `--extra shell`。`tool.uv.sources` 将原生扩展指向 `native/society0-filesystem`；它是本项目工作树中的独立包，尚未作为公共包发行。基础规则安装无需构建这个扩展。
 
 ## 二、构建与使用
 
-原生扩展通过成熟 Bashkit 的文件系统 ABI 接入，使用 maturin 构建 wheel。源码构建需要 Rust 1.95.0 与对应平台工具链，已构建 wheel 的安装和运行无需 Rust。
+原生扩展通过 Bashkit 的文件系统 ABI 接入，使用 ripgrep 的 grep-searcher／grep-regex 处理连续原文搜索，使用 maturin 构建 wheel。源码构建需要 Rust 1.95.0 与对应平台工具链，已构建 wheel 的安装和运行无需 Rust。
 
 ```sh
 cd native/society0-filesystem
@@ -29,7 +29,7 @@ uv pip install --no-sources /tmp/society0-wheels/society0_filesystem-*.whl '.[sh
 
 `benchmarks/core_next_clean_shell.py` 在独立环境执行真实私有文件写入、完整步骤发布与新运行恢复，并检查模型、向量及图依赖未被安装。基础安装的独立复核另执行规则 Driver、Runtime、Observation 和状态恢复，检查未加载旧 World 或模型模块。原始结果见 `research/core-next/base-install-20261004.txt`、`shell-clean-install-20261004.txt` 、`packaging-independent-20261004.txt`、`native-linux-build-20261004.txt` 与 `native-linux-wheel-check-20261004.txt`。
 
-这些记录验证当前源码及指定平台的安装闭环；公共发行仍需将 Core 与原生包按同一版本计划提供给用户。文件级读写成本和共享目录语义见 [工作区合同](workspace-contract.md)。
+这些历史记录验证各自报告中的源码及平台安装闭环；公共发行仍需将 Core 与原生包按同一版本计划提供给用户。文件级读写成本和共享目录语义见 [工作区合同](workspace-contract.md)。
 
 存储使用 POSIX 文件锁，当前支持 macOS 与 Linux。Windows 未提供此运行合同。版本以 pyproject.toml 和包内 __version__ 为准，发行就绪状态见验收清单；工作树可运行与公共发布分别确认。
 

@@ -208,11 +208,15 @@ class ActorStore(Mapping):
 def actor_plugin(drivers, *, records=(), name='actors', storage='storage', requires=(), driver_factory=None):
     """规则直接提供映射；资源型声明名称，在安装期从显式依赖构造映射。"""
     declared=dict(drivers) if driver_factory is None else dict.fromkeys(drivers)
+    references=tuple(value for value in declared.values() if isinstance(value,tuple))
     def initialize(writer):
         for record in records: _insert(writer,record,declared)
     def install(ctx):
-        configured=declared if driver_factory is None else dict(driver_factory(ctx))
+        configured={name:ctx.require(*factory) if isinstance(factory,tuple) else factory for name,factory in declared.items()} if driver_factory is None else dict(driver_factory(ctx))
         if configured.keys()!=declared.keys():
             raise ValueError('driver names must match the declared names')
-        ctx.provide('actors',ActorStore(ctx.require(storage,'store'),configured))
-    return Plugin(name,tuple(dict.fromkeys((storage,*requires))),install,schema=ACTOR_SCHEMA,initialize=initialize)
+        store=ctx.require(storage,'store')
+        unresolved=store.read(lambda view:[name for (name,) in view.iter_query('SELECT DISTINCT driver FROM actors') if name not in configured])
+        if unresolved: raise ValueError('unresolved actor drivers: '+', '.join(unresolved))
+        ctx.provide('actors',ActorStore(store,configured))
+    return Plugin(name,tuple(dict.fromkeys((storage,*requires,*(item[0] for item in references)))),install,schema=ACTOR_SCHEMA,initialize=initialize)

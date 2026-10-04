@@ -6,7 +6,8 @@ from society0.kernel.plugins import Plugin
 from society0.kernel.results import StepResult, results_plugin
 from society0.kernel.runner import RunContract, RunPlan
 from society0.kernel.runtime import DriverResult, Phase, runtime_plugin
-from society0.kernel.schedule import CodeSchedule, RuleDriver, activate
+from society0.kernel.drivers import RuleDriver
+from society0.kernel.schedule import SequenceSchedule, activate
 from society0.plugins.round_robin import round_robin_plugin
 
 
@@ -35,7 +36,7 @@ def build(config):
             results=await activate(phase,'abcd')
             return StepResult(metrics={'decisions':len(results)},tables={
                 'messages':(message for item in results for message in item.result.value)})
-        context.provide('schedule',CodeSchedule(context.require('runtime','runtime'),
+        context.provide('schedule',SequenceSchedule(range(start,end+1),
             [Phase('pair',prepare),Phase('talk',decide)]))
     plugins=[actor_plugin({'rule':lambda record:RuleDriver(talk)},records=[ActorRecord(x,'rule') for x in 'abcd']),
         interaction_plugin(lambda *args:True),results_plugin(),
@@ -44,7 +45,7 @@ def build(config):
         runtime_plugin(actor_service=('actors','actors'),information=('interaction','information'),
             actions=('interaction','actions'),store=('storage','store'),results=('results','results'),max_activations=4),
         Plugin('schedule',('work','commons','runtime'),schedule)]
-    return RunPlan(plugins,range(start,end+1),RunContract(
+    return RunPlan(plugins,RunContract(
         release=config['release'],dependencies={'python':sys.version},
         configuration={'plugins':{'work':{'members':'abcd','group_size':4},'commons':{'members':'acbd','group_size':4}},
             'actors':[{'id':x,'driver':'rule'} for x in 'abcd'],'models':{}},

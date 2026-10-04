@@ -1,3 +1,4 @@
+from society0.kernel.memory import MemoryExtension
 """标准 Thread/Memory 插件经过真实 Driver、Runtime 和恢复的消费者。"""
 from tests.primary.scripted_provider import TypedScriptProvider
 import json
@@ -24,7 +25,7 @@ async def test_standard_services_two_steps_and_restore(tmp_path):
             return {'role':'assistant','content':'决定完成','finish_reason':'stop'}
     def dependencies(ctx):
         ctx.provide('embeddings',{'small':type('Embedding',(),{'embed':Embed().__call__})()})
-        ctx.provide('models',{'small':Provider()})
+        ctx.provide('models',{'small':TypedScriptProvider(Provider(),ctx.require('threads','threads'))})
         ctx.provide('client',Client())
         def close():
             assert held['memory']._closed
@@ -33,11 +34,11 @@ async def test_standard_services_two_steps_and_restore(tmp_path):
     def actors(ctx):
         threads=ctx.require('threads','threads'); memory=ctx.require('memory','memory')
         held.update(threads=threads,memory=memory)
-        driver=LLMDriver(TypedScriptProvider(ctx.require('resources','models')['small'], threads),threads,
-            input_builder=lambda s:[{'role':'system','content':'主体完整背景'}],memory=memory)
+        driver=LLMDriver(ctx.require('resources','models')['small'],threads,
+            input_builder=lambda s:[{'role':'system','content':'主体完整背景'}],extensions=(MemoryExtension(memory),))
         ctx.provide('actors',{'a':Actor('a',driver)})
     def plugins():
-        return [thread_plugin(),Plugin('resources',install=dependencies),interaction_plugin(lambda *args:True),
+        return [thread_plugin(),Plugin('resources',('threads',),install=dependencies),interaction_plugin(lambda *args:True),
             memory_plugin(client=('resources','client'),embedding=('resources','embeddings','small'),
                 extraction=('resources','models','small'),recall_query=lambda s:'完整记忆'),
             Plugin('actors',('threads','memory','resources'),actors),
@@ -73,7 +74,7 @@ async def test_memory_without_extractor_can_seed_and_query(tmp_path):
     def dependencies(ctx):
         ctx.provide('embeddings',{'small':type('Embedding',(),{'embed':Embed().__call__})()})
         ctx.provide('client',Client())
-    plugins=[thread_plugin(),Plugin('resources',install=dependencies),
+    plugins=[thread_plugin(),Plugin('resources',('threads',),install=dependencies),
         memory_plugin(client=('resources','client'),embedding=('resources','embeddings','small'),
             policy=MemoryPolicy(auto_write=False,auto_recall=False,active_tools=False))]
     async with compose(tmp_path/'seeded',plugins) as host:

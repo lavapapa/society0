@@ -18,7 +18,7 @@ async def test_two_mechanism_pilot_and_complete_branch(tmp_path):
             assert rows[0][3].decode()==f'a 在 {name} 的第 1 轮完整消息'
         data=Results(reader).phase(2,1)
         assert Results(reader).page(data['tables']['messages'])['total']==8
-    branch=await run_plan(tmp_path/'branch',build({**config,'start':2,'end':3}),source=tmp_path/'run',step=1)
+    branch=await run_plan(tmp_path/'branch',build({**config,'start':1,'end':3}),source=tmp_path/'run',step=1)
     assert branch['complete_step']==3 and branch['run_id']!=result['run_id']
     with StageReader(tmp_path/'branch') as reader:
         assert reader.read(lambda r:r.query('SELECT count(*) FROM work_messages')[0][0])==12

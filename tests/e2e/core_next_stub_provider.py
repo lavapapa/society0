@@ -41,23 +41,33 @@ def vfs_call(messages):
     calls={call['id']:call['function'] for message in messages for call in (message.get('tool_calls') or [])}
     history=[(calls[m['tool_call_id']]['name'],json.loads(calls[m['tool_call_id']]['arguments']),json.loads(m['content']))
              for m in messages if m['role']=='tool']
-    listed=[args['path'] for name,args,result in history if name=='data_list']
-    for path in ('/','/catalog'):
-        if path not in listed:return 'data_list',{'path':path,'limit':100,'cursor':None}
-    prices=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/prices']
+    listed=[args['path'] for name,args,result in history if name=='ls']
+    for path in ('/world','/world/catalog'):
+        if path not in listed:return 'ls',{'path':path,'limit':100,'cursor':None}
+    def queries(path):
+        output=[]
+        for name,args,result in history:
+            if name!='bash':continue
+            words=shlex.split(args['script'])
+            if words[:3]==['data','query',path]:output.append(json.loads(result['stdout']))
+        return output
+    def query(path,options):return 'bash',{'script':'data query '+path+' '+shlex.quote(json.dumps(options))}
+    prices=queries('/world/catalog/prices')
     if not prices or prices[-1]['next_cursor'] is not None:
-        return 'data_query',{'path':'/catalog/prices','query':{'limit':3,'cursor':prices[-1]['next_cursor'] if prices else None}}
-    actors=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/actors']
-    if not actors:return 'data_query',{'path':'/catalog/actors','query':{}}
-    reports=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/reports']
-    if not reports:return 'data_query',{'path':'/catalog/reports','query':{}}
+        return query('/world/catalog/prices',{'limit':3,'cursor':prices[-1]['next_cursor'] if prices else None})
+    actors=queries('/world/catalog/actors')
+    if not actors:return query('/world/catalog/actors',{})
+    reports=queries('/world/catalog/reports')
+    if not reports:return query('/world/catalog/reports',{})
     reference=reports[0]['items'][0]['body']
-    reads=[result for name,args,result in history if name=='data_read']
+    if not any(name=='grep' for name,args,result in history):
+        return 'grep',{'pattern':'核对短语','path':reference['logical_path'],'literal':True,'ignore_case':False,'glob':None}
+    reads=[result for name,args,result in history if name=='read' and args['path']==reference['logical_path']]
     if not reads or reads[-1]['next_offset'] is not None:
-        return 'data_read',{'path':reference['path'],'offset':reads[-1]['next_offset'] if reads else 0,
+        return 'read',{'path':reference['logical_path'],'offset':reads[-1]['next_offset'] if reads else 0,
             'size':64,'encoding':'utf-8','expected_revision':reference['expected_revision']}
     rows=[row for page in prices for row in page['items']]
-    if not any(name=='bash' for name,args,result in history):
+    if not any(name=='bash' and ' | jq ' in args['script'] for name,args,result in history):
         return 'bash',{'script':"printf '%s' "+shlex.quote(json.dumps(rows))+" | jq '{count:length,total:map(.amount)|add}'"}
     target=actors[0]['items'][0]['ref']
     if not any(name=='action_find' for name,args,result in history):

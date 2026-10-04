@@ -23,7 +23,7 @@ async def main(root,mode):
         assert any('B42' in row['content'] for row in hits)
         return [row['content'] for row in hits]
     current,held=plan(config,root/'restored',goals='请从先前记忆指出订单代码与已经收款金额。',
-        policy=LLMPolicy(max_turns=8,max_action_calls=4),memory=True,moments=(2,),after=recall)
+        policy=LLMPolicy(max_turns=8,max_action_calls=4),memory=True,moments=(1,2),after=recall)
     result=await run_plan(root/'restored',current,source=root/'source',step=1)
     assert result['complete_step']==2
     (root/'restored-result.json').write_text(json.dumps({'complete_step':2,'recalled':held['after']},ensure_ascii=False))

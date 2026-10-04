@@ -1,3 +1,4 @@
+from tests.primary.scripted_provider import TypedScriptProvider
 """SQL 权威记忆、提取作业与可重建向量投影。"""
 import math
 import pytest
@@ -155,9 +156,9 @@ async def test_three_memory_switches_are_independent(tmp_path,auto_recall,auto_w
             available=await actions.find(session.scope,Ref('memory','actor','a'))
             assert bool(available.items)==active_tools
         threads.append_message(thread,{'role':'user','content':'new observation'})
-        result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(thread)['last_seq']})
-        await memory.after_activation(session,thread,result)
-        await memory.after_activation(session,thread,result)
+        result=SimpleNamespace(status='completed',value={})
+        await memory.after_activation(session,thread,result,through=threads.describe(thread)["last_seq"])
+        await memory.after_activation(session,thread,result,through=threads.describe(thread)["last_seq"])
         assert len(calls)==int(auto_write)
         assert len(embed.calls)==int(auto_recall)+int(auto_write)
 
@@ -175,14 +176,14 @@ async def test_two_activations_have_distinct_input_jobs_but_retry_reuses_receipt
         session=SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(0,'decision'))
         for value in ('first fact','second fact'):
             threads.append_message(thread,{'role':'user','content':value})
-            result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(thread)['last_seq']})
-            await memory.after_activation(session,thread,result)
-            await memory.after_activation(session,thread,result)
+            result=SimpleNamespace(status='completed',value={})
+            await memory.after_activation(session,thread,result,through=threads.describe(thread)["last_seq"])
+            await memory.after_activation(session,thread,result,through=threads.describe(thread)["last_seq"])
         assert len(calls)==2 and len(embed.calls)==2
         assert calls[0][0][-1]['content']=='first fact'
         assert calls[1][0][-1]['content']=='second fact'
         incomplete=SimpleNamespace(status='incomplete',value={})
-        await memory.after_activation(session,thread,incomplete)
+        await memory.after_activation(session,thread,incomplete,through=threads.describe(thread)["last_seq"])
         assert len(calls)==2
 
 
@@ -310,7 +311,7 @@ async def test_thread_extractor_preserves_history_and_protocol_boundary(tmp_path
                 import json
                 return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':'extract-call','type':'function','function':{'name':'extract_memories','arguments':json.dumps({'memories':[] if mode=='empty' else [{'content':'remember','importance':4}]})}}]}
         provider=Provider()
-        extract=ThreadMemoryExtractor(threads,provider)
+        extract=ThreadMemoryExtractor(threads,TypedScriptProvider(provider,threads))
         if mode=='length':
             with pytest.raises(RuntimeError,match='length'):
                 await extract('a',thread,original,metadata={})
@@ -386,8 +387,8 @@ async def test_interview_thread_default_policy_does_not_extract_experience(tmp_p
         interview=threads.open('a',0,'interview')
         threads.append_message(interview,{'role':'system','content':'interview'})
         session=SimpleNamespace(step=1,actor=SimpleNamespace(id='a'),moment=Moment(0,'interview'))
-        result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(interview)['last_seq']})
-        await memory.after_activation(session,interview,result)
+        result=SimpleNamespace(status='completed',value={})
+        await memory.after_activation(session,interview,result,through=threads.describe(interview)["last_seq"])
         assert store.read(lambda view:view.query('SELECT count(*) FROM memory_jobs'))==[(0,)]
 
 

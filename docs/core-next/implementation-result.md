@@ -1,10 +1,10 @@
 # Core 实施结果
 
-Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收、真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，实际执行范围见 [独立验收记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
+Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收、真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，本轮文件接口与主体插件的实际执行范围见 [实施记录](../../research/core-next/filesystem-implementation-20261005/status.md)，此前验收保留在 [历史记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
 
 ## 一、结构
 
-机制通过 Plugin 声明数据、初始化、服务与依赖，compose 建立共享状态后安装服务。公共层连接身份、信息、行动与生命周期；CodeSchedule 和 Phase 决定业务时间及执行次序。普通规则主体直接调用结构化服务，LLMDriver 通过同一信息和行动入口决定。安装、组合与最小运行分别见 [安装](installation.md)、[组合](composition-contract.md)和[运行入口](runner-contract.md)。
+机制通过 Plugin 声明数据、初始化、服务与依赖，compose 建立共享状态后安装服务。公共层连接身份、信息、行动与生命周期；Schedule 提供模拟时间与 Phase 阶段顺序，Runtime 执行并发布完整步骤。普通规则主体直接调用结构化服务，LLMDriver 通过同一信息和行动入口决定。安装、组合与最小运行分别见 [安装](installation.md)、[组合](composition-contract.md)和[运行入口](runner-contract.md)。
 
 持久主体按身份和字段读取，休眠主体无需常驻解释器。信息查询提供授权总数、继续游标及原文引用；动态行动按对象类型注册，并在执行时重新判断资格。私有工作区使用 Bashkit 原生文件系统与文件级增量，共享材料按需挂载。具体消费边界由 [主体](actor-contract.md)、[信息](interaction-contract.md)、[SQL 提供者](information-sql-contract.md)与[工作区](workspace-contract.md)合同定义。
 
@@ -22,7 +22,7 @@ Society0 的公开入口以一个共享环境组织主体、机制与运行。�
 
 [步骤与多核测量](../../research/core-next/x08-runtime-parallel-20261004.md)分别使用规则、完整 LLMDriver 和真实 Chroma 的确定性响应组合，并比较串行、线程与进程。原生压缩的线程收益、纯 Python 计算的进程收益、IPC 和进程组驻留各有明确负载条件。模型等待、向量索引和领域计算需要分开预算；局部加速无法直接换算为整体仿真加速。
 
-[实时读取测量](../../research/core-next/final-realtime-20261004.md)在四条完整 10 MiB Thread 正文写入期间，由独立进程读取实际状态和追加水位，并逐段核对全部原文。运行事件循环的同步编码空窗与外部观察响应分别记录。该小样本支持接口与水位判断，长期高并发的尾延迟和 WAL 占盘仍需按研究负载测量。工作区巨文件采用整文件读取与 copy-up，向量索引驻留也有独立成本，均保留在专项报告中。
+[实时读取测量](../../research/core-next/final-realtime-20261004.md)在四条完整 10 MiB Thread 正文写入期间，由独立进程读取实际状态和追加水位，并逐段核对全部原文。运行事件循环的同步编码空窗与外部观察响应分别记录。该小样本支持接口与水位判断，长期高并发的尾延迟和 WAL 占盘仍需按研究负载测量。工作区已持久化正文支持专用工具范围读取；Bashkit 命令整读和当前 Overlay 巨文件首次物化仍有整文件成本，向量索引驻留也有独立成本。
 
 ## 四、使用
 

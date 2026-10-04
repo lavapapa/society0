@@ -1,6 +1,7 @@
 """两代引擎共用的记忆提取提示、工具声明与解析规则。"""
 from __future__ import annotations
 import math
+from jsonschema import Draft202012Validator
 from typing import Any, Dict, List, Optional
 import json_repair
 
@@ -17,7 +18,7 @@ EXTRACT_MEMORIES_SCHEMA: Dict[str, Any] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "content": {"type": "string", "maxLength": 500},
+                    "content": {"type": "string", "minLength": 1, "maxLength": 500},
                     "importance": {"type": "number", "minimum": 0, "maximum": 5},
                 },
                 "required": ["content", "importance"],
@@ -78,31 +79,19 @@ def _parse_memories_from_response(
         arguments = json_repair.loads(function.get("arguments") or "{}")
     except Exception:
         return None, None, "invalid_tool_arguments"
-    if not isinstance(arguments, dict) or set(arguments) != {"memories"}:
-        return None, None, "invalid_tool_arguments"
-    memories = arguments.get("memories")
-    if not isinstance(memories, list):
-        return None, None, "invalid_tool_arguments"
-
-    cleaned: List[Dict[str, Any]] = []
-    for item in memories:
-        if not isinstance(item, dict) or set(item) != {"content", "importance"}:
-            return None, None, "invalid_memory_item"
-        content = item.get("content")
-        importance = item.get("importance")
-        if not isinstance(content, str) or not content.strip():
-            return None, None, "invalid_memory_content"
-        if (
-            isinstance(importance, bool)
-            or not isinstance(importance, (int, float))
-            or not math.isfinite(float(importance))
-            or not 0 <= float(importance) <= 5
-        ):
-            return None, None, "invalid_memory_importance"
-        cleaned.append(
-            {
-                "content": content.strip(),
-                "importance": float(importance),
-            }
-        )
+    errors=list(Draft202012Validator(EXTRACT_MEMORIES_SCHEMA).iter_errors(arguments))
+    if errors:
+        error=errors[0]
+        path=list(error.absolute_path)
+        if not path or path[0]!='memories': code='invalid_tool_arguments'
+        elif len(path)>=3 and path[2]=='content': code='invalid_memory_content'
+        elif len(path)>=3 and path[2]=='importance': code='invalid_memory_importance'
+        elif len(path)>=2: code='invalid_memory_item'
+        else: code='invalid_tool_arguments'
+        return None,None,code
+    cleaned=[]
+    for item in arguments['memories']:
+        if not item['content'].strip(): return None,None,'invalid_memory_content'
+        if not math.isfinite(float(item['importance'])): return None,None,'invalid_memory_importance'
+        cleaned.append({'content':item['content'].strip(),'importance':float(item['importance'])})
     return cleaned, str(tool_call.get("id") or ""), ""

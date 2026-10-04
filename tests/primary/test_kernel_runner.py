@@ -4,7 +4,7 @@ import pytest
 from society0.kernel.runner import RunContract, RunPlan, run_plan
 from society0.kernel.interaction import interaction_plugin
 from society0.kernel.runtime import Phase, runtime_plugin
-from society0.kernel.schedule import schedule_plugin
+from society0.kernel.schedule import schedule_plugin, SequenceSchedule
 from society0.kernel.results import StepResult, results_plugin
 
 
@@ -15,7 +15,7 @@ def plan(seen,*,fail=False):
         return StepResult(metrics={'time':ctx.moment.time})
     return RunPlan(plugins=[interaction_plugin(lambda *args:True),results_plugin(),
         runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
-        schedule_plugin([Phase('environment',phase)])],moments=(10,20),contract=RunContract(
+        schedule_plugin(SequenceSchedule((10,20),[Phase('environment',phase)]))],contract=RunContract(
         release={'commit':'explicit-test-release'},dependencies={'python':'test'},
         configuration={'plugins':{},'actors':{},'models':{}},time={'start':10,'end':20},budgets={'max_activations':0}))
 
@@ -28,13 +28,13 @@ async def test_runner_freezes_manifest_and_timings_and_restores(tmp_path):
     manifest=json.loads((tmp_path/'run'/'runner.json').read_text())
     assert manifest['run_id']==result['run_id']
     assert manifest['contract']['release']=={'commit':'explicit-test-release'}
-    assert manifest['effective_schedule']['capacity']==1
-    assert manifest['effective_schedule']['phases'][0]['name']=='environment'
+    assert manifest['effective_runtime']['capacity']==1
+    assert manifest['schedule']==['schedule','schedule']
     assert [p['name'] for p in manifest['plugins']]==['interaction','results','runtime','schedule']
     timings=[json.loads(line) for line in (tmp_path/'run'/'timings.jsonl').read_text().splitlines()]
     assert [row['step'] for row in timings]==[1,2] and all(row['complete_step']==row['step'] for row in timings)
     resumed=await run_plan(tmp_path/'resumed',plan([]),source=tmp_path/'run',step=1)
-    assert resumed['run_id']!=result['run_id'] and resumed['complete_step']==3
+    assert resumed['run_id']!=result['run_id'] and resumed['complete_step']==2
 
 
 @pytest.mark.asyncio

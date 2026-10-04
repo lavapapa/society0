@@ -5,11 +5,13 @@ import asyncio
 from pathlib import PurePosixPath
 
 from .plugins import Plugin
+from .interaction import DocumentChunk, Page, Ref
 
 WORKSPACE_SCHEMA=(
     'CREATE TABLE workspace_heads(actor TEXT PRIMARY KEY NOT NULL,state BLOB NOT NULL,FOREIGN KEY(actor) REFERENCES actors(id))',
     'CREATE TABLE workspace_files(actor TEXT NOT NULL,path TEXT NOT NULL,parent TEXT NOT NULL,kind TEXT NOT NULL,mode INTEGER NOT NULL,modified_ns INTEGER NOT NULL,created_ns INTEGER NOT NULL,target TEXT,artifact TEXT,size INTEGER NOT NULL,PRIMARY KEY(actor,path),FOREIGN KEY(actor) REFERENCES actors(id))',
     'CREATE INDEX workspace_directory ON workspace_files(actor,parent,path)',
+    'CREATE TABLE workspace_counts(actor TEXT NOT NULL,parent TEXT NOT NULL,total INTEGER NOT NULL,PRIMARY KEY(actor,parent),FOREIGN KEY(actor) REFERENCES actors(id))',
 )
 
 
@@ -67,6 +69,41 @@ class WorkspaceLease:
             self._check();return result
         finally:self._tasks.discard(task)
 
+    async def read_range(self,path,*,offset=0,size=65536,expected_revision=None):
+        self._check()
+        if offset<0 or size<1:raise ValueError('invalid workspace byte range')
+        def read(view):
+            rows=view.query('SELECT kind,artifact,size FROM workspace_files WHERE actor=? AND path=?',(self.scope.actor,path))
+            if not rows:raise FileNotFoundError(path)
+            kind,artifact,total=rows[0]
+            if kind=='directory':raise IsADirectoryError(path)
+            if kind!='file':raise FileNotFoundError(path)
+            revision=view.revision_for(('workspace_files',))
+            if expected_revision is not None and expected_revision!=revision:raise ValueError('workspace revision changed')
+            data,_=self.owner.store.read_artifact(artifact,offset=offset,size=size)
+            end=offset+len(data)
+            return DocumentChunk(data,total,end if end<total else None,revision,Ref('workspace','file',path))
+        value=self.owner.store.read(read)
+        self._check()
+        return value
+
+    async def list_files(self,path,*,limit=100,cursor=None):
+        self._check()
+        if type(limit) is not int or limit<1:raise ValueError('invalid workspace page limit')
+        def read(view):
+            revision=view.revision_for(('workspace_files',))
+            if cursor is not None and (cursor['revision']!=revision or cursor['actor']!=self.scope.actor or cursor['path']!=path):raise ValueError('workspace cursor changed')
+            counts=view.query('SELECT total FROM workspace_counts WHERE actor=? AND parent=?',(self.scope.actor,path))
+            total=counts[0][0] if counts else 0
+            after='' if cursor is None else cursor['after']
+            rows=view.query('SELECT path,kind,size FROM workspace_files WHERE actor=? AND parent=? AND path>? ORDER BY path LIMIT ?',(self.scope.actor,path,after,limit+1),max_rows=limit+1)
+            selected=rows[:limit]
+            next_cursor={'revision':revision,'actor':self.scope.actor,'path':path,'after':selected[-1][0]} if len(rows)>limit else None
+            return Page([{'path':p,'kind':k,'total_bytes':size} for p,k,size in selected],total,next_cursor,revision)
+        result=self.owner.store.read(read)
+        self._check()
+        return result
+
     def save(self,state,changes):
         self._check()
         entries=[]
@@ -79,13 +116,20 @@ class WorkspaceLease:
             entries.append(entry)
         def write(writer):
             for path in changes['removed']:
+                counts=writer.query('SELECT parent,COUNT(*) FROM workspace_files WHERE actor=? AND (path=? OR (path>=? AND path<?)) GROUP BY parent',
+                    (self.scope.actor,path,path+'/',path+'0'))
+                for parent,total in counts:
+                    writer.execute('UPDATE workspace_counts SET total=total-? WHERE actor=? AND parent=?',(total,self.scope.actor,parent))
                 writer.execute('DELETE FROM workspace_files WHERE actor=? AND (path=? OR (path>=? AND path<?))',
                     (self.scope.actor,path,path+'/',path+'0'))
             for entry in entries:
                 path=entry['path'];ref=entry['artifact']
+                parent='' if path=='/' else str(PurePosixPath(path).parent)
+                if not writer.query('SELECT 1 FROM workspace_files WHERE actor=? AND path=?',(self.scope.actor,path)):
+                    writer.execute('INSERT INTO workspace_counts VALUES(?,?,1) ON CONFLICT(actor,parent) DO UPDATE SET total=total+1',(self.scope.actor,parent))
                 if ref:writer.include_artifact(ref)
                 writer.execute('INSERT INTO workspace_files VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(actor,path) DO UPDATE SET parent=excluded.parent,kind=excluded.kind,mode=excluded.mode,modified_ns=excluded.modified_ns,created_ns=excluded.created_ns,target=excluded.target,artifact=excluded.artifact,size=excluded.size',
-                    (self.scope.actor,path,'' if path=='/' else str(PurePosixPath(path).parent),entry['kind'],entry['mode'],entry['modified_ns'],entry['created_ns'],entry.get('target'),ref,entry['size']))
+                    (self.scope.actor,path,parent,entry['kind'],entry['mode'],entry['modified_ns'],entry['created_ns'],entry.get('target'),ref,entry['size']))
             writer.execute('INSERT INTO workspace_heads VALUES(?,?) ON CONFLICT(actor) DO UPDATE SET state=excluded.state',(self.scope.actor,state))
         self.owner.store.transaction(write)
 

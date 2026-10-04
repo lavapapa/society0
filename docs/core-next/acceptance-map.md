@@ -9,9 +9,9 @@
 | 能力 ID | 责任模块 | 验收位置与关键负例 |
 |---|---|---|
 | E01、E02、N05 | kernel/plugins 与机制插件 | test_kernel_plugins、test_kernel_plugins_review；缺依赖、环、重复服务、半初始化与逆序清理 |
-| E03、S01、S02、S06 | kernel/runtime 与 schedule | test_kernel_runtime、test_kernel_runtime_review、test_kernel_schedule；时点、prepare 共用、关闭、无模型规则运行 |
+| E03、S01、S02、S06 | kernel/runtime 与 schedule | test_kernel_runtime、test_kernel_runtime_review、test_kernel_schedule、test_kernel_schedule_protocol；独立 Schedule、完整时间线恢复；时点、prepare 共用、关闭、无模型规则运行 |
 | N01、N02、L01、L02 | kernel/interaction 与 llm ledger | test_kernel_interaction、test_kernel_interaction_review、test_kernel_llm；动态目标、发现后失效、schema、实际行动预算 |
-| N03、N04、B05 | kernel/information_sql 与 shell | test_kernel_information_sql、test_kernel_information_sql_review、test_kernel_shell；行范围、全文、深页索引、抽样成本、UTF8 与原文范围 |
+| N03、N04、B05 | kernel/information_sql、actor_files 与 shell | test_kernel_information_sql、test_kernel_information_sql_review、test_kernel_shell、test_kernel_actor_files、test_filesystem_cross_review、test_native_stream_search；原文路径、连续搜索、泛型认知挂载、捕获结果、行范围、全文、深页索引、抽样成本、UTF8 与原文范围 |
 | K 层贯穿消费者 | examples/core_next/shared_environment | 双机制事务、两个主体、真实 shell 查询与行动、完整发布及新目录恢复 |
 
 ## 二、主体与机制
@@ -20,7 +20,7 @@
 
 | 能力 ID | 责任模块 | 验收位置与关键负例 |
 |---|---|---|
-| A01、A02、A08 | kernel/actors、runtime | test_kernel_actors、test_kernel_actor_fields、test_kernel_selection 及独立 review；持久身份、persona、状态引用、选择顺序、抽样、规则驱动及批量结果 |
+| A01、A02、A08 | kernel/actors、drivers、activation、runtime | test_kernel_actors、test_kernel_actor_fields、test_kernel_selection、test_kernel_driver_extensions 及独立 review；命名工厂恢复、第三驱动与有序扩展；持久身份、persona、状态引用、选择顺序、抽样、规则驱动及批量结果 |
 | A03–A07、L03–L12 | kernel/llm、models、认知输入插件 | test_kernel_llm 与独立 review；完整消息、required、terminal、重复调用、失败预算、length、访谈与结构化结果 |
 | M01、M02 | kernel/threads 与 llm | test_kernel_threads、test_kernel_threads_review、test_kernel_llm；消息水位、巨正文范围、同 moment 跨进程续激活、完整恢复 |
 | M03–M10 | kernel/memory 与可选检索适配 | test_kernel_memory、review、memory_transfer、services；memory_activation、memory_activation_review 保逐主体/激活策略与步骤时钟；三个开关八组合、pending/receipt、逐条向量、失败重试、排序衰减、分叉隔离与导入导出 |

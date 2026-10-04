@@ -107,7 +107,7 @@ async def test_official_actor_driver_factory_can_consume_persistent_workspace(tm
     from society0.kernel.services import thread_plugin
     from society0.kernel.workspace import workspace_plugin
     from society0.kernel.composition import compose
-    from society0.kernel.schedule import RuleDriver
+    from society0.kernel.drivers import RuleDriver
     from society0.kernel.runtime import DriverResult
     calls=[]
     def factory(ctx):

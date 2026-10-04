@@ -65,6 +65,37 @@ def _schema(name):
     )
 
 
+
+def _post_details(r,name,identifier):
+    table=lambda suffix:_quote(name+'_'+suffix)
+    rows=r.query(f'SELECT id,author,created_tick,reply_to,like_count,reply_count,repost_count,view_count FROM {table("posts")} WHERE id=?',(identifier,))
+    if not rows:raise KeyError(identifier)
+    item=dict(zip(('post_id','author_id','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),rows[0]))
+    body,tags=r.query(f'SELECT body,tags FROM {table("bodies")} WHERE id=?',(identifier,))[0]
+    item.update(content=body.decode(),tags=json.loads(tags))
+    item['likes']=[row[0] for row in r.iter_query(f'SELECT actor FROM {table("likes")} WHERE post=? ORDER BY id',(identifier,))]
+    item['like_events']=[{'agent_id':actor,'created_tick':tick} for actor,tick in r.iter_query(f'SELECT actor,tick FROM {table("likes")} WHERE post=? ORDER BY id',(identifier,))]
+    item['special_tags']=[row[0] for row in r.iter_query(f'SELECT tag FROM {table("special_tags")} WHERE post=? ORDER BY id',(identifier,))]
+    item['replies']=[{'reply_id':i,'author_id':a,'created_tick':tick,'content':body.decode()} for i,a,tick,body in r.iter_query(f'SELECT id,author,tick,body FROM {table("replies")} WHERE post=? ORDER BY id',(identifier,))]
+    return item
+
+def _profile(r,name,actor):
+    table=lambda suffix:_quote(name+'_'+suffix)
+    if not bool(r.query('SELECT 1 FROM '+table("members")+' WHERE id=?',(actor,))):raise KeyError(actor)
+    config=json.loads(r.query('SELECT body FROM actor_configs WHERE actor=?',(actor,))[0][0])
+    state={key:json.loads(value) for key,value in r.query("SELECT key,value FROM actor_state WHERE actor=? AND key IN ('interests','mood')",(actor,))}
+    recent=[]
+    for identifier,tick,likes,replies,reposts,rowid in r.query(f'SELECT p.id,p.created_tick,p.like_count,p.reply_count,p.repost_count,b.rowid FROM {table("posts")} p JOIN {table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT 5',(actor,)):
+        data,total=r.read_blob(name+'_bodies','body',rowid,size=324)
+        text=codecs.getincrementaldecoder('utf-8')().decode(data,final=len(data)==total)
+        preview=text[:80]+('...' if len(text)>80 else '')
+        recent.append({'post_id':identifier,'created_tick':tick,'like_count':likes,'reply_count':replies,'repost_count':reposts,'content_preview':preview,'content_path':'/'+name+'/content/'+identifier,'logical_path':'/world/'+name+'/content/'+identifier})
+    return {'actor':actor,'type':config.get('type','unknown'),'archetype':config.get('archetype','unknown'),
+            'interests':state.get('interests',[]),'mood':state.get('mood'),'recent_posts':recent,
+            'following':[row[0] for row in r.iter_query(f'SELECT followee FROM {table("edges")} WHERE follower=? ORDER BY id',(actor,))],
+            'followers':[row[0] for row in r.iter_query(f'SELECT follower FROM {table("edges")} WHERE followee=? ORDER BY id',(actor,))],
+            'posts':[row[0] for row in r.iter_query(f'SELECT id FROM {table("posts")} WHERE author=? ORDER BY ordinal',(actor,))]}
+
 class Social:
     def __init__(self,name,store,actors,embed=None,client=None):
         self.name,self.store,self.actors=name,store,actors
@@ -187,36 +218,10 @@ class Social:
         return self.store.transaction(write)
 
     def post_details(self,identifier):
-        def read(r):
-            rows=r.query(f'SELECT id,author,created_tick,reply_to,like_count,reply_count,repost_count,view_count FROM {self.table("posts")} WHERE id=?',(identifier,))
-            if not rows:raise KeyError(identifier)
-            item=dict(zip(('post_id','author_id','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),rows[0]))
-            body,tags=r.query(f'SELECT body,tags FROM {self.table("bodies")} WHERE id=?',(identifier,))[0]
-            item.update(content=body.decode(),tags=json.loads(tags))
-            item['likes']=[row[0] for row in r.iter_query(f'SELECT actor FROM {self.table("likes")} WHERE post=? ORDER BY id',(identifier,))]
-            item['like_events']=[{'agent_id':actor,'created_tick':tick} for actor,tick in r.iter_query(f'SELECT actor,tick FROM {self.table("likes")} WHERE post=? ORDER BY id',(identifier,))]
-            item['special_tags']=[row[0] for row in r.iter_query(f'SELECT tag FROM {self.table("special_tags")} WHERE post=? ORDER BY id',(identifier,))]
-            item['replies']=[{'reply_id':i,'author_id':a,'created_tick':tick,'content':body.decode()} for i,a,tick,body in r.iter_query(f'SELECT id,author,tick,body FROM {self.table("replies")} WHERE post=? ORDER BY id',(identifier,))]
-            return item
-        return self.store.read(read)
+        return self.store.read(lambda r:_post_details(r,self.name,identifier))
 
     def profile(self,actor):
-        def read(r):
-            if not self._member(r,actor):raise KeyError(actor)
-            config=json.loads(r.query('SELECT body FROM actor_configs WHERE actor=?',(actor,))[0][0])
-            state={key:json.loads(value) for key,value in r.query("SELECT key,value FROM actor_state WHERE actor=? AND key IN ('interests','mood')",(actor,))}
-            recent=[]
-            for identifier,tick,likes,replies,reposts,rowid in r.query(f'SELECT p.id,p.created_tick,p.like_count,p.reply_count,p.repost_count,b.rowid FROM {self.table("posts")} p JOIN {self.table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT 5',(actor,)):
-                data,total=r.read_blob(self.name+'_bodies','body',rowid,size=324)
-                text=codecs.getincrementaldecoder('utf-8')().decode(data,final=len(data)==total)
-                preview=text[:80]+('...' if len(text)>80 else '')
-                recent.append({'post_id':identifier,'created_tick':tick,'like_count':likes,'reply_count':replies,'repost_count':reposts,'content_preview':preview,'content_path':'/'+self.name+'/content/'+identifier})
-            return {'actor':actor,'type':config.get('type','unknown'),'archetype':config.get('archetype','unknown'),
-                    'interests':state.get('interests',[]),'mood':state.get('mood'),'recent_posts':recent,
-                    'following':[row[0] for row in r.iter_query(f'SELECT followee FROM {self.table("edges")} WHERE follower=? ORDER BY id',(actor,))],
-                    'followers':[row[0] for row in r.iter_query(f'SELECT follower FROM {self.table("edges")} WHERE followee=? ORDER BY id',(actor,))],
-                    'posts':[row[0] for row in r.iter_query(f'SELECT id FROM {self.table("posts")} WHERE author=? ORDER BY ordinal',(actor,))]}
-        return self.store.read(read)
+        return self.store.read(lambda r:_profile(r,self.name,actor))
 
     def notifications(self,actor,*,consume=False,include_consumed=False):
         def read(r):
@@ -424,8 +429,6 @@ class Social:
             'comment':'向目标帖子写入完整评论，并通知原作者。',
             'repost':'转发目标帖子，可附自己的评论；新帖子保留原帖关联。',
             'follow':'关注目标用户并通知对方。', 'unfollow':'取消对目标用户的关注。',
-            'get_post_details':'读取目标帖子的完整原文、评论、点赞和系统标记。',
-            'get_agent_profile':'读取目标用户的公开资料、社交关系与近期帖子预览。',
             'get_trending_posts':'读取当前热门帖子并记录本次曝光。',
             'get_notifications':'读取当前主体的全部未读通知并标记已消费；原始通知仍可追溯。',
         }
@@ -447,11 +450,9 @@ class Social:
             actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],schema,
                 lambda scope,target,args,operation=operation:self.execute(operation,scope.actor,target.key,args,scope.moment.time),tags=tags,available=available),
                 dependencies=(self.name+'_members',self.name+'_posts',self.name+'_edges'))
-        def details(scope,target,args):return ActionResult('completed',self.post_details(target.key))
-        def profile(scope,target,args):return ActionResult('completed',self.profile(target.key))
         def notices(scope,target,args):return ActionResult('completed',{'notifications':self.notifications(scope.actor,consume=True)})
         def trending(scope,target,args):return ActionResult('completed',{'posts':self.trending(scope.moment.time,record_impressions=True)})
-        for operation,kind,handler,read_only in (('get_post_details','posts',details,True),('get_agent_profile','participants',profile,True),('get_trending_posts','participants',trending,False),('get_notifications','participants',notices,False)):
+        for operation,kind,handler,read_only in (('get_trending_posts','participants',trending,False),('get_notifications','participants',notices,False)):
             def available(scope,target,kind=kind,operation=operation):
                 if not member(scope,target):return False
                 if operation in ('get_trending_posts','get_notifications'):return target.key==scope.actor
@@ -466,9 +467,13 @@ def _social_routes(name):
     table=lambda suffix:_quote(name+'_'+suffix)
     public=lambda scope:('EXISTS(SELECT 1 FROM '+table('members')+' WHERE id=?)',(scope.actor,))
     return {
+        'post_details':DatasetSpec(name+'_posts','id',('id',),authorize=public,dependencies=tuple(name+'_'+suffix for suffix in ('members','bodies','likes','special_tags','replies'))),
+        'profiles':DatasetSpec(name+'_members','id',('id',),authorize=public,dependencies=(name+'_posts',name+'_bodies',name+'_edges','actor_configs','actor_state')),
         'feed':DatasetSpec(name+'_posts','id',('id',),authorize=public),
         'participants':DatasetSpec(name+'_members','id',('id','post_count','followers','following'),authorize=public),
         'posts':DatasetSpec(name+'_posts','id',('id','author','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),authorize=public,order_fields=('ordinal','created_tick'),
+            field_descriptions={'id':'帖子标识','author':'作者主体标识','created_tick':'创建时的仿真 tick','reply_to':'被回复的帖子标识，原创为空','like_count':'累计点赞数','reply_count':'累计回复数','repost_count':'累计转发数','view_count':'累计浏览数'},
+            time_description='created_tick 使用发布动作传入的仿真 tick，与该环境的离散运行时间口径一致。',
             base_count=lambda scope:(f'SELECT post_count FROM {table("head")} WHERE id=1 AND EXISTS(SELECT 1 FROM {table("members")} WHERE id=?)',(scope.actor,)),dependencies=(name+'_head',name+'_members')),
         'content':DocumentSpec(name+'_bodies','id','body',authorize=public,dependencies=(name+'_members',)),
         'replies':DatasetSpec(name+'_replies','id',('id','post','author','tick'),authorize=public,order_fields=('tick',),dependencies=(name+'_members',)),
@@ -481,11 +486,30 @@ def _social_routes(name):
 
 class _SocialSQLInformation(SQLInformation):
     """帖子资料沿同一页面物化路径提供正文入口。"""
+    async def read(self,scope,path,*,offset=0,size=65536):
+        route,key=self._route(path)
+        if route not in ('post_details','profiles') or key is None:
+            return await super().read(scope,path,offset=offset,size=size)
+        scope.check_active()
+        if offset<0 or size<1:raise ValueError('invalid social document range')
+        spec=self._routes[route];where,values=self._where(scope,spec,())
+        def read(view):
+            rows=view.query('SELECT '+_quote(spec.key)+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+            if not rows:raise Unavailable('resource unavailable')
+            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            identity=(scope.actor,path,revision)
+            if self._record_source is None or self._record_source[0]!=identity:
+                record=(_post_details if route=='post_details' else _profile)(view,self.namespace,key)
+                self._materialize_record(identity,record)
+            return self._record_range(offset,size,revision,self.ref(path))
+        return self.reader.read(read,expected_revision=scope.revision)
+
     def _items(self, route, fields, selected, rows, view=None, revision=None):
         items=super()._items(route,fields,selected,rows,view,revision)
         if route=='posts':
             for item in items:
                 item['content_path']='/'+self.namespace+'/content/'+item['ref'].key
+                item['logical_path']='/world'+item['content_path']
         return items
 
 

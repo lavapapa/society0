@@ -12,10 +12,12 @@ _LAZY_IMPORTS = {
     'ActorRecord': ('actors', 'ActorRecord'),
     'Phase': ('runtime', 'Phase'),
     'DriverResult': ('runtime', 'DriverResult'),
-    'RuleDriver': ('schedule', 'RuleDriver'),
-    'CodeSchedule': ('schedule', 'CodeSchedule'),
-    'FixedStep': ('schedule', 'FixedStep'),
-    'PhasedSchedule': ('schedule', 'PhasedSchedule'),
+    'ActivationContext': ('activation', 'ActivationContext'),
+    'activation_scope': ('activation', 'activation_scope'),
+    'RuleDriver': ('drivers', 'RuleDriver'),
+    'Schedule': ('schedule', 'Schedule'),
+    'StepPlan': ('schedule', 'StepPlan'),
+    'SequenceSchedule': ('schedule', 'SequenceSchedule'),
     'StepResult': ('results', 'StepResult'),
     'TableValue': ('results', 'TableValue'),
     'DatasetTable': ('results', 'DatasetTable'),
@@ -45,6 +47,8 @@ if TYPE_CHECKING:
     from .kernel.plugins import Plugin
     from .kernel.actors import ActorRecord
     from .kernel.runtime import Phase, DriverResult
-    from .kernel.schedule import RuleDriver, CodeSchedule, FixedStep, PhasedSchedule
+    from .kernel.activation import ActivationContext, activation_scope
+    from .kernel.drivers import RuleDriver
+    from .kernel.schedule import Schedule, StepPlan, SequenceSchedule
     from .kernel.results import StepResult, TableValue, DatasetTable
     from .kernel.interaction import Ref, Query, Action, ActionResult

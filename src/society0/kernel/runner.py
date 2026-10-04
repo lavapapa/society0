@@ -22,9 +22,9 @@ class RunContract:
 @dataclass
 class RunPlan:
     plugins: object
-    moments: object
     contract: RunContract
     schedule: tuple[str, str] = ('schedule', 'schedule')
+    runtime: tuple[str, str] = ('runtime', 'runtime')
 
 
 def _write_manifest(path, value):
@@ -40,7 +40,7 @@ def _append_timing(path, value):
 
 
 async def run_plan(path, plan, *, source=None, step=None):
-    """moments 显式给出本次步骤时间；恢复后从所选完整步的下一步编号。"""
+    """调度读取下一计划，Runtime 执行并发布完整步骤。"""
     plugins = tuple(plan.plugins)
     # 配置在安装前冻结为公开 JSON；凭据由调用方通过环境引用配置。
     contract = json.loads(json.dumps(asdict(plan.contract), ensure_ascii=False, allow_nan=False))
@@ -51,14 +51,14 @@ async def run_plan(path, plan, *, source=None, step=None):
         async with compose(path, plugins, source=source, step=step) as host:
             store = host.service('storage', 'store')
             schedule = host.service(*plan.schedule)
+            runtime = host.service(*plan.runtime)
             run_id = store.read(lambda view: view.run_id)
             _write_manifest(path/'runner.json', {
                 'format': 1, 'run_id': run_id, 'contract': contract,
                 'plugins': [{'name': item.name, 'requires': list(item.requires)} for item in plugins],
-                'effective_schedule': {'capacity':schedule.runtime.capacity,
-                    'max_activations':schedule.runtime.max_activations,
-                    'phases':[{'name':phase.name,'execution':phase.execution,
-                        'capacity':phase.capacity,'incomplete':phase.incomplete} for phase in schedule.phases]},
+                'schedule': list(plan.schedule), 'runtime': list(plan.runtime),
+                'effective_runtime': {'capacity': runtime.capacity,
+                    'max_activations': runtime.max_activations},
                 'source': None if source is None else {'path':str(Path(source).absolute()),'step':store.complete_step},
             })
             state = {'run_id': run_id, 'status':'running', 'complete_step':store.complete_step,
@@ -70,12 +70,13 @@ async def run_plan(path, plan, *, source=None, step=None):
                     logging.getLogger(__name__).warning('runner status could not be saved')
             report()
             try:
-                for number, moment in enumerate(plan.moments, start=store.complete_step+1):
+                while (planned := await schedule.next_step(store.complete_step)) is not None:
+                    number = store.complete_step + 1
                     try:
-                        await schedule.run_step(number, moment)
+                        await runtime.run_step(number, planned.time, planned.phases)
                     finally:
                         state['complete_step'] = store.complete_step
-                        timing = schedule.runtime.last_timing
+                        timing = runtime.last_timing
                         if timing is not None:
                             try:
                                 _append_timing(path/'timings.jsonl', timing)

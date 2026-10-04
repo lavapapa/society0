@@ -34,8 +34,8 @@ async def test_model_request_explains_container_and_original_file_access(tmp_pat
     try:
         await driver.run(session)
         tools={t['function']['name']:t['function']['description'] for t in provider.requests[0][1]['tools']}
-        assert 'directory' in tools['data_list'] and 'data_query' in tools['data_list']
-        assert 'file' in tools['data_read'] and 'document_ref' in tools['data_read']
-        assert 'directory' in tools['data_read'] and 'data_list' in tools['data_read']
-        assert 'dataset' in tools['data_query'] and 'document_ref' in tools['data_query']
+        assert {'read','ls','find','grep'}<=set(tools)
+        assert 'directory' in tools['ls'] and 'byte' in tools['read']
+        assert 'JSONL' in tools['grep']
+        assert not {'data_list','data_read','data_query','result_read'}&set(tools)
     finally:store.close()

@@ -72,7 +72,7 @@ async def probe(path,*,mode,steps=20,actors=8):
             import chromadb
             from society0.kernel.plugins import Plugin,PluginHost
             from society0.kernel.services import memory_plugin
-            from society0.kernel.memory import MemoryPolicy
+            from society0.kernel.memory import MemoryPolicy, MemoryExtension
             class Embed:
                 async def embed(self,texts,*,metadata):return [[1.]+[0.]*1023 for text in texts]
             def resources(ctx):
@@ -91,7 +91,7 @@ async def probe(path,*,mode,steps=20,actors=8):
                     finally:memory_seconds+=time.perf_counter()-before
                 return call
             memory.before_activation=measure(memory.before_activation);memory.after_activation=measure(memory.after_activation)
-        driver=LLMDriver(provider,threads,memory=memory,input_builder=lambda session:[{'role':'system','content':'完整决策材料'*1024},
+        driver=LLMDriver(provider,threads,extensions=(MemoryExtension(memory),) if memory is not None else (),input_builder=lambda session:[{'role':'system','content':'完整决策材料'*1024},
             {'role':'user','content':json.dumps({'actor':session.actor.id,'step':session.step,'task':'increment exactly once'})}])
     else:
         class Rule:

@@ -4,7 +4,7 @@ import pytest
 from society0.kernel.runtime import Runtime,Phase,Actor,DriverResult
 from society0.kernel.interaction import Information,Actions
 from society0.kernel.results import Results,RESULTS_SCHEMA,StepResult
-from society0.kernel.schedule import CodeSchedule,activate,Progress
+from society0.kernel.schedule import SequenceSchedule,activate,Progress
 from society0.kernel.storage import StageStore
 
 
@@ -32,8 +32,7 @@ async def test_schedule_hooks_serial_visibility_results_and_single_completion(tm
             order.append('after');store.transaction(lambda w:w.execute('UPDATE business SET n=n+1'))
         runtime._before=(('mechanism',before),)
         runtime._after=(('mechanism',after),)
-        schedule=CodeSchedule(runtime,[Phase('decide',phase)])
-        receipt=await schedule.run_step(1,42)
+        receipt=await runtime.run_step(1,42,[Phase('decide',phase)])
         assert receipt['step']==store.complete_step==1
         assert order==['before',('actor','a',1),('actor','b',1),'after']
         assert results.phase(1,1)['tables']['rows']
@@ -49,25 +48,25 @@ async def test_progress_io_failure_isolated_but_result_generator_failure_aborts(
         monkeypatch.setattr(progress,'_replace',fail)
         runtime=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,
                         results=Results(store),progress=progress)
-        await CodeSchedule(runtime,[Phase('ok',lambda ctx:StepResult(notes='ok'))]).run_step(1,0)
+        await runtime.run_step(1,0,[Phase('ok',lambda ctx:StepResult(notes='ok'))])
         def broken():
             yield {'original':1}
             raise ValueError('broken table')
-        schedule=CodeSchedule(runtime,[Phase('fail',lambda ctx:StepResult(tables={'rows':broken()}))])
-        with pytest.raises(ValueError,match='broken table'):await schedule.run_step(2,1)
+        with pytest.raises(ValueError,match='broken table'):
+            await runtime.run_step(2,1,[Phase('fail',lambda ctx:StepResult(tables={'rows':broken()}))])
         assert store.complete_step==1
         await runtime.close()
 
 
 @pytest.mark.asyncio
 async def test_sync_rule_and_collect_results_include_duration_and_order(tmp_path):
-    from society0.kernel.schedule import RuleDriver
+    from society0.kernel.drivers import RuleDriver
     with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
         results=Results(store)
         def rule(session):return DriverResult('incomplete',{'original':'kept'},'budget')
         runtime=Runtime([Actor('a',RuleDriver(rule))],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,results=results)
         async def run(ctx):await activate(ctx,['a'])
-        await CodeSchedule(runtime,[Phase('rule',run,incomplete='collect')]).run_step(1,7)
+        await runtime.run_step(1,7,[Phase('rule',run,incomplete='collect')])
         row=results.page(results.phase(1,0)['activations'])['items'][0]['value']
         assert row['actor_id']=='a' and row['round']==1 and row['elapsed_s']>=0
         assert row['status']=='incomplete' and row['reason']=='budget' and row['value']=={'original':'kept'}
@@ -151,9 +150,10 @@ async def test_composed_social_instances_automatically_flush_before_complete(tmp
         interaction_plugin(lambda *a:True),Plugin('vectors',install=resources),results_plugin(),
         runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
         *(social_plugin('a',name=name,config=config,embedding=('vectors','default'),vector_client=('vectors','client')) for name in ('left','right')),
-        schedule_plugin([Phase('publish',body)])]
+        schedule_plugin(SequenceSchedule((0,), [Phase('publish',body)]))]
     async with compose(tmp_path/'run',plugins) as host:
-        await host.service('schedule','schedule').run_step(1,0)
+        planned=await host.service('schedule','schedule').next_step(0)
+        await host.service('runtime','runtime').run_step(1,planned.time,planned.phases)
         assert embed.calls==[['left'],['right']]
         for name in ('left','right'):assert host.service(name,'mechanism').post_details(ids[name])['view_count']==1
     async with compose(tmp_path/'restored',plugins,source=tmp_path/'run') as host:
@@ -169,7 +169,8 @@ async def test_schedule_lazy_selector_sync_rule_and_real_interview_driver(tmp_pa
     from society0.kernel.interaction import interaction_plugin
     from society0.kernel.runtime import runtime_plugin
     from society0.kernel.results import results_plugin
-    from society0.kernel.schedule import RuleDriver,schedule_plugin
+    from society0.kernel.drivers import RuleDriver
+    from society0.kernel.schedule import schedule_plugin
     from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
     from society0.kernel.llm import LLMDriver,LLMPolicy
     built=[];holder={}
@@ -195,9 +196,10 @@ async def test_schedule_lazy_selector_sync_rule_and_real_interview_driver(tmp_pa
     plugins=[actor_plugin({'rule':rule,'interview':interview},records=[ActorRecord('r','rule',roles=('rule',)),ActorRecord('q','interview',roles=('interview',)),ActorRecord('idle','rule',active=False)]),
         Plugin('threads',('storage',),thread_install,schema=THREAD_SCHEMA),interaction_plugin(lambda *a:True),results_plugin(),
         runtime_plugin(actor_service=('actors','actors'),information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
-        schedule_plugin([Phase('rules',rules),Phase('interview',questions)])]
+        schedule_plugin(SequenceSchedule((7,), [Phase('rules',rules),Phase('interview',questions)]))]
     async with compose(tmp_path/'run',plugins) as host:
-        await host.service('schedule','schedule').run_step(1,7)
+        planned=await host.service('schedule','schedule').next_step(0)
+        await host.service('runtime','runtime').run_step(1,planned.time,planned.phases)
         assert built==['r','q']
         result=host.service('results','results')
         row=result.page(result.phase(1,1)['activations'])['items'][0]['value']

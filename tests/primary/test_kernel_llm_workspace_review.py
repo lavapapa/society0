@@ -9,7 +9,7 @@ async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes
     store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
     closed=[]
     async def close():closed.append(True)
-    shell=SimpleNamespace(has_workspace=True,aclose=close)
+    shell=SimpleNamespace(has_workspace=True,aclose=close,bind_files=lambda files:None)
     driver.shell_factory=lambda *a:shell
     def save(*a):raise OSError('disk full')
     shell.save_workspace=save

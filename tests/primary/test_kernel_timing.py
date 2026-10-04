@@ -1,3 +1,4 @@
+from society0.kernel.memory import MemoryExtension
 from tests.primary.provider_http import bind_chat, bind_embedding
 """稳定阶段的短时长事实，保留包含关系。"""
 import asyncio
@@ -46,14 +47,17 @@ async def test_activation_reports_memory_model_and_cleanup_stage_facts(tmp_path)
             from pydantic_ai.messages import ModelResponse,TextPart
             await asyncio.sleep(.01)
             return ModelResponse(parts=[TextPart('done')],finish_reason='stop'),0,None
-    class Memory:
-        def activation(self,*args):
-            from contextlib import nullcontext
-            return nullcontext()
-        async def before_activation(self,*args):await asyncio.sleep(.01);return []
-        async def after_activation(self,*args):await asyncio.sleep(.01)
+    from contextlib import asynccontextmanager
+    import time
+    @asynccontextmanager
+    async def extension(context):
+        started=time.perf_counter();await asyncio.sleep(.01)
+        context.timings['memory_recall_s']=time.perf_counter()-started
+        yield
+        started=time.perf_counter();await asyncio.sleep(.01)
+        context.timings['memory_write_s']=time.perf_counter()-started
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
-        threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'user','content':'当前任务'}],memory=Memory())
+        threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'user','content':'当前任务'}],extensions=(extension,))
         scope=InteractionScope('a',Moment(1,'decision'))
         session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None, step=1)
         result=await driver.run(session)

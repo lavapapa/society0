@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import time
 from dataclasses import dataclass
-from ..async_utils import invoke_maybe_async
+from typing import Protocol
 from .runtime import Phase
 
 
@@ -34,13 +34,6 @@ class Progress:
         return json.loads(self.path.read_text())
 
 
-class RuleDriver:
-    """以同一会话执行同步或异步规则；回调返回 DriverResult。"""
-    def __init__(self,run):self._run=run
-
-    async def run(self,session):return await invoke_maybe_async(self._run,session)
-
-
 async def activate(context,identifiers,*,payload=None):
     if hasattr(identifiers,'__aiter__'):
         async for identifier in identifiers:context.activate(identifier,payload)
@@ -50,35 +43,37 @@ async def activate(context,identifiers,*,payload=None):
 
 
 @dataclass(frozen=True)
-class PhasedSchedule:
-    """显式有序阶段计划；绑定运行时后通过同一个完整步骤入口执行。"""
+class StepPlan:
+    """一次完整步骤的模拟时间与有序业务阶段。"""
+    time: object
     phases: tuple[Phase, ...]
 
     def __post_init__(self):
         object.__setattr__(self, 'phases', tuple(self.phases))
         if any(not isinstance(phase, Phase) for phase in self.phases):
-            raise TypeError('schedule phases must be Phase instances')
-
-    def bind(self, runtime):
-        return CodeSchedule(runtime, self.phases)
+            raise TypeError('step phases must be Phase instances')
 
 
-class FixedStep(PhasedSchedule):
-    """每一步重复执行一个明确阶段，业务时间由RunPlan.moments提供。"""
-    def __init__(self, run, *, name='step', prepare=None, execution='serial',
-                 incomplete='fail_step', capacity=None):
-        super().__init__((Phase(name, run, prepare, execution, incomplete, capacity),))
+class Schedule(Protocol):
+    async def next_step(self, completed_step: int) -> StepPlan | None: ...
 
 
-class CodeSchedule:
-    def __init__(self,runtime,phases):
-        self.runtime=runtime
-        self.phases=tuple(phases)
+@dataclass(frozen=True)
+class SequenceSchedule:
+    """冻结完整时间线；下一项由完整步骤身份定位，读取不推进游标。"""
+    times: tuple[object, ...]
+    phases: tuple[Phase, ...]
 
-    async def run_step(self,step,time):
-        return await self.runtime.run_step(step,time,self.phases)
+    def __post_init__(self):
+        object.__setattr__(self, 'times', tuple(self.times))
+        object.__setattr__(self, 'phases', StepPlan(None, self.phases).phases)
 
-    async def close(self):await self.runtime.close()
+    async def next_step(self, completed_step: int) -> StepPlan | None:
+        if type(completed_step) is not int or completed_step < 0:
+            raise ValueError('completed_step must be a nonnegative integer')
+        if completed_step >= len(self.times):
+            return None
+        return StepPlan(self.times[completed_step], self.phases)
 
 
 def progress_plugin(*,storage=('storage','store'),name='progress'):
@@ -89,8 +84,7 @@ def progress_plugin(*,storage=('storage','store'),name='progress'):
     return Plugin(name,(storage[0],),install)
 
 
-def schedule_plugin(phases,*,runtime=('runtime','runtime'),name='schedule'):
+def schedule_plugin(schedule: Schedule, *, name='schedule'):
     from .plugins import Plugin
-    plan = phases if isinstance(phases, PhasedSchedule) else PhasedSchedule(tuple(phases))
-    def install(context):context.provide('schedule',plan.bind(context.require(*runtime)))
-    return Plugin(name,(runtime[0],),install)
+    def install(context): context.provide('schedule', schedule)
+    return Plugin(name, install=install)

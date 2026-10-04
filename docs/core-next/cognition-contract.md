@@ -19,3 +19,9 @@ CognitiveInput 把主体背景、环境说明、感知精度、当前主观状�
 动态信息的可得范围仍由绑定主体的 Information 与感知提供方决定。此构建器没有创建跨网络请求的数据库读事务，返回材料也不宣称对应任意历史 World 快照。provider 可返回实际 revision 供主体理解信息时间。
 
 确定性测试验证完整背景和大原文进入实际提供方输入、阶段往返继续位置、独立进程恢复继续位置，以及消息失败不推进消费位置。模型 profile 的主体、类型与单次覆盖选择由提供方选择接入单独验收；这些测试不替代真实模型认知质量评估。
+
+## 认知扩展与文件
+
+Driver 通过 ActivationContext 和 activation_scope 组合有序异步上下文管理器。扩展进入后，输入构建器生成实际初始认知，延后 preparations 再构造需要该输入的材料。输入原文和追加材料继续进入完整 Thread，同时可从 `/context/messages.json` 读取；文件化不替换原有必要输入。
+
+扩展提供的具名只读挂载进入 `/context/<name>`，主观笔记保存在 `/workspace`。规则驱动可直接消费结构化材料，并把实际经历交给 context.experience；LLM 的经历水位来自原 Thread。MemoryExtension 是该机制的一种实现，自动召回、自动写入和主动访问独立配置。

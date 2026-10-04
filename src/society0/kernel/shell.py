@@ -110,6 +110,50 @@ class ShellSession:
             self._overlay=Overlay(callback_filesystem(self._file_callback(self._workspace.callback)),*self._workspace.root)
             self._bash.mount('/workspace',FileSystem.from_capsule(self._overlay.capsule()))
 
+    def bind_files(self, files):
+        """原生 shell 与专用文件工具引用同一个主体视图。"""
+        from bashkit import FileSystem
+        from society0_filesystem import callback_filesystem
+        self._actor_files=files
+        for name in ('context','results'):
+            async def callback(operation,path,mount=name):
+                return await files.callback(operation,'/'+mount+('' if path=='/' else path))
+            self._bash.mount('/'+name,FileSystem.from_capsule(callback_filesystem(self._file_callback(callback))),read_only=True)
+
+    def workspace_revision(self):
+        self._check()
+        return [self._overlay.revision(),self._workspace.owner.store.read(lambda view:view.revision_for(('workspace_files',)))]
+
+    async def workspace_list(self,path,*,limit=100,cursor=None):
+        from .interaction import Page
+        self._check();revision=self.workspace_revision()
+        if cursor is not None and cursor['revision']!=revision:raise ValueError('workspace directory changed')
+        if self._overlay.revision()==0:
+            page=await self._workspace.list_files(path,limit=limit,cursor=None if cursor is None else cursor['cursor'])
+            return Page([{**item,'path':'/workspace'+item['path']} for item in page.items],page.total,
+                None if page.next_cursor is None else {'cursor':page.next_cursor,'revision':revision},revision)
+        offset=0 if cursor is None else cursor['cursor']
+        entries=await self._overlay.list(path)
+        entries.sort(key=lambda item:item[0])
+        end=min(offset+limit,len(entries))
+        items=[{'path':'/workspace'+(path.rstrip('/')+'/'+name),'kind':kind,'total_bytes':size}
+               for name,kind,size in entries[offset:end]]
+        return Page(items,len(entries),{'cursor':end,'revision':revision} if end<len(entries) else None,revision)
+
+    async def workspace_read(self,path,*,offset=0,size=65536,expected_revision=None):
+        self._check();revision=self.workspace_revision()
+        if expected_revision is not None and _json(expected_revision)!=_json(revision):raise ValueError('workspace file changed')
+        if not await self._overlay.exists(path):raise FileNotFoundError(path)
+        meta=await self._overlay.stat(path)
+        if meta[0]!='file':raise IsADirectoryError(path) if meta[0]=='directory' else FileNotFoundError(path)
+        if await self._overlay.upper_exists(path):
+            data,total=await self._overlay.read_range(path,offset,size)
+        else:
+            chunk=await self._workspace.read_range(path,offset=offset,size=size)
+            data,total=chunk.data,chunk.total_bytes
+        if _json(self.workspace_revision())!=_json(revision):raise ValueError('workspace changed during read')
+        return data,total,revision,'/workspace'+path
+
     def _file_callback(self,callback):
         async def call(operation,path):
             try:
@@ -190,11 +234,17 @@ class ShellSession:
                 return self._result_reader(ref, **options)
             return self.read_result(ref, **options)
         operation, path, *tail = argv
+        if path!='/world' and not path.startswith('/world/'):
+            raise ValueError('data commands require an absolute /world path')
+        path=path[6:] or '/'
         options = json.loads(tail[0]) if tail else {}
         if operation == 'list':
             return await self.information.list(path, **options)
         if operation == 'query':
-            return await self.information.query(path, Query(**options))
+            result=await self.information.query(path, Query(**options))
+            reference=self._save_receipt(result)
+            from .actor_files import ActorFiles
+            return {**asdict(result),'result_path':ActorFiles.result_path(reference)}
         if operation == 'read':
             encoding = options.pop('encoding', 'utf-8')
             offset = options.get('offset', 0)

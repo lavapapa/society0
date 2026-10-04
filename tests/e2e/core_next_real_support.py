@@ -1,5 +1,6 @@
 """新版真实验收共享装配；凭据由显式环境提供，公开合同随运行保存。"""
 from __future__ import annotations
+from society0.kernel.memory import MemoryExtension
 import json
 import os
 import sys
@@ -50,8 +51,9 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
     from society0.kernel.results import results_plugin,StepResult
     from society0.kernel.runner import RunPlan,RunContract
     from society0.kernel.runtime import Phase,runtime_plugin
-    from society0.kernel.schedule import CodeSchedule,activate
+    from society0.kernel.schedule import SequenceSchedule,activate
     from society0.kernel.services import thread_plugin,memory_plugin
+    moments=tuple(moments)
     held={'outcomes':[],'after':[],'intervals':[],'active':{},'peak':{}}
     def measured(kind,method):
         async def call(*args,**kwargs):
@@ -86,7 +88,7 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
             goal=goals(session) if callable(goals) else goals
             return ([{'role':'user','content':goal}],session.step)
         input_builder=CognitiveInput(threads,perception,environment=
-            '这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。'
+            '这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从 /world 用 ls 发现，用 read 读取原文，以 grep 搜索，用 bash data query 对数据集筛选；世界目录 total=0 表示当前无可访问的信息挂载。'
             '需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。'
             'action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。',
             precision='所有已提供材料均为原文。')
@@ -96,7 +98,7 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
                 result_dir=path/'shell-results',workspace=ctx.require('workspace','workspace'))
         def factory(record):
             driver=LLMDriver(ctx.require('models','models')['main'],threads,input_builder=input_builder,
-                policy=policy,memory=held.get('memory'),shell_factory=shell if workspace else None)
+                policy=policy,extensions=(MemoryExtension(held['memory']),) if memory else (),shell_factory=shell if workspace else None)
             driver.run=measured('activation',driver.run)
             return driver
         return {'llm':factory}
@@ -136,7 +138,7 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
             if after is not None:held['after'].append(await after(ctx,phase,held))
             if fail_after:raise RuntimeError('deliberate incomplete step after actual model activation')
             return StepResult(metrics={'activations':len(outcomes)})
-        ctx.provide('schedule',CodeSchedule(ctx.require('runtime','runtime'),[
+        ctx.provide('schedule',SequenceSchedule(moments,[
             Phase('prepare',prepare),Phase('decision',decide,execution='independent' if capacity>1 or phase_capacity else 'serial',capacity=phase_capacity)]))
     plugins.append(Plugin('schedule',tuple(requires),schedule))
     from importlib.metadata import version,PackageNotFoundError
@@ -151,4 +153,4 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
          'task':goals if isinstance(goals,str) else goals.__module__+'.'+goals.__qualname__},
         {'moments':list(moments)},{'policy':policy.__dict__,'capacity':capacity,'phase_capacity':phase_capacity},
         ('SOCIETY0_REAL_LLM_KEY','SOCIETY0_REAL_EMBED_KEY'))
-    return RunPlan(plugins,moments,contract),held
+    return RunPlan(plugins,contract),held

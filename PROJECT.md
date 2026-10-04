@@ -6,7 +6,7 @@ Society0 是通用多主体仿真引擎。主体共享一个环境，插件实�
 
 ## 运行边界
 
-Plugin 声明 schema、初始化、服务及依赖；compose 先创建或恢复共享 StageStore，再安装服务。依赖顺序用于资源装配，业务顺序由 CodeSchedule 与 Phase 明确表达。默认串行阶段保持共享状态顺序，独立阶段的并发与提供方请求并发分别配置。
+Plugin 声明 schema、初始化、服务及依赖；compose 先创建或恢复共享 StageStore，再安装服务。依赖顺序用于资源装配，业务顺序由 Schedule 与 Phase 明确表达。默认串行阶段保持共享状态顺序，独立阶段的并发与提供方请求并发分别配置。
 
 ActorStore 保存身份与主观资料，Driver 在激活时通过绑定主体的 Session 访问 Information 与 Actions。模型驱动保留完整 Thread，动态发现可执行动作。业务资格由环境机制判断，accepted、completed、rejected 具有不同含义。预算耗尽和输出截断作为未完成留证。
 

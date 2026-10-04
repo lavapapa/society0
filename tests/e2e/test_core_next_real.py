@@ -144,7 +144,7 @@ async def test_real_memory_roundtrip(config,destination):
         return [item['content'] for item in hits]
     held=await execute(config,destination,goals='重要经历：我今天采购三吨原料，每吨2000元。请确认并记住这条经历。',policy=policy(),memory=True,after=after)
     branch=destination.with_name(destination.name+'-restored')
-    second,restored=plan(config,branch,goals='请根据你的记忆说明先前采购的数量与单价。',policy=policy(),memory=True,moments=(2,),after=after)
+    second,restored=plan(config,branch,goals='请根据你的记忆说明先前采购的数量与单价。',policy=policy(),memory=True,moments=(1,2),after=after)
     await run_plan(branch,second,source=destination)
     successful(restored)
     assert set(held['after'][0]).issubset(set(restored['after'][0]))
@@ -170,7 +170,7 @@ async def test_real_complete_boundary_memory_restore(config,destination):
         original_memories=memory_snapshot(original)
         assert original_memories and all(row[2] for row in original_memories)
     branch=destination.with_name(destination.name+'-failed')
-    candidate,_=plan(config,branch,goals='本次未完成步骤的新观察：尚未发布的报价600元。请确认。',policy=policy(),memory=True,moments=(2,),fail_after=True)
+    candidate,_=plan(config,branch,goals='本次未完成步骤的新观察：尚未发布的报价600元。请确认。',policy=policy(),memory=True,moments=(1,2),fail_after=True)
     with pytest.raises(RuntimeError,match='deliberate incomplete'):
         await run_plan(branch,candidate,source=destination)
     with StageStore.restore(branch,destination.with_name(destination.name+'-recovered')) as recovered:
@@ -342,7 +342,7 @@ async def test_real_vfs_discovery_pagination_original_and_action(config,destinat
     from society0.kernel.llm import LLMPolicy
     task=('从共享根目录开始查找 catalog 信息。分页读取全部 prices，每页 limit=3，依据 total 和 next_cursor 读到结束，'
           '然后用 bash 中的 jq 对这些完整报价复算，输出 JSON 对象含 count 记录数和 total 金额合计。找到 reports 正文引用，'
-          '每次 data_read 的 size=64，透传 expected_revision 并按 next_offset 续读直到结束，保留核对短语。'
+          '使用 ls 浏览 /world/catalog，用 bash 的 data query /world/catalog/<dataset> 加 JSON options做分页查询。先 grep 核对短语，再每次 read 的 size=64，透传 expected_revision 并按 next_offset 续读直到结束，保留核对短语。'
           '从 actors 找到属于你的 Ref，使用 action_find 和 action_describe 发现提交方法，'
           '提交 count、total、phrase 三个字段，成功后结束。所有数字必须来自实际完整资料。')
     held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
@@ -364,16 +364,19 @@ def assert_vfs_artifacts(destination):
         threads=ThreadStore(reader);tid=threads.find('a',{'time':1,'phase':'decision'})
         messages=threads.read_messages(tid)
         names=[call['function']['name'] for message in messages for call in message.get('tool_calls',[])]
-        assert all(name in names for name in ('data_list','data_query','data_read','bash','action_find','action_describe','action_invoke'))
-        assert names.count('data_read')>=2
+        assert all(name in names for name in ('ls','grep','read','bash','action_find','action_describe','action_invoke'))
+        assert names.count('read')>=2
         calls={call['id']:call for message in messages for call in message.get('tool_calls',[])}
         pages=[]
         for message in messages:
             if message['role']!='tool':continue
             call=calls[message['tool_call_id']]
             args=json.loads(call['function']['arguments']);response=json.loads(message['content'])
-            if call['function']['name']=='data_query' and args.get('path')=='/catalog/prices' and not response.get('error'):
-                pages.append((args['query'],response))
+            if call['function']['name']=='bash' and not response.get('error'):
+                import shlex
+                words=shlex.split(args['script'])
+                if words[:3]==['data','query','/world/catalog/prices']:
+                    pages.append((json.loads(words[3]),json.loads(response['stdout'])))
         assert len(pages)==4
         previous=None
         for query,page in pages:
@@ -383,6 +386,6 @@ def assert_vfs_artifacts(destination):
         assert [row['id'] for _,page in pages for row in page['items']]==list(range(1,13))
         assert [row['amount'] for _,page in pages for row in page['items']]==[i*7 for i in range(1,13)]
         outputs=[json.loads(message['content']) for message in messages if message['role']=='tool']
-        shell=next(value for value in outputs if 'stdout' in value)
+        shell=next(value for value in outputs if 'stdout' in value and value['stdout'].strip() and 'count' in json.loads(value['stdout']))
         assert shell['exit_code']==0 and json.loads(shell['stdout'])=={'count':12,'total':546}
         return {'errors':[value['error'] for value in outputs if value.get('error')]}

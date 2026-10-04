@@ -46,7 +46,7 @@ def _decode(value):
 async def _read_tool(fn, *args, **kwargs):
     try:
         return await fn(*args, **kwargs)
-    except (Unavailable, ValueError, TypeError, KeyError) as error:
+    except (Unavailable, ValueError, TypeError, KeyError, FileNotFoundError, IsADirectoryError, NotADirectoryError, PermissionError) as error:
         return {'error': type(error).__name__, 'message': str(error)}
 
 
@@ -66,13 +66,13 @@ def _text_range(data, offset, total, encoding):
 
 _TOOL_DESCRIPTIONS = {
     'action_find': 'Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass the returned cursor to continue.',
-    'action_describe': 'Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it.',
+    'action_describe': 'Read the full parameter schema, tags and completion metadata for one action before invoking it. Eligibility is checked again when the action runs.',
     'action_invoke': 'Execute one domain action. arguments follows the described action schema; accepted is not completed. Every attempt uses the domain action budget.',
-    'data_list': 'List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass the returned cursor to continue.',
-    'data_read': 'Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read.',
-    'data_query': 'Query structured rows at a dataset path. query contains fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read.',
-    'bash': 'Run shell text with read-only /world information paths and data/action commands. With persistent workspace enabled, cwd defaults to /workspace: relative files persist between activations; /tmp is temporary. Large /world documents are directories: @manifest.json describes version and length, @parts contains base64 byte parts, and @text contains UTF-8-safe text parts. Follow @page- continuation directories when listed. Paginated data list/query/read provides the same complete information. Private giant files still have whole-file shell costs. Domain actions inside the script use the same action budget. Full outputs remain readable by result reference.',
-    'result_read': 'Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary.',
+    'read': 'Read an original file by absolute path, with byte offset and size. Start at /context, /world, /workspace or /results. Defaults to UTF-8; base64 preserves binary bytes. Follow next_offset until null and keep expected_revision when continuing.',
+    'ls': 'List authorized immediate directory children. Returns exact total, revision and next_cursor; pass that cursor to continue. Listing does not read large bodies.',
+    'find': 'Find original logical file paths using a glob pattern under path. Returns total and next_cursor; pass the cursor to continue. Transmission parts and metadata are not duplicate search targets.',
+    'grep': 'Search original text files by line using ripgrep regex, or literal text when literal=true. Returns line and byte locations, exact completed total and a persistent JSONL result_path; read that file to obtain all matches. glob selects file paths. Source changes invalidate the search.',
+    'bash': 'Run shell text with read-only /world, /context and /results files, data/action commands, and private /workspace files. With persistent workspace enabled, cwd is /workspace. Shell commands may materialize whole selected files; use read for byte ranges. Domain actions share the action budget. Complete outputs have persistent /results paths.',
     'submit_result': 'Submit the final structured result matching this schema. Success completes this measurement or decision.',
 }
 
@@ -295,13 +295,13 @@ def _stage_segments(content, stages):
 
 
 class LLMDriver:
-    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, memory=None, provider_selector=None):
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, extensions=(), provider_selector=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
         self.provider_selector = provider_selector
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
-        self.memory = memory
+        self.extensions = tuple(extensions)
 
     def _tools(self):
         dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
@@ -311,15 +311,14 @@ class LLMDriver:
                                     'cursor': cursor}),
             'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
             'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': dynamic}),
-            'data_list': _schema({'path': {'type': 'string'}, 'limit': {'type': 'integer'}, 'cursor': cursor if self.policy.strict_tools else {}}),
-            'data_read': {**_schema({'path': {'type': 'string'}, 'offset': {'type': 'integer'}, 'size': {'type': 'integer'},
-                                    'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}, 'expected_revision': {}}),
-                          'required': ['path', 'offset', 'size']},
-            'data_query': _schema({'path': {'type': 'string'}, 'query': dynamic}),
+            'ls': {**_schema({'path': {'type':'string'}, 'limit': {'type':'integer'}, 'cursor': cursor if self.policy.strict_tools else {}}), 'required':['path']},
+            'read': {**_schema({'path': {'type':'string'}, 'offset': {'type':'integer'}, 'size': {'type':'integer'},
+                'encoding': {'type':'string','enum':['utf-8','base64']}, 'expected_revision': {}}), 'required':['path']},
+            'find': {**_schema({'pattern': {'type':'string'}, 'path': {'type':'string'}, 'limit': {'type':'integer'},
+                'cursor': cursor if self.policy.strict_tools else {}}), 'required':['pattern','path']},
+            'grep': {**_schema({'pattern': {'type':'string'}, 'path': {'type':'string'}, 'glob': {'type':['string','null']},
+                'literal': {'type':'boolean'}, 'ignore_case': {'type':'boolean'}}), 'required':['pattern','path']},
         }
-        schemas['result_read'] = {**_schema({'reference': {'type': 'string'}, 'offset': {'type': 'integer'},
-                                  'size': {'type': 'integer'}, 'encoding': {'type': 'string', 'enum': ['utf-8', 'base64']}}),
-                                  'required': ['reference', 'offset', 'size']}
         if self.policy.allowed_names == () or self.policy.allowed_tags == ():
             schemas = {name: value for name, value in schemas.items() if not name.startswith('action_')}
         if self.shell_factory is not None:
@@ -330,13 +329,13 @@ class LLMDriver:
             schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
         if self.policy.direct_json:
             schemas = {}
-        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'data_query', 'action_find', 'data_list') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
+        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
                 'strict': self.policy.strict_tools}} for name, schema in schemas.items()]
 
     async def _dispatch(self, name, arguments, session, ledger, shell):
-        field = {'action_invoke': 'arguments', 'data_query': 'query', 'action_find': 'cursor', 'data_list': 'cursor'}.get(name)
-        if self.policy.strict_tools and field and arguments[field] is not None:
+        field = {'action_invoke': 'arguments', 'action_find': 'cursor', 'ls': 'cursor', 'find': 'cursor'}.get(name)
+        if self.policy.strict_tools and field and arguments.get(field) is not None:
             arguments = dict(arguments)
             try:
                 arguments[field] = _decode(arguments[field])
@@ -351,38 +350,23 @@ class LLMDriver:
                                     cursor=arguments['cursor'])
         if name == 'action_describe':
             return await _read_tool(ledger.describe, arguments['name'], Ref(**arguments['target']))
-        if name == 'data_list':
-            return await _read_tool(session.information.list, arguments['path'], limit=arguments['limit'],
-                                    cursor=arguments['cursor'])
-        if name == 'data_read':
-            options = dict(arguments)
-            encoding = options.pop('encoding', None) or 'utf-8'
-            if encoding == 'utf-8' and options['size'] < 4:
-                raise _ToolInputError('utf-8 read size must be at least 4')
-            chunk = await _read_tool(session.information.read, **options)
-            if isinstance(chunk, dict):
-                return chunk
-            return {**_text_range(chunk.data, options['offset'], chunk.total_bytes, encoding),
-                    'revision': chunk.revision, 'source': chunk.source}
-        if name == 'data_query':
-            query = arguments['query']
-            try:
-                query = Query(**query)
-            except (TypeError, ValueError) as error:
-                raise _ToolInputError(str(error)) from error
-            return await _read_tool(session.information.query, arguments['path'], query)
-        if name == 'result_read':
-            try:
-                return self.read_result(session, **arguments)
-            except (KeyError, ValueError, PermissionError) as error:
-                raise _ToolInputError(str(error)) from error
+        if name in ('read','ls','find','grep'):
+            from .actor_files import ActorFiles
+            files=session.cursors.get('files')
+            if files is None:
+                files=ActorFiles(session,self.threads,shell=shell)
+                session.cursors['files']=files
+            return await _read_tool(getattr(files,name),**{key:value for key,value in arguments.items() if value is not None})
         if name == 'bash':
             result = await shell.execute(arguments['script'])
             for reference in (result.stdout_ref, result.stderr_ref, *result.receipts):
                 with (shell.result_dir.parent / reference).open('rb') as stream:
                     artifact = session.prepare_artifact(iter(lambda: stream.read(65536), b''))
                 self.threads.register_artifact(ledger.thread_id, reference, artifact, actor=session.actor.id)
-            return result
+            from .actor_files import ActorFiles
+            return {**asdict(result),'stdout_path':ActorFiles.result_path(result.stdout_ref),
+                    'stderr_path':ActorFiles.result_path(result.stderr_ref),
+                    'receipt_paths':[ActorFiles.result_path(reference) for reference in result.receipts]}
         raise _ToolInputError('unknown tool')
 
     def read_result(self, session, reference, *, offset=0, size=65536, encoding='utf-8'):
@@ -390,7 +374,7 @@ class LLMDriver:
         encoding = encoding or 'utf-8'
         if encoding not in ('utf-8', 'base64') or (encoding == 'utf-8' and size < 4):
             raise ValueError('invalid result encoding or byte budget')
-        chunk = self.threads.read_artifact(session.cursors['thread_id'], reference, actor=session.actor.id,
+        chunk = self.threads.read_actor_artifact(reference, actor=session.actor.id,
                                            offset=offset, size=size)
         return {**_text_range(chunk['data'], offset, chunk['total_bytes'], encoding), 'source': chunk['source']}
 
@@ -410,22 +394,23 @@ class LLMDriver:
         status, reason, structured = 'incomplete', 'driver_error', None
         reasoning=[]
         timings={}
-        memory_scope=AsyncExitStack()
+        from .activation import ActivationContext, activation_scope
+        context=ActivationContext(session,thread_id,self.policy.mode,timings=timings)
+        extension_scope=AsyncExitStack()
         try:
-            if self.memory is not None:
-                await memory_scope.enter_async_context(self.memory.activation(session,thread_id))
+            await extension_scope.enter_async_context(activation_scope(context,self.extensions))
             with _timed(timings,'prompt_s'):
                 provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
                 inputs = await invoke_maybe_async(self.input_builder, session)
+                context.inputs=inputs
                 if isinstance(inputs, InputBatch):
                     self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
                 else:
                     for message in inputs:
                         self.threads.append_message(thread_id, message)
-            with _timed(timings,'memory_recall_s'):
-                recalled = [] if self.memory is None else await self.memory.before_activation(session, thread_id)
-                for message in recalled:
-                    self.threads.append_message(thread_id, message)
+            await context.prepare()
+            for message in context.messages:
+                self.threads.append_message(thread_id,message)
             with _timed(timings,'setup_s'):
                 if self.policy.reasoning_stages and self.policy.result_schema is None:
                     guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
@@ -445,6 +430,10 @@ class LLMDriver:
                         'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
                 if self.shell_factory is not None:
                     shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+                from .actor_files import ActorFiles
+                files=ActorFiles(session,self.threads,shell=shell)
+                session.cursors['files']=files
+                if shell is not None:shell.bind_files(files)
             from pydantic_ai import Agent, Tool, ModelRequestNode
             from pydantic_ai.messages import ModelRequest, UserPromptPart, ToolReturnPart
             from .models import ThreadModel
@@ -617,18 +606,22 @@ class LLMDriver:
                 # 记忆阶段会重新读取完整 Thread；进入前释放 Agent 的激活历史。
                 run = node = initial = None
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
-                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings,
-                                 'memory_input_through': self.threads.describe(thread_id)['last_seq']}, reason)
-            if self.memory is not None and status in ('completed', 'waiting'):
-                with _timed(timings,'memory_write_s'):
-                    await self.memory.after_activation(session, thread_id, result)
+                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings}, reason)
+            context.through=self.threads.describe(thread_id)['last_seq']
+            context.result=result
+            await extension_scope.aclose()
             return result
         except BaseException as error:
+            import sys
+            context.result=None
             status,reason = 'incomplete',type(error).__name__
+            await extension_scope.__aexit__(*sys.exc_info())
             raise
         finally:
             try:
                 with _timed(timings,'cleanup_s'):
+                    files=session.cursors.pop('files',None)
+                    if files is not None:await files.close()
                     if shell is not None:
                         try:
                             if status in ('completed', 'waiting') and shell.has_workspace:
@@ -644,4 +637,4 @@ class LLMDriver:
                 try:
                     self.threads.close(thread_id,status,reason=reason,elapsed_s=elapsed,phase_timings=timings)
                 finally:
-                    await memory_scope.aclose()
+                    await extension_scope.aclose()

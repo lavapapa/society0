@@ -14,7 +14,8 @@ THREAD_SCHEMA = (
         provider_session_id TEXT NOT NULL,status TEXT NOT NULL,
         last_seq INTEGER NOT NULL,message_count INTEGER NOT NULL,ordinal INTEGER NOT NULL,moment TEXT NOT NULL)''',
     'CREATE INDEX thread_moment ON thread_heads(actor,moment,kind,ordinal)',
-    '''CREATE TABLE thread_artifacts(thread_id TEXT NOT NULL,reference TEXT NOT NULL,artifact TEXT NOT NULL,PRIMARY KEY(thread_id,reference))''',
+    '''CREATE TABLE thread_artifacts(thread_id TEXT NOT NULL,reference TEXT NOT NULL,artifact TEXT NOT NULL,actor TEXT NOT NULL,PRIMARY KEY(thread_id,reference))''',
+    'CREATE UNIQUE INDEX thread_artifact_actor_reference ON thread_artifacts(actor,reference)',
     '''CREATE TABLE thread_tool_receipts(thread_id TEXT NOT NULL,call_id TEXT NOT NULL,event_seq INTEGER NOT NULL,message_seq INTEGER NOT NULL,PRIMARY KEY(thread_id,call_id))''',
     'CREATE UNIQUE INDEX thread_order ON thread_heads(ordinal)',
     'CREATE INDEX thread_actor_order ON thread_heads(actor,ordinal)',
@@ -131,30 +132,57 @@ class ThreadStore:
         def write(writer):
             if _head(writer,thread_id)['actor'] != actor:
                 raise PermissionError('Thread owner differs')
-            rows = writer.query('SELECT artifact FROM thread_artifacts WHERE thread_id=? AND reference=?',(thread_id,reference))
+            rows = writer.query('SELECT artifact FROM thread_artifacts WHERE actor=? AND reference=?',(actor,reference))
             if rows:
                 if rows[0][0] != artifact_ref:
                     raise ValueError('artifact reference already registered')
                 return
             writer.include_artifact(artifact_ref)
-            writer.execute('INSERT INTO thread_artifacts VALUES(?,?,?)',(thread_id,reference,artifact_ref))
+            writer.execute('INSERT INTO thread_artifacts VALUES(?,?,?,?)',(thread_id,reference,artifact_ref,actor))
+            writer.execute("INSERT INTO thread_counts VALUES(?,1) ON CONFLICT(scope) DO UPDATE SET total=total+1", ('artifacts:'+actor,))
         return self.store.transaction(write)
 
-    def lookup_artifact(self, thread_id, reference, *, actor):
+    def list_artifacts(self, *, actor, limit=100, cursor=None):
+        from .interaction import Page
+        if type(limit) is not int or limit < 1:
+            raise ValueError('limit must be positive')
         def read(view):
-            if _head(view,thread_id)['actor'] != actor:
-                raise PermissionError('Thread owner differs')
-            rows = view.query('SELECT artifact FROM thread_artifacts WHERE thread_id=? AND reference=?',(thread_id,reference))
-            if not rows:
-                raise KeyError(reference)
+            rows=view.query('SELECT total FROM thread_counts WHERE scope=?',('artifacts:'+actor,))
+            total=rows[0][0] if rows else 0
+            revision=[actor,total]
+            after=''
+            if cursor is not None:
+                if cursor['actor']!=actor or cursor['revision']!=revision:
+                    raise ValueError('result cursor changed')
+                after=cursor['after']
+            rows=view.query('SELECT reference,artifact FROM thread_artifacts WHERE actor=? AND reference>? ORDER BY reference LIMIT ?',
+                            (actor,after,limit+1),max_rows=limit+1)
+            continuation={'actor':actor,'revision':revision,'after':rows[limit-1][0]} if len(rows)>limit else None
+            return Page([{'reference':reference,'artifact':artifact} for reference,artifact in rows[:limit]],total,continuation,revision)
+        return self.store.read(read)
+
+    def lookup_actor_artifact(self, reference, *, actor):
+        def read(view):
+            rows=view.query('SELECT artifact FROM thread_artifacts WHERE actor=? AND reference=?',(actor,reference))
+            if not rows:raise KeyError(reference)
             return rows[0][0]
         return self.store.read(read)
 
-    def read_artifact(self, thread_id, reference, *, actor, offset=0, size=65536):
-        artifact = self.lookup_artifact(thread_id,reference,actor=actor)
-        data,total = self.store.read_artifact(artifact,offset=offset,size=size)
-        end = offset+len(data)
+    def lookup_artifact(self, thread_id, reference, *, actor):
+        if self.describe(thread_id)['actor']!=actor:
+            raise PermissionError('Thread owner differs')
+        return self.lookup_actor_artifact(reference,actor=actor)
+
+    def read_actor_artifact(self, reference, *, actor, offset=0, size=65536):
+        artifact=self.lookup_actor_artifact(reference,actor=actor)
+        data,total=self.store.read_artifact(artifact,offset=offset,size=size)
+        end=offset+len(data)
         return {'data':data,'total_bytes':total,'next_offset':end if end<total else None,'source':artifact}
+
+    def read_artifact(self, thread_id, reference, *, actor, offset=0, size=65536):
+        if self.describe(thread_id)['actor']!=actor:
+            raise PermissionError('Thread owner differs')
+        return self.read_actor_artifact(reference,actor=actor,offset=offset,size=size)
 
     def append_input(self, thread_id, messages, consumer, cursor, *, context=None):
         def write(writer):

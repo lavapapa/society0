@@ -92,7 +92,7 @@ async def test_review_binary_information_base64_keeps_original_bytes(tmp_path):
     session = ShellSession(InteractionScope('a', Moment(1, 'p')), info,
                            Actions(lambda *a: True), result_dir=tmp_path)
     try:
-        output = await session.execute('data read /binary/file \'{"encoding":"base64"}\'')
+        output = await session.execute('data read /world/binary/file \'{"encoding":"base64"}\'')
         assert base64.b64decode(json.loads(output.stdout)['data']) == b'\xff\x00A'
     finally:
         await session.aclose()
