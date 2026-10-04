@@ -1,0 +1,21 @@
+{
+  "baseline": "edabcad3e88ba7b7b92c68dcfa5c22bf6f2e304a",
+  "method": "git diff numstat plus untracked source line counts; blank/comment lines included",
+  "categories": {
+    "python_product": {
+      "added_lines": 1098,
+      "removed_lines": 240,
+      "net_lines": 858
+    },
+    "rust_product": {
+      "added_lines": 285,
+      "removed_lines": 1,
+      "net_lines": 284
+    },
+    "tests": {
+      "added_lines": 1357,
+      "removed_lines": 156,
+      "net_lines": 1201
+    }
+  }
+}
