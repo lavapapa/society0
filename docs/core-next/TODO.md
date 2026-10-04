@@ -76,6 +76,8 @@
 - [x] **Q02 实时信息与 Thread tail**（指定 owner，依 D04/Q01）：Q03/Q06/N03，Thread 目录及可继续 tail、live 与完整 prefix、完成步 observed revision、慢消费者与 view 过期；固定分页读完后仍可消费新增而无无限订阅队列。证据：`17aeaa4`、`test_kernel_observation.py` 与独立 review；Thread 末尾游标保留追加位置，publish_step 索引确定已完整前缀，运行中未完成事实明确区分；固定 tail 的历史增长开销和独立 producer 故障已验证。
 - [x] **Q03 服务及大表读取**（指定 owner，依 Q01/Q02/T06）：Q05/O03，Python/CLI/HTTP 同合同、bounded 接纳、慢 body/response、取消、分区 dataset refs 和巨正文；最终序列化大小符合预算。`17aeaa4` 已实现 Python/CLI/HTTP、慢请求有界槽、最终编码预算、结果及物理资源原文范围、完整视图生命周期；作者组合与非作者重审通过，见 `observation-validation-20261004.md`。`93c057b` 已接累计资源的HTTP live/complete消费；`35e7642` 已接 action_summary 与时长投影，非作者验证 prepared complete 排除 live 失败诊断；`0ef012a` 的 DatasetTable 已通过统一 Results/只读分析消费者；`8369abb` 完成 SQL 正文引用、Observation 查询字节预算与 read_document 版本参数，LLM/Shell/外部读取贯穿及独立复验通过。根审查随后确认 Results 页将任意业务值与 record_ref 放在同一层，存在引用形状碰撞；工作台逐行范围读取的规避方式又失去冷块分页复用。`4e10f34` 已统一内外 Results 的 value/payload_ref 显式页项外壳并恢复工作台分页消费；45 项直接、26 项非作者复验覆盖引用形状碰撞、NULL/false/大整数/Unicode、512B 页预算、恢复及跨页 ordinal。1000 条同块小记录只需一次文件打开、一次 BLOB 读取和一次实际解压。最终工作台、规模与主体效果仍归 U02/V04/V06。
 
+> 最终独立审查发现的 K04、K05、P02 两项阻断已由 `2646feb` 修复：目录逐子路由执行发现权限，游标绑定授权范围与版本；行动处理器异常、取消及无效返回使共享步骤失效，Driver 捕获异常后仍无法发布。原独立失败用例保持不变，121 项作者相关测试及 9 项非作者边界测试通过；最终冻结全量继续归 V08。证据：`final-review-20261004.md`、`final-boundaries-independent-20261004.txt`。
+
 ## 五、P3 验收
 
 验收从最小组合逐步到真实负载。每份报告说明源代码身份、数据来源和未覆盖风险，模型成功调用与仿真研究有效性分开判断。
