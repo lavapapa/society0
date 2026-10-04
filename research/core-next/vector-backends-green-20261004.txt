@@ -1,0 +1,1 @@
+/tmp/society0-vector-study-20261004/bin/python: No module named pytest

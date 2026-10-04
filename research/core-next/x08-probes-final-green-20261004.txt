@@ -1,0 +1,12 @@
+.........                                                                [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-serial]
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-threads]
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-processes]
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-serial]
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-threads]
+PASSED tests/experiments/test_core_next_parallel_codec.py::test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-processes]
+PASSED tests/experiments/test_core_next_step_cost.py::test_complete_steps_preserve_identical_account_effects[rule]
+PASSED tests/experiments/test_core_next_step_cost.py::test_complete_steps_preserve_identical_account_effects[llm]
+PASSED tests/experiments/test_core_next_step_cost.py::test_complete_steps_preserve_identical_account_effects[memory]
