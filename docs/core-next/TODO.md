@@ -26,7 +26,7 @@
 - [ ] **X05 VFS 与自主分析原型**（threads 试验，spec 产品）：Bashkit 五项选型试验和 shell 产品读写/管道/完整文本输出/原文字节通路已通过；见 [试验](shell-experiments.md)、[合同](shell-contract.md)。懒文件整读与原生非法 UTF8 替换边界已明确；SQL 数据集的 tail/sample 与完整模型任务对照待接入。[工作区试验](workspace-experiments.md) 先重现 8MiB 未改私有文件十次激活产生约 84.23MB 快照，再以原生 OverlayFs 将十次新增正文降为零。`47a3377` 已接动态 `/world` 与 SQL 路径索引，真实 LLMDriver 确定性消费者恢复文件及 shell 状态。完整模型任务效果对照留 V06；显式整文件读和整目录枚举的成本见 [工作区合同](workspace-contract.md)。
 - [x] **X06 Driver/时间原型**（threads，独立审查 spec）：规则与假驱动、顺序阶段及显式独立并发、同 moment 游标、信号合并、waiting/incomplete、整步预算已验证。非作者加入真实 PluginHost+StageStore 双机制与恢复，作者/非作者共 21 项通过，见 `runtime-review-green.txt`；LLM 实际循环继续归 D02。
 - [x] **X07 OpenViking 复用判断**（指定 owner，无前置）：依主智能体研究核对 URI/目录/原文/摘要/检索资产、依赖成本与恢复边界；输出直接依赖、适配或借鉴的证据。不得用摘要默认裁剪 Thread。证据：[官方源码研究](openviking-study.md)，已核对版本/读取成本/快照/权限/依赖并建议 URI/View 借鉴与可选 SDK；直接集成与性能原型尚未实施。
-- [ ] **X08 有界多核小实验**（storage，依有明确块输入）：压缩线程、纯 Python 计算进程与串行，对相同完整数据逐值核对，计墙钟/CPU/在途字节/进程 RSS/IPC；与产品并行接入任务 D07 分开。D07 已有本机同步/线程/事务外暂存的相同原文对照；独立进程计算、服务器多核和完整工作负载继续验收。
+- [x] **X08 有界多核小实验**（storage，依有明确块输入）：压缩线程、纯 Python 计算进程与串行，对相同完整数据逐值核对，计墙钟/CPU/在途字节/进程 RSS/IPC；与产品并行接入任务 D07 分开。`380a7a1` 完成 32 核服务器串行/4 线程/4 进程同值试验：原生编码压缩墙钟 1.035/0.308/0.391 秒，纯 Python 数值计算 0.497/0.504/0.259 秒；进程启动、输入/输出 IPC、CPU 与进程组采样 RSS 已计入。正式 Runtime 的规则、LLMDriver、Memory 三路径各跑 20 步并恢复逐值比较，模型返回使用确定性替身。作者 9+3 项与非作者 9+3 项通过，计量独审无阻断；内存与计时重叠边界见 `x08-runtime-parallel-20261004.md` 和 `x08-spec-review-20261004.md`。
 - [ ] **X09 P0 独立审查与取舍**（非作者，依 X01–X08）：指出原型未覆盖的故障与语义，确定首版实现方案并更新 SDD；仅选择已有消费者支持的公共接口，保留失败实验数字。
 - [x] **X10 实现语言选择**（主智能体，用户新增要求）：Python 公共 Core/插件接口，成熟 C/Rust 组件处理数据与重计算，TypeScript 用于工作台；新增 Rust 扩展由实测热点触发。证据：[语言决策](language-decision.md)、原生压缩与 SQLite Session 试验。整步性能验收继续归 V04。
 
