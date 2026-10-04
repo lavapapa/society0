@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import inspect
 import random
 from dataclasses import asdict, dataclass
 from urllib.parse import unquote, quote
@@ -152,20 +153,44 @@ class SQLInformation:
     def _route_name(self, spec):
         return next(route for route, registered in self._routes.items() if registered is spec)
 
+    async def list_authorized(self, scope, path, *, allows, files=False, limit=100, cursor=None):
+        route, key = self._route(path)
+        if route is not None:
+            method = self.list_files if files else self.list
+            return await method(scope,path,limit=limit,cursor=cursor)
+        return await self._directory(scope,path,limit=limit,cursor=cursor,allows=allows,files=files)
+
+    async def _directory(self,scope,path,*,limit,cursor,allows=None,files=False):
+        scope.check_active()
+        if type(limit) is not int or not 1<=limit<=self.max_page_size:
+            raise ValueError('invalid directory page limit')
+        def version(view):
+            return [view.run_id,view.revision_for(self.access_dependencies)]
+        before=self.reader.read(version,expected_revision=scope.revision)
+        items=[]
+        for route in self._routes:
+            ref=Ref(self.namespace,route,'')
+            permitted=True if allows is None else allows(scope,'discover',ref)
+            if inspect.isawaitable(permitted):permitted=await permitted
+            scope.check_active()
+            if permitted:
+                item={'path':'/'+self.namespace+'/'+route,'ref':ref}
+                if files:item['kind']='directory'
+                items.append(item)
+        after=self.reader.read(version,expected_revision=scope.revision)
+        if after!=before:raise ValueError('directory authorization changed during discovery')
+        identity=json.dumps([scope.actor,asdict(scope.moment),scope.revision,path,before,
+                             [item['path'] for item in items]],sort_keys=True)
+        offset=0 if cursor is None else cursor['offset']
+        if type(offset) is not int or offset<0:raise ValueError('invalid cursor offset')
+        if cursor is not None and cursor['identity']!=identity:raise ValueError('cursor mismatch')
+        end=min(offset+limit,len(items))
+        return Page(items[offset:end],len(items),{'identity':identity,'offset':end} if end<len(items) else None,before[1])
+
     async def list(self, scope, path, *, limit=100, cursor=None):
         route, key = self._route(path)
         if route is None:
-            scope.check_active()
-            items = [{'path': '/' + self.namespace + '/' + route,
-                      'ref': Ref(self.namespace, route, '')} for route in self._routes]
-            offset = 0 if cursor is None else cursor['offset']
-            if type(offset) is not int or offset < 0:
-                raise ValueError('invalid cursor offset')
-            identity = [scope.actor, self.namespace]
-            if cursor is not None and cursor['identity'] != identity:
-                raise ValueError('cursor mismatch')
-            end = min(offset + limit, len(items))
-            return Page(items[offset:end], len(items), {'identity': identity, 'offset': end} if end < len(items) else None, scope.revision)
+            return await self._directory(scope,path,limit=limit,cursor=cursor)
         if key is not None:
             raise Unavailable('resource unavailable')
         return await self.query(scope, path, Query(limit=limit, cursor=cursor))

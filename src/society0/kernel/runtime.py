@@ -143,12 +143,15 @@ class PhaseContext:
                 actor = self._runtime._actors[actor_id]
                 if actor.id != actor_id:
                     raise ValueError('actor mapping key differs from actor identity')
-                scope = InteractionScope(actor.id, self.moment)
+                def action_failed(error):
+                    if not self._failure.done():self._failure.set_result(error)
+                scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
                 session = Session(
                     actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
                     self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
                 )
                 result = await actor.driver.run(session)
+                scope.check_active()
                 if not isinstance(result, DriverResult):
                     raise TypeError('driver must return DriverResult')
                 if result.status == 'incomplete' and self._incomplete == 'fail_step':
@@ -223,6 +226,7 @@ class Runtime:
         self._cursors = {}
         self._activations_used = 0
         self._artifacts = []
+        self._action_faults = []
 
     def _observe(self):
         if self.progress is not None:
@@ -294,6 +298,7 @@ class Runtime:
         self._observe()
         self._activations_used = 0
         self._artifacts = []
+        self._action_faults = []
         self._task = asyncio.current_task()
         started=time_module.perf_counter()
         phase_count=0
