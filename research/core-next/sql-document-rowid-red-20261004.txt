@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_document_query_carries_rowid_once_per_page ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-801/test_document_query_carries_ro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bcd87d0>
+
+    @pytest.mark.asyncio
+    async def test_document_query_carries_rowid_once_per_page(tmp_path,monkeypatch):
+        from society0.kernel.storage import ReadView
+        calls=[];original=ReadView.query
+        def traced(self,sql,*args,**kwargs):
+            if 'FROM "docs" WHERE "id"=?' in sql:calls.append(sql)
+            return original(self,sql,*args,**kwargs)
+        with StageStore.create(tmp_path/'run',('CREATE TABLE docs(id TEXT PRIMARY KEY NOT NULL,body TEXT NOT NULL,other BLOB NOT NULL)',),
+            initialize=lambda w:w.executemany('INSERT INTO docs VALUES(?,?,?)',((str(i),'原文',b'other') for i in range(20)))) as store:
+            provider=SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body','other'),documents=(('body','body'),('other','other'))),
+                'body':DocumentSpec('docs','id','body'),'other':DocumentSpec('docs','id','other')})
+            monkeypatch.setattr(ReadView,'query',traced)
+            page=await provider.query(InteractionScope('a',Moment(1,'read')),'/world/rows',Query(limit=20))
+            assert page.total==20 and len(page.items)==20
+>           assert not calls, f'repeated rowid lookup: {len(calls)}'
+E           AssertionError: repeated rowid lookup: 40
+E           assert not ['SELECT "rowid" FROM "docs" WHERE "id"=?', 'SELECT "rowid" FROM "docs" WHERE "id"=?', 'SELECT "rowid" FROM "docs" WHE..." FROM "docs" WHERE "id"=?', 'SELECT "rowid" FROM "docs" WHERE "id"=?', 'SELECT "rowid" FROM "docs" WHERE "id"=?', ...]
+
+tests/primary/test_kernel_information_large.py:189: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_large.py::test_document_query_carries_rowid_once_per_page
+1 failed in 0.13s

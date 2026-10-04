@@ -1,0 +1,33 @@
+.........................................F.............................. [ 68%]
+.................................                                        [100%]
+=================================== FAILURES ===================================
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-814/test_physical_retry_preserves_0')
+
+    @pytest.mark.asyncio
+    async def test_physical_retry_preserves_request_reference_and_full_raw_response(tmp_path):
+        import httpx
+        import openai
+        store, threads, tid, provider = real_provider(tmp_path)
+        requests = []
+        async def create(**kwargs):
+            requests.append(kwargs)
+            if len(requests) == 1:
+                raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
+            return sdk_response('complete response')
+        provider.manager.clients['test'].chat.completions.create = create
+        try:
+            assert provider.manager.clients['test'].max_retries == 0
+            result = await provider.request(tid, {'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}})
+            assert result['content'] == 'complete response'
+>           assert len(requests) == 2 and requests[0]['messages'] is requests[1]['messages']
+E           AssertionError: assert (2 == 2 and [{'role': 'user', 'content': 'complete original'}] is [{'role': 'user', 'content': 'complete original'}])
+E            +  where 2 = len([{'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}, 'model': 'fake', 'messages': [{'role': 'us...metadata': {'session_id': 'stable'}}, 'model': 'fake', 'messages': [{'role': 'user', 'content': 'complete original'}]}])
+
+tests/primary/test_kernel_llm.py:259: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1166 LLM request failed on endpoint test after 1 attempts: Request timed out.
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm.py::test_physical_retry_preserves_request_reference_and_full_raw_response
+1 failed, 104 passed in 5.77s

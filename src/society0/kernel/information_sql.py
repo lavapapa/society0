@@ -9,6 +9,9 @@ from urllib.parse import unquote, quote
 from .interaction import DocumentChunk, Page, Query, Ref, ResourceStat, Unavailable
 
 
+_ROWID = object()
+
+
 def _quote(name):
     return '"' + name.replace('"', '""') + '"'
 
@@ -22,6 +25,7 @@ class DatasetSpec:
     order_fields: tuple[str, ...] = ()
     base_count: object = None
     dependencies: tuple[str, ...] = ()
+    documents: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -74,8 +78,8 @@ class SQLInformation:
                 if not info[field][3] and not (field == spec.key and key_type == 'INTEGER'):
                     raise ValueError('ordering fields must be nonnull')
             if isinstance(spec, DocumentSpec):
-                if spec.body not in info or info[spec.body][2].upper() != 'BLOB':
-                    raise ValueError('document body must be a BLOB column')
+                if spec.body not in info or info[spec.body][2].upper() not in ('BLOB','TEXT'):
+                    raise ValueError('document body must be a BLOB or TEXT column')
                 tables = reader.read(lambda view: view.query('PRAGMA table_list'))
                 if next(row[4] for row in tables if row[0] == 'main' and row[1] == spec.table):
                     raise ValueError('document requires a rowid table')
@@ -85,6 +89,28 @@ class SQLInformation:
                 self._rowids[route] = rowid
             self._columns[route] = visible
             self._order_fields[route] = order_fields
+        for route,spec in self._routes.items():
+            if not isinstance(spec,DatasetSpec):continue
+            for column,target in spec.documents:
+                document=self._routes.get(target)
+                if (column not in self._columns[route] or not isinstance(document,DocumentSpec)
+                    or (document.table,document.key,document.body)!=(spec.table,spec.key,column)
+                    or document.authorize is not spec.authorize
+                    or set(document.dependencies)!=set(spec.dependencies)):
+                    raise ValueError('document mapping must share table, key, body and authorization dependencies')
+                if column in self._order_fields[route]:
+                    raise ValueError('document body cannot be an ordering field')
+
+    def _projection(self,route,selected):
+        spec=self._routes[route]
+        documents=dict(spec.documents) if isinstance(spec,DatasetSpec) else {}
+        selected=tuple(selected)
+        columns=['typeof('+_quote(field)+') AS '+_quote(field) if field in documents else _quote(field) for field in selected]
+        targets=[documents[field] for field in selected if field in documents]
+        if targets:
+            selected=(*selected,_ROWID)
+            columns.append(_quote(self._rowids[targets[0]]))
+        return selected,','.join(columns)
 
     def _route(self, path):
         parts = path.strip('/').split('/')
@@ -179,11 +205,12 @@ class SQLInformation:
         if spec is None:raise Unavailable('resource unavailable')
         if key is None:return ResourceStat('directory',None,scope.revision,self.ref(path))
         where,values=self._where(scope,spec,())
-        expression='length('+_quote(spec.body)+')' if isinstance(spec,DocumentSpec) else 'NULL'
+        expression=_quote(self._rowids[route]) if isinstance(spec,DocumentSpec) else 'NULL'
         def read(view):
             rows=view.query('SELECT '+expression+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
             if not rows:raise Unavailable('resource unavailable')
-            return ResourceStat('file',rows[0][0],view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies)),self.ref(path))
+            total=view.read_blob(spec.table,spec.body,rows[0][0],size=0)[1] if isinstance(spec,DocumentSpec) else None
+            return ResourceStat('file',total,view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies)),self.ref(path))
         return self.reader.read(read,expected_revision=scope.revision)
 
     async def read(self, scope, path, *, offset=0, size=65536):
@@ -197,10 +224,13 @@ class SQLInformation:
         if isinstance(spec,DatasetSpec):
             where,values=self._where(scope,spec,())
             def read_record(view):
-                rows=view.query('SELECT '+','.join(map(_quote,spec.columns))+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+                selected=tuple(dict.fromkeys((*spec.columns,spec.key)))
+                selected,columns=self._projection(route,selected)
+                rows=view.query('SELECT '+columns+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
                 if not rows:raise Unavailable('resource unavailable')
-                record=dict(zip(spec.columns,rows[0]));record['ref']=asdict(self.ref(path))
-                data=json.dumps(record,ensure_ascii=False,separators=(',',':')).encode()
+                revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+                record=self._items(route,spec.columns,selected,rows,view,revision)[0]
+                data=json.dumps(record,ensure_ascii=False,separators=(',',':'),default=asdict).encode()
                 end=min(len(data),offset+size)
                 revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
                 return DocumentChunk(data[offset:end],len(data),end if end<len(data) else None,revision,self.ref(path))
@@ -222,6 +252,8 @@ class SQLInformation:
         route, key = self._route(path)
         if route is None or key is not None:
             raise Unavailable('resource unavailable')
+        if type(query.max_bytes) is not int or query.max_bytes < 512:
+            raise ValueError('query byte budget must be at least 512')
         if type(query.limit) is not int or not 1 <= query.limit <= self.max_page_size:
             raise ValueError('query limit exceeds the configured page range')
         spec = self._routes[route]
@@ -238,7 +270,7 @@ class SQLInformation:
                             query.sample_seed, where, values], sort_keys=True)
         table = _quote(spec.table)
         selected = tuple(dict.fromkeys((*fields, spec.key, *(field for field, _ in order))))
-        columns = ','.join(map(_quote, selected))
+        selected,columns=self._projection(route,selected)
         ordering = ','.join(_quote(field) + ' ' + direction for field, direction in order)
 
         def read(view):
@@ -270,7 +302,10 @@ class SQLInformation:
                                         (*values, *keys), max_rows=len(keys))
                     by_key = {row[selected.index(spec.key)]: row for row in picked}
                     rows = [by_key[key] for key in keys]
-                return SamplePage(self._items(route, fields, selected, rows), len(rows), None, revision, total)
+                page=SamplePage(self._items(route, fields, selected, rows,view,revision), len(rows), None, revision, total)
+                if len(json.dumps(asdict(page),ensure_ascii=False,separators=(',',':')).encode())>query.max_bytes:
+                    raise ValueError('sample exceeds byte budget; reduce limit or project fewer fields')
+                return page
             select = 'SELECT ' + columns + ' FROM ' + table + ' WHERE ' + where
             ending = ' ORDER BY ' + ordering + ' LIMIT ?'
             sql, bindings = select + ending, [*values, query.limit + 1]
@@ -287,23 +322,41 @@ class SQLInformation:
                     bindings.extend((*values, *last[:index + 1], query.limit + 1))
                 sql = ' UNION ALL '.join(branches) + ending
                 bindings.append(query.limit + 1)
-            rows = view.query(sql, bindings, max_rows=query.limit + 1)
-            more = len(rows) > query.limit
-            rows = rows[:query.limit]
-            cursor = None
-            if more:
-                tail = dict(zip(selected, rows[-1]))
-                cursor = {'identity': shape, 'revision': revision, 'run_id': view.run_id,
-                          'last': [tail[field] for field, _ in order]}
-            return Page(self._items(route, fields, selected, rows), total, cursor, revision)
+            items=[];last=None;used=0;more=False
+            def continuation(tail):
+                return {'identity':shape,'revision':revision,'run_id':view.run_id,
+                        'last':[tail[field] for field,_ in order]}
+            for row in view.iter_query(sql,bindings):
+                if len(items)==query.limit:
+                    more=True;break
+                item=self._items(route,fields,selected,[row],view,revision)[0]
+                tail=dict(zip(selected,row))
+                candidate=continuation(tail)
+                overhead=len(json.dumps(asdict(Page([],total,candidate,revision)),ensure_ascii=False,separators=(',',':')).encode())
+                size=len(json.dumps(item,ensure_ascii=False,separators=(',',':'),default=asdict).encode())
+                if overhead+used+size+len(items)>query.max_bytes:
+                    if not items:raise ValueError('query byte budget cannot hold row metadata; project fields or declare document columns')
+                    more=True;break
+                items.append(item);used+=size;last=tail
+            cursor=continuation(last) if more else None
+            return Page(items,total,cursor,revision)
         return self.reader.read(read, expected_revision=scope.revision)
 
-    def _items(self, route, fields, selected, rows):
+    def _items(self, route, fields, selected, rows, view=None, revision=None):
         key = self._routes[route].key
         items = []
         for row in rows:
             values = dict(zip(selected, row))
             item = {field: values[field] for field in fields}
+            spec=self._routes[route]
+            for field,target in (spec.documents if isinstance(spec,DatasetSpec) else ()):
+                if field not in fields:continue
+                if values[field]=='null':
+                    item[field]=None
+                    continue
+                _,total=view.read_blob(spec.table,field,values[_ROWID],size=0)
+                path='/'+self.namespace+'/'+target+'/'+quote(str(values[key]),safe='')
+                item[field]={'kind':'document_ref','path':path,'total_bytes':total,'ref':self.ref(path),'expected_revision':revision}
             item['ref'] = Ref(self.namespace, route, str(values[key]))
             items.append(item)
         return items

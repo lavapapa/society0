@@ -192,14 +192,16 @@ class Observation:
             raise ObservationError('information_factory_required')
         information=self.information_factory(self.reader)
         with InteractionScope(actor,Moment(**moment),revision) as scope:
-            page=await information.query(scope,path,Query(**(query or {})))
+            options=dict(query or {})
+            options['max_bytes']=min(options.get('max_bytes',max_bytes),max_bytes)
+            page=await information.query(scope,path,Query(**options))
         result={'items':page.items,'total':page.total,'next_cursor':page.next_cursor,'revision':page.revision}
         if hasattr(page,'population_total'):result['population_total']=page.population_total
         if len(encoded(result))>max_bytes:
             raise ObservationError('response_budget_exceeded','Select fewer fields or use the declared document byte reader.')
         return result
 
-    async def read_document(self, *, actor, moment, path, revision=None, offset=0,size=65536,max_bytes=131072):
+    async def read_document(self, *, actor, moment, path, revision=None, offset=0,size=65536,max_bytes=131072,expected_revision=None):
         from .interaction import InteractionScope,Moment
         _positive(offset,'offset',0)
         _positive(size,'size')
@@ -208,7 +210,7 @@ class Observation:
             raise ObservationError('information_factory_required')
         information=self.information_factory(self.reader)
         with InteractionScope(actor,Moment(**moment),revision) as scope:
-            value=await information.read(scope,path,offset=offset,size=min(size,(max_bytes-512)//4*3))
+            value=await information.read(scope,path,offset=offset,size=min(size,(max_bytes-512)//4*3),expected_revision=expected_revision)
         result={'encoding':'base64','data':base64.b64encode(value.data).decode(),'total_bytes':value.total_bytes,
                 'next_offset':value.next_offset,'revision':value.revision,'source':value.source}
         if len(encoded(result))>max_bytes:raise ObservationError('response_budget_exceeded')

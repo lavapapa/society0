@@ -51,7 +51,7 @@ async def test_review_indexed_keyset_seeks_past_large_equal_prefix(tmp_path):
         original = reader.read
         measured = []
         for position in (100,9000):
-            cursor = (await provider.query(scope,'/m/items',Query(order=(('rank','asc'),('id','asc')),limit=position))).next_cursor
+            cursor = (await provider.query(scope,'/m/items',Query(order=(('rank','asc'),('id','asc')),limit=position,max_bytes=2_000_000))).next_cursor
             steps = [0]
             def trace(callback,**kwargs):
                 def wrapped(view):

@@ -1,0 +1,50 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_review_nullable_document_column_keeps_null_value _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-802/test_review_nullable_document_0')
+
+    @pytest.mark.asyncio
+    async def test_review_nullable_document_column_keeps_null_value(tmp_path):
+        with StageStore.create(tmp_path/'run',('CREATE TABLE docs(id INTEGER PRIMARY KEY,body TEXT)',),
+            initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,NULL)')) as store:
+            provider=SQLInformation('world',store,{
+                'rows':DatasetSpec('docs','id',('id','body'),documents=(('body','body'),)),
+                'body':DocumentSpec('docs','id','body')})
+>           page=await provider.query(InteractionScope('a',Moment(1,'read')),'/world/rows',Query())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_information_large_review.py:15:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/information_sql.py:331: in query
+    return self.reader.read(read, expected_revision=scope.revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:490: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:266: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/information_sql.py:320: in read
+    item=self._items(route,fields,selected,[row],view,revision)[0]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/information_sql.py:344: in _items
+    _,total=view.read_blob(spec.table,field,rowid,size=0)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.storage.ReadView object at 0x10a0217c0>, table = 'docs'
+column = 'body', rowid = 1, offset = 0, size = 0
+
+    def read_blob(self, table, column, rowid, *, offset=0, size=65536):
+        self._check()
+        if type(rowid) is not int or type(offset) is not int or offset < 0 or type(size) is not int or size < 0:
+            raise ValueError('invalid BLOB range')
+>       with self._connection.blob_open('main', table, column, rowid, False) as blob:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       apsw.SQLError: cannot open value of type null
+
+src/society0/kernel/storage.py:120: SQLError

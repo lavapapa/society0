@@ -20,7 +20,7 @@ information.mount('/world', provider)
 
 DatasetSpec 的 table、key、columns、authorize、order_fields、base_count 都由可信机制注册。主键为单列 INTEGER 或显式非空 TEXT，字段从 SQLite schema 核对；ref 是响应保留字段。允许排序的列要求非空，首版遇到可空排序列直接拒绝注册，避免分页跳过 NULL。
 
-DocumentSpec 指定单个 BLOB 正文列以及可选授权谓词。它使用普通 rowid 表，WITHOUT ROWID 与三个 rowid 别名均被业务列遮蔽的布局明确拒绝。SQLite 名字不区分大小写，隐藏 rowid 别名选择也按这一规则处理。机制应把正文作为不可变 BLOB 记录保存；更新正文会推进 current revision，跨请求固定读取需要使用版本合同。
+DocumentSpec 指定单个 TEXT/BLOB 正文列以及可选授权谓词。它使用普通 rowid 表，WITHOUT ROWID 与三个 rowid 别名均被业务列遮蔽的布局明确拒绝。SQLite 名字不区分大小写，隐藏 rowid 别名选择也按这一规则处理。机制可以把正文作为 TEXT 或 BLOB 记录保存；更新正文会推进 current revision，跨请求固定读取需要使用版本合同。
 
 DatasetSpec 与 DocumentSpec 的 `dependencies=()` 声明授权谓词、维护计数及其他关联读取涉及的附加表；自身 table 自动计入。共享 `interaction_plugin(..., access_dependencies=...)` 声明统一访问规则依赖，Information.mount 自动将其传给 SQLInformation。表版本由 StageStore 原生授权回调收集写语句，并与写入同事务提交；回滚保持原版本。Thread 留证等无关表写入保持数据游标有效。缺省附加依赖为空，插件需完整列出实际跨表依赖。
 
@@ -28,7 +28,7 @@ DatasetSpec 与 DocumentSpec 的 `dependencies=()` 声明授权谓词、维护�
 
 `/world` 列出注册集合，`/world/orders` 查询记录，`/world/documents/<key>` 按主键定位文档。TEXT 主键的路径段使用 URL 百分号编码。记录页给每项附 `Ref(namespace,route,str(key))`，主体可直接据此发现与执行动态动作。
 
-Query 支持 fields、filters、order、limit、cursor、sample_seed。过滤运算为 eq、ne、lt、le、gt、ge、in；eq/ne 的空值使用 SQL IS NULL/IS NOT NULL。字段来自注册表，值使用 SQL bindings。查询不接受主体提供的原始 SQL。order 是 `(field,'asc'|'desc')` 序列，缺少主键时自动追加主键升序以保持确定顺序。
+Query 支持 fields、filters、order、limit、cursor、sample_seed、max_bytes。过滤运算为 eq、ne、lt、le、gt、ge、in；eq/ne 的空值使用 SQL IS NULL/IS NOT NULL。字段来自注册表，值使用 SQL bindings。查询不接受主体提供的原始 SQL。order 是 `(field,'asc'|'desc')` 序列，缺少主键时自动追加主键升序以保持确定顺序。
 
 正常分页使用最后一行的排序键做 keyset 继续读取。词典序后继拆成互斥的索引范围，每个范围最多取 limit+1 行，由 SQLite 原生 UNION ALL 按相同排序合并有界候选；避免简单 OR 谓词在相同排序值的大前缀内重扫。实际速度仍要求机制建立匹配授权前缀与排序方向的索引。cursor 可经 JSON 往返，绑定 actor、Moment、路径、字段、过滤、排序、抽样配置、实际授权谓词及 bindings、运行身份和相关表 revision。后续页相关版本变化会明确拒绝，调用方重新查询；一个固定 revision 的多页读取不占用长期数据库读事务。
 
@@ -36,11 +36,30 @@ Query 支持 fields、filters、order、limit、cursor、sample_seed。过滤运
 
 sample_seed 表示一次显式分析抽样。实现按主键流式遍历授权候选键，用固定随机种子做 reservoir sampling，再一次查询被选行的投影；不会为抽样逐条物化大正文。SamplePage.total 是实际样本条数，population_total 是授权总体条数，next_cursor 为空。完整总体仍通过不带 sample_seed 的普通分页取得。抽样读取 O(N) 个候选键，驻留 O(limit) 个键及选中投影，属于显式分析成本。
 
+SQLInformation 执行查询的 `Query.max_bytes` 默认 65536，至少 512，约束返回 Page 的紧凑 UTF-8 JSON 字节数。Query 是共享请求形状，其他提供者须在自身合同中说明支持的参数和执行边界；Core 路由器不会把提供者已物化的响应转换成有界流。普通 keyset 分页在预算处停止，保留精确 total 和继续游标；一条轻元数据也无法放入时明确报错，调用者扩大预算或调整投影。抽样结果超预算时要求减小样本数或投影，样本不会被静默截短。无关 Thread 留证仍沿相关表版本继续分页。
+
+巨大正文列在 DatasetSpec 中通过 `documents=((column, document_route), ...)` 显式映射到同表、同主键、同正文列且共享授权函数与依赖声明的 DocumentSpec。查询仅返回该列的 `document_ref`，含 path、total_bytes、原资源 ref 和 expected_revision；原文通过正常 read 取得，SQL NULL 原样保持 None。查询投影一次带回真实 rowid 与正文类型，每个正文的长度读取复用该行身份。机制可使用下面的同源声明，授权在查询和逐段读取时都生效。
+
+```python
+def owned(scope):
+    return 'owner=?', (scope.actor,)
+
+routes = {
+    'messages': DatasetSpec('messages', 'id', ('id', 'body'),
+        authorize=owned, documents=(('body', 'message_body'),)),
+    'message_body': DocumentSpec('messages', 'id', 'body', authorize=owned),
+}
+```
+
+正文不能作为 ordering 字段；显式正文过滤仍遵循原生 SQL 执行计划，可能扫描正文与全表。未声明为正文的字段继续作为轻投影值读取，其大小影响单行物化成本；机制应把长内容明确声明为正文，或通过已有独立正文路由读取。当前 round_robin/social 集合已采用轻字段与独立正文路由，shared_environment 的消息例子采用上述声明。
+
 ## 三、正文
 
-read 先在同一只读事务内用主键与授权条件定位真实 rowid，再调用 ReadView.read_blob 的原生 SQLite 增量 BLOB 读取。响应为 DocumentChunk，保留原始 bytes、total_bytes、next_offset、revision 和 source。SQL substr(BLOB) 在本项目实测中仍产生整 BLOB 临时副本，因此本实现不依赖 substr 达成内存边界。
+read 先在同一只读事务内用主键与授权条件定位真实 rowid，再调用 ReadView.read_blob 的原生 SQLite 增量读取。TEXT 与 BLOB 都沿该接口读取实际储存的原始字节；长度来自 blob.length()，避免对 TEXT 使用长度扫描或转换副本。响应为 DocumentChunk，保留原始 bytes、total_bytes、next_offset、revision 和 source。SQL substr(BLOB) 在本项目实测中仍产生整 BLOB 临时副本，因此本实现不依赖 substr 达成内存边界。
 
-read 的工作量由范围所需的页和连接缓存决定。提供者不先构造全部文档；shell 的文本与 base64 展示遵循独立 shell 合同。默认 current 请求返回当时版本；需要全局固定视图的消费者可从 StageReader 取得 live_revision 并传入 InteractionScope.revision，全库发生写入后该约束拒绝继续。Page.revision 是相关表版本，不能作为全局 scope.revision 使用。权限与正文定位处于同一 SQLite 快照内，避免先授权一行后读到另一行。
+read 的工作量由范围所需的页和连接缓存决定。提供者不先构造全部文档；shell 的文本与 base64 展示遵循独立 shell 合同。默认 current 请求返回当时版本。使用正文引用连续读取时，把引用的 expected_revision 或首段实际 revision 作为每次 `Information.read(..., expected_revision=...)` 的参数；shell `data read`、LLM data_read 和外部 read_document 同样支持。正文或授权依赖改变时明确拒绝该版本，重新定位正文；无关 Thread 写入不会使其失效。所有提供者的 DocumentChunk.revision 应代表该次读取的内容及权限版本，缺少版本的提供者不提供固定版本拼接保证。
+
+需要全局固定视图的消费者可从 StageReader 取得 live_revision 并传入 InteractionScope.revision，全库发生写入后该约束拒绝继续。Page.revision 是相关表版本，不能作为全局 scope.revision 使用。权限与正文定位处于同一 SQLite 快照内，避免先授权一行后读到另一行。
 
 ## 四、组合
 
