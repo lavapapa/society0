@@ -1,0 +1,4 @@
+Command: .venv/bin/python research/core-next/performance-active-scale-probe-20261004.py
+Exit: 0
+Three independent processes, 1/8/32 rule actors, 20 steps each; all balances and restored values equal.
+Source: git archive 9180498586ae87ce592fb7f6ce78b68cb38a5b59 src

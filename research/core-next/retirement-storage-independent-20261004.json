@@ -1,0 +1,7 @@
+{
+  "scope": "current src static ImportFrom closure; optional third-party imports excluded",
+  "files": 44,
+  "missing_society_modules": [],
+  "shared_resource_tests_retained": true,
+  "fixed_builtin_oracle_retained": true
+}

@@ -1,0 +1,7 @@
+Command: PYTHONPATH=src .venv/bin/python -m pytest -q -s tests/primary/test_kernel_threads.py::test_hot_append_and_tail_work_does_not_grow_with_history tests/primary/test_kernel_memory.py::test_current_recall_sql_work_does_not_grow_with_history tests/primary/test_plugin_social.py::test_social_fixed_active_pool_queries_do_not_replay_long_history tests/primary/test_kernel_usage.py
+Exit: 0
+
+{'history_sizes': [1000, 10000], 'append_tail_vm_steps': [(599, 81), (599, 81)]}
+..{'history': [100, 10000], 'active_pool_sql_vm': [483, 483]}
+...{'history_calls': [100, 10000], 'query_vm_instructions': [396, 396]}
+........
