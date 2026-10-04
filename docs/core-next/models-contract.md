@@ -10,7 +10,7 @@
 
 ## 二、资源
 
-每个 profile 内的全局许可和 HTTP 连接池默认容量等于该 profile 配置端点并发之和，也可分别显式指定正整数。额外随机等待默认关闭；request_jitter 为调用方主动设置的最大秒数。每个端点仍有独立并发许可。多个 trust_env 配置分别持有对应 HTTP 池，关闭由管理器负责。global_concurrency 是单个 ModelProvider 的许可；多个 profile 各自持有管理器，当前没有共享的运行总额，缓存预算也按每个嵌入 profile 计算。
+每个 profile 内的全局许可和 HTTP 连接池默认容量等于该 profile 配置端点并发之和，也可分别显式指定正整数。额外随机等待默认关闭；request_jitter 为调用方主动设置的最大秒数。每个端点仍有独立并发许可。多个 trust_env 配置分别持有对应 HTTP 池，关闭由管理器负责。global_concurrency 是单个 ModelProvider 的许可；多个 profile 默认各自持有管理器；运行可把同一个 asyncio.Semaphore 作为 request_limit 传入模型与嵌入插件，对实际物理请求施加共享总额。缓存命中、批次等待与重试退避不占该共享许可，缓存预算仍按每个嵌入 profile 计算。
 
 默认 session_transport=None，会话身份保存在 Thread；支持该扩展的端点可显式选择 metadata，经 extra_body 将稳定 session_id 写入请求正文 metadata，并保留其他 metadata 字段。该选项不改变完整 Thread、请求水位或重试身份；提供方不支持此字段时保持默认配置。
 
