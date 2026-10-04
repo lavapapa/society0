@@ -83,3 +83,5 @@ with StageReader(analysis_directory) as reader:
 ```
 
 `source_run`、`analysis_directory` 和表名由调用者选择。分析目录的物化成本随选中完整点的状态与依赖工件增长；准备过程完成后，分页读取沿现有索引和正文引用执行。继续仿真使用原完整运行创建恢复分支。
+
+运行中的 SQLite 与 WAL 置于本地文件系统。网络挂载用于完整封存工件的传输和存放；正式运行先建立本地工作目录，再按完整点合同导出。当前接口没有为 FUSE、CephFS 或其他网络挂载提供在线 WAL 运行保证。

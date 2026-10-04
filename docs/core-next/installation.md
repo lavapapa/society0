@@ -32,3 +32,5 @@ uv pip install --no-sources /tmp/society0-wheels/society0_filesystem-*.whl '.[sh
 这些记录验证当前源码及指定平台的安装闭环；公共发行仍需将 Core 与原生包按同一版本计划提供给用户。文件级读写成本和共享目录语义见 [工作区合同](workspace-contract.md)。
 
 存储使用 POSIX 文件锁，当前支持 macOS 与 Linux。Windows 未提供此运行合同。版本以 pyproject.toml 和包内 __version__ 为准，发行就绪状态见验收清单；工作树可运行与公共发布分别确认。
+
+运行中的 SQLite 与 WAL 置于本地文件系统。网络挂载用于完整封存工件的传输和存放；正式运行先建立本地工作目录，再按完整点合同导出。当前接口没有为 FUSE、CephFS 或其他网络挂载提供在线 WAL 运行保证。
