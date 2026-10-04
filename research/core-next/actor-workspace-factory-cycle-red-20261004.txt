@@ -1,0 +1,105 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_official_actor_driver_factory_can_consume_persistent_workspace ______
+
+self = <society0.kernel.plugins.PluginHost object at 0x10cf395b0>
+
+    def _order(self) -> tuple[str, ...]:
+        graph = {}
+        for plugin in self._plugins:
+            if plugin.name in graph:
+                raise ValueError(f"duplicate plugin: {plugin.name}")
+            graph[plugin.name] = plugin.requires
+        for name, dependencies in graph.items():
+            for dependency in dependencies:
+                if dependency not in graph:
+                    raise ValueError(f"missing plugin dependency: {name} requires {dependency}")
+        try:
+>           return tuple(TopologicalSorter(graph).static_order())
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+src/society0/kernel/plugins.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/graphlib.py:244: in static_order
+    self.prepare()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <graphlib.TopologicalSorter object at 0x10cf39940>
+
+    def prepare(self):
+        """Mark the graph as finished and check for cycles in the graph.
+    
+        If any cycle is detected, "CycleError" will be raised, but "get_ready" can
+        still be used to obtain as many nodes as possible until cycles block more
+        progress. After a call to this function, the graph cannot be modified and
+        therefore no more nodes can be added using "add".
+        """
+        if self._ready_nodes is not None:
+            raise ValueError("cannot prepare() more than once")
+    
+        self._ready_nodes = [
+            i.node for i in self._node2info.values() if i.npredecessors == 0
+        ]
+        # ready_nodes is set before we look for cycles on purpose:
+        # if the user wants to catch the CycleError, that's fine,
+        # they can continue using the instance to grab as many
+        # nodes as possible before cycles block more progress
+        cycle = self._find_cycle()
+        if cycle:
+>           raise CycleError(f"nodes are in a cycle", cycle)
+E           graphlib.CycleError: ('nodes are in a cycle', ['actors', 'workspace', 'actors'])
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/graphlib.py:106: CycleError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-841/test_official_actor_driver_fac0')
+
+    @pytest.mark.asyncio
+    async def test_official_actor_driver_factory_can_consume_persistent_workspace(tmp_path):
+        from society0.kernel.actors import actor_plugin,ActorRecord
+        from society0.kernel.services import thread_plugin
+        from society0.kernel.workspace import workspace_plugin
+        from society0.kernel.composition import compose
+        from society0.kernel.schedule import RuleDriver
+        from society0.kernel.runtime import DriverResult
+        calls=[]
+        def factory(ctx):
+            workspace=ctx.require('workspace','workspace')
+            def driver(record):
+                calls.append((record.id,workspace))
+                return RuleDriver(lambda session:DriverResult('completed'))
+            return {'rule':driver}
+>       async with compose(tmp_path/'run',[
+            actor_plugin(('rule',),records=[ActorRecord('a','rule')],requires=('workspace',),driver_factory=factory),
+            workspace_plugin()]) as host:
+
+tests/primary/test_core_next_real_structure.py:110: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:20: in compose
+    order = host._order()
+            ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.plugins.PluginHost object at 0x10cf395b0>
+
+    def _order(self) -> tuple[str, ...]:
+        graph = {}
+        for plugin in self._plugins:
+            if plugin.name in graph:
+                raise ValueError(f"duplicate plugin: {plugin.name}")
+            graph[plugin.name] = plugin.requires
+        for name, dependencies in graph.items():
+            for dependency in dependencies:
+                if dependency not in graph:
+                    raise ValueError(f"missing plugin dependency: {name} requires {dependency}")
+        try:
+            return tuple(TopologicalSorter(graph).static_order())
+        except CycleError as error:
+>           raise ValueError(f"plugin dependency cycle: {error.args[1]}") from error
+E           ValueError: plugin dependency cycle: ['actors', 'workspace', 'actors']
+
+src/society0/kernel/plugins.py:127: ValueError

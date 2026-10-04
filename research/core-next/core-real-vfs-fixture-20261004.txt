@@ -1,0 +1,74 @@
+................F..                                                      [100%]
+=================================== FAILURES ===================================
+_ test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-845/test_real_case_fixture_through13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10fae0470>
+case = 'vfs_discovery_pagination_original_and_action'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow','vfs_discovery_pagination_original_and_action'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            from tests.e2e.core_next_stub_provider import chat_response
+            return ChatCompletion.model_validate(chat_response(request))
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+config = {'release': 'explicit-sdk-fixture', 'output': PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pyte...url': 'http://127.0.0.1:1/v1', 'api_key': 'explicit-stub', 'model': 'stub', ...}], 'dimensions': 4, 'max_attempts': 1}}
+destination = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-845/test_real_case_fixture_through13/run')
+
+    @pytest.mark.asyncio
+    async def test_real_vfs_discovery_pagination_original_and_action(config,destination):
+        from society0.kernel.llm import LLMPolicy
+        task=('从共享根目录开始查找 catalog 信息。分页读取全部 prices，每页 limit=3，依据 total 和 next_cursor 读到结束，'
+              '然后用 bash 中的 jq 对这些完整报价复算记录数与 amount 总和。找到 reports 正文引用，'
+              '每次 data_read 的 size=64，透传 expected_revision 并按 next_offset 续读直到结束，保留核对短语。'
+              '从 actors 找到属于你的 Ref，使用 action_find 和 action_describe 发现提交方法，'
+              '提交 count、total、phrase 三个字段，成功后结束。所有数字必须来自实际完整资料。')
+        held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+            workspace=True,extra_plugins=(discovery_catalog_plugin(),))
+        from society0.kernel.storage import StageReader
+        from society0.kernel.threads import ThreadStore
+        with StageReader(destination) as reader:
+            assert reader.read(lambda v:v.query('SELECT actor,count,total,phrase FROM submissions'))==[('a',12,546,'原文校验成功')]
+            threads=ThreadStore(reader);tid=threads.find('a',{'time':1,'phase':'decision'})
+            messages=threads.read_messages(tid)
+            names=[call['function']['name'] for message in messages for call in message.get('tool_calls',[])]
+            assert all(name in names for name in ('data_list','data_query','data_read','bash','action_find','action_describe','action_invoke'))
+            assert names.count('data_read')>=2
+            outputs=[json.loads(message['content']) for message in messages if message['role']=='tool']
+>           assert all('error' not in value for value in outputs)
+E           assert False
+E            +  where False = all(<generator object test_real_vfs_discovery_pagination_original_and_action.<locals>.<genexpr> at 0x11480a4d0>)
+
+tests/e2e/test_core_next_real.py:298: AssertionError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-845/test_real_case_fixture_through13/run/shell-results/shell-0y13iwb_/output — scripts can modify host files
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action]
+1 failed, 18 passed in 6.62s

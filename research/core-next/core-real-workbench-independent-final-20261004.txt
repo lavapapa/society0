@@ -1,0 +1,36 @@
+..............................                                           [100%]
+==================================== PASSES ====================================
+_ test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action] _
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-861/test_real_case_fixture_through13/run/shell-results/shell-jx0325qt/output — scripts can modify host files
+=========================== short test summary info ============================
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[decision]
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[interview]
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[endpoint_smoke_llm_and_embedding]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[endpoint_saturation_llm_and_embedding_managers]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[interview_writes_artifacts]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[saturation_memory_and_logs]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[phase_capacity_overrides_runtime]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[memory_roundtrip]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[complete_boundary_memory_restore]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[round_robin_action_loop]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[social_publish_with_memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[environment_action_tag_completion]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[terminal_rejection_then_success]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[social_browse_completion_and_memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[multi_tick_social_workflow]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_process_fixture_runs_crash_and_restore_against_local_stub_http
+PASSED tests/primary/test_core_next_real_structure.py::test_official_actor_driver_factory_can_consume_persistent_workspace
+PASSED tests/primary/test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer
+PASSED tests/primary/test_core_next_workbench.py::test_empty_export_has_real_empty_state
+PASSED tests/primary/test_core_next_workbench.py::test_explicit_versions_do_not_merge_different_configuration
+PASSED tests/primary/test_core_next_workbench.py::test_dataset_and_giant_thread_originals_keep_step_prefix
+PASSED tests/primary/test_core_next_workbench.py::test_cli_exports_selected_actual_run_and_reports_missing_run
+PASSED tests/primary/test_core_next_workbench.py::test_plain_record_ref_shaped_business_value_is_not_interpreted
+PASSED tests/primary/test_core_next_workbench.py::test_entity_identity_separates_environment_and_actor
+PASSED tests/primary/test_core_next_workbench.py::test_actual_result_rows_and_metrics_have_table_and_chart_views
+PASSED tests/primary/test_core_next_workbench.py::test_repeated_phase_names_keep_metric_series_separate
+PASSED tests/primary/test_core_next_workbench_review.py::test_review_selected_moment_exports_all_threads_above_query_default
+PASSED tests/primary/test_core_next_workbench_review.py::test_review_temporary_complete_view_is_removed_on_export_error
