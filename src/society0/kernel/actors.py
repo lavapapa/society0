@@ -205,10 +205,14 @@ class ActorStore(Mapping):
         return self.store.read(read)
 
 
-def actor_plugin(drivers, *, records=(), name='actors', storage='storage'):
-    drivers=dict(drivers)
+def actor_plugin(drivers, *, records=(), name='actors', storage='storage', requires=(), driver_factory=None):
+    """规则直接提供映射；资源型声明名称，在安装期从显式依赖构造映射。"""
+    declared=dict(drivers) if driver_factory is None else dict.fromkeys(drivers)
     def initialize(writer):
-        for record in records: _insert(writer,record,drivers)
+        for record in records: _insert(writer,record,declared)
     def install(ctx):
-        ctx.provide('actors',ActorStore(ctx.require(storage,'store'),drivers))
-    return Plugin(name,(storage,),install,schema=ACTOR_SCHEMA,initialize=initialize)
+        configured=declared if driver_factory is None else dict(driver_factory(ctx))
+        if configured.keys()!=declared.keys():
+            raise ValueError('driver names must match the declared names')
+        ctx.provide('actors',ActorStore(ctx.require(storage,'store'),configured))
+    return Plugin(name,tuple(dict.fromkeys((storage,*requires))),install,schema=ACTOR_SCHEMA,initialize=initialize)

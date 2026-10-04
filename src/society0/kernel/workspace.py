@@ -14,7 +14,9 @@ WORKSPACE_SCHEMA=(
 
 
 class WorkspaceStore:
-    def __init__(self,store):self.store=store
+    def __init__(self,store):
+        store.read(lambda view:view.query('SELECT id FROM actors LIMIT 0'))
+        self.store=store
 
     def open(self,scope):
         scope.check_active()
@@ -93,6 +95,6 @@ class WorkspaceLease:
         await asyncio.gather(*tuple(self._tasks),return_exceptions=True)
 
 
-def workspace_plugin(*,name='workspace',storage='storage',actors='actors'):
+def workspace_plugin(*,name='workspace',storage='storage'):
     def install(ctx):ctx.provide('workspace',WorkspaceStore(ctx.require(storage,'store')))
-    return Plugin(name,(storage,actors),install,schema=WORKSPACE_SCHEMA)
+    return Plugin(name,(storage,),install,schema=WORKSPACE_SCHEMA)
