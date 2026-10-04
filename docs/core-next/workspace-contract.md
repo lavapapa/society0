@@ -38,3 +38,5 @@ Information 的 stat/list_files 提供薄 metadata 读取能力，返回目录�
 `benchmarks/core_next_workspace_product.py` 为每个目录规模启动独立进程。100、10,000、50,000 条目录的显式 ls 分别耗时约 17.5、36.4、149.5 ms，进程 RSS 高水位增加约 3.0、7.9、27.5 MB；正文读取均为零字节。目录枚举明确与本次所请求的条目数相关。原始数据在 `research/core-next/workspace-product-scale.json`；高水位增量不等同于对象精确分配量。
 
 每组包含 1,000 个主体，实际创建一个 shell；8 MiB 未改文件连续十次激活产生零字节新正文工件，每次仍写小型 shell 状态和工作区根元数据。该结果验证冷文件复用，未证明同时激活全部主体的总驻留上界。
+
+WorkspaceStore 的数据前提是同库 Actor schema，构造时以零行查询确认。Workspace 安装仅获取 StageStore；compose 在安装任何服务前已汇集并建立全部 schema 和初始主体，因而主体驱动工厂可声明依赖 workspace 服务。FK 继续约束文件所属主体，缺失 Actor schema 在安装时报错；恢复使用同一 schema 校验与工厂装配，服务安装顺序无需承担数据初始化职责。

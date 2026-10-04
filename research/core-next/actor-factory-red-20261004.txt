@@ -1,0 +1,48 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_actor_factory_resolves_declared_resources_once_and_builds_lazily _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-825/test_actor_factory_resolves_de0')
+
+    @pytest.mark.asyncio
+    async def test_actor_factory_resolves_declared_resources_once_and_builds_lazily(tmp_path):
+        installed=[];created=[];resource=object()
+        def build(ctx):
+            assert ctx.require('provider','service') is resource
+            installed.append(ctx.name if hasattr(ctx,'name') else 'actors')
+            def driver(record):
+                created.append(record.id)
+                return resource
+            return {'llm':driver}
+        def plugins():
+            return [actor_plugin(('llm',),records=[ActorRecord('a','llm'),ActorRecord('b','llm')],
+                requires=('provider',),driver_factory=build),
+                Plugin('provider',install=lambda ctx:ctx.provide('service',resource))]
+>       async with compose(tmp_path/'run',plugins()) as host:
+                                          ^^^^^^^^^
+
+tests/primary/test_kernel_actor_factory.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def plugins():
+>       return [actor_plugin(('llm',),records=[ActorRecord('a','llm'),ActorRecord('b','llm')],
+            requires=('provider',),driver_factory=build),
+            Plugin('provider',install=lambda ctx:ctx.provide('service',resource))]
+E       TypeError: actor_plugin() got an unexpected keyword argument 'requires'
+
+tests/primary/test_kernel_actor_factory.py:19: TypeError
+_______________ test_actor_factory_requires_exact_declared_names _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-825/test_actor_factory_requires_ex0')
+
+    @pytest.mark.asyncio
+    async def test_actor_factory_requires_exact_declared_names(tmp_path):
+>       plugin=actor_plugin(('llm',),records=[ActorRecord('a','llm')],driver_factory=lambda ctx:{'other':lambda r:None})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: actor_plugin() got an unexpected keyword argument 'driver_factory'
+
+tests/primary/test_kernel_actor_factory.py:34: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_actor_factory.py::test_actor_factory_resolves_declared_resources_once_and_builds_lazily
+FAILED tests/primary/test_kernel_actor_factory.py::test_actor_factory_requires_exact_declared_names
+2 failed in 0.11s

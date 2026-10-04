@@ -1,0 +1,9 @@
+......                                                                   [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/primary/test_skill_starter.py::test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory
+PASSED tests/primary/test_skill_starter.py::test_starter_provider_failure_remains_failed_and_does_not_publish
+PASSED tests/primary/test_skill_starter_review.py::test_review_starter_actual_resource_preflight_never_calls_network
+PASSED tests/primary/test_skill_starter_review.py::test_review_starter_explicit_experience_saved_once_before_interview
+PASSED tests/primary/test_kernel_actor_factory.py::test_actor_factory_resolves_declared_resources_once_and_builds_lazily
+PASSED tests/primary/test_kernel_actor_factory.py::test_actor_factory_requires_exact_declared_names

@@ -8,6 +8,21 @@
 
 `actor_plugin(drivers, records=(), name='actors')` 提供 actors 服务并声明自身 schema 与初始化。drivers 是驱动名到工厂的注册表，工厂接收一个按需读取的 ActorRecordView。初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按该主体配置构建轻量门面。
 
+资源型驱动可使用同一个工厂的安装期入口；`drivers` 先声明名称供初始化校验，`driver_factory` 从显式依赖取得共享服务，返回名称一致的惰性工厂映射。
+
+```python
+def build_drivers(ctx):
+    provider = ctx.require('models', 'models')['main']
+    threads = ctx.require('threads', 'threads')
+    driver = LLMDriver(provider, threads, input_builder=my_inputs)
+    return {'reader': lambda record: driver}
+
+actors = actor_plugin(('reader',), records=records,
+    requires=('models', 'threads'), driver_factory=build_drivers)
+```
+
+安装期不按人口构建模型连接或解释器；恢复重新取得本次运行的资源服务，复用持久主体目录。完整两轮例子见 `skill/assets/minimal_experiment.py`。
+
 ## 二、访问
 
 ActorStore 实现 Mapping[str, Actor]。按 id 获取时读取主体短头并调用对应驱动工厂；返回 Actor.config 为 ActorRecordView，persona、state 与 config 在访问对应属性时读取，state_ref 为该主体状态引用。显式迭代按首次登记顺序返回 id，分批读取数据库，不构建 Driver。Runtime 可以保留该 Mapping，在实际执行激活时取所需 Actor。
