@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_shared_logging_does_not_construct_retired_agent_thread_store _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-797/test_shared_logging_does_not_c0')
+
+    def test_shared_logging_does_not_construct_retired_agent_thread_store(tmp_path):
+        import subprocess,sys,os
+        script="""
+    import sys
+    from pathlib import Path
+    from society0.logging import ExperimentLogContext
+    context=ExperimentLogContext(Path(sys.argv[1]))
+    assert not hasattr(context,'agent_thread_store')
+    assert not any(name.startswith('society0.agent') for name in sys.modules)
+    context.close()
+    """
+        result=subprocess.run([sys.executable,'-c',script,str(tmp_path/'logs')],capture_output=True,text=True,env={**os.environ,'PYTHONPATH':'src'})
+>       assert result.returncode==0,result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 6, in <module>
+E         AssertionError
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-c', "\...de=1, stdout='', stderr='Traceback (most recent call last):\n  File "<string>", line 6, in <module>\nAssertionError\n').returncode
+
+tests/primary/test_shared_core_assets.py:51: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_shared_core_assets.py::test_shared_logging_does_not_construct_retired_agent_thread_store
+1 failed in 0.18s

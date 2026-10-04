@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import wraps
@@ -72,6 +73,11 @@ _trace = ContextVar('kernel_provider_trace', default=None)
 
 
 class _Manager(LLMManager):
+    def _prepare_request_params(self, params):
+        trace = _trace.get()
+        params['messages'] = trace.threads.snapshot_messages(trace.thread_id, through=trace.through)['messages']
+        return params
+
     @staticmethod
     def _provider_response_payload(response, *, secrets=()):
         payload = LLMManager._provider_response_payload(response, secrets=secrets)
@@ -107,14 +113,14 @@ class _Manager(LLMManager):
 
 class ModelProvider(_Provider):
     def __init__(self, endpoints, threads, *, max_attempts=2, retry_delay=0.1,
-                 global_concurrency=None, http_connections=None, request_jitter=0.0, request_options=None):
+                 global_concurrency=None, http_connections=None, request_jitter=0.0, request_options=None, request_limit=None):
         super().__init__()
         if type(max_attempts) is not int or max_attempts < 1:
             raise ValueError('max_attempts must be positive')
         self.threads = threads
         self.request_options = dict(request_options or {})
         self.manager = _Manager(endpoints, global_concurrency=global_concurrency,
-                                http_connections=http_connections, request_jitter=request_jitter)
+                                http_connections=http_connections, request_jitter=request_jitter, request_limit=request_limit)
         # SDK 已配置 max_retries=0；由本适配层明确区分传输失败和留证失败。
         self.manager._max_retries = 1
         self.max_attempts = max_attempts
@@ -126,11 +132,10 @@ class ModelProvider(_Provider):
         if endpoint is None:
             raise ProviderFailure('provider_unavailable', 'no model endpoint')
         payload, resolution = self.manager._resolve_tool_choice(endpoint, {**self.request_options, **options})
-        snapshot = self.threads.snapshot_messages(thread_id)
-        payload['messages'] = snapshot['messages']
+        through = self.threads.describe(thread_id)['last_seq']
         recorded_options = {key: value for key, value in payload.items() if key != 'messages'}
         recorded_options['model'] = endpoint.deployment_name if endpoint.provider_type == 'azure' and endpoint.deployment_name else endpoint.model
-        trace = _Trace(self.threads, thread_id, recorded_options, snapshot['through'])
+        trace = _Trace(self.threads, thread_id, recorded_options, through)
         token = _trace.set(trace)
         transient = (openai.APIConnectionError, openai.RateLimitError, openai.InternalServerError, TimeoutError)
         try:
@@ -141,19 +146,21 @@ class ModelProvider(_Provider):
                 except transient as error:
                     if attempt + 1 == self.max_attempts:
                         raise ProviderFailure('transport_error', str(error)) from error
-                    await asyncio.sleep(self.retry_delay)
+                    traceback.clear_frames(error.__traceback__)
                 except openai.BadRequestError as error:
                     code = getattr(error, 'code', None)
                     reason = 'context_limit' if code == 'context_length_exceeded' else 'provider_request_error'
                     raise ProviderFailure(reason, str(error)) from error
                 except openai.APIStatusError as error:
                     raise ProviderFailure('provider_request_error', str(error)) from error
+                trace.raw_response = None
+                await asyncio.sleep(self.retry_delay)
         finally:
             _trace.reset(token)
 
 
 
-def model_plugin(profiles, *, threads=('threads', 'threads'), name='models'):
+def model_plugin(profiles, *, threads=('threads', 'threads'), name='models', request_limit=None):
     """每个命名配置显式提供端点、请求默认值与资源限额。"""
     from .plugins import Plugin
 
@@ -161,7 +168,7 @@ def model_plugin(profiles, *, threads=('threads', 'threads'), name='models'):
         store = context.require(*threads)
         providers = {}
         for profile, options in profiles.items():
-            provider = ModelProvider(threads=store, **options)
+            provider = ModelProvider(threads=store, request_limit=request_limit, **options)
             context.on_close(provider.close)
             providers[profile] = provider
         context.provide('models', providers)
@@ -321,7 +328,7 @@ class _EmbeddingManager(EmbeddingManager):
 class EmbeddingProvider(_Provider):
     def __init__(self, endpoints, store, threads=None, *, dimensions=None, max_attempts=2,
                  retry_delay=0.1, cache_max_items=5000, cache_max_bytes=64*1024*1024,
-                 http_connections=None,batch_texts=50,batch_chars=100000,batch_wait_ms=5):
+                 http_connections=None,batch_texts=50,batch_chars=100000,batch_wait_ms=5,request_limit=None):
         super().__init__()
         if type(max_attempts) is not int or max_attempts < 1:
             raise ValueError('max_attempts must be positive')
@@ -332,7 +339,7 @@ class EmbeddingProvider(_Provider):
             raise ValueError("batch_wait_ms must be finite and nonnegative")
         self.calls, self.threads = ResourceCalls(store), threads
         self.manager = _EmbeddingManager(endpoints,self.calls,threads=threads,max_attempts=max_attempts,retry_delay=retry_delay,
-                                         cache_max_items=cache_max_items,cache_max_bytes=cache_max_bytes,http_connections=http_connections,
+                                         cache_max_items=cache_max_items,cache_max_bytes=cache_max_bytes,http_connections=http_connections,request_limit=request_limit,
                                          batch_texts=batch_texts,batch_chars=batch_chars,batch_wait_ms=batch_wait_ms)
         self.dimensions = dimensions
 
@@ -350,7 +357,7 @@ class EmbeddingProvider(_Provider):
 
 
 
-def embedding_plugin(profiles, *, storage=('storage','store'), threads=('threads','threads'),name='embeddings'):
+def embedding_plugin(profiles, *, storage=('storage','store'), threads=('threads','threads'),name='embeddings',request_limit=None):
     """共享物理调用表随插件声明；各用途选择具名嵌入配置。"""
     from .plugins import Plugin
     def install(context):
@@ -358,7 +365,7 @@ def embedding_plugin(profiles, *, storage=('storage','store'), threads=('threads
         thread_store=context.require(*threads) if threads is not None else None
         providers={}
         for profile,options in profiles.items():
-            provider=EmbeddingProvider(store=store,threads=thread_store,**options)
+            provider=EmbeddingProvider(store=store,threads=thread_store,request_limit=request_limit,**options)
             context.on_close(provider.close)
             providers[profile]=provider
         context.provide('embeddings',providers)

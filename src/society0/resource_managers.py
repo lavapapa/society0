@@ -22,6 +22,7 @@ from dataclasses import dataclass
 import random
 import os
 from collections import OrderedDict
+from contextlib import nullcontext
 
 from pydantic import BaseModel
 from tenacity import (
@@ -377,7 +378,7 @@ class LLMManager:
     """
 
     def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None,
-                 global_concurrency=None, http_connections=None, request_jitter=0.0):
+                 global_concurrency=None, http_connections=None, request_jitter=0.0, request_limit=None):
         """
         初始化LLM管理器
 
@@ -411,6 +412,7 @@ class LLMManager:
         self._http_connections = connections
         self._request_jitter = request_jitter
         self._global_semaphore = asyncio.Semaphore(capacity)
+        self._request_limit = request_limit if request_limit is not None else nullcontext()
 
         # 按 trust_env 分组共享 HTTPX 连接池，最多各建立一个连接池。
         self._http_clients: Dict[bool, Any] = {}
@@ -510,46 +512,9 @@ class LLMManager:
         attempt_number: int,
         endpoint: EndpointConfig,
     ) -> None:
-        """Persist one physical provider attempt when a Thread is attached."""
-
-        thread_id = trace_metadata.get("thread_id")
-        if thread_id is None:
-            return
-        if self._log_context is None:
-            raise RuntimeError(
-                "LLM request declares thread_id but no ExperimentLogContext is bound"
-            )
-        self._log_context.append_agent_thread_event(
-            str(thread_id),
-            event_type,
-            payload=payload,
-            interaction_id=(
-                str(trace_metadata["interaction_id"])
-                if trace_metadata.get("interaction_id") is not None
-                else None
-            ),
-            interaction_type=(
-                str(trace_metadata["interaction_type"])
-                if trace_metadata.get("interaction_type") is not None
-                else None
-            ),
-            interaction_name=(
-                str(trace_metadata["interaction_name"])
-                if trace_metadata.get("interaction_name") is not None
-                else None
-            ),
-            turn_id=(
-                str(trace_metadata["turn_id"])
-                if trace_metadata.get("turn_id") is not None
-                else None
-            ),
-            metadata={
-                "provider_request_id": provider_request_id,
-                "attempt_number": attempt_number,
-                "endpoint_id": endpoint.id,
-                "model": endpoint.model,
-            },
-        )
+        """主体留证由规范 Thread 适配器实现，基础请求器不拥有主体状态。"""
+        if trace_metadata.get("thread_id") is not None:
+            raise RuntimeError("Thread-bound requests require a Thread-aware provider adapter")
 
     def _append_agent_thread_event_best_effort(
         self,
@@ -754,6 +719,9 @@ class LLMManager:
 
         return endpoint
 
+    def _prepare_request_params(self, params):
+        return params
+
     async def _execute_request(
         self,
         endpoint: EndpointConfig,
@@ -921,6 +889,7 @@ class LLMManager:
                             provider_start_time: Optional[float] = None
                             provider_duration: Optional[float] = None
                             decode_error_recorded = False
+                            request_recorded = False
                             try:
                                 extras.error = None
                                 extras.error_type = None
@@ -943,58 +912,68 @@ class LLMManager:
                                 else:
                                     request_params["model"] = endpoint.model
 
-                                # 消息正文由 Thread 请求水位保存，诊断只处理轻量选项。
-                                trace_request = self._traceable_provider_request({
-                                    key: value for key, value in request_params.items()
-                                    if key not in {"messages", "tools"}
-                                })
-                                trace_messages = request_params.get("messages")
-                                trace_tools = request_params.get("tools")
-                                if isinstance(trace_messages, list):
-                                    trace_request["messages_count"] = len(trace_messages)
-                                if isinstance(trace_tools, list):
-                                    trace_request["tool_names"] = [
-                                        str(
-                                            tool.get("function", {}).get("name")
-                                            or ""
+                                shared_wait = time.time()
+                                async with self._request_limit:
+                                    extras.queue_duration_sec = (extras.queue_duration_sec or 0.) + time.time() - shared_wait
+                                    request_params = self._prepare_request_params(request_params)
+                                    try:
+                                        extras.messages_count = len(request_params.get('messages', ()))
+                                        # 消息正文由 Thread 请求水位保存，诊断只处理轻量选项。
+                                        trace_request = self._traceable_provider_request({
+                                            key: value for key, value in request_params.items()
+                                            if key not in {"messages", "tools"}
+                                        })
+                                        trace_messages = request_params.get("messages")
+                                        trace_tools = request_params.get("tools")
+                                        if isinstance(trace_messages, list):
+                                            trace_request["messages_count"] = len(trace_messages)
+                                        if isinstance(trace_tools, list):
+                                            trace_request["tool_names"] = [
+                                                str(
+                                                    tool.get("function", {}).get("name")
+                                                    or ""
+                                                )
+                                                for tool in trace_tools
+                                                if isinstance(tool, dict)
+                                            ]
+                                        self._append_agent_thread_event_best_effort(
+                                            dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                            "provider_request",
+                                            payload={
+                                                "request": trace_request,
+                                                **(
+                                                    {"tool_choice_resolution": tool_choice_resolution}
+                                                    if tool_choice_resolution is not None
+                                                    else {}
+                                                ),
+                                            },
+                                            provider_request_id=request_id,
+                                            attempt_number=attempt_number,
+                                            endpoint=endpoint,
                                         )
-                                        for tool in trace_tools
-                                        if isinstance(tool, dict)
-                                    ]
-                                self._append_agent_thread_event_best_effort(
-                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
-                                    "provider_request",
-                                    payload={
-                                        "request": trace_request,
-                                        **(
-                                            {"tool_choice_resolution": tool_choice_resolution}
-                                            if tool_choice_resolution is not None
-                                            else {}
-                                        ),
-                                    },
-                                    provider_request_id=request_id,
-                                    attempt_number=attempt_number,
-                                    endpoint=endpoint,
-                                )
+                                        request_recorded = True
 
-                                request_timeout = request_params.get("timeout", endpoint.timeout)
-                                effective_timeout: Optional[float]
-                                if isinstance(request_timeout, (int, float)) and request_timeout > 0:
-                                    effective_timeout = float(request_timeout)
-                                elif isinstance(endpoint.timeout, (int, float)) and endpoint.timeout > 0:
-                                    effective_timeout = float(endpoint.timeout)
-                                else:
-                                    effective_timeout = None
+                                        request_timeout = request_params.get("timeout", endpoint.timeout)
+                                        effective_timeout: Optional[float]
+                                        if isinstance(request_timeout, (int, float)) and request_timeout > 0:
+                                            effective_timeout = float(request_timeout)
+                                        elif isinstance(endpoint.timeout, (int, float)) and endpoint.timeout > 0:
+                                            effective_timeout = float(endpoint.timeout)
+                                        else:
+                                            effective_timeout = None
 
-                                provider_start_time = time.time()
-                                request_coro = client.chat.completions.create(**request_params)
-                                if effective_timeout is None:
-                                    response = await request_coro
-                                else:
-                                    response = await asyncio.wait_for(
-                                        request_coro,
-                                        timeout=effective_timeout,
-                                    )
+                                        provider_start_time = time.time()
+                                        request_coro = client.chat.completions.create(**request_params)
+                                        if effective_timeout is None:
+                                            response = await request_coro
+                                        else:
+                                            response = await asyncio.wait_for(
+                                                request_coro,
+                                                timeout=effective_timeout,
+                                            )
+                                    finally:
+                                        request_params.pop('messages', None)
+                                        trace_messages = None
                                 provider_duration = time.time() - provider_start_time
                                 try:
                                     raw_response = self._provider_response_payload(
@@ -1098,17 +1077,18 @@ class LLMManager:
 
                             except asyncio.CancelledError as exc:
                                 attempt_completed_at = time.time()
-                                self._append_agent_thread_event_best_effort(
-                                    dict(metadata or {}) if isinstance(metadata, dict) else {},
-                                    "provider_cancelled",
-                                    payload={**self._provider_error_payload(
-                                        exc,
-                                        secrets=(endpoint.api_key,),
-                                    ),'timing':_attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration)},
-                                    provider_request_id=request_id,
-                                    attempt_number=attempt_number,
-                                    endpoint=endpoint,
-                                )
+                                if request_recorded:
+                                    self._append_agent_thread_event_best_effort(
+                                        dict(metadata or {}) if isinstance(metadata, dict) else {},
+                                        "provider_cancelled",
+                                        payload={**self._provider_error_payload(
+                                            exc,
+                                            secrets=(endpoint.api_key,),
+                                        ),'timing':_attempt_timing(extras,attempt_interval_started_at,provider_start_time,provider_duration)},
+                                        provider_request_id=request_id,
+                                        attempt_number=attempt_number,
+                                        endpoint=endpoint,
+                                    )
                                 extras.error_type = type(exc).__name__
                                 extras.error = str(exc) or repr(exc)
                                 extras.duration_sec = (
@@ -1135,7 +1115,7 @@ class LLMManager:
                                 raise
                             except Exception as exc:
                                 attempt_completed_at = time.time()
-                                if not decode_error_recorded:
+                                if request_recorded and not decode_error_recorded:
                                     self._append_agent_thread_event_best_effort(
                                         dict(metadata or {}) if isinstance(metadata, dict) else {},
                                         "provider_error",
@@ -1280,13 +1260,14 @@ class EmbeddingManager:
     """
 
     def __init__(self, endpoints: List[Dict[str, Any]], *, log_context: Optional[ExperimentLogContext] = None,
-                 cache_max_items=None, cache_max_bytes=64 * 1024 * 1024, http_connections=None):
+                 cache_max_items=None, cache_max_bytes=64 * 1024 * 1024, http_connections=None, request_limit=None):
         """
         初始化Embedding管理器
 
         Args:
             endpoints: 端点配置列表，格式与LLMManager相同
         """
+        self._request_limit = request_limit if request_limit is not None else nullcontext()
         self.endpoints = []
         self.clients = {}
         self.semaphores = {}
@@ -1371,52 +1352,9 @@ class EmbeddingManager:
         attempt_number: int,
         endpoint: EndpointConfig,
     ) -> None:
-        """Persist one physical embedding provider attempt on its Agent Thread."""
-
-        thread_id = trace_metadata.get("thread_id")
-        if thread_id is None:
-            return
-        if self._log_context is None:
-            raise RuntimeError(
-                "Embedding request declares thread_id but no ExperimentLogContext is bound"
-            )
-
-        event_metadata: Dict[str, Any] = {
-            "provider_request_id": provider_request_id,
-            "attempt_number": attempt_number,
-            "endpoint_id": endpoint.id,
-            "model": endpoint.model,
-        }
-        for key in ("memory_id", "memory_ids", "dimensions", "texts_count"):
-            value = trace_metadata.get(key)
-            if value is not None:
-                event_metadata[key] = value
-        self._log_context.append_agent_thread_event(
-            str(thread_id),
-            event_type,
-            payload=redact_credentials(payload),
-            interaction_id=(
-                str(trace_metadata["interaction_id"])
-                if trace_metadata.get("interaction_id") is not None
-                else None
-            ),
-            interaction_type=(
-                str(trace_metadata["interaction_type"])
-                if trace_metadata.get("interaction_type") is not None
-                else None
-            ),
-            interaction_name=(
-                str(trace_metadata["interaction_name"])
-                if trace_metadata.get("interaction_name") is not None
-                else None
-            ),
-            turn_id=(
-                str(trace_metadata["turn_id"])
-                if trace_metadata.get("turn_id") is not None
-                else None
-            ),
-            metadata=event_metadata,
-        )
+        """主体留证由规范 Thread 适配器实现，基础请求器不拥有主体状态。"""
+        if trace_metadata.get("thread_id") is not None:
+            raise RuntimeError("Thread-bound requests require a Thread-aware provider adapter")
 
     def _append_agent_thread_event_best_effort(
         self,
@@ -2102,6 +2040,7 @@ class EmbeddingManager:
             max_attempts = len(timeout_schedule)
 
             for attempt_number, request_deadline in enumerate(timeout_schedule, start=1):
+                request_recorded = False
                 provider_start_time: Optional[float] = None
                 physical_started_at=start_time if attempt_number==1 else time.time()
                 physical_sdk_started=physical_sdk_duration=None
@@ -2122,22 +2061,26 @@ class EmbeddingManager:
                             "model": endpoint.model,
                             "input": texts,
                         }
-                        self._append_agent_thread_event_best_effort(
-                            trace_fields,
-                            "embedding_provider_request",
-                            payload={"request": redact_credentials(request_params)},
-                            provider_request_id=request_id,
-                            attempt_number=attempt_number,
-                            endpoint=endpoint,
-                        )
-                        physical_sdk_started=time.time()
-                        response = await asyncio.wait_for(
-                            client.embed(
-                                model=endpoint.model,
-                                input=texts,
-                            ),
-                            timeout=request_deadline,
-                        )
+                        shared_wait = time.time()
+                        async with self._request_limit:
+                            physical_queue_s += time.time() - shared_wait
+                            self._append_agent_thread_event_best_effort(
+                                trace_fields,
+                                "embedding_provider_request",
+                                payload={"request": redact_credentials(request_params)},
+                                provider_request_id=request_id,
+                                attempt_number=attempt_number,
+                                endpoint=endpoint,
+                            )
+                            request_recorded = True
+                            physical_sdk_started=time.time()
+                            response = await asyncio.wait_for(
+                                client.embed(
+                                    model=endpoint.model,
+                                    input=texts,
+                                ),
+                                timeout=request_deadline,
+                            )
                         physical_sdk_duration=time.time()-physical_sdk_started
                         embedding_list = None
                         if isinstance(response, dict):
@@ -2173,6 +2116,7 @@ class EmbeddingManager:
                             if i:
                                 physical_started_at=time.time()
                                 physical_queue_s=0.
+                            request_recorded = False
                             physical_sdk_started=physical_sdk_duration=None
                             batch_texts = texts[i:i + batch_size]
                             request_params = {
@@ -2182,16 +2126,20 @@ class EmbeddingManager:
                             }
                             if endpoint.send_dimensions:
                                 request_params["dimensions"] = dimensions
-                            self._append_agent_thread_event_best_effort(
-                                trace_fields,
-                                "embedding_provider_request",
-                                payload={"request": redact_credentials(request_params)},
-                                provider_request_id=request_id,
-                                attempt_number=attempt_number,
-                                endpoint=endpoint,
-                            )
-                            physical_sdk_started=time.time()
-                            response = await client.embeddings.create(**request_params)
+                            shared_wait = time.time()
+                            async with self._request_limit:
+                                physical_queue_s += time.time() - shared_wait
+                                self._append_agent_thread_event_best_effort(
+                                    trace_fields,
+                                    "embedding_provider_request",
+                                    payload={"request": redact_credentials(request_params)},
+                                    provider_request_id=request_id,
+                                    attempt_number=attempt_number,
+                                    endpoint=endpoint,
+                                )
+                                request_recorded = True
+                                physical_sdk_started=time.time()
+                                response = await client.embeddings.create(**request_params)
                             physical_sdk_duration=time.time()-physical_sdk_started
                             response_embeddings = []
                             ordered = sorted(response.data, key=lambda item: item.index)
@@ -2266,31 +2214,33 @@ class EmbeddingManager:
                     return result
 
                 except asyncio.CancelledError as exc:
-                    self._append_agent_thread_event_best_effort(
-                        trace_fields,
-                        "embedding_provider_cancelled",
-                        payload={**LLMManager._provider_error_payload(
-                            exc,
-                            secrets=(endpoint.api_key,),
-                        ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
-                        provider_request_id=request_id,
-                        attempt_number=attempt_number,
-                        endpoint=endpoint,
-                    )
+                    if request_recorded:
+                        self._append_agent_thread_event_best_effort(
+                            trace_fields,
+                            "embedding_provider_cancelled",
+                            payload={**LLMManager._provider_error_payload(
+                                exc,
+                                secrets=(endpoint.api_key,),
+                            ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
+                            provider_request_id=request_id,
+                            attempt_number=attempt_number,
+                            endpoint=endpoint,
+                        )
                     raise
 
                 except Exception as exc:
-                    self._append_agent_thread_event_best_effort(
-                        trace_fields,
-                        "embedding_provider_error",
-                        payload={**LLMManager._provider_error_payload(
-                            exc,
-                            secrets=(endpoint.api_key,),
-                        ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
-                        provider_request_id=request_id,
-                        attempt_number=attempt_number,
-                        endpoint=endpoint,
-                    )
+                    if request_recorded:
+                        self._append_agent_thread_event_best_effort(
+                            trace_fields,
+                            "embedding_provider_error",
+                            payload={**LLMManager._provider_error_payload(
+                                exc,
+                                secrets=(endpoint.api_key,),
+                            ),'timing':{**_attempt_timing(extras,physical_started_at,physical_sdk_started,physical_sdk_duration),'queue_s':physical_queue_s}},
+                            provider_request_id=request_id,
+                            attempt_number=attempt_number,
+                            endpoint=endpoint,
+                        )
                     extras.error = str(exc) or repr(exc)
                     extras.error_type = type(exc).__name__
                     extras.duration_sec = time.time() - start_time
@@ -2345,6 +2295,7 @@ class EmbeddingManager:
                     await asyncio.sleep(min(0.2 * (2 ** (attempt_number - 1)), 2.0))
 
             raise RuntimeError("Embedding request exhausted retries without error details")
+
 
     def get_total_concurrency(self) -> int:
         """获取所有端点的总并发能力"""

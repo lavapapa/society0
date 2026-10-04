@@ -1,0 +1,356 @@
+.....FF.                                                                 [100%]
+=================================== FAILURES ===================================
+___ test_waiting_request_loads_no_history_and_keeps_original_watermark[True] ___
+
+self = <tests.primary.test_kernel_request_limit.WaitingLimit object at 0x10c4b1a00 [unlocked, value:1]>
+
+    async def __aenter__(self):
+        self.waiting.set()
+>       return await super().__aenter__()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_request_limit.py:141: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/locks.py:14: in __aenter__
+    await self.acquire()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.primary.test_kernel_request_limit.WaitingLimit object at 0x10c4b1a00 [unlocked, value:1]>
+
+    async def acquire(self):
+        """Acquire a semaphore.
+    
+        If the internal counter is larger than zero on entry,
+        decrement it by one and return True immediately.  If it is
+        zero on entry, block, waiting until some other coroutine has
+        called release() to make it larger than 0, and then return
+        True.
+        """
+        if not self.locked():
+            self._value -= 1
+            return True
+    
+        if self._waiters is None:
+            self._waiters = collections.deque()
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+    
+        # Finally block should be called before the CancelledError
+        # handling as we don't want CancelledError to call
+        # _wake_up_first() and attempt to wake up itself.
+        try:
+            try:
+>               await fut
+E               asyncio.exceptions.CancelledError
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/locks.py:386: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+self = <society0.kernel.models._Manager object at 0x10c4b3650>
+trace_metadata = {}, event_type = 'provider_cancelled'
+payload = {'error_type': 'CancelledError', 'error': 'CancelledError()', 'repr': 'CancelledError()', 'timing': {'duration_s': 0.00036597251892089844, 'queue_s': 2.7179718017578125e-05, 'jitter_s': 9.5367431640625e-07}}
+provider_request_id = 'llm_7601f37b', attempt_number = 1
+endpoint = EndpointConfig(id='m', api_key='unused', base_url='http://unused.invalid/v1', model='m', concurrency=4, weight=1.0, ti...e='openai', api_version=None, deployment_name=None, trust_env=False, tool_choice_policy='native', send_dimensions=True)
+
+    def _append_agent_thread_event_best_effort(self, trace_metadata, event_type, *, payload,
+                                              provider_request_id, attempt_number, endpoint):
+        trace = _trace.get()
+        if trace is None:
+            raise RuntimeError('provider request requires a Thread')
+        if trace.failed:
+            raise ThreadWriteError('Thread write already failed')
+        try:
+            if event_type == 'provider_request':
+                sequence = trace.threads.record_provider_request(
+                    trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
+                    physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
+                    tool_choice_resolution=payload.get("tool_choice_resolution"),
+                )
+                if trace.retry_of is None:
+                    trace.retry_of = sequence
+            else:
+>               trace.threads.record_provider_event(trace.thread_id, event_type, {
+                    'physical_request_id': provider_request_id, 'endpoint': endpoint.id,
+                    'payload': {**payload, 'raw_response': trace.raw_response} if event_type == 'provider_response' else payload,
+                })
+
+src/society0/kernel/models.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:222: in record_provider_event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:470: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:219: in write
+    usage.finish(writer,'thread',json.dumps([thread_id,payload['physical_request_id']]),outcome=kind.removeprefix('provider_'),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10c4b1e20>
+prefix = 'thread'
+identifier = '["09097a96ba2b49f3b66a2857e889e4f8", "llm_7601f37b"]'
+outcome = 'cancelled', body = None
+timing = {'duration_s': 0.00036597251892089844, 'queue_s': 2.7179718017578125e-05, 'jitter_s': 9.5367431640625e-07}
+
+    def finish(writer,prefix,identifier,*,outcome,body,timing=None):
+        rows=writer.query(f'SELECT model,{",".join(COUNTERS)} FROM {prefix}_usage_calls WHERE id=?',(identifier,))
+>       if not rows:raise KeyError('physical request not found')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'physical request not found'
+
+src/society0/kernel/usage.py:42: KeyError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-818/test_waiting_request_loads_no_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c1e2f90>
+cancel = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('cancel',[False,True])
+    async def test_waiting_request_loads_no_history_and_keeps_original_watermark(tmp_path,monkeypatch,cancel):
+        limit=WaitingLimit();await limit.acquire()
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            original={'role':'user','content':'original'*10000}
+            threads.append_message(tid,original)
+            provider=ModelProvider([endpoint('m')],threads,request_limit=limit)
+            snapshots=[];calls=[];read=threads.snapshot_messages
+            def snapshot(*args,**kw):snapshots.append(kw);return read(*args,**kw)
+            monkeypatch.setattr(threads,'snapshot_messages',snapshot)
+            async def create(**kw):calls.append(kw);return response()
+            provider.manager.clients['m'].chat.completions.create=create
+            task=asyncio.create_task(provider.request(tid,{}))
+            try:
+                await asyncio.wait_for(limit.waiting.wait(),1)
+                assert snapshots==[]
+                threads.append_message(tid,{'role':'user','content':'later'})
+                if cancel:
+                    task.cancel()
+>                   with pytest.raises(asyncio.CancelledError):await task
+                                                               ^^^^^^^^^^
+
+tests/primary/test_kernel_request_limit.py:165: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:33: in scoped
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:145: in request
+    return await self.manager._execute_request(endpoint, payload, tool_choice_resolution=resolution)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/resource_managers.py:886: in _execute_request
+    async for attempt in retrying:
+.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py:170: in __anext__
+    do = await self.iter(retry_state=self._retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py:157: in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/_utils.py:111: in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/__init__.py:413: in exc_check
+    raise retry_exc.reraise()
+          ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/__init__.py:184: in reraise
+    raise self.last_attempt.result()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+src/society0/resource_managers.py:1077: in _execute_request
+    self._append_agent_thread_event_best_effort(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models._Manager object at 0x10c4b3650>
+trace_metadata = {}, event_type = 'provider_cancelled'
+payload = {'error_type': 'CancelledError', 'error': 'CancelledError()', 'repr': 'CancelledError()', 'timing': {'duration_s': 0.00036597251892089844, 'queue_s': 2.7179718017578125e-05, 'jitter_s': 9.5367431640625e-07}}
+provider_request_id = 'llm_7601f37b', attempt_number = 1
+endpoint = EndpointConfig(id='m', api_key='unused', base_url='http://unused.invalid/v1', model='m', concurrency=4, weight=1.0, ti...e='openai', api_version=None, deployment_name=None, trust_env=False, tool_choice_policy='native', send_dimensions=True)
+
+    def _append_agent_thread_event_best_effort(self, trace_metadata, event_type, *, payload,
+                                              provider_request_id, attempt_number, endpoint):
+        trace = _trace.get()
+        if trace is None:
+            raise RuntimeError('provider request requires a Thread')
+        if trace.failed:
+            raise ThreadWriteError('Thread write already failed')
+        try:
+            if event_type == 'provider_request':
+                sequence = trace.threads.record_provider_request(
+                    trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
+                    physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
+                    tool_choice_resolution=payload.get("tool_choice_resolution"),
+                )
+                if trace.retry_of is None:
+                    trace.retry_of = sequence
+            else:
+                trace.threads.record_provider_event(trace.thread_id, event_type, {
+                    'physical_request_id': provider_request_id, 'endpoint': endpoint.id,
+                    'payload': {**payload, 'raw_response': trace.raw_response} if event_type == 'provider_response' else payload,
+                })
+        except Exception as error:
+            trace.failed = True
+>           raise ThreadWriteError('required Thread evidence could not be saved') from error
+E           society0.kernel.models.ThreadWriteError: required Thread evidence could not be saved
+
+src/society0/kernel/models.py:110: ThreadWriteError
+______ test_snapshot_failure_releases_admission_without_physical_attempt _______
+
+a = ('01faad0ee8c142db8d1c2769da7b7017',), k = {'through': 1}
+
+>   def fail(*a,**k):raise OSError('snapshot read failed')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   OSError: snapshot read failed
+
+tests/primary/test_kernel_request_limit.py:184: OSError
+
+During handling of the above exception, another exception occurred:
+
+self = <society0.kernel.models._Manager object at 0x10c4b19d0>
+trace_metadata = {}, event_type = 'provider_error'
+payload = {'error_type': 'OSError', 'error': 'snapshot read failed', 'repr': "OSError('snapshot read failed')", 'timing': {'duration_s': 7.700920104980469e-05, 'queue_s': 2.193450927734375e-05, 'jitter_s': 9.5367431640625e-07}}
+provider_request_id = 'llm_3eee8437', attempt_number = 1
+endpoint = EndpointConfig(id='m', api_key='unused', base_url='http://unused.invalid/v1', model='m', concurrency=4, weight=1.0, ti...e='openai', api_version=None, deployment_name=None, trust_env=False, tool_choice_policy='native', send_dimensions=True)
+
+    def _append_agent_thread_event_best_effort(self, trace_metadata, event_type, *, payload,
+                                              provider_request_id, attempt_number, endpoint):
+        trace = _trace.get()
+        if trace is None:
+            raise RuntimeError('provider request requires a Thread')
+        if trace.failed:
+            raise ThreadWriteError('Thread write already failed')
+        try:
+            if event_type == 'provider_request':
+                sequence = trace.threads.record_provider_request(
+                    trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
+                    physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
+                    tool_choice_resolution=payload.get("tool_choice_resolution"),
+                )
+                if trace.retry_of is None:
+                    trace.retry_of = sequence
+            else:
+>               trace.threads.record_provider_event(trace.thread_id, event_type, {
+                    'physical_request_id': provider_request_id, 'endpoint': endpoint.id,
+                    'payload': {**payload, 'raw_response': trace.raw_response} if event_type == 'provider_response' else payload,
+                })
+
+src/society0/kernel/models.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:222: in record_provider_event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:470: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:219: in write
+    usage.finish(writer,'thread',json.dumps([thread_id,payload['physical_request_id']]),outcome=kind.removeprefix('provider_'),
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10c5e2c00>
+prefix = 'thread'
+identifier = '["01faad0ee8c142db8d1c2769da7b7017", "llm_3eee8437"]'
+outcome = 'error', body = None
+timing = {'duration_s': 7.700920104980469e-05, 'queue_s': 2.193450927734375e-05, 'jitter_s': 9.5367431640625e-07}
+
+    def finish(writer,prefix,identifier,*,outcome,body,timing=None):
+        rows=writer.query(f'SELECT model,{",".join(COUNTERS)} FROM {prefix}_usage_calls WHERE id=?',(identifier,))
+>       if not rows:raise KeyError('physical request not found')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'physical request not found'
+
+src/society0/kernel/usage.py:42: KeyError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-818/test_snapshot_failure_releases0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c0a7d10>
+
+    @pytest.mark.asyncio
+    async def test_snapshot_failure_releases_admission_without_physical_attempt(tmp_path,monkeypatch):
+        limit=asyncio.Semaphore(1)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            provider=ModelProvider([endpoint('m')],threads,request_limit=limit)
+            def fail(*a,**k):raise OSError('snapshot read failed')
+            monkeypatch.setattr(threads,'snapshot_messages',fail)
+            try:
+>               with pytest.raises(OSError,match='snapshot read failed'):await provider.request(tid,{})
+                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_request_limit.py:187: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:33: in scoped
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:145: in request
+    return await self.manager._execute_request(endpoint, payload, tool_choice_resolution=resolution)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/resource_managers.py:886: in _execute_request
+    async for attempt in retrying:
+.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py:170: in __anext__
+    do = await self.iter(retry_state=self._retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/asyncio/__init__.py:157: in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/_utils.py:111: in inner
+    return call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/__init__.py:413: in exc_check
+    raise retry_exc.reraise()
+          ^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/tenacity/__init__.py:184: in reraise
+    raise self.last_attempt.result()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py:449: in result
+    return self.__get_result()
+           ^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/concurrent/futures/_base.py:401: in __get_result
+    raise self._exception
+src/society0/resource_managers.py:1115: in _execute_request
+    self._append_agent_thread_event_best_effort(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models._Manager object at 0x10c4b19d0>
+trace_metadata = {}, event_type = 'provider_error'
+payload = {'error_type': 'OSError', 'error': 'snapshot read failed', 'repr': "OSError('snapshot read failed')", 'timing': {'duration_s': 7.700920104980469e-05, 'queue_s': 2.193450927734375e-05, 'jitter_s': 9.5367431640625e-07}}
+provider_request_id = 'llm_3eee8437', attempt_number = 1
+endpoint = EndpointConfig(id='m', api_key='unused', base_url='http://unused.invalid/v1', model='m', concurrency=4, weight=1.0, ti...e='openai', api_version=None, deployment_name=None, trust_env=False, tool_choice_policy='native', send_dimensions=True)
+
+    def _append_agent_thread_event_best_effort(self, trace_metadata, event_type, *, payload,
+                                              provider_request_id, attempt_number, endpoint):
+        trace = _trace.get()
+        if trace is None:
+            raise RuntimeError('provider request requires a Thread')
+        if trace.failed:
+            raise ThreadWriteError('Thread write already failed')
+        try:
+            if event_type == 'provider_request':
+                sequence = trace.threads.record_provider_request(
+                    trace.thread_id, provider_options=_safe_provider_payload(trace.options, secrets=(endpoint.api_key,)),
+                    physical_request_id=provider_request_id, retry_of=trace.retry_of, through=trace.through,
+                    tool_choice_resolution=payload.get("tool_choice_resolution"),
+                )
+                if trace.retry_of is None:
+                    trace.retry_of = sequence
+            else:
+                trace.threads.record_provider_event(trace.thread_id, event_type, {
+                    'physical_request_id': provider_request_id, 'endpoint': endpoint.id,
+                    'payload': {**payload, 'raw_response': trace.raw_response} if event_type == 'provider_response' else payload,
+                })
+        except Exception as error:
+            trace.failed = True
+>           raise ThreadWriteError('required Thread evidence could not be saved') from error
+E           society0.kernel.models.ThreadWriteError: required Thread evidence could not be saved
+
+src/society0/kernel/models.py:110: ThreadWriteError

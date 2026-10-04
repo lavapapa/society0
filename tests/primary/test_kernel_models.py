@@ -53,7 +53,7 @@ async def test_profiles_install_through_host_and_preserve_request_defaults(tmp_p
             models=host.service('models','models')
             received=[]
             async def execute(endpoint,payload,**kw):
-                received.append(payload)
+                received.append(models['decision'].manager._prepare_request_params(payload.copy()))
                 return {'content':'done'}
             models['decision'].manager._execute_request=execute
             await models['decision'].request(tid,{'max_tokens':128})
