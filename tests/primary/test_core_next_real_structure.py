@@ -122,4 +122,5 @@ def test_real_profile_freezes_explicit_llm_proxy_choice(monkeypatch,tmp_path,tru
             'LLM_TRUST_ENV':trust}.items():monkeypatch.setenv('SOCIETY0_REAL_'+name,value)
     config=configuration()
     assert config['llm']['endpoints'][0]['trust_env']==(trust=='1')
+    assert config['llm']['session_transport'] is None
     assert config['embed']['endpoints'][0]['trust_env'] is False

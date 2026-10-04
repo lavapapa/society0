@@ -23,7 +23,7 @@ def configuration():
         'llm':{'endpoints':[{'id':'real','base_url':os.environ['SOCIETY0_REAL_LLM_URL'],
             'model':os.environ['SOCIETY0_REAL_LLM_MODEL'],'api_key':os.environ['SOCIETY0_REAL_LLM_KEY'],
             'concurrency':int(os.environ.get('SOCIETY0_REAL_MODEL_CAPACITY','2')),'timeout':60,'trust_env':os.environ.get('SOCIETY0_REAL_LLM_TRUST_ENV','0')=='1'}],
-            'max_attempts':1,'request_jitter':0,
+            'max_attempts':1,'request_jitter':0,'session_transport':None,
             'request_options':json.loads(os.environ.get('SOCIETY0_REAL_REQUEST_OPTIONS',
                 '{"max_tokens":1024,"temperature":0,"parallel_tool_calls":false,"reasoning_effort":"minimal"}'))},
         'embed':{'endpoints':[{'id':'real-embedding','base_url':os.environ['SOCIETY0_REAL_EMBED_URL'],
