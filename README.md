@@ -1,173 +1,52 @@
 # Society0
 
-Society0 is the simulation engine core for [ICLabSZ/Society_Zero_Universe](https://github.com/ICLabSZ/Society_Zero_Universe), designed to be used as a standalone engine for creating, running, and analyzing social simulation experiments.
+Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
 
-The package version is defined by `project.version` in [pyproject.toml](pyproject.toml). The long-term architecture and responsibility boundaries are documented in [PROJECT.md](PROJECT.md); release-specific changes are documented under `docs/release-*.md`.
+The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; release readiness and outstanding validation are tracked in [the implementation checklist](docs/core-next/TODO.md). Existing artifacts must be read using their producing version.
 
-The intended workflow is agent-assisted: researchers can use their own coding agents, such as Codex, Claude Code, Gemini, CodeWhale, or similar tools, to create experiments, configure models, run simulations, inspect outputs, and draft analysis. The engine provides a general abstraction for agents, environments, memory, model providers, run state, and outputs, so different kinds of social simulation can be built on the same core.
+## Start a study
 
-## For Agent
+Install the [Society0 skill](skill/SKILL.md) in your coding assistant. It guides research design, provider setup, small pilots and analysis. The Python package is a separate installation. Python 3.12 or later and macOS or Linux are supported by the current storage implementation.
 
-Install the [`skill/`](skill/) directory as a skill using your coding agent's instructions; the exact steps depend on the agent. This prompt starts the first-use conversation. The `pip install -e .` command in Quick Start installs the separate Python simulation engine, not the skill.
-
-After installing the Society0 skill in your coding agent, copy this prompt to choose how you want to begin:
-
-```text
-I am new to Society0. Help me choose how to start, and guide me in plain language.
+```sh
+uv sync
+uv run python -m society0.kernel.runner --help
 ```
 
-Agents reading this repository directly should start from [skill/SKILL.md](skill/SKILL.md).
+A model-free plan is available in [rule_run.py](examples/core_next/rule_run.py). A complete two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py); it includes persistent identity, full perception, a domain action, explicit experience extraction and structured measurement. Follow [the quickstart](skill/references/runtime-quickstart.md) for its environment configuration.
 
-For a screenshot-based, researcher-facing walkthrough, see [在 WorkBuddy 中开始 Society0 研究](docs/workbuddy-walkthrough.md). It covers installation through an ordinary conversation, configuration review, proposed changes, a small experiment, saved results, and analysis. The accompanying [validation record](docs/validation/workbuddy-2026-10-03.md) distinguishes observed successes from remaining verification work.
+Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `datasets` and `shell`. Base rule runs need no model endpoints or Rust build. The optional native filesystem package has its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
 
-## Requirements
+## Compose an environment
 
-- Python `>=3.12`.
-- A coding agent that can read and edit a local repository, such as Codex, Claude Code, Gemini, CodeWhale, or another capable coding assistant.
-- For LLM-Agent experiments, an LLM provider and an embedding model. The engine does not require a specific embedding-model size. Rule-based experiments do not need model endpoints.
+`Plugin` declares services, explicit dependencies, schema and initialization. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_plugin` builds drivers only when needed. Resource-backed drivers obtain shared models, Thread and memory services through their declared installation-time factory.
 
-## Quick Start
+`Information` provides discoverable documents and datasets with authorized totals, continuation cursors and complete original-content reads. `Actions` exposes templates against resource references and rechecks eligibility when invoked. `LLMDriver` offers these through meta tools and an optional Bashkit shell, preserving the full Thread. `RuleDriver` accesses the same structured interfaces.
 
-This example uses rule-based agents to show the engine structure without model endpoints. For a study where LLM Agents make decisions, continue to [LLM Agents](#llm-agents).
+`CodeSchedule` and `Phase` express business order. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.
 
-```bash
-cd society0core
-pip install -e .
+The [two-mechanism conversation plan](examples/core_next/conversation_pilot.py), [external graph initialization](examples/core_next/graph_environment.py), [typed records](examples/core_next/typed_records.py) and [immutable catalog](examples/core_next/immutable_catalog.py) demonstrate reusable mechanisms. Detailed contracts are in [docs/core-next](docs/core-next).
+
+## Run and inspect
+
+`RunPlan` and `run_plan` freeze the public run contract and execute complete steps. Preserve code, dependency and configuration identities, and supply credentials through the runtime environment. Every attempt uses its own run directory.
+
+```sh
+python -m society0.kernel.observation /path/to/run
+python -m society0.kernel.observation /path/to/run --serve 8711
 ```
 
-```python
-import asyncio
-from society0 import Society0
+Observation reads live diagnostics, Thread tails, resource usage, action outcomes and results. Fixed complete views support historical analysis. Large records retain original-content references and byte-range continuation. [The observation contract](docs/core-next/observation-contract.md) explains version boundaries, API examples and costs; the [workbench](docs/core-next/workbench-contract.md) renders recorded experiment outputs.
 
-config = {
-    "agent_types": [{"id": "reader", "archetype": "rule"}],
-    "agents": [
-        {"id": "alice", "type": "reader", "state": {"trust": 0.45}},
-        {"id": "bob", "type": "reader", "state": {"trust": 0.70}},
-    ],
-    "environment": {"type": "plain", "state": {"topic": "misinformation"}},
-}
+## Research and verification
 
-engine = Society0(save_dir="runs/quickstart", base_config=config)
+Keep observed simulation outcomes separate from empirical claims. Preserve all information needed for decisions, actionable domain operations, original messages and fact ordering. Memory writing, recall and active tools are independently configured. Provider failures and budget truncation remain visible; a successfully readable checkpoint alone does not establish scientific validity.
 
+Run the deterministic suite with the development dependencies. Real endpoint tests use an explicit environment profile and separate output directory.
 
-@engine.step(name="measure_trust")
-async def measure_trust(ctx):
-    ids = ctx.agents.where(type="reader").ids()
-    rows = [
-        {"agent_id": agent_id, "trust": ctx.world.agents_data[agent_id]["state"]["trust"]}
-        for agent_id in ids
-    ]
-    return ctx.result(
-        metrics={"avg_trust": sum(row["trust"] for row in rows) / len(rows)},
-        tables={"trust": rows},
-    )
-
-
-asyncio.run(engine.run(steps=3))
+```sh
+uv sync --all-extras
+uv run pytest -m 'not real_e2e'
 ```
 
-Outputs are written under the run directory:
-
-```text
-steps.jsonl
-metrics.jsonl
-events.jsonl
-summary.json
-diagnostics.md
-checkpoints/
-chroma_store/
-```
-
-## Runtime observation
-
-Use the read-only observation service to inspect a running or completed experiment.
-The [runtime observation guide](docs/runtime-observation.md) includes the Python API,
-CLI and HTTP requests, checkpoint visibility, paging, and local index recovery.
-
-## Step-local state and recovery
-
-Every executing step owns a `StepRuntimeScope`. Environments can access it through
-`env.step_runtime`, and code steps through `ctx.runtime_scope`. Use it for cursors,
-deduplication sets, and derived indexes that must disappear when the step succeeds,
-fails, or is restored. The scope is never serialized into the World checkpoint.
-
-A complete checkpoint is Society0's recovery boundary. If a step raises an unhandled
-exception, Society0 writes a non-recoverable diagnostic snapshot with a `StepFailure`
-summary and leaves the previous complete marker unchanged. Runners should create a new
-engine and resolve that checkpoint with
-`PersistenceManager.resolve_last_complete_from(source_run)`; they must not continue the
-failed in-memory engine.
-
-## LLM Agents
-
-LLM-agent experiments require both an LLM provider and an embedding provider:
-
-```python
-from society0 import EmbedModel, LLMModel, Society0
-
-llm = LLMModel.openai_compatible(
-    model="your-chat-model",
-    base_url="https://your-provider/v1",
-    api_key="...",
-    concurrency=5,
-)
-
-embed = EmbedModel.ollama(
-    model="nomic-embed-text",
-    base_url="http://localhost:11434",
-    concurrency=5,
-)
-
-engine = Society0(save_dir="runs/demo", base_config=config, llm=llm, embed=embed)
-```
-
-Use `instruct(...)` for behavior/action rounds and `interview(...)` for survey-style measurement.
-Memory retrieval is enabled by default. Durable memory writes are explicit: open an Agent
-Thread, pass its ID to the interaction, then call `extract_thread_memories(...)` after the
-interaction. This keeps the complete Thread, the extraction turn, and the committed memory
-receipt in one recoverable sequence.
-If your provider gives a known concurrent request limit, use that value; otherwise keep the default 5.
-
-Some OpenAI-compatible embedding models use a fixed output size and reject the optional
-`dimensions` request field. Declare those models with `send_dimensions=False` while keeping
-`dimensions` set to the vector size Society0 should validate and report.
-
-Some OpenAI-compatible reasoning endpoints accept tools but reject `required` or a named
-`tool_choice`. For those endpoints, set `tool_choice_policy="auto_restrict"`. Society0 then
-narrows a named-tool request to that single tool and sends `tool_choice="auto"`, while its
-local required-action checks still decide whether the round may commit. Leave the default
-`"native"` policy for providers that implement the standard OpenAI tool-choice modes.
-
-## External environments
-
-Experiment packages can inject an `Environment` subclass at the Society0 composition root without mutating the built-in environment registry:
-
-```python
-from society0 import Environment, Society0
-
-
-class MyEnvironment(Environment):
-    pass
-
-
-engine = Society0(
-    save_dir="runs/custom-env",
-    base_config=config,
-    environment_factory=MyEnvironment,
-)
-```
-
-The factory receives the current `World` and must return an `Environment`. Society0 still initializes the environment and registers its decorated FoV and Action capabilities.
-
-## Contributing
-
-Society0 welcomes contributions from social science researchers. If you or your agent creates a useful environment, finds a bug, or has an experiment-driven feature request, ask your coding agent to help open an issue or prepare a focused pull request.
-
-Run the deterministic test suite from the repository root with one command:
-
-```bash
-uv run --locked pytest -q
-```
-
-Live LLM and embedding tests remain opt-in because they require maintainer-provided endpoint configuration. Their command and environment variables are documented in [skill/references/debugging.md](skill/references/debugging.md).
+Architecture boundaries are in [PROJECT.md](PROJECT.md), semantic parity in [the capability map](docs/core-next/capability-parity.md), and historical investigations retain their original source versions under `research/`.

@@ -8,7 +8,7 @@ Society0 的共同运行过程包含机制编排、主体交互、模型网络�
 
 现有实验已经显示，拆分热字段与冷正文对变化捕获内存有决定性影响；同样逻辑搬到 Rust 后，大行旧值仍由 SQLite Session 保存。长读阻碍 WAL 回收也是数据库使用合同的问题。减少全量 World、按主体复制材料和历史扫描，是各语言都需要完成的设计。
 
-当前压缩实验中，Python 线程池调用原生 gzip 可以使用多个 CPU 核。该证据覆盖压缩流水线，未覆盖 Python JSON 编码、机制循环或最终写盘。因此公共层采用 Python，并不等于把所有重计算留在 Python 循环里。
+当前持久化编码器以独立 zlib 块和有界线程池调用成熟原生压缩器，规范 writer 保持记录与分块的确定顺序。JSON 通过成熟 python-rapidjson 的同步 push 接口编码，有界分块交给压缩线程池；机制循环与最终写盘仍分别计时。实际记录子集的编码收益及完整范围见原生 JSON 实验工件，局部加速不作为整步收益。因此公共层采用 Python，并不等于把所有重计算留在 Python 循环里。
 
 ## 二、取舍
 
@@ -22,12 +22,12 @@ Python 的 free-threaded 构建提供额外选择，第三方扩展可能重新�
 
 ## 三、执行
 
-公共插件 API 传递身份、查询条件、有限结果与明确的数据引用。数据库计算尽量在查询中完成，批量数据转换交给适合的原生库。独立压缩块可用有界线程池；纯 Python 并行计算使用进程前必须计入输入编码、复制、结果合并和进程组内存。共享权威写入按确定顺序提交，多核工作者返回计算结果，不能通过抢占写入改变业务次序。
+公共插件 API 传递身份、查询条件、有限结果与明确的数据引用。数据库计算尽量在查询中完成，批量数据转换交给适合的原生库。独立压缩块使用有界线程池；纯 Python 并行计算使用进程前必须计入输入编码、复制、结果合并和进程组内存。共享权威写入按确定顺序提交，多核工作者返回计算结果，不能通过抢占写入改变业务次序。
 
 新增 Rust 模块的触发证据是：长历史与大对象验收中，经过数据结构和查询优化后，仍存在占据主要耗时的纯 Python 计算；该计算具有稳定批量接口，并且原型在完整往返成本与内存下优于现成实现。届时保留 Python 插件 API，替换该计算实现。若压力测试显示协调层本身占据主要成本，再重新审查协调层语言。
 
-另一个实际适用点是成熟原生组件的接口连接。Bashkit 已有 OverlayFs 和稳定名称的文件系统 capsule 协议，当前 Python 绑定未直接提供增量层与动态目录所需的全部接口。小型 Rust 适配器可以委托既有文件系统实现，将必要操作接入 Python 的信息与持久化服务；其价值来自复用现成能力和消除重复全文快照。该路线先以真实解释器验证读、写、删除、重命名和恢复，再决定产品包装。公共插件继续使用 Python，普通规则运行无需创建 shell 或加载该适配器。
+另一个实际适用点是成熟原生组件的接口连接。Bashkit 已有 OverlayFs 和稳定名称的文件系统 capsule 协议，当前 Python 绑定未直接提供增量层与动态目录所需的全部接口。小型 Rust 适配器可以委托既有文件系统实现，将必要操作接入 Python 的信息与持久化服务；其价值来自复用现成能力和消除重复全文快照。该薄适配器已接入产品，读、写、删除、重命名、符号链接语义与完整恢复经真实解释器验证；macOS arm64 和 Linux x86_64 wheel 已在干净环境运行。公共插件继续使用 Python，普通规则运行无需创建 shell 或加载该适配器。
 
-本轮不以全语言重写作为先决条件。后续 shell 试验负责测原生解释器绑定和工作区驻留；存储试验负责测 SQLite Session 和大行影响；产品验收负责核实实际机制、模型、持久化和观察的占比，避免拿局部加速代替整步收益。
+工作区当前使用原生 OverlayFs 的文件级 copy-up，未修改文件复用权威路径索引与既有工件。原生单文件读取仍会物化该文件，修改巨文件的成本随文件大小增长。存储、机制计算、模型与记忆、观察和工作区的整体收益按完整负载分别验收；局部多核加速与整步耗时保持各自口径。
 
-官方实现依据包括 [APSW 执行模型](https://rogerbinns.github.io/apsw/execution.html)、[Python free-threading](https://docs.python.org/3/howto/free-threading-python.html)、[Node worker threads](https://nodejs.org/api/worker_threads.html) 和 [Bashkit Python API](https://bashkit.sh/api/python/)。本地实验及其限制见 [存储实验](storage-experiments.md)，具体原始数据保存在 research/core-next。
+官方实现依据包括 [APSW 执行模型](https://rogerbinns.github.io/apsw/execution.html)、[Python free-threading](https://docs.python.org/3/howto/free-threading-python.html)、[Node worker threads](https://nodejs.org/api/worker_threads.html) 和 [Bashkit Python API](https://bashkit.sh/api/python/)。本地实验及其限制见 [存储实验](storage-experiments.md)、[工作区合同](workspace-contract.md) 与 [安装说明](installation.md)，具体原始数据保存在 research/core-next。

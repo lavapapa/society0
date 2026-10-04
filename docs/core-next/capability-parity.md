@@ -176,64 +176,153 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 
 | 基线测试文件 | 函数数 | 覆盖能力组 |
 |---|---:|---|
-| [tests/e2e/test_real_process_recovery.py](../../tests/e2e/test_real_process_recovery.py) | 1 | L/M/R/P/Q；真实环境合同，默认不执行 |
-| [tests/e2e/test_society0_e2e.py](../../tests/e2e/test_society0_e2e.py) | 12 | A/E/B/S/O/P；跨模块完整路径 |
-| [tests/e2e/test_society0_real_e2e.py](../../tests/e2e/test_society0_real_e2e.py) | 13 | L/M/R/P/Q；真实环境合同，默认不执行 |
-| [tests/performance/test_incremental_checkpoint_v4_performance.py](../../tests/performance/test_incremental_checkpoint_v4_performance.py) | 3 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_action_role_permissions.py](../../tests/primary/test_action_role_permissions.py) | 7 | L01–L03/R03 |
-| [tests/primary/test_activation_pool.py](../../tests/primary/test_activation_pool.py) | 18 | S03–S06 |
-| [tests/primary/test_agent_persistence_semantics_v4.py](../../tests/primary/test_agent_persistence_semantics_v4.py) | 4 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_agent_thread_store.py](../../tests/primary/test_agent_thread_store.py) | 12 | M01–M05/Q03 |
-| [tests/primary/test_builtin_explicit_transactions.py](../../tests/primary/test_builtin_explicit_transactions.py) | 5 | B01–B04/P01–P02 |
-| [tests/primary/test_builtin_persistence_semantics_v4.py](../../tests/primary/test_builtin_persistence_semantics_v4.py) | 5 | B01–B04/P01–P02 |
-| [tests/primary/test_checkpoint_component_read.py](../../tests/primary/test_checkpoint_component_read.py) | 2 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_checkpoint_memory_pairing.py](../../tests/primary/test_checkpoint_memory_pairing.py) | 10 | M01–M10/R04 |
-| [tests/primary/test_checkpoint_records.py](../../tests/primary/test_checkpoint_records.py) | 27 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_embedding_thread_trace.py](../../tests/primary/test_embedding_thread_trace.py) | 5 | M01–M10/R04 |
-| [tests/primary/test_env_tick_hooks.py](../../tests/primary/test_env_tick_hooks.py) | 6 | E01–E04/S01 |
-| [tests/primary/test_explicit_state_transaction_concurrency.py](../../tests/primary/test_explicit_state_transaction_concurrency.py) | 26 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_explicit_state_transactions.py](../../tests/primary/test_explicit_state_transactions.py) | 23 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_external_environment_injection.py](../../tests/primary/test_external_environment_injection.py) | 8 | E01–E04/S01 |
-| [tests/primary/test_incremental_checkpoint_v4.py](../../tests/primary/test_incremental_checkpoint_v4.py) | 8 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_incremental_checkpoint_v4_branch_gc.py](../../tests/primary/test_incremental_checkpoint_v4_branch_gc.py) | 5 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_incremental_checkpoint_v4_process_crash.py](../../tests/primary/test_incremental_checkpoint_v4_process_crash.py) | 1 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_incremental_checkpoint_v4_state_machine.py](../../tests/primary/test_incremental_checkpoint_v4_state_machine.py) | 2 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_lazy_runtime_imports.py](../../tests/primary/test_lazy_runtime_imports.py) | 1 | B01/E01 |
-| [tests/primary/test_memory_epoch_sharing.py](../../tests/primary/test_memory_epoch_sharing.py) | 3 | M01–M10/R04 |
-| [tests/primary/test_memory_receipt_recovery.py](../../tests/primary/test_memory_receipt_recovery.py) | 2 | M01–M10/R04 |
-| [tests/primary/test_memory_visibility_v4.py](../../tests/primary/test_memory_visibility_v4.py) | 10 | M01–M10/R04 |
-| [tests/primary/test_observation.py](../../tests/primary/test_observation.py) | 12 | Q01–Q05 |
-| [tests/primary/test_observation_compact.py](../../tests/primary/test_observation_compact.py) | 18 | Q01–Q05 |
-| [tests/primary/test_observation_http_independent.py](../../tests/primary/test_observation_http_independent.py) | 3 | Q01–Q05 |
-| [tests/primary/test_observation_review.py](../../tests/primary/test_observation_review.py) | 12 | Q01–Q05 |
-| [tests/primary/test_persistence_architecture_v4.py](../../tests/primary/test_persistence_architecture_v4.py) | 1 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_persistence_declarations_v4.py](../../tests/primary/test_persistence_declarations_v4.py) | 18 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_persistence_lazy_chroma.py](../../tests/primary/test_persistence_lazy_chroma.py) | 5 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_persistence_manager_v4.py](../../tests/primary/test_persistence_manager_v4.py) | 18 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_persistence_schema_lookup.py](../../tests/primary/test_persistence_schema_lookup.py) | 4 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_query_storage_independent.py](../../tests/primary/test_query_storage_independent.py) | 1 | Q01–Q05 |
-| [tests/primary/test_real_action_contract.py](../../tests/primary/test_real_action_contract.py) | 1 | L/M/R/P/Q；真实环境合同，默认不执行 |
+| [tests/e2e/test_real_process_recovery.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/e2e/test_real_process_recovery.py) | 1 | L/M/R/P/Q；真实环境合同，默认不执行 |
+| [tests/e2e/test_society0_e2e.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/e2e/test_society0_e2e.py) | 12 | A/E/B/S/O/P；跨模块完整路径 |
+| [tests/e2e/test_society0_real_e2e.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/e2e/test_society0_real_e2e.py) | 13 | L/M/R/P/Q；真实环境合同，默认不执行 |
+| [tests/performance/test_incremental_checkpoint_v4_performance.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/performance/test_incremental_checkpoint_v4_performance.py) | 3 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_action_role_permissions.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_action_role_permissions.py) | 7 | L01–L03/R03 |
+| [tests/primary/test_activation_pool.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_activation_pool.py) | 18 | S03–S06 |
+| [tests/primary/test_agent_persistence_semantics_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_agent_persistence_semantics_v4.py) | 4 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_agent_thread_store.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_agent_thread_store.py) | 12 | M01–M05/Q03 |
+| [tests/primary/test_builtin_explicit_transactions.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_builtin_explicit_transactions.py) | 5 | B01–B04/P01–P02 |
+| [tests/primary/test_builtin_persistence_semantics_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_builtin_persistence_semantics_v4.py) | 5 | B01–B04/P01–P02 |
+| [tests/primary/test_checkpoint_component_read.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_checkpoint_component_read.py) | 2 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_checkpoint_memory_pairing.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_checkpoint_memory_pairing.py) | 10 | M01–M10/R04 |
+| [tests/primary/test_checkpoint_records.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_checkpoint_records.py) | 27 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_embedding_thread_trace.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_embedding_thread_trace.py) | 5 | M01–M10/R04 |
+| [tests/primary/test_env_tick_hooks.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_env_tick_hooks.py) | 6 | E01–E04/S01 |
+| [tests/primary/test_explicit_state_transaction_concurrency.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_explicit_state_transaction_concurrency.py) | 26 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_explicit_state_transactions.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_explicit_state_transactions.py) | 23 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_external_environment_injection.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_external_environment_injection.py) | 8 | E01–E04/S01 |
+| [tests/primary/test_incremental_checkpoint_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_incremental_checkpoint_v4.py) | 8 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_incremental_checkpoint_v4_branch_gc.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_incremental_checkpoint_v4_branch_gc.py) | 5 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_incremental_checkpoint_v4_process_crash.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_incremental_checkpoint_v4_process_crash.py) | 1 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_incremental_checkpoint_v4_state_machine.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_incremental_checkpoint_v4_state_machine.py) | 2 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_lazy_runtime_imports.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_lazy_runtime_imports.py) | 1 | B01/E01 |
+| [tests/primary/test_memory_epoch_sharing.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_memory_epoch_sharing.py) | 3 | M01–M10/R04 |
+| [tests/primary/test_memory_receipt_recovery.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_memory_receipt_recovery.py) | 2 | M01–M10/R04 |
+| [tests/primary/test_memory_visibility_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_memory_visibility_v4.py) | 10 | M01–M10/R04 |
+| [tests/primary/test_observation.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_observation.py) | 12 | Q01–Q05 |
+| [tests/primary/test_observation_compact.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_observation_compact.py) | 18 | Q01–Q05 |
+| [tests/primary/test_observation_http_independent.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_observation_http_independent.py) | 3 | Q01–Q05 |
+| [tests/primary/test_observation_review.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_observation_review.py) | 12 | Q01–Q05 |
+| [tests/primary/test_persistence_architecture_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_persistence_architecture_v4.py) | 1 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_persistence_declarations_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_persistence_declarations_v4.py) | 18 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_persistence_lazy_chroma.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_persistence_lazy_chroma.py) | 5 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_persistence_manager_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_persistence_manager_v4.py) | 18 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_persistence_schema_lookup.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_persistence_schema_lookup.py) | 4 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_query_storage_independent.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_query_storage_independent.py) | 1 | Q01–Q05 |
+| [tests/primary/test_real_action_contract.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_real_action_contract.py) | 1 | L/M/R/P/Q；真实环境合同，默认不执行 |
 | [tests/primary/test_real_e2e_endpoint_config.py](../../tests/primary/test_real_e2e_endpoint_config.py) | 3 | L/M/R/P/Q；真实环境合同，默认不执行 |
-| [tests/primary/test_result_datasets.py](../../tests/primary/test_result_datasets.py) | 9 | O01–O04/Q03 |
-| [tests/primary/test_runtime_checkpoint_v4.py](../../tests/primary/test_runtime_checkpoint_v4.py) | 8 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_runtime_diagnostics.py](../../tests/primary/test_runtime_diagnostics.py) | 4 | O01–O04/Q03 |
-| [tests/primary/test_runtime_entrypoint.py](../../tests/primary/test_runtime_entrypoint.py) | 2 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_result_datasets.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_result_datasets.py) | 9 | O01–O04/Q03 |
+| [tests/primary/test_runtime_checkpoint_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_runtime_checkpoint_v4.py) | 8 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_runtime_diagnostics.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_runtime_diagnostics.py) | 4 | O01–O04/Q03 |
+| [tests/primary/test_runtime_entrypoint.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_runtime_entrypoint.py) | 2 | P01–P08；状态、恢复与成本 |
 | [tests/primary/test_skill_starter.py](../../tests/primary/test_skill_starter.py) | 4 | U01–U04 |
-| [tests/primary/test_social_network_recommendation.py](../../tests/primary/test_social_network_recommendation.py) | 22 | B03–B05 |
-| [tests/primary/test_society0_primary.py](../../tests/primary/test_society0_primary.py) | 171 | A/L/M/R/O/S；逐条循环细节见 2.2 |
-| [tests/primary/test_state_persistence_api_v4.py](../../tests/primary/test_state_persistence_api_v4.py) | 24 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_state_proxy_collections.py](../../tests/primary/test_state_proxy_collections.py) | 8 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_step_recovery.py](../../tests/primary/test_step_recovery.py) | 14 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_step_runtime_scope.py](../../tests/primary/test_step_runtime_scope.py) | 4 | S03–S06 |
-| [tests/primary/test_storage_review.py](../../tests/primary/test_storage_review.py) | 12 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_storage_v3_independent.py](../../tests/primary/test_storage_v3_independent.py) | 5 | P01–P08；状态、恢复与成本 |
-| [tests/primary/test_summary_storage_independent.py](../../tests/primary/test_summary_storage_independent.py) | 1 | O01–O04/Q03 |
-| [tests/primary/test_thread_integrity.py](../../tests/primary/test_thread_integrity.py) | 7 | M01–M05/Q03 |
-| [tests/primary/test_thread_native_memory.py](../../tests/primary/test_thread_native_memory.py) | 13 | M01–M10/R04 |
-| [tests/primary/test_thread_observation.py](../../tests/primary/test_thread_observation.py) | 13 | Q01–Q05 |
-| [tests/primary/test_tool_choice_policy.py](../../tests/primary/test_tool_choice_policy.py) | 5 | L01–L03/R03 |
+| [tests/primary/test_social_network_recommendation.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_social_network_recommendation.py) | 22 | B03–B05 |
+| [tests/primary/test_society0_primary.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_society0_primary.py) | 171 | A/L/M/R/O/S；逐条循环细节见 2.2 |
+| [tests/primary/test_state_persistence_api_v4.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_state_persistence_api_v4.py) | 24 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_state_proxy_collections.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_state_proxy_collections.py) | 8 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_step_recovery.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_step_recovery.py) | 14 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_step_runtime_scope.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_step_runtime_scope.py) | 4 | S03–S06 |
+| [tests/primary/test_storage_review.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_storage_review.py) | 12 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_storage_v3_independent.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_storage_v3_independent.py) | 5 | P01–P08；状态、恢复与成本 |
+| [tests/primary/test_summary_storage_independent.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_summary_storage_independent.py) | 1 | O01–O04/Q03 |
+| [tests/primary/test_thread_integrity.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_thread_integrity.py) | 7 | M01–M05/Q03 |
+| [tests/primary/test_thread_native_memory.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_thread_native_memory.py) | 13 | M01–M10/R04 |
+| [tests/primary/test_thread_observation.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_thread_observation.py) | 13 | Q01–Q05 |
+| [tests/primary/test_tool_choice_policy.py](https://github.com/lavapapa/society0/blob/96b1f3b11aee3c146f5b43e0b8158ec29294e98a/tests/primary/test_tool_choice_policy.py) | 5 | L01–L03/R03 |
 | [tests/primary/test_workbench_renderer.py](../../tests/primary/test_workbench_renderer.py) | 3 | U01–U04 |
 
 工作台另有 `tools/workbench-template/tests/model.test.mjs` 与 `render.test.mjs`，覆盖 U03；Python pytest 不会执行这些 Node 测试。`tests/performance/` 也不在默认 pytest.ini testpaths 内，性能验收需显式调用并记录负载。
 
 本清单将能力归属与具体实现分开。后续以 PRD 的共享环境和插件合同为目标，迁移可验证的行为，再用完整原文、逐条行动和跨进程恢复对照判断新版是否真正覆盖旧版。
+
+### 6.1 新版证据
+
+本节按上文ID定位新版实际消费者，保留基线事实与接口迁移的区别。测试链接证明其指定场景，整项能力仍需结合右栏缺口、最终确定性全量与真实服务验收。新版不继承旧裁剪策略和任意Python别名合同。
+
+| ID | 新版实际测试入口 | 当前范围与缺口 |
+|---|---|---|
+| A01 | [test_kernel_actors.py::test_actor_selector_continues_after_activation_thread_writes](../../tests/primary/test_kernel_actors.py#L8) | Actor持久身份与停用保历史已有测试；临时reminder由Session.signals，最终pilot核对。 |
+| A02 | [test_kernel_schedule.py::test_schedule_lazy_selector_sync_rule_and_real_interview_driver](../../tests/primary/test_kernel_schedule.py#L164) | 已有直接测试；最终全量与真实组合另验。 |
+| A03 | [test_kernel_cognition.py::test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only](../../tests/primary/test_kernel_cognition.py#L108) | 已有直接测试；最终全量与真实组合另验。 |
+| A04 | [test_kernel_llm.py::test_reactivation_same_thread_complete_history_and_provider_session](../../tests/primary/test_kernel_llm.py#L196) | 已有直接测试；最终全量与真实组合另验。 |
+| A05 | [test_kernel_llm.py::test_long_thread_never_projects_a_bounded_message_window](../../tests/primary/test_kernel_llm.py#L384) | 已有直接测试；最终全量与真实组合另验。 |
+| A06 | [test_kernel_llm.py::test_interview_tools_are_measurement_only](../../tests/primary/test_kernel_llm.py#L490) | 已有直接测试；最终全量与真实组合另验。 |
+| A07 | [test_kernel_model_selection.py::test_driver_activation_override_preserves_same_thread_and_provider_session](../../tests/primary/test_kernel_model_selection.py#L22) | 已有直接测试；最终全量与真实组合另验。 |
+| A08 | [test_kernel_selection.py::test_real_interview_submit_result_aggregates_explicit_nested_field](../../tests/primary/test_kernel_selection.py#L60) | 索引选择/predicate/reservoir/真实访谈嵌套聚合已直接验证；新抽样算法按输入顺序返回。 |
+| L01 | [test_kernel_llm.py::test_exact_selection_does_not_expand_same_named_tag](../../tests/primary/test_kernel_llm.py#L369) | 已有直接测试；最终全量与真实组合另验。 |
+| L02 | [test_kernel_llm.py::test_invalid_domain_schema_consumes_attempt_without_effect](../../tests/primary/test_kernel_llm.py#L171) | 已有直接测试；最终全量与真实组合另验。 |
+| L03 | [test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation](../../tests/primary/test_kernel_llm.py#L93) | 已有直接测试；最终全量与真实组合另验。 |
+| L04 | [test_kernel_llm.py::test_natural_finish_preserves_complete_input_and_thread](../../tests/primary/test_kernel_llm.py#L68) | 已有直接测试；最终全量与真实组合另验。 |
+| L05 | [test_kernel_llm.py::test_batch_budget_rejects_all_before_first_domain_effect](../../tests/primary/test_kernel_llm.py#L133) | 已有直接测试；最终全量与真实组合另验。 |
+| L06 | [test_kernel_llm.py::test_duplicate_call_id_reuses_receipt_without_budget_or_effect](../../tests/primary/test_kernel_llm.py#L144) | 已有直接测试；最终全量与真实组合另验。 |
+| L07 | [test_kernel_llm.py::test_parallel_false_has_one_corrective_turn_then_contract_failure](../../tests/primary/test_kernel_llm.py#L158) | 已有直接测试；最终全量与真实组合另验。 |
+| L08 | [test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing](../../tests/primary/test_kernel_llm.py#L117) | 已有直接测试；最终全量与真实组合另验。 |
+| L09 | [test_kernel_llm.py::test_empty_retry_then_exhaustion_without_domain_calls](../../tests/primary/test_kernel_llm.py#L301) | 已有直接测试；最终全量与真实组合另验。 |
+| L10 | [test_kernel_llm.py::test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage](../../tests/primary/test_kernel_llm.py#L590) | 已有直接测试；最终全量与真实组合另验。 |
+| L11 | [test_kernel_llm.py::test_structured_submit_result_schema_and_terminal](../../tests/primary/test_kernel_llm.py#L213) | 已有直接测试；最终全量与真实组合另验。 |
+| L12 | [test_kernel_llm.py::test_two_concurrent_actors_have_task_local_action_call_ids](../../tests/primary/test_kernel_llm.py#L617) | 已有直接测试；最终全量与真实组合另验。 |
+| M01 | [test_kernel_threads.py::test_original_messages_requests_and_continuation](../../tests/primary/test_kernel_threads.py#L14) | 已有直接测试；最终全量与真实组合另验。 |
+| M02 | [test_kernel_thread_publication.py::test_thread_publication_step_survives_fork_and_new_incomplete_work](../../tests/primary/test_kernel_thread_publication.py#L6) | 已有直接测试；最终全量与真实组合另验。 |
+| M03 | [test_kernel_memory.py::test_three_memory_switches_are_independent](../../tests/primary/test_kernel_memory.py#L133) | 单主体八组合及单服务多主体/逐激活冻结策略已验；test_kernel_memory_activation_review 另验同主体异scope拒绝、日期时点与恢复后步骤版本。 |
+| M04 | [test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary](../../tests/primary/test_kernel_memory.py#L292) | 已有直接测试；最终全量与真实组合另验。 |
+| M05 | [test_kernel_memory.py::test_index_failure_retries_saved_vectors_and_receipt](../../tests/primary/test_kernel_memory.py#L86) | 已有直接测试；最终全量与真实组合另验。 |
+| M06 | [test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding](../../tests/primary/test_kernel_memory_transfer.py#L11) | 已有直接测试；最终全量与真实组合另验。 |
+| M07 | [test_kernel_memory.py::test_recall_matches_existing_distance_decay_dedup_semantics](../../tests/primary/test_kernel_memory.py#L101) | 已有直接测试；最终全量与真实组合另验。 |
+| M08 | [test_kernel_memory.py::test_historical_recall_uses_visible_versions_and_original_vectors](../../tests/primary/test_kernel_memory.py#L269) | 已有直接测试；最终全量与真实组合另验。 |
+| M09 | [test_kernel_embedding_provider.py::test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance](../../tests/primary/test_kernel_embedding_provider.py#L11) | 已有直接测试；最终全量与真实组合另验。 |
+| M10 | [test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding](../../tests/primary/test_kernel_memory_transfer.py#L11) | 转移/seed/close和真实Chroma候选对照已有直接测试；完整真实提供方退出恢复仍待最终阶段。 |
+| E01 | [test_kernel_composition.py::test_plugin_schemas_initialize_in_dependency_order_and_share_store](../../tests/primary/test_kernel_composition.py#L8) | schema/初始化/资源依赖由Plugin声明；领域配置校验由机制拥有，旧统一state_schema接口已重设。 |
+| E02 | [test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions](../../tests/primary/test_kernel_interaction.py#L211) | 已有直接测试；最终全量与真实组合另验。 |
+| E03 | [test_kernel_preparation.py::test_prepare_value_released_before_running_and_restore_skips_loader](../../tests/primary/test_kernel_preparation.py#L15) | 异步prepare→同步根事务；before/after另见kernel_schedule，临时作用域见kernel_runtime。 |
+| E04 | [test_kernel_graph_plugin.py::test_async_graph_source_and_numeric_projection_restore_without_source](../../tests/primary/test_kernel_graph_plugin.py#L8) | 已有直接测试；最终全量与真实组合另验。 |
+| S01 | [test_kernel_schedule.py::test_schedule_hooks_serial_visibility_results_and_single_completion](../../tests/primary/test_kernel_schedule.py#L11) | 已有直接测试；最终全量与真实组合另验。 |
+| S02 | [test_kernel_llm.py::test_direct_json_measurement_has_no_domain_tools](../../tests/primary/test_kernel_llm.py#L413) | 已有直接测试；最终全量与真实组合另验。 |
+| S03 | [test_kernel_runtime.py::test_collect_preserves_ordered_results_and_drain_consumes_once](../../tests/primary/test_kernel_runtime.py#L392) | 新增Phase.capacity优先于Runtime.capacity（默认1），serial固定1，模型槽位独立；实际ModelProvider端点槽位与phase覆盖已独立验证，联组及独立真实SDK容量消费者已通过，最终全量另验。 |
+| S04 | [test_kernel_runtime.py::test_signal_merge_followup_mutual_exclusion_and_cursor_retention](../../tests/primary/test_kernel_runtime.py#L83) | 已有直接测试；最终全量与真实组合另验。 |
+| S05 | [test_kernel_schedule_review.py::test_review_second_close_cancellation_does_not_abandon_driver_cleanup](../../tests/primary/test_kernel_schedule_review.py#L10) | 含真实Host重复取消drain；旧activation pool底层测试仍需最终全量。 |
+| S06 | [test_kernel_runtime.py::test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await](../../tests/primary/test_kernel_runtime.py#L205) | 阶段顺序、同moment重激活/await时间语义已验；未承诺通用离散事件调度器。 |
+| B01 | [test_plugin_plain.py::test_plain_plugin_has_no_domain_state_and_restores](../../tests/primary/test_plugin_plain.py#L8) | plain最小机制与干净base Rule/Runtime/restore已验；typed键、顺序与小状态合同由P01实际插件消费者验证。 |
+| B02 | [test_plugin_round_robin.py::test_four_person_circle_pairs_each_pair_once_and_restores](../../tests/primary/test_plugin_round_robin.py#L15) | 已有直接测试；最终全量与真实组合另验。 |
+| B03 | [test_plugin_social.py::test_social_actions_facts_projection_notifications_restore](../../tests/primary/test_plugin_social.py#L15) | 已有直接测试；最终全量与真实组合另验。 |
+| B04 | [test_plugin_social.py::test_social_active_pool_and_scores_match_old_semantics_without_body_scan](../../tests/primary/test_plugin_social.py#L119) | 已有直接测试；最终全量与真实组合另验。 |
+| B05 | [test_plugin_social.py::test_social_two_instances_original_body_and_rejections](../../tests/primary/test_plugin_social.py#L47) | 已有直接测试；最终全量与真实组合另验。 |
+| N01 | [test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions](../../tests/primary/test_kernel_interaction.py#L211) | 已有直接测试；最终全量与真实组合另验。 |
+| N02 | [test_kernel_interaction.py::test_discover_read_and_invoke_are_independent](../../tests/primary/test_kernel_interaction.py#L105) | 已有直接测试；最终全量与真实组合另验。 |
+| N03 | [test_kernel_information_sql.py::test_authorized_projection_filter_count_and_refs](../../tests/primary/test_kernel_information_sql.py#L34) | document/dataset/query/sample及认知增量均已有直接测试；push实际领域内容由CognitiveInput消费者验。 |
+| N04 | [test_kernel_workspace.py::test_shared_world_mount_is_dynamic_readonly_and_authorized](../../tests/primary/test_kernel_workspace.py#L62) | 动态World挂载、增量私有workspace及跨平台wheel已验；真实模型自主使用效果待V06。 |
+| N05 | [test_kernel_plugins_review.py::test_review_context_is_expired_after_host_closes](../../tests/primary/test_kernel_plugins_review.py#L11) | 已有直接测试；最终全量与真实组合另验。 |
+| R01 | [test_kernel_models.py::test_profiles_install_through_host_and_preserve_request_defaults](../../tests/primary/test_kernel_models.py#L40) | 旧成熟适配器继续消费；新版真实多端点最终矩阵待V06，不以fake SDK代替。 |
+| R02 | [test_kernel_models.py::test_model_close_drains_request_and_rejects_later_requests](../../tests/primary/test_kernel_models.py#L102) | 已有直接测试；最终全量与真实组合另验。 |
+| R03 | [test_kernel_provider_fields.py::test_tool_call_extensions_survive_normalized_response_and_next_request](../../tests/primary/test_kernel_provider_fields.py#L10) | 额外SDK字段下一请求全等；strict/parallel/tool-choice另见LLM与旧manager直接组。 |
+| R04 | [test_kernel_embedding_provider.py::test_embedding_profile_controls_http_capacity_and_batching](../../tests/primary/test_kernel_embedding_provider.py#L95) | 已有直接测试；最终全量与真实组合另验。 |
+| R05 | [test_kernel_models_review.py::test_review_retry_evidence_preserves_actual_request_when_thread_advances](../../tests/primary/test_kernel_models_review.py#L12) | 请求水位/轻诊断已有独立例；凭据脱敏与proxy沿成熟manager测试最终复验。 |
+| O01 | [test_kernel_results.py::test_results_preserve_all_fields_stream_table_once_and_restore](../../tests/primary/test_kernel_results.py#L9) | JSON行/生成器/巨行与恢复已验；test_kernel_result_inputs 新增显式TableValue/DatasetTable，真实pandas tight完整恢复见 result-dataframe-consumer-green；新增组待独立复验。 |
+| O02 | [test_kernel_usage.py::test_real_adapters_project_retry_response_and_shared_cache](../../tests/primary/test_kernel_usage.py#L82) | 物理调用、实际行动/终止、阶段时长已有作者及独立消费者；test_kernel_action_timing_review验证重试不重复、complete只读视图与失败live诊断，最终全量另验。 |
+| O03 | [test_kernel_results.py::test_result_page_encodes_each_item_once_and_fixed_prefix](../../tests/primary/test_kernel_results.py#L64) | 已有直接测试；最终全量与真实组合另验。 |
+| O04 | [test_kernel_schedule.py::test_progress_io_failure_isolated_but_result_generator_failure_aborts](../../tests/primary/test_kernel_schedule.py#L44) | 已有直接测试；最终全量与真实组合另验。 |
+| P01 | [test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back](../../tests/primary/test_kernel_record_plugin.py#L30) | typed_records真实插件已作者验证公开append/唯一typed键/ordinal/精度/恢复；受信writer可修改SQL，未声称数据库自动禁止作者更改事实；typed_records独立5项通过。 |
+| P02 | [test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back](../../tests/primary/test_kernel_record_plugin.py#L30) | 规范writer事务/租期失效与事实+投影复合回滚已有实际消费者；显式插件接口替代旧raw dict别名；typed_records独立消费者已通过。 |
+| P03 | [test_kernel_storage.py::test_process_crash_publication_boundary](../../tests/primary/test_kernel_storage.py#L162) | root/native changeset/complete边界已验；每步完整点替代旧多步epoch，重数据实测见V04。 |
+| P04 | [test_kernel_memory.py::test_pending_job_full_checkpoint_resumes_without_extraction](../../tests/primary/test_kernel_memory.py#L61) | 已有直接测试；最终全量与真实组合另验。 |
+| P05 | [test_kernel_storage_lifecycle.py::test_restore_copies_repeated_artifact_once_and_survives_source_removal](../../tests/primary/test_kernel_storage_lifecycle.py#L10) | fork脱源恢复、GC可达验证已验；native root复制成本显式保留，未承诺零复制fork。 |
+| P06 | [test_kernel_storage_lifecycle.py::test_foreign_root_identity_rejects_export_and_gc_without_deleting_files](../../tests/primary/test_kernel_storage_lifecycle.py#L73) | prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装，新增组待独立复验。 |
+| P07 | [test_kernel_storage.py::test_incremental_blob_read_bounded_and_scope_checked](../../tests/primary/test_kernel_storage.py#L313) | SQLite BLOB/Thread块范围与压缩流已验；实际大root下界由V04实测，不承诺任意JSON单值恒定内存。 |
+| P08 | [test_kernel_runtime.py::test_failed_driver_aborts_and_does_not_retry_successful_action](../../tests/primary/test_kernel_runtime.py#L143) | 已有直接测试；最终全量与真实组合另验。 |
+| Q01 | [test_kernel_observation.py::test_separate_producer_observer_tracks_pending_failure_without_model_import](../../tests/primary/test_kernel_observation.py#L83) | 已有直接测试；最终全量与真实组合另验。 |
+| Q02 | [test_kernel_observation.py::test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference](../../tests/primary/test_kernel_observation.py#L260) | 已有直接测试；最终全量与真实组合另验。 |
+| Q03 | [test_kernel_observation.py::test_observer_live_tail_complete_prefix_and_fork_identity](../../tests/primary/test_kernel_observation.py#L9) | 已有直接测试；最终全量与真实组合另验。 |
+| Q04 | [test_kernel_observation.py::test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files](../../tests/primary/test_kernel_observation.py#L148) | 新版权威SQL替代全World派生索引；固定完整点prepare使用prepare_readonly物化只读SQL，成本另测。 |
+| Q05 | [test_kernel_observation_http.py::test_http_slow_body_saturation_disconnect_and_final_wire_bytes](../../tests/primary/test_kernel_observation_http.py#L19) | 已有直接测试；最终全量与真实组合另验。 |
+| Q06 | [test_kernel_observation.py::test_observer_live_tail_complete_prefix_and_fork_identity](../../tests/primary/test_kernel_observation.py#L9) | live/current与完整点、Thread tail已有；产品语义以新Observation合同为准，不伪造额外sealed水位。 |
+| U01 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+| U02 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+| U03 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+| U04 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+| U05 | 待补新入口 | 待新版公开pilot/工作台/文档最终迁移；保留旧入口历史证据，不作为新版已实现。 |
+
+这份索引将尚缺的领域合同、公开入口与真实组合保留为待办。补齐对应消费者和最终验收后，再据实际证据调整迁移结论。
+
+两轮研究 starter 的召回提供方故障会使当前步骤失败并保留此前完整点；旧 starter 静默继续测量的行为已撤销。成功返回空记忆仍继续，当前消息原文仍在输入中；无召回实验应显式关闭 auto_recall。这项语义调整区分了服务故障与合法的空记忆条件。

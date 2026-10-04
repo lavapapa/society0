@@ -230,11 +230,11 @@ organization forgets prior commitments. Preserve:
 - auditability: each final output should cite the trace records or artifacts it
   used, not only the agent's private reasoning.
 
-In Society0, keep `retrieve_memory=True` for LLM work rounds unless the experiment is
+In Society0, keep `MemoryPolicy(auto_recall=True)` for LLM work rounds unless the experiment is
 explicitly a no-memory baseline. Add environment-owned trace tables as well;
 agent memory and env records solve different problems.
 Save durable experience explicitly through Agent Threads and
-`extract_thread_memories(...)` after successful work rounds; use the complete
+the explicit memory completion hook after successful work rounds; use the complete
 pattern in `step-dsl.md`.
 
 ### Make Communication A Hosted Channel

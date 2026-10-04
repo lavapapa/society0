@@ -152,7 +152,7 @@ Use this env-first split:
 | Move, shelter, evacuate, choose destination, send message, request help, assist, choose POI, select traffic phase, propose plan edit, accept/reject revision | `instruct` with typed env actions |
 | Survey, trust rating, satisfaction score, reason explanation, manipulation check, post-hoc agent interview | `interview` |
 | Movement physics, pathfinding, congestion, traffic simulator, hazard spread, resource depletion, signal phase timing, land-use metric computation, branch/fork, replay | env rules, behaviors, or code steps |
-| Records, metrics, replay, audit logs | `ctx.result(metrics=..., tables=...)` plus analysis scripts |
+| Records, metrics, replay, audit logs | `StepResult(metrics=..., tables=...)` plus analysis scripts |
 
 Design rules:
 
