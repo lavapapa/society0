@@ -1,0 +1,183 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[confirm] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-905/test_actual_cognitive_input_ex0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10afe6660>
+kind = 'confirm'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':json.dumps({'content':'共同讨论产业预期'},ensure_ascii=False)}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        monkeypatch.setattr(ModelProvider,'request',request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            monkeypatch.setattr(ModelProvider,'request',first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:308: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:259: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:153: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:61: in call
+    try:return await method(*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:431: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models.ModelProvider object at 0x10b055730>
+tid = 'ba466efb44b44bdf881844f8194458c8'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'Find available actions by case-ins..., 'query': {...}}, 'required': ['path', 'query'], 'additionalProperties': False}}}, ...], 'parallel_tool_calls': False}
+
+    async def request(self,tid,options):
+        messages=self.threads.read_messages(tid);calls.append(messages)
+        system=messages[0]['content']
+>       assert '按当前目标需要' in system and '从根路径 /' in system
+E       AssertionError: assert ('按当前目标需要' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。先用 data_list 查信息路径、action_find 查可用行动，再用 action_describe 获取参数。action_invoke.arguments 是编码后的 JSON 字符串。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。')
+
+tests/primary/test_core_real_context.py:17: AssertionError
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[action] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-905/test_actual_cognitive_input_ex1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10afe44d0>
+kind = 'action'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':json.dumps({'content':'共同讨论产业预期'},ensure_ascii=False)}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        monkeypatch.setattr(ModelProvider,'request',request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            monkeypatch.setattr(ModelProvider,'request',first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:308: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:259: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:153: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:61: in call
+    try:return await method(*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:431: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_core_real_context.py:42: in first_only
+    return await original(self,tid,options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models.ModelProvider object at 0x1122b2120>
+tid = '106912374a1b42c2a7defd2a2f10c0e1'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'Find available actions by case-ins..., 'query': {...}}, 'required': ['path', 'query'], 'additionalProperties': False}}}, ...], 'parallel_tool_calls': False}
+
+    async def request(self,tid,options):
+        messages=self.threads.read_messages(tid);calls.append(messages)
+        system=messages[0]['content']
+>       assert '按当前目标需要' in system and '从根路径 /' in system
+E       AssertionError: assert ('按当前目标需要' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。先用 data_list 查信息路径、action_find 查可用行动，再用 action_describe 获取参数。action_invoke.arguments 是编码后的 JSON 字符串。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。')
+
+tests/primary/test_core_real_context.py:17: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_real_context.py::test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[confirm]
+FAILED tests/primary/test_core_real_context.py::test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[action]
+2 failed in 1.13s
