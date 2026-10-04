@@ -1,0 +1,5 @@
+CWD: /tmp/society0-final-3c62eb4-storage-20261004
+COMMAND: ['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 'society0.kernel.runner', '--factory', 'examples.core_next.conversation_pilot:build', '--config', '/tmp/society0-final-3c62eb4-storage-20261004/pilot-config.json', '--output', '/tmp/society0-final-3c62eb4-storage-20261004/pilot-run']
+{"run_id": "52fb6d035de740a99cdaa6f0efc5b0ab", "status": "completed", "complete_step": 2, "diagnostic_errors": 0}
+
+EXIT: 0
