@@ -142,3 +142,21 @@ async def test_actual_result_rows_and_metrics_have_table_and_chart_views(tmp_pat
     assert chart['rows']==[{'x':'1 · 1','y':4},{'x':'2 · 2','y':4}]
     first=next(v for m in environment[0]['tabs'][0]['modules'] for v in m['views'] if v['type']=='timeseries')
     assert len(first['rows'])==1
+
+
+@pytest.mark.asyncio
+async def test_repeated_phase_names_keep_metric_series_separate(tmp_path):
+    from society0.kernel.interaction import interaction_plugin
+    from society0.kernel.results import results_plugin,StepResult
+    from society0.kernel.runtime import runtime_plugin,Phase
+    from society0.kernel.schedule import schedule_plugin
+    from society0.kernel.runner import RunPlan,RunContract
+    current=RunPlan([interaction_plugin(lambda *a:True),results_plugin(),
+        runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
+        schedule_plugin([Phase('measure',lambda ctx:StepResult(metrics={'n':1})),Phase('measure',lambda ctx:StepResult(metrics={'n':2}))])],
+        (1,2),RunContract({'commit':'test'},{},{},{},{}))
+    await run_plan(tmp_path/'run',current)
+    payload=export_payload([RunSelection(tmp_path/'run','v',(1,2),())])
+    modules=payload['versions'][0]['runs'][0]['snapshots'][-1]['tabs'][0]['modules']
+    series=[m['views'][0]['rows'] for m in modules if ':metric:' in m['id']]
+    assert [[point['y'] for point in rows] for rows in series]==[[1,1],[2,2]]
