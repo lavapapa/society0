@@ -41,7 +41,7 @@
 - [x] **K05 动态 Action 与 Intent**（spec，非作者 threads，依 X02）：模板、find/describe/invoke、schema、执行重验、outcome、相关依赖版本与权限变化失效已实现。`87c15e5` 将策略过滤下推到一次枚举，10000 模板的可用性检查从 1000000 次降至 10000 次，持久版本游标不再携带全部候选名；无版本的纯内存路径保留候选校验。证据：`test_kernel_action_discovery_cost.py`、`test_kernel_llm_paging_review.py` 与 `model-selection-discovery-independent-green.txt`，47 项相关独立复验通过。
 - [ ] **K06 workspace 与 LLM 交互适配**（指定 owner，依 K04/K05/X05）：私有资料读写查删、lazy VFS、完整原文/data query/分页/总数/tail；写世界经过 action，规则驱动直接用结构化服务。`47a3377` 已用共享 WorkspaceStore 和薄 Rust/Bashkit 桥替换 Actor 整包工作区接口：未改正文复用、文件级变化、删除/重命名/元数据、原文 Ref、只读共享挂载和恢复通过；作者最终 128 项相关测试及独立 67 项组合通过。8MiB 文件十次未改激活新增正文为零，1000 主体仅按需创建一个 shell，50k 目录显式枚举约149ms/26MB。`3ba1cbc`、`d8a73a4` 完成 macOS arm64/Linux x86_64 wheel 真实文件恢复与独立基础安装；纯规则路径未安装模型/向量/shell。V06 真实模型自主分析及最终发行继续验收。
 - [x] **K07 规则 Driver 与贯穿样例**（spec，依 X06/K04/K05）：`examples/core_next/shared_environment.py` 使用 PluginHost、StageStore、Runtime 与两个规则主体，实际完成 SQL 查询、抽样、jq 分析、动态行动和消息读取；封存输出与 workspace 后恢复逐值相等。证据：`test_kernel_information_sql.py` 中完整例及 `information-sql-green.txt`。跨 LLM 激活的 workspace/回执消费继续归 K06/D04。
-- [ ] **K08 P1 独立审查**（非作者，依 K01–K07）：角色伪造/范围泄漏的语义负例、失效对象、执行时条件变化、partial write 与资源累计、懒加载实际分配；按项目约束做能力正确性审查，不开展额外安全性研究。
+- [x] **K08 P1 独立审查**（非作者，依 K01–K07）：角色伪造/范围泄漏的语义负例、失效对象、执行时条件变化、partial write 与资源累计、懒加载实际分配；按项目约束做能力正确性审查，不开展额外安全性研究。 `2646feb` 修复第一轮目录发现和部分行动误发布两项阻断；`2590cf3` 精确快照的第二轮非作者源码审查无新增产品阻断，并新增并行主体故障失效及独立恢复用例。证据：`final-review-r2-20261004.md`。
 
 ## 四、P2 对标
 
@@ -83,9 +83,9 @@
 验收从最小组合逐步到真实负载。每份报告说明源代码身份、数据来源和未覆盖风险，模型成功调用与仿真研究有效性分开判断。
 
 - [ ] **V01 能力矩阵闭环**（spec+各 owner，依 P2）：每个保留/重设/新增 ID 链接新版代码和验收，不保留空白完成项；审查旧测试删改理由及仍未迁移的 public consumer。
-- [ ] **V02 确定性全量与工作台测试**（非作者，依 V01）：直接组后新入口全量、Node 工作台和明确的 performance tests；记录 skipped/deselected 与原因，所有红灯归因并处理。
+- [x] **V02 确定性全量与工作台测试**（非作者，依 V01）：直接组后新入口全量、Node 工作台和明确的 performance tests；记录 skipped/deselected 与原因，所有红灯归因并处理。 `2590cf3` 精确快照 665 项确定性通过、15 项真实端点明确排除；实验组 59 通过，sqlite-vec 在隔离环境另跑 3 项通过。真实 Core pilot payload 的 Node 9 项全部通过；`5546a25` 将默认 Node 测试固定串行并更新锁依赖、原生工具链和完整 CI 入口，非作者重跑公开 CLI→Node 9 项通过。最终修改后的全量与远端 CI 继续归 V08/U04。
 - [ ] **V03 同语义旧新对照**（指定 owner，依 T04/T05/P03）：固定输入及模型假响应，对比初始/连续运行/恢复全值、逐笔顺序、完整 Thread、最终模型上下文、记忆正文及行动；纯环境与含 Driver 路径均测。
-- [ ] **V04 长历史与大对象负载**（storage+query owner，依 P04/Q03）：复用实际大根或有明确证据的同规模数据，固定活动/扩大历史、固定历史/扩大活动、单大 entry；计 CPU/墙钟/RSS/读写/扫描量、cold/warm/index/WAL 峰值与多步斜率。大工件远端或实验完清理，保小证据。
+- [x] **V04 长历史与大对象负载**（storage+query owner，依 P04/Q03）：复用实际大根或有明确证据的同规模数据，固定活动/扩大历史、固定历史/扩大活动、单大 entry；计 CPU/墙钟/RSS/读写/扫描量、cold/warm/index/WAL 峰值与多步斜率。大工件远端或实验完清理，保小证据。 `380a7a1`、`6d3100c` 和 `5546a25` 收拢完整真实大根、多步历史/活动量、巨大单值、完整认知与多核计量，以及当前编码下独立观察测量；两轮非作者审查支持已测 Core 机制。详见 `performance-acceptance-20261004.md`、`final-realtime-ci-storage-review-20261004.md`。保留 Chroma 有效向量驻留、changeset 长链、跨文件系统复制和真实产业机制迁移的范围，未宣称完整社会长期规模保证。
 - [ ] **V05 真实 LLM/embedding 端到端**（指定 owner，依 D06/T05/P03）：重新核实受支持 profile；覆盖旧 13 项真实能力及独立进程退出恢复链；完整 tools/记忆/实际预算不弱化，不把缺配置 skip 当成功。保留失败证据及限定调用规模。
 - [ ] **V06 主体效果对照**（指定 owner，依 K06/D05/V05）：动态 action 与 VFS 路径相对旧输入能力，核对信息找到/完整获取、行动完成、判断结果及成本；工具数量/返回长度下降不单独构成优化。
 - [ ] **V07 跨插件故障与独立审查**（非作者，依 P2）：partial write 后工具异常不能吞失效状态、cancel 后无后台写、Thread/Memory 失败窗口、同步/异步插件清理、用户信息范围、索引/recovery 一致性；所有阻断问题修复并复验。最终端到端实现冻结后另启动未参与实现的独立审查智能体，按真实外部消费者检查能力矩阵、资源生命周期和恢复边界；函数链接与局部测试数不能代替该审查。
