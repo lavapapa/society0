@@ -20,7 +20,7 @@ StageStore 使用 APSW 暴露的 SQLite Session 捕获当前步骤的净行变�
 
 current 中的 `complete_step` 是生产者已确认的完成下界。写入次序为权威描述符发布后再更新该值，因此崩溃可以造成它暂时落后。独立 StageReader 不修复目录，也不把该下界当作最新权威证明。cold writer open 根据描述符校准辅助水位。live_revision 表示当前数据库短事务版本，可大于最后完整身份携带的版本。
 
-`StageStore.open(path)` 允许打开与最后完整身份一致的 current。发现未完成事务版本或 abort 标记会要求 restore。`StageStore.restore(source, destination, step=None, run_id=None)` 和 `StageStore.fork(...)` 在新目录从 root backup 加所选完整链的原生 changeset 重建状态，复制引用文件，再建立新运行 root，赋予新身份和来源记录。它们具有全量 root 文件复制成本，后续根压实和垃圾回收尚未实现。运行内热 complete 不执行整库 backup。
+`StageStore.open(path)` 允许打开与最后完整身份一致的 current。发现未完成事务版本或 abort 标记会要求 restore。`StageStore.restore(source, destination, step=None, run_id=None)` 和 `StageStore.fork(...)` 在新目录从 root backup 加所选完整链的原生 changeset 重建状态，复制引用文件，再建立新运行 root，赋予新身份和来源记录。它们具有全量 root 文件复制成本，同时将所选完整链压实为新运行的根；准备孤儿通过显式离线 collect_orphans 清理。保留历史所引用的工件继续保留，详见 [存储生命周期](storage-lifecycle-design.md)。运行内热 complete 不执行整库 backup。
 
 恢复前核对 root schema，链中的缺失组件或身份错误明确失败；原生 apply 因缺表忽略变化的行为不能替代这些预检。恢复阶段不读取 dirty current 的业务数据。SQL 内部 revision 等辅助元数据从选中身份重建，不参与 Session 捕获。恢复目标在完整构建之前位于临时目录，失败不发布目标目录。
 

@@ -50,7 +50,7 @@ Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` �
 
 每次脚本在同一解释器的命令组中执行，stdout 和 stderr 重定向到会话专属磁盘挂载。变量和 cwd 保持正常跨调用语义，完整输出不受 Bashkit 默认 stdout 摘要截断影响。预览结束后可按引用继续读取；结果引用不再执行原脚本。
 
-动作完成时先把完整 ActionResult 写入独立 JSON receipt 并 fsync，再交给 shell 管道。即使管道筛掉动作结果或摘要被截断，原始结果仍能回读。Driver 接入时应在已绑定的动作门面统计真实领域调用、预算与 required/terminal，并在成功 terminal 后拒绝同一脚本继续调用领域动作；本次 receipt 保留完整事实。stdout 文本不承担终止判定。该门面接入在 Driver 阶段完成。文件写失败向上报告；动作已发生这一事实不会因此自动撤销或重试。接入完整运行时后，这些工件还需由持久化完成记录引用，目前 ShellSession 本身不发布检查点。
+动作完成时先把完整 ActionResult 写入独立 JSON receipt 并 fsync，再交给 shell 管道。即使管道筛掉动作结果或摘要被截断，原始结果仍能回读。LLMDriver 在已绑定的动作门面统计真实领域调用、预算与 required/terminal，并在成功 terminal 后拒绝同一脚本继续调用领域动作；receipt 保留完整事实。stdout 文本不承担终止判定。文件写失败向上报告；动作已发生这一事实不会因此自动撤销或重试。LLMDriver 通过 Session 登记封存工件与 Thread 引用，Runtime 在完整步骤发布时覆盖这些依赖；ShellSession 本身不发布检查点。
 
 结果文件体积随实际输出增长，完整动作结果同时存在 receipt 和脚本输出时会产生两份正文。Core 没有把它们长期累积在 Python 列表中；解释器仍可能在单个 builtin 返回字符串时分配该字符串，这不构成任意大单次动作返回值的恒定内存保证。大数据消费者应使用已有分页、引用与范围读取。
 

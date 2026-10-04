@@ -26,9 +26,9 @@ Information 的 stat/list_files 提供薄 metadata 读取能力，返回目录�
 
 ## 四、交付
 
-原生模块作为 shell 的可选 wheel 依赖，基础 rule/SQLite 安装无需 Rust、Bashkit 或该模块。源码构建使用成熟 PyO3/maturin，提供 macOS arm64 与实际 Linux 运行机平台 wheel；CI 至少执行 wheel 安装后 capsule、scope 和真实 LLMDriver 工作区恢复测试。源码分发需要 Rust 工具链，其成本与普通 wheel 安装区分说明。当前试验仅证明 macOS arm64，Linux 构建尚待执行。
+原生模块作为 shell 的可选 wheel 依赖，基础 rule/SQLite 安装无需 Rust、Bashkit 或该模块。源码构建使用成熟 PyO3/maturin，提供 macOS arm64 与实际 Linux 运行机平台 wheel；CI 至少执行 wheel 安装后 capsule、scope 和真实 LLMDriver 工作区恢复测试。源码分发需要 Rust 工具链，其成本与普通 wheel 安装区分说明。平台构建和干净安装证据见 [安装说明](installation.md)；公共发行状态由 [TODO](TODO.md) 记录。
 
-实施依次完成原生桥独立复验、StageStore 工作区索引与完整点恢复、Information 动态文件消费、真实 LLMDriver 跨激活、安装及规模验收。成功门槛包括未改 8 MiB 工作区连续激活正文增量为零、改动小文件不读取无关大文件、删除重命名与旧点恢复逐值一致、1,000 个休眠主体只激活固定 k 个时无预建解释器，以及用户可取得全部共享记录和正文。性能判断同时保留大文件 copy-up、大目录枚举与 shell 状态编码的实测下界。
+对应验收覆盖原生桥、StageStore 工作区索引与完整点恢复、Information 动态文件消费、真实 LLMDriver 跨激活、安装及规模。验收条件包括未改 8 MiB 工作区连续激活正文增量为零、改动小文件不读取无关大文件、删除重命名与旧点恢复逐值一致、1,000 个休眠主体只激活固定 k 个时无预建解释器，以及用户可取得全部共享记录和正文。性能判断同时保留大文件 copy-up、大目录枚举与 shell 状态编码的实测下界。
 
 正式作者用例已覆盖文件级增量、主体隔离、完整步骤恢复、真实 LLMDriver 跨激活、符号链接与时间戳、关闭和取消；非作者产品审查、Linux wheel 与最终全量结果由任务验收记录汇总。
 
