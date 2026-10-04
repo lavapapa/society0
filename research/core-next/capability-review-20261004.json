@@ -1,0 +1,1106 @@
+{
+  "review_base": "40d385ded0cbbfdbecaa55e658ca8c2c7b440ceb",
+  "kind": "semantic inventory with targeted L09/L10 follow-up; no new full-suite execution",
+  "pending_product": [],
+  "pending_acceptance": [
+    "V05 current real suite",
+    "V06 current actor effect suite"
+  ],
+  "rows": [
+    {
+      "id": "A01",
+      "consumer_file": "tests/primary/test_kernel_actors.py",
+      "consumer_symbol": "test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.threads",
+        "society0.kernel.workspace"
+      ],
+      "scope_judgment": "ActorRecord 持久身份/配置/逐键状态、角色与停用保历史；CognitiveInput.reminders 与 Session.signals 为本次激活材料。ActorFields 独立验证无关冷字段不读、同主体版本变化拒绝混版。"
+    },
+    {
+      "id": "A02",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_schedule_lazy_selector_sync_rule_and_real_interview_driver",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.plugins",
+        "society0.kernel.results",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule",
+        "society0.kernel.storage",
+        "society0.kernel.threads",
+        "society0.plugins.social",
+        "society0.plugins.social_models"
+      ],
+      "scope_judgment": "同一 Runtime 实际运行同步 RuleDriver 与 LLMDriver interview；干净 base 子进程不载模型/图/向量模块。"
+    },
+    {
+      "id": "A03",
+      "consumer_file": "tests/primary/test_kernel_cognition.py",
+      "consumer_symbol": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only",
+      "assertions": 8,
+      "product_modules": [
+        "society0.kernel.cognition",
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.memory",
+        "society0.kernel.runtime",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "实际 CognitiveInput+Memory 验 system 在首、完整背景/视图/记忆原文；独立例验证既有Thread中的persona/precision/state更新与合法None游标。"
+    },
+    {
+      "id": "A04",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_reactivation_same_thread_complete_history_and_provider_session",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "同Moment复用Thread和内部provider_session_id，全历史前缀相同；提供方外发session为显式session_transport，实际SDK默认及opt-in已独审。"
+    },
+    {
+      "id": "A05",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_long_thread_never_projects_a_bounded_message_window",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "25轮调用后的完整52消息仍输入；认知A→B→A及跨进程游标有实际消费者，无消息窗口裁剪。"
+    },
+    {
+      "id": "A06",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_interview_tools_are_measurement_only",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "真实LLMDriver访谈仅submit_result，Memory activation按kind跳过自动写入；领域动作无执行。"
+    },
+    {
+      "id": "A07",
+      "consumer_file": "tests/primary/test_kernel_model_selection.py",
+      "consumer_symbol": "test_driver_activation_override_preserves_same_thread_and_provider_session",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.llm",
+        "society0.kernel.model_selection"
+      ],
+      "scope_judgment": "activation→主体→类型→默认选择复用共享provider，同Moment不重建Thread；阶段标记以原文范围引用返回。"
+    },
+    {
+      "id": "A08",
+      "consumer_file": "tests/primary/test_kernel_selection.py",
+      "consumer_symbol": "test_real_interview_submit_result_aggregates_explicit_nested_field",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.runtime",
+        "society0.kernel.selection",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "索引选择/predicate/reservoir/真实访谈嵌套聚合已直接验证；新抽样算法按输入顺序返回。"
+    },
+    {
+      "id": "L01",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_exact_selection_does_not_expand_same_named_tag",
+      "assertions": 1,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "精确名称/标签/空集过滤同时应用find、describe、invoke；跨scope游标与策略身份有独立消费者。"
+    },
+    {
+      "id": "L02",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_invalid_domain_schema_consumes_attempt_without_effect",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "Action注册check_schema与调用校验、strict归一化有直接组合；非法参数计尝试但无领域写入。"
+    },
+    {
+      "id": "L03",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_noncompleted_terminal_result_does_not_complete_activation",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "accepted/rejected的terminal不结束；required纠正及成功completion名称/标签在真实循环中验收。"
+    },
+    {
+      "id": "L04",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_natural_finish_preserves_complete_input_and_thread",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "自然文本完成允许零行动；ActionResult显式区分受理与完成，不从业务文本猜成功。"
+    },
+    {
+      "id": "L05",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_batch_budget_rejects_all_before_first_domain_effect",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "整批预检总量/逐action上限，失败尝试计数，触达后incomplete且无额外closing请求。"
+    },
+    {
+      "id": "L06",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_duplicate_call_id_reuses_receipt_without_budget_or_effect",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "重复call复用耐久receipt不重放行动，恢复receipt可重建ledger；成功独立行动保留事实。"
+    },
+    {
+      "id": "L07",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_parallel_false_has_one_corrective_turn_then_contract_failure",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "parallel=false首个合法多调用响应纠正一次，再犯或非法批次明确incomplete；提供方选项真实SDK留证。"
+    },
+    {
+      "id": "L08",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_hard_limit_never_executes_truncated_tool_or_requests_closing",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "length优先处理、完整-looking tool不执行；预算/length不进入成功Memory写入。"
+    },
+    {
+      "id": "L09",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_empty_retry_then_exhaustion_without_domain_calls",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "空响应预算与下一请求重试状态分离；可选base+delta封顶，真实SDK默认选项/物理retry/跨activation与完整历史直接验证。"
+    },
+    {
+      "id": "L10",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "显式稳定facts覆盖；可选连续重复轮调温。新事实或changed写优先清零，多行动同轮、early continue、无facts与默认禁用已验证。"
+    },
+    {
+      "id": "L11",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_structured_submit_result_schema_and_terminal",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "schema失败纠正、成功submit_result一次结束；direct_json显式测量无领域工具，strict不静默降级。"
+    },
+    {
+      "id": "L12",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_two_concurrent_actors_have_task_local_action_call_ids",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "并发主体task-local call_id、实际行动起止/失败及完整tool顺序；日志失败不重试已发业务。"
+    },
+    {
+      "id": "M01",
+      "consumer_file": "tests/primary/test_kernel_threads.py",
+      "consumer_symbol": "test_original_messages_requests_and_continuation",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "Thread请求按固定through重建，物理重试/响应全原文独立保存；巨正文范围读取与恢复有独立消费者。"
+    },
+    {
+      "id": "M02",
+      "consumer_file": "tests/primary/test_kernel_thread_publication.py",
+      "consumer_symbol": "test_thread_publication_step_survives_fork_and_new_incomplete_work",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "close/reopen与publish_step固定前缀随fork保留；同Moment后续事件不混进早期完整视图。"
+    },
+    {
+      "id": "M03",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_three_memory_switches_are_independent",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "单主体八组合及单服务多主体/逐激活冻结策略已验；test_kernel_memory_activation_review 另验同主体异scope拒绝、日期时点与恢复后步骤版本。"
+    },
+    {
+      "id": "M04",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_thread_extractor_preserves_history_and_protocol_boundary",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "真实ThreadMemoryExtractor共享协议，原消息前缀保留，纠正续同Thread，空选择成功且失败不造fallback。"
+    },
+    {
+      "id": "M05",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_index_failure_retries_saved_vectors_and_receipt",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "prepared/written/complete与single-flight均有故障注入；恢复复用原向量，未完成点外部调用不承诺exactly-once。"
+    },
+    {
+      "id": "M06",
+      "consumer_file": "tests/primary/test_kernel_memory_transfer.py",
+      "consumer_symbol": "test_export_import_and_fork_keep_values_without_reembedding",
+      "assertions": 9,
+      "product_modules": [
+        "society0.kernel.memory",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "原值原向量export/import/seed/fork、更新删除可见区间与批量非法数据全回滚；真实Chroma量化范围单列。"
+    },
+    {
+      "id": "M07",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_recall_matches_existing_distance_decay_dedup_semantics",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "L2候选+重要性/步骤衰减/去重/top_k逐值对照，空集合零embedding；真实Chroma与旧新小世界实际召回顺序均有证据。"
+    },
+    {
+      "id": "M08",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_historical_recall_uses_visible_versions_and_original_vectors",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "当前/历史版本和等待embedding时版本变化有独审；fork新身份隔离，SQL权威原向量重建。"
+    },
+    {
+      "id": "M09",
+      "consumer_file": "tests/primary/test_kernel_embedding_provider.py",
+      "consumer_symbol": "test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "已有直接测试；最终全量与真实组合另验。"
+    },
+    {
+      "id": "M10",
+      "consumer_file": "tests/primary/test_kernel_memory_transfer.py",
+      "consumer_symbol": "test_export_import_and_fork_keep_values_without_reembedding",
+      "assertions": 9,
+      "product_modules": [
+        "society0.kernel.memory",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "Memory关闭先取消收束自身任务、共享client后关闭；转移与真实Chroma恢复已验，最终网络退出链等待V05。"
+    },
+    {
+      "id": "E01",
+      "consumer_file": "tests/primary/test_kernel_composition.py",
+      "consumer_symbol": "test_plugin_schemas_initialize_in_dependency_order_and_share_store",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.kernel.plugins",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "schema/初始化/资源依赖由Plugin声明；领域配置校验由机制拥有，旧统一state_schema接口已重设。"
+    },
+    {
+      "id": "E02",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction"
+      ],
+      "scope_judgment": "Action按类型注册/对象绑定/schema检查、RuleDriver调用与Information发现分工明确；无旧registry形状兼容。"
+    },
+    {
+      "id": "E03",
+      "consumer_file": "tests/primary/test_kernel_preparation.py",
+      "consumer_symbol": "test_prepare_value_released_before_running_and_restore_skips_loader",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.kernel.plugins",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "异步prepare→同步根事务；before/after另见kernel_schedule，临时作用域见kernel_runtime。"
+    },
+    {
+      "id": "E04",
+      "consumer_file": "tests/primary/test_kernel_graph_plugin.py",
+      "consumer_symbol": "test_async_graph_source_and_numeric_projection_restore_without_source",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.composition"
+      ],
+      "scope_judgment": "真实异步图源→规范SQL→NetworkX/数值派生，删除外源后完整恢复；projection可在Phase.prepare共享，整图物化成本明示。"
+    },
+    {
+      "id": "S01",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_schedule_hooks_serial_visibility_results_and_single_completion",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.plugins",
+        "society0.kernel.results",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule",
+        "society0.kernel.storage",
+        "society0.kernel.threads",
+        "society0.plugins.social",
+        "society0.plugins.social_models"
+      ],
+      "scope_judgment": "before→按序主体/phase→after→唯一complete，StepResult全值与恢复；机制自动钩子含晚安装实例。"
+    },
+    {
+      "id": "S02",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_direct_json_measurement_has_no_domain_tools",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.models",
+        "society0.kernel.runtime",
+        "society0.kernel.shell",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "规则函数直接运行，真实LLMDriver结构化访谈/direct_json校验；结果可用显式字段路径聚合。"
+    },
+    {
+      "id": "S03",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_collect_preserves_ordered_results_and_drain_consumes_once",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel",
+        "society0.kernel.interaction",
+        "society0.kernel.runtime",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "新增Phase.capacity优先于Runtime.capacity（默认1），serial固定1，模型槽位独立；实际ModelProvider端点槽位与phase覆盖已独立验证，联组及独立真实SDK容量消费者已通过，最终全量另验。"
+    },
+    {
+      "id": "S04",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_signal_merge_followup_mutual_exclusion_and_cursor_retention",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel",
+        "society0.kernel.interaction",
+        "society0.kernel.runtime",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "同主体串行、活跃信号合并后续激活、空槽立即补位；共享ActivationPool仍由Runtime消费。"
+    },
+    {
+      "id": "S05",
+      "consumer_file": "tests/primary/test_kernel_schedule_review.py",
+      "consumer_symbol": "test_review_second_close_cancellation_does_not_abandon_driver_cleanup",
+      "assertions": 1,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.runtime"
+      ],
+      "scope_judgment": "test_activation_pool_shared保留三项有效底层边界；Host关闭二次取消仍等Driver清理完成，整step预算跨phase计数。"
+    },
+    {
+      "id": "S06",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel",
+        "society0.kernel.interaction",
+        "society0.kernel.runtime",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "阶段顺序、同moment重激活/await时间语义已验；未承诺通用离散事件调度器。"
+    },
+    {
+      "id": "B01",
+      "consumer_file": "tests/primary/test_plugin_plain.py",
+      "consumer_symbol": "test_plain_plugin_has_no_domain_state_and_restores",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.plugins.plain"
+      ],
+      "scope_judgment": "plain最小机制与干净base Rule/Runtime/restore已验；typed键、顺序与小状态合同由P01实际插件消费者验证。"
+    },
+    {
+      "id": "B02",
+      "consumer_file": "tests/primary/test_plugin_round_robin.py",
+      "consumer_symbol": "test_four_person_circle_pairs_each_pair_once_and_restores",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.plugins.round_robin"
+      ],
+      "scope_judgment": "四人配对、消息/广播/轮次清理及恢复与固定旧算法比较；多个strategy原为未执行配置，不迁移占位枚举。"
+    },
+    {
+      "id": "B03",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_actions_facts_projection_notifications_restore",
+      "assertions": 16,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.runtime",
+        "society0.plugins.social",
+        "society0.plugins.social_models",
+        "society0.plugins.social_topology"
+      ],
+      "scope_judgment": "实际follow/like/comment/repost/通知/读取恢复及图生成对照；普通热调用使用当前SQL索引。"
+    },
+    {
+      "id": "B04",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_active_pool_and_scores_match_old_semantics_without_body_scan",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.runtime",
+        "society0.plugins.social",
+        "society0.plugins.social_models",
+        "society0.plugins.social_topology"
+      ],
+      "scope_judgment": "固定旧算法逐候选分数/次序对照，原生向量召回、preview零曝光、双Social自动after_tick收束均有消费者。"
+    },
+    {
+      "id": "B05",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_two_instances_original_body_and_rejections",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.runtime",
+        "society0.plugins.social",
+        "society0.plugins.social_models",
+        "society0.plugins.social_topology"
+      ],
+      "scope_judgment": "推荐预览与逐帖完整正文分开；两个实例隔离与授权有测试，实际模型自主发现效果等待V06。"
+    },
+    {
+      "id": "N01",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction"
+      ],
+      "scope_judgment": "类型级模板、Ref实例绑定、find/describe/invoke当前资格重判；模板数不乘对象数。"
+    },
+    {
+      "id": "N02",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_discover_read_and_invoke_are_independent",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.interaction"
+      ],
+      "scope_judgment": "discover/read/invoke独立，目录名称/total过滤与跨权限变更游标有终审回归；actor由scope绑定。"
+    },
+    {
+      "id": "N03",
+      "consumer_file": "tests/primary/test_kernel_information_sql.py",
+      "consumer_symbol": "test_authorized_projection_filter_count_and_refs",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "SQL投影/过滤/keyset/可复现sample及CognitiveInput增量均有消费者；最近记录用显式排序页，Thread追加用独立tail。"
+    },
+    {
+      "id": "N04",
+      "consumer_file": "tests/primary/test_kernel_workspace.py",
+      "consumer_symbol": "test_shared_world_mount_is_dynamic_readonly_and_authorized",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.shell",
+        "society0.kernel.workspace"
+      ],
+      "scope_judgment": "动态World挂载、增量私有workspace及跨平台wheel已验；真实模型自主使用效果待V06。"
+    },
+    {
+      "id": "N05",
+      "consumer_file": "tests/primary/test_kernel_plugins_review.py",
+      "consumer_symbol": "test_review_context_is_expired_after_host_closes",
+      "assertions": 0,
+      "product_modules": [
+        "society0.kernel"
+      ],
+      "scope_judgment": "主机图预检、显式依赖、多实例服务与清理顺序/失效ctx有直接及独审；运行拓扑固定。"
+    },
+    {
+      "id": "R01",
+      "consumer_file": "tests/primary/test_kernel_models.py",
+      "consumer_symbol": "test_profiles_install_through_host_and_preserve_request_defaults",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads",
+        "society0.resource_managers"
+      ],
+      "scope_judgment": "OpenAI/Azure/Ollama及endpoint配置由成熟manager和实际SDK替身覆盖；当前统一源码的真实LLM/embedding整套仍等V05，既往小请求不升级为通过。"
+    },
+    {
+      "id": "R02",
+      "consumer_file": "tests/primary/test_kernel_models.py",
+      "consumer_symbol": "test_model_close_drains_request_and_rejects_later_requests",
+      "assertions": 1,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads",
+        "society0.resource_managers"
+      ],
+      "scope_judgment": "配置/端点/运行共享许可、timeout/retry/close有实际适配器消费者；取消排队零physical，快照失败释放许可。"
+    },
+    {
+      "id": "R03",
+      "consumer_file": "tests/primary/test_kernel_provider_fields.py",
+      "consumer_symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "strict/parallel/native/auto_restrict与requested→effective留证已验；SDK扩展字段完整进入下一请求。"
+    },
+    {
+      "id": "R04",
+      "consumer_file": "tests/primary/test_kernel_embedding_provider.py",
+      "consumer_symbol": "test_embedding_profile_controls_http_capacity_and_batching",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.plugins",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "真实EmbeddingProvider合批/cache维度隔离、数量/字节上限、超批拆分与失败来源；每逻辑文本保原主体关联。"
+    },
+    {
+      "id": "R05",
+      "consumer_file": "tests/primary/test_kernel_models_review.py",
+      "consumer_symbol": "test_review_retry_evidence_preserves_actual_request_when_thread_advances",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.models",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "trust_env分池与原请求水位独审；session传输opt-in实际SDK验证；test_kernel_credentials_review补实际请求/错误原文递归脱敏回归。"
+    },
+    {
+      "id": "O01",
+      "consumer_file": "tests/primary/test_kernel_results.py",
+      "consumer_symbol": "test_results_preserve_all_fields_stream_table_once_and_restore",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.results",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "JSON行/生成器/巨行与恢复已验；test_kernel_result_inputs 新增显式TableValue/DatasetTable，真实pandas tight完整恢复见 result-dataframe-consumer-green；正式 Results→Dataset→Workbench 组合已非作者复验，结果页外壳另有最终协议测试。"
+    },
+    {
+      "id": "O02",
+      "consumer_file": "tests/primary/test_kernel_usage.py",
+      "consumer_symbol": "test_real_adapters_project_retry_response_and_shared_cache",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "物理调用、实际行动/终止、阶段时长已有作者及独立消费者；test_kernel_action_timing_review验证重试不重复、complete只读视图与失败live诊断，最终全量另验。"
+    },
+    {
+      "id": "O03",
+      "consumer_file": "tests/primary/test_kernel_results.py",
+      "consumer_symbol": "test_result_page_encodes_each_item_once_and_fixed_prefix",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.results",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "生成器只遍历一次，巨行payload_ref与准确完整边界；内外Results统一value/payload_ref外壳及共享块页缓存独审。"
+    },
+    {
+      "id": "O04",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_progress_io_failure_isolated_but_result_generator_failure_aborts",
+      "assertions": 1,
+      "product_modules": [
+        "society0.kernel.actors",
+        "society0.kernel.composition",
+        "society0.kernel.interaction",
+        "society0.kernel.llm",
+        "society0.kernel.plugins",
+        "society0.kernel.results",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule",
+        "society0.kernel.storage",
+        "society0.kernel.threads",
+        "society0.plugins.social",
+        "society0.plugins.social_models"
+      ],
+      "scope_judgment": "progress写失败不改业务成功；权威Results写失败中止完整发布；runner清理失败保已发布水位并标失败。"
+    },
+    {
+      "id": "P01",
+      "consumer_file": "tests/primary/test_kernel_record_plugin.py",
+      "consumer_symbol": "test_record_projection_and_fact_partial_transaction_rolls_back",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.kernel.interaction"
+      ],
+      "scope_judgment": "typed_records真实插件已作者验证公开append/唯一typed键/ordinal/精度/恢复；受信writer可修改SQL，未声称数据库自动禁止作者更改事实；typed_records独立5项通过。"
+    },
+    {
+      "id": "P02",
+      "consumer_file": "tests/primary/test_kernel_record_plugin.py",
+      "consumer_symbol": "test_record_projection_and_fact_partial_transaction_rolls_back",
+      "assertions": 2,
+      "product_modules": [
+        "society0.kernel.composition",
+        "society0.kernel.interaction"
+      ],
+      "scope_judgment": "规范writer事务/租期失效与事实+投影复合回滚已有实际消费者；显式插件接口替代旧raw dict别名；typed_records独立消费者已通过。"
+    },
+    {
+      "id": "P03",
+      "consumer_file": "tests/primary/test_kernel_storage.py",
+      "consumer_symbol": "test_process_crash_publication_boundary",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "root/native changeset/complete边界已验；每步完整点替代旧多步epoch，重数据实测见V04。"
+    },
+    {
+      "id": "P04",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_pending_job_full_checkpoint_resumes_without_extraction",
+      "assertions": 8,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.memory",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "真实Services/Runtime组合的Actor、Thread、Memory与工件同完整身份，pending作业及跨插件只读导出有消费者；真网进程链等待V05。"
+    },
+    {
+      "id": "P05",
+      "consumer_file": "tests/primary/test_kernel_storage_lifecycle.py",
+      "consumer_symbol": "test_restore_copies_repeated_artifact_once_and_survives_source_removal",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "fork脱源恢复、GC可达验证已验；native root复制成本显式保留，未承诺零复制fork。"
+    },
+    {
+      "id": "P06",
+      "consumer_file": "tests/primary/test_kernel_analysis_export.py",
+      "consumer_symbol": "test_analysis_directory_is_self_contained_after_source_removal",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.datasets",
+        "society0.kernel.memory",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装；Results/Dataset/Workbench 独立贯穿已通过，见 result-inputs-independent-consumer-green-20261004。"
+    },
+    {
+      "id": "P07",
+      "consumer_file": "tests/primary/test_kernel_storage.py",
+      "consumer_symbol": "test_incremental_blob_read_bounded_and_scope_checked",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "SQLite BLOB/Thread块范围与压缩流已验；实际大root下界由V04实测，不承诺任意JSON单值恒定内存。"
+    },
+    {
+      "id": "P08",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_failed_driver_aborts_and_does_not_retry_successful_action",
+      "assertions": 3,
+      "product_modules": [
+        "society0.kernel",
+        "society0.kernel.interaction",
+        "society0.kernel.runtime",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "handler异常被Driver捕获仍poison步骤/其他scope，业务rejected正常；complete回执丢失回读实际水位后实例失效。"
+    },
+    {
+      "id": "Q01",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_separate_producer_observer_tracks_pending_failure_without_model_import",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "独立进程producer阻塞/失败仍读status/tail；当前RapidJSON四条10MiB原文与实际观察时延另有两轮测量。"
+    },
+    {
+      "id": "Q02",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "prepare完整视图/JSON cursor/run身份/元数据及最终字节预算；SQL大正文引用+相关revision续读有实际LLM/Shell/HTTP消费者。"
+    },
+    {
+      "id": "Q03",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_observer_live_tail_complete_prefix_and_fork_identity",
+      "assertions": 12,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "Thread固定完整前缀/新增tail、Results与Dataset巨行原文、文档Unicode跨字节范围及权限变更拒绝均实际验证。"
+    },
+    {
+      "id": "Q04",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files",
+      "assertions": 5,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "新版权威SQL替代全World派生索引；固定完整点prepare使用prepare_readonly物化只读SQL，成本另测。"
+    },
+    {
+      "id": "Q05",
+      "consumer_file": "tests/primary/test_kernel_observation_http.py",
+      "consumer_symbol": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.observation",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "真实TCP慢body/response/饱和503/断线槽释放与最终wire预算有独立测试；非任意网络时延SLA。"
+    },
+    {
+      "id": "Q06",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_observer_live_tail_complete_prefix_and_fork_identity",
+      "assertions": 12,
+      "product_modules": [
+        "society0.kernel.information_sql",
+        "society0.kernel.interaction",
+        "society0.kernel.models",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.storage",
+        "society0.kernel.threads"
+      ],
+      "scope_judgment": "live/current与完整点、Thread tail已有；产品语义以新Observation合同为准，不伪造额外sealed水位。"
+    },
+    {
+      "id": "U01",
+      "consumer_file": "tests/primary/test_kernel_runner.py",
+      "consumer_symbol": "test_runner_freezes_manifest_and_timings_and_restores",
+      "assertions": 8,
+      "product_modules": [
+        "society0.kernel.interaction",
+        "society0.kernel.observation",
+        "society0.kernel.results",
+        "society0.kernel.runner",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule"
+      ],
+      "scope_judgment": "研究引导与正式RunPlan冻结依赖/有效预算/配置，runner写manifest先于步骤；文档复核已完成，真网与最终发行状态继续TODO。"
+    },
+    {
+      "id": "U02",
+      "consumer_file": "tests/primary/test_skill_starter.py",
+      "consumer_symbol": "test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory",
+      "assertions": 6,
+      "product_modules": [
+        "society0.kernel.plugins",
+        "society0.kernel.runner",
+        "society0.kernel.storage"
+      ],
+      "scope_judgment": "实际工厂两轮LLM+显式提取+访谈、非空记忆与原文输入独审；默认预算/凭据环境引用冻结有实际消费者，当前真网starter仍待最终判定。"
+    },
+    {
+      "id": "U03",
+      "consumer_file": "tests/primary/test_core_next_workbench.py",
+      "consumer_symbol": "test_actual_result_rows_and_metrics_have_table_and_chart_views",
+      "assertions": 4,
+      "product_modules": [
+        "society0.kernel.datasets",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.results",
+        "society0.kernel.runner",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule",
+        "society0.kernel.services",
+        "society0.kernel.workbench"
+      ],
+      "scope_judgment": "真实 Results 表格/指标曲线及已有 React 渲染消费者已验；同名 phase 按 ordinal 分开，实体 namespace 与显式配置版本有独立用例。"
+    },
+    {
+      "id": "U04",
+      "consumer_file": "tests/primary/test_core_next_workbench.py",
+      "consumer_symbol": "test_real_pilot_export_and_existing_single_file_renderer",
+      "assertions": 7,
+      "product_modules": [
+        "society0.kernel.datasets",
+        "society0.kernel.interaction",
+        "society0.kernel.plugins",
+        "society0.kernel.results",
+        "society0.kernel.runner",
+        "society0.kernel.runtime",
+        "society0.kernel.schedule",
+        "society0.kernel.services",
+        "society0.kernel.workbench"
+      ],
+      "scope_judgment": "正式 pilot→完整点→新 workbench payload→既有单文件 renderer 已贯穿；巨行/原始 Thread 范围及 CLI 选取实际 run 另有消费者。"
+    },
+    {
+      "id": "U05",
+      "consumer_file": "tests/primary/test_public_core_api.py",
+      "consumer_symbol": null,
+      "assertions": 2,
+      "product_modules": [],
+      "scope_judgment": "新公共入口和可选依赖惰性导入有直接测试；macOS/Linux wheel 与独立轻安装证据见 installation.md。旧 WorkBuddy 案例保历史身份，新版未另行声称通过 WorkBuddy 场景。"
+    }
+  ],
+  "targeted_validation": {
+    "log": "temperature-final-candidate-green-20261004.txt",
+    "passed": 65,
+    "independent_review": "temperature-storage-review-20261004.md"
+  }
+}
