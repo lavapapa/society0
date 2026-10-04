@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "society0"
-version = "5.0.0"
+version = "6.0.0"
 authors = [
   { name="Society0 contributors" },
 ]
@@ -14,7 +14,8 @@ license = "MIT"
 requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
 ]
 dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0", "python-rapidjson==1.25"]
 
@@ -25,7 +26,7 @@ social = ["networkx", "pydantic", "chromadb"]
 datasets = ["zstandard>=0.23"]
 shell = ["bashkit==0.18.2", "society0-filesystem"]
 dev = [
-    "pytest", "pytest-asyncio", "PyYAML", "jmespath",
+    "pytest", "pytest-asyncio",
     "openai", "ollama", "pydantic", "tenacity", "chromadb", "json-repair", "networkx", "zstandard>=0.23",
 ]
 

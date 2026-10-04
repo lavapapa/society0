@@ -1,0 +1,95 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-832/test_starter_preflight_and_two0')
+
+    @pytest.mark.asyncio
+    async def test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory(tmp_path):
+        starter=load_starter();requests=[]
+        plan=starter.build_plan(release={'commit':'test'},resource_plugins=resources(requests,empty=True),moments=())
+        await run_plan(tmp_path/'check',plan)
+        assert requests==[]
+        with StageReader(tmp_path/'check') as reader:
+            assert reader.read(lambda r:r.query('SELECT COUNT(*) FROM news_views'))==[(0,)]
+        plan=starter.build_plan(release={'commit':'test'},resource_plugins=resources(requests,empty=True))
+>       await run_plan(tmp_path/'run',plan)
+
+tests/primary/test_skill_starter.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:256: in _run_phase
+    result=await task
+           ^^^^^^^^^^
+src/society0/kernel/runtime.py:247: in body
+    result=await invoke_maybe_async(phase.run, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+phase = <society0.kernel.runtime.PhaseContext object at 0x10d3f56a0>
+
+    async def study(phase):
+        outcomes=await activate(phase,('alice',))
+        for item in outcomes:
+            if item.result.status!='completed':raise RuntimeError('主体未完成：'+str(item.result.reason))
+>           if phase.step==1:
+               ^^^^^^^^^^
+E           AttributeError: 'PhaseContext' object has no attribute 'step'
+
+skill/assets/minimal_experiment.py:66: AttributeError
+______ test_starter_provider_failure_remains_failed_and_does_not_publish _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-832/test_starter_provider_failure_0')
+
+    @pytest.mark.asyncio
+    async def test_starter_provider_failure_remains_failed_and_does_not_publish(tmp_path):
+        starter=load_starter()
+        with pytest.raises(RuntimeError,match='provider unavailable'):
+>           await run_plan(tmp_path/'failed',starter.build_plan(release={'commit':'test'},resource_plugins=resources([],fail_recall=True)))
+
+tests/primary/test_skill_starter.py:66: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:256: in _run_phase
+    result=await task
+           ^^^^^^^^^^
+src/society0/kernel/runtime.py:247: in body
+    result=await invoke_maybe_async(phase.run, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+phase = <society0.kernel.runtime.PhaseContext object at 0x10d424800>
+
+    async def study(phase):
+        outcomes=await activate(phase,('alice',))
+        for item in outcomes:
+            if item.result.status!='completed':raise RuntimeError('主体未完成：'+str(item.result.reason))
+>           if phase.step==1:
+               ^^^^^^^^^^
+E           AttributeError: 'PhaseContext' object has no attribute 'step'
+
+skill/assets/minimal_experiment.py:66: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_skill_starter.py::test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory
+FAILED tests/primary/test_skill_starter.py::test_starter_provider_failure_remains_failed_and_does_not_publish
+2 failed in 0.56s

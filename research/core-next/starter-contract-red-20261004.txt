@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_starter_freezes_effective_budget_dependencies_and_safe_profiles _____
+
+    def test_starter_freezes_effective_budget_dependencies_and_safe_profiles():
+        from importlib.metadata import version
+        starter=load_starter()
+        endpoint={'id':'test','model':'test','base_url':'http://unused.invalid/v1','api_key':'secret-value','concurrency':2}
+        plan=starter.build_plan(release={'commit':'test'},moments=(),model={'endpoints':[endpoint]},embedding={'endpoints':[endpoint],'dimensions':2})
+        contract=plan.contract
+>       assert contract.dependencies['society0']==version('society0')
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'society0'
+
+tests/primary/test_skill_starter.py:76: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_skill_starter.py::test_starter_freezes_effective_budget_dependencies_and_safe_profiles
+1 failed, 2 deselected in 0.49s
