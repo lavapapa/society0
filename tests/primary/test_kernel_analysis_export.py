@@ -33,7 +33,7 @@ async def test_analysis_directory_is_self_contained_after_source_removal(tmp_pat
         records=[];assert memory.export('a',records.append)==1
         assert records[0]['embedding']==original['embedding']
         results=Results(reader);header=results.phase(1,0)
-        assert results.page(header['tables']['facts'])['items']==[{'value':2**90},{'value':'完整'}]
+        assert [item['value'] for item in results.page(header['tables']['facts'])['items']]==[{'value':2**90},{'value':'完整'}]
         assert results.metric('analysis','n')==2
     with pytest.raises(StorageError):StageStore.open(export)
     with pytest.raises(StorageError):StageStore.restore(export,tmp_path/'forbidden')

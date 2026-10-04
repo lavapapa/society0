@@ -13,11 +13,11 @@ async def test_table_value_preserves_tight_dataframe_shape_and_restore(tmp_path)
     with StageStore.create(tmp_path/'run',module.RESULTS_SCHEMA) as store:
         results=module.Results(store)
         header=await results.write_phase(1,0,'analysis',module.StepResult(tables={'table':module.TableValue(value)}))
-        assert results.page(header['tables']['table'])['items']==[value]
+        assert [item['value'] for item in results.page(header['tables']['table'])['items']]==[value]
         store.complete(1)
     with StageStore.restore(tmp_path/'run',tmp_path/'restored') as store:
         results=module.Results(store)
-        assert results.page(results.phase(1,0)['tables']['table'])['items']==[value]
+        assert [item['value'] for item in results.page(results.phase(1,0)['tables']['table'])['items']]==[value]
 
 
 @pytest.mark.asyncio
@@ -46,13 +46,13 @@ async def test_dataset_table_reuses_body_and_reads_large_records_after_restore(t
         results=module.Results(store);reference=results.phase(1,0)['tables']['table']
         page=results.page(reference,limit=1,max_bytes=512)
         assert len(json.dumps(page,ensure_ascii=False,separators=(',',':')).encode())<=512
-        ref=page['items'][0];raw=bytearray();offset=0
+        ref=page['items'][0]['payload_ref'];raw=bytearray();offset=0
         while True:
             part=results.read_record(ref,offset=offset,size=16384);raw.extend(part['data'])
             if part['next_offset'] is None:break
             offset=part['next_offset']
         assert json.loads(raw)==values[0]
-        assert results.page(reference,cursor=page['next_cursor'])['items']==[values[1]]
+        assert [item['value'] for item in results.page(reference,cursor=page['next_cursor'])['items']]==[values[1]]
 
 
 @pytest.mark.asyncio

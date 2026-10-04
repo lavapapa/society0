@@ -169,14 +169,7 @@ class Results:
             raise ValueError('positive limit and at least 512 page bytes required')
         if reference.get('kind')=='dataset':
             from .datasets import Datasets
-            page=Datasets(self.store).page(reference,cursor=cursor,limit=limit,max_bytes=max_bytes)
-            items=[]
-            for item in page['items']:
-                if 'payload_ref' in item:
-                    items.append(dict(kind='record_ref',**item['payload_ref']))
-                else:items.append(item['value'])
-            # 去掉每条的 ordinal/raw_bytes 外壳，保留原分页预算与游标。
-            return dict(page,items=items)
+            return Datasets(self.store).page(reference,cursor=cursor,limit=limit,max_bytes=max_bytes)
         def read(view):
             origin,count,finished=self._identity(view,reference)
             identity=[view.run_id,reference['id'],origin]
@@ -191,18 +184,22 @@ class Results:
                 return {'items':values,'total':through,'next_cursor':continuation,'finished':bool(finished)}
             for ordinal,size in view.iter_query('SELECT ordinal,raw_bytes FROM result_rows WHERE set_id=? AND ordinal>? AND ordinal<? ORDER BY ordinal LIMIT ?',
                                                 (reference['id'],after,through,limit)):
-                ref={'kind':'record_ref','id':reference['id'],'origin':origin,'ordinal':ordinal,'total_bytes':size}
-                value=self._value(view,reference['id'],ordinal) if size<=max_bytes else ref
+                ref={'id':reference['id'],'origin':origin,'ordinal':ordinal,'total_bytes':size}
+                item={'ordinal':ordinal,'raw_bytes':size}
+                if size<=max_bytes:
+                    item['value']=self._value(view,reference['id'],ordinal)
+                else:
+                    item['payload_ref']=ref
                 def encoded_size(item):
                     return len(json.dumps(item,ensure_ascii=False,separators=(',',':')).encode())
-                size=encoded_size(value)
+                size=encoded_size(item)
                 overhead=encoded_size(envelope(ordinal,[]))
                 if overhead+item_bytes+size+len(items)>max_bytes:
                     if items:break
-                    value=ref;size=encoded_size(value)
+                    item.pop('value',None);item['payload_ref']=ref;size=encoded_size(item)
                     if overhead+size>max_bytes:
                         raise ValueError('page byte budget cannot hold reference')
-                items.append(value);last=ordinal;item_bytes+=size
+                items.append(item);last=ordinal;item_bytes+=size
             return envelope(last,items)
         return self.store.read(read)
 

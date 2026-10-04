@@ -14,8 +14,8 @@ async def test_review_late_result_range_decodes_only_intersecting_chunk(tmp_path
         header=await results.write_phase(1,0,'phase',StepResult(tables={'rows':iter((value,))}))
         page=results.page(header['tables']['rows'],limit=1000000,max_bytes=512)
         assert len(json.dumps(page,ensure_ascii=False,separators=(',',':')).encode())<=512
-        reference=page['items'][0]
-        assert reference['kind']=='record_ref'
+        reference=page['items'][0]['payload_ref']
+        assert page['items'][0]['raw_bytes']==len(raw)
         calls=[];decompress=zlib.decompress
         def counted(data,*args,**kwargs):calls.append(len(data));return decompress(data,*args,**kwargs)
         monkeypatch.setattr(zlib,'decompress',counted)
@@ -42,6 +42,6 @@ async def test_review_results_cursor_does_not_cross_runs_or_include_failed_next_
     with StageStore.restore(tmp_path/'source',tmp_path/'restored') as store:
         results=Results(store)
         with pytest.raises(ValueError,match='cursor'):results.page(header['tables']['rows'],cursor=page['next_cursor'])
-        assert results.page(header['tables']['rows'])['items']==[0,1,2,3]
+        assert [item['value'] for item in results.page(header['tables']['rows'])['items']]==[0,1,2,3]
         with pytest.raises(KeyError):results.phase(2,0)
         assert results.summary()['row_count']==4

@@ -18,7 +18,7 @@ Results 由插件声明原生 SQLite 表，正文调用规范 Writer 编码入�
 
 组合多个机制时，登记一次 `dataset_plugin()`；机制通过声明依赖取得共享 `datasets` 服务，自身 schema 仅声明领域表。普通行结果无须装配该服务。
 
-`DatasetTable(reference)` 复用已由 Datasets 封存并登记的数据集，正文文件保持原引用。`Results.page` 对两类存储都返回原始值、精确总数和继续游标；巨行统一返回 `record_ref`，`read_record` 读取完整原文。完整值占一条记录，数据集按其原记录数计入 `row_count`。DataFrame 或模型的显式转换成本由所选择的完整值大小决定。
+`DatasetTable(reference)` 复用已由 Datasets 封存并登记的数据集，正文文件保持原引用。`Results.page` 对两类存储都返回相同页项结构：`{ordinal, raw_bytes, value}` 保存原始业务值，巨行则返回 `{ordinal, raw_bytes, payload_ref}`；将 `payload_ref` 原样传给 `read_record` 读取完整原文。业务 JSON 的任何字段均位于 value 内，不参与引用识别。页还保留精确 total 和继续游标，最终 JSON 字节预算包含页项外壳。完整值占一条记录，数据集按其原记录数计入 `row_count`。DataFrame 或模型的显式转换成本由所选择的完整值大小决定。
 
 metrics、artifacts、observations、notes 同样保持完整 JSON 或字符串。当前指标索引引用原始结果行；汇总计数在规范写入时维护。`metric(phase, name)` 明确读取单个当前指标，阶段再次返回指标后用新的键集合替换该阶段投影；旧指标原文仍在历史结果中。`summary()` 返回累计阶段、表行和各激活状态的计数，不重放历史。`step(number)` 返回该次完整步骤候选的模拟时间、阶段数、实际激活数、耗时、容量和激活预算；是否正式完成依照步骤描述符。成功返回 DriverResult 的主体激活记录保存 actor、round、status、reason、时长和值（含显式 collect 的 incomplete），LLM 值沿既有 Thread/资源引用追溯原文。抛错或取消的阶段通过原始 Thread、失败标记和进度诊断追溯，阶段结果表不冒充已经完成。结果写入失败使完整步骤失败，已写的部分结果属于原运行诊断，恢复依照完整步骤描述符。
 

@@ -24,14 +24,15 @@ async def test_results_preserve_all_fields_stream_table_once_and_restore(tmp_pat
             assert page['total']==130
             assert len(json.dumps(page,ensure_ascii=False,separators=(',',':')).encode())<=4096
             for item in page['items']:
-                if isinstance(item,dict) and item.get('kind')=='record_ref':
+                if 'payload_ref' in item:
                     raw=bytearray();offset=0
                     while True:
-                        part=results.read_record(item,offset=offset,size=16384)
+                        part=results.read_record(item['payload_ref'],offset=offset,size=16384)
                         raw.extend(part['data'])
                         if part['next_offset'] is None:break
                         offset=part['next_offset']
                     item=json.loads(raw)
+                else:item=item['value']
                 found.append(item)
             cursor=page['next_cursor']
             if cursor is None:break

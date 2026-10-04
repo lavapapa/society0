@@ -1,0 +1,29 @@
+..........................                                               [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/primary/test_kernel_results_envelope_review.py::test_review_envelope_pagination_recovers_every_value_with_bounded_wire[False]
+PASSED tests/primary/test_kernel_results_envelope_review.py::test_review_envelope_pagination_recovers_every_value_with_bounded_wire[True]
+PASSED tests/primary/test_kernel_results_envelope_review.py::test_review_workbench_shared_block_is_decompressed_once
+PASSED tests/primary/test_kernel_result_page_envelope.py::test_record_reference_shaped_value_remains_exact_json[False]
+PASSED tests/primary/test_kernel_result_page_envelope.py::test_record_reference_shaped_value_remains_exact_json[True]
+PASSED tests/primary/test_kernel_result_page_envelope.py::test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once
+PASSED tests/primary/test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer
+PASSED tests/primary/test_core_next_workbench.py::test_empty_export_has_real_empty_state
+PASSED tests/primary/test_core_next_workbench.py::test_explicit_versions_do_not_merge_different_configuration
+PASSED tests/primary/test_core_next_workbench.py::test_dataset_and_giant_thread_originals_keep_step_prefix
+PASSED tests/primary/test_core_next_workbench.py::test_cli_exports_selected_actual_run_and_reports_missing_run
+PASSED tests/primary/test_core_next_workbench.py::test_plain_record_ref_shaped_business_value_is_not_interpreted
+PASSED tests/primary/test_core_next_workbench.py::test_entity_identity_separates_environment_and_actor
+PASSED tests/primary/test_core_next_workbench.py::test_actual_result_rows_and_metrics_have_table_and_chart_views
+PASSED tests/primary/test_core_next_workbench_review.py::test_review_selected_moment_exports_all_threads_above_query_default
+PASSED tests/primary/test_core_next_workbench_review.py::test_review_temporary_complete_view_is_removed_on_export_error
+PASSED tests/primary/test_kernel_results.py::test_results_preserve_all_fields_stream_table_once_and_restore
+PASSED tests/primary/test_kernel_results.py::test_current_metrics_replace_phase_keys_and_preserve_restore
+PASSED tests/primary/test_kernel_results.py::test_result_page_encodes_each_item_once_and_fixed_prefix
+PASSED tests/primary/test_kernel_result_inputs.py::test_table_value_preserves_tight_dataframe_shape_and_restore
+PASSED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[value0]
+PASSED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[abc0]
+PASSED tests/primary/test_kernel_result_inputs.py::test_ambiguous_table_input_rejected_before_writing[abc1]
+PASSED tests/primary/test_kernel_result_inputs.py::test_dataset_table_reuses_body_and_reads_large_records_after_restore
+PASSED tests/primary/test_kernel_result_inputs.py::test_two_mechanisms_share_one_dataset_schema_and_service
+PASSED tests/primary/test_kernel_analysis_export.py::test_analysis_directory_is_self_contained_after_source_removal

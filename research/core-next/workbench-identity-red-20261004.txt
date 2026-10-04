@@ -1,0 +1,47 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_plain_record_ref_shaped_business_value_is_not_interpreted ________
+
+    def test_plain_record_ref_shaped_business_value_is_not_interpreted():
+        from society0.kernel.workbench import _rows
+        value={'kind':'record_ref','business':'原文'}
+        class Records:
+            def page(self,reference,**kwargs):return {'items':[value],'total':1,'next_cursor':None}
+            def read_record(self,reference,**kwargs):
+                assert reference['id']=='actual-set'
+                raw=json.dumps(value).encode()
+                return {'data':raw,'total_bytes':len(raw),'next_offset':None}
+>       assert list(_rows(Records(),{'kind':'result_set','id':'actual-set','origin':'run'}))==[value]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_workbench.py:120:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/workbench.py:32: in _rows
+    part=results.read_record(value,offset=offset,size=65536)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <tests.primary.test_core_next_workbench.test_plain_record_ref_shaped_business_value_is_not_interpreted.<locals>.Records object at 0x1077a3770>
+reference = {'kind': 'record_ref', 'business': '原文'}
+kwargs = {'offset': 0, 'size': 65536}
+
+    def read_record(self,reference,**kwargs):
+>       assert reference['id']=='actual-set'
+               ^^^^^^^^^^^^^^^
+E       KeyError: 'id'
+
+tests/primary/test_core_next_workbench.py:117: KeyError
+_____________ test_entity_identity_separates_environment_and_actor _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-776/test_entity_identity_separates0')
+
+    @pytest.mark.asyncio
+    async def test_entity_identity_separates_environment_and_actor(tmp_path):
+        await run_plan(tmp_path/'run',build({'release':{'commit':'test'},'start':1,'end':1}))
+        payload=export_payload([RunSelection(tmp_path/'run','v1',(1,),('environment',))])
+        entities=payload['versions'][0]['entities']
+>       assert len({entity['id'] for entity in entities})==2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len({'environment'})
+
+tests/primary/test_core_next_workbench.py:128: AssertionError
