@@ -1,0 +1,36 @@
+{
+  "prefix_checks": {
+    "old-rule": {
+      "prefix_thread_count": 0,
+      "full_messages_equal": true,
+      "snapshots_equal": true,
+      "actual_provider_prefix_equal": true
+    },
+    "old-llm": {
+      "prefix_thread_count": 2,
+      "full_messages_equal": true,
+      "snapshots_equal": true,
+      "actual_provider_prefix_equal": true
+    },
+    "new-rule": {
+      "prefix_thread_count": 0,
+      "full_messages_equal": true,
+      "snapshots_equal": true,
+      "actual_provider_prefix_equal": true
+    },
+    "new-llm": {
+      "prefix_thread_count": 2,
+      "full_messages_equal": true,
+      "snapshots_equal": true,
+      "actual_provider_prefix_equal": true
+    }
+  },
+  "old_source_direct_bytes_equal_96b1f3b": {
+    "src/society0/core_data.py": true,
+    "src/society0/persistence.py": true,
+    "src/society0/agent/agent_loop.py": true,
+    "src/society0/agent/memory.py": true,
+    "src/society0/agent/thread_store.py": true
+  },
+  "network_calls": 0
+}
