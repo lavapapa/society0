@@ -1,0 +1,62 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___ test_review_any_progress_in_multi_action_turn_clears_read_streak[batch0] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-926/test_review_any_progress_in_mu0')
+batch = ('new', 'new')
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('batch', [('new', 'new'), ('write', 'old', 'old')])
+    async def test_review_any_progress_in_multi_action_turn_clears_read_streak(tmp_path, batch):
+        policy = LLMPolicy(parallel_tool_calls=True, max_turns=5,
+            repeated_read_temperature_delta=.2, request_options={'temperature': .1})
+        responses = [reply(invoke('old1', 'old')), reply(invoke('old2', 'old')),
+                     reply(*(invoke(f'b{i}', name) for i, name in enumerate(batch))), reply(text='done')]
+        store, threads, provider, driver, session, _ = setup(tmp_path, responses, policy=policy)
+        for name in ('old', 'new'):
+            session.actions.actions.register(Action(name, ('m', 'job'), name, {},
+                lambda *args, name=name: ActionResult('completed', {
+                    'facts': [{'namespace': 'm', 'kind': 'fact', 'key': name}]}), read_only=True))
+        session.actions.actions.register(Action('write', ('m', 'job'), 'write', {},
+            lambda *args: ActionResult('completed', {'changed': True})))
+        with store:
+            assert (await driver.run(session)).status == 'completed'
+>           assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1]
+E           assert [0.1, 0.1, 0.3, 0.5] == [0.1, 0.1, 0.3, 0.1]
+E             
+E             At index 3 diff: 0.5 != 0.1
+E             Use -v to get more diff
+
+tests/primary/test_kernel_temperature_review.py:63: AssertionError
+___ test_review_any_progress_in_multi_action_turn_clears_read_streak[batch1] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-926/test_review_any_progress_in_mu1')
+batch = ('write', 'old', 'old')
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('batch', [('new', 'new'), ('write', 'old', 'old')])
+    async def test_review_any_progress_in_multi_action_turn_clears_read_streak(tmp_path, batch):
+        policy = LLMPolicy(parallel_tool_calls=True, max_turns=5,
+            repeated_read_temperature_delta=.2, request_options={'temperature': .1})
+        responses = [reply(invoke('old1', 'old')), reply(invoke('old2', 'old')),
+                     reply(*(invoke(f'b{i}', name) for i, name in enumerate(batch))), reply(text='done')]
+        store, threads, provider, driver, session, _ = setup(tmp_path, responses, policy=policy)
+        for name in ('old', 'new'):
+            session.actions.actions.register(Action(name, ('m', 'job'), name, {},
+                lambda *args, name=name: ActionResult('completed', {
+                    'facts': [{'namespace': 'm', 'kind': 'fact', 'key': name}]}), read_only=True))
+        session.actions.actions.register(Action('write', ('m', 'job'), 'write', {},
+            lambda *args: ActionResult('completed', {'changed': True})))
+        with store:
+            assert (await driver.run(session)).status == 'completed'
+>           assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1]
+E           assert [0.1, 0.1, 0.3, 0.5] == [0.1, 0.1, 0.3, 0.1]
+E             
+E             At index 3 diff: 0.5 != 0.1
+E             Use -v to get more diff
+
+tests/primary/test_kernel_temperature_review.py:63: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_temperature_review.py::test_review_any_progress_in_multi_action_turn_clears_read_streak[batch0]
+FAILED tests/primary/test_kernel_temperature_review.py::test_review_any_progress_in_multi_action_turn_clears_read_streak[batch1]
+2 failed, 3 deselected in 0.63s
