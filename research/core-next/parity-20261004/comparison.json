@@ -1,0 +1,122 @@
+{
+  "old-rule-continuous": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 0,
+    "requests": 0,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "old-rule-restored": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 0,
+    "requests": 0,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "new-rule-continuous": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 0,
+    "requests": 0,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "new-rule-restored": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 0,
+    "requests": 0,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "old-llm-continuous": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 6,
+    "requests": 6,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "old-llm-restored": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 6,
+    "requests": 6,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "new-llm-continuous": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 6,
+    "requests": 6,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  },
+  "new-llm-restored": {
+    "fields_equal": [
+      "initial",
+      "snapshots",
+      "decision_inputs",
+      "memories"
+    ],
+    "steps": 3,
+    "decisions": 6,
+    "memories": 6,
+    "requests": 6,
+    "restored_thread_prefix_equal": true,
+    "continuous_restored_full_messages_equal": true,
+    "continuous_restored_full_provider_inputs_equal": true
+  }
+}

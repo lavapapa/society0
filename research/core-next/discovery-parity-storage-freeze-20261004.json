@@ -1,0 +1,15 @@
+{
+  "paths": [
+    "tests/primary/test_kernel_discovery_description_review.py",
+    "tests/experiments/test_core_next_parity_review.py",
+    "research/core-next/discovery-description-storage-independent-20261004.txt",
+    "research/core-next/parity-storage-independent-red-20261004.txt",
+    "research/core-next/parity-storage-independent-green-20261004.txt",
+    "research/core-next/parity-storage-prefix-source-20261004.json",
+    "research/core-next/discovery-parity-storage-review-20261004.md"
+  ],
+  "include_manifest_itself": true,
+  "product_changes": false,
+  "review_findings": "one comparison acceptance gap reproduced and fixed by author; independent 13 pass; discovery 45 pass",
+  "network_calls": 0
+}

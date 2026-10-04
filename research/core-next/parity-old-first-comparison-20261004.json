@@ -1,0 +1,50 @@
+[
+  {
+    "mode": "rule",
+    "field": "initial",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "rule",
+    "field": "snapshots",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "rule",
+    "field": "decision_inputs",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "rule",
+    "field": "memories",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "llm",
+    "field": "initial",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "llm",
+    "field": "snapshots",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "llm",
+    "field": "decision_inputs",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  },
+  {
+    "mode": "llm",
+    "field": "memories",
+    "old_restored_equal": true,
+    "old_new_equal": true
+  }
+]
