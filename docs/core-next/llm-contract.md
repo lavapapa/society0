@@ -44,3 +44,5 @@ interview 模式默认提供测量工具 submit_result，决策动作不自动�
 
 
 记忆 hooks 遵循激活作用域协议：`activation(session, thread_id)` 返回异步 context manager，Driver 在确定 Thread kind 后进入，退出时统一清理；before_activation 与 after_activation 在该作用域内执行。标准 Memory 的策略选择器每次解析一次，固定自动召回、写入、主动工具及 recall_top_k，详细合同见 memory-contract.md。自定义 hook 也须显式提供其作用域，避免跨激活共享可变策略。
+
+提供方会话传输由 ModelProvider 的 `session_transport` 显式配置。默认 `None` 将稳定 `provider_session_id` 保存于 Thread 和请求记录；支持请求体 metadata 的提供方选择 `metadata`，适配器经 SDK 的 extra_body 将同一身份写入实际 JSON 请求体的 metadata.session_id，并保留其他显式 metadata。profile 中的选择保持固定，服务拒绝参数时按真实失败留证。Gemini OpenAI 兼容接口使用默认 None。

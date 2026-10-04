@@ -204,7 +204,8 @@ async def test_reactivation_same_thread_complete_history_and_provider_session(tm
         await driver.run(session)
         assert session.cursors['thread_id'] == thread_id
         assert provider.requests[-1][2][:len(old)] == old
-        assert all(r[1]['extra_body']['metadata']['session_id'] == provider_session for r in provider.requests)
+        assert threads.describe(thread_id)['provider_session_id'] == provider_session
+        assert all(r[0] == thread_id for r in provider.requests)
     finally:
         store.close()
 
