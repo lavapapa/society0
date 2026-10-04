@@ -20,7 +20,7 @@ classifiers = [
 dependencies = ["apsw>=3.53.4.0", "jsonschema>=4.0.0", "python-rapidjson==1.25", "backports-zstd==1.7.0"]
 
 [project.optional-dependencies]
-llm = ["pydantic-ai-slim[openai]==2.54.0", "Authlib==1.8.0", "httpx2", "aiolimiter"]
+llm = ["pydantic-ai-slim[openai]==2.54.0", "Authlib==1.8.0", "httpx2", "aiolimiter", "society0-filesystem"]
 anthropic = ["society0[llm]", "pydantic-ai-slim[anthropic]==2.54.0"]
 google = ["society0[llm]", "pydantic-ai-slim[google]==2.54.0"]
 memory = ["chromadb", "json-repair"]

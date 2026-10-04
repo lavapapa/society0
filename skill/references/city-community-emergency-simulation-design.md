@@ -50,7 +50,7 @@ Use `plain` only for the first mechanism sketch when geography is not yet
 essential. Use a custom env when maps, FoVs, movement, traffic, accessibility,
 resource availability, hazards, or location-indexed records define the research
 claim. Keep city-specific assumptions in the env or experiment, not in
-`Society0`, `CodeSchedule`, `World`, or generic agent APIs.
+`Society0`, `Schedule`, `World`, or generic agent APIs.
 
 High-stakes boundary: city, traffic, and emergency simulations can support
 scenario rehearsal, stakeholder sensemaking, mechanism exploration, training

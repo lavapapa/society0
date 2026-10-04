@@ -202,10 +202,14 @@ async def test_social_preference_preserves_recent_interaction_ties_and_read_acti
         expected=SocialNetworkEnv._build_agent_preference_text(proxy,SimpleNamespace(id='a',get_raw_data=lambda:{'persona':''}))
         assert social.preference_text('a')==expected
         actions=host.service('interaction','actions');scope=InteractionScope('a',Moment(2,'read'))
-        result=await actions.invoke(scope,'social.get_post_details',Ref('social','posts','post_1'),{})
-        assert result.status=='completed' and result.value['content']=='b body'
-        profile=await actions.invoke(scope,'social.get_agent_profile',Ref('social','participants','b'),{})
-        assert profile.value['posts']==['post_1']
+        info=host.service('interaction','information')
+        import json
+        result=json.loads((await info.read(scope,'/social/post_details/post_1')).data)
+        assert result['content']=='b body' and result==social.post_details('post_1')
+        profile=json.loads((await info.read(scope,'/social/profiles/b')).data)
+        assert profile['posts']==['post_1'] and profile==social.profile('b')
+        assert (await actions.invoke(scope,'social.get_post_details',Ref('social','posts','post_1'),{})).status=='rejected'
+        assert (await actions.invoke(scope,'social.get_agent_profile',Ref('social','participants','b'),{})).status=='rejected'
         trending=await actions.invoke(scope,'social.get_trending_posts',Ref('social','participants','a'),{})
         assert len(trending.value['posts'])==2
         assert social.post_details('post_1')['view_count']==0
@@ -432,3 +436,32 @@ async def test_social_fixed_active_pool_queries_do_not_replay_long_history(tmp_p
             measured.append(vm[0])
     print({'history':[100,10000],'active_pool_sql_vm':measured})
     assert measured[1]<measured[0]*1.2+30
+
+
+@pytest.mark.asyncio
+async def test_social_read_views_range_revision_authorization_and_restore(tmp_path):
+    import json
+    from society0.kernel.interaction import Unavailable
+    plugins=plan(social_plugin('abc',content_length_limit=-1))
+    async with compose(tmp_path/'run',plugins) as host:
+        social=host.service('social','mechanism');info=host.service('interaction','information')
+        social.execute('publish_post','b','b',{'content':'完整正文🙂'*20000,'tags':['x']},1)
+        social.execute('comment','a','post_1',{'content':'完整评论'},2)
+        social.execute('like_post','a','post_1',{},2)
+        scope=InteractionScope('a',Moment(2,'read'))
+        directory=await info.list_files(scope,'/social')
+        assert {'/social/post_details','/social/profiles'} <= {item['path'] for item in directory.items}
+        path='/social/post_details/post_1';first=await info.read(scope,path,size=1024)
+        provider=info._mounts['/social'];source=provider._record_source[1]
+        parts=[first.data];offset=first.next_offset
+        while offset is not None:
+            chunk=await info.read(scope,path,offset=offset,size=1024,expected_revision=first.revision)
+            assert provider._record_source[1] is source
+            parts.append(chunk.data);offset=chunk.next_offset
+        result=json.loads(b''.join(parts));assert result==social.post_details('post_1')
+        with pytest.raises(Unavailable):await info.read(InteractionScope('outsider',Moment(2,'read')),path)
+        social.execute('comment','c','post_1',{'content':'新评论'},2)
+        with pytest.raises(ValueError):await info.read(scope,path,offset=1024,expected_revision=first.revision)
+        saved=social.post_details('post_1');host.service('storage','store').complete(1)
+    async with compose(tmp_path/'restore',plugins,source=tmp_path/'run') as host:
+        assert json.loads((await host.service('interaction','information').read(InteractionScope('a',Moment(3,'read')),path,size=1000000)).data)==saved

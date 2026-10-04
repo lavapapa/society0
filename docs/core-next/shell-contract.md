@@ -1,8 +1,8 @@
 # Shell 交互合同
 
-ShellSession 将可选 Bashkit 解释器接到同一共享环境的信息与动作服务。共享材料同时通过 `/world` 动态只读文件路径与 data 命令取得；持久私有文件放在 `/workspace`。普通规则 Driver 可以直接调用交互服务，无需创建 shell。
+ShellSession 将可选 Bashkit 解释器接到同一共享环境的信息与动作服务。共享材料通过 `/world` 动态只读文件路径取得；认知材料位于 `/context`，持久私有文件位于 `/workspace`，已登记输出位于 `/results`。普通规则 Driver 可以直接调用交互服务，无需创建 shell。
 
-本页描述现行 ShellSession 入口。统一逻辑文件工具及原文路径的目标合同见 [专项规格](agent-filesystem-design.md)，消费者迁移状态见 F05；目标接口不能作为当前版本的调用示例。
+模型专用 read、ls、find、grep 与 shell 共用逻辑原文，具体接口见 [专项规格](agent-filesystem-design.md)，本轮实现与验收记录见 F05–F08。
 
 ## 一、入口
 
@@ -22,16 +22,16 @@ execute 返回 ShellResult，包含 session_id、command_id、stdout、stderr、
 data、action 和 result 是固定的自定义命令。其余 shell 能力使用 Bashkit 的普通命令和管道。参数中的 JSON 必须按 shell 规则引用；主体身份由 scope 绑定，没有 actor 参数。
 
 ```bash
-data list /
-data list /market '{"limit":100}'
-data read /market/document '{"offset":0,"size":65536}'
-data query /market/orders '{"fields":["id","price"],"limit":100}'
+data list /world
+data list /world/market '{"limit":100}'
+data read /world/market/document '{"offset":0,"size":65536}'
+data query /world/market/orders '{"fields":["id","price"],"limit":100}'
 action find '{"target":{"namespace":"market","kind":"order","key":"one"}}'
 action describe '{"name":"buy","target":{"namespace":"market","kind":"order","key":"one"}}'
 action invoke '{"name":"buy","target":{"namespace":"market","kind":"order","key":"one"},"arguments":{"quantity":1}}'
 ```
 
-data list `/` 返回经 discover 授权的挂载目录，条目包含 path 与 Ref，并有 total 和继续游标。普通目录由提供者返回对象条目；动作目标来自这些 Ref。find 返回轻摘要，describe 才提供参数 schema。分页、查询和权限继续遵循交互合同，查询语义由实际提供者定义。
+data list `/world` 返回经 discover 授权的挂载目录，条目包含 path 与 Ref，并有 total 和继续游标。普通目录由提供者返回对象条目；动作目标来自这些 Ref。find 返回轻摘要，describe 才提供参数 schema。分页、查询和权限继续遵循交互合同，查询语义由实际提供者定义。
 
 data read 默认返回 UTF-8 文本，字段为 data、encoding、total_bytes、next_offset、revision、source。size 至少为 4 字节，响应解码完整字符并按实际消费字节推进 offset。显式指定 `encoding:"base64"` 可取得任意字节范围，保留非文本材料原文；没有以替换字符掩盖解码错误。
 
@@ -46,7 +46,7 @@ result read output/1.stdout '{"offset":65536,"size":65536}'
 
 默认 cwd 为 `/workspace`，普通相对文件名自然保存到主体私有目录。`/tmp` 及其他临时解释器文件在新激活时重新建立。
 
-Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。`/world` 通过 Information 的相同权限和数据版本路由动态列目录、读取文档与单条记录 JSON。构造 shell 不枚举世界对象；当前 InformationFiles 用 `@page-` 继续目录分页，超过投影预算的大文档表现为 manifest、`@text-` 与 `@parts-` 目录。Bashkit 整读实际选中的投影文件；目录 stat 对未声明大正文映射的 SQL 记录仍可能物化完整 JSON。分片中的原文可以重组，但直接递归 grep 会有跨片漏匹配及编码副本命中，不能作为逻辑原文搜索。大型集合可用 data list/query 分页，原文可用 data read 范围读取。
+Python 的 `shell.read_result(reference,offset=0,size=65536,encoding='utf-8')` 与 result read 使用相同范围合同，响应带完整总字节数与继续偏移。数据命令结果可经 jq、head、tail 等处理。`/world` 通过 Information 的相同权限和数据版本路由动态列目录、读取文档与单条记录 JSON。构造 shell 不枚举世界对象；InformationFiles 用 `@page-` 继续目录分页；原文路径始终保持文件身份，manifest、文本片与字节片作为显式传输入口。Bashkit 的 read_file 整读所选原文，head 也可能触发完整读取；模型专用 read 使用范围通路，专用 grep 使用成熟连续 Reader 扫描逻辑原文。SQL 合成记录首次准备可能物化整个记录，后续连续范围读复用单槽临时正文；大型正文应注册 DocumentSpec 以直接定位数据库范围。大型集合可用 data query 在 SQL 内筛选、排序和抽样。
 
 ## 三、结果
 

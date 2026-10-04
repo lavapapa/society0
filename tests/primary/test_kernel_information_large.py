@@ -119,15 +119,15 @@ async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
         class Provider:
             async def request(self,tid,options):
                 replies=[json.loads(m['content']) for m in threads.read_messages(tid) if m['role']=='tool']
-                if not replies:name,args='data_query',{'path':'/world/rows','query':{'max_bytes':1024}}
+                if not replies:name,args='read',{'path':'/world/world/rows/1'}
                 else:
                     value=replies[-1];assert 'error' not in value,value
                     if len(replies)==1:
-                        reference.update(value['items'][0]['body']);offset=0
+                        reference.update(json.loads(value['data'])['body']);offset=0
                     else:
                         text.append(value['data']);offset=value['next_offset']
                         if offset is None:return {'role':'assistant','content':'done','finish_reason':'stop'}
-                    name,args='data_read',{'path':reference['path'],'offset':offset,'size':8,'encoding':'utf-8','expected_revision':reference['expected_revision']}
+                    name,args='read',{'path':reference['logical_path'],'offset':offset,'size':8,'encoding':'utf-8','expected_revision':reference['expected_revision']}
                 seen.append(name)
                 return {'role':'assistant','content':'','finish_reason':'tool_calls','tool_calls':[
                     {'id':str(len(seen)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
@@ -140,7 +140,7 @@ async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
                         SimpleNamespace(prepare_artifact=store.prepare_artifact),step=1)
         result=await driver.run(current)
         assert result.status=='completed'
-        assert ''.join(text)==original and seen.count('data_query')==1
+        assert ''.join(text)==original and seen[0]=='read' and len(seen)>2
 
 
 @pytest.mark.asyncio
@@ -163,12 +163,12 @@ async def test_shell_and_observer_forward_document_version(tmp_path):
             first=await observer.read_document(actor='a',moment=asdict(scope.moment),path='/world/body/1',size=7)
             assert base64.b64decode(first['data'])=='原文'.encode()+b'\xf0'
             options=json.dumps({'offset':0,'size':10,'expected_revision':first['revision']})
-            answer=await shell.execute("data read /world/body/1 '"+options+"'")
+            answer=await shell.execute("data read /world/world/body/1 '"+options+"'")
             assert json.loads(answer.stdout)['data']=='原文🙂'
             store.transaction(lambda w:w.execute('UPDATE docs SET body=? WHERE id=1',('changed',)))
             with pytest.raises(ValueError,match='revision'):
                 await observer.read_document(actor='a',moment=asdict(scope.moment),path='/world/body/1',size=7,expected_revision=first['revision'])
-            answer=await shell.execute("data read /world/body/1 '"+options+"'")
+            answer=await shell.execute("data read /world/world/body/1 '"+options+"'")
             assert answer.exit_code!=0
         finally:await shell.aclose()
 

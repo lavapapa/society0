@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 import inspect
 import random
-from dataclasses import asdict, dataclass
+import tempfile
+from dataclasses import asdict, dataclass, field
 from urllib.parse import unquote, quote
 
 from .interaction import DocumentChunk, Page, Query, Ref, ResourceStat, Unavailable
@@ -27,6 +28,9 @@ class DatasetSpec:
     base_count: object = None
     dependencies: tuple[str, ...] = ()
     documents: tuple[tuple[str, str], ...] = ()
+    field_descriptions: dict[str, str] = field(default_factory=dict)
+    time_description: str | None = None
+    query_examples: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -53,8 +57,11 @@ class SQLInformation:
         self.reader = reader
         self.access_dependencies = tuple(access_dependencies)
         self._routes = dict(routes)
+        # 最近一个逻辑记录的原文临时文件，连续范围读取复用一次生成。
+        self._record_source = None
         self._integer_keys = {}
         self._columns = {}
+        self._field_types = {}
         self._order_fields = {}
         self._rowids = {}
         for route, spec in self._routes.items():
@@ -88,6 +95,7 @@ class SQLInformation:
                 if rowid is None:
                     raise ValueError('document requires an accessible rowid')
                 self._rowids[route] = rowid
+            self._field_types[route] = {name: info[name][2] for name in visible}
             self._columns[route] = visible
             self._order_fields[route] = order_fields
         for route,spec in self._routes.items():
@@ -221,13 +229,69 @@ class SQLInformation:
             return Page([{'path':path+'/'+quote(str(row[0]),safe=''),'ref':Ref(self.namespace,route,str(row[0])),'kind':'file'} for row in selected],total,continuation,revision)
         return self.reader.read(read,expected_revision=scope.revision)
 
+    def _materialize_record(self,identity,record):
+        source=tempfile.TemporaryFile()
+        try:
+            for part in json.JSONEncoder(ensure_ascii=False,separators=(',',':'),default=asdict).iterencode(record):
+                source.write(part.encode())
+            total=source.tell()
+        except BaseException:
+            source.close()
+            raise
+        if self._record_source is not None:self._record_source[1].close()
+        self._record_source=(identity,source,total)
+
+    def _record_range(self,offset,size,revision,ref):
+        _,source,total=self._record_source
+        source.seek(offset)
+        data=source.read(size)
+        end=offset+len(data)
+        return DocumentChunk(data,total,end if end<total else None,revision,ref)
+
+    def close(self):
+        if self._record_source is not None:
+            self._record_source[1].close()
+            self._record_source=None
+
+    def search_revision(self,scope,path):
+        scope.check_active()
+        route,key=self._route(path)
+        specs=self._routes.values() if route is None else (self._routes[route],)
+        tables=tuple(dict.fromkeys(table for spec in specs for table in (spec.table,*spec.dependencies,*self.access_dependencies)))
+        return self.reader.read(lambda view:(view.run_id,view.revision_for(tables)),expected_revision=scope.revision)
+
+    async def metadata(self,scope,path):
+        scope.check_active()
+        route,key=self._route(path)
+        if route is None or key is not None:raise Unavailable('dataset metadata unavailable')
+        spec=self._routes[route]
+        if not isinstance(spec,DatasetSpec):raise Unavailable('dataset metadata unavailable')
+        where,values=self._where(scope,spec,())
+        def read(view):
+            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            return {'path':path,'logical_path':'/world'+path,'kind':'dataset','fields':list(spec.columns),
+                'field_metadata':{name:{'type':self._field_types[route][name],
+                    'description':spec.field_descriptions.get(name)} for name in spec.columns},
+                'time_description':spec.time_description,
+                'ref':asdict(self.ref(path)),
+                'query_examples':list(spec.query_examples) or [
+                    {'description':'按主键过滤','query':{'filters':[[spec.key,'ge',0 if self._integer_keys[route] else '']], 'limit':min(10,self.max_page_size)}},
+                    {'description':'按注册字段倒序读取','query':{'order':[[self._order_fields[route][0],'desc']], 'limit':min(10,self.max_page_size)}}],
+                'cost':{'metadata':'registered fields; no row scan','query':'SQLite filter/order; total counts authorized matches','sample':'scans authorized keys'},
+                'key':spec.key,'order_fields':list(self._order_fields[route]),
+                'document_fields':dict(spec.documents),'revision':revision,
+                'query':{'filters':['eq','ne','lt','le','gt','ge','in'],
+                    'latest':'order a registered field descending, with a limit',
+                    'sample':'sample_seed with limit; scans authorized keys'}}
+        return self.reader.read(read,expected_revision=scope.revision)
+
     async def stat(self,scope,path):
         scope.check_active()
         route,key=self._route(path)
-        if route is None:return ResourceStat('directory',None,scope.revision,self.ref(path))
+        if route is None:return ResourceStat('directory',None,self.search_revision(scope,path),self.ref(path))
         spec=self._routes.get(route)
         if spec is None:raise Unavailable('resource unavailable')
-        if key is None:return ResourceStat('directory',None,scope.revision,self.ref(path))
+        if key is None:return ResourceStat('directory',None,self.search_revision(scope,path),self.ref(path))
         where,values=self._where(scope,spec,())
         expression=_quote(self._rowids[route]) if isinstance(spec,DocumentSpec) else 'NULL'
         def read(view):
@@ -248,16 +312,18 @@ class SQLInformation:
         if isinstance(spec,DatasetSpec):
             where,values=self._where(scope,spec,())
             def read_record(view):
-                selected=tuple(dict.fromkeys((*spec.columns,spec.key)))
-                selected,columns=self._projection(route,selected)
-                rows=view.query('SELECT '+columns+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
-                if not rows:raise Unavailable('resource unavailable')
                 revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
-                record=self._items(route,spec.columns,selected,rows,view,revision)[0]
-                data=json.dumps(record,ensure_ascii=False,separators=(',',':'),default=asdict).encode()
-                end=min(len(data),offset+size)
-                revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
-                return DocumentChunk(data[offset:end],len(data),end if end<len(data) else None,revision,self.ref(path))
+                # 每次范围读取仍重新授权；缓存身份包含授权依赖水位。
+                exists=view.query('SELECT '+_quote(spec.key)+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+                if not exists:raise Unavailable('resource unavailable')
+                identity=(scope.actor,path,revision)
+                if self._record_source is None or self._record_source[0]!=identity:
+                    selected=tuple(dict.fromkeys((*spec.columns,spec.key)))
+                    selected,columns=self._projection(route,selected)
+                    rows=view.query('SELECT '+columns+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
+                    record=self._items(route,spec.columns,selected,rows,view,revision)[0]
+                    self._materialize_record(identity,record)
+                return self._record_range(offset,size,revision,self.ref(path))
             return self.reader.read(read_record,expected_revision=scope.revision)
         where, values = self._where(scope, spec, ())
         sql = ('SELECT ' + _quote(self._rowids[route]) + ' FROM ' + _quote(spec.table)
@@ -380,7 +446,7 @@ class SQLInformation:
                     continue
                 _,total=view.read_blob(spec.table,field,values[_ROWID],size=0)
                 path='/'+self.namespace+'/'+target+'/'+quote(str(values[key]),safe='')
-                item[field]={'kind':'document_ref','path':path,'total_bytes':total,'ref':self.ref(path),'expected_revision':revision}
+                item[field]={'kind':'document_ref','path':path,'logical_path':'/world'+path,'total_bytes':total,'ref':self.ref(path),'expected_revision':revision}
             item['ref'] = Ref(self.namespace, route, str(values[key]))
             items.append(item)
         return items

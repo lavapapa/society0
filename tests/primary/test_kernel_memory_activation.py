@@ -1,3 +1,4 @@
+from society0.kernel.memory import MemoryExtension
 """单个权威记忆服务的逐激活策略冻结、并发与恢复消费者。"""
 from tests.primary.scripted_provider import TypedScriptProvider
 import asyncio
@@ -71,7 +72,7 @@ async def test_real_driver_recall_top_k_and_same_moment_policy_survive_restore(t
         nonlocal threads
         threads=ThreadStore(store)
         memory=Memory(store,threads,embed=Embed(),client=Client(),recall_query=lambda s:'记忆',policy_selector=lambda s:chosen[0])
-        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整背景'}],memory=memory)
+        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整背景'}],extensions=(MemoryExtension(memory),))
         return memory,driver
     threads=None
     with StageStore.create(tmp_path/'run',(*THREAD_SCHEMA,*MEMORY_SCHEMA)) as store:
@@ -123,7 +124,7 @@ async def test_interview_default_does_not_require_extractor(tmp_path):
         threads=ThreadStore(store);memory=Memory(store,threads,embed=Embed(),client=Client(),recall_query=lambda s:'question')
         current=session('a');interview=threads.open('a',current.moment,'interview')
         async with memory.activation(current,interview):
-            await memory.after_activation(current,interview,SimpleNamespace(status='completed',value={'memory_input_through':0}))
+            await memory.after_activation(current,interview,SimpleNamespace(status='completed',value={}),through=0)
         decision=threads.open('a',current.moment,'decision')
         with pytest.raises(ValueError,match='extract'):
             async with memory.activation(current,decision):pass
@@ -142,7 +143,7 @@ async def test_real_driver_selective_write_shares_one_service(tmp_path):
         threads=ThreadStore(store)
         memory=Memory(store,threads,embed=Embed(),client=Client(),extract=extract,
             policy_selector=lambda s:MemoryActivation(MemoryPolicy(False,s.actor.id=='b',False),2))
-        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整主体背景'}],memory=memory)
+        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整主体背景'}],extensions=(MemoryExtension(memory),))
         await asyncio.gather(driver.run(session('a',driver)),driver.run(session('b',driver)))
         assert len(extracted)==1 and extracted[0][0]=='b'
         assert extracted[0][2][0]['content']=='完整主体背景'

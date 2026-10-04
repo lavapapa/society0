@@ -10,17 +10,17 @@ Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) 
 
 For assistant-guided research, install the complete [Society0 skill](skill/SKILL.md) folder in your coding assistant's skill directory, preserving its references and assets. The skill guides research design; the Python package executes experiments. A two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py). It includes persistent identity, perception, a domain action, explicit experience extraction and structured measurement. Its [quickstart](skill/references/runtime-quickstart.md) explains provider setup.
 
-Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The optional native filesystem package has its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
+Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The LLM file tools use the native filesystem package, with its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
 
 Codex subscription access is configured through the [subscription guide](docs/core-next/subscription-guide.md). The `llm` extra provides the Pydantic AI integration; simulation actions and complete Thread history remain owned by Society0. The [model and driver contracts](docs/core-next/llm-contract.md) describe the integration boundary.
 
 ## Compose an environment
 
-`Plugin` declares services, explicit dependencies, schema and initialization. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_plugin` builds drivers only when needed. Resource-backed drivers obtain shared models, Thread and memory services through their declared installation-time factory.
+`Plugin` declares services, explicit dependencies, schema and initialization. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_plugin` builds drivers only when needed. `rule_driver_plugin` and `llm_driver_plugin` expose factories through ordinary plugin services. Activation extensions share cognition and memory between drivers; restored actor records resolve their stored driver names against those services.
 
 `Information` provides discoverable documents and datasets with authorized totals, continuation cursors and complete original-content reads. `Actions` exposes templates against resource references and rechecks eligibility when invoked. `LLMDriver` offers these through meta tools and an optional Bashkit shell, preserving the full Thread. `RuleDriver` accesses the same structured interfaces.
 
-`CodeSchedule` and `Phase` express business order. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.
+`Schedule` supplies the next simulation time and ordered `Phase` sequence; `Runtime` executes and publishes that complete step. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.
 
 The [two-mechanism conversation plan](examples/core_next/conversation_pilot.py), [external graph initialization](examples/core_next/graph_environment.py), [typed records](examples/core_next/typed_records.py) and [immutable catalog](examples/core_next/immutable_catalog.py) demonstrate reusable mechanisms. Detailed contracts are in [docs/core-next](docs/core-next).
 

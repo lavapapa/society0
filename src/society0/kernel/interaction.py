@@ -194,6 +194,30 @@ class Information:
         scope.check_active()
         return result
 
+    async def metadata(self,scope,path):
+        provider,path=await self._provider(scope,path,'discover')
+        method=getattr(provider,'metadata',None)
+        if method is None: raise Unavailable('dataset metadata unavailable')
+        result=await _resolve(method(scope,path))
+        scope.check_active()
+        return result
+
+    async def search_revision(self,scope,path):
+        path=_path(path)
+        scope.check_active()
+        selected=[]
+        for prefix,provider in self._mounts.items():
+            if path=='/' or prefix==path or prefix.startswith(path+'/') or path.startswith(prefix+'/'):
+                target=prefix if path=='/' or prefix.startswith(path+'/') else path
+                if await _resolve(self._allows(scope,'discover',provider.ref(target))):
+                    method=getattr(provider,'search_revision',None)
+                    if method is None: raise ValueError('provider must declare search_revision for the selected scope')
+                    revision=await _resolve(method(scope,target))
+                    if revision is None: raise ValueError('provider search_revision must cover the selected scope')
+                    selected.append((prefix,revision))
+        scope.check_active()
+        return selected
+
     async def read(self, scope, path, *, offset=0, size=65536, expected_revision=None):
         if offset < 0 or size < 1:
             raise ValueError('offset must be nonnegative and size positive')
@@ -212,6 +236,11 @@ class Information:
         scope.check_active()
         return result
 
+    async def close(self):
+        for provider in self._mounts.values():
+            close=getattr(provider,'close',None)
+            if close is not None:await _resolve(close())
+
     def bound(self, scope):
         return _BoundInformation(self, scope)
 
@@ -229,6 +258,12 @@ class _BoundInformation:
 
     async def stat(self,path):
         return await self.information.stat(self.scope,path)
+
+    async def metadata(self,path):
+        return await self.information.metadata(self.scope,path)
+
+    async def search_revision(self,path):
+        return await self.information.search_revision(self.scope,path)
 
     async def read(self, path, *, offset=0, size=65536, expected_revision=None):
         return await self.information.read(self.scope, path, offset=offset, size=size, expected_revision=expected_revision)
@@ -532,7 +567,9 @@ def interaction_plugin(allows, *, name='interaction', storage='storage', access_
     from .plugins import Plugin
     def install(context):
         store=context.require(storage,'store')
-        context.provide('information',Information(allows,access_dependencies=access_dependencies))
+        information=Information(allows,access_dependencies=access_dependencies)
+        context.on_close(information.close)
+        context.provide('information',information)
         actions = Actions(allows,access_dependencies=access_dependencies,
             dependency_revision=lambda scope,tables:store.read(lambda r:[r.run_id,r.revision_for(tables)],expected_revision=scope.revision))
         context.on_close(actions.close)

@@ -53,7 +53,7 @@ async def test_dataset_and_giant_thread_originals_keep_step_prefix(tmp_path):
     from society0.kernel.results import results_plugin,StepResult,DatasetTable,TableValue
     from society0.kernel.interaction import interaction_plugin
     from society0.kernel.runtime import runtime_plugin,Phase
-    from society0.kernel.schedule import CodeSchedule
+    from society0.kernel.schedule import SequenceSchedule
     from society0.kernel.runner import RunPlan,RunContract
     full='正文🙂</script>\n'*20000
     original={'columns':['body'],'index':[1],'data':[[full]],'index_names':[None],'column_names':['属性']}
@@ -70,12 +70,12 @@ async def test_dataset_and_giant_thread_originals_keep_step_prefix(tmp_path):
             threads.close(tid,'completed')
             dataset=context.require('datasets','datasets').import_rows('data',[{'body':full,'step':number}])
             return StepResult(tables={'sealed':DatasetTable(dataset),'shape':TableValue(original)})
-        context.provide('schedule',CodeSchedule(context.require('runtime','runtime'),[Phase('work',phase)]))
+        context.provide('schedule',SequenceSchedule(('same','same'),[Phase('work',phase)]))
     plugins=[thread_plugin(),dataset_plugin(),interaction_plugin(lambda *a:True),results_plugin(),
         runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
         Plugin('schedule',('storage','threads','runtime','datasets'),install)]
     contract=RunContract({'commit':'explicit-test-release'},{},{'plugins':{},'actors':['a'],'models':{}},{'moments':['same','same']},{})
-    await run_plan(tmp_path/'run',RunPlan(plugins,('same','same'),contract))
+    await run_plan(tmp_path/'run',RunPlan(plugins,contract))
     payload=export_payload([RunSelection(tmp_path/'run','v1',(1,2),('a',))])
     snapshots=payload['versions'][0]['runs'][0]['snapshots']
     first=next(s for s in snapshots if s['tickId']=='1' and s['entityId']=='actor:a')
@@ -149,12 +149,12 @@ async def test_repeated_phase_names_keep_metric_series_separate(tmp_path):
     from society0.kernel.interaction import interaction_plugin
     from society0.kernel.results import results_plugin,StepResult
     from society0.kernel.runtime import runtime_plugin,Phase
-    from society0.kernel.schedule import schedule_plugin
+    from society0.kernel.schedule import schedule_plugin, SequenceSchedule
     from society0.kernel.runner import RunPlan,RunContract
     current=RunPlan([interaction_plugin(lambda *a:True),results_plugin(),
         runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
-        schedule_plugin([Phase('measure',lambda ctx:StepResult(metrics={'n':1})),Phase('measure',lambda ctx:StepResult(metrics={'n':2}))])],
-        (1,2),RunContract({'commit':'test'},{},{},{},{}))
+        schedule_plugin(SequenceSchedule((1,2),[Phase('measure',lambda ctx:StepResult(metrics={'n':1})),Phase('measure',lambda ctx:StepResult(metrics={'n':2}))]))],
+        RunContract({'commit':'test'},{},{},{},{}))
     await run_plan(tmp_path/'run',current)
     payload=export_payload([RunSelection(tmp_path/'run','v',(1,2),())])
     modules=payload['versions'][0]['runs'][0]['snapshots'][-1]['tabs'][0]['modules']

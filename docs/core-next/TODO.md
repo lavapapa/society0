@@ -4,17 +4,17 @@
 
 ## 一、约定
 
-### 文件交互与主体插件准备（2026-10-05）
+### 文件交互与主体插件实施（2026-10-05）
 
-本轮先完成调研、隔离试验、PRD 与实施规格，随后按下列依赖逐项推进。当前处于准备阶段；产品实现、验收及发行分别记录，研究探针通过不勾选产品完成。设计入口为 [文件交互与主体插件规格](agent-filesystem-design.md)。复用当前具名工作树，保持已经验证的存储、完整 Thread、领域行动和完整步骤语义。
+本轮先完成调研、隔离试验、PRD 与实施规格，随后按下列依赖逐项推进。用户已批准完整实施 F03–F08。调度、主体认知与文件底座并行进行失败先行开发，随后集成统一文件工具并由独立 GPT‑6.1 Sol 完成组合验收。产品实现、验收及发行分别记录，研究探针通过不勾选产品完成。设计入口为 [文件交互与主体插件规格](agent-filesystem-design.md)。复用当前具名工作树，保持已经验证的存储、完整 Thread、领域行动和完整步骤语义。
 
 - [x] **F01 选型与反例**：完成 Pi、OpenViking、Bashkit、just-bash 的官方源码比较；真实分片 grep 反例与同路径 Bashkit 接线完成，ripgrep 独立 Reader 通过跨块中文、文档隔离、长行和预算试验。明确 SQL 查询下推、扫描成本及产品桥接仍待验收。证据：[准备研究](../../research/core-next/filesystem-preparation-20261005/research.md)、[流式搜索试验](../../research/core-next/stream-search-preparation-20261005/README.md)。
-- [x] **F02 PRD／SDD 与独立审查**（依 F01）：目标文件工具、Driver factory、认知扩展和 Schedule／StepPlan 已写入专项规格并同步 PRD、SDD、技术选型；独立审查提出的路径成本、整次搜索水位、结果撤权／版本和未召回记忆可发现性已收拢，旧分片描述已修正。风险到测试的映射见专项规格第五节；准备完成，F03–F08 产品工作保持待办。
-- [ ] **F03 失败先行消费者**（依 F02）：先写统一命名空间与结果读取、跨片检索、规则／LLM 共享扩展、独立 Schedule 消费者；新增 Hypothesis 状态机并保留缩减反例。
-- [ ] **F04 主体与调度插件**（依 F03）：通过现有 Plugin 服务装配 Driver 工厂，抽离记忆生命周期；消除 runner 对 schedule.runtime/phases 的具体实现依赖，整理公开命名。
-- [ ] **F05 统一文件接口**（依 F03）：共享 world/workspace/context/results 路由，提供 read/ls/find/grep 并保留 bash；迁移顶层 data_* 与 result_read，保持全文、版本、权限、恢复和领域行动回执。
-- [ ] **F06 数据集与查询**（依 F05）：由注册信息生成 schema 与使用说明；保留数据库下推筛选／排序／抽样的通路，查询结果可从文件路径读取；完成大正文声明和纯读取动作迁移。
-- [ ] **F07 成熟组件收敛**（依 F04）：记忆结构校验使用 jsonschema，结构化提取优先 Pydantic AI；比较重复生命周期后再合并，报告删除、新增与净行数。
+- [x] **F02 PRD／SDD 与独立审查**（依 F01）：目标文件工具、Driver factory、认知扩展和 Schedule／StepPlan 已写入专项规格并同步 PRD、SDD、技术选型；独立审查提出的路径成本、整次搜索水位、结果撤权／版本和未召回记忆可发现性已收拢，旧分片描述已修正。风险到测试的映射见专项规格第五节；该准备记录为后续 F03–F08 提供验收基准。
+- [x] **F03 失败先行消费者**（依 F02）：先写统一命名空间与结果读取、跨片检索、规则／LLM 共享扩展、独立 Schedule 消费者；新增 Hypothesis 状态机并保留缩减反例。证据：test_kernel_schedule_protocol、test_kernel_driver_extensions、test_kernel_actor_files 与 test_kernel_actor_files_stateful；首轮组合反例保存在[全量红灯](../../research/core-next/filesystem-implementation-20261005/independent-full-first.txt)，修复由 F08 复验。
+- [x] **F04 主体与调度插件**（依 F03）：通过现有 Plugin 服务装配 Driver 工厂，抽离记忆生命周期；消除 runner 对 schedule.runtime/phases 的具体实现依赖，整理公开命名。证据：[调度红绿](../../research/core-next/filesystem-implementation-20261005/schedule.md)、[认知及工厂消费者](../../research/core-next/filesystem-implementation-20261005/cognition.md)；最终跨模块复验归 F08。
+- [x] **F05 统一文件接口**（依 F03）：共享 world/workspace/context/results 路由，提供 read/ls/find/grep 并保留 bash；迁移顶层 data_* 与 result_read，保持全文、版本、权限、恢复和领域行动回执。证据：[统一文件接口红绿与状态机](../../research/core-next/filesystem-implementation-20261005/actor-files.md)、[文件底座交叉审查](../../research/core-next/filesystem-implementation-20261005/cross-review-filesystem.md)。
+- [x] **F06 数据集与查询**（依 F05）：由注册信息生成 schema 与使用说明；保留数据库下推筛选／排序／抽样的通路，查询结果可从文件路径读取；完成大正文声明和纯读取动作迁移。证据：[底座与社交完整原文迁移](../../research/core-next/filesystem-implementation-20261005/filesystem.md)、空数据集 schema、SQL 查询引用与真实 SDK 离线消费者；整体复验归 F08。
+- [x] **F07 成熟组件收敛**（依 F04）：记忆结构校验使用 jsonschema，结构化提取优先 Pydantic AI；通过 StructuredDict／ToolOutput／output_validator 和 SDK retries 替换提取循环，schema 只有一个归属；规范存储与完整 Thread 生命周期继续由原服务承担。证据：[实现与等价验证](../../research/core-next/filesystem-implementation-20261005/cognition.md)。代码增删与最终覆盖由 F08 汇总。
 - [ ] **F08 组合验收与交付**（依 F04–F07）：独立 GPT‑6.1 Sol 执行相关及全量测试、状态机、真实 Bashkit 和两个驱动／两个机制／恢复；核对相同任务信息与结果、CPU／RSS／磁盘／读取量，更新教程与完整能力矩阵。实际模型请求仅沿用明确提供方合同，无 DeepSeek 或隐式替换。
 
 ### 新人交付与实际提供方验收（2026-10-04）

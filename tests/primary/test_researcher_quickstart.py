@@ -34,7 +34,7 @@ async def test_rule_example_continues_remaining_times_and_matches_continuous(tmp
     release = {'commit': 'tutorial-test-source'}
     await run_plan(tmp_path/'continuous', build({'release': release, 'start': 1, 'end': 2}))
     await run_plan(tmp_path/'first', build({'release': release, 'start': 1, 'end': 1}))
-    report = await run_plan(tmp_path/'resumed', build({'release': release, 'start': 2, 'end': 2}),
+    report = await run_plan(tmp_path/'resumed', build({'release': release, 'start': 1, 'end': 2}),
                             source=tmp_path/'first', step=1)
     assert report['complete_step'] == 2
     assert business_results(tmp_path/'resumed') == business_results(tmp_path/'continuous') == [
@@ -42,7 +42,7 @@ async def test_rule_example_continues_remaining_times_and_matches_continuous(tmp
         (2, [{'actor': 'alice', 'time': 2}, {'actor': 'bob', 'time': 2}]),
     ]
     manifest = json.loads((tmp_path/'resumed'/'runner.json').read_text())
-    assert manifest['contract']['time'] == {'start': 2, 'end': 2}
+    assert manifest['contract']['time'] == {'start': 1, 'end': 2}
     assert manifest['source']['step'] == 1
 
 
@@ -71,10 +71,10 @@ async def test_analysis_snippet_reads_all_pages_and_original_large_values(tmp_pa
     expected = [{'actor': 'alice', 'time': 2, 'text': '完整原文🙂'*20000}, None, False, 2**80, *range(101)]
     study = plan([])
     # 保留既有装配，测试选择的结果页跨多个页并含超出页预算的正文。
-    from society0.kernel.schedule import schedule_plugin
+    from society0.kernel.schedule import schedule_plugin, SequenceSchedule
     from society0.kernel.runtime import Phase
-    study.plugins[-1] = schedule_plugin([Phase('decide', lambda ctx: StepResult(
-        metrics={'rows': len(expected)}, tables={'decisions': iter(expected)}))])
+    study.plugins[-1] = schedule_plugin(SequenceSchedule((10,20), [Phase('decide', lambda ctx: StepResult(
+        metrics={'rows': len(expected)}, tables={'decisions': iter(expected)}))]))
     run_dir = tmp_path/'runs/first-study/resumed'
     await run_plan(run_dir, study)
     monkeypatch.chdir(tmp_path)

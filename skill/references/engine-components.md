@@ -1,6 +1,6 @@
 # 引擎与插件
 
-一个运行拥有共享环境、主体身份与逻辑时间。插件实现环境内部机制，CodeSchedule 明确业务时序；插件依赖表达服务安装关系，并影响步骤钩子的登记顺序；阶段顺序和主体活动的独立性由研究计划声明。
+一个运行拥有共享环境、主体身份与逻辑时间。插件实现环境内部机制，Schedule 明确业务时序；插件依赖表达服务安装关系，并影响步骤钩子的登记顺序；阶段顺序和主体活动的独立性由研究计划声明。
 
 ## 一、装配
 
@@ -16,6 +16,6 @@ LLMDriver 保留完整 Thread，提供 data/action 元工具，按需接 shell�
 
 ## 三、运行
 
-Runtime 以阶段及完整步骤组织活动；CodeSchedule、RunPlan、run_plan 提供研究计划入口。StepResult 保存指标、原始结构和表；观察服务在独立进程读取当前诊断或固定完整视图。当前权威表、不可变正文、JSON 元数据和私有 workspace 各有明确归属，插件缓存作为可重建运行资源。机制如何对应世界事实、主体视野和行动，见 [双机制设计例](environment-design.md#从双机制例子构建自己的世界)。
+Runtime 以阶段及完整步骤组织活动；Schedule、RunPlan、run_plan 提供研究计划入口。StepResult 保存指标、原始结构和表；观察服务在独立进程读取当前诊断或固定完整视图。当前权威表、不可变正文、JSON 元数据和私有 workspace 各有明确归属，插件缓存作为可重建运行资源。机制如何对应世界事实、主体视野和行动，见 [双机制设计例](environment-design.md#从双机制例子构建自己的世界)。
 
 完整使用例在 `../assets/minimal_experiment.py`。核对源码从 `src/society0/kernel/` 与 `src/society0/plugins/` 开始。

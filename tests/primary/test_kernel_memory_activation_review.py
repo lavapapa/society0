@@ -1,3 +1,4 @@
+from society0.kernel.memory import MemoryExtension
 """记忆策略的独立跨作用域与业务时间消费者。"""
 from tests.primary.scripted_provider import TypedScriptProvider
 import pytest
@@ -35,7 +36,7 @@ async def test_review_date_and_nonconsecutive_business_time_use_step_memory_vers
         threads=ThreadStore(store)
         memory=Memory(store,threads,embed=Embed(),client=Client(),extract=extract,
                       policy=MemoryPolicy(False,True,False))
-        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整背景'}],memory=memory)
+        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'完整背景'}],extensions=(MemoryExtension(memory),))
         runtime=Runtime([Actor('a',driver)],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store)
         async def phase(context):context.activate('a');await context.drain()
         try:await runtime.run_step(number,business_time,[Phase('decision',phase)])

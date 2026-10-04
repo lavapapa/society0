@@ -8,20 +8,22 @@
 
 `actor_plugin(drivers, records=(), name='actors')` 提供 actors 服务并声明自身 schema 与初始化。drivers 是驱动名到工厂的注册表，工厂接收一个按需读取的 ActorRecordView。初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按该主体配置构建轻量门面。
 
-资源型驱动可使用同一个工厂的安装期入口；`drivers` 先声明名称供初始化校验，`driver_factory` 从显式依赖取得共享服务，返回名称一致的惰性工厂映射。
+正式组合使用 `rule_driver_plugin` 或 `llm_driver_plugin` 发布 `factory` 服务，Actor 插件消费服务引用。第三方驱动通过普通 Plugin 发布相同工厂，每次实际激活接收 ActorRecordView。共享模型、Thread 和扩展在插件安装时装配，主体目录保存驱动名称与配置。
 
 ```python
-def build_drivers(ctx):
-    provider = ctx.require('models', 'models')['main']
-    threads = ctx.require('threads', 'threads')
-    driver = LLMDriver(provider, threads, input_builder=my_inputs)
-    return {'reader': lambda record: driver}
+from society0.plugins import actor_plugin, rule_driver_plugin
+from society0 import ActorRecord, DriverResult
 
-actors = actor_plugin(('reader',), records=records,
-    requires=('models', 'threads'), driver_factory=build_drivers)
+plugins = [
+    rule_driver_plugin(lambda session: DriverResult('completed'), name='rules'),
+    actor_plugin({'rule': ('rules', 'factory')},
+                 records=[ActorRecord('alice', 'rule')]),
+]
 ```
 
-安装期不按人口构建模型连接或解释器；恢复重新取得本次运行的资源服务，复用持久主体目录。完整两轮例子见 `skill/assets/minimal_experiment.py`。
+`extensions` 接受已装配的异步上下文管理器工厂或 `(插件名, 服务名)` 引用。Memory 插件提供 `extension` 服务，可传入规则与 LLM 驱动。`ActivationContext` 保存实际认知材料、经历、Thread 身份、水位与结果，标准 AsyncExitStack 按顺序进入并逆序退出扩展。第三方驱动通过 `activation_scope` 复用相同扩展合同。扩展把只读资料提供者登记为 `context.mounts[name]`，文件路由在 `/context/<name>` 发现它；提供者实现 `list(path, limit, cursor)`、`read(path, offset, size, expected_revision)` 与 `revision()`，可额外提供 `stat(path)`。方法可同步或异步，分别复用 Page、DocumentChunk 与 ResourceStat。MemoryFiles 是该合同的一个消费者，其他认知插件无需修改 Core。
+
+安装期不按人口构建模型连接或解释器；恢复重新取得本次运行的资源服务，核对持久主体的驱动名称能解析。完整两轮例子见 `skill/assets/minimal_experiment.py`。
 
 ## 二、访问
 

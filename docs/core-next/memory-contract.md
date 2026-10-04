@@ -26,7 +26,7 @@ SQL 保留提供方原始双精度向量，Chroma 当前实现按 float32 存储
 
 `MemoryPolicy` 的 auto_write、auto_recall、active_tools 独立配置。服务默认 recall_top_k 为 10。`policy_selector(session)` 可返回冻结的 `MemoryActivation(MemoryPolicy(...), recall_top_k=...)`，每次激活进入时解析一次。`before_activation` 根据召回查询构造器和本次固定 recall_top_k 取得原文记忆；主动 recall 的 top_k 参数保持独立。该钩子也可给出主动工具入口；`after_activation` 仅对 completed 或 waiting 结果写入成功记忆。incomplete 不触发成功提取。kind 为 interview 的 Thread 默认跳过自动经验写入，自动召回仍由独立开关决定。主动记忆通过既有 Actions 的 memory 命名空间提供 remember、recall、update、delete，权限绑定主体身份。
 
-`ThreadMemoryExtractor` 在原 Thread 追加提取提示，经标准 ModelProvider 调用强制工具并记录完整响应。工具声明、提示与解析规则来自共用提取协议；合法空数组表示没有新增记忆。协议不合格时允许一次纠正回合，输出 length 直接记录为未完成。原始 Thread 上下文保持完整，提供方物理重试与资源限制由 ModelProvider 负责。
+`ThreadMemoryExtractor` 在原 Thread 追加提取提示，使用 Pydantic AI Agent 的结构化输出及纠正能力，经标准 ModelProvider 调用并记录完整响应。工具声明、提示与解析规则来自共用提取协议；合法空数组表示没有新增记忆。协议不合格时允许一次纠正回合，输出 length 直接记录为未完成。原始 Thread 上下文保持完整，提供方物理重试与资源限制由 ModelProvider 负责。
 
 权威恢复、检索重建和模型生成属于不同边界。确定性测试验证版本与回执一致性，真实 Chroma 小样验证实际距离及精度，真实模型与嵌入服务仍需通过单独端到端验收确认参数和调用链。
 
@@ -41,7 +41,7 @@ SQL 保留提供方原始双精度向量，Chroma 当前实现按 float32 存储
 
 ## 激活作用域
 
-LLMDriver 在已经打开并确定 kind 的 Thread 上进入 `async with memory.activation(session, thread_id)`，依次执行认知输入、自动召回、决定、成功记忆写入和清理。三个开关与 recall_top_k 同时冻结，记为该 Thread 的短 memory_policy 事件。不同主体可并发选择不同策略；同一主体、同一自然时点的下一次激活重新选择，原 Thread 和记忆正文保持完整。
+MemoryExtension 通过通用 ActivationContext 在已确定 Thread kind 的作用域中依次参与认知准备、自动召回、决定与成功记忆写入，退出时清理。规则驱动可以提供结构化经历，使用独立提取策略。三个开关与 recall_top_k 同时冻结，记为该 Thread 的短 memory_policy 事件。不同主体可并发选择不同策略；同一主体、同一自然时点的下一次激活重新选择，原 Thread 和记忆正文保持完整。
 
 常驻主动动作模板的 find、describe 与 invoke 都按当前激活的 active_tools 和主体身份判断可用性。ContextVar 将选择绑定实际 InteractionScope；退出时恢复调用方上下文并使已继承到子任务的旧绑定失效。Memory.close 会收束其正在管理的激活与操作。没有进入激活作用域的显式规则调用使用服务默认配置；seed、recall、extract_job 等显式调度接口保持独立。
 

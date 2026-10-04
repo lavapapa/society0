@@ -197,14 +197,14 @@ class Memory:
             if not isinstance(selection,MemoryActivation):
                 raise TypeError('memory policy selector must return MemoryActivation')
             session.scope.check_active()
-            head=self.threads.describe(thread_id)
+            head={'actor':session.actor.id,'kind':'rule'} if thread_id is None else self.threads.describe(thread_id)
             if head['actor']!=session.actor.id:
                 raise PermissionError('memory Thread owner differs')
             if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
                 raise ValueError('automatic memory write requires an extractor')
             if selection.policy.auto_recall and self.recall_query is None:
                 raise ValueError('automatic memory recall requires recall_query')
-            self.threads.event(thread_id,'memory_policy',{
+            if thread_id is not None: self.threads.event(thread_id,'memory_policy',{
                 **asdict(selection.policy),'recall_top_k':selection.recall_top_k,
                 'effective_auto_write':selection.policy.auto_write and head['kind']!='interview','step':session.step})
             binding=_Binding(session.scope,selection,session.step)
@@ -563,23 +563,22 @@ class Memory:
         return messages
 
     @_operation
-    async def after_activation(self,session,thread_id,result):
+    async def after_activation(self,session,thread_id,result,*,through):
         self._check()
         if not self._selected(session=session).policy.auto_write or result.status not in ('completed','waiting'):return
         if self.threads.describe(thread_id)['kind']=='interview':return
-        through=result.value['memory_input_through']
         job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=self._step(session=session))
         await self.finish_job(job)
 
     def actions(self):
         from .interaction import Action,ActionResult
         async def remember(scope,target,arguments):
-            thread=self.threads.find(scope.actor,scope.moment)
+            thread=None if self.threads is None else self.threads.find(scope.actor,scope.moment)
             job=self.prepare_job(scope.actor,thread,uuid.uuid4().hex,timestamp=self._step(scope=scope),entries=[arguments])
             ids=await self.finish_job(job)
             return ActionResult('completed',{'memory_ids':ids})
         async def recall(scope,target,arguments):
-            thread=self.threads.find(scope.actor,scope.moment)
+            thread=None if self.threads is None else self.threads.find(scope.actor,scope.moment)
             hits=await self.recall(scope.actor,arguments['query'],top_k=arguments.get('top_k',10),current_step=self._step(scope=scope),thread_id=thread)
             return ActionResult('completed',{'memories':[{'id':item['id'],'type':item['type'],'content':item['content'],'score':item['score']} for item in hits]})
         async def update(scope,target,arguments):
@@ -620,27 +619,174 @@ class ThreadMemoryExtractor:
         if hasattr(provider,"validate_options"): provider.validate_options(self.request_options)
 
     async def __call__(self,actor,thread_id,messages,*,metadata):
-        from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response
+        from pydantic_ai import Agent, ToolOutput, StructuredDict, ModelRetry, capture_run_messages
+        from pydantic_ai.usage import UsageLimits
+        from .models import ThreadModel
+        from .model_messages import history, display_response
+        from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response,EXTRACT_MEMORIES_SCHEMA
         if self.threads.describe(thread_id)['actor']!=actor:raise PermissionError('Thread owner differs')
         if not messages or messages[0].get('role')!='system':raise ValueError('memory extraction requires original system context')
-        # 提供方从权威 Thread 读取 typed 原文；释放检查用视图后再请求。
+        # Agent 消费权威 typed 历史；释放调用方的完整角色视图，避免同时保留两套原文。
         del messages
         self.threads.append_message(thread_id,{'role':'user','content':_extraction_prompt()})
-        for attempt in range(2):
-            response=await self.provider.request(thread_id,{'tools':[_extraction_tool()],
+
+        def append_request(request):
+            from pydantic_ai.messages import ToolReturnPart,RetryPromptPart
+            for part in request.parts:
+                if isinstance(part,(ToolReturnPart,RetryPromptPart)):
+                    content=part.model_response_str() if isinstance(part,ToolReturnPart) else part.model_response()
+                    message={'role':'tool','tool_call_id':part.tool_call_id,'content':content} if part.tool_name else {'role':'user','content':content}
+                else: message={'role':'user','content':part.content}
+                self.threads.append_message(thread_id,message)
+
+        first=True
+        last_response=None
+        async def request(model_messages):
+            nonlocal first,last_response
+            last_response=None
+            initialize=first
+            if not first:
+                # SDK 生成校验反馈；完整写入原 Thread 后再取得下一次物理请求。
+                append_request(model_messages[-1])
+            first=False
+            loaded=False
+            def load_messages():
+                nonlocal loaded
+                if not loaded:
+                    # 首轮原文在已有提供方许可授予后载入SDK自己的历史列表，重试借用同一对象。
+                    if initialize:
+                        actual_history[:]=history(self.threads.snapshot_messages(thread_id,raw=True)['messages'])
+                        model_messages[:]=actual_history
+                    loaded=True
+                return model_messages
+            response,sequence,incomplete=await self.provider.request_model(thread_id,{'tools':[_extraction_tool()],
                 'tool_choice':{'type':'function','function':{'name':'extract_memories'}},
-                'parallel_tool_calls':False,**self.request_options})
-            if response.get('message_seq') is None:
-                self.threads.append_message(thread_id,{key:value for key,value in response.items() if key!='finish_reason'})
-            if response.get('incomplete_reason') or response.get('finish_reason')=='length':
-                raise RuntimeError('memory extraction incomplete: '+response.get('incomplete_reason','length'))
-            entries,call_id,error=_parse_memories_from_response(response)
-            for call in response.get('tool_calls') or []:
-                if isinstance(call,dict) and call.get('id'):
+                'parallel_tool_calls':False,**self.request_options},model_messages=load_messages)
+            last_response=response
+            if incomplete or response.finish_reason=='length':
+                raise RuntimeError('memory extraction incomplete: '+('length' if response.finish_reason=='length' else incomplete))
+            return response
+
+        # 重试与输出结构由成熟 Agent 管理；两次逻辑请求保持原提取预算。
+        agent=Agent(ThreadModel(request),output_type=ToolOutput(StructuredDict(EXTRACT_MEMORIES_SCHEMA,name='MemoryExtraction'),name='extract_memories',strict=True,max_retries=1),retries=1)
+        @agent.output_validator
+        async def validate_output(ctx,value):
+            # schema 是唯一结构合同；工具数量与空白正文是额外的经历提取语义。
+            entries,_,error=_parse_memories_from_response(display_response(ctx.messages[-1]))
+            if entries is None: raise ModelRetry('提取工具调用未通过校验：'+error)
+            return entries
+        try:
+            with capture_run_messages() as actual_history:
+                result=await agent.run(user_prompt='',usage_limits=UsageLimits(request_limit=2))
+        except Exception as error:
+            if last_response is not None and last_response.finish_reason!='length':
+                raw=display_response(last_response)
+                for call in raw.get('tool_calls',()):
                     self.threads.append_message(thread_id,{'role':'tool','tool_call_id':call['id'],
-                        'content':json.dumps({'accepted':entries is not None,'error':error or None},ensure_ascii=False)})
-            if entries is not None:return entries
-            if attempt==0:
-                self.threads.append_message(thread_id,{'role':'user','content':
-                    '提取工具调用未通过校验（'+error+'）。请重新调用 extract_memories；memories 必须直接为数组，每项含 content 和 importance。没有值得保留的记忆时返回空数组。'})
-        raise RuntimeError('memory extraction failed: '+error)
+                        'content':json.dumps({'accepted':False,'error':str(error)},ensure_ascii=False)})
+            raise RuntimeError('memory extraction failed: '+str(error)) from error
+        # 成功输出工具的回执也留在尚未关闭的同一 Thread 中。
+        new=result.new_messages()
+        if new and getattr(new[-1],'kind',None)=='request':
+            append_request(new[-1])
+        return result.output
+
+
+class MemoryExtension:
+    """三项记忆策略共用激活上下文，成功水位由驱动生命周期提供。"""
+    def __init__(self,memory): self.memory=memory
+
+    @asynccontextmanager
+    async def __call__(self,context):
+        import time
+        from ..async_utils import invoke_maybe_async
+        memory=self.memory
+        async with memory.activation(context.session,context.thread_id):
+            if memory._selected(session=context.session).policy.active_tools:
+                context.mounts['memory']=MemoryFiles(memory,context.session)
+            async def prepare(current):
+                started=time.perf_counter()
+                current.messages.extend(await memory.before_activation(current.session,current.thread_id))
+                current.timings['memory_recall_s']=time.perf_counter()-started
+            context.preparations.append(prepare)
+            yield
+            result=context.result
+            if result is None or result.status not in ('completed','waiting'): return
+            if not memory._selected(session=context.session).policy.auto_write or context.kind=='interview': return
+            started=time.perf_counter()
+            try:
+                if context.thread_id is not None:
+                    await memory.after_activation(context.session,context.thread_id,result,through=context.through)
+                else:
+                    if context.experience is None: raise ValueError('rule memory write requires actual structured experience')
+                    key='rule:'+uuid.uuid4().hex
+                    entries=await invoke_maybe_async(memory.extract,context.session.actor.id,None,context.experience,
+                        metadata={'job_key':key,'step':context.session.step,'kind':'rule'})
+                    job=memory.prepare_job(context.session.actor.id,None,key,timestamp=context.session.step,entries=entries)
+                    await memory.finish_job(job)
+            finally: context.timings['memory_write_s']=time.perf_counter()-started
+
+
+class MemoryFiles:
+    """主体作用域内的当前记忆原文；目录页读取元数据，正文按规范帧范围读取。"""
+    def __init__(self,memory,session): self.memory,self.session=memory,session
+
+    def _check(self):
+        if not self.memory._selected(session=self.session).policy.active_tools:
+            raise PermissionError('active memory access disabled')
+        self.session.scope.check_active()
+
+    def revision(self):
+        self._check()
+        return self.memory.store.read(lambda view:view.revision_for(('memory_rows','memory_chunks')))
+
+    def list(self,path='/',*,limit=100,cursor=None):
+        from .interaction import Page
+        self._check()
+        if type(limit) is not int or limit<1: raise ValueError('limit must be positive')
+        if path in ('/',''):
+            return Page([{'name':'records','path':'/records','kind':'directory','revision':self.revision()}],1,None,self.revision())
+        if path!='/records': raise NotADirectoryError(path)
+        actor,step=self.session.actor.id,self.session.step
+        def read(view):
+            revision=view.revision_for(('memory_rows','memory_chunks'))
+            identity=[actor,step]
+            after=(-1,'')
+            if cursor is not None:
+                if cursor['identity']!=identity or cursor['revision']!=revision: raise ValueError('memory cursor mismatch')
+                after=tuple(cursor['after'])
+            total=view.query("SELECT count(*) FROM memory_rows WHERE actor=? AND state='ready' AND visible_step<=?",(actor,step))[0][0]
+            rows=view.query("SELECT id,timestamp,revision,(SELECT coalesce(sum(raw_bytes),0) FROM memory_chunks WHERE id=m.id) FROM memory_rows m WHERE actor=? AND state='ready' AND visible_step<=? AND (timestamp,id)>(?,?) ORDER BY timestamp,id LIMIT ?",(actor,step,*after,limit+1),max_rows=limit+1)
+            page=rows[:limit]
+            next_cursor={'identity':identity,'revision':revision,'after':[page[-1][1],page[-1][0]]} if len(rows)>limit else None
+            return Page([{'id':row[0],'name':row[0]+'.json','path':'/records/'+row[0]+'.json','kind':'file','raw_bytes':row[3],'revision':row[2]} for row in page],total,next_cursor,revision)
+        return self.memory.store.read(read)
+
+    def stat(self,path):
+        if path in ('/','/records'): return {'path':path,'kind':'directory','revision':self.revision()}
+        chunk=self.read(path,size=1)
+        return {'path':path,'kind':'file','raw_bytes':chunk.total_bytes,'revision':chunk.revision}
+
+    def read(self,path,*,offset=0,size=65536,expected_revision=None):
+        from .interaction import DocumentChunk
+        from ._json_chunks import CHUNK_BYTES,decode_chunk
+        self._check()
+        if path in ('/','/records'): raise IsADirectoryError(path)
+        if not path.startswith('/records/') or not path.endswith('.json'): raise KeyError(path)
+        identifier=path[len('/records/'):-len('.json')]
+        if '/' in identifier: raise KeyError(path)
+        if type(offset) is not int or offset<0 or type(size) is not int or size<1: raise ValueError('invalid byte range')
+        def read(view):
+            rows=view.query("SELECT revision FROM memory_rows WHERE id=? AND actor=? AND state='ready' AND visible_step<=?",(identifier,self.session.actor.id,self.session.step))
+            if not rows: raise KeyError(identifier)
+            revision=rows[0][0]
+            if expected_revision is not None and expected_revision!=revision: raise ValueError('memory revision changed')
+            total=view.query('SELECT coalesce(sum(raw_bytes),0) FROM memory_chunks WHERE id=?',(identifier,))[0][0]
+            pieces=[]
+            end=min(offset+size,total)
+            if offset<end:
+                for index,payload in view.iter_query('SELECT chunk,payload FROM memory_chunks WHERE id=? AND chunk>=? AND chunk<=? ORDER BY chunk',(identifier,offset//CHUNK_BYTES,(end-1)//CHUNK_BYTES)):
+                    start=index*CHUNK_BYTES
+                    pieces.append(decode_chunk(payload)[max(0,offset-start):min(CHUNK_BYTES,end-start)])
+            return DocumentChunk(b''.join(pieces),total,end if end<total else None,revision,{'memory_id':identifier,'actor':self.session.actor.id})
+        return self.memory.store.read(read)

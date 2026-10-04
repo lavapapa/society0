@@ -1,3 +1,4 @@
+from tests.primary.scripted_provider import TypedScriptProvider
 """记忆版本与异步索引边界的非作者验收。"""
 import pytest
 from tests.primary.test_kernel_memory import setup
@@ -19,7 +20,7 @@ async def test_review_failed_extraction_keeps_full_thread_without_success_job(tm
                 calls.append(threads.read_messages(thread_id))
                 return {'role':'assistant','content':'未完成原文',
                         'finish_reason':'length' if mode=='length' else 'stop'}
-        memory.extract=ThreadMemoryExtractor(threads,Provider())
+        memory.extract=ThreadMemoryExtractor(threads,TypedScriptProvider(Provider(),threads))
         with pytest.raises(RuntimeError):
             await memory.extract_job('a',tid,through=through,timestamp=1)
         assert len(calls)==(1 if mode=='length' else 2)

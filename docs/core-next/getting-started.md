@@ -22,7 +22,7 @@ git status --short
 
 ## 二、运行
 
-公开配置明确本次要执行的业务时间范围。先为第一个时点和剩余时点各写一份配置：
+公开配置明确本次要执行的业务时间范围。先为首段运行和恢复后的完整时间范围各写一份配置：
 
 ```sh
 mkdir -p runs/first-study
@@ -31,7 +31,7 @@ import json
 import os
 from pathlib import Path
 
-for name, start, end in [('first', 1, 1), ('remaining', 2, 2)]:
+for name, start, end in [('first', 1, 1), ('remaining', 1, 2)]:
     config = {'release': {'commit': os.environ['SOCIETY0_SOURCE_COMMIT']},
               'start': start, 'end': end}
     Path(f'runs/first-study/{name}.json').write_text(json.dumps(config))
@@ -72,7 +72,7 @@ PY
 
 ## 三、继续
 
-从原目录的完整第 1 步建立新目录，并执行配置中唯一剩余的业务时点 2：
+从原目录的完整第 1 步建立新目录，并在完整时间序列中继续尚未完成的业务时点 2：
 
 ```sh
 python -m society0.kernel.runner \
@@ -83,7 +83,7 @@ python -m society0.kernel.runner \
 python -m society0.kernel.observation runs/first-study/resumed
 ```
 
-新运行的 `complete.step` 为 2，`runner.json` 记录来源完整点与本次时间范围。原目录继续保留第 1 步，新目录包含继承的第 1 步与新执行的第 2 步。runner 自动续步骤编号，计划工厂负责提供剩余业务时间；本例的 `start/end` 两端均包含在执行范围中。照此分析新目录时，选择第 2 步将看到 Alice、Bob 的时间都是 2。
+新运行的 `complete.step` 为 2，`runner.json` 记录来源完整点与本次时间范围。原目录继续保留第 1 步，新目录包含继承的第 1 步与新执行的第 2 步。runner 自动续步骤编号，SequenceSchedule 按已完成步骤选择完整时间序列中的下一项；本例恢复配置为 `start=1, end=2`，两端均包含。照此分析新目录时，选择第 2 步将看到 Alice、Bob 的时间都是 2。
 
 实际故障时，先从原始事实和 Thread 判断最新可信完整步骤，再按这条路径恢复。进度说明正在做什么，live 数据包括尚未完整的诊断事实，完整描述符确定已发布范围。例如第 2 步失败时，当前目录可能已有它的部分记录，第 1 步仍可作为可信恢复候选。发布成功后若退出报错，运行状态也可能为 failed；应同时核对完整描述符和错误原因。详细读取边界见 [观察合同](observation-contract.md)。
 

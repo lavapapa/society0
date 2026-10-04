@@ -517,8 +517,8 @@ async def test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback(tmp_
         def read(self, scope, path, *, offset, size):
             body = '完整正文🙂'.encode()
             return DocumentChunk(body[offset:offset+size], len(body), None, 1, self.ref(path))
-    read = call('read', 'data_read', {'path': '/doc', 'offset': 0, 'size': 100})
-    invalid = call('query', 'data_query', {'path': '/doc', 'query': '{bad'})
+    read = call('read', 'read', {'path': '/world/doc', 'offset': 0, 'size': 100})
+    invalid = call('invalid', 'read', {'path': '/world/doc', 'encoding':'invalid'})
     store, threads, provider, driver, session, calls = setup(tmp_path, [reply(read), reply(invalid), reply(text='done')])
     session.information.information.mount('/doc', Document())
     try:
@@ -578,7 +578,7 @@ async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, 
     restored = StageStore.restore(tmp_path / 'run', tmp_path / 'branch', step=1)
     try:
         recovered_threads = ThreadStore(restored)
-        read_call = call('read', 'bash', {'script': f'result read {reference}'}) if via_shell else call('read', 'result_read', {'reference': reference, 'offset': 0, 'size': 100})
+        read_call = call('read', 'bash', {'script': f'result read {reference}'}) if via_shell else call('read', 'read', {'path': result['stdout_path'], 'offset': 0, 'size': 100})
         recovered_provider = FakeProvider(recovered_threads, [reply(read_call), reply(text='done')])
         recovered_driver = LLMDriver(recovered_provider, recovered_threads, input_builder=lambda s: [])
         recovered = Session(Actor('a', recovered_driver), InteractionScope('a', Moment(1, 'p')), session.information,
@@ -683,13 +683,20 @@ async def test_memory_hooks_keep_original_input_boundary_and_thread_open(tmp_pat
     async def before(current,tid):
         seen.append(('before',threads.describe(tid)['status']))
         return [{'role':'user','content':'full recalled memory'}]
-    async def after(current,tid,result):
+    async def after(context):
+        current,tid,result=context.session,context.thread_id,context.result
         seen.append(('after',threads.describe(tid)['status']))
-        assert result.value['memory_input_through']==threads.describe(tid)['last_seq']
+        assert context.through==threads.describe(tid)['last_seq']
         threads.append_message(tid,{'role':'user','content':'extract memory from complete decision'})
-        assert result.value['memory_input_through']<threads.describe(tid)['last_seq']
-    from contextlib import nullcontext
-    driver.memory=SimpleNamespace(before_activation=before,after_activation=after,activation=lambda *args:nullcontext())
+        assert context.through<threads.describe(tid)['last_seq']
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def extension(context):
+        context.messages.extend(await before(context.session,context.thread_id))
+        yield
+        if context.result is not None and context.result.status in ('completed','waiting'):
+            await after(context)
+    driver.extensions=(extension,)
     try:
         result=await driver.run(session)
         assert result.status=='completed'
@@ -705,11 +712,17 @@ async def test_memory_success_hook_skips_incomplete_and_failure_marks_thread_inc
     store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision',finish='stop' if failure else 'length')])
     seen=[]
     async def before(*args):return []
-    async def after(*args):
+    async def after(context):
         seen.append(True)
         raise OSError('embedding evidence failed')
-    from contextlib import nullcontext
-    driver.memory=SimpleNamespace(before_activation=before,after_activation=after,activation=lambda *args:nullcontext())
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def extension(context):
+        context.messages.extend(await before(context.session,context.thread_id))
+        yield
+        if context.result is not None and context.result.status in ('completed','waiting'):
+            await after(context)
+    driver.extensions=(extension,)
     try:
         if failure:
             with pytest.raises(OSError,match='embedding evidence'):await driver.run(session)

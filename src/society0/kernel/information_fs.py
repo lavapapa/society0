@@ -1,4 +1,4 @@
-"""共享信息的有界文件投影：目录分页、大正文分片，完整字节仍可取得。"""
+"""共享信息的逻辑文件投影；原文保持文件身份，传输分片显式访问。"""
 from __future__ import annotations
 
 import asyncio
@@ -23,8 +23,8 @@ def _untoken(value):
 
 
 def _name(value):
-    # Provider 的路径通常已编码一次；只转义投影自己的保留字符。
-    return value.replace('%', '%25').replace('@', '%40')
+    # Provider 公布的路径已经承担组件编码，shell保持同一逻辑身份。
+    return value
 
 
 class InformationFiles:
@@ -53,10 +53,10 @@ class InformationFiles:
         for index, part in enumerate(parts):
             if part.startswith('@page-'):
                 cursor = _untoken(part[6:])
-            elif part.startswith('@'):
+            elif part in ('@manifest.json','@schema.json') or part.startswith(('@parts-', '@text-')):
                 return '/' + '/'.join(source), cursor, parts[index:]
             else:
-                source.append(unquote(part))
+                source.append(part)
                 cursor = None
         return '/' + '/'.join(source), cursor, ()
 
@@ -173,8 +173,14 @@ class InformationFiles:
             self._check()
             source, cursor, suffix = self._parse(path)
             kind, total, revision = await self._stat(source)
-            if kind == 'file' and total > self.max_file_bytes:
+            if kind == 'file' and suffix:
                 result = await self._projected(operation,source,suffix,total,revision)
+            elif kind=='directory' and suffix==('@schema.json',):
+                data=_json(await self.information.metadata(source))
+                if operation=='read':result=data
+                elif operation=='stat':result=self._entry('','file',len(data))[1:]
+                elif operation=='exists':result=True
+                else:raise NotADirectoryError(path)
             elif kind == 'directory' and suffix == ('@manifest.json',):
                 page = await self.information.list_files(source,limit=self.page_size,cursor=cursor)
                 data = _json({'format':'society0-directory-v1','source':source,
@@ -193,20 +199,27 @@ class InformationFiles:
                 if kind != 'directory':raise NotADirectoryError(path)
                 page = await self.information.list_files(source,limit=self.page_size,cursor=cursor)
                 result = [self._entry('@manifest.json','file')]
+                try:await self.information.metadata(source)
+                except Unavailable:pass
+                else:result.append(self._entry('@schema.json','file'))
                 for item in page.items:
                     child_kind = item['kind']
-                    if child_kind == 'file':
-                        _, size, _ = await self._stat(item['path'])
-                        if size > self.max_file_bytes:child_kind='directory'
                     result.append(self._entry(_name(PurePosixPath(item['path']).name),child_kind))
                 if page.next_cursor is not None:
                     result.append(self._entry('@page-' + _token(page.next_cursor),'directory'))
             elif operation == 'read':
                 if kind != 'file':raise IsADirectoryError(path)
-                chunk = await self.information.read(source,size=self.max_file_bytes,expected_revision=revision)
-                if chunk.next_offset is not None or len(chunk.data) > self.max_file_bytes:
-                    raise ValueError('resource grew beyond projection budget; list the parent again')
-                result = chunk.data
+                # Bashkit read_file 合同整读原文；专用 read 承担真正范围读取。
+                chunks = []
+                offset = 0
+                while offset < total:
+                    chunk = await self.information.read(source, offset=offset,
+                        size=min(65536, total-offset), expected_revision=revision)
+                    if not chunk.data or chunk.total_bytes != total:
+                        raise ValueError('provider returned an incomplete original range')
+                    chunks.append(chunk.data)
+                    offset += len(chunk.data)
+                result = b''.join(chunks)
             elif operation == 'stat':
                 result = self._entry('',kind,total or 0)[1:]
             elif operation == 'exists':result=True
@@ -224,3 +237,31 @@ class InformationFiles:
         # 生命周期由Shell执行任务拥有；关闭之前已收束原生回调。
         if self._tasks:
             raise RuntimeError('information callbacks must finish before closing the filesystem')
+
+
+async def search_reader(read,sink,pattern,*,literal=False,ignore_case=False):
+    """取消时收束 Python 回调与原生阻塞工作，工件关闭发生在返回之后。"""
+    from society0_filesystem import search_reader as native_search
+    callbacks=set()
+    stopped=False
+    def tracked(callback):
+        async def call(*args):
+            task=asyncio.current_task()
+            callbacks.add(task)
+            try:
+                if stopped:raise asyncio.CancelledError()
+                return await callback(*args)
+            finally:callbacks.discard(task)
+        return call
+    async def sink_batch(items):
+        for line,offset,data in items:await sink(line,offset,data)
+    worker=asyncio.ensure_future(native_search(tracked(read),tracked(sink_batch),pattern,literal,ignore_case))
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        stopped=True
+        for task in tuple(callbacks):task.cancel()
+        await asyncio.gather(*tuple(callbacks),return_exceptions=True)
+        # 原生 Reader 的等待获取消错误后结束；仍等待工作线程确认退出。
+        await asyncio.gather(worker,return_exceptions=True)
+        raise

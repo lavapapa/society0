@@ -52,7 +52,7 @@ Keep progress visible in a short researcher-facing status. First studies need a 
 
 Copy `assets/minimal_experiment.py` into the experiment version directory. It is a complete two-step LLM study with a declared mechanism, persistent Actor, shared provider services, explicit experience extraction and structured measurement. Its `--check` mode initializes without provider calls. Read `references/runtime-quickstart.md` for environment configuration and invocation.
 
-Use `RunPlan` and `run_plan` for public runs, `Plugin` and `compose` for mechanism composition, and `CodeSchedule`/`Phase` for the study protocol. Ordinary rules can use `actor_plugin({'rule': factory})`; resource-bearing drivers declare names, `requires` and an installation-time `driver_factory(ctx)`. Domain schema and canonical writers replace implicit whole-World object serialization. Read `references/engine-components.md` before extending a mechanism.
+Use `RunPlan` and `run_plan` for public runs, `Plugin` and `compose` for mechanism composition, and `Schedule`/`Phase` for the study protocol. Driver plugins expose named factory services; `actor_plugin({'rule': ('rules', 'factory')})` consumes them. Activation extensions provide shared cognition and memory to rule, LLM and third-party drivers. Domain schema and canonical writers replace implicit whole-World object serialization. Read `references/engine-components.md` before extending a mechanism.
 
 Keep one versioned experiment directory per study and one fresh run directory per attempt. The run contract records release, dependencies, configuration, business time and budgets. Credentials are supplied by the execution environment. `Observation` and the workbench consume recorded runs and complete views.
 
@@ -62,7 +62,7 @@ Keep one versioned experiment directory per study and one fresh run directory pe
 - `references/founder-experience.md`: Cross-domain founder-level design lessons for evidence boundaries, subject layers, env-hosted consequences, semantic-rich FoVs, ABM drift, and scale discipline.
 - `references/environment-design.md`: Why environment comes first, built-in environments, FoVs, actions, rules, and how to add a new env.
 - `references/agent-design.md`: Agent types, personas, state, properties, models, memory, and reasoning stages.
-- `references/step-dsl.md`: CodeSchedule, Phase, actor selection, LLM decision/interview, results and outputs.
+- `references/step-dsl.md`: Schedule, Phase, actor selection, LLM decision/interview, results and outputs.
 - `references/research-design.md`: Convert social science observations into simulation experiments.
 - `references/researcher-onboarding.md`: First-use paths, step-by-step Society0 learning, experiment preparation, and optional pre-run token/cost estimates.
 - `references/runtime-quickstart.md`: First implementation, existing Python setup, initialization check, explicit memory, provider verification, and complete pilot starter.

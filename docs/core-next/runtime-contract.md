@@ -68,7 +68,7 @@ PluginHost 退出时先在 quiesce 阶段关闭并排空 Runtime，随后逆序�
 Runtime 同时接受 `Iterable[Actor]` 或 `Mapping[str, Actor]`。Mapping 保持服务引用，实际 worker 开始执行时才取主体并构造 Driver，初始化和排队不枚举全体主体。查找异常仍按执行异常终止步骤。runtime_plugin 同样保留 Mapping 的按需访问语义，适合持久 ActorStore 与 selector 返回少量主体 ID 的组合。
 
 
-正式 runtime_plugin 自动取得所属主机注册的 before/after 步骤回调；回调按插件依赖安装顺序执行，包含 Runtime 安装后加入的机制。每次 run_step 先固定完整回调列表，全部 after 成功后才发布。独立 Runtime 可通过 before/after 传入显式低层回调。结果、进度与薄 CodeSchedule 的消费方式见 [调度结果与进度](results-contract.md)。
+正式 runtime_plugin 自动取得所属主机注册的 before/after 步骤回调；回调按插件依赖安装顺序执行，包含 Runtime 安装后加入的机制。每次 run_step 先固定完整回调列表，全部 after 成功后才发布。独立 Runtime 可通过 before/after 传入显式低层回调。结果、进度与Schedule／StepPlan 的消费方式见 [调度结果与进度](results-contract.md)。
 
 ## 阶段容量
 

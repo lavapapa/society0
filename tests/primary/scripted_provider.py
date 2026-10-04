@@ -22,11 +22,13 @@ class TypedScriptProvider:
         return getattr(self.script, name)
 
     async def request_model(self, thread_id, options, *, model_messages=None):
+        if callable(model_messages): model_messages=model_messages()
         return scripted_response(self.threads, thread_id, await self.script.request(thread_id, options))
 
 
 def bind_scripted_request(monkeypatch, provider_type, script):
     async def request_model(self, thread_id, options, *, model_messages=None):
+        if callable(model_messages): model_messages=model_messages()
         return scripted_response(self.threads, thread_id, await script(self, thread_id, options))
     monkeypatch.setattr(provider_type, 'request', script)
     monkeypatch.setattr(provider_type, 'request_model', request_model)

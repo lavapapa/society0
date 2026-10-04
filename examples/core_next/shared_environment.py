@@ -95,20 +95,20 @@ async def demonstrate(output: Path, *, history=2000):
             results = []
             try:
                 if session.actor.id == 'alice':
-                    results.append(await shell.execute('data read /world/documents/1 ' + argument({'size':64})))
-                    results.append(await shell.execute('data query /world/history ' + argument({'fields':['id','price'],'limit':5,'sample_seed':7})))
-                    listing = await shell.execute('data query /world/orders')
+                    results.append(await shell.execute('data read /world/world/documents/1 ' + argument({'size':64})))
+                    results.append(await shell.execute('data query /world/world/history ' + argument({'fields':['id','price'],'limit':5,'sample_seed':7})))
+                    listing = await shell.execute('data query /world/world/orders')
                     results.append(listing)
                     target = json.loads(listing.stdout)['items'][0]['ref']
-                    results.append(await shell.execute('mkdir -p /workspace; data query /world/orders | jq "[.items[].price] | add" > /workspace/total; cat /workspace/total'))
+                    results.append(await shell.execute('mkdir -p /workspace; data query /world/world/orders | jq "[.items[].price] | add" > /workspace/total; cat /workspace/total'))
                     found = await shell.execute('action find ' + argument({'target':target}))
                     results.append(found)
                     name = json.loads(found.stdout)['items'][0]['name']
                     results.append(await shell.execute('action describe ' + argument({'target':target,'name':name})))
                     results.append(await shell.execute('action invoke ' + argument({'target':target,'name':name,'arguments':{}})))
                 else:
-                    results.append(await shell.execute('data query /world/messages'))
-                    message_path=json.loads(results[-1].stdout)['items'][0]['body']['path']
+                    results.append(await shell.execute('data query /world/world/messages'))
+                    message_path=json.loads(results[-1].stdout)['items'][0]['body']['logical_path']
                     results.append(await shell.execute('data read '+message_path))
                     assert 'alice购买订单' in results[-1].stdout
                 evidence.append({'actor':session.actor.id,'commands':[asdict(item) for item in results]})

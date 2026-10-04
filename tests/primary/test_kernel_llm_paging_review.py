@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from society0.kernel.interaction import Action, ActionResult, InteractionScope, Moment, interaction_plugin
-from society0.kernel.information_sql import DatasetSpec, SQLInformation
+from society0.kernel.information_sql import DocumentSpec, SQLInformation
 from society0.kernel.plugins import Plugin, PluginHost
 from society0.kernel.runtime import Actor, Session
 from society0.kernel.storage import StageStore
@@ -15,7 +15,7 @@ from society0.kernel.llm import LLMDriver
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('tool',['data_query','action_find'])
+@pytest.mark.parametrize('tool',['ls','action_find'])
 @pytest.mark.parametrize('changed',[None,'items','access'])
 async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
     with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
@@ -37,15 +37,15 @@ async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp
                     response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
                 else:
                     cursor=None if not tools else tools[-1]['next_cursor']
-                    arguments=({'path':'/domain/items','query':{'limit':1,'cursor':cursor}}
-                        if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':cursor})
+                    arguments=({'path':'/world/domain/items','limit':1,'cursor':cursor}
+                        if tool=='ls' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':cursor})
                     response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
                         'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
                 threads.event(tid,'provider_response',response)
                 return response
         async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
             information=host.service('interaction','information'); actions=host.service('interaction','actions')
-            information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+            information.mount('/domain',SQLInformation('domain',store,{'items':DocumentSpec('items','id','value')}))
             for name in ('first','second'):
                 actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
             driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])

@@ -50,7 +50,7 @@ Use `plain` only for a first controlled workflow or survey prototype. Use a
 custom env when role permissions, task dependency graphs, artifacts, calendars,
 tool actions, UI/browser state, validators, or organization records are central
 to the research claim. Keep organization-specific mechanics inside the env or
-experiment, not in `Society0`, `CodeSchedule`, `World`, or generic agent APIs.
+experiment, not in `Society0`, `Schedule`, `World`, or generic agent APIs.
 
 High-stakes boundary: organization and work simulations can support mechanism
 exploration, workflow rehearsal, task benchmark design, and research planning.

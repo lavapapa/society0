@@ -1,3 +1,4 @@
+from society0.kernel.memory import MemoryExtension
 """认知输入持久游标与完整内容消费者。"""
 from tests.primary.scripted_provider import TypedScriptProvider
 import json
@@ -117,11 +118,11 @@ async def test_default_cognition_and_actual_memory_keep_system_first_and_measure
         extraction=call('extract','extract_memories',{'memories':[{'content':'我保留决定经历','importance':3}]})
         provider=FakeProvider(threads,[reply(text='完整的决定或测量原文'),reply(extraction)])
         embed=Embed()
-        memory=Memory(store,threads,embed=embed,client=Client(),extract=ThreadMemoryExtractor(threads,provider),recall_query=lambda s:'earlier')
+        memory=Memory(store,threads,embed=embed,client=Client(),extract=ThreadMemoryExtractor(threads,TypedScriptProvider(provider,threads)),recall_query=lambda s:'earlier')
         job=memory.prepare_job('a',None,'seed',timestamp=0,entries=[{'content':'此前完整记忆'}])
         await memory.finish_job(job)
         async def perception(current,position):return ([{'role':'user','content':'完整经营视图'}],1)
-        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=CognitiveInput(threads,perception),memory=memory,policy=LLMPolicy(mode=mode))
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=CognitiveInput(threads,perception),extensions=(MemoryExtension(memory),),policy=LLMPolicy(mode=mode))
         result=await driver.run(session(driver))
         assert result.status=='completed'
         decision_input=provider.requests[0][2]

@@ -28,7 +28,7 @@ Plugin 声明本机制 schema、同步 initialize 或可选异步 prepare、安�
 
 Information 定义主体可读的文档与数据集，Actions 注册按对象类型发现的模板；发现、读取、调用权限独立，执行重新校验当前条件。一次领域写入有明确事务边界，跨介质部分失败使整个步骤失效。信息文档保原文、授权与版本，巨大列通过正文引用范围读取。
 
-plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 提供网络、帖子、推荐、互动及曝光。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。CodeSchedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
+plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 提供网络、帖子、推荐、互动及曝光。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。Schedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
 
 ### 从双机制例子构建自己的世界
 

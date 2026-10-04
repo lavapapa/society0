@@ -4,7 +4,7 @@ This repository contains the standalone `society0` simulation library. Keep rese
 
 ## Public runtime
 
-Use Plugin, compose, Actor/Driver, Information/Actions and CodeSchedule through RunPlan/run_plan. All actors share an environment; mechanism plugins are internal components of that environment. Schema initialization precedes service installation. Declare actual service dependencies and resource ownership explicitly; data schema prerequisites and service installation order have distinct meanings.
+Use Plugin, compose, Actor/Driver, Information/Actions and Schedule through RunPlan/run_plan. All actors share an environment; mechanism plugins are internal components of that environment. Schema initialization precedes service installation. Declare actual service dependencies and resource ownership explicitly; data schema prerequisites and service installation order have distinct meanings.
 
 Rule runs should remain a lightweight path. Optional LLM, memory, social, datasets and shell dependencies are imported by their actual consumers. The public package stays provider neutral; credentials and service addresses belong to the explicit runtime environment, never source or public artifacts.
 

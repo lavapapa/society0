@@ -79,3 +79,17 @@ async def test_readonly_complete_and_restored_runtime_share_content_discovery(tm
         info=host.service('interaction','information')
         assert (await info.list(scope,'/social/posts')).items==saved
         assert (await info.read(scope,saved[0]['content_path'])).data.decode()=='完整点原文🙂'
+
+
+@pytest.mark.asyncio
+async def test_social_schema_exposes_registered_meanings_time_and_executable_queries(tmp_path):
+    from society0.kernel.information_fs import InformationFiles
+    async with compose(tmp_path/'run',plan(social_plugin('abc'))) as host:
+        info=host.service('interaction','information');scope=InteractionScope('b',Moment(1,'read'))
+        files=InformationFiles(info.bound(scope),scope)
+        schema=json.loads(await files.callback('read','/social/posts/@schema.json'))
+        assert schema['field_metadata']['created_tick']=={'type':'INTEGER','description':'创建时的仿真 tick'}
+        assert 'tick' in schema['time_description']
+        for example in schema['query_examples']:
+            assert (await info.query(scope,'/social/posts',Query(**example['query']))).total==0
+        await files.close()

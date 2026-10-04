@@ -52,9 +52,9 @@ def build(tmp_path, actor='alice', snapshot=None):
 @pytest.mark.asyncio
 async def test_data_and_action_share_bound_identity_and_discoverable_root(tmp_path):
     shell, docs, calls = build(tmp_path)
-    root = json.loads((await shell.execute('data list /')).stdout)
+    root = json.loads((await shell.execute('data list /world')).stdout)
     assert root['total'] == 1 and root['items'][0]['path'] == '/market'
-    listing = json.loads((await shell.execute('data list /market')).stdout)
+    listing = json.loads((await shell.execute('data list /world/market')).stdout)
     target = listing['items'][0]['ref']
     found = json.loads((await shell.execute('action find ' + quoted({'target': target}))).stdout)
     assert found['total'] == 1 and 'parameters' not in found['items'][0]
@@ -63,7 +63,7 @@ async def test_data_and_action_share_bound_identity_and_discoverable_root(tmp_pa
     result = json.loads((await shell.execute('action invoke ' + quoted({'name': 'buy', 'target': target, 'arguments': {}}))).stdout)
     assert result['status'] == 'completed' and result['terminal']
     assert calls == ['alice']
-    assert json.loads((await shell.execute('data query /market ' + quoted({'fields': ['price']}))).stdout)['total'] == 1
+    assert json.loads((await shell.execute('data query /world/market ' + quoted({'fields': ['price']}))).stdout)['total'] == 1
     await shell.aclose()
 
 
@@ -73,7 +73,7 @@ async def test_actor_parameter_cannot_override_scope(tmp_path):
     result = await shell.execute('action invoke ' + quoted({'actor': 'alice', 'name': 'buy',
         'target': {'namespace': 'market', 'kind': 'document', 'key': '/market/doc'}, 'arguments': {}}))
     assert result.exit_code != 0 and calls == []
-    assert (await shell.execute('data read /market/doc')).exit_code != 0
+    assert (await shell.execute('data read /world/market/doc')).exit_code != 0
     await shell.aclose()
 
 
@@ -82,14 +82,14 @@ async def test_text_range_preserves_characters_and_binary_is_explicit(tmp_path):
     shell, docs, _ = build(tmp_path)
     offset, pieces = 0, []
     while True:
-        response = json.loads((await shell.execute('data read /market/doc ' + quoted({'offset': offset, 'size': 4}))).stdout)
+        response = json.loads((await shell.execute('data read /world/market/doc ' + quoted({'offset': offset, 'size': 4}))).stdout)
         assert response['encoding'] == 'utf-8' and response['revision'] == 1
         pieces.append(response['data'])
         if response['next_offset'] is None: break
         assert response['next_offset'] > offset
         offset = response['next_offset']
     assert ''.join(pieces).encode() == docs.body
-    binary = json.loads((await shell.execute('data read /market/doc ' + quoted({'size': 4, 'encoding': 'base64'}))).stdout)
+    binary = json.loads((await shell.execute('data read /world/market/doc ' + quoted({'size': 4, 'encoding': 'base64'}))).stdout)
     assert base64.b64decode(binary['data']) == docs.body[:4]
     await shell.aclose()
 
@@ -103,7 +103,7 @@ async def test_workspace_pipeline_snapshot_rebind_and_shell_state(tmp_path):
     await shell.aclose()
     restored, _, _ = build(tmp_path / 'second', actor='bob', snapshot=snapshot)
     assert (await restored.execute('pwd; echo $x; cat rows')).stdout == '/workspace\nkept\n1\n2\n3\n'
-    assert (await restored.execute('data read /market/doc')).exit_code != 0
+    assert (await restored.execute('data read /world/market/doc')).exit_code != 0
     assert (await restored.execute('rm rows; test ! -e rows')).exit_code == 0
     await restored.aclose()
 
@@ -151,7 +151,7 @@ async def test_cancel_async_callback_drains_and_closes_session(tmp_path):
     info.mount('/slow', Slow())
     scope = InteractionScope('alice', Moment(0, 'read'))
     shell = ShellSession(scope, info, Actions(lambda *args: True), result_dir=tmp_path)
-    task = asyncio.create_task(shell.execute('data read /slow/doc'))
+    task = asyncio.create_task(shell.execute('data read /world/slow/doc'))
     await asyncio.wait_for(started.wait(), 2)
     task.cancel()
     with pytest.raises(asyncio.CancelledError): await task

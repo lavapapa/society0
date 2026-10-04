@@ -353,6 +353,7 @@ class ModelProvider(_Provider):
 
     @_operation
     async def request_model(self, thread_id, options, *, model_messages=None):
+        """显式 SDK 历史可为列表或同步 loader；loader 在既有请求许可内执行。"""
         endpoint = self._select()
         selected = {**self.request_options, **options}
         head = self.threads.describe(thread_id)
@@ -374,7 +375,7 @@ class ModelProvider(_Provider):
                     timing['queue_s'] += profile_wait
                     # 同水位完整重建；没有额度的请求不物化历史，也不产生物理事实。
                     if endpoint.auth is not None: endpoint.client.api_key = await endpoint.auth.access_token()
-                    messages = model_messages if model_messages is not None else history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
+                    messages = model_messages() if callable(model_messages) else model_messages if model_messages is not None else history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
                     physical = uuid.uuid4().hex
                     try:
                         evidence = redact_credentials({**selected, 'model': endpoint.model_name}, secrets=(endpoint.secret,))

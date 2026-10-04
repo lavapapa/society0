@@ -7,6 +7,8 @@ _MODULES = {
     'round_robin_plugin': 'society0.plugins.round_robin',
     'social_plugin': 'society0.plugins.social',
     'actor_plugin': 'society0.kernel.actors',
+    'rule_driver_plugin': 'society0.kernel.drivers',
+    'llm_driver_plugin': 'society0.kernel.drivers',
     'interaction_plugin': 'society0.kernel.interaction',
     'runtime_plugin': 'society0.kernel.runtime',
     'schedule_plugin': 'society0.kernel.schedule',
@@ -40,6 +42,7 @@ if TYPE_CHECKING:
     from .round_robin import round_robin_plugin
     from .social import social_plugin
     from ..kernel.actors import actor_plugin
+    from ..kernel.drivers import rule_driver_plugin, llm_driver_plugin
     from ..kernel.interaction import interaction_plugin
     from ..kernel.runtime import runtime_plugin
     from ..kernel.schedule import schedule_plugin, progress_plugin

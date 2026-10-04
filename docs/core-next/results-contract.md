@@ -4,7 +4,7 @@
 
 ## 一、执行
 
-CodeSchedule 持有 Runtime 和顺序 Phase 列表，run_step 直接调用 Runtime.run_step。同步规则、异步规则、LLM 与 interview 均保留原 Driver 会话合同。选择器交付主体 ID 的迭代序列，队列在执行时按需取得 Actor。执行、收尾和完整步骤发布仍由 Runtime 负责。`RuleDriver(callback)` 接受同步或异步回调，回调显式返回 DriverResult。`activate(context, identifiers)` 接收主体 ID 的普通或异步迭代器，并返回这批 drain 的有序结果。
+Schedule 提供 StepPlan(time, phases)，runner 将计划交给独立 Runtime 执行。同步规则、异步规则、LLM 与 interview 均保留原 Driver 会话合同。选择器交付主体 ID 的迭代序列，队列在执行时按需取得 Actor。执行、收尾和完整步骤发布仍由 Runtime 负责。`RuleDriver(callback)` 接受同步或异步回调，回调显式返回 DriverResult。`activate(context, identifiers)` 接收主体 ID 的普通或异步迭代器，并返回这批 drain 的有序结果。
 
 `runtime_plugin` 从所属主机取得完整的步骤钩子，在每步开始时固定顺序，执行 before、业务 phases、after 后再 complete。机制在安装时调用 `context.on_step(before=..., after=...)`；回调采用零参数 bound method。主机退出时先执行 quiesce，取消并排空 Runtime，再按依赖逆序关闭机制资源。关闭主机不会执行业务步骤钩子。
 
@@ -38,7 +38,8 @@ from society0.kernel.composition import compose
 from society0.kernel.interaction import interaction_plugin
 from society0.kernel.results import StepResult, results_plugin
 from society0.kernel.runtime import DriverResult, Phase, runtime_plugin
-from society0.kernel.schedule import RuleDriver, activate, progress_plugin, schedule_plugin
+from society0.kernel.drivers import RuleDriver
+from society0.kernel.schedule import SequenceSchedule, activate, progress_plugin, schedule_plugin
 
 async def decide(context):
     results = await activate(context, ('alice',))
@@ -54,10 +55,11 @@ plugins = [
                    store=('storage', 'store'), results=('results', 'results'),
                    progress=('progress', 'progress')),
     *domain_plugins,
-    schedule_plugin([Phase('decide', decide)]),
+    schedule_plugin(SequenceSchedule([0], [Phase('decide', decide)])),
 ]
 async with compose(run_directory, plugins) as host:
-    receipt = await host.service('schedule', 'schedule').run_step(1, 0)
+    plan = await host.service('schedule', 'schedule').next_step(0)
+    receipt = await host.service('runtime', 'runtime').run_step(1, plan.time, plan.phases)
     counters = host.service('results', 'results').summary()
 ```
 

@@ -2761,6 +2761,7 @@ anthropic = [
     { name = "authlib" },
     { name = "httpx2" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "openai"] },
+    { name = "society0-filesystem" },
 ]
 dev = [
     { name = "aiolimiter" },
@@ -2774,6 +2775,7 @@ dev = [
     { name = "pydantic-ai-slim", extra = ["openai"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "society0-filesystem" },
     { name = "starlette" },
     { name = "uvicorn" },
 ]
@@ -2782,12 +2784,14 @@ google = [
     { name = "authlib" },
     { name = "httpx2" },
     { name = "pydantic-ai-slim", extra = ["google", "openai"] },
+    { name = "society0-filesystem" },
 ]
 llm = [
     { name = "aiolimiter" },
     { name = "authlib" },
     { name = "httpx2" },
     { name = "pydantic-ai-slim", extra = ["openai"] },
+    { name = "society0-filesystem" },
 ]
 memory = [
     { name = "chromadb" },
@@ -2831,6 +2835,7 @@ requires-dist = [
     { name = "society0", extras = ["llm"], marker = "extra == 'anthropic'" },
     { name = "society0", extras = ["llm"], marker = "extra == 'google'" },
     { name = "society0", extras = ["llm", "memory", "social", "observe"], marker = "extra == 'dev'" },
+    { name = "society0-filesystem", marker = "extra == 'llm'", directory = "native/society0-filesystem" },
     { name = "society0-filesystem", marker = "extra == 'shell'", directory = "native/society0-filesystem" },
     { name = "starlette", marker = "extra == 'observe'", specifier = "==1.7.0" },
     { name = "uvicorn", marker = "extra == 'observe'", specifier = "==0.52.1" },

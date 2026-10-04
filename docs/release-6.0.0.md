@@ -4,9 +4,9 @@
 
 ## 一、使用
 
-研究者通过 Plugin 声明机制状态、服务依赖和初始化，通过 Actor 与 Driver 表达主体，通过 CodeSchedule 安排逻辑时间与阶段。规则主体可使用轻量基础安装；LLM、记忆、社交、冷数据集及 Bashkit 工作区按需安装。正式工厂、两轮研究示例和运行清单入口见 [README](../README.md)、[研究技能](../skill/SKILL.md) 与 [starter](../skill/assets/minimal_experiment.py)。
+研究者通过 Plugin 声明机制状态、服务依赖和初始化，通过 Actor 与 Driver 表达主体，通过独立 Schedule 提供逻辑时间与阶段计划，由 Runtime 执行完整步骤。规则主体可使用轻量基础安装；LLM、记忆、社交、冷数据集及 Bashkit 工作区按需安装。正式工厂、两轮研究示例和运行清单入口见 [README](../README.md)、[研究技能](../skill/SKILL.md) 与 [starter](../skill/assets/minimal_experiment.py)。
 
-动态行动发现、完整参数说明和执行共用主体权限；信息通过授权视图、分页、正文范围读取与只读共享 VFS 提供。主体私有工作区使用文件级增量，未修改文件不会因再次激活重新封存。显式读取巨大单文件、列举巨大目录及频繁改写同一巨大文件仍有相应成本。
+动态行动发现、完整参数说明和执行共用主体权限；信息通过 /world、/context、/workspace、/results 统一路径提供，主体使用 read、ls、find、grep 和可选 bash 读取；数据集元数据说明字段与下推查询用法。主体私有工作区使用文件级增量，未修改文件不会因再次激活重新封存。显式读取巨大单文件、列举巨大目录及频繁改写同一巨大文件仍有相应成本。
 
 ## 二、事实
 
@@ -18,6 +18,6 @@
 
 旧 Society0、World、环境注册器、状态代理与旧检查点接口已退役，未提供兼容层或旧产物迁移。旧运行由其原固定版本读取。有效领域能力、提供方行为和原始算法的对应关系见 [能力矩阵](core-next/capability-parity.md) 与 [退役记录](../research/core-next/retirement-inventory-20261004.md)。
 
-基础运行支持 Python 3.12 及以上、macOS 与 Linux。原生文件系统适配器属于 shell 可选包，已验证 macOS arm64 与 Linux x86_64 wheel；从 wheel 使用无需 Rust，源码构建要求和当前本地包发行方式见 [安装说明](core-next/installation.md)。旧 WorkBuddy 案例保留历史身份，新版真实性能与端点结果按当前候选单独验收。
+基础运行支持 Python 3.12 及以上、macOS 与 Linux。原生文件系统适配器由 llm 与 shell 可选包引入，基础规则安装不依赖它；此前已验证 macOS arm64 与 Linux x86_64 构建，本轮新增搜索桥接的实际平台验收见文件实施记录。从 wheel 使用无需 Rust，源码构建要求和当前本地包发行方式见 [安装说明](core-next/installation.md)。旧 WorkBuddy 案例保留历史身份，新版真实性能与端点结果按当前候选单独验收。
 
 本次改造保留完整内容与可行动范围，并将主要成本分解为活动状态访问、原文持久化、外部服务和显式分析读取。实际收益及边界以相同负载的对照报告为依据，公共发布与完整验收各自确认。
