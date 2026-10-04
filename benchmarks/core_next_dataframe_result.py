@@ -17,7 +17,7 @@ async def main():
             store.complete(1)
         with StageStore.restore(path/'run',path/'restored') as store:
             results=Results(store)
-            value=results.page(results.phase(1,0)['tables']['table'])['items'][0]
+            value=results.page(results.phase(1,0)['tables']['table'])['items'][0]['value']
             pd.testing.assert_frame_equal(pd.DataFrame.from_dict(value,orient='tight'),frame)
     print('pandas tight value: columns, index, order, large integers and restore equal')
 

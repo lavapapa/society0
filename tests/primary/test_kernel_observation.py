@@ -293,10 +293,10 @@ async def test_result_reference_discovery_and_original_row_ranges(tmp_path):
         store.complete(1)
         with ObservationService(store.path) as service:
             phases=service.call('result_phases',{'step':1})
-            header=service.call('result_page',{'reference':phases['items'][0]['reference']})['items'][0]
+            header=service.call('result_page',{'reference':phases['items'][0]['reference']})['items'][0]['value']
             page=service.call('result_page',{'reference':header['tables']['original'],'max_bytes':512})
             assert len(encoded(page))<=512
-            reference=page['items'][0];raw=bytearray();offset=0
+            reference=page['items'][0]['payload_ref'];raw=bytearray();offset=0
             while True:
                 part=service.call('read_result_record',{'reference':reference,'offset':offset,'size':2111,'max_bytes':2048})
                 assert len(encoded(part))<=2048

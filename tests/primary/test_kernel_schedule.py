@@ -67,7 +67,7 @@ async def test_sync_rule_and_collect_results_include_duration_and_order(tmp_path
         runtime=Runtime([Actor('a',RuleDriver(rule))],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,results=results)
         async def run(ctx):await activate(ctx,['a'])
         await CodeSchedule(runtime,[Phase('rule',run,incomplete='collect')]).run_step(1,7)
-        row=results.page(results.phase(1,0)['activations'])['items'][0]
+        row=results.page(results.phase(1,0)['activations'])['items'][0]['value']
         assert row['actor_id']=='a' and row['round']==1 and row['elapsed_s']>=0
         assert row['status']=='incomplete' and row['reason']=='budget' and row['value']=={'original':'kept'}
         assert results.summary()['incomplete_count']==1
@@ -199,7 +199,7 @@ async def test_schedule_lazy_selector_sync_rule_and_real_interview_driver(tmp_pa
         await host.service('schedule','schedule').run_step(1,7)
         assert built==['r','q']
         result=host.service('results','results')
-        row=result.page(result.phase(1,1)['activations'])['items'][0]
+        row=result.page(result.phase(1,1)['activations'])['items'][0]['value']
         assert row['status']=='completed'
         tid=holder['threads'].find('q',{'time':7,'phase':'interview'},kind='interview')
         assert holder['threads'].read_messages(tid)[-1]['content']=='完整测量回答🙂'

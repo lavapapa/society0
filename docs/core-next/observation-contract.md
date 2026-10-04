@@ -16,7 +16,7 @@ progress 是独立的允许落后快照，包括运行状态、阶段、活动�
 
 消息内容较大时，事件包含 payload_ref，`read_thread_payload(reference, offset=0, size=65536, max_bytes=131072)` 返回 base64 数据、完整原文字节数和 next_offset。分段读取以 JSON 原文字节为单位；应先拼接并解码完整 JSON，UTF-8 多字节字符可能跨段。`resource_tail` 与 `read_resource_payload` 对共享物理资源正文提供相同的追加及分段合同。resource_tail 的 kind 区分 embedding 物理尝试和 embedding_use 逻辑使用，逻辑缓存命中不代表新增收费物理请求。
 
-`read_thread_artifact(thread_id=..., reference=..., actor=..., ...)` 按 Thread 已登记的工件关联读取精确原始字节，并校验主体归属。`result_phases(step=...)` 发现阶段结果引用，`result_page(reference, ...)` 读取指标、表、激活结果与完整头部；单个巨行通过 `read_result_record` 取得。`result_summary()` 使用写入时维护的短计数。`resource_usage()` 按模型、主体读取规范物理调用写入时维护的累计投影；共享批次的主体归属与全局计数口径见下文。
+`read_thread_artifact(thread_id=..., reference=..., actor=..., ...)` 按 Thread 已登记的工件关联读取精确原始字节，并校验主体归属。`result_phases(step=...)` 发现阶段结果引用，`result_page(reference, ...)` 读取指标、表、激活结果与完整头部；每个结果页项含 ordinal、raw_bytes，以及 value 或 payload_ref 二者之一；将巨行的 payload_ref 原样传给 `read_result_record` 取得正文。`result_summary()` 使用写入时维护的短计数。`resource_usage()` 按模型、主体读取规范物理调用写入时维护的累计投影；共享批次的主体归属与全局计数口径见下文。
 
 这些接口的 max_bytes 约束最终紧凑 JSON 字节数，包含游标、字段和 base64 膨胀；HTTP 成功响应直接返回该对象，不再套额外结果信封。尾页与目录的最小预算为 1,024 字节，结果集页保持 Results 的 512 字节下限。预算容纳不了一个必需身份时明确报错，避免无进展空页。所有游标绑定运行身份；业务恢复分支重新查询，已有同源结果集引用依照 Results 合同仍可读取。完整步骤的派生只读视图使用 `source_run_id:complete:step` 显式身份，同一不可变完整点重建后可继续原游标和正文引用；换步骤或源运行会拒绝旧游标。这一身份约定适用于只读准备视图，业务分叉保持新运行身份。
 
