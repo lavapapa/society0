@@ -1,0 +1,26 @@
+{
+  "scope": "completed attempts and preflights through 40d385d, excludes future acceptance",
+  "paths": [
+    "research/core-next/provider-profile-20261004.md",
+    "research/core-next/provider-deepseek-preflight-20261004.json",
+    "research/core-next/provider-deepseek-pro-preflight-20261004.json",
+    "research/core-next/real-failures-20261004.md",
+    "research/core-next/real-dependency-preflight-20261004.json",
+    "research/core-next/real-route-preflight-20261004.json",
+    "research/core-next/real-evidence-archive-proof-20261004.json",
+    "research/core-next/real-source-archive-2590cf3.json",
+    "research/core-next/real-source-archive-3c62eb4.json",
+    "research/core-next/real-source-archive-40d385d.json",
+    "research/core-next/real-source-archive-9180498.json",
+    "research/core-next/real-source-archive-a0dae58.json",
+    "research/core-next/real-source-archive-e0779c4.json",
+    "research/core-next/real-attempts-through-3c62eb4-20261004.json",
+    "research/core-next/real-attempts-through-40d385d-20261004.json",
+    "research/core-next/real-attempts-through-e0779c4-20261004.json",
+    "research/core-next/real-starter-3c62eb4-20261004.json",
+    "research/core-next/real-starter-40d385d-20261004.json"
+  ],
+  "exact_selected_credential_check": "passed",
+  "full_artifact_archive_proof": "research/core-next/real-evidence-archive-proof-20261004.json",
+  "product_changes": false
+}

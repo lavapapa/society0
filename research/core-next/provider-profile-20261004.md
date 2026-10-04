@@ -23,3 +23,19 @@ Google 官方目录提供 gemini-3.5-flash-lite；[官方价格](https://ai.goog
 随后完成两个模型请求的工具往返：第一响应 acknowledge 工具及提供方扩展字段完整保留，工具结果进入同一 Thread 后原样送出第二请求，第二响应正常 stop，整体墙钟约 1.877 秒。此结果验证提供方扩展字段透传，不解释其不透明签名，不将它转为额外推理正文。原文分别保存在 /tmp/society0-gemini-profile-20261004 与 /tmp/society0-gemini-roundtrip-20261004。公开小结果见 provider-probe-summary-20261004.json。
 
 该探针基于 dc6f558 之后的开发工作树，包含当时 resource_managers.py 工具扩展字段透传修订；对应回归文件 test_kernel_provider_fields.py、红绿及独立日志 provider-fields-*.txt 保留。它属于配置兼容证据，完整发布验收仍需干净已推送提交和冻结部署副本。仓库保存选定字段的小结果；SQLite、原始响应与 Thread 留在上述拥有目录，未纳入提交。
+
+完整本机探针工件另已归档至本任务服务器 `/tmp/society0-core-next-20261004/provider-evidence-archive.tgz` 并解包到相邻 `provider-evidence/`；传输后直接逐字节比较归档一致。上述本机目录继续保留，本次整理没有删除原文工件。
+
+## 正式候选与容量
+
+正式候选 `2590cf3a7d5c2bcee71867cfbc1e71a890edcdcb` 的 Gemini 运行通过前三项，在第四项记忆提取遇到 Google 免费层每分钟 15 次请求的 429。配置 max_attempts=1，原次数及失败留证保留；模型能力与账户容量据此分别判断。原运行位于服务器 `/tmp/society0-core-real-2590cf3`。
+
+2026-10-04 查询已授权 DeepSeek 账户：模型目录 200、余额接口 `is_available=true`。`deepseek-flash` 一次工具调用预检返回 200/tool_calls，完整公开请求与响应保存在 `provider-deepseek-preflight-20261004.json`，凭据原值比对通过。官方当日将该 alias 指向 DeepSeek-V4.1-Flash，[模型价格](https://api-docs.deepseek.com/quick_start/pricing/)列出非高峰每百万输入未命中 0.15 美元、输出 0.60 美元；[容量合同](https://api-docs.deepseek.com/quick_start/rate_limit/)为账户并发上限 2500。实际运行仍仅配置并发 2。
+
+新 profile 沿用 1024 输出预算、temperature=0、parallel_tool_calls=false、单次物理尝试、60 秒超时；按[提供方请求合同](https://api-docs.deepseek.com/guides/thinking_mode/)显式 `extra_body.thinking.type=disabled`。内部 Thread 会话身份保持稳定，`session_transport=None`，不向远端注入会话字段。LLM 通过已有代理，内网 bge-large-zh-v1.5 保持 1024 维、omit dimensions、trust_env=false。自动记忆提取继续使用其已有独立 4096 输出预算。
+
+首轮 DeepSeek 同源码完整验收运行于 `/tmp/society0-core-real-2590cf3-deepseek`，前七项通过，第八项轮询交流在八轮预算处未完成，55.84 秒。原始 Thread 显示模型依次尝试 `send message` 和 `*` 搜索，实际实现为字面子串匹配；另有一次多工具响应被既定单调用合同拒绝。最后两轮找到并描述了行动，未执行领域动作。公共说明缺少搜索规则已另组先红后修，原失败保留，新源码再次验收将建立新目录并保留相同预算。
+
+后续候选 `40d385d` 的目录类型与工具说明已经正确传达。Flash 仍在社交浏览的第二名主体第八轮读到原文后达到硬上限，前十一项通过；其中一次违反单工具响应合同、一次读取帖子元数据增加了探索回合。此次保留为该模型在固定任务与预算下的行为失败。
+
+2026-10-04 改用同账户 `deepseek-v4-pro` 做一次协议预检，返回 200/tool_calls，响应 model 字段同名。官方当日版本为 DeepSeek-V4-Pro-0813，非高峰每百万输入未命中 0.66 美元、输出 1.98 美元；高峰分别为 1.32 与 3.96 美元，缓存命中为 0.022／0.044 美元，账户并发上限 500。公开预检原文为 `provider-deepseek-pro-preflight-20261004.json`。新模型沿用相同工具、完整材料、1024 输出预算、八轮普通任务／二十轮 VFS 任务、单次物理尝试及显式非思考模式；完整正式验收将单列其源码与运行身份。
