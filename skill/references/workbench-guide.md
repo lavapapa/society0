@@ -44,7 +44,9 @@ experiments/study/
       runs/
         pilot-001/
           runner-status.json
-          steps.jsonl
+          runner.json
+          current.sqlite
+          steps/
     v002/
       experiment.py
       runs/

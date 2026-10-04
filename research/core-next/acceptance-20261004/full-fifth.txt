@@ -1,0 +1,62 @@
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+........................................................................ [ 43%]
+........................................................................ [ 52%]
+........................................................................ [ 60%]
+........................................................................ [ 69%]
+........................................................................ [ 78%]
+........................................................................ [ 86%]
+........................................................................ [ 95%]
+....................................                                     [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.12.12-final-0 _______________
+
+Name                                         Stmts   Miss  Cover
+----------------------------------------------------------------
+src/society0/__init__.py                        15      7    53%
+src/society0/activation_pool.py                258     27    90%
+src/society0/function_registry.py              113     24    79%
+src/society0/kernel/action_stats.py             45      1    98%
+src/society0/kernel/actors.py                  173      2    99%
+src/society0/kernel/auth.py                    194     22    89%
+src/society0/kernel/composition.py             124      5    96%
+src/society0/kernel/compute.py                  43      7    84%
+src/society0/kernel/datasets.py                127     10    92%
+src/society0/kernel/information_fs.py          187     36    81%
+src/society0/kernel/information_sql.py         343     27    92%
+src/society0/kernel/interaction.py             433     20    95%
+src/society0/kernel/llm.py                     493     25    95%
+src/society0/kernel/memory.py                  526     19    96%
+src/society0/kernel/model_messages.py           39      7    82%
+src/society0/kernel/models.py                  540     22    96%
+src/society0/kernel/observation.py             579    110    81%
+src/society0/kernel/plugins.py                 202      3    99%
+src/society0/kernel/results.py                 183      6    97%
+src/society0/kernel/runner.py                   93     23    75%
+src/society0/kernel/runtime.py                 328     16    95%
+src/society0/kernel/schedule.py                 64      7    89%
+src/society0/kernel/services.py                 31      1    97%
+src/society0/kernel/shell.py                   289     22    92%
+src/society0/kernel/storage.py                 645     26    96%
+src/society0/kernel/threads.py                 288     19    93%
+src/society0/kernel/workbench.py               143     24    83%
+src/society0/kernel/workspace.py                77      1    99%
+src/society0/logging/__init__.py                 5      5     0%
+src/society0/logging/context.py                185    185     0%
+src/society0/logging/spec.py                   225    225     0%
+src/society0/logging/utils.py                   28     28     0%
+src/society0/memory_extraction_protocol.py      44     10    77%
+src/society0/plugins/__init__.py                12      6    50%
+src/society0/plugins/round_robin.py            146      7    95%
+src/society0/plugins/social.py                 433      2    99%
+src/society0/plugins/social_topology.py         52     11    79%
+src/society0/resource_managers.py               57      6    89%
+----------------------------------------------------------------
+TOTAL                                         8057   1004    88%
+
+9 files skipped due to complete coverage.
+Coverage JSON written to file research/core-next/acceptance-20261004/coverage-final-candidate.json
+828 passed, 1 skipped, 15 deselected in 43.00s
+exit_code=0

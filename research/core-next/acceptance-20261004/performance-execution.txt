@@ -1,0 +1,5 @@
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+{"kind": "old", "exit_code": 1, "seconds": 0.11401176825165749, "command": ["/mnt/data/l20/qin/society0-acceptance-20261004/base/bin/python", "-m", "benchmarks.core_next_cold_datasets_probe", "--source", "/tmp/society0-core-next-20261004/v04-root", "--limit", "1448471", "--output-dir", "/tmp/society0-acceptance-20261004/performance-old"], "source": "/tmp/society0-core-next-20261004/cold-datasets-native-full-source", "original_input": "/tmp/society0-core-next-20261004/v04-root"}
+{"kind": "new", "exit_code": 1, "seconds": 0.5645096972584724, "command": ["/mnt/data/l20/qin/society0-acceptance-20261004/base/bin/python", "-m", "benchmarks.core_next_cold_datasets_probe", "--source", "/tmp/society0-core-next-20261004/v04-root", "--limit", "1448471", "--output-dir", "/tmp/society0-acceptance-20261004/performance-new"], "source": "/mnt/data/l20/qin/society0-acceptance-20261004/source", "original_input": "/tmp/society0-core-next-20261004/v04-root"}
+exit_code=0

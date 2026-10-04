@@ -1,0 +1,4 @@
+........                                                                 [100%]
+8 passed in 0.76s
+
+EXIT_CODE=0

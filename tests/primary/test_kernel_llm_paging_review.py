@@ -1,4 +1,5 @@
 """真实 Driver 自身留证应与信息、权限的分页版本分离。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import json
 from types import SimpleNamespace
 
@@ -36,8 +37,8 @@ async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp
                     response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
                 else:
                     cursor=None if not tools else tools[-1]['next_cursor']
-                    arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
-                        if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                    arguments=({'path':'/domain/items','query':{'limit':1,'cursor':cursor}}
+                        if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':cursor})
                     response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
                         'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
                 threads.event(tid,'provider_response',response)
@@ -47,7 +48,7 @@ async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp
             information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
             for name in ('first','second'):
                 actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
-            driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+            driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
             scope=InteractionScope('actor',Moment(1,'read'))
             session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
             result=await driver.run(session)

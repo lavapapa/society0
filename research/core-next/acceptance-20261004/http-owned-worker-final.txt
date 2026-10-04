@@ -1,0 +1,22 @@
+....FF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_cancelled_sync_query_failure_keeps_cancel_with_original_cause[OSError] __
+tests/primary/test_kernel_observation_http.py:152: in test_cancelled_sync_query_failure_keeps_cancel_with_original_cause
+    assert isinstance(caught.value.__cause__,error_type) and str(caught.value.__cause__)=='query fixture failure'
+E   AssertionError: assert (False)
+E    +  where False = isinstance(None, <class 'OSError'>)
+E    +    where None = CancelledError().__cause__
+E    +      where CancelledError() = <ExceptionInfo CancelledError() tblen=23>.value
+_ test_cancelled_sync_query_failure_keeps_cancel_with_original_cause[RuntimeError] _
+tests/primary/test_kernel_observation_http.py:152: in test_cancelled_sync_query_failure_keeps_cancel_with_original_cause
+    assert isinstance(caught.value.__cause__,error_type) and str(caught.value.__cause__)=='query fixture failure'
+E   AssertionError: assert (False)
+E    +  where False = isinstance(None, <class 'RuntimeError'>)
+E    +    where None = CancelledError().__cause__
+E    +      where CancelledError() = <ExceptionInfo CancelledError() tblen=23>.value
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_observation_http.py::test_cancelled_sync_query_failure_keeps_cancel_with_original_cause[OSError]
+FAILED tests/primary/test_kernel_observation_http.py::test_cancelled_sync_query_failure_keeps_cancel_with_original_cause[RuntimeError]
+2 failed, 4 passed in 1.10s
+
+exit_code=1

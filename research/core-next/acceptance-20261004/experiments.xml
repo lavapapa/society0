@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="12" skipped="1" tests="73" time="2.904" timestamp="2026-10-04T13:47:32.797188+08:00" hostname="marvin-mbp"><testcase classname="" name="tests.experiments.test_core_next_vector_backends" time="0.000"><skipped message="collection skipped">('/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/experiments/test_core_next_vector_backends.py', 2, 'Skipped: isolated sqlite-vec feasibility environment required')</skipped></testcase><testcase classname="tests.experiments.test_core_next_artifact_link_probe" name="test_immutable_link_survives_source_removal_and_keeps_one_allocation" time="0.032" /><testcase classname="tests.experiments.test_core_next_chroma_residency" name="test_real_chroma_probe_preserves_vectors_and_records_actual_backend" time="0.175" /><testcase classname="tests.experiments.test_core_next_codec_sample" name="test_codec_sample_checks_every_value_and_reports_bounded_group_read" time="0.000" /><testcase classname="tests.experiments.test_core_next_cold_datasets_probe" name="test_real_consumer_one_batch_shared_body_and_single_readonly_copy" time="0.001"><failure message="AttributeError: module 'society0.kernel.datasets' has no attribute 'zstandard'">tests/experiments/test_core_next_cold_datasets_probe.py:5: in test_real_consumer_one_batch_shared_body_and_single_readonly_copy
+    result=probe(tmp_path, lambda: iter([{'id':i,'body':'汉🙂'*1000} for i in range(100)]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_cold_datasets_probe.py:33: in probe
+    original_compressor=datasets.zstandard.ZstdCompressor
+                        ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'society0.kernel.datasets' has no attribute 'zstandard'</failure></testcase><testcase classname="tests.experiments.test_core_next_cold_runtime_probe" name="test_cold_fixed_workload_preserves_body_and_small_complete_changes" time="0.010"><failure message="KeyError: 'body_artifact'">tests/experiments/test_core_next_cold_runtime_probe.py:10: in test_cold_fixed_workload_preserves_body_and_small_complete_changes
+    result=probe(tmp_path/'source',tmp_path/'copy',ordinal=0,steps=3)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_cold_runtime_probe.py:22: in probe
+    page=data.page(ref,limit=10,max_bytes=4096)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:138: in page
+    with self._open(reference) as (connection, run_id, total, body):
+         ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:90: in _open
+    run_id, artifact, body_artifact, count = self.store.read(lookup)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:488: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:88: in lookup
+    _, artifact, body_artifact, count = self._registration(view, reference)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:74: in _registration
+    or rows[0][1:3] != (reference['artifact'], reference['body_artifact'])):
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'body_artifact'</failure></testcase><testcase classname="tests.experiments.test_core_next_cold_sqlite_codec" name="test_native_sqlite_grouping_preserves_boundaries_and_byte_ranges" time="0.004" /><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_parallel_chunks_match_full_json_and_bound_pending_input" time="0.007" /><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_prepare_freezes_mutable_input_before_first_await_and_cleans_files" time="0.063" /><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_cancel_waits_for_worker_before_removing_spools" time="0.007" /><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_probe_runs_actual_thread_writer_and_status_reader[sync]" time="0.001"><failure message="TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'">tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'</failure></testcase><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_probe_runs_actual_thread_writer_and_status_reader[threaded]" time="0.001"><failure message="TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'">tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'</failure></testcase><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_probe_runs_actual_thread_writer_and_status_reader[spooled]" time="0.001"><failure message="TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'">tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'</failure></testcase><testcase classname="tests.experiments.test_core_next_compression_probe" name="test_probe_runs_actual_thread_writer_and_status_reader[bytes]" time="0.001"><failure message="TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'">tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'</failure></testcase><testcase classname="tests.experiments.test_core_next_dataset_access" name="test_sequential_pages_advance_and_random_reads_match_bytes" time="0.008"><failure message="KeyError: 'body_artifact'">tests/experiments/test_core_next_dataset_access.py:10: in test_sequential_pages_advance_and_random_reads_match_bytes
+    result=probe(tmp_path/'run',pages=20,limit=3,random_reads=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_dataset_access.py:20: in probe
+    page=data.page(ref,cursor=cursor,limit=limit,max_bytes=65536)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:138: in page
+    with self._open(reference) as (connection, run_id, total, body):
+         ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:90: in _open
+    run_id, artifact, body_artifact, count = self.store.read(lookup)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:88: in lookup
+    _, artifact, body_artifact, count = self._registration(view, reference)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:74: in _registration
+    or rows[0][1:3] != (reference['artifact'], reference['body_artifact'])):
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'body_artifact'</failure></testcase><testcase classname="tests.experiments.test_core_next_deployment" name="test_exact_deployment_and_cache_ignored" time="0.003" /><testcase classname="tests.experiments.test_core_next_deployment" name="test_deployment_difference_rejected[changed]" time="0.001" /><testcase classname="tests.experiments.test_core_next_deployment" name="test_deployment_difference_rejected[extra]" time="0.002" /><testcase classname="tests.experiments.test_core_next_deployment" name="test_deployment_difference_rejected[missing]" time="0.002" /><testcase classname="tests.experiments.test_core_next_large_root_probe" name="test_fixture_keeps_order_types_ranges_and_selected_complete" time="0.012"><failure message="zlib.error: Error -3 while decompressing data: incorrect header check">tests/experiments/test_core_next_large_root_probe.py:12: in test_fixture_keeps_order_types_ranges_and_selected_complete
+    raw=read_range(store,0,65000,100)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:71: in read_range
+    return store.read(read)
+           ^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:488: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:66: in read
+    raw=zlib.decompress(payload)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E   zlib.error: Error -3 while decompressing data: incorrect header check</failure></testcase><testcase classname="tests.experiments.test_core_next_large_root_probe" name="test_whole_record_edit_preserves_other_values_and_measures_complete" time="0.013" /><testcase classname="tests.experiments.test_core_next_large_root_probe" name="test_ten_mib_cold_record_exposes_full_rewrite_cost" time="0.074"><failure message="assert 22448 &gt; (2640 * 10)">tests/experiments/test_core_next_large_root_probe.py:48: in test_ten_mib_cold_record_exposes_full_rewrite_cost
+    assert whole['session_bytes_before_complete']&gt;split['session_bytes_before_complete']*10
+E   assert 22448 &gt; (2640 * 10)</failure></testcase><testcase classname="tests.experiments.test_core_next_large_root_probe" name="test_alignment_probe_compares_three_positions_without_assumed_ratio" time="0.014"><failure message="apsw.CorruptError: database disk image is malformed">tests/experiments/test_core_next_large_root_probe.py:54: in test_alignment_probe_compares_three_positions_without_assumed_ratio
+    results=alignment_probe(tmp_path,body_bytes=256*1024)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:143: in alignment_probe
+    for change in apsw.Changeset.iter(stream.read):
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   apsw.CorruptError: database disk image is malformed</failure></testcase><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-serial]" time="0.102" /><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-threads]" time="0.091" /><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[codec-processes]" time="0.145" /><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-serial]" time="0.089" /><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-threads]" time="0.090" /><testcase classname="tests.experiments.test_core_next_parallel_codec" name="test_parallel_codec_returns_all_original_values_and_bounded_queue[numeric-processes]" time="0.116" /><testcase classname="tests.experiments.test_core_next_parity" name="test_actual_old_new_continuous_restored_original_evidence" time="0.005" /><testcase classname="tests.experiments.test_core_next_parity" name="test_comparison_rejects_lost_original_material[order]" time="0.002" /><testcase classname="tests.experiments.test_core_next_parity" name="test_comparison_rejects_lost_original_material[body]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity" name="test_comparison_rejects_lost_original_material[provider]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity" name="test_comparison_rejects_lost_original_material[memory]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[system-old]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[system-new]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[assistant-old]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[assistant-new]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-old]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-new]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[provider_system-old]" time="0.001" /><testcase classname="tests.experiments.test_core_next_parity_review" name="test_review_route_comparison_rejects_non_note_message_corruption[provider_system-new]" time="0.001" /><testcase classname="tests.experiments.test_core_next_persistence_probe" name="test_native_sync_probe_counts_real_full_and_normal_commits" time="0.067" /><testcase classname="tests.experiments.test_core_next_persistence_probe" name="test_reader_probe_reuses_connection_without_changing_query_result" time="0.011" /><testcase classname="tests.experiments.test_core_next_persistence_probe" name="test_reader_reuse_preserves_outer_snapshot_and_nested_fresh_read" time="0.006" /><testcase classname="tests.experiments.test_core_next_shell" name="test_pipeline_and_workspace_roundtrip" time="0.026" /><testcase classname="tests.experiments.test_core_next_shell" name="test_lazy_head_materializes_once" time="0.036" /><testcase classname="tests.experiments.test_core_next_shell" name="test_async_scoped_builtin_and_rebinding" time="0.005" /><testcase classname="tests.experiments.test_core_next_shell" name="test_large_binding_output_exact" time="0.012" /><testcase classname="tests.experiments.test_core_next_shell" name="test_large_output_signals_truncation_despite_success_exit" time="0.014" /><testcase classname="tests.experiments.test_core_next_step_cost" name="test_complete_steps_preserve_identical_account_effects[rule]" time="0.050" /><testcase classname="tests.experiments.test_core_next_step_cost" name="test_complete_steps_preserve_identical_account_effects[llm]" time="0.530"><failure message="AttributeError: 'ModelProvider' object has no attribute 'manager'">tests/experiments/test_core_next_step_cost.py:8: in test_complete_steps_preserve_identical_account_effects
+    result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_step_cost.py:61: in probe
+    provider.manager.clients['fake'].chat.completions.create=sdk
+    ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'</failure></testcase><testcase classname="tests.experiments.test_core_next_step_cost" name="test_complete_steps_preserve_identical_account_effects[memory]" time="0.036"><failure message="AttributeError: 'ModelProvider' object has no attribute 'manager'">tests/experiments/test_core_next_step_cost.py:8: in test_complete_steps_preserve_identical_account_effects
+    result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_step_cost.py:61: in probe
+    provider.manager.clients['fake'].chat.completions.create=sdk
+    ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'</failure></testcase><testcase classname="tests.experiments.test_core_next_storage" name="test_scope_page_is_lazy_and_revision_is_fixed" time="0.007" /><testcase classname="tests.experiments.test_core_next_storage" name="test_failed_stage_keeps_complete_sql_and_jsonl_boundary[after_update]" time="0.005" /><testcase classname="tests.experiments.test_core_next_storage" name="test_failed_stage_keeps_complete_sql_and_jsonl_boundary[after_file]" time="0.006" /><testcase classname="tests.experiments.test_core_next_storage" name="test_failed_stage_keeps_complete_sql_and_jsonl_boundary[before_commit]" time="0.005" /><testcase classname="tests.experiments.test_core_next_storage" name="test_history_growth_does_not_scan_history_or_enlarge_delta" time="0.023" /><testcase classname="tests.experiments.test_core_next_storage" name="test_compression_is_ordered_correct_and_bounded" time="0.044" /><testcase classname="tests.experiments.test_core_next_storage" name="test_cursor_is_bound_to_store_identity" time="0.009" /><testcase classname="tests.experiments.test_core_next_storage" name="test_active_index_and_count_change_in_same_stage" time="0.006" /><testcase classname="tests.experiments.test_core_next_storage" name="test_commit_ack_failure_does_not_undo_completed_revision" time="0.005" /><testcase classname="tests.experiments.test_core_next_storage" name="test_native_transaction_visibility_and_long_reader_cost" time="0.012" /><testcase classname="tests.experiments.test_core_next_storage" name="test_process_exit_boundary[after_file-0]" time="0.039" /><testcase classname="tests.experiments.test_core_next_storage" name="test_process_exit_boundary[before_commit-0]" time="0.039" /><testcase classname="tests.experiments.test_core_next_storage" name="test_process_exit_boundary[after_commit-1]" time="0.039" /><testcase classname="tests.experiments.test_core_next_storage" name="test_native_session_across_transactions_rollback_and_streaming" time="0.005" /><testcase classname="tests.experiments.test_core_next_storage" name="test_native_session_wide_row_capture_is_not_bounded_by_small_change" time="0.011" /><testcase classname="tests.experiments.test_core_next_storage" name="test_native_session_json_cell_update_and_append_payload" time="0.016" /><testcase classname="tests.experiments.test_core_next_storage" name="test_session_process_crash_rebuilds_only_complete_chain[before_export-2]" time="0.038" /><testcase classname="tests.experiments.test_core_next_storage" name="test_session_process_crash_rebuilds_only_complete_chain[after_export-2]" time="0.041" /><testcase classname="tests.experiments.test_core_next_storage" name="test_session_process_crash_rebuilds_only_complete_chain[after_marker-3]" time="0.038" /><testcase classname="tests.experiments.test_core_next_storage" name="test_session_captures_only_attached_connection_and_schema_is_required" time="0.002" /></testsuite></testsuites>

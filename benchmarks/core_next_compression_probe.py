@@ -16,7 +16,7 @@ import struct
 import tempfile
 import time
 from unittest.mock import patch
-import zlib
+from backports import zstd
 
 from society0.kernel._json_chunks import CHUNK_BYTES
 # spool/threaded 对照保留 f4d03a6 Python 遍历成本；default 路径运行当前产品。
@@ -56,7 +56,7 @@ def parallel_chunks(chunks, *, workers=4, pending_bytes=8*CHUNK_BYTES, stats=Non
             while pending and retained+len(raw)>pending_bytes:
                 size,future = pending.popleft();retained -= size
                 yield size,future.result()
-            pending.append((len(raw),pool.submit(zlib.compress,raw,3)))
+            pending.append((len(raw),pool.submit(zstd.compress,raw,level=3)))
             retained += len(raw)
             stats['max_pending_raw_bytes'] = max(stats.get('max_pending_raw_bytes',0),retained)
         while pending:
@@ -134,7 +134,7 @@ async def probe(path, mode, size, *, iterations=4, workers=4):
         value=None
         del body
     samples=[];reads=[];active=True
-    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+    with StageStore.create(path,THREAD_SCHEMA) as store:
         threads = ThreadStore(store);tid = threads.open('actor',0,'decision')
         async def observer():
             previous = time.perf_counter()

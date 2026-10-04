@@ -1,0 +1,5 @@
+..................................................
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:123: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+50 passed in 171.94s (0:02:51)

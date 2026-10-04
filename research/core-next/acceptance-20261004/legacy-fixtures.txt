@@ -1,0 +1,178 @@
+tests/primary/test_kernel_threads.py:155:        decompress = module.zlib.decompress
+tests/primary/test_kernel_threads.py:159:        monkeypatch.setattr(module.zlib,'decompress',counted)
+tests/primary/test_kernel_models_review.py:28:        provider.manager.clients['test'].chat.completions.create = create
+tests/primary/test_kernel_models_review.py:53:        original_trace=provider.manager._traceable_provider_request
+tests/primary/test_kernel_models_review.py:66:        provider.manager.clients['test'].chat.completions.create=create
+tests/primary/test_kernel_models_review.py:68:            assert provider.manager._log_context is None
+tests/primary/test_kernel_observation_http.py:26:            runner=threading.Thread(target=server.serve_forever);runner.start();port=server.server_address[1]
+tests/primary/test_kernel_observation_http.py:50:                server.shutdown();server.server_close();runner.join()
+tests/primary/test_kernel_observation_http.py:60:            runner=threading.Thread(target=server.serve_forever);runner.start();port=server.server_address[1]
+tests/primary/test_kernel_observation_http.py:76:                client.close();server.shutdown();server.server_close();runner.join()
+tests/primary/test_kernel_compression.py:4:import zlib
+tests/primary/test_kernel_compression.py:18:    with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA],compression_workers=2,
+tests/primary/test_kernel_compression.py:45:    threads=set();native=codec.zlib.compress
+tests/primary/test_kernel_compression.py:50:    monkeypatch.setattr(codec.zlib,'compress',compress)
+tests/primary/test_kernel_compression.py:55:        assert json.loads(b''.join(zlib.decompress(body) for _,body in chunks))==value
+tests/primary/test_kernel_compression.py:70:            self.set_result(zlib.compress(raw,3))
+tests/primary/test_kernel_compression.py:81:        def shutdown(self,**kwargs):pass
+tests/primary/test_kernel_compression.py:83:    encoder=codec.ChunkEncoder(4,131072)
+tests/primary/test_kernel_compression.py:88:        assert json.loads(b''.join(zlib.decompress(body) for _,body in chunks))['body']=='x'*3000000
+tests/primary/test_kernel_compression.py:96:        native=codec.zlib.compress
+tests/primary/test_kernel_compression.py:98:        monkeypatch.setattr(codec.zlib,'compress',fail)
+tests/primary/test_kernel_compression.py:102:        monkeypatch.setattr(codec.zlib,'compress',native)
+tests/primary/test_kernel_compression_review.py:4:import zlib
+tests/primary/test_kernel_compression_review.py:12:    real=codec.zlib.compress
+tests/primary/test_kernel_compression_review.py:27:    monkeypatch.setattr(codec.zlib,'compress',compress)
+tests/primary/test_kernel_compression_review.py:28:    with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)'],compression_workers=2,compression_inflight_bytes=262144) as store:
+tests/primary/test_kernel_compression_review.py:53:    with StageStore.create(tmp_path/'run',THREAD_SCHEMA,compression_workers=2,compression_inflight_bytes=65536) as store:
+tests/primary/test_kernel_compression_review.py:64:        assert size==len(zlib.decompress(chunk))==65536
+tests/primary/test_kernel_compression_review.py:75:    native_compress=codec.zlib.compress
+tests/primary/test_kernel_compression_review.py:92:    monkeypatch.setattr(codec.zlib,'compress',compress)
+tests/primary/test_kernel_compression_review.py:94:    with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)'],compression_workers=1) as store:
+tests/primary/test_resource_managers_shared.py:4:旧入口退役后继续验证真实共享 LLMManager/EmbeddingManager。
+tests/primary/test_resource_managers_shared.py:14:from society0.resource_managers import EmbeddingManager, LLMManager
+tests/primary/test_resource_managers_shared.py:60:    llm_manager = LLMManager(endpoint_configs)
+tests/primary/test_resource_managers_shared.py:61:    embed_manager = EmbeddingManager(endpoint_configs)
+tests/primary/test_resource_managers_shared.py:76:            assert set(manager._http_clients) == {False, True}
+tests/primary/test_resource_managers_shared.py:77:            assert manager.clients["direct"]._client is manager._http_clients[False]
+tests/primary/test_resource_managers_shared.py:78:            assert manager.clients["proxied"]._client is manager._http_clients[True]
+tests/primary/test_resource_managers_shared.py:79:            assert manager._http_clients[False]._trust_env is False
+tests/primary/test_resource_managers_shared.py:80:            assert manager._http_clients[True]._trust_env is True
+tests/primary/test_resource_managers_shared.py:81:            for trust_env, pool in manager._http_clients.items():
+tests/primary/test_resource_managers_shared.py:85:            await manager.close()
+tests/primary/test_resource_managers_shared.py:89:        assert all(pool.is_closed for pool in manager._http_clients.values())
+tests/primary/test_resource_managers_shared.py:94:    llm_manager = LLMManager(
+tests/primary/test_resource_managers_shared.py:114:    embed_manager = EmbeddingManager(
+tests/primary/test_resource_managers_shared.py:127:        assert llm_manager.clients["openai"].max_retries == 0
+tests/primary/test_resource_managers_shared.py:128:        assert llm_manager.clients["azure"].max_retries == 0
+tests/primary/test_resource_managers_shared.py:129:        assert embed_manager.clients["embed"].max_retries == 0
+tests/primary/test_resource_managers_shared.py:131:        await llm_manager.close()
+tests/primary/test_resource_managers_shared.py:132:        await embed_manager.close()
+tests/primary/test_resource_managers_shared.py:140:    manager = EmbeddingManager(
+tests/primary/test_resource_managers_shared.py:158:        async with manager.semaphores[endpoint.id]:
+tests/primary/test_resource_managers_shared.py:172:    manager._execute_request = fake_execute_request  # type: ignore[method-assign]
+tests/primary/test_resource_managers_shared.py:176:            *(manager.request([f"unique embedding text {idx}"], dimensions=2) for idx in range(8))
+tests/primary/test_resource_managers_shared.py:178:        stats = manager.get_stats()
+tests/primary/test_resource_managers_shared.py:180:        await manager.close()
+tests/primary/test_resource_managers_shared.py:197:    manager = EmbeddingManager(
+tests/primary/test_resource_managers_shared.py:219:    manager._execute_request = fake_execute_request  # type: ignore[method-assign]
+tests/primary/test_resource_managers_shared.py:222:        result = await manager.request(
+tests/primary/test_resource_managers_shared.py:235:        await manager.close()
+tests/primary/test_resource_managers_shared.py:258:    manager = EmbeddingManager(
+tests/primary/test_resource_managers_shared.py:288:    manager._execute_request = fake_execute_request  # type: ignore[method-assign]
+tests/primary/test_resource_managers_shared.py:293:                manager.request(
+tests/primary/test_resource_managers_shared.py:308:        await manager.close()
+tests/primary/test_resource_managers_shared.py:342:    manager = LLMManager(
+tests/primary/test_resource_managers_shared.py:355:    manager.clients["default"] = SlowClient()
+tests/primary/test_resource_managers_shared.py:356:    manager._max_retries = 1
+tests/primary/test_resource_managers_shared.py:360:            await manager.request(
+tests/primary/test_resource_managers_shared.py:367:        await manager.close()
+tests/primary/test_resource_managers_shared.py:419:    manager = LLMManager(
+tests/primary/test_resource_managers_shared.py:431:    manager.clients["default"] = FlakyClient()
+tests/primary/test_resource_managers_shared.py:432:    manager._max_retries = 2
+tests/primary/test_resource_managers_shared.py:435:        result = await manager.request(
+tests/primary/test_resource_managers_shared.py:439:        await manager.close()
+tests/primary/test_resource_managers_shared.py:443:    assert manager.endpoint_stats["default"]["errors"] == 1
+tests/primary/test_resource_managers_shared.py:444:    assert manager.endpoint_stats["default"]["successes"] == 1
+tests/primary/test_resource_managers_shared.py:486:    manager = LLMManager(
+tests/primary/test_resource_managers_shared.py:498:    original_client = manager.clients["default"]
+tests/primary/test_resource_managers_shared.py:500:    manager.clients["default"] = sdk_client
+tests/primary/test_resource_managers_shared.py:503:        result = await manager.request(
+tests/primary/test_resource_managers_shared.py:525:        await manager.close()
+tests/primary/test_kernel_usage_review.py:18:        provider.manager.clients['endpoint'].chat.completions.create=blocked
+tests/primary/test_kernel_action_timing_review.py:12:    manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
+tests/primary/test_kernel_action_timing_review.py:14:    manager._embedding_timeout_schedule = [10., 10.]
+tests/primary/test_kernel_action_timing_review.py:28:    original = manager.clients['m']
+tests/primary/test_kernel_action_timing_review.py:29:    manager.clients['m'] = SimpleNamespace(embeddings=SimpleNamespace(create=request), embed=request)
+tests/primary/test_kernel_action_timing_review.py:35:        await manager._execute_request(manager.endpoints[0], ['whole'], 2)
+tests/primary/test_kernel_action_timing_review.py:41:        manager.clients['m'] = original
+tests/primary/test_kernel_action_timing_review.py:42:        await manager.close()
+tests/primary/test_kernel_native_json_review.py:22:    original=module.zlib.compress
+tests/primary/test_kernel_native_json_review.py:26:    monkeypatch.setattr(module.zlib,'compress',compress)
+tests/primary/test_kernel_native_json_review.py:40:        assert json.loads(b''.join(module.zlib.decompress(body) for body, in blocks))==value
+tests/primary/test_kernel_request_limit.py:47:        a.manager.clients['a'].chat.completions.create=ac
+tests/primary/test_kernel_request_limit.py:48:        b.manager.clients['b'].chat.completions.create=bc
+tests/primary/test_kernel_request_limit.py:49:        e.manager.clients['e'].embeddings.create=ec
+tests/primary/test_kernel_request_limit.py:76:        e.manager.clients['e'].embeddings.create=ec
+tests/primary/test_kernel_request_limit.py:77:        recorded=[];record=e.manager._append_agent_thread_event_best_effort
+tests/primary/test_kernel_request_limit.py:80:        e.manager._append_agent_thread_event_best_effort=evidence
+tests/primary/test_kernel_request_limit.py:81:        m.manager.clients['m'].chat.completions.create=mc
+tests/primary/test_kernel_request_limit.py:110:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_request_limit.py:137:        assert all(provider.manager._request_limit is limit for provider in providers)
+tests/primary/test_kernel_request_limit.py:162:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_request_limit.py:193:            assert limit._value==1 and provider.manager._global_semaphore._value==4
+tests/primary/test_kernel_request_limit.py:225:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_results_review.py:3:import zlib
+tests/primary/test_kernel_results_review.py:19:        calls=[];decompress=zlib.decompress
+tests/primary/test_kernel_results_review.py:21:        monkeypatch.setattr(zlib,'decompress',counted)
+tests/primary/test_kernel_session_transport_review.py:22:    await provider.manager.clients['p'].close()
+tests/primary/test_kernel_session_transport_review.py:23:    provider.manager.clients['p']=openai.AsyncOpenAI(api_key='unused',base_url='https://provider.invalid/v1',max_retries=0,http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+tests/primary/test_kernel_request_limit_review.py:26:        a.manager.clients['a'].chat.completions.create=first;b.manager.clients['b'].chat.completions.create=second
+tests/primary/test_kernel_request_limit_review.py:52:        provider.manager.clients['a'].chat.completions.create=create
+tests/primary/test_kernel_session_transport.py:24:    await provider.manager.clients['p'].close()
+tests/primary/test_kernel_session_transport.py:25:    provider.manager.clients['p']=openai.AsyncOpenAI(api_key='unused',base_url='https://provider.invalid/v1',max_retries=0,
+tests/primary/test_kernel_tool_choice_audit.py:23:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_models_storage_review.py:26:        resource.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_models_storage_review.py:44:        resource.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_models_storage_review.py:65:        resource.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_models_storage_review.py:80:        resource.manager.clients['e'].embeddings.create=wrong
+tests/primary/test_kernel_models_storage_review.py:84:            assert not resource.manager._embedding_cache
+tests/primary/test_kernel_models_storage_review.py:96:        resource.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_models_storage_review.py:100:                assert len(resource.manager._embedding_cache)<=1
+tests/primary/test_kernel_models_storage_review.py:101:                assert resource.manager._cache_bytes<=4096
+tests/primary/test_kernel_models_storage_review.py:121:        resource.manager.clients['e'].embeddings.create=rejected
+tests/primary/test_kernel_models_storage_review.py:148:        resource.manager.clients['e'].embeddings.create = create
+tests/primary/test_kernel_timing.py:21:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_timing.py:22:        await provider.manager._global_semaphore.acquire()
+tests/primary/test_kernel_timing.py:24:        await asyncio.sleep(.02);provider.manager._global_semaphore.release()
+tests/primary/test_core_next_real_structure.py:86:    thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+tests/primary/test_core_next_real_structure.py:92:    finally:server.shutdown();thread.join();server.server_close()
+tests/primary/test_kernel_threads_review.py:39:        decompress=module.zlib.decompress
+tests/primary/test_kernel_threads_review.py:43:        monkeypatch.setattr(module.zlib,'decompress',counted)
+tests/primary/test_kernel_schedule_review.py:24:    manager=compose(tmp_path/'run',plugins);host=await manager.__aenter__()
+tests/primary/test_kernel_schedule_review.py:29:    closing=asyncio.create_task(manager.__aexit__(None,None,None))
+tests/primary/test_kernel_native_json.py:14:        import zlib
+tests/primary/test_kernel_native_json.py:15:        assert json.loads(b''.join(zlib.decompress(body) for _,body in compressed))==value
+tests/primary/test_kernel_capacity_review.py:25:        provider.manager.clients['m'].chat.completions.create=create
+tests/primary/test_kernel_credentials_review.py:45:        provider.manager.clients['stub'].chat.completions.create=create
+tests/primary/test_kernel_embedding_provider.py:22:        provider.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_embedding_provider.py:48:        provider.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_embedding_provider.py:69:        provider.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_embedding_provider.py:100:            assert provider.manager._http_clients[False]._transport._pool._max_connections==4
+tests/primary/test_kernel_embedding_provider.py:101:            assert provider.manager._microbatch_max_batch_texts==7
+tests/primary/test_kernel_embedding_provider.py:102:            assert provider.manager._microbatch_max_batch_chars==12345
+tests/primary/test_kernel_embedding_provider.py:103:            assert provider.manager._microbatch_max_wait_ms==2
+tests/primary/test_kernel_embedding_provider.py:117:        assert all(client.is_closed for client in provider.manager._http_clients.values())
+tests/primary/test_kernel_embedding_provider.py:132:        provider.manager.clients['e'].embeddings.create=create
+tests/primary/test_kernel_empty_retry_temperature.py:85:    provider.manager.clients['p'].chat.completions.create=create
+tests/primary/test_kernel_models.py:15:        assert provider.manager._global_semaphore._value==3
+tests/primary/test_kernel_models.py:16:        assert provider.manager._request_jitter==0
+tests/primary/test_kernel_models.py:17:        pool=provider.manager._http_clients[False]._transport._pool
+tests/primary/test_kernel_models.py:27:        assert provider.manager._global_semaphore._value==2
+tests/primary/test_kernel_models.py:28:        assert provider.manager._request_jitter==0.001
+tests/primary/test_kernel_models.py:29:        assert provider.manager._http_clients[False]._transport._pool._max_connections==4
+tests/primary/test_kernel_models.py:56:                received.append(models['decision'].manager._prepare_request_params(payload.copy()))
+tests/primary/test_kernel_models.py:58:            models['decision'].manager._execute_request=execute
+tests/primary/test_kernel_models.py:63:        assert all(client.is_closed for provider in models.values() for client in provider.manager._http_clients.values())
+tests/primary/test_kernel_models.py:79:        provider.manager._execute_request=execute
+tests/primary/test_kernel_models.py:87:    from society0.resource_managers import EmbeddingManager
+tests/primary/test_kernel_models.py:88:    manager=EmbeddingManager([],cache_max_bytes=512,cache_max_items=10)
+tests/primary/test_kernel_models.py:89:    first=manager._make_cache_key('m|x',2,'中文🙂')
+tests/primary/test_kernel_models.py:91:    assert first!=manager._make_cache_key('m',2,'x|中文🙂')
+tests/primary/test_kernel_models.py:92:    assert first!=manager._make_cache_key('m|x',3,'中文🙂')
+tests/primary/test_kernel_models.py:93:    manager._cache_put_unlocked(first,[0.1,0.2])
+tests/primary/test_kernel_models.py:94:    assert manager._embedding_cache[first]==[0.1,0.2]
+tests/primary/test_kernel_models.py:95:    manager._cache_put_unlocked(manager._make_cache_key('m',2,'huge'*1000),[0.1,0.2])
+tests/primary/test_kernel_models.py:96:    assert len(manager._embedding_cache)==1 and manager._cache_bytes<=512
+tests/primary/test_kernel_models.py:97:    for index in range(100):manager._cache_put_unlocked(manager._make_cache_key('m',2,str(index)),[0.1,0.2])
+tests/primary/test_kernel_models.py:98:    assert len(manager._embedding_cache)<10 and manager._cache_bytes<=512
+tests/primary/test_kernel_models.py:112:        provider.manager._execute_request=request
+tests/primary/test_kernel_provider_fields.py:23:        provider.manager.clients['p'].chat.completions.create=create
+tests/primary/test_kernel_llm.py:255:    provider.manager.clients['test'].chat.completions.create = create
+tests/primary/test_kernel_llm.py:257:        assert provider.manager.clients['test'].max_retries == 0
+tests/primary/test_kernel_llm.py:287:    provider.manager.clients['test'].chat.completions.create = create
+tests/primary/test_kernel_usage.py:97:        model.manager.clients['endpoint'].chat.completions.create=create
+tests/primary/test_kernel_usage.py:105:        embedding.manager.clients['endpoint'].embeddings.create=embed
+tests/primary/test_kernel_usage.py:186:            server=make_server(service,port=0);runner=threading.Thread(target=server.serve_forever);runner.start()
+tests/primary/test_kernel_usage.py:188:                connection=http.client.HTTPConnection('127.0.0.1',server.server_address[1],timeout=3)
+tests/primary/test_kernel_usage.py:199:            finally:server.shutdown();server.server_close();runner.join()

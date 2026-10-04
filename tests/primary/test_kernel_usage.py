@@ -1,3 +1,5 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
+from tests.primary.http_server import running
 """资源事实和累计投影使用同一事务，查询不重放正文。"""
 from society0.kernel.storage import StageStore
 from society0.kernel.threads import THREAD_SCHEMA, ThreadStore
@@ -94,7 +96,7 @@ async def test_real_adapters_project_retry_response_and_shared_cache(tmp_path):
             attempted.append(kwargs)
             if len(attempted)==1:raise openai.APIConnectionError(request=httpx.Request('POST','http://unused.invalid'))
             return ChatCompletion(id='r',created=0,model='chat',object='chat.completion',choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'done'}}],usage={'prompt_tokens':11,'completion_tokens':2,'total_tokens':13})
-        model.manager.clients['endpoint'].chat.completions.create=create
+        await bind_chat(model, create)
         try:await model.request(tid,{})
         finally:await model.close()
         embedding=EmbeddingProvider([{**config,'model':'embed','dimensions':2}],store,threads,dimensions=2,batch_wait_ms=10)
@@ -102,7 +104,7 @@ async def test_real_adapters_project_retry_response_and_shared_cache(tmp_path):
         async def embed(**kwargs):
             batches.append(kwargs)
             return CreateEmbeddingResponse(model='embed',object='list',usage={'prompt_tokens':4,'total_tokens':4},data=[{'index':i,'object':'embedding','embedding':[1.,2.]} for i in range(len(kwargs['input']))])
-        embedding.manager.clients['endpoint'].embeddings.create=embed
+        await bind_embedding(embedding, embed)
         try:
             await asyncio.gather(embedding.embed(['first'],metadata={'actor':'a','thread_id':tid}),embedding.embed(['second'],metadata={'actor':'b'}))
             await embedding.embed(['first'],metadata={'actor':'c'})
@@ -183,9 +185,9 @@ def test_http_usage_and_prepared_complete_share_same_projection(tmp_path):
         store.complete(1)
         threads.record_provider_request(tid,provider_options={'model':'m'},physical_request_id='pending')
         with ObservationService(store.path) as service:
-            server=make_server(service,port=0);runner=threading.Thread(target=server.serve_forever);runner.start()
+            server=make_server(service,port=0);context=running(server);port,state=context.__enter__()
             try:
-                connection=http.client.HTTPConnection('127.0.0.1',server.server_address[1],timeout=3)
+                connection=http.client.HTTPConnection('127.0.0.1',port,timeout=3)
                 connection.request('POST','/',json.dumps({'method':'resource_usage','params':{'actor':'a'}}))
                 response=connection.getresponse();live=json.loads(response.read());connection.close()
                 assert response.status==200 and live['totals']['requests']==2 and live['complete']['step']==1
@@ -196,4 +198,4 @@ def test_http_usage_and_prepared_complete_share_same_projection(tmp_path):
                     assert time.monotonic()<deadline;time.sleep(.01)
                 selected=service.call('resource_usage',{'actor':'a','view':state['view']})
                 assert selected['totals']['requests']==1
-            finally:server.shutdown();server.server_close();runner.join()
+            finally:context.__exit__(None,None,None)

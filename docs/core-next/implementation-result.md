@@ -1,6 +1,6 @@
 # Core 实施结果
 
-Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收与真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，各项旧语义与新版消费者见 [能力对照](capability-parity.md)。
+Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收、真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，实际执行范围见 [独立验收记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
 
 ## 一、结构
 

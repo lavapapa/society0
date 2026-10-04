@@ -1,0 +1,30 @@
+         46416523 function calls (46416038 primitive calls) in 19.664 seconds
+
+   Ordered by: cumulative time
+   List reduced from 310 to 22 due to restriction <22>
+
+   ncalls  tottime  percall  cumtime  percall filename:lineno(function)
+        1    0.004    0.004   19.664   19.664 core_next_dataset_access.py:13(probe)
+      802    0.001    0.000   19.472    0.024 {built-in method builtins.next}
+      800    0.027    0.000   19.471    0.024 datasets.py:85(_open)
+      401    0.000    0.000   19.457    0.049 contextlib.py:132(__enter__)
+      400    0.004    0.000   19.370    0.048 _seekable_zstdfile.py:495(__init__)
+      400    0.004    0.000   19.352    0.048 _seekable_zstdfile.py:338(__init__)
+      400    6.259    0.016   19.343    0.048 _seekable_zstdfile.py:128(load_seek_table)
+      300    0.002    0.000   14.672    0.049 datasets.py:120(read_payload)
+ 11564800    5.635    0.000   10.132    0.000 _seekable_zstdfile.py:107(append_entry)
+      100    0.007    0.000    4.963    0.050 datasets.py:135(page)
+ 23129600    4.498    0.000    4.498    0.000 {method 'append' of 'array.array' objects}
+ 11565200    2.937    0.000    2.937    0.000 {method 'unpack_from' of '_struct.Struct' objects}
+     1226    0.003    0.000    0.063    0.000 datasets.py:109(_range)
+     2082    0.003    0.000    0.053    0.000 __init__.py:183(dumps)
+     2082    0.003    0.000    0.049    0.000 encoder.py:183(encode)
+     1226    0.001    0.000    0.045    0.000 _seekable_zstdfile.py:859(seek)
+     2082    0.045    0.000    0.045    0.000 encoder.py:205(iterencode)
+3224/2826    0.004    0.000    0.044    0.000 {method 'seek' of '_io.BufferedReader' objects}
+     1065    0.003    0.000    0.041    0.000 _seekable_zstdfile.py:387(_decompress)
+      399    0.002    0.000    0.040    0.000 _seekable_zstdfile.py:428(seek)
+     1982    0.002    0.000    0.037    0.000 datasets.py:16(_bytes)
+     2003    0.036    0.000    0.036    0.000 {method 'execute' of 'apsw.Connection' objects}
+
+

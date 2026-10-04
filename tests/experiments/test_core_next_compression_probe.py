@@ -2,7 +2,7 @@
 import asyncio
 import json
 import threading
-import zlib
+from backports import zstd
 import pytest
 from benchmarks.core_next_compression_probe import raw_chunks, parallel_chunks, prepare
 
@@ -11,7 +11,7 @@ def test_parallel_chunks_match_full_json_and_bound_pending_input():
     value = {'body': '中文🙂\\\"\n'*50000, 'values': [None, True, 3, 0.125]}
     stats = {}
     result = list(parallel_chunks(raw_chunks(value), workers=4, pending_bytes=262144, stats=stats))
-    raw = b''.join(zlib.decompress(payload) for size,payload in result)
+    raw = b''.join(zstd.decompress(payload) for size,payload in result)
     assert json.loads(raw) == value
     assert all(size <= 65536 for size,_ in result)
     assert stats['max_pending_raw_bytes'] <= 262144
@@ -25,7 +25,7 @@ async def test_prepare_freezes_mutable_input_before_first_await_and_cleans_files
     value['body'][0] = 'changed after yield'
     prepared = await task
     try:
-        original = json.loads(b''.join(zlib.decompress(body) for _,body in prepared.chunks()))
+        original = json.loads(b''.join(zstd.decompress(body) for _,body in prepared.chunks()))
         assert original['body'][0] == 'original'
     finally:
         prepared.close()
@@ -37,12 +37,12 @@ async def test_cancel_waits_for_worker_before_removing_spools(tmp_path, monkeypa
     from benchmarks import core_next_compression_probe as probe
     entered = threading.Event()
     release = threading.Event()
-    native = probe.zlib.compress
-    def block(raw, level):
+    native = probe.zstd.compress
+    def block(raw, *, level):
         entered.set()
         release.wait()
-        return native(raw, level)
-    monkeypatch.setattr(probe.zlib, 'compress', block)
+        return native(raw, level=level)
+    monkeypatch.setattr(probe.zstd, 'compress', block)
     task = asyncio.create_task(prepare({'body':'x'*1000000}, directory=tmp_path))
     while not entered.is_set():
         await asyncio.sleep(0)

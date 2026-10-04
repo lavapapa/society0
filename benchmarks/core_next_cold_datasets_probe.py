@@ -15,6 +15,7 @@ from society0.kernel.datasets import DATASET_SCHEMA, Datasets
 from society0.kernel.storage import StageStore
 import society0.kernel.storage as storage
 import society0.kernel.datasets as datasets
+import society0.kernel._json_chunks as codec
 
 
 def space(paths):
@@ -30,18 +31,29 @@ def probe(folder, rows):
     folder=Path(folder);source=folder/'run';target=folder/'restored';view=folder/'view'
     counts={};original=storage._sync
     encoding_seconds=0.0;source_seconds=0.0;sync_seconds=0.0;compression_seconds=0.0
-    original_compressor=datasets.zstandard.ZstdCompressor
-    def compressor_factory(*args,**kwargs):
-        native=original_compressor(*args,**kwargs)
-        class Timed:
-            def compress(self,raw):
-                nonlocal compression_seconds
-                start=time.perf_counter()
-                result=native.compress(raw)
-                compression_seconds+=time.perf_counter()-start
-                return result
-        return Timed()
+    original_sink=datasets.ChunkWriter
     original_encode=datasets.write_json
+    def timed_sink(emit):
+        downstream=0.0
+        def timed_emit(size,body):
+            nonlocal downstream
+            start=time.perf_counter()
+            try:emit(size,body)
+            finally:downstream+=time.perf_counter()-start
+        native=original_sink(timed_emit)
+        class Timed:
+            def __getattr__(self,name):return getattr(native,name)
+            def write(self,raw):
+                nonlocal compression_seconds
+                before=downstream;start=time.perf_counter()
+                try:return native.write(raw)
+                finally:compression_seconds+=time.perf_counter()-start-(downstream-before)
+            def finish(self):
+                nonlocal compression_seconds
+                before=downstream;start=time.perf_counter()
+                try:return native.finish()
+                finally:compression_seconds+=time.perf_counter()-start-(downstream-before)
+        return Timed()
     def timed_encode(value,emit):
         nonlocal encoding_seconds
         downstream=0.0
@@ -73,7 +85,7 @@ def probe(folder, rows):
         sync_seconds+=time.perf_counter()-started
     storage._sync=sync
     datasets.write_json=timed_encode
-    datasets.zstandard.ZstdCompressor=compressor_factory
+    datasets.ChunkWriter=timed_sink
     started=time.perf_counter();cpu=time.process_time()
     try:
         with StageStore.create(source,DATASET_SCHEMA) as store:
@@ -94,7 +106,7 @@ def probe(folder, rows):
         before=time.perf_counter()
         with StageStore.restore(source,target) as restored:
             restore=time.perf_counter()-before
-            body_shared=(source/ref['artifact']).stat().st_ino==(target/ref['artifact']).stat().st_ino
+            body_shared=all((source/ref[key]).stat().st_ino==(target/ref[key]).stat().st_ino for key in ('artifact',))
             before=time.perf_counter()
             expected=iter(rows());cursor=None;verified=0
             restored_data=Datasets(restored)
@@ -129,11 +141,11 @@ def probe(folder, rows):
                 'python_explicit_fsync_all':counts,'all_values_equal':True,
                 'wall_seconds':time.perf_counter()-started,'cpu_seconds':time.process_time()-cpu,
                 'absolute_peak_rss_bytes':peak if platform.system()=='Darwin' else peak*1024,
-                'limits':'fsync counts exclude native SQLite sync syscalls; OS page cache retained; one connection per dataset page; peak includes one decoded source value; timing is single trial'}
+                'limits':'fsync counts exclude native SQLite sync syscalls; OS page cache retained; one connection per dataset page; peak includes one decoded source value; compression timing excludes encoding and SQL writes; timing is single trial'}
     finally:
         storage._sync=original
         datasets.write_json=original_encode
-        datasets.zstandard.ZstdCompressor=original_compressor
+        datasets.ChunkWriter=original_sink
 
 
 def source_rows(path,limit):

@@ -1,0 +1,32 @@
+..........................                                               [100%]
+=============================== warnings summary ===============================
+tests/primary/test_kernel_observation_http.py::test_uvicorn_graceful_timeout_waits_for_real_query_before_service_close
+  /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-4 (query)
+  
+  Traceback (most recent call last):
+    File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py", line 1075, in _bootstrap_inner
+      self.run()
+    File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py", line 1012, in run
+      self._target(*self._args, **self._kwargs)
+    File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_observation_http.py", line 118, in query
+      try:results.append(request(port,'status'))
+                         ^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_observation_http.py", line 16, in request
+      response=connection.getresponse();result=json.loads(response.read());status=response.status
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py", line 346, in loads
+      return _default_decoder.decode(s)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py", line 338, in decode
+      obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py", line 356, in raw_decode
+      raise JSONDecodeError("Expecting value", s, err.value) from None
+  json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+26 passed, 1 warning in 4.40s

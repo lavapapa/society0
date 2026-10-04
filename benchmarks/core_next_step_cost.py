@@ -43,6 +43,7 @@ async def probe(path,*,mode,steps=20,actors=8):
         from society0.kernel.models import ModelProvider
         from society0.kernel.llm import LLMDriver
         from openai.types.chat import ChatCompletion
+        from tests.primary.provider_http import bind_chat
         endpoint={'id':'fake','model':'fake','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':actors,'trust_env':False}
         provider=ModelProvider([endpoint],threads,request_limit=asyncio.Semaphore(actors))
         async def sdk(**kwargs):
@@ -53,19 +54,19 @@ async def probe(path,*,mode,steps=20,actors=8):
             extracting=any(t['function']['name']=='extract_memories' for t in kwargs.get('tools',[]))
             name='extract_memories' if extracting else 'action_invoke'
             arguments={'memories':[{'content':f"{actor} step {context['step']} increased account by 1",'importance':3}]} if extracting else {
-                'name':'increment','target':{'namespace':'account','kind':'balance','key':actor},'arguments':'{}'}
+                'name':'increment','target':{'namespace':'account','kind':'balance','key':actor},'arguments':{}}
             response=ChatCompletion(id='physical-'+str(provider_calls),created=0,model='fake',object='chat.completion',
                 choices=[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','content':'完整响应'*256,
                     'tool_calls':[{'id':'increment','type':'function','function':{'name':name,'arguments':json.dumps(arguments)}}]}}])
             sdk_seconds+=time.perf_counter()-before;return response
-        provider.manager.clients['fake'].chat.completions.create=sdk
-        request=provider.request
+        await bind_chat(provider,sdk)
+        request=provider.request_model
         async def measured_request(*a,**kw):
             nonlocal model_seconds
             before=time.perf_counter()
             try:return await request(*a,**kw)
             finally:model_seconds+=time.perf_counter()-before
-        provider.request=measured_request
+        provider.request_model=measured_request
         memory=None
         if mode=='memory':
             import chromadb
@@ -129,7 +130,7 @@ async def probe(path,*,mode,steps=20,actors=8):
             'peak_rss_bytes':peak if platform.system()=='Darwin' else peak*1024,
             'wall_seconds':time.perf_counter()-started,'cpu_seconds':time.process_time()-cpu,
             'directory_bytes':sum(p.stat().st_size for p in Path(path).rglob('*') if p.is_file()),
-            'limits':'same small account action; fake SDK no network; transaction time overlaps phase and includes encoding+SQLite FULL commits; memory mode uses formal Memory plugin with fixed extraction/embedding and actual Chroma; shell absent; nested phase/model/memory timings overlap'}
+            'limits':'same small account action; real SDK with offline MockTransport; transaction time overlaps phase and includes encoding+SQLite FULL commits; memory mode uses formal Memory plugin with fixed extraction/embedding and actual Chroma; shell absent; nested phase/model/memory timings overlap'}
 
 
 if __name__=='__main__':

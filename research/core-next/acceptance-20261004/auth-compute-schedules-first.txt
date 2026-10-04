@@ -1,0 +1,155 @@
+FFFFFFFFFFFF........                                                     [100%]
+=================================== FAILURES ===================================
+___________ test_dynamic_registration_pkce_oidc_and_reauthorization ____________
+tests/primary/test_kernel_auth_acceptance.py:77: in test_dynamic_registration_pkce_oidc_and_reauthorization
+    auth, attempt, identity = await authorize(tmp_path, authorization_transport)
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_auth_acceptance.py:69: in authorize
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+__________ test_authorization_error_never_persists_credentials[state] __________
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+______ test_authorization_error_never_persists_credentials[registration] _______
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+__________ test_authorization_error_never_persists_credentials[nonce] __________
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+________ test_authorization_error_never_persists_credentials[audience] _________
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+_______ test_authorization_error_never_persists_credentials[permission] ________
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+__________ test_authorization_error_never_persists_credentials[oauth] __________
+tests/primary/test_kernel_auth_acceptance.py:104: in test_authorization_error_never_persists_credentials
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+_________ test_expired_refresh_serializes_accounts_and_rotates_tokens __________
+tests/primary/test_kernel_auth_acceptance.py:128: in test_expired_refresh_serializes_accounts_and_rotates_tokens
+    auth, _, _ = await authorize(tmp_path, authorization_transport)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_auth_acceptance.py:69: in authorize
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+____________ test_failed_refresh_keeps_previous_registration[oauth] ____________
+tests/primary/test_kernel_auth_acceptance.py:158: in test_failed_refresh_keeps_previous_registration
+    auth, _, _ = await authorize(tmp_path, authorization_transport)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_auth_acceptance.py:69: in authorize
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+___________ test_failed_refresh_keeps_previous_registration[account] ___________
+tests/primary/test_kernel_auth_acceptance.py:158: in test_failed_refresh_keeps_previous_registration
+    auth, _, _ = await authorize(tmp_path, authorization_transport)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_auth_acceptance.py:69: in authorize
+    attempt = await auth.begin('http://127.0.0.1:1455/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+___________ test_login_real_loopback_callback_closes_listener[True] ____________
+tests/primary/test_kernel_auth_acceptance.py:194: in test_login_real_loopback_callback_closes_listener
+    identity = await auth.login(port=0, timeout=5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:195: in login
+    attempt = await self.begin(origin + '/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+___________ test_login_real_loopback_callback_closes_listener[False] ___________
+tests/primary/test_kernel_auth_acceptance.py:198: in test_login_real_loopback_callback_closes_listener
+    await auth.login(port=0, timeout=5)
+src/society0/kernel/auth.py:195: in login
+    attempt = await self.begin(origin + '/auth/callback')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/auth.py:96: in begin
+    async with AsyncOAuth2Client(client_id, scope=SCOPES, redirect_uri=redirect_uri,
+.venv/lib/python3.12/site-packages/httpx2/_client.py:2211: in __aenter__
+    if self._state != ClientState.UNOPENED:
+       ^^^^^^^^^^^
+E   AttributeError: 'AsyncOAuth2Client' object has no attribute '_state'. Did you mean: 'state'?
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_dynamic_registration_pkce_oidc_and_reauthorization
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[state]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[registration]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[nonce]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[audience]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[permission]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_authorization_error_never_persists_credentials[oauth]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_expired_refresh_serializes_accounts_and_rotates_tokens
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_failed_refresh_keeps_previous_registration[oauth]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_failed_refresh_keeps_previous_registration[account]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_login_real_loopback_callback_closes_listener[True]
+FAILED tests/primary/test_kernel_auth_acceptance.py::test_login_real_loopback_callback_closes_listener[False]
+12 failed, 8 passed in 1.98s
+
+exit_code=1

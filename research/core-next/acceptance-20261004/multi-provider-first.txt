@@ -1,0 +1,56 @@
+...FFF                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_anthropic_actual_sdk_signature_tool_result_and_single_retry _______
+tests/primary/test_kernel_multi_provider_acceptance.py:75: in test_anthropic_actual_sdk_signature_tool_result_and_single_retry
+    assert any(part.get('type')=='tool_result' and part['content']=='完整回执🙂' for part in blocks)
+E   assert False
+E    +  where False = any(<generator object test_anthropic_actual_sdk_signature_tool_result_and_single_retry.<locals>.<genexpr> at 0x10babd150>)
+_ test_google_actual_sdk_signature_embedding_retry_and_both_pools_close[status] _
+tests/primary/test_kernel_multi_provider_acceptance.py:116: in test_google_actual_sdk_signature_embedding_retry_and_both_pools_close
+    try:assert await embedding.embed(['one','two'],metadata={'actor':'a'})==[[1.,2.],[1.,2.]]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:61: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:54: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:632: in embed
+    if isinstance(result, BaseException): raise result
+                                          ^^^^^^^^^^^^
+E   society0.kernel.models.ProviderFailure: Failed to decode response as JSON: Expecting value: line 1 column 1 (char 0)
+_ test_google_actual_sdk_signature_embedding_retry_and_both_pools_close[transport] _
+tests/primary/test_kernel_multi_provider_acceptance.py:90: in transport
+    if failure=='transport':raise httpx.ConnectError('offline transient')
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   httpx.ConnectError: offline transient
+
+The above exception was the direct cause of the following exception:
+tests/primary/test_kernel_multi_provider_acceptance.py:105: in test_google_actual_sdk_signature_embedding_retry_and_both_pools_close
+    result=await provider.request(tid,{'tools':TOOLS})
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:61: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:54: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:394: in request
+    raise ProviderFailure(reason, redact_credentials(str(error), secrets=(endpoint.secret,))) from error
+E   society0.kernel.models.ProviderFailure: offline transient
+=============================== warnings summary ===============================
+tests/primary/test_kernel_multi_provider_acceptance.py::test_anthropic_actual_sdk_signature_tool_result_and_single_retry
+tests/primary/test_kernel_multi_provider_acceptance.py::test_anthropic_actual_sdk_signature_tool_result_and_single_retry
+tests/primary/test_kernel_multi_provider_acceptance.py::test_anthropic_actual_sdk_signature_tool_result_and_single_retry
+  /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/models/anthropic.py:1329: DeprecationWarning: The model 'claude-sonnet-4-20250514' is deprecated and will reach end-of-life on June 15th, 2026.
+  Please migrate to a newer model. Visit https://docs.anthropic.com/en/docs/resources/model-deprecations for more information.
+    raw_stream = cast(AsyncStream[BetaRawMessageStreamEvent], await send(True))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_multi_provider_acceptance.py::test_anthropic_actual_sdk_signature_tool_result_and_single_retry
+FAILED tests/primary/test_kernel_multi_provider_acceptance.py::test_google_actual_sdk_signature_embedding_retry_and_both_pools_close[status]
+FAILED tests/primary/test_kernel_multi_provider_acceptance.py::test_google_actual_sdk_signature_embedding_retry_and_both_pools_close[transport]
+3 failed, 3 passed, 3 warnings in 2.60s
+
+exit_code=1

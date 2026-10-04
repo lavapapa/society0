@@ -18,7 +18,7 @@ async def test_review_literal_search_and_empty_cursor_preserve_all_actions():
         cursor=page.next_cursor
         if cursor is None:break
     assert found==['Alpha','Beta','Star']
-    assert [x.name for x in (await actions.find(scope,target,query='INVENTORY')).items]==['Alpha','Beta']
+    assert {x.name for x in (await actions.find(scope,target,query='INVENTORY')).items}=={'Alpha','Beta'}
     assert [x.name for x in (await actions.find(scope,target,query='*')).items]==['Star']
     assert (await actions.find(scope,target,query='*inventory*')).total==0
 

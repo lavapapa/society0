@@ -1,4 +1,5 @@
 """SQL 正文引用避免查询物化，并保原始范围、权限与分页。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import json
 import tracemalloc
 from dataclasses import asdict
@@ -118,7 +119,7 @@ async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
         class Provider:
             async def request(self,tid,options):
                 replies=[json.loads(m['content']) for m in threads.read_messages(tid) if m['role']=='tool']
-                if not replies:name,args='data_query',{'path':'/world/rows','query':json.dumps({'max_bytes':1024})}
+                if not replies:name,args='data_query',{'path':'/world/rows','query':{'max_bytes':1024}}
                 else:
                     value=replies[-1];assert 'error' not in value,value
                     if len(replies)==1:
@@ -133,7 +134,7 @@ async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
         information=Information(lambda *a:True)
         information.mount('/world',SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body'),documents=(('body','body'),)),
             'body':DocumentSpec('docs','id','body')}))
-        driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'读取全部原始材料'}])
+        driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'读取全部原始材料'}])
         scope=InteractionScope('a',Moment(1,'read'))
         current=Session(Actor('a',driver),scope,information.bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),
                         SimpleNamespace(prepare_artifact=store.prepare_artifact),step=1)

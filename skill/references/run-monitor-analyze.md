@@ -31,27 +31,72 @@ Typical checks:
 - variance across repeated runs.
 - for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 
-Minimal pandas pattern:
+### 读取完整步骤的指标与表
+
+下面代码可在完成无模型起步后直接运行，读取 `runs/first-study/resumed` 的第 2 步。分析其他运行时修改 `run_dir`、`step` 与 `table_name`。LLM starter 的表名为 `responses`；先通过阶段结果头部的 `tables` 查看实际表名。代码准备一个选定完整步骤的只读目录，逐页读取结果，大行按引用拼接完整 JSON，并保留阶段序号。显式分析全部所选行的成本随行数与原文大小增长。
 
 ```python
+import base64
 import json
-import pandas as pd
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from society0.kernel.observation import Observation
+from society0.kernel.storage import StageStore
 
-run_dir = Path("runs/demo")
-metrics = pd.DataFrame(json.loads(line) for line in (run_dir / "metrics.jsonl").read_text().splitlines())
+run_dir = Path("runs/first-study/resumed")
+step = 2
+table_name = "decisions"
+
+
+def values(reader, reference):
+    cursor = None
+    while True:
+        page = reader.result_page(reference, cursor=cursor)
+        for item in page['items']:
+            if 'value' in item:
+                yield item['value']
+            else:
+                body = bytearray()
+                offset = 0
+                while True:
+                    part = reader.read_result_record(item['payload_ref'], offset=offset)
+                    body.extend(base64.b64decode(part['data']))
+                    offset = part['next_offset']
+                    if offset is None:
+                        break
+                yield json.loads(body)
+        cursor = page['next_cursor']
+        if cursor is None:
+            break
+
+
+metric_rows, table_rows = [], []
+with TemporaryDirectory() as temporary:
+    view = Path(temporary) / 'complete'
+    with StageStore.prepare_readonly(run_dir, view, step=step):
+        pass
+    with Observation(view) as reader:
+        cursor = None
+        seen = 0
+        while True:
+            phases = reader.result_phases(step=step, cursor=cursor)
+            for phase in phases['items']:
+                identity = {'step': step, 'phase': phase['name'], 'phase_index': phase['ordinal']}
+                header = next(values(reader, phase['reference']))
+                metric_rows.extend({**identity, **metric} for metric in values(reader, header['metrics']))
+                if table_name in header['tables']:
+                    table_rows.extend({**identity, 'table': table_name, 'value': value}
+                                      for value in values(reader, header['tables'][table_name]))
+            seen += len(phases['items'])
+            if seen == phases['total']:
+                break
+            cursor = phases['cursor']
+
+print('指标：', metric_rows)
+print('表行：', table_rows)
 ```
 
-For tables inside steps:
-
-```python
-rows = []
-for line in (run_dir / "steps.jsonl").read_text().splitlines():
-    item = json.loads(line)
-    for row in item["result"].get("tables", {}).get("survey", []):
-        rows.append({"step": item["step"], **row})
-survey = pd.DataFrame(rows)
-```
+需要 DataFrame 时，可在研究环境安装 pandas 后将 `metric_rows` 或 `table_rows` 传给 `pandas.DataFrame`。`value` 保留表行的原始 JSON，包括空值、布尔值、数组和对象；按实际研究表结构再选择字段。大型分析也可逐页消费 `values`，避免把所有行同时放进列表。
 
 ## Qualitative Analysis
 

@@ -1,0 +1,2 @@
+{"public_factories": true, "owned_clients_closed": true, "httpx_optional_present": false, "model_provider_file": "/mnt/data/l20/qin/society0-acceptance-20261004/llm/lib/python3.12/site-packages/society0/kernel/models.py"}
+

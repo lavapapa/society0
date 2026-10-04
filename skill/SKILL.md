@@ -29,7 +29,7 @@ For an introductory study that fits the starter's exposure–memory–measuremen
 6. Choose agent style:
    - Prefer **LLM-based agents** for interpretation, language, memory, persuasion, trust, identity, interviews, and social meaning.
    - Use **rule-based agents** for baselines, deterministic mechanisms, controls, parameter sweeps, fixtures, or non-linguistic updates.
-7. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
+7. For LLM agents, verify the LLM endpoint. Add and verify an embedding endpoint when the study uses memory or vector retrieval; the complete starter uses both. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
 8. Explain concurrency in plain language. Serial phases preserve business order; explicitly independent phases select their capacity. Provider endpoints and a shared request limit control actual external calls separately. Choose capacity from the known service contract and inspect the recorded effective phase capacity.
 9. Keep the first pilot small by reducing actors or repetitions while retaining the comparison. Preserve verified model budgets; truncated output is incomplete. Diagnose latency using recorded stage timings, actual provider usage, materialized bytes and persistence costs.
 10. Treat memory as part of the research design. Configure auto_write, auto_recall and active_tools independently for each activation. The starter keeps writes explicit in a successful browsing completion hook before the original Thread closes; interview measurement keeps current perception even when retrieval is empty.
@@ -117,7 +117,7 @@ When a researcher wants to contribute, treat their research artifact as the sour
 
 - Do not describe Society0 as a traditional ABM system with LLMs merely swapped in for rules. It is a language-mediated simulation paradigm that can borrow ABM rigor.
 - Do not design agents before the environment. The environment defines what agents can see, do, and leave behind as evidence.
-- Do not hide provider requirements. LLM agents require working LLM and embedding providers.
+- Do not hide provider requirements. LLM agents require a working LLM provider; memory and vector retrieval additionally require the embedding provider selected by that mechanism.
 - Do not ask researchers to tune concurrency by default. Use known provider limits and an explicit independent-phase capacity; keep uncertain service capacity a configuration question.
 - Do not turn off memory, actions, terminal/completion semantics, or the agent loop simply because a run is slow. Diagnose first; only simplify when the user explicitly accepts the modeling tradeoff.
 - Do not mix multiple studies in one run folder. Create a fresh experiment folder before writing code, running simulations, or analyzing outputs.

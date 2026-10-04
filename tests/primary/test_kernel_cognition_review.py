@@ -1,5 +1,6 @@
 """主体认知更新与合法游标的非作者验收。"""
 import pytest
+from tests.primary.scripted_provider import TypedScriptProvider
 from tests.primary.test_kernel_cognition import Provider, session
 from society0.kernel.storage import StageStore
 from society0.kernel.threads import ThreadStore, THREAD_SCHEMA
@@ -14,7 +15,7 @@ async def test_review_changed_persona_environment_precision_are_visible_in_exist
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store); provider=Provider(threads)
         builder=CognitiveInput(threads,perception,environment=lambda s:settings['environment'],precision=lambda s:settings['precision'])
-        driver=LLMDriver(provider,threads,input_builder=builder)
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=builder)
         await driver.run(session(driver))
         changed=session(driver)
         changed.actor.config.persona={'instance':'new persona'}
@@ -35,7 +36,7 @@ async def test_review_none_perception_cursor_is_valid_after_completed_initial_in
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store); provider=Provider(threads)
         builder=CognitiveInput(threads,perception,environment='stable')
-        driver=LLMDriver(provider,threads,input_builder=builder)
+        driver=LLMDriver(TypedScriptProvider(provider, threads),threads,input_builder=builder)
         await driver.run(session(driver))
         await driver.run(session(driver))
         messages=provider.inputs[-1]

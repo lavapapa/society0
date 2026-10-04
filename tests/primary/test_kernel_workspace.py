@@ -80,7 +80,7 @@ async def test_shared_world_mount_is_dynamic_readonly_and_authorized(tmp_path):
         assert json_load((await one.execute('cat /world/docs/items/1')).stdout)['owner']=='alice'
         assert (await one.execute('printf changed > /world/docs/texts/1')).exit_code!=0
         store.transaction(lambda w:w.execute('INSERT INTO docs VALUES(2,?,?)',('alice',b'next')))
-        assert (await one.execute('ls /world/docs/texts')).stdout=='1\n2\n'
+        assert (await one.execute('ls /world/docs/texts')).stdout=='1\n2\n@manifest.json\n'
         scoped.close()
         with pytest.raises(Exception):await one.execute('cat /world/docs/texts/1')
         await one.aclose()
@@ -152,3 +152,24 @@ async def test_world_callback_cancel_drains_and_storage_fault_propagates(tmp_pat
     session=ShellSession(InteractionScope('a',Moment(1,'work')),info,Actions(lambda *a:True),result_dir=tmp_path)
     with pytest.raises(OSError,match='read disk failure'):await session.execute('cat /world/docs/1')
     await session.aclose()
+
+
+@pytest.mark.asyncio
+async def test_native_snapshot_restore_failure_preserves_last_complete_workspace(tmp_path):
+    async with compose(tmp_path/'run',plugins()) as host:
+        first=shell(host,tmp_path)
+        assert (await first.execute('printf trusted > value')).exit_code==0
+        first.save_workspace();await first.aclose()
+        store=host.service('storage','store');store.complete(1)
+        lease=host.service('workspace','workspace').open(InteractionScope('alice',Moment(2,'work')))
+        lease.save(b'not a snapshot',{'removed':[],'entries':[]})
+        from bashkit import BashError
+        with pytest.raises(BashError,match='snapshot'):
+            shell(host,tmp_path,time=2)
+        assert store.complete_step==1
+        store.abort_step()
+    async with compose(tmp_path/'restored',plugins(),source=tmp_path/'run') as host:
+        assert host.service('storage','store').complete_step==1
+        restored=shell(host,tmp_path,time=3)
+        assert (await restored.execute('cat value')).stdout=='trusted'
+        await restored.aclose()

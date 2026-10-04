@@ -74,7 +74,7 @@ async def test_failed_step_keeps_last_complete_and_timing(tmp_path):
 def test_cli_runs_rule_plan_without_optional_dependencies(tmp_path):
     import os, subprocess, sys
     config=tmp_path/'config.json'
-    config.write_text(json.dumps({'release':{'commit':'explicit-cli-release'},'steps':2}))
+    config.write_text(json.dumps({'release':{'commit':'explicit-cli-release'},'start':1,'end':2}))
     result=subprocess.run([sys.executable,'-m','society0.kernel.runner','--factory','examples.core_next.rule_run:build',
         '--config',str(config),'--output',str(tmp_path/'run')],env={**os.environ,'PYTHONPATH':'src:.'},capture_output=True,text=True)
     assert result.returncode==0,result.stderr

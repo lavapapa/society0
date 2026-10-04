@@ -16,6 +16,8 @@ async def run(args):
     from society0.kernel.interaction import interaction_plugin,Action,ActionResult,Ref
     from society0.kernel.runtime import Actor,DriverResult,Phase,runtime_plugin
     from society0.kernel.llm import LLMDriver,LLMPolicy
+    from pydantic_ai.messages import ModelResponse, TextPart, ToolCallPart
+    from society0.kernel.model_messages import encode
     from society0.kernel.memory import Memory,MEMORY_SCHEMA,MemoryPolicy
     prior=json.loads((args.source/'parity.json').read_text()) if args.source else None
     result={'initial':{'balances':{'a':100,'b':200},'totals':{'a':0,'b':0},'facts':[]},
@@ -55,7 +57,7 @@ async def run(args):
                 recalled=[item['content'] for item in hits]
             return {'actor':session.actor.id,'step':session.step,'state_before':state(),'note':NOTE,'recalled':recalled}
         class Provider:
-            async def request(self,tid,options):
+            async def request_model(self,tid,options,*,model_messages=None):
                 messages=threads.read_messages(tid)
                 text=next(m['content'] for m in reversed(messages) if m['role']=='user' and m['content'].startswith('PARITY:'))
                 value=json.loads(text.removeprefix('PARITY:'))
@@ -63,9 +65,12 @@ async def run(args):
                 result['decision_inputs'].append(value);result['provider_inputs'].append(messages)
                 threads.record_request(tid,provider_options=options,physical_request_id=f"{value['actor']}:{value['step']}")
                 arguments={'step':value['step'],'amount':value['step']*(1 if value['actor']=='a' else 2),'note':NOTE}
-                return {'role':'assistant','content':'依据全部原始资料执行既定支付。','finish_reason':'tool_calls','tool_calls':[{
-                    'id':f"{value['actor']}:{value['step']}",'type':'function','function':{'name':'action_invoke','arguments':json.dumps({
-                        'name':'ledger.settle','target':{'namespace':'ledger','kind':'accounts','key':value['actor']},'arguments':json.dumps(arguments,ensure_ascii=False)},ensure_ascii=False)}}]}
+                response=ModelResponse(parts=[TextPart('依据全部原始资料执行既定支付。'),
+                    ToolCallPart('action_invoke',{'name':'ledger.settle',
+                        'target':{'namespace':'ledger','kind':'accounts','key':value['actor']},
+                        'arguments':arguments},f"{value['actor']}:{value['step']}")],finish_reason='tool_call')
+                sequence=threads.append_message(tid,{'model_message':encode(response)})
+                return response,sequence,None
         async def inputs(session):return [{'role':'system','content':'需保留全部资料的主体。'},{'role':'user','content':'PARITY:'+json.dumps(await material(session),ensure_ascii=False)}]
         llm=LLMDriver(Provider(),threads,input_builder=inputs,policy=LLMPolicy(max_turns=2,max_action_calls=1))
         class Driver:

@@ -1,0 +1,9 @@
+{
+  "external_cancel_count": 2,
+  "events": [
+    "cleanup_started",
+    "cleanup_finished",
+    "resource_close"
+  ],
+  "cancel_propagated": true
+}

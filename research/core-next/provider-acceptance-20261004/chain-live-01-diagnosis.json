@@ -1,0 +1,2398 @@
+{
+  "source": "research/core-next/provider-acceptance-20261004/chain-live-01/test_real_round_robin_action_loop",
+  "threads": [
+    {
+      "id": "7377347fe01946a9b846a0d0e50a2c70",
+      "actor": "a",
+      "kind": "decision",
+      "last_seq": 47,
+      "messages": [
+        {
+          "role": "system",
+          "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 是编码后的 JSON 字符串。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+        },
+        {
+          "role": "user",
+          "content": "当前主观状态\n{}"
+        },
+        {
+          "role": "user",
+          "content": "你本轮的行动目标是 {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}。发现并描述可用行动，向已配对伙伴发送一次且仅一次原文“共同讨论产业预期”，然后结束。"
+        },
+        {
+          "role": "user",
+          "content": "本次激活信号\n[null]"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a1064388c9877853ab0f4020ac80d1",
+              "type": "function",
+              "function": {
+                "name": "action_find",
+                "arguments": "{\"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 100, \"cursor\": null}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a1064388c9877853ab0f4020ac80d1",
+          "content": "{\"items\": [{\"name\": \"chat.send_message_to_partner\", \"description\": \"发送完整消息给当前伙伴。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.broadcast_to_group\", \"description\": \"向当前小组其他成员广播完整消息。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.mark_conversation_participant\", \"description\": \"保存本主体的对话参与标记。\", \"terminal\": false, \"tags\": []}], \"total\": 3, \"next_cursor\": null, \"revision\": [\"28e45961bc464492b3ca183848d8cdb2\", 1]}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a106439fd59a6cfab008532c5e4a7f",
+              "type": "function",
+              "function": {
+                "name": "action_describe",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a106439fd59a6cfab008532c5e4a7f",
+          "content": "{\"name\": \"chat.send_message_to_partner\", \"target_kind\": [\"chat\", \"participants\"], \"description\": \"发送完整消息给当前伙伴。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\"}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643adf5fd834fa5092d167b6715",
+              "type": "function",
+              "function": {
+                "name": "action_invoke",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643adf5fd834fa5092d167b6715",
+          "content": "{\"error\": \"invalid_tool_arguments\"}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643ba60bb3ec5d2c32c3aa53533",
+              "type": "function",
+              "function": {
+                "name": "action_find",
+                "arguments": "{\"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"query\": \"send\", \"limit\": 10, \"cursor\": null}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643ba60bb3ec5d2c32c3aa53533",
+          "content": "{\"items\": [{\"name\": \"chat.send_message_to_partner\", \"description\": \"发送完整消息给当前伙伴。\", \"terminal\": false, \"tags\": []}], \"total\": 1, \"next_cursor\": null, \"revision\": [\"28e45961bc464492b3ca183848d8cdb2\", 1]}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643cbd7f63697487388ae4964d2",
+              "type": "function",
+              "function": {
+                "name": "action_invoke",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643cbd7f63697487388ae4964d2",
+          "content": "{\"error\": \"invalid_tool_arguments\"}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643d857a0a1e3c40b60bc00e1ae",
+              "type": "function",
+              "function": {
+                "name": "action_invoke",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643d857a0a1e3c40b60bc00e1ae",
+          "content": "{\"error\": \"invalid_tool_arguments\"}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643eb135894e6cc26a22ca37e81",
+              "type": "function",
+              "function": {
+                "name": "action_invoke",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643eb135894e6cc26a22ca37e81",
+          "content": "{\"error\": \"invalid_tool_arguments\"}"
+        },
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "01a10643feba5523fb31adcdcabe84af",
+              "type": "function",
+              "function": {
+                "name": "action_invoke",
+                "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+              }
+            }
+          ]
+        },
+        {
+          "role": "tool",
+          "tool_call_id": "01a10643feba5523fb31adcdcabe84af",
+          "content": "{\"error\": \"invalid_tool_arguments\"}"
+        }
+      ],
+      "requests": [
+        {
+          "seq": 7,
+          "through": 6,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 12,
+          "through": 11,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 17,
+          "through": 16,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 22,
+          "through": 21,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 27,
+          "through": 26,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 32,
+          "through": 31,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 37,
+          "through": 36,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "seq": 42,
+          "through": 41,
+          "options": {
+            "model": "Qwen/Qwen3.8-27B",
+            "temperature": 0,
+            "max_tokens": 1024,
+            "parallel_tool_calls": false,
+            "extra_body": {
+              "enable_thinking": false
+            },
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "description": "Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "query": {
+                        "type": "string",
+                        "description": "Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching."
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "query",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "description": "Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "description": "Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "target": {
+                        "type": "object",
+                        "properties": {
+                          "namespace": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "key": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "namespace",
+                          "kind",
+                          "key"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "arguments": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "target",
+                      "arguments"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "description": "List accessible directory contents or dataset rows. Start at /. Directory entries include path and kind=directory: continue with data_list at the directory path, or data_query for structured dataset rows. Dataset rows retain their own business fields. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "limit": {
+                        "type": "integer"
+                      },
+                      "cursor": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "limit",
+                      "cursor"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_read",
+                  "description": "Read a concrete file path or document_ref path by byte offset/size. A directory is a container: use data_list or data_query to discover its records and concrete content references first. Default UTF-8; choose base64 for exact binary bytes. Follow next_offset until null; pass the document reference expected_revision on each read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      },
+                      "expected_revision": {}
+                    },
+                    "required": [
+                      "path",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "data_query",
+                  "description": "Query structured rows at a dataset path. query is JSON text containing fields, filters, order, limit, cursor, max_bytes or sample_seed supported by its provider. A returned document_ref identifies original content: pass its path and expected_revision to data_read. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "query": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "query"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              {
+                "type": "function",
+                "function": {
+                  "name": "result_read",
+                  "description": "Read full original shell output or action receipt by reference, including prior activations. Use byte offset/size and follow next_offset; UTF-8 default or base64 for binary. Submit at most one tool call per response.",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "reference": {
+                        "type": "string"
+                      },
+                      "offset": {
+                        "type": "integer"
+                      },
+                      "size": {
+                        "type": "integer"
+                      },
+                      "encoding": {
+                        "type": "string",
+                        "enum": [
+                          "utf-8",
+                          "base64"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "reference",
+                      "offset",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "chat_messages": [],
+  "event_counts": [
+    [
+      "closed",
+      1
+    ],
+    [
+      "input_cursor",
+      1
+    ],
+    [
+      "message",
+      20
+    ],
+    [
+      "opened",
+      1
+    ],
+    [
+      "provider_response",
+      8
+    ],
+    [
+      "request",
+      8
+    ],
+    [
+      "tool_receipt",
+      8
+    ]
+  ]
+}

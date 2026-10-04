@@ -152,11 +152,11 @@ def test_large_tail_uses_reference_and_range_decodes_only_needed_blocks(tmp_path
         ref = page['items'][0]['payload_ref']
         assert ref['total_bytes'] > 10*1024*1024
         count = [0]
-        decompress = module.zlib.decompress
+        decompress = module.decode_chunk
         def counted(body):
             count[0] += 1
             return decompress(body)
-        monkeypatch.setattr(module.zlib,'decompress',counted)
+        monkeypatch.setattr(module,'decode_chunk',counted)
         chunk = threads.read_payload(thread,seq,offset=65520,size=64)
         assert count[0] == 2
         expected = json.dumps(message,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()

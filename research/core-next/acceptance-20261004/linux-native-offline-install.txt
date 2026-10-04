@@ -1,0 +1,22 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/
+Processing /mnt/data/l20/qin/society0-acceptance-20261004/source/native/society0-filesystem
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting bashkit==0.18.2
+  Using cached http://mirrors.aliyun.com/pypi/packages/03/58/a948a6a1cd9b523c5b39ace2534af78b2de7e758886f02b3c992ab900d75/bashkit-0.18.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (22 kB)
+Using cached http://mirrors.aliyun.com/pypi/packages/03/58/a948a6a1cd9b523c5b39ace2534af78b2de7e758886f02b3c992ab900d75/bashkit-0.18.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (14.8 MB)
+Building wheels for collected packages: society0-filesystem
+  Building wheel for society0-filesystem (pyproject.toml): started
+  Building wheel for society0-filesystem (pyproject.toml): finished with status 'done'
+  Created wheel for society0-filesystem: filename=society0_filesystem-0.1.0-cp39-abi3-linux_x86_64.whl size=921139 sha256=33c471f64f6ad4a7cb30e012d020d70a5bd245dc9457c4965a7e9b47d4e928a5
+  Stored in directory: /root/.cache/pip/wheels/2f/93/01/69e5950b6a303547321d989b8aefdefec49f99d5b5f9aede3f
+Successfully built society0-filesystem
+Installing collected packages: society0-filesystem, bashkit
+Successfully installed bashkit-0.18.2 society0-filesystem-0.1.0
+
+[notice] A new release of pip is available: 24.3.1 -> 26.2.1
+[notice] To update, run: python -m pip install --upgrade pip

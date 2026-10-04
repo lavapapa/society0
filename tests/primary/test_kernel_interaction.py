@@ -503,3 +503,25 @@ async def test_find_policy_filters_version_cursor_and_empty_policy():
         await bound.find(target,tags=('a',),cursor=cursor)
     assert (await bound.find(target,names=())).total==0
     assert (await bound.find(target,tags=())).total==0
+
+
+@pytest.mark.asyncio
+async def test_chinese_fts_discovery_preserves_eligible_set_total_and_cursor_completeness():
+    import json
+    actions=Actions(lambda *args:True)
+    for name,description,available in [('buy','采购原料并结算仓库',None),('contract','按合同采购原料',None),('private','采购原料私有能力',lambda scope,target:scope.actor=='bob'),('other','出售库存商品',None)]:
+        actions.register(Action(name,('market','job'),description,{},lambda *args:ActionResult('completed'),available=available))
+    target=Ref('market','job','1')
+    with InteractionScope('alice',Moment(1,'trade')) as scope:
+        cursor=None;found=[]
+        while True:
+            page=await actions.find(scope,target,query='采购原料',limit=1,cursor=cursor)
+            assert page.total==2
+            found.extend(item.name for item in page.items)
+            cursor=json.loads(json.dumps(page.next_cursor))
+            if cursor is None:break
+        assert len(found)==2 and set(found)=={'buy','contract'}
+    with InteractionScope('bob',Moment(1,'trade')) as scope:
+        page=await actions.find(scope,target,query='采购原料',limit=10)
+        assert page.total==3 and {item.name for item in page.items}=={'buy','contract','private'}
+    actions.close()

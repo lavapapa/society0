@@ -1,0 +1,1397 @@
+{
+  "commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "kernel": {
+    "files": 31,
+    "physical": 7774,
+    "nonblank": 6932,
+    "items": [
+      {
+        "path": "src/society0/kernel/__init__.py",
+        "physical": 5,
+        "nonblank": 3
+      },
+      {
+        "path": "src/society0/kernel/_json_chunks.py",
+        "physical": 57,
+        "nonblank": 47
+      },
+      {
+        "path": "src/society0/kernel/action_stats.py",
+        "physical": 75,
+        "nonblank": 63
+      },
+      {
+        "path": "src/society0/kernel/actors.py",
+        "physical": 218,
+        "nonblank": 184
+      },
+      {
+        "path": "src/society0/kernel/auth.py",
+        "physical": 229,
+        "nonblank": 209
+      },
+      {
+        "path": "src/society0/kernel/cognition.py",
+        "physical": 46,
+        "nonblank": 38
+      },
+      {
+        "path": "src/society0/kernel/composition.py",
+        "physical": 132,
+        "nonblank": 113
+      },
+      {
+        "path": "src/society0/kernel/compute.py",
+        "physical": 57,
+        "nonblank": 50
+      },
+      {
+        "path": "src/society0/kernel/datasets.py",
+        "physical": 165,
+        "nonblank": 147
+      },
+      {
+        "path": "src/society0/kernel/information_fs.py",
+        "physical": 226,
+        "nonblank": 205
+      },
+      {
+        "path": "src/society0/kernel/information_sql.py",
+        "physical": 386,
+        "nonblank": 357
+      },
+      {
+        "path": "src/society0/kernel/interaction.py",
+        "physical": 540,
+        "nonblank": 457
+      },
+      {
+        "path": "src/society0/kernel/llm.py",
+        "physical": 618,
+        "nonblank": 572
+      },
+      {
+        "path": "src/society0/kernel/memory.py",
+        "physical": 644,
+        "nonblank": 585
+      },
+      {
+        "path": "src/society0/kernel/model_messages.py",
+        "physical": 49,
+        "nonblank": 43
+      },
+      {
+        "path": "src/society0/kernel/model_selection.py",
+        "physical": 17,
+        "nonblank": 14
+      },
+      {
+        "path": "src/society0/kernel/models.py",
+        "physical": 625,
+        "nonblank": 573
+      },
+      {
+        "path": "src/society0/kernel/observation.py",
+        "physical": 658,
+        "nonblank": 592
+      },
+      {
+        "path": "src/society0/kernel/plugins.py",
+        "physical": 223,
+        "nonblank": 190
+      },
+      {
+        "path": "src/society0/kernel/results.py",
+        "physical": 232,
+        "nonblank": 209
+      },
+      {
+        "path": "src/society0/kernel/runner.py",
+        "physical": 123,
+        "nonblank": 108
+      },
+      {
+        "path": "src/society0/kernel/runtime.py",
+        "physical": 415,
+        "nonblank": 368
+      },
+      {
+        "path": "src/society0/kernel/schedule.py",
+        "physical": 96,
+        "nonblank": 72
+      },
+      {
+        "path": "src/society0/kernel/selection.py",
+        "physical": 64,
+        "nonblank": 54
+      },
+      {
+        "path": "src/society0/kernel/services.py",
+        "physical": 46,
+        "nonblank": 40
+      },
+      {
+        "path": "src/society0/kernel/shell.py",
+        "physical": 340,
+        "nonblank": 311
+      },
+      {
+        "path": "src/society0/kernel/storage.py",
+        "physical": 756,
+        "nonblank": 683
+      },
+      {
+        "path": "src/society0/kernel/threads.py",
+        "physical": 363,
+        "nonblank": 323
+      },
+      {
+        "path": "src/society0/kernel/usage.py",
+        "physical": 95,
+        "nonblank": 81
+      },
+      {
+        "path": "src/society0/kernel/workbench.py",
+        "physical": 174,
+        "nonblank": 155
+      },
+      {
+        "path": "src/society0/kernel/workspace.py",
+        "physical": 100,
+        "nonblank": 86
+      }
+    ]
+  },
+  "resource_manager": {
+    "files": 1,
+    "physical": 111,
+    "nonblank": 97,
+    "items": [
+      {
+        "path": "src/society0/resource_managers.py",
+        "physical": 111,
+        "nonblank": 97
+      }
+    ]
+  },
+  "activation": {
+    "files": 1,
+    "physical": 423,
+    "nonblank": 368,
+    "items": [
+      {
+        "path": "src/society0/activation_pool.py",
+        "physical": 423,
+        "nonblank": 368
+      }
+    ]
+  },
+  "builtin_plugins": {
+    "files": 6,
+    "physical": 1018,
+    "nonblank": 920,
+    "items": [
+      {
+        "path": "src/society0/plugins/__init__.py",
+        "physical": 51,
+        "nonblank": 44
+      },
+      {
+        "path": "src/society0/plugins/plain.py",
+        "physical": 6,
+        "nonblank": 4
+      },
+      {
+        "path": "src/society0/plugins/round_robin.py",
+        "physical": 199,
+        "nonblank": 178
+      },
+      {
+        "path": "src/society0/plugins/social.py",
+        "physical": 555,
+        "nonblank": 512
+      },
+      {
+        "path": "src/society0/plugins/social_models.py",
+        "physical": 144,
+        "nonblank": 125
+      },
+      {
+        "path": "src/society0/plugins/social_topology.py",
+        "physical": 63,
+        "nonblank": 57
+      }
+    ]
+  },
+  "all_src": {
+    "files": 47,
+    "physical": 10990,
+    "nonblank": 9793,
+    "items": [
+      {
+        "path": "src/society0/__init__.py",
+        "physical": 50,
+        "nonblank": 41
+      },
+      {
+        "path": "src/society0/activation_pool.py",
+        "physical": 423,
+        "nonblank": 368
+      },
+      {
+        "path": "src/society0/async_utils.py",
+        "physical": 33,
+        "nonblank": 23
+      },
+      {
+        "path": "src/society0/function_registry.py",
+        "physical": 172,
+        "nonblank": 150
+      },
+      {
+        "path": "src/society0/kernel/__init__.py",
+        "physical": 5,
+        "nonblank": 3
+      },
+      {
+        "path": "src/society0/kernel/_json_chunks.py",
+        "physical": 57,
+        "nonblank": 47
+      },
+      {
+        "path": "src/society0/kernel/action_stats.py",
+        "physical": 75,
+        "nonblank": 63
+      },
+      {
+        "path": "src/society0/kernel/actors.py",
+        "physical": 218,
+        "nonblank": 184
+      },
+      {
+        "path": "src/society0/kernel/auth.py",
+        "physical": 229,
+        "nonblank": 209
+      },
+      {
+        "path": "src/society0/kernel/cognition.py",
+        "physical": 46,
+        "nonblank": 38
+      },
+      {
+        "path": "src/society0/kernel/composition.py",
+        "physical": 132,
+        "nonblank": 113
+      },
+      {
+        "path": "src/society0/kernel/compute.py",
+        "physical": 57,
+        "nonblank": 50
+      },
+      {
+        "path": "src/society0/kernel/datasets.py",
+        "physical": 165,
+        "nonblank": 147
+      },
+      {
+        "path": "src/society0/kernel/information_fs.py",
+        "physical": 226,
+        "nonblank": 205
+      },
+      {
+        "path": "src/society0/kernel/information_sql.py",
+        "physical": 386,
+        "nonblank": 357
+      },
+      {
+        "path": "src/society0/kernel/interaction.py",
+        "physical": 540,
+        "nonblank": 457
+      },
+      {
+        "path": "src/society0/kernel/llm.py",
+        "physical": 618,
+        "nonblank": 572
+      },
+      {
+        "path": "src/society0/kernel/memory.py",
+        "physical": 644,
+        "nonblank": 585
+      },
+      {
+        "path": "src/society0/kernel/model_messages.py",
+        "physical": 49,
+        "nonblank": 43
+      },
+      {
+        "path": "src/society0/kernel/model_selection.py",
+        "physical": 17,
+        "nonblank": 14
+      },
+      {
+        "path": "src/society0/kernel/models.py",
+        "physical": 625,
+        "nonblank": 573
+      },
+      {
+        "path": "src/society0/kernel/observation.py",
+        "physical": 658,
+        "nonblank": 592
+      },
+      {
+        "path": "src/society0/kernel/plugins.py",
+        "physical": 223,
+        "nonblank": 190
+      },
+      {
+        "path": "src/society0/kernel/results.py",
+        "physical": 232,
+        "nonblank": 209
+      },
+      {
+        "path": "src/society0/kernel/runner.py",
+        "physical": 123,
+        "nonblank": 108
+      },
+      {
+        "path": "src/society0/kernel/runtime.py",
+        "physical": 415,
+        "nonblank": 368
+      },
+      {
+        "path": "src/society0/kernel/schedule.py",
+        "physical": 96,
+        "nonblank": 72
+      },
+      {
+        "path": "src/society0/kernel/selection.py",
+        "physical": 64,
+        "nonblank": 54
+      },
+      {
+        "path": "src/society0/kernel/services.py",
+        "physical": 46,
+        "nonblank": 40
+      },
+      {
+        "path": "src/society0/kernel/shell.py",
+        "physical": 340,
+        "nonblank": 311
+      },
+      {
+        "path": "src/society0/kernel/storage.py",
+        "physical": 756,
+        "nonblank": 683
+      },
+      {
+        "path": "src/society0/kernel/threads.py",
+        "physical": 363,
+        "nonblank": 323
+      },
+      {
+        "path": "src/society0/kernel/usage.py",
+        "physical": 95,
+        "nonblank": 81
+      },
+      {
+        "path": "src/society0/kernel/workbench.py",
+        "physical": 174,
+        "nonblank": 155
+      },
+      {
+        "path": "src/society0/kernel/workspace.py",
+        "physical": 100,
+        "nonblank": 86
+      },
+      {
+        "path": "src/society0/logging/__init__.py",
+        "physical": 53,
+        "nonblank": 48
+      },
+      {
+        "path": "src/society0/logging/context.py",
+        "physical": 400,
+        "nonblank": 341
+      },
+      {
+        "path": "src/society0/logging/spec.py",
+        "physical": 788,
+        "nonblank": 730
+      },
+      {
+        "path": "src/society0/logging/utils.py",
+        "physical": 60,
+        "nonblank": 47
+      },
+      {
+        "path": "src/society0/memory_extraction_protocol.py",
+        "physical": 108,
+        "nonblank": 96
+      },
+      {
+        "path": "src/society0/plugins/__init__.py",
+        "physical": 51,
+        "nonblank": 44
+      },
+      {
+        "path": "src/society0/plugins/plain.py",
+        "physical": 6,
+        "nonblank": 4
+      },
+      {
+        "path": "src/society0/plugins/round_robin.py",
+        "physical": 199,
+        "nonblank": 178
+      },
+      {
+        "path": "src/society0/plugins/social.py",
+        "physical": 555,
+        "nonblank": 512
+      },
+      {
+        "path": "src/society0/plugins/social_models.py",
+        "physical": 144,
+        "nonblank": 125
+      },
+      {
+        "path": "src/society0/plugins/social_topology.py",
+        "physical": 63,
+        "nonblank": 57
+      },
+      {
+        "path": "src/society0/resource_managers.py",
+        "physical": 111,
+        "nonblank": 97
+      }
+    ]
+  },
+  "native": {
+    "files": 1,
+    "physical": 286,
+    "nonblank": 284,
+    "items": [
+      {
+        "path": "native/society0-filesystem/src/lib.rs",
+        "physical": 286,
+        "nonblank": 284
+      }
+    ]
+  },
+  "all_tests": {
+    "files": 150,
+    "physical": 15222,
+    "nonblank": 13532,
+    "items": [
+      {
+        "path": "tests/__init__.py",
+        "physical": 1,
+        "nonblank": 1
+      },
+      {
+        "path": "tests/e2e/__init__.py",
+        "physical": 1,
+        "nonblank": 1
+      },
+      {
+        "path": "tests/e2e/core_next_real_process.py",
+        "physical": 32,
+        "nonblank": 28
+      },
+      {
+        "path": "tests/e2e/core_next_real_support.py",
+        "physical": 150,
+        "nonblank": 142
+      },
+      {
+        "path": "tests/e2e/core_next_stub_provider.py",
+        "physical": 68,
+        "nonblank": 64
+      },
+      {
+        "path": "tests/e2e/real_endpoint_config.py",
+        "physical": 123,
+        "nonblank": 106
+      },
+      {
+        "path": "tests/e2e/test_core_next_real.py",
+        "physical": 326,
+        "nonblank": 282
+      },
+      {
+        "path": "tests/experiments/test_core_next_artifact_link_probe.py",
+        "physical": 8,
+        "nonblank": 7
+      },
+      {
+        "path": "tests/experiments/test_core_next_chroma_residency.py",
+        "physical": 9,
+        "nonblank": 7
+      },
+      {
+        "path": "tests/experiments/test_core_next_codec_sample.py",
+        "physical": 12,
+        "nonblank": 10
+      },
+      {
+        "path": "tests/experiments/test_core_next_cold_datasets_probe.py",
+        "physical": 11,
+        "nonblank": 9
+      },
+      {
+        "path": "tests/experiments/test_core_next_cold_runtime_probe.py",
+        "physical": 13,
+        "nonblank": 11
+      },
+      {
+        "path": "tests/experiments/test_core_next_cold_sqlite_codec.py",
+        "physical": 11,
+        "nonblank": 9
+      },
+      {
+        "path": "tests/experiments/test_core_next_compression_probe.py",
+        "physical": 69,
+        "nonblank": 61
+      },
+      {
+        "path": "tests/experiments/test_core_next_dataset_access.py",
+        "physical": 13,
+        "nonblank": 11
+      },
+      {
+        "path": "tests/experiments/test_core_next_deployment.py",
+        "physical": 30,
+        "nonblank": 23
+      },
+      {
+        "path": "tests/experiments/test_core_next_large_root_probe.py",
+        "physical": 57,
+        "nonblank": 49
+      },
+      {
+        "path": "tests/experiments/test_core_next_parallel_codec.py",
+        "physical": 10,
+        "nonblank": 8
+      },
+      {
+        "path": "tests/experiments/test_core_next_parity.py",
+        "physical": 27,
+        "nonblank": 23
+      },
+      {
+        "path": "tests/experiments/test_core_next_parity_review.py",
+        "physical": 23,
+        "nonblank": 21
+      },
+      {
+        "path": "tests/experiments/test_core_next_persistence_probe.py",
+        "physical": 28,
+        "nonblank": 22
+      },
+      {
+        "path": "tests/experiments/test_core_next_shell.py",
+        "physical": 32,
+        "nonblank": 20
+      },
+      {
+        "path": "tests/experiments/test_core_next_step_cost.py",
+        "physical": 14,
+        "nonblank": 11
+      },
+      {
+        "path": "tests/experiments/test_core_next_storage.py",
+        "physical": 202,
+        "nonblank": 172
+      },
+      {
+        "path": "tests/experiments/test_core_next_vector_backends.py",
+        "physical": 11,
+        "nonblank": 9
+      },
+      {
+        "path": "tests/primary/__init__.py",
+        "physical": 1,
+        "nonblank": 1
+      },
+      {
+        "path": "tests/primary/test_activation_pool_shared.py",
+        "physical": 119,
+        "nonblank": 95
+      },
+      {
+        "path": "tests/primary/test_core_directory_kind_review.py",
+        "physical": 55,
+        "nonblank": 51
+      },
+      {
+        "path": "tests/primary/test_core_final_review.py",
+        "physical": 70,
+        "nonblank": 60
+      },
+      {
+        "path": "tests/primary/test_core_final_review_r2.py",
+        "physical": 59,
+        "nonblank": 46
+      },
+      {
+        "path": "tests/primary/test_core_next_pilot.py",
+        "physical": 24,
+        "nonblank": 22
+      },
+      {
+        "path": "tests/primary/test_core_next_real_structure.py",
+        "physical": 126,
+        "nonblank": 115
+      },
+      {
+        "path": "tests/primary/test_core_next_workbench.py",
+        "physical": 162,
+        "nonblank": 144
+      },
+      {
+        "path": "tests/primary/test_core_next_workbench_review.py",
+        "physical": 41,
+        "nonblank": 37
+      },
+      {
+        "path": "tests/primary/test_core_real_context.py",
+        "physical": 46,
+        "nonblank": 45
+      },
+      {
+        "path": "tests/primary/test_kernel_action_discovery_cost.py",
+        "physical": 28,
+        "nonblank": 26
+      },
+      {
+        "path": "tests/primary/test_kernel_action_stats.py",
+        "physical": 132,
+        "nonblank": 122
+      },
+      {
+        "path": "tests/primary/test_kernel_action_timing_review.py",
+        "physical": 80,
+        "nonblank": 76
+      },
+      {
+        "path": "tests/primary/test_kernel_actor_factory.py",
+        "physical": 44,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_actor_fields.py",
+        "physical": 51,
+        "nonblank": 49
+      },
+      {
+        "path": "tests/primary/test_kernel_actor_fields_review.py",
+        "physical": 45,
+        "nonblank": 41
+      },
+      {
+        "path": "tests/primary/test_kernel_actors.py",
+        "physical": 164,
+        "nonblank": 146
+      },
+      {
+        "path": "tests/primary/test_kernel_actors_review.py",
+        "physical": 77,
+        "nonblank": 69
+      },
+      {
+        "path": "tests/primary/test_kernel_analysis_export.py",
+        "physical": 39,
+        "nonblank": 37
+      },
+      {
+        "path": "tests/primary/test_kernel_capacity.py",
+        "physical": 66,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_capacity_review.py",
+        "physical": 48,
+        "nonblank": 46
+      },
+      {
+        "path": "tests/primary/test_kernel_cognition.py",
+        "physical": 135,
+        "nonblank": 123
+      },
+      {
+        "path": "tests/primary/test_kernel_cognition_review.py",
+        "physical": 44,
+        "nonblank": 40
+      },
+      {
+        "path": "tests/primary/test_kernel_composition.py",
+        "physical": 95,
+        "nonblank": 83
+      },
+      {
+        "path": "tests/primary/test_kernel_composition_review.py",
+        "physical": 44,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_compression.py",
+        "physical": 104,
+        "nonblank": 94
+      },
+      {
+        "path": "tests/primary/test_kernel_compression_review.py",
+        "physical": 103,
+        "nonblank": 97
+      },
+      {
+        "path": "tests/primary/test_kernel_credentials_review.py",
+        "physical": 62,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_datasets.py",
+        "physical": 192,
+        "nonblank": 172
+      },
+      {
+        "path": "tests/primary/test_kernel_datasets_review.py",
+        "physical": 66,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_discovery_description.py",
+        "physical": 22,
+        "nonblank": 21
+      },
+      {
+        "path": "tests/primary/test_kernel_discovery_description_review.py",
+        "physical": 37,
+        "nonblank": 33
+      },
+      {
+        "path": "tests/primary/test_kernel_domain_revisions.py",
+        "physical": 85,
+        "nonblank": 71
+      },
+      {
+        "path": "tests/primary/test_kernel_embedding_provider.py",
+        "physical": 148,
+        "nonblank": 134
+      },
+      {
+        "path": "tests/primary/test_kernel_empty_retry_temperature.py",
+        "physical": 99,
+        "nonblank": 89
+      },
+      {
+        "path": "tests/primary/test_kernel_final_boundaries.py",
+        "physical": 82,
+        "nonblank": 78
+      },
+      {
+        "path": "tests/primary/test_kernel_graph_plugin.py",
+        "physical": 21,
+        "nonblank": 19
+      },
+      {
+        "path": "tests/primary/test_kernel_information_discovery.py",
+        "physical": 41,
+        "nonblank": 39
+      },
+      {
+        "path": "tests/primary/test_kernel_information_large.py",
+        "physical": 189,
+        "nonblank": 173
+      },
+      {
+        "path": "tests/primary/test_kernel_information_large_review.py",
+        "physical": 51,
+        "nonblank": 47
+      },
+      {
+        "path": "tests/primary/test_kernel_information_sql.py",
+        "physical": 243,
+        "nonblank": 217
+      },
+      {
+        "path": "tests/primary/test_kernel_information_sql_review.py",
+        "physical": 66,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_interaction.py",
+        "physical": 505,
+        "nonblank": 442
+      },
+      {
+        "path": "tests/primary/test_kernel_interaction_review.py",
+        "physical": 82,
+        "nonblank": 70
+      },
+      {
+        "path": "tests/primary/test_kernel_llm.py",
+        "physical": 712,
+        "nonblank": 623
+      },
+      {
+        "path": "tests/primary/test_kernel_llm_paging_review.py",
+        "physical": 62,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_llm_review.py",
+        "physical": 81,
+        "nonblank": 73
+      },
+      {
+        "path": "tests/primary/test_kernel_llm_workspace.py",
+        "physical": 60,
+        "nonblank": 56
+      },
+      {
+        "path": "tests/primary/test_kernel_llm_workspace_review.py",
+        "physical": 20,
+        "nonblank": 18
+      },
+      {
+        "path": "tests/primary/test_kernel_memory.py",
+        "physical": 409,
+        "nonblank": 369
+      },
+      {
+        "path": "tests/primary/test_kernel_memory_activation.py",
+        "physical": 156,
+        "nonblank": 142
+      },
+      {
+        "path": "tests/primary/test_kernel_memory_activation_review.py",
+        "physical": 49,
+        "nonblank": 45
+      },
+      {
+        "path": "tests/primary/test_kernel_memory_review.py",
+        "physical": 196,
+        "nonblank": 180
+      },
+      {
+        "path": "tests/primary/test_kernel_memory_transfer.py",
+        "physical": 93,
+        "nonblank": 85
+      },
+      {
+        "path": "tests/primary/test_kernel_model_selection.py",
+        "physical": 75,
+        "nonblank": 65
+      },
+      {
+        "path": "tests/primary/test_kernel_model_selection_review.py",
+        "physical": 30,
+        "nonblank": 28
+      },
+      {
+        "path": "tests/primary/test_kernel_models.py",
+        "physical": 117,
+        "nonblank": 101
+      },
+      {
+        "path": "tests/primary/test_kernel_models_review.py",
+        "physical": 72,
+        "nonblank": 68
+      },
+      {
+        "path": "tests/primary/test_kernel_models_storage_review.py",
+        "physical": 171,
+        "nonblank": 153
+      },
+      {
+        "path": "tests/primary/test_kernel_native_json.py",
+        "physical": 48,
+        "nonblank": 40
+      },
+      {
+        "path": "tests/primary/test_kernel_native_json_review.py",
+        "physical": 40,
+        "nonblank": 36
+      },
+      {
+        "path": "tests/primary/test_kernel_observation.py",
+        "physical": 307,
+        "nonblank": 281
+      },
+      {
+        "path": "tests/primary/test_kernel_observation_domains.py",
+        "physical": 40,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_observation_http.py",
+        "physical": 76,
+        "nonblank": 70
+      },
+      {
+        "path": "tests/primary/test_kernel_observation_review.py",
+        "physical": 16,
+        "nonblank": 14
+      },
+      {
+        "path": "tests/primary/test_kernel_plugins.py",
+        "physical": 297,
+        "nonblank": 227
+      },
+      {
+        "path": "tests/primary/test_kernel_plugins_review.py",
+        "physical": 148,
+        "nonblank": 112
+      },
+      {
+        "path": "tests/primary/test_kernel_preparation.py",
+        "physical": 73,
+        "nonblank": 66
+      },
+      {
+        "path": "tests/primary/test_kernel_preparation_review.py",
+        "physical": 62,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_kernel_provider_fields.py",
+        "physical": 31,
+        "nonblank": 29
+      },
+      {
+        "path": "tests/primary/test_kernel_reader_reuse.py",
+        "physical": 59,
+        "nonblank": 52
+      },
+      {
+        "path": "tests/primary/test_kernel_reader_reuse_review.py",
+        "physical": 32,
+        "nonblank": 28
+      },
+      {
+        "path": "tests/primary/test_kernel_record_plugin.py",
+        "physical": 67,
+        "nonblank": 59
+      },
+      {
+        "path": "tests/primary/test_kernel_record_plugin_review.py",
+        "physical": 29,
+        "nonblank": 27
+      },
+      {
+        "path": "tests/primary/test_kernel_repeated_read_temperature.py",
+        "physical": 49,
+        "nonblank": 45
+      },
+      {
+        "path": "tests/primary/test_kernel_request_limit.py",
+        "physical": 233,
+        "nonblank": 212
+      },
+      {
+        "path": "tests/primary/test_kernel_request_limit_review.py",
+        "physical": 60,
+        "nonblank": 56
+      },
+      {
+        "path": "tests/primary/test_kernel_result_inputs.py",
+        "physical": 73,
+        "nonblank": 65
+      },
+      {
+        "path": "tests/primary/test_kernel_result_page_envelope.py",
+        "physical": 60,
+        "nonblank": 56
+      },
+      {
+        "path": "tests/primary/test_kernel_results.py",
+        "physical": 83,
+        "nonblank": 77
+      },
+      {
+        "path": "tests/primary/test_kernel_results_envelope_review.py",
+        "physical": 53,
+        "nonblank": 49
+      },
+      {
+        "path": "tests/primary/test_kernel_results_review.py",
+        "physical": 47,
+        "nonblank": 45
+      },
+      {
+        "path": "tests/primary/test_kernel_runner.py",
+        "physical": 83,
+        "nonblank": 71
+      },
+      {
+        "path": "tests/primary/test_kernel_runner_review.py",
+        "physical": 42,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_runtime.py",
+        "physical": 454,
+        "nonblank": 402
+      },
+      {
+        "path": "tests/primary/test_kernel_runtime_review.py",
+        "physical": 223,
+        "nonblank": 200
+      },
+      {
+        "path": "tests/primary/test_kernel_schedule.py",
+        "physical": 230,
+        "nonblank": 214
+      },
+      {
+        "path": "tests/primary/test_kernel_schedule_review.py",
+        "physical": 39,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_selection.py",
+        "physical": 85,
+        "nonblank": 77
+      },
+      {
+        "path": "tests/primary/test_kernel_selection_review.py",
+        "physical": 32,
+        "nonblank": 28
+      },
+      {
+        "path": "tests/primary/test_kernel_services.py",
+        "physical": 91,
+        "nonblank": 83
+      },
+      {
+        "path": "tests/primary/test_kernel_session_transport.py",
+        "physical": 40,
+        "nonblank": 38
+      },
+      {
+        "path": "tests/primary/test_kernel_session_transport_review.py",
+        "physical": 37,
+        "nonblank": 36
+      },
+      {
+        "path": "tests/primary/test_kernel_shell.py",
+        "physical": 271,
+        "nonblank": 237
+      },
+      {
+        "path": "tests/primary/test_kernel_shell_review.py",
+        "physical": 98,
+        "nonblank": 86
+      },
+      {
+        "path": "tests/primary/test_kernel_storage.py",
+        "physical": 462,
+        "nonblank": 399
+      },
+      {
+        "path": "tests/primary/test_kernel_storage_lifecycle.py",
+        "physical": 109,
+        "nonblank": 97
+      },
+      {
+        "path": "tests/primary/test_kernel_storage_lifecycle_review.py",
+        "physical": 44,
+        "nonblank": 40
+      },
+      {
+        "path": "tests/primary/test_kernel_storage_review.py",
+        "physical": 133,
+        "nonblank": 111
+      },
+      {
+        "path": "tests/primary/test_kernel_temperature_review.py",
+        "physical": 66,
+        "nonblank": 60
+      },
+      {
+        "path": "tests/primary/test_kernel_thread_publication.py",
+        "physical": 19,
+        "nonblank": 17
+      },
+      {
+        "path": "tests/primary/test_kernel_threads.py",
+        "physical": 259,
+        "nonblank": 231
+      },
+      {
+        "path": "tests/primary/test_kernel_threads_review.py",
+        "physical": 195,
+        "nonblank": 175
+      },
+      {
+        "path": "tests/primary/test_kernel_timing.py",
+        "physical": 94,
+        "nonblank": 88
+      },
+      {
+        "path": "tests/primary/test_kernel_tool_choice_audit.py",
+        "physical": 37,
+        "nonblank": 35
+      },
+      {
+        "path": "tests/primary/test_kernel_tool_resolution.py",
+        "physical": 21,
+        "nonblank": 19
+      },
+      {
+        "path": "tests/primary/test_kernel_usage.py",
+        "physical": 199,
+        "nonblank": 179
+      },
+      {
+        "path": "tests/primary/test_kernel_usage_review.py",
+        "physical": 46,
+        "nonblank": 42
+      },
+      {
+        "path": "tests/primary/test_kernel_workspace.py",
+        "physical": 154,
+        "nonblank": 136
+      },
+      {
+        "path": "tests/primary/test_kernel_workspace_review.py",
+        "physical": 50,
+        "nonblank": 43
+      },
+      {
+        "path": "tests/primary/test_plugin_builtin_review.py",
+        "physical": 52,
+        "nonblank": 48
+      },
+      {
+        "path": "tests/primary/test_plugin_plain.py",
+        "physical": 15,
+        "nonblank": 13
+      },
+      {
+        "path": "tests/primary/test_plugin_round_robin.py",
+        "physical": 176,
+        "nonblank": 156
+      },
+      {
+        "path": "tests/primary/test_plugin_social.py",
+        "physical": 434,
+        "nonblank": 405
+      },
+      {
+        "path": "tests/primary/test_plugin_social_review.py",
+        "physical": 64,
+        "nonblank": 58
+      },
+      {
+        "path": "tests/primary/test_public_core_api.py",
+        "physical": 38,
+        "nonblank": 34
+      },
+      {
+        "path": "tests/primary/test_real_e2e_endpoint_config.py",
+        "physical": 55,
+        "nonblank": 46
+      },
+      {
+        "path": "tests/primary/test_resource_managers_shared.py",
+        "physical": 535,
+        "nonblank": 474
+      },
+      {
+        "path": "tests/primary/test_shared_core_assets.py",
+        "physical": 51,
+        "nonblank": 45
+      },
+      {
+        "path": "tests/primary/test_skill_starter.py",
+        "physical": 86,
+        "nonblank": 76
+      },
+      {
+        "path": "tests/primary/test_skill_starter_review.py",
+        "physical": 32,
+        "nonblank": 28
+      },
+      {
+        "path": "tests/primary/test_workbench_renderer.py",
+        "physical": 65,
+        "nonblank": 51
+      },
+      {
+        "path": "tests/reference/__init__.py",
+        "physical": 0,
+        "nonblank": 0
+      },
+      {
+        "path": "tests/reference/builtin_algorithms.py",
+        "physical": 441,
+        "nonblank": 382
+      },
+      {
+        "path": "tests/reference/models.py",
+        "physical": 5,
+        "nonblank": 5
+      }
+    ]
+  },
+  "examples": {
+    "files": 10,
+    "physical": 782,
+    "nonblank": 670,
+    "items": [
+      {
+        "path": "examples/core_next/codex_subscription.py",
+        "physical": 78,
+        "nonblank": 71
+      },
+      {
+        "path": "examples/core_next/conversation_pilot.py",
+        "physical": 51,
+        "nonblank": 47
+      },
+      {
+        "path": "examples/core_next/graph_environment.py",
+        "physical": 75,
+        "nonblank": 62
+      },
+      {
+        "path": "examples/core_next/immutable_catalog.py",
+        "physical": 55,
+        "nonblank": 44
+      },
+      {
+        "path": "examples/core_next/parallel_graph.py",
+        "physical": 29,
+        "nonblank": 24
+      },
+      {
+        "path": "examples/core_next/rule_run.py",
+        "physical": 26,
+        "nonblank": 24
+      },
+      {
+        "path": "examples/core_next/shared_environment.py",
+        "physical": 167,
+        "nonblank": 153
+      },
+      {
+        "path": "examples/core_next/typed_records.py",
+        "physical": 79,
+        "nonblank": 63
+      },
+      {
+        "path": "examples/example_usage.py",
+        "physical": 97,
+        "nonblank": 79
+      },
+      {
+        "path": "examples/misinformation_trust_demo.py",
+        "physical": 125,
+        "nonblank": 103
+      }
+    ]
+  },
+  "skill_code": {
+    "files": 3,
+    "physical": 316,
+    "nonblank": 300,
+    "items": [
+      {
+        "path": "skill/assets/minimal_experiment.py",
+        "physical": 128,
+        "nonblank": 121
+      },
+      {
+        "path": "skill/assets/workbench-template.html",
+        "physical": 127,
+        "nonblank": 127
+      },
+      {
+        "path": "skill/scripts/render_workbench.py",
+        "physical": 61,
+        "nonblank": 52
+      }
+    ]
+  },
+  "ui_src": {
+    "files": 6,
+    "physical": 2507,
+    "nonblank": 2474,
+    "items": [
+      {
+        "path": "tools/workbench-template/src/App.jsx",
+        "physical": 349,
+        "nonblank": 339
+      },
+      {
+        "path": "tools/workbench-template/src/ConfigPanel.jsx",
+        "physical": 53,
+        "nonblank": 51
+      },
+      {
+        "path": "tools/workbench-template/src/main.jsx",
+        "physical": 10,
+        "nonblank": 9
+      },
+      {
+        "path": "tools/workbench-template/src/model.js",
+        "physical": 100,
+        "nonblank": 90
+      },
+      {
+        "path": "tools/workbench-template/src/styles.css",
+        "physical": 1798,
+        "nonblank": 1795
+      },
+      {
+        "path": "tools/workbench-template/src/views.jsx",
+        "physical": 197,
+        "nonblank": 190
+      }
+    ]
+  },
+  "ui_tests": {
+    "files": 3,
+    "physical": 197,
+    "nonblank": 187,
+    "items": [
+      {
+        "path": "tools/workbench-template/tests/core-next.test.mjs",
+        "physical": 26,
+        "nonblank": 25
+      },
+      {
+        "path": "tools/workbench-template/tests/model.test.mjs",
+        "physical": 83,
+        "nonblank": 76
+      },
+      {
+        "path": "tools/workbench-template/tests/render.test.mjs",
+        "physical": 88,
+        "nonblank": 86
+      }
+    ]
+  },
+  "ui_config": {
+    "files": 3,
+    "physical": 49,
+    "nonblank": 47,
+    "items": [
+      {
+        "path": "tools/workbench-template/index.html",
+        "physical": 18,
+        "nonblank": 18
+      },
+      {
+        "path": "tools/workbench-template/vite.config.mjs",
+        "physical": 19,
+        "nonblank": 18
+      },
+      {
+        "path": "tools/workbench-template/vite.standalone.config.mjs",
+        "physical": 12,
+        "nonblank": 11
+      }
+    ]
+  }
+}

@@ -24,7 +24,7 @@ Google 官方目录提供 gemini-3.5-flash-lite；[官方价格](https://ai.goog
 
 该探针基于 dc6f558 之后的开发工作树，包含当时 resource_managers.py 工具扩展字段透传修订；对应回归文件 test_kernel_provider_fields.py、红绿及独立日志 provider-fields-*.txt 保留。它属于配置兼容证据，完整发布验收仍需干净已推送提交和冻结部署副本。仓库保存选定字段的小结果；SQLite、原始响应与 Thread 留在上述拥有目录，未纳入提交。
 
-完整本机探针工件另已归档至本任务服务器 `/tmp/society0-core-next-20261004/provider-evidence-archive.tgz` 并解包到相邻 `provider-evidence/`；传输后直接逐字节比较归档一致。上述本机目录继续保留，本次整理没有删除原文工件。
+完整本机探针工件已归档至本任务服务器 `/mnt/data/l20/qin/society0-core-real-20261004-evidence/development-provider-probes.tgz`，临时原包及解包目录仍在 `/tmp/society0-core-next-20261004/`；永久归档与原包直接逐字节比较一致。上述本机目录继续保留，本次整理没有删除原文工件。
 
 ## 正式候选与容量
 

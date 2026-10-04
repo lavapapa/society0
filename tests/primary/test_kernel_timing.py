@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """稳定阶段的短时长事实，保留包含关系。"""
 import asyncio
 import pytest
@@ -18,10 +19,10 @@ async def test_physical_queue_jitter_provider_times_survive_projection(tmp_path,
         async def create(**kwargs):
             await asyncio.sleep(.01)
             return ChatCompletion(id='r',object='chat.completion',created=0,model='m',choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'full'}}])
-        provider.manager.clients['m'].chat.completions.create=create
-        await provider.manager._global_semaphore.acquire()
+        await bind_chat(provider, create)
+        await provider.endpoints[0].resources.endpoint.acquire()
         task=asyncio.create_task(provider.request(tid,{}))
-        await asyncio.sleep(.02);provider.manager._global_semaphore.release()
+        await asyncio.sleep(.055);provider.endpoints[0].resources.endpoint.release()
         try:await task
         finally:await provider.close()
         counts=Observation(store.path).resource_usage()['totals']
@@ -41,7 +42,10 @@ async def test_activation_reports_memory_model_and_cleanup_stage_facts(tmp_path)
     from society0.kernel.interaction import Actions,Information,InteractionScope,Moment
     from society0.kernel.runtime import Session,Actor
     class Provider:
-        async def request(self,*args):await asyncio.sleep(.01);return {'role':'assistant','content':'done','finish_reason':'stop'}
+        async def request_model(self,*args,**kwargs):
+            from pydantic_ai.messages import ModelResponse,TextPart
+            await asyncio.sleep(.01)
+            return ModelResponse(parts=[TextPart('done')],finish_reason='stop'),0,None
     class Memory:
         def activation(self,*args):
             from contextlib import nullcontext
@@ -49,7 +53,7 @@ async def test_activation_reports_memory_model_and_cleanup_stage_facts(tmp_path)
         async def before_activation(self,*args):await asyncio.sleep(.01);return []
         async def after_activation(self,*args):await asyncio.sleep(.01)
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
-        threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],memory=Memory())
+        threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'user','content':'当前任务'}],memory=Memory())
         scope=InteractionScope('a',Moment(1,'decision'))
         session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),None, step=1)
         result=await driver.run(session)

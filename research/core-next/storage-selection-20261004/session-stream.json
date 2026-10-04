@@ -1,0 +1,10 @@
+{
+  "rows": 200,
+  "transactions": 2,
+  "capture_memory_bytes": 13872,
+  "compressed_changeset_bytes": 1479,
+  "stream_roundtrip_wall_s": 0.00633862498216331,
+  "full_rows_equal": true,
+  "partial_step_excluded": true,
+  "scope": "原生流对接与完整选定stream证明；未重新实现或验收多文件耐久协议"
+}

@@ -1,0 +1,98 @@
+[
+  {
+    "profile": "base",
+    "exit_code": 0,
+    "seconds": 0.20065829099621624,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/base/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "base"
+    ],
+    "stdout": "{\"profile\": \"base\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/base/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "llm",
+    "exit_code": 0,
+    "seconds": 1.3428083749604411,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/llm/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "llm"
+    ],
+    "stdout": "{\"profile\": \"llm\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/llm/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "anthropic",
+    "exit_code": 0,
+    "seconds": 2.250084750005044,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/anthropic/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "anthropic"
+    ],
+    "stdout": "{\"profile\": \"anthropic\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/anthropic/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "google",
+    "exit_code": 0,
+    "seconds": 1.7024321670178324,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/google/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "google"
+    ],
+    "stdout": "{\"profile\": \"google\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/google/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "observe",
+    "exit_code": 0,
+    "seconds": 0.12451300001703203,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/observe/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "observe"
+    ],
+    "stdout": "{\"profile\": \"observe\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/observe/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "social",
+    "exit_code": 0,
+    "seconds": 0.5126175839686766,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/social/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "social"
+    ],
+    "stdout": "{\"profile\": \"social\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/social/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "memory",
+    "exit_code": 0,
+    "seconds": 1.2089780839742161,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/memory/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "memory"
+    ],
+    "stdout": "{\"profile\": \"memory\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/memory/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "shell",
+    "exit_code": 0,
+    "seconds": 0.20841066597495228,
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/shell/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "shell"
+    ],
+    "stdout": "{\"profile\": \"shell\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/shell/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": "bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-clean-consumer-j_q00oq1/output/shell-85awht7l/output — scripts can modify host files\n"
+  }
+]

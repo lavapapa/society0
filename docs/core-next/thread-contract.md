@@ -14,11 +14,11 @@ ThreadStore 保存主体会话、完整消息、物理请求引用、响应和�
 
 ## 二、请求与读取
 
-`record_request(thread_id, provider_options=..., physical_request_id=..., message_seqs=None, retry_of=None, through=None)` 在发出物理请求前保存请求身份、完整非秘密参数和消息引用。`snapshot_messages(thread_id)` 在同一短读事务返回完整 messages 与 through 水位。提供方在首次请求时取得此快照，所有物理重试把同一个 through 传给 record_request，保证证据与实际发送 messages 一致。省略 through 时记录当下消息水位，读取时选取同 Thread 内水位之前的全部 message；后续追加消息不会进入旧请求。显式 message_seqs 可保存子集或重排，按指定顺序重建。该显式形式的引用空间随所选消息数增长。
+`record_request(thread_id, provider_options=..., physical_request_id=..., message_seqs=None, retry_of=None, through=None)` 在发出物理请求前保存请求身份、完整非秘密参数和消息引用。`snapshot_messages(thread_id, through=None, raw=False)` 在同一短读事务返回完整 messages 与 through 水位。raw=True 保留 SDK typed 消息 JSON，模型请求使用这一形式；默认展示视图提供 role/content/tool_calls。提供方在首次请求时取得此快照，所有物理重试把同一个 through 传给 record_request，保证证据与实际发送 messages 一致。省略 through 时记录当下消息水位，读取时选取同 Thread 内水位之前的全部 message；后续追加消息不会进入旧请求。显式 message_seqs 可保存子集或重排，按指定顺序重建。该显式形式的引用空间随所选消息数增长。
 
-`read_request(thread_id, seq)` 返回 messages、provider_options、physical_request_id、retry_of 和 provider_session_id，可重建原请求内容。提供方 adapter 负责在调用前统一追加 system 和新 operating_context 消息，保证所记录引用对应实际发送内容；密钥不得进入 provider_options。物理重试保存新的 physical_request_id 并关联 retry_of。响应原文作为独立 event 追加，存储失败必须向上报告，调用方不得因此重放已完成的模型请求或行动。
+`read_request(thread_id, seq)` 返回原始 typed messages、through、provider_options、physical_request_id、retry_of 和 provider_session_id，可重建原请求内容。提供方 adapter 负责在调用前统一追加 system 和新 operating_context 消息，保证所记录引用对应实际发送内容；密钥不得进入 provider_options。物理重试保存新的 physical_request_id 并关联 retry_of。响应原文作为独立 event 追加，存储失败必须向上报告，调用方不得因此重放已完成的模型请求或行动。
 
-`read_messages(thread_id, after_seq=0, max_messages=None)` 默认返回完整消息序列；它按消息索引分批定位并重建选中消息，完整模型请求仍具有选中上下文长度的内存下界。max_messages 是显式分页工具，Driver 不得把它用作静默裁剪。
+`read_messages(thread_id, after_seq=0, max_messages=None)` 默认返回完整消息的角色展示视图，供离线分析与记忆读取，无需安装模型 SDK。模型适配使用原始 typed 快照，保留 SDK 识别的 opaque reasoning、签名和工具 namespace。它按消息索引分批定位并重建选中消息，完整模型请求仍具有选中上下文长度的内存下界。max_messages 是显式分页工具，Driver 不得把它用作静默裁剪。
 
 `tail(thread_id, after_seq=0, limit=100, inline_payload_bytes=65536)` 返回 items、next_seq、total。每项包含 seq、kind，小正文内联 payload；超出阈值时返回含 thread_id、seq、total_bytes 和 read_method 的 payload_ref。total 和项目在一个短 SQLite 快照内读取。末尾页保持最后已读游标，之后可用同一游标继续查询新增事件。`list_threads(actor=None, after=0, limit=100)` 按创建 ordinal 分页，返回 items、next、total，目录计数在创建 Thread 时同步更新。`read_payload(thread_id, seq, offset=0, size=65536)` 返回原始 JSON 字节范围、total_bytes 和 next_offset。它用固定原始块大小直接定位关联的压缩块；中间范围无需解压之前正文。页数及内联阈值共同约束观察响应，模型所需的完整读取保持独立明确。
 
@@ -30,13 +30,13 @@ ThreadStore 保存主体会话、完整消息、物理请求引用、响应和�
 
 ## 三、成本与恢复
 
-写入端递归产生 JSON 字节片段，巨大字符串按 8192 字符转义，再组装最多 65536 原始字节的块，每块独立 zlib level 3 压缩后进入 BLOB 行。Session 捕获、changeset 和 root 因此保存压缩块；热元数据更新不携带巨大正文。该实现采用单线程压缩，多核有界流水线留待端到端数据支持后接入。
+写入端通过 RapidJSON 同步推送原文字节，再以至多 65536 原始字节的独立 zstd 帧进入 BLOB 行。Session 捕获、changeset 和 root 保存压缩正文；热元数据更新不携带巨大原文。编码压缩由规范 writer 同步完成，资源与错误边界见 [存储合同](storage-contract.md#压缩资源)。
 
 消息与事件同一次 StageStore transaction 提交，失败不会留下半条事件。完整步骤发布自然包含其变更；未完成步骤里已经短事务提交的 Thread 可由 StageReader 读取用于诊断，restore 仅重建所选完整步骤。ThreadStore 没有独立的 checkpoint 或 marker，也没有第二套回滚日志。
 
 活动 append 和 tail 从 thread_heads、主键及消息索引取得当前投影，成本由本次正文大小和请求页决定。默认 request 水位记录是固定数量字段，避免逐轮复制完整 messages；显式重排请求仍按真实所选序列保存引用。完整读取历史与请求重建的工作量随所读内容增长，该成本服务于保留全部上下文的语义。
 
-本机小型试验及环境信息保存在 `research/core-next/thread-size-results-range-20261004.json`，原始测试输出保存在同目录 kernel-threads 文件。高重复与异质正文均逐值恢复相等；RSS 记录是进程历史高水位及其差值，输入生成本身的峰值可能遮住写入瞬时增量。磁盘数据包含独立 current、初始 root、changeset 和恢复后新 root，不能把压缩块大小视为整个运行目录大小。后续真实模型和记忆集成仍需独立验收。
+以下计量对应替换 zstd 前的历史实现；现行新编码及 typed 消息的验收见 [验收清单](TODO.md)与 [独立交付审查](../../research/core-next/delivery-acceptance-20261004/review.md)。本机小型试验及环境信息保存在 `research/core-next/thread-size-results-range-20261004.json`，原始测试输出保存在同目录 kernel-threads 文件。高重复与异质正文均逐值恢复相等；RSS 记录是进程历史高水位及其差值，输入生成本身的峰值可能遮住写入瞬时增量。磁盘数据包含独立 current、初始 root、changeset 和恢复后新 root，不能把压缩块大小视为整个运行目录大小。真实模型和记忆集成的验收范围由 [验收清单](TODO.md)记录。
 
 ## 四、物理调用
 

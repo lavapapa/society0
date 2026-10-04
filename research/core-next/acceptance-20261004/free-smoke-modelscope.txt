@@ -1,0 +1,3 @@
+{"kind": "llm", "error_type": "ProviderFailure", "reason": "provider_request_error"}
+{"kind": "embedding", "error_type": "ProviderFailure", "status_code": null, "reason": "embedding_error"}
+exit_code=0

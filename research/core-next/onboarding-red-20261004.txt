@@ -1,0 +1,86 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+______ test_rule_example_continues_remaining_times_and_matches_continuous ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-986/test_rule_example_continues_re0')
+
+    @pytest.mark.asyncio
+    async def test_rule_example_continues_remaining_times_and_matches_continuous(tmp_path):
+        release = {'commit': 'tutorial-test-source'}
+>       await run_plan(tmp_path/'continuous', build({'release': release, 'start': 1, 'end': 2}))
+                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_researcher_quickstart.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+config = {'release': {'commit': 'tutorial-test-source'}, 'start': 1, 'end': 2}
+
+    def build(config):
+>       steps = config['steps']
+                ^^^^^^^^^^^^^^^
+E       KeyError: 'steps'
+
+examples/core_next/rule_run.py:11: KeyError
+________ test_getting_started_commands_run_verbatim_after_installation _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-986/test_getting_started_commands_0')
+
+    def test_getting_started_commands_run_verbatim_after_installation(tmp_path):
+>       document = (ROOT/'docs/core-next/getting-started.md').read_text()
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_researcher_quickstart.py:51: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/docs/core-next/getting-started.md')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/docs/core-next/getting-started.md'
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_______ test_analysis_snippet_reads_all_pages_and_original_large_values ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-986/test_analysis_snippet_reads_al0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107a4e390>
+
+    @pytest.mark.asyncio
+    async def test_analysis_snippet_reads_all_pages_and_original_large_values(tmp_path, monkeypatch):
+        from society0.kernel.results import StepResult
+        from tests.primary.test_kernel_runner import plan
+    
+        expected = [{'actor': 'alice', 'time': 2, 'text': '完整原文🙂'*20000}, None, False, 2**80]
+        study = plan([])
+        # 保留既有装配，测试选择的结果页跨多个页并含超出页预算的正文。
+        from society0.kernel.schedule import schedule_plugin
+        from society0.kernel.runtime import Phase
+        study.plugins[-1] = schedule_plugin([Phase('decide', lambda ctx: StepResult(
+            metrics={'rows': len(expected)}, tables={'decisions': iter(expected)}))])
+        run_dir = tmp_path/'runs/first-study/resumed'
+        await run_plan(run_dir, study)
+        monkeypatch.chdir(tmp_path)
+        document = (ROOT/'skill/references/run-monitor-analyze.md').read_text()
+        code = re.findall(r'```python\n(.*?)\n```', document, re.S)[0]
+        namespace = {}
+>       exec(compile(code, 'run-monitor-analyze.md', 'exec'), namespace)
+
+/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_researcher_quickstart.py:85: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   ModuleNotFoundError: No module named 'pandas'
+
+run-monitor-analyze.md:2: ModuleNotFoundError

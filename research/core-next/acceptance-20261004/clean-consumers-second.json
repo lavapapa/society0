@@ -1,0 +1,47 @@
+[
+  {
+    "name": "base",
+    "exit_code": 1,
+    "output": "Traceback (most recent call last):\n  File \"/tmp/acceptance_clean_consumers.py\", line 69, in <module>\n    asyncio.run(main(sys.argv[1]))\n  File \"/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py\", line 195, in run\n    return runner.run(main)\n           ^^^^^^^^^^^^^^^^\n  File \"/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py\", line 118, in run\n    return self._loop.run_until_complete(task)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py\", line 691, in run_until_complete\n    return future.result()\n           ^^^^^^^^^^^^^^^\n  File \"/tmp/acceptance_clean_consumers.py\", line 21, in main\n    result=await run_plan(path/'run',plan)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/runner.py\", line 51, in run_plan\n    async with compose(path, plugins, source=source, step=step) as host:\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py\", line 210, in __aenter__\n    return await anext(self.gen)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/composition.py\", line 89, in compose\n    raise failure\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/composition.py\", line 73, in compose\n    raise failure\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/composition.py\", line 27, in own\n    host = await manager.__aenter__()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py\", line 210, in __aenter__\n    return await anext(self.gen)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/composition.py\", line 111, in _compose\n    store = await _create_prepared(path, schema, ordered, resources)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/composition.py\", line 141, in _create_prepared\n    store = StageStore.create(path, schema, initialize=initialize)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/storage.py\", line 309, in create\n    _tables(connection)\n  File \"/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/kernel/storage.py\", line 66, in _tables\n    raise StorageError('schema requires an explicit nonnull primary key')\nsociety0.kernel.storage.StorageError: schema requires an explicit nonnull primary key\n"
+  },
+  {
+    "name": "llm",
+    "exit_code": 0,
+    "output": "{\"profile\": \"llm\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/llm/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "anthropic",
+    "exit_code": 0,
+    "output": "{\"profile\": \"anthropic\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/anthropic/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "google",
+    "exit_code": 0,
+    "output": "{\"profile\": \"google\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/google/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "datasets",
+    "exit_code": 0,
+    "output": "{\"profile\": \"datasets\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/datasets/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "observe",
+    "exit_code": 0,
+    "output": "{\"profile\": \"observe\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/observe/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "social",
+    "exit_code": 0,
+    "output": "{\"profile\": \"social\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/social/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "memory",
+    "exit_code": 0,
+    "output": "{\"profile\": \"memory\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/memory/lib/python3.12/site-packages/society0/__init__.py\"}\n"
+  },
+  {
+    "name": "shell",
+    "exit_code": 0,
+    "output": "{\"profile\": \"shell\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-20261004/shell/lib/python3.12/site-packages/society0/__init__.py\"}\nbashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-clean-consumer-_lzvmp86/output/shell-c7l7ys7i/output — scripts can modify host files\n"
+  }
+]

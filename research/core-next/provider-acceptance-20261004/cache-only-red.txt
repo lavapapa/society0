@@ -1,0 +1,21 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+__________ test_cache_only_uses_two_identical_requests_without_tools ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-993/test_cache_only_uses_two_ident0')
+
+    def test_cache_only_uses_two_identical_requests_without_tools(tmp_path):
+        from types import SimpleNamespace
+        module=load('endpoint_probe');calls=[]
+        class Response:
+            def model_dump(self,**kwargs):return {'usage':{'prompt_tokens':8000,'prompt_tokens_details':{'cached_tokens':0}},'choices':[{'message':{'role':'assistant','content':'收到'}}]}
+        def create(**kwargs):calls.append(kwargs);return Response()
+        client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+>       result=module.cache_only(client,llm='test',output=tmp_path)
+               ^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'endpoint_probe' has no attribute 'cache_only'
+
+research/core-next/provider-acceptance-20261004/test_preparation.py:59: AttributeError
+=========================== short test summary info ============================
+FAILED research/core-next/provider-acceptance-20261004/test_preparation.py::test_cache_only_uses_two_identical_requests_without_tools
+1 failed, 3 passed in 0.24s

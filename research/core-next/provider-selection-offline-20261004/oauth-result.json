@@ -1,0 +1,14 @@
+{
+  "network": "MockTransport only; sockets blocked",
+  "authlib_dynamic_client_rebind": true,
+  "authorization_PKCE_library_generated": true,
+  "token_exchange_issued_client": true,
+  "refresh_issued_client": true,
+  "refresh_resource": true,
+  "OIDC_identity_validation_tested": false,
+  "credential_persistence_tested": false,
+  "grant_types": [
+    "authorization_code",
+    "refresh_token"
+  ]
+}

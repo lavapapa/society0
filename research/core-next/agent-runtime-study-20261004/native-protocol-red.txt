@@ -1,0 +1,136 @@
+F.F.F.                                                                   [100%]
+=================================== FAILURES ===================================
+______________ test_dynamic_schema_has_one_explicit_format[False] ______________
+
+strict = False
+
+    @pytest.mark.parametrize('strict',[False,True])
+    def test_dynamic_schema_has_one_explicit_format(strict):
+        tools=LLMDriver(None,None,input_builder=None,policy=LLMPolicy(strict_tools=strict))._tools()
+        for tool in tools:
+>           definition=tool['function'];assert definition['strict'] is strict
+                                               ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'strict'
+
+tests/primary/test_kernel_native_tool_protocol.py:16: KeyError
+_ test_action_native_payload_reaches_ledger_once_and_wrong_format_is_feedback[False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1021/test_action_native_payload_rea0')
+strict = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    async def test_action_native_payload_reaches_ledger_once_and_wrong_format_is_feedback(tmp_path,strict):
+        payload={'嵌套':{'array':[1,None,'正文🙂']}}
+        encoded=json.dumps(payload,ensure_ascii=False)
+        wrong=payload if strict else encoded
+        good=encoded if strict else payload
+        events=[reply(call('bad','action_invoke',{'name':'work','target':TARGET,'arguments':wrong})),
+                reply(call('good','action_invoke',{'name':'work','target':TARGET,'arguments':good}))]
+        store,threads,provider,driver,session,calls=setup(tmp_path,events,terminal=True,policy=LLMPolicy(strict_tools=strict,max_turns=2,max_action_calls=1))
+        with store:
+            result=await driver.run(session)
+>           assert result.status=='completed' and calls==[(payload,'good')]
+E           AssertionError: assert ('completed' == 'completed'
+E             
+E               completed and [({'嵌套': {'ar...🙂']}}, 'bad')] == [({'嵌套': {'ar...']}}, 'good')]
+E             
+E             At index 0 diff: ({'嵌套': {'array': [1, None, '正文🙂']}}, 'bad') != ({'嵌套': {'array': [1, None, '正文🙂']}}, 'good')
+E             Use -v to get more diff)
+
+tests/primary/test_kernel_native_tool_protocol.py:37: AssertionError
+_______ test_query_and_cursors_reach_consumers_without_reencoding[False] _______
+
+value = {'identity': '完整标识', 'cursor': {'offset': 3, 'details': ['🙂', 1]}}
+
+    def _decode(value):
+        try:
+>           return json.loads(value)
+                   ^^^^^^^^^^^^^^^^^
+
+src/society0/kernel/llm.py:41: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = {'identity': '完整标识', 'cursor': {'offset': 3, 'details': ['🙂', 1]}}
+cls = None, object_hook = None, parse_float = None, parse_int = None
+parse_constant = None, object_pairs_hook = None, kw = {}
+
+    def loads(s, *, cls=None, object_hook=None, parse_float=None,
+            parse_int=None, parse_constant=None, object_pairs_hook=None, **kw):
+        """Deserialize ``s`` (a ``str``, ``bytes`` or ``bytearray`` instance
+        containing a JSON document) to a Python object.
+    
+        ``object_hook`` is an optional function that will be called with the
+        result of any object literal decode (a ``dict``). The return value of
+        ``object_hook`` will be used instead of the ``dict``. This feature
+        can be used to implement custom decoders (e.g. JSON-RPC class hinting).
+    
+        ``object_pairs_hook`` is an optional function that will be called with the
+        result of any object literal decoded with an ordered list of pairs.  The
+        return value of ``object_pairs_hook`` will be used instead of the ``dict``.
+        This feature can be used to implement custom decoders.  If ``object_hook``
+        is also defined, the ``object_pairs_hook`` takes priority.
+    
+        ``parse_float``, if specified, will be called with the string
+        of every JSON float to be decoded. By default this is equivalent to
+        float(num_str). This can be used to use another datatype or parser
+        for JSON floats (e.g. decimal.Decimal).
+    
+        ``parse_int``, if specified, will be called with the string
+        of every JSON int to be decoded. By default this is equivalent to
+        int(num_str). This can be used to use another datatype or parser
+        for JSON integers (e.g. float).
+    
+        ``parse_constant``, if specified, will be called with one of the
+        following strings: -Infinity, Infinity, NaN.
+        This can be used to raise an exception if invalid JSON numbers
+        are encountered.
+    
+        To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
+        kwarg; otherwise ``JSONDecoder`` is used.
+        """
+        if isinstance(s, str):
+            if s.startswith('\ufeff'):
+                raise JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)",
+                                      s, 0)
+        else:
+            if not isinstance(s, (bytes, bytearray)):
+>               raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+                                f'not {s.__class__.__name__}')
+E               TypeError: the JSON object must be str, bytes or bytearray, not dict
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:339: TypeError
+
+The above exception was the direct cause of the following exception:
+
+strict = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    async def test_query_and_cursors_reach_consumers_without_reencoding(strict):
+        driver=LLMDriver(None,None,input_builder=None,policy=LLMPolicy(strict_tools=strict))
+        seen=[]
+        async def consume(*args,**kwargs):seen.append((args,kwargs));return {'ok':True}
+        session=SimpleNamespace(information=SimpleNamespace(list=consume,query=consume))
+        ledger=SimpleNamespace(find=consume)
+        cursor={'identity':'完整标识','cursor':{'offset':3,'details':['🙂',1]}}
+        wire=lambda value:json.dumps(value,ensure_ascii=False) if strict else value
+>       await driver._dispatch('action_find',{'target':TARGET,'query':'','limit':2,'cursor':wire(cursor)},session,ledger,None)
+
+tests/primary/test_kernel_native_tool_protocol.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:347: in _dispatch
+    cursor=_decode(arguments['cursor']) if arguments['cursor'] else None)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = {'identity': '完整标识', 'cursor': {'offset': 3, 'details': ['🙂', 1]}}
+
+    def _decode(value):
+        try:
+            return json.loads(value)
+        except (ValueError, TypeError) as error:
+>           raise _ToolInputError(str(error)) from error
+E           society0.kernel.llm._ToolInputError: the JSON object must be str, bytes or bytearray, not dict
+
+src/society0/kernel/llm.py:43: _ToolInputError

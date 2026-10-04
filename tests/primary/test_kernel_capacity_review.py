@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """真实提供方适配器与激活池的独立容量组合。"""
 import asyncio
 import pytest
@@ -22,7 +23,7 @@ async def test_review_phase_override_runs_three_actors_while_provider_allows_one
                 await asyncio.sleep(.01)
                 return ChatCompletion(id='r',object='chat.completion',created=0,model='m',choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'complete'}}])
             finally:active[1]-=1
-        provider.manager.clients['m'].chat.completions.create=create
+        await bind_chat(provider, create)
         class Driver:
             async def run(self,session):
                 active[0]+=1;peak[0]=max(peak[0],active[0])

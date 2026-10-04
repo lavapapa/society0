@@ -1,0 +1,155 @@
+{
+  "platform": "Linux-5.4.119-19-0009.11-x86_64-with-glibc2.35",
+  "python": "3.12.9",
+  "records": 1448471,
+  "open_seconds": 0.0011517927050590515,
+  "1000_pages_seconds": 16.950825680047274,
+  "range_64_bytes_seconds": 0.01688813790678978,
+  "range_record_bytes": 29948413,
+  "steps": [
+    {
+      "step": 2,
+      "write_seconds": 0.0005157031118869781,
+      "complete_seconds": 0.0012970641255378723,
+      "session_bytes": 2512
+    },
+    {
+      "step": 3,
+      "write_seconds": 0.00019491463899612427,
+      "complete_seconds": 0.0009922832250595093,
+      "session_bytes": 2512
+    },
+    {
+      "step": 4,
+      "write_seconds": 0.00018153339624404907,
+      "complete_seconds": 0.0009092763066291809,
+      "session_bytes": 2512
+    },
+    {
+      "step": 5,
+      "write_seconds": 0.00019378960132598877,
+      "complete_seconds": 0.0009196922183036804,
+      "session_bytes": 2512
+    },
+    {
+      "step": 6,
+      "write_seconds": 0.00018179789185523987,
+      "complete_seconds": 0.000925801694393158,
+      "session_bytes": 2512
+    },
+    {
+      "step": 7,
+      "write_seconds": 0.00018534064292907715,
+      "complete_seconds": 0.0010472089052200317,
+      "session_bytes": 2512
+    },
+    {
+      "step": 8,
+      "write_seconds": 0.00018144026398658752,
+      "complete_seconds": 0.0008909851312637329,
+      "session_bytes": 2512
+    },
+    {
+      "step": 9,
+      "write_seconds": 0.00017687305808067322,
+      "complete_seconds": 0.0009138286113739014,
+      "session_bytes": 2512
+    },
+    {
+      "step": 10,
+      "write_seconds": 0.00018023326992988586,
+      "complete_seconds": 0.0008917823433876038,
+      "session_bytes": 2512
+    },
+    {
+      "step": 11,
+      "write_seconds": 0.00017284229397773743,
+      "complete_seconds": 0.0008685626089572906,
+      "session_bytes": 2512
+    },
+    {
+      "step": 12,
+      "write_seconds": 0.00017585605382919312,
+      "complete_seconds": 0.0009030178189277649,
+      "session_bytes": 2512
+    },
+    {
+      "step": 13,
+      "write_seconds": 0.00017890706658363342,
+      "complete_seconds": 0.0009214170277118683,
+      "session_bytes": 2512
+    },
+    {
+      "step": 14,
+      "write_seconds": 0.00018034875392913818,
+      "complete_seconds": 0.0008774884045124054,
+      "session_bytes": 2512
+    },
+    {
+      "step": 15,
+      "write_seconds": 0.00017728284001350403,
+      "complete_seconds": 0.0008644349873065948,
+      "session_bytes": 2512
+    },
+    {
+      "step": 16,
+      "write_seconds": 0.00019448250532150269,
+      "complete_seconds": 0.0009137764573097229,
+      "session_bytes": 2512
+    },
+    {
+      "step": 17,
+      "write_seconds": 0.000181492418050766,
+      "complete_seconds": 0.000890195369720459,
+      "session_bytes": 2512
+    },
+    {
+      "step": 18,
+      "write_seconds": 0.00018034502863883972,
+      "complete_seconds": 0.0008833371102809906,
+      "session_bytes": 2512
+    },
+    {
+      "step": 19,
+      "write_seconds": 0.00017454102635383606,
+      "complete_seconds": 0.0010249391198158264,
+      "session_bytes": 2512
+    },
+    {
+      "step": 20,
+      "write_seconds": 0.00019537657499313354,
+      "complete_seconds": 0.0009335726499557495,
+      "session_bytes": 2512
+    },
+    {
+      "step": 21,
+      "write_seconds": 0.00016937404870986938,
+      "complete_seconds": 0.0008556507527828217,
+      "session_bytes": 2512
+    }
+  ],
+  "restore_seconds": 0.013374179601669312,
+  "source_space": {
+    "files": 49,
+    "logical_bytes": 203778835,
+    "summed_allocated_bytes": 203968512,
+    "unique_allocated_bytes": 203968512
+  },
+  "restore_space": {
+    "files": 7,
+    "logical_bytes": 203772976,
+    "summed_allocated_bytes": 203792384,
+    "unique_allocated_bytes": 203792384
+  },
+  "combined_space": {
+    "files": 56,
+    "logical_bytes": 407551811,
+    "summed_allocated_bytes": 407760896,
+    "unique_allocated_bytes": 204050432
+  },
+  "peak_rss_bytes": 29794304,
+  "wall_seconds": 17.02623849734664,
+  "cpu_seconds": 17.013500014,
+  "limits": "fixed dataset-header projection update, not business migration; OS cache retained; full-record values verified separately"
+}
+

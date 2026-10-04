@@ -1,0 +1,20 @@
+2026/10/04 14:19:19 tshttpproxy: using proxy "http://127.0.0.1:7890" for URL: "https://controlplane.tailscale.com/"
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/benchmarks/core_next_cold_datasets_probe.py", line 14, in <module>
+    from society0.kernel.datasets import DATASET_SCHEMA, Datasets
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/src/society0/kernel/datasets.py", line 5, in <module>
+    import zstandard
+ModuleNotFoundError: No module named 'zstandard'
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/mnt/data/l20/qin/society0-acceptance-20261004/source/benchmarks/core_next_cold_datasets_probe.py", line 14, in <module>
+    from society0.kernel.datasets import DATASET_SCHEMA, Datasets
+  File "/mnt/data/l20/qin/society0-acceptance-20261004/source/src/society0/kernel/datasets.py", line 5, in <module>
+    from pyzstd import SeekableZstdFile
+ModuleNotFoundError: No module named 'pyzstd'
+exit_code=0

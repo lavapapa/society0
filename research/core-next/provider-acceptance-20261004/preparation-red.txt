@@ -1,0 +1,56 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________________ test_plan_is_explicit_and_credential_free ___________________
+
+    def test_plan_is_explicit_and_credential_free():
+>       module=load('real_acceptance')
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+research/core-next/provider-acceptance-20261004/test_preparation.py:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+research/core-next/provider-acceptance-20261004/test_preparation.py:8: in load
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:995: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1132: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x108d5f800>
+path = '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/real_acceptance.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/real_acceptance.py'
+
+<frozen importlib._bootstrap_external>:1190: FileNotFoundError
+________________________ test_rule_runtime_and_restore _________________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-985/test_rule_runtime_and_restore0')
+
+    def test_rule_runtime_and_restore(tmp_path):
+>       module=load('rule_scale')
+               ^^^^^^^^^^^^^^^^^^
+
+research/core-next/provider-acceptance-20261004/test_preparation.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+research/core-next/provider-acceptance-20261004/test_preparation.py:8: in load
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:995: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1132: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x108dbc530>
+path = '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/rule_scale.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/rule_scale.py'
+
+<frozen importlib._bootstrap_external>:1190: FileNotFoundError
+=========================== short test summary info ============================
+FAILED research/core-next/provider-acceptance-20261004/test_preparation.py::test_plan_is_explicit_and_credential_free
+FAILED research/core-next/provider-acceptance-20261004/test_preparation.py::test_rule_runtime_and_restore
+2 failed in 2.11s

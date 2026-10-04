@@ -1,4 +1,5 @@
 """复制到研究目录的正式两轮 LLM 示例：完整材料、显式记忆及新运行隔离。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import importlib.util
 import json
 from pathlib import Path
@@ -24,7 +25,7 @@ def resources(requests,*,empty=False,fail_recall=False):
             elif 'submit_result' in names:
                 name='submit_result';arguments={'credibility':3,'reason':'当前信息尚无官方确认'}
             elif not any(m.get('role')=='tool' for m in messages):
-                name='action_invoke';arguments={'name':'news.view_details','target':{'namespace':'news','kind':'message','key':'current'},'arguments':'{}'}
+                name='action_invoke';arguments={'name':'news.view_details','target':{'namespace':'news','kind':'message','key':'current'},'arguments':{}}
             else:return {'role':'assistant','content':'已看详情；仍须核实来源。','finish_reason':'stop'}
             return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(requests)),'type':'function','function':{'name':name,'arguments':json.dumps(arguments,ensure_ascii=False)}}]}
     class Embedding:
@@ -35,7 +36,7 @@ def resources(requests,*,empty=False,fail_recall=False):
     def install(ctx):
         nonlocal threads
         threads=ctx.require('threads','threads')
-        ctx.provide('models',{'main':Provider()});ctx.provide('embeddings',{'main':Embedding()});ctx.provide('client',Client())
+        ctx.provide('models',{'main':TypedScriptProvider(Provider(), threads)});ctx.provide('embeddings',{'main':Embedding()});ctx.provide('client',Client())
     return [Plugin('resources',('threads',),install)]
 
 

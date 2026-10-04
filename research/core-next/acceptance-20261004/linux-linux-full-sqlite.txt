@@ -1,0 +1,699 @@
+..............................F......................................... [  8%]
+............................F........................................... [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+........................................................................ [ 43%]
+........................................................................ [ 52%]
+..........................................................F.....F......F [ 60%]
+........................................................................ [ 69%]
+........................................................................ [ 78%]
+........................................................................ [ 86%]
+..................................FFF............................FFFFFFF [ 95%]
+FFFFFF...............................                                    [100%]
+=================================== FAILURES ===================================
+___________ test_real_pilot_export_and_existing_single_file_renderer ___________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_real_pilot_export_and_exi0')
+
+    @pytest.mark.asyncio
+    async def test_real_pilot_export_and_existing_single_file_renderer(tmp_path):
+        await run_plan(tmp_path/'run',build({'release':{'commit':'explicit-test-release'},'start':1,'end':2}))
+        payload=export_payload([RunSelection(tmp_path/'run','v1',(1,2),('a','b'))],title='实际对话')
+        version=payload['versions'][0];run=version['runs'][0]
+        assert version['config']['release']['commit']=='explicit-test-release'
+        assert [tick['id'] for tick in run['ticks']]==['1','2']
+        snapshots=run['snapshots']
+        assert {(s['tickId'],s['entityId']) for s in snapshots}=={(str(t),a) for t in (1,2) for a in ('environment','actor:a','actor:b')}
+        original=json.dumps(payload,ensure_ascii=False)
+        assert 'sent_to' in original and 'work' in original and 'commons' in original
+        data=tmp_path/'data.json';data.write_text(original)
+        output=tmp_path/'workbench.html'
+        script=Path(__file__).resolve().parents[2]/'skill/scripts/render_workbench.py'
+        result=subprocess.run([sys.executable,str(script),'--data',str(data),'--output',str(output)],capture_output=True,text=True)
+>       assert result.returncode==0,result.stderr
+E       AssertionError: 生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '/mnt/data/l20/qin/society0-acceptance-2026...uch file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n").returncode
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_core_next_workbench.py:27: AssertionError
+_________________ test_cognition_cursor_survives_fresh_process _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_cognition_cursor_survives0')
+
+    @pytest.mark.asyncio
+    async def test_cognition_cursor_survives_fresh_process(tmp_path):
+        import os,subprocess,sys
+        async def perception(current,position):return ([{'role':'user','content':'original full view'}],7)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            driver=LLMDriver(Provider(threads),threads,input_builder=CognitiveInput(threads,perception))
+            await driver.run(session(driver))
+            store.complete(1)
+        script='''
+    import asyncio,sys
+    from pathlib import Path
+    from tests.primary.test_kernel_cognition import Provider,session
+    from society0.kernel.cognition import CognitiveInput
+    from society0.kernel.llm import LLMDriver
+    from society0.kernel.threads import ThreadStore
+    from society0.kernel.storage import StageStore
+    async def main():
+        async def perception(current,position):
+            assert position==7
+            return ([{'role':'user','content':'new after restart'}],8)
+        with StageStore.restore(Path(sys.argv[1]),Path(sys.argv[2])) as store:
+            threads=ThreadStore(store); provider=Provider(threads)
+            driver=LLMDriver(provider,threads,input_builder=CognitiveInput(threads,perception))
+            await driver.run(session(driver))
+            texts=[m['content'] for m in provider.inputs[0]]
+            assert texts.count('original full view')==1 and texts.count('new after restart')==1
+            store.complete(2)
+    asyncio.run(main())
+    '''
+        result=subprocess.run([sys.executable,'-c',script,str(tmp_path/'run'),str(tmp_path/'branch')],capture_output=True,text=True,env={**os.environ,'PYTHONPATH':'src:.'})
+>       assert result.returncode==0,result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 4, in <module>
+E         ModuleNotFoundError: No module named 'tests'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '-c', "\nimport asyncio,sys\nfrom pathlib i...ck (most recent call last):\n  File "<string>", line 4, in <module>\nModuleNotFoundError: No module named \'tests\'\n').returncode
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_cognition.py:103: AssertionError
+______ test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once _______
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_workbench_thousand_small_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6477a93ec0>
+
+    @pytest.mark.asyncio
+    async def test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once(tmp_path,monkeypatch):
+        from society0.kernel.workbench import _rows
+        values=[{'i':i} for i in range(1000)]
+        opens=[];original=Datasets._open
+        @contextmanager
+        def opened(self,reference):
+            opens.append(reference['id'])
+            with original(self,reference) as data:yield data
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            ref=Datasets(store).import_rows('tiny',values)
+            results=Results(store)
+            header=await results.write_phase(1,0,'step',StepResult(tables={'data':DatasetTable(ref)}))
+            monkeypatch.setattr(Datasets,'_open',opened)
+            calls=count_dataset_frames(monkeypatch)
+            assert list(_rows(results,header['tables']['data']))==values
+>           assert len(calls)==1 and len(opens)==1
+E           assert (1000 == 1)
+E            +  where 1000 = len([16, 16, 16, 16, 16, 16, ...])
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_result_page_envelope.py:57: AssertionError
+___________ test_review_workbench_shared_block_is_decompressed_once ____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_review_workbench_shared_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6477abb170>
+
+    @pytest.mark.asyncio
+    async def test_review_workbench_shared_block_is_decompressed_once(tmp_path,monkeypatch):
+        import society0.kernel.datasets as datasets
+        from society0.kernel.workbench import _rows
+    
+        values=[{'v':i,'literal':{'payload_ref':'business'}} for i in range(1000)]
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            ref=Datasets(store).import_rows('records',values)
+            result=Results(store)
+            table=(await result.write_phase(1,0,'phase',StepResult(tables={'records':DatasetTable(ref)})))['tables']['records']
+            calls=count_dataset_frames(monkeypatch)
+            assert list(_rows(result,table))==values
+>           assert len(calls)==1
+E           assert 1000 == 1
+E            +  where 1000 = len([53, 53, 53, 53, 53, 53, ...])
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_results_envelope_review.py:53: AssertionError
+____________ test_cli_runs_rule_plan_without_optional_dependencies _____________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_cli_runs_rule_plan_withou0')
+
+    def test_cli_runs_rule_plan_without_optional_dependencies(tmp_path):
+        import os, subprocess, sys
+        config=tmp_path/'config.json'
+        config.write_text(json.dumps({'release':{'commit':'explicit-cli-release'},'steps':2}))
+        result=subprocess.run([sys.executable,'-m','society0.kernel.runner','--factory','examples.core_next.rule_run:build',
+            '--config',str(config),'--output',str(tmp_path/'run')],env={**os.environ,'PYTHONPATH':'src:.'},capture_output=True,text=True)
+>       assert result.returncode==0,result.stderr
+E       AssertionError: 
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '-m', 'society0.kernel.runner', '--factory'... "ModuleNotFoundError"}, "run_path": "/tmp/pytest-of-root/pytest-0/test_cli_runs_rule_plan_withou0/run"}\n', stderr='').returncode
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_runner.py:80: AssertionError
+________________ test_render_workbench_embeds_transformed_data _________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_render_workbench_embeds_t0')
+
+    def test_render_workbench_embeds_transformed_data(tmp_path):
+        payload = {
+            "study": {"title": "研究 </script>", "question": "如何解释变化？"},
+            "versions": [{"id": "v1", "name": "版本 1", "config": {}, "entities": [], "runs": []}],
+        }
+        data_path = tmp_path / "workbench-data.json"
+        output_path = tmp_path / "workbench.html"
+        data_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--data", str(data_path), "--output", str(output_path)],
+            capture_output=True,
+            text=True,
+        )
+    
+>       assert result.returncode == 0, result.stderr
+E       AssertionError: 生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '/mnt/data/l20/qin/society0-acceptance-2026...uch file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n").returncode
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py:27: AssertionError
+_________________ test_render_workbench_rejects_unscoped_runs __________________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_render_workbench_rejects_0')
+
+    def test_render_workbench_rejects_unscoped_runs(tmp_path):
+        data_path = tmp_path / "workbench-data.json"
+        output_path = tmp_path / "workbench.html"
+        data_path.write_text(json.dumps({"study": {}, "versions": [{"id": "v1", "config": {}, "entities": [], "runs": [{"id": "pilot"}]}]}), encoding="utf-8")
+    
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--data", str(data_path), "--output", str(output_path)],
+            capture_output=True,
+            text=True,
+        )
+    
+        assert result.returncode != 0
+>       assert "ticks 和 snapshots" in result.stderr
+E       assert 'ticks 和 snapshots' in "生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n"
+E        +  where "生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n" = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '/mnt/data/l20/qin/society0-acceptance-2026...uch file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n").stderr
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py:48: AssertionError
+_____________ test_render_workbench_rejects_duplicate_version_ids ______________
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_render_workbench_rejects_1')
+
+    def test_render_workbench_rejects_duplicate_version_ids(tmp_path):
+        data_path = tmp_path / "workbench-data.json"
+        output_path = tmp_path / "workbench.html"
+        version = {"id": "v1", "config": {}, "entities": [], "runs": []}
+        data_path.write_text(json.dumps({"study": {}, "versions": [version, version]}), encoding="utf-8")
+    
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--data", str(data_path), "--output", str(output_path)],
+            capture_output=True,
+            text=True,
+        )
+    
+        assert result.returncode != 0
+>       assert "id 必须唯一" in result.stderr
+E       assert 'id 必须唯一' in "生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n"
+E        +  where "生成工作台失败：[Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n" = CompletedProcess(args=['/tmp/society0-acceptance-20261004/all/bin/python', '/mnt/data/l20/qin/society0-acceptance-2026...uch file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/skill/assets/workbench-template.html'\n").stderr
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py:65: AssertionError
+__________ test_actual_old_new_continuous_restored_original_evidence ___________
+
+    def test_actual_old_new_continuous_restored_original_evidence():
+>       assert len(module.compare(outputs()))==8
+                                  ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+____________ test_comparison_rejects_lost_original_material[order] _____________
+
+damage = 'order'
+
+    @pytest.mark.parametrize('damage',['order','body','provider','memory'])
+    def test_comparison_rejects_lost_original_material(damage):
+>       data=outputs();item=data['new-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_____________ test_comparison_rejects_lost_original_material[body] _____________
+
+damage = 'body'
+
+    @pytest.mark.parametrize('damage',['order','body','provider','memory'])
+    def test_comparison_rejects_lost_original_material(damage):
+>       data=outputs();item=data['new-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+___________ test_comparison_rejects_lost_original_material[provider] ___________
+
+damage = 'provider'
+
+    @pytest.mark.parametrize('damage',['order','body','provider','memory'])
+    def test_comparison_rejects_lost_original_material(damage):
+>       data=outputs();item=data['new-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+____________ test_comparison_rejects_lost_original_material[memory] ____________
+
+damage = 'memory'
+
+    @pytest.mark.parametrize('damage',['order','body','provider','memory'])
+    def test_comparison_rejects_lost_original_material(damage):
+>       data=outputs();item=data['new-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[system-old] _
+
+version = 'old', damage = 'system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[system-new] _
+
+version = 'new', damage = 'system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[assistant-old] _
+
+version = 'old', damage = 'assistant'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[assistant-new] _
+
+version = 'new', damage = 'assistant'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-old] _
+
+version = 'old', damage = 'tool_amount'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-new] _
+
+version = 'new', damage = 'tool_amount'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[provider_system-old] _
+
+version = 'old', damage = 'provider_system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+_ test_review_route_comparison_rejects_non_note_message_corruption[provider_system-new] _
+
+version = 'new', damage = 'provider_system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+>       data=outputs();item=data[f'{version}-llm-restored']
+             ^^^^^^^^^
+
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py:9: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py:14: in outputs
+    return {f'{v}-{m}-{r}':json.loads((root/f'{v}-{m}-{r}.json').read_text())
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+miniforge3/lib/python3.12/pathlib.py:1027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/l20/qin/society0-acceptance-20261004/source/research/core-next/parity-20261004/old-rule-continuous.json'
+
+miniforge3/lib/python3.12/pathlib.py:1013: FileNotFoundError
+=========================== short test summary info ============================
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_cognition.py::test_cognition_cursor_survives_fresh_process
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_result_page_envelope.py::test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_results_envelope_review.py::test_review_workbench_shared_block_is_decompressed_once
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_kernel_runner.py::test_cli_runs_rule_plan_without_optional_dependencies
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py::test_render_workbench_embeds_transformed_data
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py::test_render_workbench_rejects_unscoped_runs
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/primary/test_workbench_renderer.py::test_render_workbench_rejects_duplicate_version_ids
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py::test_actual_old_new_continuous_restored_original_evidence
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py::test_comparison_rejects_lost_original_material[order]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py::test_comparison_rejects_lost_original_material[body]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py::test_comparison_rejects_lost_original_material[provider]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity.py::test_comparison_rejects_lost_original_material[memory]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[system-old]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[system-new]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[assistant-old]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[assistant-new]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-old]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-new]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[provider_system-old]
+FAILED ../mnt/data/l20/qin/society0-acceptance-20261004/source/tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[provider_system-new]
+21 failed, 808 passed, 1 skipped, 15 deselected in 57.05s

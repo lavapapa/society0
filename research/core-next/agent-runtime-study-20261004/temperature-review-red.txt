@@ -1,0 +1,54 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_review_repeated_read_early_continue_resets_streak[required_text] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1015/test_review_repeated_read_earl0')
+interruption = 'required_text'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('interruption', ['required_text', 'invalid_parallel'])
+    async def test_review_repeated_read_early_continue_resets_streak(tmp_path, interruption):
+        policy = LLMPolicy(max_turns=6, required_names=('work',),
+            repeated_read_temperature_delta=.2, request_options={'temperature': .1})
+        middle = reply(text='not yet') if interruption == 'required_text' else reply(invoke('x'), invoke('y'))
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(invoke('r1', 'read')), reply(invoke('r2', 'read')),
+             middle, reply(invoke('work')), reply(text='done')], policy=policy)
+        session.actions.actions.register(Action('read', ('m', 'job'), 'read', {},
+            lambda *args: ActionResult('completed', {'facts': [{'namespace': 'm', 'kind': 'fact', 'key': 'f'}]}),
+            read_only=True))
+        with store:
+            assert (await driver.run(session)).status == 'completed'
+>           assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1, .1]
+E           assert [0.1, 0.1, 0.3, 0.3, 0.1] == [0.1, 0.1, 0.3, 0.1, 0.1]
+E             
+E             At index 3 diff: 0.3 != 0.1
+E             Use -v to get more diff
+
+tests/primary/test_kernel_temperature_review.py:38: AssertionError
+___ test_review_repeated_read_early_continue_resets_streak[invalid_parallel] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1015/test_review_repeated_read_earl1')
+interruption = 'invalid_parallel'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('interruption', ['required_text', 'invalid_parallel'])
+    async def test_review_repeated_read_early_continue_resets_streak(tmp_path, interruption):
+        policy = LLMPolicy(max_turns=6, required_names=('work',),
+            repeated_read_temperature_delta=.2, request_options={'temperature': .1})
+        middle = reply(text='not yet') if interruption == 'required_text' else reply(invoke('x'), invoke('y'))
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(invoke('r1', 'read')), reply(invoke('r2', 'read')),
+             middle, reply(invoke('work')), reply(text='done')], policy=policy)
+        session.actions.actions.register(Action('read', ('m', 'job'), 'read', {},
+            lambda *args: ActionResult('completed', {'facts': [{'namespace': 'm', 'kind': 'fact', 'key': 'f'}]}),
+            read_only=True))
+        with store:
+            assert (await driver.run(session)).status == 'completed'
+>           assert [r[1]['temperature'] for r in provider.requests] == [.1, .1, .3, .1, .1]
+E           assert [0.1, 0.1, 0.3, 0.3, 0.1] == [0.1, 0.1, 0.3, 0.1, 0.1]
+E             
+E             At index 3 diff: 0.3 != 0.1
+E             Use -v to get more diff
+
+tests/primary/test_kernel_temperature_review.py:38: AssertionError

@@ -1,4 +1,5 @@
 """真实验收共享输入按任务提供能力说明，行动目标仍由原任务决定。"""
+from tests.primary.scripted_provider import bind_scripted_request
 import json
 import pytest
 from society0.kernel.llm import LLMPolicy
@@ -27,9 +28,9 @@ async def test_actual_cognitive_input_explains_optional_discovery_without_rewrit
             name='action_describe';args={'target':target,'name':action}
         else:
             action=json.loads(tools[-1]['content'])['name']
-            name='action_invoke';args={'target':target,'name':action,'arguments':json.dumps({'content':'共同讨论产业预期'},ensure_ascii=False)}
+            name='action_invoke';args={'target':target,'name':action,'arguments':{'content':'共同讨论产业预期'}}
         return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
-    monkeypatch.setattr(ModelProvider,'request',request)
+    bind_scripted_request(monkeypatch, ModelProvider, request)
     ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
     cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
     policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
@@ -40,7 +41,7 @@ async def test_actual_cognitive_input_explains_optional_discovery_without_rewrit
         async def first_only(self,tid,options):
             if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
             return await original(self,tid,options)
-        monkeypatch.setattr(ModelProvider,'request',first_only)
+        bind_scripted_request(monkeypatch, ModelProvider, first_only)
     receipt=await run_plan(tmp_path/'run',current)
     assert receipt['complete_step']==1
     assert len(calls)==(1 if kind=='confirm' else 3)

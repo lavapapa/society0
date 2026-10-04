@@ -1,3 +1,4 @@
+from tests.primary.provider_http import bind_chat, bind_embedding
 """新版完整 LLM 循环：假提供方与真实 Thread/Action 消费者。"""
 import asyncio
 import json
@@ -19,7 +20,7 @@ def call(identifier, tool, arguments):
 
 def invoke(identifier='c1', name='work', arguments=None):
     return call(identifier, 'action_invoke', {'name': name, 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'},
-                                            'arguments': json.dumps(arguments or {})})
+                                            'arguments': arguments or {}})
 
 
 def reply(*calls, text='', finish=None):
@@ -41,6 +42,10 @@ class FakeProvider:
             raise response
         self.threads.event(thread_id, 'provider_response', response)
         return response
+
+    async def request_model(self, thread_id, options, *, model_messages=None):
+        from tests.primary.scripted_provider import scripted_response
+        return scripted_response(self.threads, thread_id, await self.request(thread_id, options))
 
 
 def setup(tmp_path, replies, *, policy=None, handler=None, terminal=False, tags=(), schema=None):
@@ -252,9 +257,9 @@ async def test_physical_retry_preserves_request_reference_and_full_raw_response(
         if len(requests) == 1:
             raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
         return sdk_response('complete response')
-    provider.manager.clients['test'].chat.completions.create = create
+    await bind_chat(provider, create)
     try:
-        assert provider.manager.clients['test'].max_retries == 0
+        assert provider.endpoints[0].client.max_retries == 0
         result = await provider.request(tid, {'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}})
         assert result['content'] == 'complete response'
         assert len(requests) == 2 and requests[0]['messages'] == requests[1]['messages']
@@ -269,7 +274,8 @@ async def test_physical_retry_preserves_request_reference_and_full_raw_response(
         assert rebuilt['provider_options']['model'] == 'fake'
         assert rebuilt['provider_options']['temperature'] == 0.7
         response = [e for e in events if e['kind'] == 'provider_response'][0]
-        assert response['payload']['payload']['raw_response']['choices'][0]['message']['content'] == 'complete response'
+        raw=threads.snapshot_messages(tid,raw=True)['messages'][-1]['model_message']
+        assert raw['parts'][0]['content']=='complete response'
     finally:
         await provider.close()
         store.close()
@@ -284,13 +290,13 @@ async def test_required_thread_failure_never_retries_actual_model_request(tmp_pa
     async def create(**kwargs):
         calls.append(True)
         return sdk_response()
-    provider.manager.clients['test'].chat.completions.create = create
+    await bind_chat(provider, create)
     def broken(*args, **kwargs):
         raise OSError('disk full')
     if failure == 'request':
         threads.record_provider_request = broken
     else:
-        threads.record_provider_event = broken
+        threads.record_model_response = broken
     try:
         with pytest.raises(ThreadWriteError):
             await provider.request(tid, {})
@@ -312,11 +318,12 @@ async def test_empty_retry_then_exhaustion_without_domain_calls(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_action_selection_and_live_rejection_are_feedback_not_domain_fault(tmp_path):
+async def test_undeclared_tool_is_protocol_failure_without_domain_effect(tmp_path):
     store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')],
                                                     policy=LLMPolicy(allowed_names=()))
     try:
-        assert (await driver.run(session)).status == 'completed'
+        result = await driver.run(session)
+        assert result.status == 'incomplete' and result.reason == 'model_protocol_error'
         assert not calls
     finally:
         store.close()
@@ -481,7 +488,7 @@ async def test_filtered_discovery_cursor_binds_subject_and_moment(tmp_path):
 @pytest.mark.asyncio
 async def test_malformed_inner_arguments_consume_failed_domain_attempt(tmp_path):
     malformed = call('bad', 'action_invoke', {'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': '{not json'})
-    store, _, provider, driver, session, calls = setup(tmp_path, [reply(malformed)], policy=LLMPolicy(max_action_calls=1))
+    store, _, provider, driver, session, calls = setup(tmp_path, [reply(malformed)], policy=LLMPolicy(max_action_calls=1, strict_tools=True))
     try:
         assert (await driver.run(session)).reason == 'action_budget_exhausted'
         assert not calls and len(provider.requests) == 1

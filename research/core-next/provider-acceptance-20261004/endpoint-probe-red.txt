@@ -1,0 +1,32 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+_____________ test_endpoint_probe_preserves_tools_and_cache_usage ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-988/test_endpoint_probe_preserves_0')
+
+    def test_endpoint_probe_preserves_tools_and_cache_usage(tmp_path):
+        from types import SimpleNamespace
+>       module=load('endpoint_probe')
+               ^^^^^^^^^^^^^^^^^^^^^^
+
+research/core-next/provider-acceptance-20261004/test_preparation.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+research/core-next/provider-acceptance-20261004/test_preparation.py:8: in load
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:995: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1132: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x1078d4a10>
+path = '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/endpoint_probe.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/endpoint_probe.py'
+
+<frozen importlib._bootstrap_external>:1190: FileNotFoundError
+=========================== short test summary info ============================
+FAILED research/core-next/provider-acceptance-20261004/test_preparation.py::test_endpoint_probe_preserves_tools_and_cache_usage
+1 failed, 2 passed in 0.29s

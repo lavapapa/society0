@@ -28,7 +28,7 @@ def chat_response(request):
         else:action='record_observation';inner={'value':7}
         if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
         elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
-        else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+        else:name='action_invoke';args={'name':action,'target':target,'arguments':inner}
     message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
     if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
     return dict(id='fixture',model=request['model'],object='chat.completion',created=0,
@@ -46,11 +46,11 @@ def vfs_call(messages):
         if path not in listed:return 'data_list',{'path':path,'limit':100,'cursor':None}
     prices=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/prices']
     if not prices or prices[-1]['next_cursor'] is not None:
-        return 'data_query',{'path':'/catalog/prices','query':json.dumps({'limit':3,'cursor':prices[-1]['next_cursor'] if prices else None})}
+        return 'data_query',{'path':'/catalog/prices','query':{'limit':3,'cursor':prices[-1]['next_cursor'] if prices else None}}
     actors=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/actors']
-    if not actors:return 'data_query',{'path':'/catalog/actors','query':'{}'}
+    if not actors:return 'data_query',{'path':'/catalog/actors','query':{}}
     reports=[result for name,args,result in history if name=='data_query' and args['path']=='/catalog/reports']
-    if not reports:return 'data_query',{'path':'/catalog/reports','query':'{}'}
+    if not reports:return 'data_query',{'path':'/catalog/reports','query':{}}
     reference=reports[0]['items'][0]['body']
     reads=[result for name,args,result in history if name=='data_read']
     if not reads or reads[-1]['next_offset'] is not None:
@@ -64,5 +64,5 @@ def vfs_call(messages):
         return 'action_find',{'target':target,'query':'','limit':100,'cursor':None}
     if not any(name=='action_describe' for name,args,result in history):
         return 'action_describe',{'target':target,'name':'catalog.submit'}
-    phrase=''.join(part['data'] for part in reads).split('核对短语：',1)[1].strip().rstrip('。')
-    return 'action_invoke',{'target':target,'name':'catalog.submit','arguments':json.dumps({'count':len(rows),'total':sum(row['amount'] for row in rows),'phrase':phrase})}
+    phrase=''.join(part['data'] for part in reads).split('\n核对短语：',1)[1]
+    return 'action_invoke',{'target':target,'name':'catalog.submit','arguments':{'count':len(rows),'total':sum(row['amount'] for row in rows),'phrase':phrase}}

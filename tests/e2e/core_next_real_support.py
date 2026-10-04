@@ -25,7 +25,7 @@ def configuration():
             'concurrency':int(os.environ.get('SOCIETY0_REAL_MODEL_CAPACITY','2')),'timeout':60,'trust_env':os.environ.get('SOCIETY0_REAL_LLM_TRUST_ENV','0')=='1'}],
             'max_attempts':1,'request_jitter':0,'session_transport':None,
             'request_options':json.loads(os.environ.get('SOCIETY0_REAL_REQUEST_OPTIONS',
-                '{"max_tokens":1024,"temperature":0,"parallel_tool_calls":false,"reasoning_effort":"minimal"}'))},
+                '{"max_tokens":1024,"temperature":0,"parallel_tool_calls":false,"openai_reasoning_effort":"minimal"}'))},
         'embed':{'endpoints':[{'id':'real-embedding','base_url':os.environ['SOCIETY0_REAL_EMBED_URL'],
             'model':os.environ['SOCIETY0_REAL_EMBED_MODEL'],'api_key':os.environ['SOCIETY0_REAL_EMBED_KEY'],
             'concurrency':2,'timeout':60,'trust_env':False,'send_dimensions':False}],
@@ -74,17 +74,21 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
         threads=ctx.require('threads','threads')
         held.update(threads=threads,store=ctx.require('storage','store'))
         if memory:held['memory']=ctx.require('memory','memory')
-        for client in ctx.require('models','models')['main'].manager.clients.values():
-            client.chat.completions.create=measured('llm_sdk',client.chat.completions.create)
-        for client in ctx.require('embeddings','embeddings')['main'].manager.clients.values():
-            client.embeddings.create=measured('embedding_sdk',client.embeddings.create)
+        for name,kind in (('models','llm_sdk'),('embeddings','embedding_sdk')):
+            for endpoint in ctx.require(name,name)['main'].endpoints:
+                original=endpoint.start
+                async def start(endpoint=endpoint,original=original,kind=kind):
+                    await original()
+                    resource=endpoint.client.chat.completions if kind=='llm_sdk' else endpoint.client.embeddings
+                    resource.create=measured(kind,resource.create)
+                endpoint.start=start
         async def perception(session,cursor):
             goal=goals(session) if callable(goals) else goals
             return ([{'role':'user','content':goal}],session.step)
         input_builder=CognitiveInput(threads,perception,environment=
             '这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。'
             '需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。'
-            'action_invoke.arguments 是编码后的 JSON 字符串。只执行本次任务要求的行动。',
+            'action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。',
             precision='所有已提供材料均为原文。')
         def shell(session,ledger):
             from society0.kernel.shell import ShellSession

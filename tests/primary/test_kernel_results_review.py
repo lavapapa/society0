@@ -1,6 +1,6 @@
 """结果原文范围与完整恢复的非作者消费者。"""
 import json
-import zlib
+from society0.kernel import results as codec
 import pytest
 from society0.kernel.results import Results,RESULTS_SCHEMA,StepResult
 from society0.kernel.storage import StageStore
@@ -16,9 +16,9 @@ async def test_review_late_result_range_decodes_only_intersecting_chunk(tmp_path
         assert len(json.dumps(page,ensure_ascii=False,separators=(',',':')).encode())<=512
         reference=page['items'][0]['payload_ref']
         assert page['items'][0]['raw_bytes']==len(raw)
-        calls=[];decompress=zlib.decompress
+        calls=[];decompress=codec.decode_chunk
         def counted(data,*args,**kwargs):calls.append(len(data));return decompress(data,*args,**kwargs)
-        monkeypatch.setattr(zlib,'decompress',counted)
+        monkeypatch.setattr(codec,'decode_chunk',counted)
         offset=(len(raw)//65536-1)*65536+17
         part=results.read_record(reference,offset=offset,size=31)
         assert part['data']==raw[offset:offset+31] and part['total_bytes']==len(raw)

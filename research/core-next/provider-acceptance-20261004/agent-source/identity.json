@@ -1,0 +1,6 @@
+{
+  "frozen_at": "2026-10-04T09:33:38.121659+00:00",
+  "base_commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "identity": "working-tree-agent-iter-20261004",
+  "scope": "actual src and fixed dependency files; includes accepted uncommitted implementation"
+}

@@ -1,0 +1,23 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_public_agent_iter_owns_tool_progression_and_retains_receipts _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1001/test_public_agent_iter_owns_to0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a2b2f60>
+
+    @pytest.mark.asyncio
+    async def test_public_agent_iter_owns_tool_progression_and_retains_receipts(tmp_path, monkeypatch):
+        seen=[]; original=Agent.iter
+        def observed(self,*args,**kwargs):
+            seen.append(kwargs)
+            return original(self,*args,**kwargs)
+        monkeypatch.setattr(Agent,'iter',observed)
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(invoke()),reply(text='完成')])
+        with store:
+            result=await driver.run(session)
+            assert result.status=='completed' and len(calls)==1
+>           assert len(seen)==1 and seen[0]['usage_limits'].request_limit is None
+E           assert (0 == 1)
+E            +  where 0 = len([])
+
+tests/primary/test_kernel_agent_runtime_acceptance.py:19: AssertionError

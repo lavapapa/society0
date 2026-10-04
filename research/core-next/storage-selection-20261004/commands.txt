@@ -1,0 +1,16 @@
+CWD: /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next
+Product reference: 0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0
+uv venv --python .venv/bin/python /tmp/society0-storage-selection-20261004-env
+uv pip install --python /tmp/society0-storage-selection-20261004-env/bin/python pyzstd zstandard python-rapidjson apsw
+Resolved exact versions: environment.txt. Reproduction should pin these versions.
+/tmp/society0-storage-selection-20261004-env/bin/python research/core-next/storage-selection-20261004/probe.py --product src/society0/kernel/_json_chunks.py --output research/core-next/storage-selection-20261004/compression-r2.json
+/tmp/society0-storage-selection-20261004-env/bin/python research/core-next/storage-selection-20261004/probe.py --product src/society0/kernel/_json_chunks.py --output research/core-next/storage-selection-20261004/compression-r3.json
+Initial compression.json has nine routes before native_serial64 was added; r2/r3 have all ten routes.
+/tmp/society0-storage-selection-20261004-env/bin/python research/core-next/storage-selection-20261004/session_stream.py > research/core-next/storage-selection-20261004/session-stream.json
+PYTHONPATH=/tmp/society0-vector-study-20261004/lib/python3.12/site-packages .venv/bin/python research/core-next/storage-selection-20261004/vector_single_actor.py --backend sqlite-scalar --count 10000 > research/core-next/storage-selection-20261004/vector-scalar-single-10k.json
+.venv/bin/python research/core-next/storage-selection-20261004/vector_single_actor.py --backend chroma --count 10000 > research/core-next/storage-selection-20261004/vector-chroma-single-10k.json
+Vector versions: Chroma1.5.9, sqlite-vec0.1.9; the isolated sqlite-vec sitepackages are from the previous documented experiment. Both vector runs use Python3.12.12/numpy from the project venv. No embedding/model calls.
+.venv/bin/python research/core-next/storage-selection-20261004/count_code.py > research/core-next/storage-selection-20261004/code-size.json
+All final commands exit 0; the initial derived single-actor verifier error is recorded separately in vector-fixture-correction.txt.
+
+Final compression-r4.json repeats all ten routes with an explicitly aligned global 64KiB crossing range. Command is the same probe invocation with --output .../compression-r4.json; output logged in compression-r4-command.txt.

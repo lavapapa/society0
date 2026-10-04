@@ -1,0 +1,131 @@
+{
+  "source": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_exit_restore_memory_and_observation/source",
+  "selected_step": 1,
+  "memories": [
+    {
+      "id": "27154718727749bf806b7b1cb2712870",
+      "body": {
+        "content": "B42订单已经收款500元。",
+        "metadata": {}
+      }
+    },
+    {
+      "id": "762d4768b09e418585f8356a4cde114e",
+      "body": {
+        "content": "B42订单已经收款500元。",
+        "metadata": {}
+      }
+    }
+  ],
+  "usage": {
+    "actor": null,
+    "timing_scope": "sum_of_physical_attempt_wall_times",
+    "attribution": "physical_calls_once",
+    "totals": {
+      "requests": 6,
+      "responses": 6,
+      "errors": 0,
+      "input_tokens": 9117,
+      "output_tokens": 345,
+      "total_tokens": 9462,
+      "input_reports": 6,
+      "output_reports": 5,
+      "total_reports": 6,
+      "cache_read_tokens": 2048,
+      "cache_write_tokens": 0,
+      "cache_read_reports": 5,
+      "cache_write_reports": 0,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 2,
+      "duration_s": 11.853490626090206,
+      "queue_s": 4.045793320983648e-05,
+      "jitter_s": 0.0,
+      "provider_s": 11.849571251135785,
+      "duration_reports": 6,
+      "queue_reports": 6,
+      "jitter_reports": 6,
+      "provider_reports": 6,
+      "unknown_usage_calls": 0,
+      "unknown_cache_read_calls": 1,
+      "unknown_cache_write_calls": 6
+    },
+    "models": [
+      {
+        "kind": "llm",
+        "model": "Qwen/Qwen3.8-27B",
+        "requests": 5,
+        "responses": 5,
+        "errors": 0,
+        "input_tokens": 9105,
+        "output_tokens": 345,
+        "total_tokens": 9450,
+        "input_reports": 5,
+        "output_reports": 5,
+        "total_reports": 5,
+        "cache_read_tokens": 2048,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 5,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 11.669295001076534,
+        "queue_s": 3.637495683506131e-05,
+        "jitter_s": 0.0,
+        "provider_s": 11.665744334110059,
+        "duration_reports": 5,
+        "queue_reports": 5,
+        "jitter_reports": 5,
+        "provider_reports": 5,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 5
+      },
+      {
+        "kind": "embedding",
+        "model": "Qwen/Qwen3-Embedding-0.6B",
+        "requests": 1,
+        "responses": 1,
+        "errors": 0,
+        "input_tokens": 12,
+        "output_tokens": 0,
+        "total_tokens": 12,
+        "input_reports": 1,
+        "output_reports": 0,
+        "total_reports": 1,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 0,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 2,
+        "duration_s": 0.18419562501367182,
+        "queue_s": 4.082976374775171e-06,
+        "jitter_s": 0.0,
+        "provider_s": 0.1838269170257263,
+        "duration_reports": 1,
+        "queue_reports": 1,
+        "jitter_reports": 1,
+        "provider_reports": 1,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 1,
+        "unknown_cache_write_calls": 1
+      }
+    ]
+  },
+  "thread_heads": [
+    [
+      "eb2919bfa7b044d68d3bf3d2496a974b",
+      "a",
+      "decision",
+      "166c1b39ba8344968189a3210a616548",
+      "completed",
+      36,
+      15,
+      1,
+      "{\"phase\": \"decision\", \"time\": 1}"
+    ]
+  ]
+}

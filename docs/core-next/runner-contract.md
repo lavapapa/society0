@@ -1,6 +1,6 @@
 # 运行入口
 
-运行计划把公开配置、插件组合和时间序列交给已有的 compose 与 CodeSchedule。Runtime 继续负责唯一的步骤执行和完整点发布，runner 保存本次运行合同及逐步诊断，输出可供独立观察和工作台读取的运行目录。
+运行计划把公开配置、插件组合和时间序列交给 compose 与 CodeSchedule。FixedStep 声明一个重复阶段，PhasedSchedule 声明显式有序阶段；schedule_plugin 将计划绑定到同一个 Runtime。Runtime 继续负责唯一的步骤执行和完整点发布，runner 保存本次运行合同及逐步诊断，输出可供独立观察和工作台读取的运行目录。
 
 ## 一、配置
 
@@ -18,6 +18,15 @@ Python 使用 `await run_plan(path, plan, source=None, step=None)`。source 与 
 
 ## 三、示例
 
-`examples.core_next.rule_run:build` 展示两个规则主体的短运行，使用真实 Runtime、结果表与完整恢复协议。公开配置至少提供 steps 和 release，例如 `{"steps":2,"release":{"commit":"填写实际已发布提交"}}`。占位发布标识用于说明字段，正式运行将其替换为真实部署身份。该示例无需模型、记忆、Chroma 或 shell 可选依赖。
+`examples.core_next.rule_run:build` 展示两个规则主体的短运行，使用真实 Runtime、结果表与完整恢复协议。公开配置提供 start、end 和 release，例如 `{"start":1,"end":2,"release":{"commit":"填写实际源码提交"}}`；两端均包含在执行范围中。恢复配置明确填写剩余业务时间，如从完整第 1 步继续时填写 start=2、end=2。runner 续步骤编号，工厂决定业务时间。完整可执行命令见 [第一次运行与恢复](getting-started.md)。该示例使用基础依赖。
 
 LLM 与记忆组合使用 services-contract 中的标准 thread_plugin 和 memory_plugin，提供方配置使用 models-contract。运行入口和领域计划分别负责执行协议与业务选择，生命周期统一交由 PluginHost 管理。
+
+
+订阅接入的完整计划使用 `examples.core_next.codex_subscription:build`，配置和授权步骤见 [Codex 订阅指南](subscription-guide.md)。实际模型 ID、账户别名和本次源码身份由研究者明确选择。
+
+## 共享计算
+
+`from society0.plugins import compute_plugin` 可安装单运行共享服务：`compute_plugin(max_workers=2, max_pending=4)`。机制声明依赖 compute，在安装时获取 `context.require('compute', 'compute')`，通过 `await compute.run(top_level_function, compact_input)` 提交可序列化输入。函数需要模块顶层定义，输入应为紧凑批次或不可变引用；数据库连接、Runtime 和可写状态留在拥有者进程。计算返回后，机制检查来源版本并按业务顺序写入规范存储。
+
+[图计算示例](../../examples/core_next/parallel_graph.py) 为现有 graph_plugin 接入该服务。projection_async 读取一次节点和边的短快照，在子进程构造派生图，返回时复核相关表版本。该示例仍会完整传输图输入和派生输出，成本随所选图规模增长。max_pending 限制已提交且实际未完成的任务数，等待调用方已构造的参数仍会占内存。取消等待者后，运行中的工作在真实完成时才归还额度；关闭使用标准 executor.shutdown 等待进程结束，长任务会延长退出时间。每次 `compute.run` 提交一个函数任务；单次整图调用使用一个工作进程。多个独立调用才可占用多个 worker，任务拆分与结果的业务顺序由机制作者确定。实际执行与测量范围见 [计算消费者及规模边界](../../research/core-next/acceptance-20261004/capability-review.md)。

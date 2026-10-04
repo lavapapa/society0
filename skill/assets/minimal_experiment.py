@@ -102,7 +102,7 @@ def build_plan(*,release,resource_plugins=None,model=None,embedding=None,moments
     moments=tuple(moments)
     profiles={name:{**options,'endpoints':[{key:value for key,value in endpoint.items() if key!='api_key'} for endpoint in options['endpoints']]}
         for name,options in (('llm',model),('embedding',embedding)) if options is not None}
-    dependencies={name:version(name) for name in ('society0','apsw','jsonschema','python-rapidjson','openai','ollama','chromadb','pydantic','tenacity','json-repair')}
+    dependencies={name:version(name) for name in ('society0','apsw','jsonschema','python-rapidjson','backports-zstd','pydantic-ai-slim','openai','httpx2','chromadb','pydantic','json-repair')}
     dependencies['python']=platform.python_version()
     return RunPlan(plugins,moments,RunContract(release=release,dependencies=dependencies,
         configuration={'models':profiles,'message':MESSAGE,'memory':{'auto_write':False,'auto_recall':True,'active_tools':True},'survey':SURVEY},

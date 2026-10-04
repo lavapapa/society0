@@ -1,0 +1,26 @@
+{
+  "source_kind": "frozen_worktree_archive",
+  "head": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "branch": "codex/society0-core-next",
+  "archive": "source-candidate.tar.gz",
+  "contains_uncommitted_changes": true,
+  "selected": [
+    "src",
+    "tests",
+    "examples",
+    "benchmarks",
+    "docs",
+    "skill",
+    "native",
+    "tools",
+    "README.md",
+    "PROJECT.md",
+    "AGENTS.md",
+    "pyproject.toml",
+    "uv.lock",
+    "pytest.ini",
+    "LICENSE",
+    "research/core-next/json-codec-baseline-f4d03a6.py",
+    "research/core-next/parity-20261004"
+  ]
+}

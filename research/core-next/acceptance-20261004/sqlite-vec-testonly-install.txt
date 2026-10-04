@@ -1,0 +1,4 @@
+Resolved 1 package in 887ms
+Prepared 1 package in 224ms
+Installed 1 package in 2ms
+ + sqlite-vec==0.1.6

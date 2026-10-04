@@ -1,0 +1,17 @@
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/experiments/test_core_next_compression_probe.py ____
+tests/experiments/test_core_next_compression_probe.py:7: in <module>
+    from benchmarks.core_next_compression_probe import raw_chunks, parallel_chunks, prepare
+benchmarks/core_next_compression_probe.py:25: in <module>
+    _baseline=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_baseline)
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:995: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1132: in get_code
+    ???
+<frozen importlib._bootstrap_external>:1190: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/tmp/society0-delivery-20261004/source/research/core-next/json-codec-baseline-f4d03a6.py'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.98s

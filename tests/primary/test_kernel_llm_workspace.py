@@ -1,4 +1,5 @@
 """真实 LLMDriver、Bashkit、ActorStore 与完整恢复组合。"""
+from tests.primary.scripted_provider import TypedScriptProvider
 import json
 import pytest
 from society0.kernel.actors import ActorRecord, actor_plugin
@@ -40,7 +41,7 @@ async def test_llm_workspace_survives_complete_restore_and_next_moment(tmp_path)
         def shell(session, ledger):
             return ShellSession(session.scope,info,bound_actions=ledger,result_dir=result_dir,
                                 workspace=host.service('workspace','workspace'))
-        holder['driver']=LLMDriver(Provider(script),threads,input_builder=lambda s:[],shell_factory=shell)
+        holder['driver']=LLMDriver(TypedScriptProvider(Provider(script), threads),threads,input_builder=lambda s:[],shell_factory=shell)
         runtime=Runtime(actors,information=info,actions=actions,store=store)
         async def activate(ctx):
             ctx.activate('alice')

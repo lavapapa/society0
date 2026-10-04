@@ -59,7 +59,7 @@ python -m society0.kernel.observation /path/to/run --serve 8711 --capacity 4 --t
 curl -s http://127.0.0.1:8711/ -H 'Content-Type: application/json' -d '{"method":"thread_tail","params":{"thread_id":"THREAD_ID","max_bytes":65536}}'
 ```
 
-HTTP 默认绑定本机，每个在途请求占一个工作槽。请求体和响应写入均有 socket timeout；槽满及时返回 503 与 server_busy，结束、超时或断连释放槽。默认请求体上限为 1 MiB、传输响应上限为 16 MiB；单次数据页还受所传 max_bytes 约束。HTTP 不提供无界事件队列，状态轮询得到最新快照，Thread tail 提供持续事实位置。CLI 失败输出 JSON error.code 并以非零状态退出，HTTP 失败使用结构化 error；Python 保留异常调用方式。
+HTTP 使用 Starlette/Uvicorn，默认绑定本机；安装 observe 可选依赖后，make_app 可嵌入 ASGI 宿主，make_server 返回标准 uvicorn.Server，使用 run() 或 await serve()。capacity 限制从请求体读取到响应发送完成的活动请求，已满时立即返回 503 server_busy。可选 connection_limit（CLI --connection-limit）另交 Uvicorn 限制连接/任务，包含空闲连接，最小为 2。timeout 约束请求体读取和每次响应发送等待；同步数据库查询在线程池完成，不宣称它能被该 timeout 中断。默认请求体上限为 1 MiB、传输响应上限为 16 MiB；单次数据页还受所传 max_bytes 约束。HTTP 不提供无界事件队列，状态轮询得到最新快照，Thread tail 提供持续事实位置。CLI 失败输出 JSON error.code 并以非零状态退出，HTTP 失败使用结构化 error；Python 保留异常调用方式。
 
 外部读取的完整性来自持久身份、追加序号、完整步骤与原文范围。实时性应结合实际可见延迟、失败诊断和资源成本判断；轮询频率、服务启动以及单页成功均不足以代表全部数据已经消费完毕。
 

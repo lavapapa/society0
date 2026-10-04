@@ -1,0 +1,25 @@
+Using CPython 3.12.12 interpreter at: /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/bin/python3.12
+Creating virtual environment at: /tmp/society0-acceptance-clean-20261004/observe
+Activate with: source /tmp/society0-acceptance-clean-20261004/observe/bin/activate
+Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-20261004/observe
+Resolved 16 packages in 663ms
+   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+Prepared 1 package in 405ms
+Installed 16 packages in 11ms
+ + anyio==4.15.1
+ + apsw==3.53.4.0
+ + attrs==26.1.0
+ + backports-zstd==1.7.0
+ + click==8.5.0
+ + h11==0.16.0
+ + idna==3.20
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + python-rapidjson==1.25
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)
+ + starlette==1.7.0
+ + typing-extensions==4.16.0
+ + uvicorn==0.52.1

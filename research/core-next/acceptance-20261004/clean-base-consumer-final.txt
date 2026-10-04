@@ -1,0 +1,2 @@
+{"profile": "base", "public_consumer": true, "wheel_import": "/tmp/society0-acceptance-clean-20261004/base/lib/python3.12/site-packages/society0/__init__.py"}
+exit_code=0

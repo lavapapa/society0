@@ -1,0 +1,77 @@
+.........................F.......................                        [100%]
+=================================== FAILURES ===================================
+_________________ test_cognition_cursor_survives_fresh_process _________________
+tests/primary/test_kernel_cognition.py:104: in test_cognition_cursor_survives_fresh_process
+    assert result.returncode==0,result.stderr
+E   AssertionError: Traceback (most recent call last):
+E       File "<string>", line 20, in <module>
+E       File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+E         return runner.run(main)
+E                ^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+E         return self._loop.run_until_complete(task)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+E         return future.result()
+E                ^^^^^^^^^^^^^^^
+E       File "<string>", line 16, in main
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/llm.py", line 587, in run
+E         node = await run.next(node)
+E                ^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/run.py", line 599, in next
+E         return await self._run_node_with_hooks(node, self._stream_and_advance)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/run.py", line 514, in _run_node_with_hooks
+E         result = await lifecycle(node)
+E                  ^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/run.py", line 494, in lifecycle
+E         result = await step_fn(lifecycle_node)
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/run.py", line 613, in _stream_and_advance
+E         return await self._advance_graph(node)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/run.py", line 409, in _advance_graph
+E         task = await self._graph_run.next(task)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py", line 584, in next
+E         return await anext(self)
+E                ^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py", line 561, in __anext__
+E         raise self._next.error
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py", line 862, in _run_tracked_task
+E         result = await self._run_task(t_)
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py", line 920, in _run_task
+E         output = await node.call(step_context)
+E                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_graph/step.py", line 253, in _call_node
+E         return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 1345, in run
+E         return await self._make_request(ctx)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 1661, in _make_request
+E         model_response = await model_handler(request_context)
+E                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 1644, in model_handler
+E         response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+E                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 2025, in _recover_model_request_error
+E         raise error
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 1630, in model_handler
+E         response = await model_request(
+E                    ^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py", line 1181, in model_request
+E         new_response = await model.request(
+E                        ^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/models.py", line 39, in request
+E         return await self._request(messages)
+E                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/llm.py", line 475, in request_model
+E         response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+E                                                ^^^^^^^^^^^^^^^^^^^^^^
+E     AttributeError: 'Provider' object has no attribute 'request_model'
+E     
+E   assert 1 == 0
+E    +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-c', "\...                     ^^^^^^^^^^^^^^^^^^^^^^\nAttributeError: \'Provider\' object has no attribute \'request_model\'\n').returncode
+1 failed, 48 passed in 11.49s

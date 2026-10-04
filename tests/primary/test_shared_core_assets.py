@@ -12,16 +12,17 @@ async def test_pool_has_no_world_dependency_and_refills_free_slot():
     async def a():await slow.wait()
     async def b():await quick.wait()
     async def c():refilled.set()
-    await pool.start()
-    try:
-        pool.submit('a',a);pool.submit('b',b);pool.submit('c',c)
-        quick.set()
-        await asyncio.wait_for(refilled.wait(),1)
-        assert not slow.is_set()
-        slow.set()
-        assert len(await pool.drain())==3
-    finally:
-        slow.set();await pool.close()
+    async with asyncio.TaskGroup() as group:
+        await pool.start(group)
+        try:
+            pool.submit('a',a);pool.submit('b',b);pool.submit('c',c)
+            quick.set()
+            await asyncio.wait_for(refilled.wait(),1)
+            assert not slow.is_set()
+            slow.set()
+            assert len(await pool.drain())==3
+        finally:
+            slow.set();await pool.close()
 
 
 def test_strict_schema_keeps_original_and_retired_registry_is_absent():

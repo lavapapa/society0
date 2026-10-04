@@ -1,0 +1,41 @@
+# 十五项真实验收的覆盖复核
+
+本复核只读当前真实测试、共享装配、跨进程消费者及消融脚本，没有调用提供方、修改产品或增加预算。十五项测试验证的重点是明确任务下的工具、记忆和恢复链。它们的流程成功、语义完整性与主体效果分别有不同证据边界；以下记录实际断言能够支持的结论，避免把测试名扩展成更强承诺。
+
+## 一、端点与执行
+
+`endpoint_smoke_llm_and_embedding`证明实际模型激活完成、两段文本各获指定维度且不同的向量。公共execute还检查物理请求、模型标识、非空请求消息和零错误／取消。它没有逐消息比较发往提供方的完整历史，因此不能单独承担完整上下文不裁剪的证明。
+
+`endpoint_saturation_llm_and_embedding_managers`验证三主体激活并发以及LLM SDK请求并发处于端点上限内，三份嵌入按调用者返回；`phase_capacity_overrides_runtime`验证阶段容量覆盖运行默认、模型容量仍为1，并从实际Results读取配置归属。当前SDK计时包装的是create调用区间，流式响应后续消费可能不在该区间内，所以峰值不能扩张成整个响应流生命周期并发证据。两项未逐位核对合批向量与各原输入的物理映射，这部分由已有确定性嵌入溯源用例承担。
+
+`interview_writes_artifacts`使用真实submit_result得到score=8。该用例未启用Memory，无法单独证明“启用Memory的访谈不自动写经验”；此负例在确定性Memory组合中另有覆盖。当前15项所有真实成本都受原policy及物理max_attempts=1约束，本复核不改变原8轮预算或VFS原20轮预算。
+
+## 二、行动与资料
+
+`round_robin_action_loop`给定主体目标Ref与发送意图，模型自己发现、描述和调用行动，最后核对两条领域消息正文都精确等于任务原文。它证明定向任务执行与动态工具发现，未测自发形成社会目标。首轮真实失败已另有诊断，不能并入成功证据。
+
+`environment_action_tag_completion`用required_tags及completion_tags保证终态来自匹配测量行动，断言reason=terminal_action。其handler接受任意合法整数，未断言任务要求的value=7，故标签终态通过不自动等于任务数字准确。`terminal_rejection_then_success`更强：逐次核对两次handler参数均为value=9，验证拒绝后纠正与成功。
+
+`social_publish_with_memory`逐字核对唯一帖子正文，确实证明发布该原文。`social_browse_completion_and_memory`目前仅依赖execute成功，未额外检查get_trending_posts实际被调用、工具结果含预设市场信息或记忆写入了该信息；completion_names是遇到该行动时的结束条件，并不等价于required_names。因此该例的当前成功断言对“实际浏览市场信息”偏弱。`multi_tick_social_workflow`核对帖子总数2，未分别检查两个时点的正文、时间与所属主体，可能漏掉内容重复或跨步错配。这些可在保留产物上补只读核对，无须为核对本身再发模型请求。
+
+`vfs_discovery_pagination_original_and_action`是当前较完整的资料消费者：从根发现挂载，实际模型调用data_list/query/read、bash和行动三工具；四页查询逐次透传cursor、limit=3、total=12，全部ID与amount按原顺序相等；真实bash输出count=12、total=546；SQL提交主体与count/total/phrase精确相等。它没有预填行动名与提交数值，任务明确给了资料阅读／计算目标。边界是报告正文读取仅检查data_read至少两次和最终phrase；尚未逐次核对offset/expected_revision链或拼接整份正文。最终短语正确不足以证明所有正文均实际阅读，完整范围协议另有确定性覆盖。
+
+## 三、记忆与恢复
+
+`saturation_memory_and_logs`验证两主体成功激活且各自能召回至少一条记忆；原事实内容对两主体相同，不能用这一项排除跨主体记忆串读。`memory_roundtrip`验证原召回正文集合在恢复后仍可召回，并成功运行新步骤；没有核对恢复后assistant是否回答正确的“三吨／每吨2000元”。检索可用与主体使用检索结果是两个验收层次。
+
+`complete_boundary_memory_restore`对恢复语义的断言较完整：原Memory ID、actor/type/timestamp/importance/state/visible_step、完整payload及向量原BLOB逐值相等；故障步骤的新Thread消失，600元未完成事实不进入恢复记忆。该例实际验证SQL权威记忆与完整点边界，未宣称Chroma检索排序逐bit相同。
+
+`exit_restore_memory_and_observation`在第二步模型及自动记忆结束后执行os._exit(91)，父进程确认当前诊断Thread存在、完整step仍为1、dirty Thread完整前缀为0；prepare_readonly(step=1)排除新Thread；另一个解释器恢复并继续到step2，已完成Thread公开messages逐值保留。它验证的是进程突然退出，无实际机器断电或文件系统掉电；不能把它称为物理断电测试。
+
+这一跨进程例的回答断言有重要边界：当前仅检查新Thread任意message含B42，召回注入的user材料就能满足，未检查assistant正确复述B42与500。子进程after回调也只是检索命中B42。因此后续真实产物到达后，应分别检查step1权威提取正文、恢复后召回材料、assistant最终回答，避免材料中的答案冒充主体答案。这里公开read_messages的等值也不等价于全部typed opaque字段逐字节等值；后者在独立协议测试中验证。
+
+Memory自动写入、自动召回和主动工具的八种组合已由test_kernel_memory.py::test_three_memory_switches_are_independent确定性覆盖，激活作用域另有组合用例。十五项真实Memory场景主要使用默认三开关全开，没有实际模型逐一验证八种关闭组合。应把该证据边界写明，避免为了清单对称额外安排无信息增益的付费矩阵。
+
+## 四、消融与收口
+
+`effects`的指定source应为跨进程案例的原始 `.../test_real_exit_restore_memory_and_observation/source` 运行目录，显式恢复其step=1。该目录current可能有第二步诊断内容，但run_plan(source=...,step=1)沿唯一完整链物化，排除它。两支各用新目录、时点2新Thread，同原始记忆／向量／主体资料／任务；两支都关闭自动写与主动工具，差别限于自动召回。运行前应只读确认选定完整点确有同时包含B42和500元的有效记忆及原向量；若提取本身遗漏关键事实，应先记为源材料不足，而非将后续回答归因于召回开关。
+
+消融脚本保存完整回答、全部messages、outcomes与前后累计usage，两个`*_mentioned`字段明确是字面定位辅助。B42或500出现在否定句、猜测句或错误金额里也可能命中，因此它们不作成功断言。实际判断需读assistant陈述是否肯定、正确地把B42与已收500元关联，区分“我不知道”和事实错误。关闭召回一支碰巧答对也应原样保留，单个成对样本没有统计效果估计能力。工具/记忆调用与前后usage差额可验证处理差异，不能替代回答内容检查。
+
+建议先沿主控批准的修复后round单例、退出恢复，再继续剩余十二例；原预算、提供方和任务不变，失败逐案留证。既有输出到达后可补查测量值7、社交实际浏览反馈、逐步帖子原文、VFS正文续读与恢复回答，先尽量利用已付费产物。全部真实链通过后，将真实可用性、确定性语义保证和待研究的统计效果分别汇总，不以一次“completed”覆盖三者。

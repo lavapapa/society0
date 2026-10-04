@@ -430,7 +430,8 @@ def test_table_revision_storage_format_is_explicit_and_old_format_rejected(tmp_p
     path=tmp_path/'run'
     with StageStore.create(path,('CREATE TABLE record(id INTEGER PRIMARY KEY)',)):
         manifest=json.loads((path/'run.json').read_text())
-        assert manifest['format']==2
+        assert manifest['format']==3
+        assert manifest['body_codec']=='zstd-frames-64k' and manifest['changeset_codec']=='zstd-stream'
     manifest['format']=1
     (path/'run.json').write_text(json.dumps(manifest))
     with pytest.raises(StorageError,match='format'):StageStore.open(path)
