@@ -26,7 +26,7 @@ page = await tools.query('/market/orders', Query(
 
 提供者实现 `ref(path)`、`list(scope,path,*,limit,cursor)`、`read(scope,path,*,offset,size)` 和 `query(scope,path,query)`；按其资源类型实现实际需要的操作。list 返回 `Page(items,total,next_cursor,revision)`。read 返回 `DocumentChunk(data,total_bytes,next_offset,revision,source)`，data 是 bytes，按字节读取可重新拼接全部 UTF-8 原文。
 
-`Query(fields,filters,order,limit,cursor,sample_seed)` 是请求载体，查询能力和运算定义由提供者确定。Core 将请求原样传递，不执行通用过滤、扫描或查询语言。提供者负责授权行和字段、授权后的 total、继续读取、固定版本与游标绑定。未知查询操作须由提供者明确拒绝。Core 对目录本身的授权不代表目录下每个对象都可见，接入提供者必须验证这个边界。
+`Query(fields,filters,order,limit,cursor,sample_seed)` 是请求载体，查询能力和运算定义由提供者确定。Core 将请求原样传递，不执行通用过滤、扫描或查询语言。提供者负责授权行和字段、授权后的 total、继续读取、固定版本与游标绑定。未知查询操作须由提供者明确拒绝。Core 对目录本身的授权不代表目录下每个对象都可见。SQLInformation 的 list_authorized 入口使用同一 allows 对各静态子路由执行 discover 判断，list 与 list_files 返回可见路由的精确 total。游标绑定主体、时点、运行身份、声明权限依赖版本和可见路由集合；授权判断期间版本改变会拒绝本次页面。行级授权继续由 SQL predicate 下推，不通过全表 Python 过滤完成。
 
 资源未挂载和权限不满足统一抛出 `Unavailable`，不暴露不同的目标细节。已有信息的读取由 read/query 完成；需要时间、费用或改变世界的调查由动作受理，不能藏在信息读取中。
 
@@ -60,7 +60,7 @@ Action 支持不可变 tags、strict 与 read_only 元数据，describe 返回�
 
 ## 四、故障与成本
 
-预期业务拒绝通过 rejected 表达。handler 的异常向上传递，包含无法完成原子撤销的部分写故障；本模块不把异常改成成功或自动重试。运行时须据此区分可继续的业务拒绝与会使步骤失效的一致性错误。后者的完整 poison、恢复和封存约束由调度及存储集成验收承担。
+预期业务拒绝通过 rejected 表达。handler 的异常向上传递，包含无法完成原子撤销的部分写故障；本模块不把异常改成成功或自动重试。处理器开始执行后的异常、取消和非法返回会使本步骤共享交互作用域失效，并通知 Runtime 终止阶段；Driver 捕获异常也无法发布完整点。后续交互拒绝继续，运行从此前完整点恢复。schema、访问条件与预期业务拒绝在处理器调用前或通过 rejected 明确表达。
 
 信息路由耗时由路径深度决定，数据工作量由提供者的当前索引与请求范围决定。动作发现按该类型模板数 T 扫描，返回元数据由页长约束；游标保留可用模板名称，空间 O(T)，不随世界对象数或业务历史增长。读取字节预算由提供者执行，Core 当前不替提供者读取、截短或复制全部正文。
 
