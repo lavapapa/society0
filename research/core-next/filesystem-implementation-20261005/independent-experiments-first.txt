@@ -1,0 +1,199 @@
+..................................................FF.................... [ 96%]
+...                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_complete_steps_preserve_identical_account_effects[llm] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1100/test_complete_steps_preserve_i1')
+mode = 'llm'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['rule','llm','memory'])
+    async def test_complete_steps_preserve_identical_account_effects(tmp_path,mode):
+>       result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/experiments/test_core_next_step_cost.py:8:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1100/test_complete_steps_preserve_i1/run')
+mode = 'llm', steps = 2, actors = 2
+
+    async def probe(path,*,mode,steps=20,actors=8):
+        started=time.perf_counter();cpu=time.process_time();provider=None;provider_calls=0;sdk_seconds=0.;memory_seconds=0.;model_seconds=0.;environment_seconds=0.;host=None
+        schema=THREAD_SCHEMA+RESULTS_SCHEMA+('CREATE TABLE balances(id TEXT PRIMARY KEY NOT NULL,value INTEGER NOT NULL)',)
+        if mode=='memory':
+            from society0.kernel.memory import MEMORY_SCHEMA
+            schema+=MEMORY_SCHEMA
+        def initialize(writer):
+            for index in range(actors):writer.execute('INSERT INTO balances VALUES(?,0)',(f'actor-{index}',))
+        store=StageStore.create(path,schema,initialize=initialize)
+        threads=ThreadStore(store);results=Results(store);actions=Actions(lambda *a:True)
+        transaction=store.transaction;transactions=0;transaction_seconds=0.
+        def write(*a,**kw):
+            nonlocal transactions,transaction_seconds
+            before=time.perf_counter()
+            try:return transaction(*a,**kw)
+            finally:transactions+=1;transaction_seconds+=time.perf_counter()-before
+        store.transaction=write
+        def increment(scope,target,arguments):
+            nonlocal environment_seconds
+            before=time.perf_counter()
+            store.transaction(lambda w:w.execute('UPDATE balances SET value=value+1 WHERE id=?',(scope.actor,)))
+            environment_seconds+=time.perf_counter()-before
+            return ActionResult('completed',{'changed':scope.actor,'amount':1})
+        actions.register(Action('increment',('account','balance'),'Increase account by one.',{'type':'object'},increment,terminal=True))
+        if mode in ('llm','memory'):
+            from society0.kernel.models import ModelProvider
+            from society0.kernel.llm import LLMDriver
+            from openai.types.chat import ChatCompletion
+            from tests.primary.provider_http import bind_chat
+            endpoint={'id':'fake','model':'fake','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':actors,'trust_env':False}
+            provider=ModelProvider([endpoint],threads,request_limit=asyncio.Semaphore(actors))
+            async def sdk(**kwargs):
+                nonlocal provider_calls,sdk_seconds
+                before=time.perf_counter();provider_calls+=1
+                context=next(json.loads(m['content']) for m in kwargs['messages'] if isinstance(m.get('content'),str) and m['content'].startswith('{') and '"actor"' in m['content'])
+                actor=context['actor']
+                extracting=any(t['function']['name']=='extract_memories' for t in kwargs.get('tools',[]))
+                name='extract_memories' if extracting else 'action_invoke'
+                arguments={'memories':[{'content':f"{actor} step {context['step']} increased account by 1",'importance':3}]} if extracting else {
+                    'name':'increment','target':{'namespace':'account','kind':'balance','key':actor},'arguments':{}}
+                response=ChatCompletion(id='physical-'+str(provider_calls),created=0,model='fake',object='chat.completion',
+                    choices=[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','content':'完整响应'*256,
+                        'tool_calls':[{'id':'increment','type':'function','function':{'name':name,'arguments':json.dumps(arguments)}}]}}])
+                sdk_seconds+=time.perf_counter()-before;return response
+            await bind_chat(provider,sdk)
+            request=provider.request_model
+            async def measured_request(*a,**kw):
+                nonlocal model_seconds
+                before=time.perf_counter()
+                try:return await request(*a,**kw)
+                finally:model_seconds+=time.perf_counter()-before
+            provider.request_model=measured_request
+            memory=None
+            if mode=='memory':
+                import chromadb
+                from society0.kernel.plugins import Plugin,PluginHost
+                from society0.kernel.services import memory_plugin
+                from society0.kernel.memory import MemoryPolicy
+                class Embed:
+                    async def embed(self,texts,*,metadata):return [[1.]+[0.]*1023 for text in texts]
+                def resources(ctx):
+                    client=chromadb.PersistentClient(path=str(path/'vectors'));ctx.on_close(client.close)
+                    ctx.provide('client',client);ctx.provide('embeddings',{'fixed':Embed()});ctx.provide('models',{'fixed':provider})
+                host=PluginHost([Plugin('storage',install=lambda ctx:ctx.provide('store',store)),
+                    Plugin('threads',install=lambda ctx:ctx.provide('threads',threads)),Plugin('resources',install=resources),
+                    memory_plugin(client=('resources','client'),embedding=('resources','embeddings','fixed'),
+                        extraction=('resources','models','fixed'),policy=MemoryPolicy(active_tools=False),recall_query=lambda s:'earlier account changes')])
+                await host.__aenter__();memory=host.service('memory','memory')
+                def measure(method):
+                    async def call(*a,**kw):
+                        nonlocal memory_seconds
+                        before=time.perf_counter()
+                        try:return await method(*a,**kw)
+                        finally:memory_seconds+=time.perf_counter()-before
+                    return call
+                memory.before_activation=measure(memory.before_activation);memory.after_activation=measure(memory.after_activation)
+>           driver=LLMDriver(provider,threads,memory=memory,input_builder=lambda session:[{'role':'system','content':'完整决策材料'*1024},
+                {'role':'user','content':json.dumps({'actor':session.actor.id,'step':session.step,'task':'increment exactly once'})}])
+E           TypeError: LLMDriver.__init__() got an unexpected keyword argument 'memory'
+
+benchmarks/core_next_step_cost.py:94: TypeError
+________ test_complete_steps_preserve_identical_account_effects[memory] ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1100/test_complete_steps_preserve_i2')
+mode = 'memory'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['rule','llm','memory'])
+    async def test_complete_steps_preserve_identical_account_effects(tmp_path,mode):
+>       result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/experiments/test_core_next_step_cost.py:8:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1100/test_complete_steps_preserve_i2/run')
+mode = 'memory', steps = 2, actors = 2
+
+    async def probe(path,*,mode,steps=20,actors=8):
+        started=time.perf_counter();cpu=time.process_time();provider=None;provider_calls=0;sdk_seconds=0.;memory_seconds=0.;model_seconds=0.;environment_seconds=0.;host=None
+        schema=THREAD_SCHEMA+RESULTS_SCHEMA+('CREATE TABLE balances(id TEXT PRIMARY KEY NOT NULL,value INTEGER NOT NULL)',)
+        if mode=='memory':
+            from society0.kernel.memory import MEMORY_SCHEMA
+            schema+=MEMORY_SCHEMA
+        def initialize(writer):
+            for index in range(actors):writer.execute('INSERT INTO balances VALUES(?,0)',(f'actor-{index}',))
+        store=StageStore.create(path,schema,initialize=initialize)
+        threads=ThreadStore(store);results=Results(store);actions=Actions(lambda *a:True)
+        transaction=store.transaction;transactions=0;transaction_seconds=0.
+        def write(*a,**kw):
+            nonlocal transactions,transaction_seconds
+            before=time.perf_counter()
+            try:return transaction(*a,**kw)
+            finally:transactions+=1;transaction_seconds+=time.perf_counter()-before
+        store.transaction=write
+        def increment(scope,target,arguments):
+            nonlocal environment_seconds
+            before=time.perf_counter()
+            store.transaction(lambda w:w.execute('UPDATE balances SET value=value+1 WHERE id=?',(scope.actor,)))
+            environment_seconds+=time.perf_counter()-before
+            return ActionResult('completed',{'changed':scope.actor,'amount':1})
+        actions.register(Action('increment',('account','balance'),'Increase account by one.',{'type':'object'},increment,terminal=True))
+        if mode in ('llm','memory'):
+            from society0.kernel.models import ModelProvider
+            from society0.kernel.llm import LLMDriver
+            from openai.types.chat import ChatCompletion
+            from tests.primary.provider_http import bind_chat
+            endpoint={'id':'fake','model':'fake','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':actors,'trust_env':False}
+            provider=ModelProvider([endpoint],threads,request_limit=asyncio.Semaphore(actors))
+            async def sdk(**kwargs):
+                nonlocal provider_calls,sdk_seconds
+                before=time.perf_counter();provider_calls+=1
+                context=next(json.loads(m['content']) for m in kwargs['messages'] if isinstance(m.get('content'),str) and m['content'].startswith('{') and '"actor"' in m['content'])
+                actor=context['actor']
+                extracting=any(t['function']['name']=='extract_memories' for t in kwargs.get('tools',[]))
+                name='extract_memories' if extracting else 'action_invoke'
+                arguments={'memories':[{'content':f"{actor} step {context['step']} increased account by 1",'importance':3}]} if extracting else {
+                    'name':'increment','target':{'namespace':'account','kind':'balance','key':actor},'arguments':{}}
+                response=ChatCompletion(id='physical-'+str(provider_calls),created=0,model='fake',object='chat.completion',
+                    choices=[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','content':'完整响应'*256,
+                        'tool_calls':[{'id':'increment','type':'function','function':{'name':name,'arguments':json.dumps(arguments)}}]}}])
+                sdk_seconds+=time.perf_counter()-before;return response
+            await bind_chat(provider,sdk)
+            request=provider.request_model
+            async def measured_request(*a,**kw):
+                nonlocal model_seconds
+                before=time.perf_counter()
+                try:return await request(*a,**kw)
+                finally:model_seconds+=time.perf_counter()-before
+            provider.request_model=measured_request
+            memory=None
+            if mode=='memory':
+                import chromadb
+                from society0.kernel.plugins import Plugin,PluginHost
+                from society0.kernel.services import memory_plugin
+                from society0.kernel.memory import MemoryPolicy
+                class Embed:
+                    async def embed(self,texts,*,metadata):return [[1.]+[0.]*1023 for text in texts]
+                def resources(ctx):
+                    client=chromadb.PersistentClient(path=str(path/'vectors'));ctx.on_close(client.close)
+                    ctx.provide('client',client);ctx.provide('embeddings',{'fixed':Embed()});ctx.provide('models',{'fixed':provider})
+                host=PluginHost([Plugin('storage',install=lambda ctx:ctx.provide('store',store)),
+                    Plugin('threads',install=lambda ctx:ctx.provide('threads',threads)),Plugin('resources',install=resources),
+                    memory_plugin(client=('resources','client'),embedding=('resources','embeddings','fixed'),
+                        extraction=('resources','models','fixed'),policy=MemoryPolicy(active_tools=False),recall_query=lambda s:'earlier account changes')])
+                await host.__aenter__();memory=host.service('memory','memory')
+                def measure(method):
+                    async def call(*a,**kw):
+                        nonlocal memory_seconds
+                        before=time.perf_counter()
+                        try:return await method(*a,**kw)
+                        finally:memory_seconds+=time.perf_counter()-before
+                    return call
+                memory.before_activation=measure(memory.before_activation);memory.after_activation=measure(memory.after_activation)
+>           driver=LLMDriver(provider,threads,memory=memory,input_builder=lambda session:[{'role':'system','content':'完整决策材料'*1024},
+                {'role':'user','content':json.dumps({'actor':session.actor.id,'step':session.step,'task':'increment exactly once'})}])
+E           TypeError: LLMDriver.__init__() got an unexpected keyword argument 'memory'
+
+benchmarks/core_next_step_cost.py:94: TypeError

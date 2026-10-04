@@ -1,0 +1,39 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+________ test_result_reference_is_unambiguous_across_actor_activations _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1113/test_result_reference_is_unamb0')
+
+    @pytest.mark.asyncio
+    async def test_result_reference_is_unambiguous_across_actor_activations(tmp_path):
+        from society0.kernel.threads import ThreadStore,THREAD_SCHEMA
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            first=threads.open('a',Moment(1,'decision'),'decision');second=threads.open('a',Moment(2,'decision'),'decision')
+            one=store.prepare_artifact((b'first result',));two=store.prepare_artifact((b'different result',))
+            threads.register_artifact(first,'same-result',one,actor='a')
+            with pytest.raises(ValueError,match='reference'):
+>               threads.register_artifact(second,'same-result',two,actor='a')
+
+tests/primary/test_f08_cross_acceptance.py:139:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/threads.py:143: in register_artifact
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:468: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:141: in write
+    writer.execute('INSERT INTO thread_artifacts VALUES(?,?,?,?)',(thread_id,reference,artifact_ref,actor))
+src/society0/kernel/storage.py:176: in execute
+    cursor = self._connection.execute(sql, bindings)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   apsw.ConstraintError: UNIQUE constraint failed: thread_artifacts.actor, thread_artifacts.reference
+
+src/cursor.c:223: ConstraintError

@@ -1,0 +1,22 @@
+   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next
+Uninstalled 1 package in 1ms
+Installed 1 package in 1ms
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_native_reader_handles_utf8_long_lines_and_document_boundaries ______
+
+    @pytest.mark.asyncio
+    async def test_native_reader_handles_utf8_long_lines_and_document_boundaries():
+>       from society0_filesystem import search_reader
+E       ImportError: cannot import name 'search_reader' from 'society0_filesystem' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/society0_filesystem/__init__.py)
+
+tests/primary/test_native_stream_search.py:5: ImportError
+_____ test_native_reader_rejects_multiline_and_propagates_callback_errors ______
+
+    @pytest.mark.asyncio
+    async def test_native_reader_rejects_multiline_and_propagates_callback_errors():
+>       from society0_filesystem import search_reader
+E       ImportError: cannot import name 'search_reader' from 'society0_filesystem' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/society0_filesystem/__init__.py)
+
+tests/primary/test_native_stream_search.py:17: ImportError

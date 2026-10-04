@@ -1,0 +1,331 @@
+.........................................FF....F........................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 25%]
+........................................................................ [ 33%]
+........................................................................ [ 42%]
+........................................................................ [ 50%]
+........................................................................ [ 58%]
+........................................................................ [ 67%]
+........................................................................ [ 75%]
+........................................................................ [ 84%]
+........................................................................ [ 92%]
+.................................................................        [100%]
+=================================== FAILURES ===================================
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[confirm] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1114/test_actual_cognitive_input_ex0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1141c25a0>
+kind = 'confirm'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':{'content':'共同讨论产业预期'}}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        bind_scripted_request(monkeypatch, ModelProvider, request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            bind_scripted_request(monkeypatch, ModelProvider, first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:45:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/runner.py:76: in run_plan
+    await runtime.run_step(number, planned.time, planned.phases)
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:156: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:63: in call
+    try:return await method(*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:588: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:468: in request_model
+    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/scripted_provider.py:32: in request_model
+    return scripted_response(self.threads, thread_id, await script(self, thread_id, options))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.models.ModelProvider object at 0x114462d50>
+tid = '855ba0c7538d4e039a896be3d1639763'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'Find available actions by case-ins...'required': ['pattern', 'path'], 'additionalProperties': False}, 'strict': False}}, ...], 'parallel_tool_calls': False}
+
+    async def request(self,tid,options):
+        messages=self.threads.read_messages(tid);calls.append(messages)
+        system=messages[0]['content']
+>       assert '按当前目标需要' in system and '从根路径 /' in system
+E       AssertionError: assert ('按当前目标需要' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从 /world 用 ls 发现，用 read 读取原文，以 grep 搜索，用 bash data ...动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。' and '从根路径 /' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从 /world 用 ls 发现，用 read 读取原文，以 grep 搜索，用 bash data ...动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。')
+
+tests/primary/test_core_real_context.py:18: AssertionError
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[action] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1114/test_actual_cognitive_input_ex1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11446ca40>
+kind = 'action'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':{'content':'共同讨论产业预期'}}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        bind_scripted_request(monkeypatch, ModelProvider, request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            bind_scripted_request(monkeypatch, ModelProvider, first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:45:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/runner.py:76: in run_plan
+    await runtime.run_step(number, planned.time, planned.phases)
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:156: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:63: in call
+    try:return await method(*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:588: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:468: in request_model
+    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/scripted_provider.py:32: in request_model
+    return scripted_response(self.threads, thread_id, await script(self, thread_id, options))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_core_real_context.py:43: in first_only
+    return await original(self,tid,options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.models.ModelProvider object at 0x1141c3410>
+tid = '5ddba7a3ff344434a9e2f2b15e28ae51'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'Find available actions by case-ins...'required': ['pattern', 'path'], 'additionalProperties': False}, 'strict': False}}, ...], 'parallel_tool_calls': False}
+
+    async def request(self,tid,options):
+        messages=self.threads.read_messages(tid);calls.append(messages)
+        system=messages[0]['content']
+>       assert '按当前目标需要' in system and '从根路径 /' in system
+E       AssertionError: assert ('按当前目标需要' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从 /world 用 ls 发现，用 read 读取原文，以 grep 搜索，用 bash data ...动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。' and '从根路径 /' in '主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从 /world 用 ls 发现，用 read 读取原文，以 grep 搜索，用 bash data ...动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。')
+
+tests/primary/test_core_real_context.py:18: AssertionError
+________ test_result_reference_is_unambiguous_across_actor_activations _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1114/test_result_reference_is_unamb0')
+
+    @pytest.mark.asyncio
+    async def test_result_reference_is_unambiguous_across_actor_activations(tmp_path):
+        from society0.kernel.threads import ThreadStore,THREAD_SCHEMA
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            first=threads.open('a',Moment(1,'decision'),'decision');second=threads.open('a',Moment(2,'decision'),'decision')
+            one=store.prepare_artifact((b'first result',));two=store.prepare_artifact((b'different result',))
+            threads.register_artifact(first,'same-result',one,actor='a')
+            with pytest.raises(ValueError,match='reference'):
+>               threads.register_artifact(second,'same-result',two,actor='a')
+
+tests/primary/test_f08_cross_acceptance.py:139:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/threads.py:143: in register_artifact
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:468: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:141: in write
+    writer.execute('INSERT INTO thread_artifacts VALUES(?,?,?,?)',(thread_id,reference,artifact_ref,actor))
+src/society0/kernel/storage.py:176: in execute
+    cursor = self._connection.execute(sql, bindings)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   apsw.ConstraintError: UNIQUE constraint failed: thread_artifacts.actor, thread_artifacts.reference
+
+src/cursor.c:223: ConstraintError

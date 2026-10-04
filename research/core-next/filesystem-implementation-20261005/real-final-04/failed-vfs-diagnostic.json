@@ -1,0 +1,23 @@
+{
+  "classification": "provider request deadline inferred from timing and configured asyncio timeout",
+  "configured_timeout_s": 60,
+  "physical_provider_s": 60.003540667006746,
+  "error_text": "",
+  "partial_response": null,
+  "physical_request_number": 8,
+  "successful_tools": 7,
+  "completed_price_pages": 3,
+  "policy_max_turns": 20,
+  "budget_reached": false,
+  "tool_errors": 0,
+  "completed_before_failure": [
+    "ls world",
+    "ls catalog",
+    "ls prices",
+    "read schema",
+    "data query page1",
+    "data query page2",
+    "data query page3"
+  ],
+  "product_changed": false
+}

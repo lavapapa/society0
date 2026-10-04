@@ -15,7 +15,7 @@
 - [x] **F05 统一文件接口**（依 F03）：共享 world/workspace/context/results 路由，提供 read/ls/find/grep 并保留 bash；迁移顶层 data_* 与 result_read，保持全文、版本、权限、恢复和领域行动回执。证据：[统一文件接口红绿与状态机](../../research/core-next/filesystem-implementation-20261005/actor-files.md)、[文件底座交叉审查](../../research/core-next/filesystem-implementation-20261005/cross-review-filesystem.md)。
 - [x] **F06 数据集与查询**（依 F05）：由注册信息生成 schema 与使用说明；保留数据库下推筛选／排序／抽样的通路，查询结果可从文件路径读取；完成大正文声明和纯读取动作迁移。证据：[底座与社交完整原文迁移](../../research/core-next/filesystem-implementation-20261005/filesystem.md)、空数据集 schema、SQL 查询引用与真实 SDK 离线消费者；整体复验归 F08。
 - [x] **F07 成熟组件收敛**（依 F04）：记忆结构校验使用 jsonschema，结构化提取优先 Pydantic AI；通过 StructuredDict／ToolOutput／output_validator 和 SDK retries 替换提取循环，schema 只有一个归属；规范存储与完整 Thread 生命周期继续由原服务承担。证据：[实现与等价验证](../../research/core-next/filesystem-implementation-20261005/cognition.md)。代码增删与最终覆盖由 F08 汇总。
-- [ ] **F08 组合验收与交付**（依 F04–F07）：独立 GPT‑6.1 Sol 执行相关及全量测试、状态机、真实 Bashkit 和两个驱动／两个机制／恢复；核对相同任务信息与结果、CPU／RSS／磁盘／读取量，更新教程与完整能力矩阵。实际模型请求仅沿用明确提供方合同，无 DeepSeek 或隐式替换。
+- [x] **F08 组合验收与交付**（依 F04–F07）：冻结产品 `ab6469d` 经 GPT‑6.1 Sol 模块非作者交叉审查，865 项确定性全量、75 项实验、9 项 Node 工作台及隔离基础安装通过。指定 SiliconFlow 的 15 个真实场景完成同源码覆盖：首次 14 项通过，最后场景第八请求达到原 60 秒期限；保留失败后，原参数、原预算单场景复测通过。状态机、跨进程恢复、完整原文／分页／动作／记忆、源码与 wheel 逐字节一致及 CPU／RSS／读取／磁盘边界见[交付报告](../../research/core-next/filesystem-implementation-20261005/final-report.md)、[独立验收](../../research/core-next/filesystem-implementation-20261005/independent-acceptance.md)、[资源对照](../../research/core-next/filesystem-implementation-20261005/performance.md)。无 DeepSeek、模型替换或预算上调；真实 Codex 账户与长期社会研究门保持原边界。
 
 ### 新人交付与实际提供方验收（2026-10-04）
 

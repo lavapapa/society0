@@ -1,0 +1,1 @@
+{"status_code": 401, "provider_code": 30014, "model": "Qwen/Qwen3.8-27B", "reason": "credential authorization failed", "embedding_attempted": false}
