@@ -64,7 +64,7 @@ def _text_range(data, offset, total, encoding):
 
 
 _TOOL_DESCRIPTIONS = {
-    'action_find': 'Find actions available for a target. Returns exact total and continuation cursor; pass returned cursor as JSON text.',
+    'action_find': 'Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass returned cursor as JSON text.',
     'action_describe': 'Read the full parameter schema, tags, conditions and completion metadata for one action before invoking it.',
     'action_invoke': 'Execute one domain action. arguments is a JSON object encoded as a string; accepted is not completed. Every attempt uses the domain action budget.',
     'data_list': 'List accessible shared resources. Returns total and cursor; pass returned cursor as JSON text to continue.',
@@ -292,7 +292,7 @@ class LLMDriver:
 
     def _tools(self):
         schemas = {
-            'action_find': _schema({'target': _REF, 'query': {'type': 'string'}, 'limit': {'type': 'integer'},
+            'action_find': _schema({'target': _REF, 'query': {'type': 'string', 'description': 'Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching.'}, 'limit': {'type': 'integer'},
                                     'cursor': {'type': ['string', 'null']}}),
             'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
             'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': {'type': 'string'}}),
@@ -315,7 +315,7 @@ class LLMDriver:
             schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
         if self.policy.direct_json:
             schemas = {}
-        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name],
+        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
                 **({'strict': True} if self.policy.strict_tools else {})}} for name, schema in schemas.items()]
 
