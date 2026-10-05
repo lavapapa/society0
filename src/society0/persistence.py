@@ -23,6 +23,7 @@ from .incremental_checkpoint import (
     SealedTickDelta,
     V4CheckpointStore,
     _WILDCARD,
+    _MemoryEpochView,
     _thaw_json,
 )
 
@@ -101,7 +102,7 @@ class PersistenceManager:
         self._v4_run_id = uuid.uuid4().hex
         self._v4_branch_id = "main"
         self._v4_branch_lineage: list[tuple[str, int]] = []
-        self._v4_committed_memory_epoch_ids: set[str] = set()
+        self._v4_committed_memory_epoch_ids: dict[str, int] = {}
         self._v4_pending_memory_epoch_ids: set[str] = set()
 
         # Paths for Chroma persistence
@@ -627,8 +628,8 @@ class PersistenceManager:
             manifest = self._v4_store.resolve(0)["manifest"]
             self._v4_run_id = str(manifest["run_id"])
             latest_step = self._v4_store.resolve()["step"]
-            self._v4_committed_memory_epoch_ids = (
-                self._v4_store.committed_memory_epoch_ids(latest_step)
+            self._v4_committed_memory_epoch_ids = dict.fromkeys(
+                self._v4_store.committed_memory_epoch_ids(latest_step), 0
             )
         else:
             # 跨目录恢复会把来源 checkpoint 的记忆视图挂在新 World 上。
@@ -639,8 +640,8 @@ class PersistenceManager:
             self._v4_branch_lineage = list(
                 getattr(world, "_memory_branch_lineage", ()) or ()
             )
-            self._v4_committed_memory_epoch_ids = set(
-                getattr(world, "_committed_memory_epoch_ids", set()) or set()
+            self._v4_committed_memory_epoch_ids = dict.fromkeys(
+                getattr(world, "_committed_memory_epoch_ids", ()) or (), 0
             )
         return compiled
 
@@ -808,7 +809,7 @@ class PersistenceManager:
                 target_step=memory_target_step,
                 branch_id=self._v4_branch_id,
                 branch_lineage=self._v4_branch_lineage,
-                committed_write_epoch_ids=inherited_memory_epochs,
+                committed_write_epoch_ids=_MemoryEpochView(self._v4_committed_memory_epoch_ids),
             )
             return marker
 
@@ -839,9 +840,10 @@ class PersistenceManager:
                         target_step=delta.step,
                         branch_id=self._v4_branch_id,
                         branch_lineage=self._v4_branch_lineage,
-                        committed_write_epoch_ids=(
-                            self._v4_committed_memory_epoch_ids
-                            | self._v4_pending_memory_epoch_ids
+                        committed_write_epoch_ids=_MemoryEpochView(
+                            self._v4_committed_memory_epoch_ids,
+                            cutoff=delta.step,
+                            pending=self._v4_pending_memory_epoch_ids,
                         ),
                     )
                 return None
@@ -873,8 +875,11 @@ class PersistenceManager:
                 self._v4_pending_memory_epoch_ids.clear()
                 raise
             self._v4_epoch.clear()
-            committed = self._v4_store.committed_memory_epoch_ids(combined.step)
-            self._v4_committed_memory_epoch_ids = set(committed)
+            for epoch_id in combined.write_epoch_ids:
+                self._v4_committed_memory_epoch_ids.setdefault(str(epoch_id), combined.step)
+            committed = _MemoryEpochView(
+                self._v4_committed_memory_epoch_ids, cutoff=combined.step
+            )
             self._v4_pending_memory_epoch_ids.clear()
             if self._v4_world is not None:
                 self._v4_world._checkpoint_annotations.update(
@@ -897,14 +902,14 @@ class PersistenceManager:
         self._v4_pending_memory_epoch_ids.clear()
         if self._v4_store is not None and self._v4_world is not None:
             latest = self._v4_store.resolve()
-            self._v4_committed_memory_epoch_ids = (
-                self._v4_store.committed_memory_epoch_ids(latest["step"])
+            self._v4_committed_memory_epoch_ids = dict.fromkeys(
+                self._v4_store.committed_memory_epoch_ids(latest["step"]), 0
             )
             self._v4_world.set_memory_checkpoint_view(
                 target_step=int(latest["step"]),
                 branch_id=self._v4_branch_id,
                 branch_lineage=self._v4_branch_lineage,
-                committed_write_epoch_ids=self._v4_committed_memory_epoch_ids,
+                committed_write_epoch_ids=_MemoryEpochView(self._v4_committed_memory_epoch_ids),
             )
 
     @classmethod
@@ -1207,8 +1212,8 @@ class PersistenceManager:
         branch._v4_run_id = self._v4_run_id
         branch._v4_branch_id = str(branch_name)
         branch._v4_branch_lineage = [(self._v4_branch_id, int(from_step))]
-        branch._v4_committed_memory_epoch_ids = (
-            branch_store.committed_memory_epoch_ids(from_step)
+        branch._v4_committed_memory_epoch_ids = dict.fromkeys(
+            branch_store.committed_memory_epoch_ids(from_step), 0
         )
         branch._v4_pending_memory_epoch_ids = set()
         record = branch_store.resolve(

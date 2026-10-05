@@ -11,12 +11,60 @@ import os
 import tempfile
 import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Mapping, Set
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Sequence
+
+
+class _MemoryEpochView(Set[str]):
+    """共享提交索引，冻结本次视图的边界；发布工作量由新增 epoch 决定。"""
+
+    __slots__ = ("_committed", "_cutoff", "_pending", "_size")
+
+    def __init__(
+        self,
+        committed: dict[str, int],
+        cutoff: int = 0,
+        pending: Iterable[str] = (),
+    ):
+        self._committed = committed
+        self._cutoff = cutoff
+        self._pending = frozenset(pending)
+        # 构造只发生于索引的当前发布边界，历史视图保留其原有数量。
+        self._size = len(committed) + sum(
+            epoch_id not in committed for epoch_id in self._pending
+        )
+
+    @classmethod
+    def from_ids(cls, ids):
+        if isinstance(ids, cls):
+            return ids
+        return cls(dict.fromkeys((str(epoch_id) for epoch_id in ids), 0))
+
+    @classmethod
+    def _from_iterable(cls, iterable):
+        return frozenset(iterable)
+
+    def __contains__(self, epoch_id):
+        publication_step = self._committed.get(epoch_id)
+        return (
+            publication_step is not None and publication_step <= self._cutoff
+        ) or epoch_id in self._pending
+
+    def __len__(self):
+        return self._size
+
+    def __iter__(self):
+        for epoch_id, publication_step in self._committed.items():
+            if publication_step <= self._cutoff:
+                yield epoch_id
+        for epoch_id in self._pending:
+            publication_step = self._committed.get(epoch_id)
+            if publication_step is None or publication_step > self._cutoff:
+                yield epoch_id
 
 
 class PersistenceKind(str, Enum):
