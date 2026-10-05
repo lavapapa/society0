@@ -1,0 +1,29 @@
+{
+  "source": "96b1f3b",
+  "source_directory": "/tmp/society0-v03-old-96b1f3b",
+  "provider": {
+    "model": "Qwen/Qwen3.8-27B",
+    "base_url": "https://api.siliconflow.cn/v1",
+    "timeout": 60,
+    "max_retries": 0,
+    "request_options": {
+      "max_tokens": 1024,
+      "temperature": 0,
+      "parallel_tool_calls": false,
+      "extra_body": {
+        "enable_thinking": false
+      }
+    }
+  },
+  "budgets": {
+    "max_turns": 20,
+    "max_action_calls": 2,
+    "max_request_messages": null
+  },
+  "dependencies": {
+    "openai": "2.53.0",
+    "lockfile": "96b1f3b uv.lock"
+  },
+  "note": "离线按执行时runner配置及冻结env补录，凭据未记录。",
+  "input": "完整同源材料直接输入"
+}

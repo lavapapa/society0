@@ -1,0 +1,51 @@
+FF....                                                                   [100%]
+=================================== FAILURES ===================================
+____________ test_shell_recomputation_accepts_autonomous_correction ____________
+
+    def test_shell_recomputation_accepts_autonomous_correction():
+        from tests.e2e.test_core_next_real import assert_shell_recomputation
+        failed={'stdout':'{"count":12,"total":528}','exit_code':5}
+        wrong={'stdout':'{"count":12,"total":528}','exit_code':0}
+        correct={'stdout':'{"count":12,"total":546}','exit_code':0}
+>       assert_shell_recomputation([failed,wrong,correct])
+
+tests/experiments/test_v06_same_source_oracle.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+outputs = [{'stdout': '{"count":12,"total":528}', 'exit_code': 5}, {'stdout': '{"count":12,"total":528}', 'exit_code': 0}, {'stdout': '{"count":12,"total":546}', 'exit_code': 0}]
+
+    def assert_shell_recomputation(outputs):
+        shell=next(value for value in outputs if 'stdout' in value and value['stdout'].strip() and 'count' in json.loads(value['stdout']))
+>       assert shell['exit_code']==0 and json.loads(shell['stdout'])=={'count':12,'total':546}
+E       assert (5 == 0)
+
+tests/e2e/test_core_next_real.py:356: AssertionError
+____ test_shell_recomputation_rejects_failed_or_incorrect_result[outputs0] _____
+
+outputs = [{'stdout': '', 'exit_code': 5}]
+
+    @pytest.mark.parametrize('outputs',[
+        [{'stdout':'','exit_code':5}],
+        [{'stdout':'{"count":12,"total":528}','exit_code':0}],
+        [{'stdout':'{"count":12,"total":546}','exit_code':5}],
+    ])
+    def test_shell_recomputation_rejects_failed_or_incorrect_result(outputs):
+        from tests.e2e.test_core_next_real import assert_shell_recomputation
+>       with pytest.raises(AssertionError):assert_shell_recomputation(outputs)
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/experiments/test_v06_same_source_oracle.py:27:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+outputs = [{'stdout': '', 'exit_code': 5}]
+
+    def assert_shell_recomputation(outputs):
+>       shell=next(value for value in outputs if 'stdout' in value and value['stdout'].strip() and 'count' in json.loads(value['stdout']))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/e2e/test_core_next_real.py:355: StopIteration
+=========================== short test summary info ============================
+FAILED tests/experiments/test_v06_same_source_oracle.py::test_shell_recomputation_accepts_autonomous_correction
+FAILED tests/experiments/test_v06_same_source_oracle.py::test_shell_recomputation_rejects_failed_or_incorrect_result[outputs0]
+2 failed, 4 passed in 0.11s

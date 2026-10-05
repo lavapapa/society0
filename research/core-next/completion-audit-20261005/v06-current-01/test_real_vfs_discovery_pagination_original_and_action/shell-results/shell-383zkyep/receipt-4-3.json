@@ -1,0 +1,1 @@
+{"items": [{"id": 10, "amount": 70, "ref": {"namespace": "catalog", "kind": "prices", "key": "10"}}, {"id": 11, "amount": 77, "ref": {"namespace": "catalog", "kind": "prices", "key": "11"}}, {"id": 12, "amount": 84, "ref": {"namespace": "catalog", "kind": "prices", "key": "12"}}], "total": 12, "next_cursor": null, "revision": 0}

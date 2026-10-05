@@ -21,7 +21,7 @@ else:
     keys=re.findall(r'\bsk-[A-Za-z0-9_-]{20,}\b',section)
     if not 0<=args.credential_index<len(keys):raise SystemExit('Authorized endpoint credential unavailable')
     key=keys[args.credential_index];del source,section,keys
-request={'max_tokens':1024,'temperature':0,'parallel_tool_calls':False,'extra_body':{'enable_thinking':False}}
+request={'max_tokens':1024,'temperature':0,'parallel_tool_calls':False,'extra_body':{'enable_thinking':False},'openai_continuous_usage_stats':True}
 env={**os.environ,'SOCIETY0_RUN_CORE_REAL':'1','SOCIETY0_REAL_RELEASE':'filesystem-uncommitted-candidate-20261005',
     'SOCIETY0_REAL_OUTPUT':str(args.output.resolve()),'SOCIETY0_REAL_LLM_URL':'https://api.siliconflow.cn/v1',
     'SOCIETY0_REAL_LLM_MODEL':'Qwen/Qwen3.8-27B','SOCIETY0_REAL_LLM_KEY':key,

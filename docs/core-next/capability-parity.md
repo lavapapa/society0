@@ -273,7 +273,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | M07 | [test_kernel_memory.py::test_recall_matches_existing_distance_decay_dedup_semantics](../../tests/primary/test_kernel_memory.py#L101) | L2候选+重要性/步骤衰减/去重/top_k逐值对照，空集合零embedding；真实Chroma与旧新小世界实际召回顺序均有证据。 |
 | M08 | [test_kernel_memory.py::test_historical_recall_uses_visible_versions_and_original_vectors](../../tests/primary/test_kernel_memory.py#L275) | 当前/历史版本和等待embedding时版本变化有独审；fork新身份隔离，SQL权威原向量重建。 |
 | M09 | [test_kernel_embedding_provider.py::test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance](../../tests/primary/test_kernel_embedding_provider.py#L11) | 已有直接测试；最终全量与真实组合另验。 |
-| M10 | [test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding](../../tests/primary/test_kernel_memory_transfer.py#L11) | Memory关闭先取消收束自身任务、共享client后关闭；转移与真实Chroma恢复已验，最终网络退出链等待V05。 |
+| M10 | [test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding](../../tests/primary/test_kernel_memory_transfer.py#L11) | Memory关闭先取消收束自身任务、共享client后关闭；转移与真实Chroma恢复已验，指定提供方的网络退出恢复链见 V05/F08 真实验收。 |
 | E01 | [test_kernel_composition.py::test_plugin_schemas_initialize_in_dependency_order_and_share_store](../../tests/primary/test_kernel_composition.py#L8) | schema/初始化/资源依赖由Plugin声明；领域配置校验由机制拥有，旧统一state_schema接口已重设。 |
 | E02 | [test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions](../../tests/primary/test_kernel_interaction.py#L211) | Action按类型注册/对象绑定/schema检查、RuleDriver调用与Information发现分工明确；无旧registry形状兼容。 |
 | E03 | [test_kernel_preparation.py::test_prepare_value_released_before_running_and_restore_skips_loader](../../tests/primary/test_kernel_preparation.py#L15) | 异步prepare→同步根事务；before/after另见kernel_schedule，临时作用域见kernel_runtime。 |
@@ -288,13 +288,13 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | B02 | [test_plugin_round_robin.py::test_four_person_circle_pairs_each_pair_once_and_restores](../../tests/primary/test_plugin_round_robin.py#L15) | 四人配对、消息/广播/轮次清理及恢复与固定旧算法比较；多个strategy原为未执行配置，不迁移占位枚举。 |
 | B03 | [test_plugin_social.py::test_social_actions_facts_projection_notifications_restore](../../tests/primary/test_plugin_social.py#L15) | 实际follow/like/comment/repost/通知/读取恢复及图生成对照；普通热调用使用当前SQL索引。 |
 | B04 | [test_plugin_social.py::test_social_active_pool_and_scores_match_old_semantics_without_body_scan](../../tests/primary/test_plugin_social.py#L119) | 固定旧算法逐候选分数/次序对照，原生向量召回、preview零曝光、双Social自动after_tick收束均有消费者。 |
-| B05 | [test_plugin_social.py::test_social_two_instances_original_body_and_rejections](../../tests/primary/test_plugin_social.py#L47) | 推荐预览与逐帖完整正文分开；两个实例隔离与授权有测试，实际模型自主发现效果等待V06。 |
+| B05 | [test_plugin_social.py::test_social_two_instances_original_body_and_rejections](../../tests/primary/test_plugin_social.py#L47) | 推荐预览与逐帖完整正文分开；两个实例隔离与授权有测试，V06同源真实资料任务已验证完整正文获取与正确行动，社交推荐的长期效果需独立研究；见[对照](../../research/core-next/completion-audit-20261005/v06-report.md)。 |
 | N01 | [test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions](../../tests/primary/test_kernel_interaction.py#L211) | 类型级模板、Ref实例绑定、find/describe/invoke当前资格重判；模板数不乘对象数。 |
 | N02 | [test_kernel_interaction.py::test_discover_read_and_invoke_are_independent](../../tests/primary/test_kernel_interaction.py#L105) | discover/read/invoke独立，目录名称/total过滤与跨权限变更游标有终审回归；actor由scope绑定。 |
 | N03 | [test_kernel_information_sql.py::test_authorized_projection_filter_count_and_refs](../../tests/primary/test_kernel_information_sql.py#L34) | SQL投影/过滤/keyset/可复现sample及CognitiveInput增量均有消费者；最近记录用显式排序页，Thread追加用独立tail。 |
-| N04 | [test_kernel_workspace.py::test_shared_world_mount_is_dynamic_readonly_and_authorized](../../tests/primary/test_kernel_workspace.py#L62) | 动态World挂载、增量私有workspace及跨平台wheel已验；真实模型自主使用效果待V06。 |
+| N04 | [test_kernel_workspace.py::test_shared_world_mount_is_dynamic_readonly_and_authorized](../../tests/primary/test_kernel_workspace.py#L62) | 动态World挂载、增量私有workspace及跨平台wheel已验；V06真实同源任务已验证文件发现、四页原数、117字节原文、jq复算和动态行动，旧结构化组也完成正确任务；当前样例成本较高，不外推普遍收益；见[对照](../../research/core-next/completion-audit-20261005/v06-report.md)。 |
 | N05 | [test_kernel_plugins_review.py::test_review_context_is_expired_after_host_closes](../../tests/primary/test_kernel_plugins_review.py#L11) | 主机图预检、显式依赖、多实例服务与清理顺序/失效ctx有直接及独审；运行拓扑固定。 |
-| R01 | [test_kernel_models.py::test_profiles_install_through_host_and_preserve_request_defaults](../../tests/primary/test_kernel_models.py#L40) | OpenAI/Azure/Ollama及endpoint配置由成熟manager和实际SDK替身覆盖；当前统一源码的真实LLM/embedding整套仍等V05，既往小请求不升级为通过。 |
+| R01 | [test_kernel_models.py::test_profiles_install_through_host_and_preserve_request_defaults](../../tests/primary/test_kernel_models.py#L40) | OpenAI/Azure/Ollama及endpoint配置由成熟manager和实际SDK替身覆盖；当前统一源码的真实 LLM/embedding 十五场景覆盖见 V05/F08，保留原失败与参数身份。 |
 | R02 | [test_kernel_models.py::test_model_close_drains_request_and_rejects_later_requests](../../tests/primary/test_kernel_models.py#L102) | 配置/端点/运行共享许可、timeout/retry/close有实际适配器消费者；取消排队零physical，快照失败释放许可。 |
 | R03 | [test_kernel_provider_fields.py::test_tool_call_extensions_survive_normalized_response_and_next_request](../../tests/primary/test_kernel_provider_fields.py#L10) | strict/parallel/native/auto_restrict与requested→effective留证已验；SDK扩展字段完整进入下一请求。 |
 | R04 | [test_kernel_embedding_provider.py::test_embedding_profile_controls_http_capacity_and_batching](../../tests/primary/test_kernel_embedding_provider.py#L95) | 真实EmbeddingProvider合批/cache维度隔离、数量/字节上限、超批拆分与失败来源；每逻辑文本保原主体关联。 |
@@ -306,7 +306,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | P01 | [test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back](../../tests/primary/test_kernel_record_plugin.py#L30) | typed_records真实插件已作者验证公开append/唯一typed键/ordinal/精度/恢复；受信writer可修改SQL，未声称数据库自动禁止作者更改事实；typed_records独立5项通过。 |
 | P02 | [test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back](../../tests/primary/test_kernel_record_plugin.py#L30) | 规范writer事务/租期失效与事实+投影复合回滚已有实际消费者；显式插件接口替代旧raw dict别名；typed_records独立消费者已通过。 |
 | P03 | [test_kernel_storage.py::test_process_crash_publication_boundary](../../tests/primary/test_kernel_storage.py#L162) | root/native changeset/complete边界已验；每步完整点替代旧多步epoch，重数据实测见V04。 |
-| P04 | [test_kernel_memory.py::test_pending_job_full_checkpoint_resumes_without_extraction](../../tests/primary/test_kernel_memory.py#L61) | 真实Services/Runtime组合的Actor、Thread、Memory与工件同完整身份，pending作业及跨插件只读导出有消费者；真网进程链等待V05。 |
+| P04 | [test_kernel_memory.py::test_pending_job_full_checkpoint_resumes_without_extraction](../../tests/primary/test_kernel_memory.py#L61) | 真实Services/Runtime组合的Actor、Thread、Memory与工件同完整身份，pending作业及跨插件只读导出有消费者；指定提供方的独立进程退出恢复链由 V05/F08 验收。 |
 | P05 | [test_kernel_storage_lifecycle.py::test_restore_copies_repeated_artifact_once_and_survives_source_removal](../../tests/primary/test_kernel_storage_lifecycle.py#L10) | fork脱源恢复、GC可达验证已验；native root复制成本显式保留，未承诺零复制fork。 |
 | P06 | [test_kernel_analysis_export.py::test_analysis_directory_is_self_contained_after_source_removal](../../tests/primary/test_kernel_analysis_export.py#L13) | prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装；Results/Dataset/Workbench 独立贯穿已通过，见 result-inputs-independent-consumer-green-20261004。 |
 | P07 | [test_kernel_storage.py::test_incremental_blob_read_bounded_and_scope_checked](../../tests/primary/test_kernel_storage.py#L313) | SQLite BLOB/Thread块范围与压缩流已验；实际大root下界由V04实测，不承诺任意JSON单值恒定内存。 |
@@ -323,7 +323,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | U04 | [test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer](../../tests/primary/test_core_next_workbench.py#L13) | 正式 pilot→完整点→新 workbench payload→既有单文件 renderer 已贯穿；巨行/原始 Thread 范围及 CLI 选取实际 run 另有消费者。 |
 | U05 | [test_public_core_api.py](../../tests/primary/test_public_core_api.py) | 新公共入口和可选依赖惰性导入有直接测试；macOS/Linux wheel 与独立轻安装证据见 installation.md。旧 WorkBuddy 案例保历史身份，新版未另行声称通过 WorkBuddy 场景。 |
 
-本表逐ID核对见 [V01复核](../../research/core-next/capability-review-20261004.md)。确定性消费者、专项规模证据与当前真实验收分别判断；最新V05/V06未完成时，相关真实证据保持待验。
+本表逐ID核对见 [V01复核](../../research/core-next/capability-review-20261004.md)。确定性消费者、专项规模证据与当前真实验收分别判断；真实协议覆盖按V05留证，有限同源主体信息与行动效果按[V06对照](../../research/core-next/completion-audit-20261005/v06-report.md)解释，长期经营与统计效果仍需独立研究。
 
 两轮研究 starter 的召回提供方故障会使当前步骤失败并保留此前完整点；旧 starter 静默继续测量的行为已撤销。成功返回空记忆仍继续，当前消息原文仍在输入中；无召回实验应显式关闭 auto_recall。这项语义调整区分了服务故障与合法的空记忆条件。
 

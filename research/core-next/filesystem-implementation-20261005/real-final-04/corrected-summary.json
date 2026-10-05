@@ -1,0 +1,163 @@
+{
+  "tested_product": {
+    "commit": "ab6469d",
+    "source_files": 50,
+    "snapshot_changed": [],
+    "commit_changed": [],
+    "comparison": "direct bytes"
+  },
+  "results": [
+    {
+      "name": "test_real_endpoint_smoke_llm_and_embedding",
+      "seconds": 1.943,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_endpoint_saturation_llm_and_embedding_managers",
+      "seconds": 7.472,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_interview_writes_artifacts",
+      "seconds": 1.591,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_saturation_memory_and_logs",
+      "seconds": 23.028,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_phase_capacity_overrides_runtime",
+      "seconds": 12.635,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_memory_roundtrip",
+      "seconds": 17.756,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_complete_boundary_memory_restore",
+      "seconds": 26.585,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_round_robin_action_loop",
+      "seconds": 13.15,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_social_publish_with_memory",
+      "seconds": 8.89,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_environment_action_tag_completion",
+      "seconds": 9.825,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_terminal_rejection_then_success",
+      "seconds": 8.763,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_social_browse_completion_and_memory",
+      "seconds": 30.836,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_multi_tick_social_workflow",
+      "seconds": 21.232,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_exit_restore_memory_and_observation",
+      "seconds": 19.647,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_vfs_discovery_pagination_original_and_action",
+      "seconds": 77.731,
+      "status": "failed"
+    }
+  ],
+  "passed": 14,
+  "failed": 1,
+  "skipped": 0,
+  "expected_cases": 15,
+  "models": {
+    "llm:Qwen/Qwen3.8-27B": {
+      "requests": 93,
+      "responses": 92,
+      "errors": 1,
+      "input_tokens": null,
+      "output_tokens": null,
+      "total_tokens": null,
+      "input_reports": null,
+      "output_reports": null,
+      "total_reports": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "cache_read_reports": null,
+      "cache_write_reports": null,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 292.65163237485103,
+      "queue_s": 15.87075671099592,
+      "jitter_s": 0.0,
+      "provider_s": 276.6821928723948,
+      "duration_reports": 93,
+      "queue_reports": 93,
+      "jitter_reports": 93,
+      "provider_reports": 93
+    },
+    "embedding:Qwen/Qwen3-Embedding-0.6B": {
+      "requests": 27,
+      "responses": 27,
+      "errors": 0,
+      "input_tokens": 695,
+      "output_tokens": 0,
+      "total_tokens": 695,
+      "input_reports": 27,
+      "output_reports": 0,
+      "total_reports": 27,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cache_read_reports": 0,
+      "cache_write_reports": 0,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 5.610582083463669,
+      "queue_s": 0.00025341776199638844,
+      "jitter_s": 0.0,
+      "provider_s": 5.589518249616958,
+      "duration_reports": 27,
+      "queue_reports": 27,
+      "jitter_reports": 27,
+      "provider_reports": 27
+    }
+  },
+  "physical_calls": 120,
+  "tool_receipts": 67,
+  "tool_tokens": null,
+  "tool_tokens_note": "separate tool-schema/tool-return token counts unavailable; LLM total token/cache validity is stated by llm_usage_valid",
+  "history_contract": "full Thread history; deterministic request loader and correction-history tests passed",
+  "budget": {
+    "default_max_turns": 8,
+    "vfs_max_turns": 20,
+    "default_max_action_calls": 4,
+    "vfs_max_action_calls": 2,
+    "request_max_tokens": 1024,
+    "raised": false
+  },
+  "embedding_dimensions": 1024,
+  "oracle": "original tests assert complete documents, all pages, actions, memory and recovery; see real.xml",
+  "usage_attribution": "physical IDs deduplicate restored copies; timing sums wall duration of attempts, not elapsed suite time",
+  "llm_usage_valid": false,
+  "usage_limits": "LLM token/cache unavailable: cumulative streaming usage was summed by SDK and raw final chunk was not retained",
+  "original_measurement": "summary.json"
+}
