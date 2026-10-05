@@ -12,11 +12,11 @@
 
 ## 二、结果
 
-旧结构化组逐页读取四页，每页limit=3，total恒为12，透传游标至结束，十二条id与amount逐值相同。主体按expected_revision与字节offset分两次size=64读取并拼合117字节正文，找到所属actor Ref，发现和描述行动后唯一提交12/546/原文校验成功。第一次jq表达式出现“Cannot iterate over number”，exit_code=5；主体下一轮自主改正为对完整报价数组求和，exit_code=0输出精确JSON，再提交正确结果。独立判定见[v06-structured-02/v06-independent-result.json](v06-structured-02/v06-independent-result.json)。
+旧结构化组逐页读取四页，每页limit=3，total恒为12，透传游标至结束，十二条id与amount逐值相同。主体按expected_revision与字节offset分两次size=64读取并拼合117字节正文，找到所属actor Ref，发现和描述行动后唯一提交12/546/原文校验成功。第一次jq表达式出现“Cannot iterate over number”，exit_code=5；主体下一轮自主改正为对完整报价数组求和，exit_code=0输出精确JSON，再提交正确结果。独立判定见[v06-structured-independent.json](v06-structured-independent.json)。
 
 当前文件组从共享目录发现价格数据、读取数据集schema，通过bash data query完整读取同四页报价，使用jq输出12/546；grep找到核对短语，原文read按64字节和revision续读，完整拼合相同117字节正文，再取得actor Ref、发现和描述提交行动，唯一实际提交12/546/原文校验成功。原真实测试与独立完整正文复核均通过，见[v06-current-independent.json](v06-current-independent.json)。原real-final-05成功效果工件继续保留，本次单场景current组额外补足可信计量。
 
-World组的唯一真实请求中包含全部原始报价、actor任务和完整报告，实际固定工具提交12/504/原文校验成功。原文可达与行动执行成立，数值判断失败，原oracle失败保持不变，见[v06-world-01/v06-independent-result.json](v06-world-01/v06-independent-result.json)。这条历史完整输入样例及缺少同等计算工具的条件，均不足以推出新路径的一般判断优越性。
+World组的唯一真实请求中包含全部原始报价、actor任务和完整报告，实际固定工具提交12/504/原文校验成功。原文可达与行动执行成立，数值判断失败，原oracle失败保持不变，见[v06-world-independent.json](v06-world-independent.json)及[完整物理请求](v06-world-requests.json)。这条历史完整输入样例及缺少同等计算工具的条件，均不足以推出新路径的一般判断优越性。
 
 ## 三、成本
 
