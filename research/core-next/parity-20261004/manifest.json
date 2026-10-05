@@ -1,0 +1,18 @@
+{
+  "old_commit": "96b1f3b",
+  "new_commit": "f7fe907f57892c2f1a0b70ff8f1891e337eceb4e",
+  "adapters": [
+    "benchmarks/core_next_parity_old.py",
+    "benchmarks/core_next_parity_new.py",
+    "benchmarks/core_next_parity.py"
+  ],
+  "new_product_modified": true,
+  "full_originals": "each mode/version/route JSON contains full Thread messages and actual provider inputs",
+  "network_calls": 0,
+  "old_source": "/tmp/society0-v03-old-96b1f3b",
+  "run_root": "/tmp/society0-v03-final-matrix-20261004",
+  "new_uncommitted_product_diff": {
+    "src/society0/kernel/llm.py": "three public discovery/tool guidance descriptions; no algorithm change"
+  },
+  "old_restore_thread_check": "ObservationReader on restored destination complete checkpoint"
+}

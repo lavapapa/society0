@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_raw_request_cancel_keeps_capacity_until_sync_query_finishes _______
+tests/primary/test_kernel_observation_http.py:100: in test_raw_request_cancel_keeps_capacity_until_sync_query_finishes
+    assert response.status_code==503 and service.calls==1
+E   assert (200 == 503)
+E    +  where 200 = <Response [200 OK]>.status_code
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_observation_http.py::test_raw_request_cancel_keeps_capacity_until_sync_query_finishes
+1 failed in 0.17s

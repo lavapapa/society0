@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_review_failed_serial_actor_prevents_queued_actor_start __________
+
+    @pytest.mark.asyncio
+    async def test_review_failed_serial_actor_prevents_queued_actor_start():
+        calls = []
+        async def run(session):
+            calls.append(session.actor.id)
+            if session.actor.id=='first': raise RuntimeError('first failed')
+            return DriverResult('completed')
+        store=Store()
+        runtime=Runtime([Actor(name,SimpleNamespace(run=run)) for name in ('first','second')],
+                        information=Information(lambda *args:True),actions=Actions(lambda *args:True),store=store)
+        def phase(ctx):
+            ctx.activate('first')
+            ctx.activate('second')
+        with pytest.raises(RuntimeError,match='first failed'):
+            await runtime.run_step(1,0,[Phase('serial',phase)])
+>       assert calls==['first']
+E       AssertionError: assert ['first', 'second'] == ['first']
+E         
+E         Left contains one more item: 'second'
+E         Use -v to get more diff
+
+tests/primary/test_kernel_runtime_review.py:188: AssertionError
+1 failed, 6 deselected in 0.05s

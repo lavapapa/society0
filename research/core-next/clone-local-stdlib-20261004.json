@@ -1,0 +1,31 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "sqlite": "3.50.4",
+  "filesystem_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/core-next-clone-seh8f0lz",
+  "source_bytes": 135274496,
+  "source_allocated_bytes": 135274496,
+  "comparisons": [
+    {
+      "method": "copy",
+      "supported": true,
+      "wall_seconds": 0.03197808295954019,
+      "parent_cpu_seconds": 0.024209999999999954,
+      "logical_bytes": 135274496,
+      "reported_allocated_bytes": 135274496,
+      "volume_free_delta_bytes": 135286784,
+      "isolated_write_verified": true,
+      "source_removal_verified": true
+    },
+    {
+      "method": "clone",
+      "supported": true,
+      "wall_seconds": 0.0054145000176504254,
+      "parent_cpu_seconds": 0.0009519999999999529,
+      "logical_bytes": 135274496,
+      "reported_allocated_bytes": 135274496,
+      "volume_free_delta_bytes": 0,
+      "isolated_write_verified": true,
+      "source_removal_verified": true
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+F.....                                                                   [100%]
+=================================== FAILURES ===================================
+____ test_async_graph_source_and_numeric_projection_restore_without_source _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-644/test_async_graph_source_and_nu0')
+
+    @pytest.mark.asyncio
+    async def test_async_graph_source_and_numeric_projection_restore_without_source(tmp_path):
+        source=tmp_path/'graph.json'
+        source.write_text(json.dumps({'nodes':[{'id':'a','weight':1.25},{'id':'b','weight':2.5}], 'edges':[['a','b']]}))
+        plugin=graph_plugin(source)
+>       async with compose(tmp_path/'run',[plugin]) as host:
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_graph_plugin.py:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:28: in compose
+    store = await _create_prepared(path, schema, ordered, resources)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:61: in _create_prepared
+    store = StageStore.create(path, schema, initialize=initialize)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:319: in create
+    _tables(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+connection = <apsw.Connection (closed) at 0x106bed080>
+
+    def _tables(connection):
+        tables = []
+        for kind, name, _, sql in _schema(connection):
+            if kind == 'index':
+                continue
+            if kind != 'table' or 'CREATE VIRTUAL' in sql.upper():
+                raise StorageError('schema requires ordinary tables')
+            info = list(connection.execute('PRAGMA table_info(' + '"' + name.replace('"', '""') + '")'))
+            primary = [row for row in info if row[5]]
+            if not primary or any(not row[3] and not (len(primary) == 1 and row[2].upper() == 'INTEGER') for row in primary):
+>               raise StorageError('schema requires an explicit nonnull primary key')
+E               society0.kernel.storage.StorageError: schema requires an explicit nonnull primary key
+
+src/society0/kernel/storage.py:62: StorageError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_graph_plugin.py::test_async_graph_source_and_numeric_projection_restore_without_source
+1 failed, 5 passed in 0.11s

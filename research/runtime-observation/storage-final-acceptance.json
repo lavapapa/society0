@@ -1,0 +1,259 @@
+{
+  "baseline": "c2ad77b",
+  "codec": "sqlite_records_v2",
+  "local_three_alternating_repeats_median": {
+    "c2ad77b": {
+      "write_seconds": 6.441786750001484,
+      "file_bytes": 52858880,
+      "rss_extra": 12156928,
+      "random_range_median_seconds": 0.0010556040069786832,
+      "random_range_p95_seconds": 0.0011850830051116645
+    },
+    "working-tree": {
+      "write_seconds": 2.2126979580061743,
+      "file_bytes": 47575040,
+      "rss_extra": 16646144,
+      "random_range_median_seconds": 0.0007790000017848797,
+      "random_range_p95_seconds": 0.0009292089962400496
+    }
+  },
+  "ceph_baseline": {
+    "revision": "c2ad77b",
+    "page_size": 4096,
+    "compression_level": 6,
+    "records": 204882,
+    "raw_bytes": 138454364,
+    "rss_unit": "bytes",
+    "write_seconds": 21.57976208999753,
+    "rss_before": 314929152,
+    "rss_peak": 322813952,
+    "rss_extra": 7884800,
+    "file_bytes": 52858880,
+    "table_bytes": {
+      "chunks": 35348480,
+      "paths": 3792896,
+      "prefixes": 4096,
+      "records": 6131712,
+      "records_path": 3645440,
+      "sqlite_autoindex_paths_1": 3923968,
+      "sqlite_autoindex_prefixes_1": 4096,
+      "sqlite_schema": 4096,
+      "totals": 4096
+    },
+    "page_seconds": 0.003473736345767975,
+    "random_range_median_seconds": 0.004873162135481834,
+    "random_range_p95_seconds": 0.004987351596355438,
+    "range_seconds": 0.0011675246059894562,
+    "range_bytes": 50
+  },
+  "ceph_final": {
+    "revision": "working-tree",
+    "page_size": 4096,
+    "compression_level": 3,
+    "records": 204882,
+    "raw_bytes": 138454364,
+    "rss_unit": "bytes",
+    "write_seconds": 6.4470900893211365,
+    "rss_before": 315092992,
+    "rss_peak": 322646016,
+    "rss_extra": 7553024,
+    "file_bytes": 47575040,
+    "table_bytes": {
+      "chunks": 37134336,
+      "prefixes": 4096,
+      "records": 6062080,
+      "records_path": 4362240,
+      "sqlite_autoindex_prefixes_1": 4096,
+      "sqlite_schema": 4096,
+      "totals": 4096
+    },
+    "page_seconds": 0.0032189376652240753,
+    "random_range_median_seconds": 0.004134021699428558,
+    "random_range_p95_seconds": 0.00419105589389801,
+    "range_seconds": 0.0014070980250835419,
+    "range_bytes": 50
+  },
+  "ceph_epoch_baseline": {
+    "count_per_step": 20000,
+    "steps": 5,
+    "stage_seconds": 27.869740564376116,
+    "merge_seconds": 4.196416635066271,
+    "total_seconds": 32.06615719944239,
+    "staged_bytes": 9347072,
+    "final_bytes": 6533120,
+    "rss_extra_bytes": 7397376
+  },
+  "ceph_epoch_final": {
+    "count_per_step": 20000,
+    "steps": 5,
+    "stage_seconds": 2.713441327214241,
+    "merge_seconds": 1.4101612716913223,
+    "total_seconds": 4.123602598905563,
+    "staged_bytes": 4239360,
+    "final_bytes": 6250496,
+    "rss_extra_bytes": 6340608
+  },
+  "world_root": {
+    "route": "World -> PersistenceManager.publish_root",
+    "records": 204882,
+    "record_raw_bytes_total": 1899238802,
+    "record_raw_bytes_max": 9271,
+    "publish_seconds": 6.196305875011603,
+    "rss_before_bytes_macos": 109314048,
+    "rss_peak_bytes_macos": 116457472,
+    "rss_additional_bytes_macos": 7143424,
+    "bytes_written": 21600339,
+    "world_payload_strings_shared": true,
+    "whole_world_snapshot_forbidden": true,
+    "identity_resolve_seconds": 0.009602208010619506,
+    "identity_resolve_extra_high_water_rss_bytes": 0,
+    "independent_process_identity": {
+      "seconds": 0.06991645900416188,
+      "rss_before_bytes": 24002560,
+      "rss_peak_bytes": 42647552,
+      "rss_extra_peak_bytes": 18644992,
+      "step": 0
+    },
+    "configure_existing_seconds": 0.009891833004076034,
+    "discard_seconds": 1.5124998753890395e-05
+  },
+  "focused_tests": {
+    "passed": 56,
+    "seconds": 0.71
+  },
+  "independent_storage_review": {
+    "passed": 11,
+    "unresolved_P1_P2": 0
+  },
+  "query_independent_rereview": {
+    "passed": 20,
+    "unresolved_P1_P2": 0
+  },
+  "page_policy": {
+    "small_known_records_below": 4096,
+    "small_page_bytes": 1024,
+    "large_or_root_page_bytes": 4096,
+    "merge_uses_total_source_records": true
+  },
+  "compression_level": 3,
+  "synthetic_world_root_and_identity": {
+    "route": "World -> PersistenceManager.publish_root",
+    "records": 204882,
+    "record_raw_bytes_total": 1899238802,
+    "record_raw_bytes_max": 9271,
+    "publish_seconds": 6.196305875011603,
+    "rss_before_bytes_macos": 109314048,
+    "rss_peak_bytes_macos": 116457472,
+    "rss_additional_bytes_macos": 7143424,
+    "bytes_written": 21600339,
+    "world_payload_strings_shared": true,
+    "whole_world_snapshot_forbidden": true,
+    "identity_resolve_seconds": 0.009602208010619506,
+    "identity_resolve_extra_high_water_rss_bytes": 0,
+    "independent_process_identity": {
+      "seconds": 0.06991645900416188,
+      "rss_before_bytes": 24002560,
+      "rss_peak_bytes": 42647552,
+      "rss_extra_peak_bytes": 18644992,
+      "step": 0
+    },
+    "configure_existing_seconds": 0.009891833004076034,
+    "discard_seconds": 1.5124998753890395e-05
+  },
+  "bounded_index_2million": {
+    "revision": "working-tree",
+    "page_size": 4096,
+    "compression_level": 3,
+    "records": 2048820,
+    "raw_bytes": 1364387427,
+    "rss_unit": "bytes",
+    "write_seconds": 23.90666333299305,
+    "rss_before": 23871488,
+    "rss_peak": 48775168,
+    "rss_extra": 24903680,
+    "file_bytes": 480845824,
+    "table_bytes": {
+      "chunks": 371621888,
+      "prefixes": 4096,
+      "records": 62947328,
+      "records_path": 46260224,
+      "sqlite_autoindex_prefixes_1": 4096,
+      "sqlite_schema": 4096,
+      "totals": 4096
+    },
+    "page_seconds": 0.0007433749997289851,
+    "random_range_median_seconds": 0.0008098124962998554,
+    "random_range_p95_seconds": 0.0046165419917088,
+    "range_seconds": 0.00018133300181943923,
+    "range_bytes": 50
+  },
+  "resolver_and_query_focused_tests": {
+    "passed": 86,
+    "seconds": 5.08
+  },
+  "independent_resolver_related_tests": {
+    "passed": 66,
+    "unresolved_P1_P2": 0
+  },
+  "ceph_synthetic_root_baseline": {
+    "revision": "c2ad77b",
+    "page_size": 4096,
+    "compression_level": 6,
+    "records": 204882,
+    "raw_bytes": 1896575336,
+    "rss_unit": "bytes",
+    "write_seconds": 29.73105353116989,
+    "rss_before": 96194560,
+    "rss_peak": 101855232,
+    "rss_extra": 5660672,
+    "file_bytes": 25608192,
+    "table_bytes": {
+      "chunks": 7434240,
+      "paths": 3792896,
+      "prefixes": 4096,
+      "records": 6795264,
+      "records_path": 3645440,
+      "sqlite_autoindex_paths_1": 3923968,
+      "sqlite_autoindex_prefixes_1": 4096,
+      "sqlite_schema": 4096,
+      "totals": 4096
+    },
+    "page_seconds": 0.0013453885912895203,
+    "random_range_median_seconds": 0.002353556454181671,
+    "random_range_p95_seconds": 0.0024869292974472046,
+    "range_seconds": 0.0020634979009628296,
+    "range_bytes": 50
+  },
+  "ceph_synthetic_root_final": {
+    "revision": "working-tree",
+    "page_size": 4096,
+    "compression_level": 3,
+    "records": 204882,
+    "raw_bytes": 1896575336,
+    "rss_unit": "bytes",
+    "write_seconds": 18.18186068162322,
+    "rss_before": 96899072,
+    "rss_peak": 104579072,
+    "rss_extra": 7680000,
+    "file_bytes": 21581824,
+    "table_bytes": {
+      "chunks": 11128832,
+      "prefixes": 4096,
+      "records": 6074368,
+      "records_path": 4362240,
+      "sqlite_autoindex_prefixes_1": 4096,
+      "sqlite_schema": 4096,
+      "totals": 4096
+    },
+    "page_seconds": 0.0016913935542106628,
+    "random_range_median_seconds": 0.002010185271501541,
+    "random_range_p95_seconds": 0.0020786337554454803,
+    "range_seconds": 0.0019967369735240936,
+    "range_bytes": 50
+  },
+  "independent_review_latest_rerun": {
+    "passed": 37,
+    "seconds": 4.52
+  },
+  "temp_synthetic_databases_removed": true
+}

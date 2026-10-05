@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_action_page_detects_changed_candidate_set_in_current_view ________
+
+    @pytest.mark.asyncio
+    async def test_action_page_detects_changed_candidate_set_in_current_view():
+        enabled = {'a': True, 'b': True, 'c': True}
+        actions = Actions(lambda *args: True)
+        for name in enabled:
+            actions.register(Action(name, ('m', 'job'), name, {},
+                                    lambda *args: ActionResult('completed'),
+                                    available=lambda scope, target, name=name: enabled[name]))
+        with InteractionScope('alice', Moment(0, 'act')) as scope:
+            first = await actions.find(scope, Ref('m', 'job', '1'), limit=1)
+            enabled['a'] = False
+>           with pytest.raises(ValueError, match='cursor'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_interaction.py:374: Failed
+1 failed, 19 deselected in 0.06s

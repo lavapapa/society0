@@ -1,0 +1,13 @@
+*-wal
+*-shm
+*-journal
+writer.lock
+**/vectors/
+
+# 中间源码归档保留本地；提交最终 candidate，避免重复压缩相同图片与源码。
+/source-frozen.tar.gz
+/source-final.tar.gz
+/source-final-green.tar.gz
+/source-native-final.tar.gz
+/source-delivery.tar.gz
+/source-delivery-social.tar.gz

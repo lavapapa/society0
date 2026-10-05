@@ -350,40 +350,9 @@ Use these P1 lessons across survey-agent designs:
 
 For most expectation/survey studies:
 
-```python
-@engine.step(name="survey_wave")
-async def survey_wave(ctx):
-    respondents = ctx.agents.where(type="respondent")
+Use three ordered phases: prior interview with PriorExpectation schema; assignment or revelation of treatment; posterior interview with PosteriorExpectation schema. Preserve respondent identity, original inputs, assignment facts and both result tables. LLMPolicy interview mode supplies submit_result; the design chooses independent memory switches. StepResult stores participant count, prior, posterior and assignment rows.
 
-    prior = await respondents.interview(
-        "Answer the prior expectation question.",
-        fovs=["survey_prior_fov"],
-        output=PriorExpectation,
-        name="prior_expectation",
-        retrieve_memory=False,
-    )
-
-    await ctx.rule("assign_or_reveal_treatment")
-
-    posterior = await respondents.interview(
-        "Answer the follow-up expectation question.",
-        fovs=["survey_treatment_fov"],
-        output=PosteriorExpectation,
-        name="posterior_expectation",
-        retrieve_memory=False,
-    )
-
-    return ctx.result(
-        metrics={"n": len(respondents.ids())},
-        tables={
-            "prior": prior.table(),
-            "posterior": posterior.table(),
-            "assignment": ctx.table("assignment"),
-        },
-    )
-```
-
-Use `retrieve_memory=False` for static survey interviews when the paper does not allow cross-wave memory. Use explicit state/history only when a dynamic panel or follow-up design requires the same agent to remember prior questions.
+Use `MemoryPolicy(auto_recall=False)` for static survey interviews when the paper does not allow cross-wave memory. Use explicit state/history only when a dynamic panel or follow-up design requires the same agent to remember prior questions.
 
 ## Baselines, Ablations, And Validation
 

@@ -1,0 +1,34 @@
+..F....                                                                  [100%]
+=================================== FAILURES ===================================
+_____________ test_cancel_waits_for_worker_before_removing_spools ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-515/test_cancel_waits_for_worker_b0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ba8a7b0>
+
+    @pytest.mark.asyncio
+    async def test_cancel_waits_for_worker_before_removing_spools(tmp_path, monkeypatch):
+        from benchmarks import core_next_compression_probe as probe
+        entered = threading.Event()
+        release = threading.Event()
+        native = probe.zlib.compress
+        def block(raw, level):
+            entered.set()
+            release.wait()
+            return native(raw, level)
+        monkeypatch.setattr(probe.zlib, 'compress', block)
+        task = asyncio.create_task(prepare({'body':'x'*1000000}, directory=tmp_path))
+        while not entered.is_set():
+            await asyncio.sleep(0)
+        task.cancel()
+        await asyncio.sleep(0)
+        assert not task.done()
+        task.cancel()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        still_running = not task.done()
+        release.set()
+>       assert still_running, 'second cancellation released native worker files early'
+E       AssertionError: second cancellation released native worker files early
+E       assert False
+
+tests/experiments/test_core_next_compression_probe.py:57: AssertionError

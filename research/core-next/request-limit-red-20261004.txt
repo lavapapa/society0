@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___________ test_two_profiles_and_embedding_share_physical_capacity ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-782/test_two_profiles_and_embeddin0')
+
+    @pytest.mark.asyncio
+    async def test_two_profiles_and_embedding_share_physical_capacity(tmp_path):
+        limit=asyncio.Semaphore(2)
+        active=peak=0;entered=asyncio.Event();release=asyncio.Event();calls=[]
+        async def physical(kind,kwargs):
+            nonlocal active,peak
+            active+=1;peak=max(peak,active);calls.append(kind)
+            if len(calls)==2:entered.set()
+            try:
+                await release.wait()
+                return vectors(kwargs['input']) if kind=='embedding' else response()
+            finally:active-=1
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA]) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            threads.append_message(tid,{'role':'user','content':'full original'})
+>           a=ModelProvider([endpoint('a')],threads,request_limit=limit)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: ModelProvider.__init__() got an unexpected keyword argument 'request_limit'
+
+tests/primary/test_kernel_request_limit.py:41: TypeError
+___ test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-782/test_cache_bypasses_busy_limit0')
+
+    @pytest.mark.asyncio
+    async def test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request(tmp_path):
+        class Counted(asyncio.Semaphore):
+            acquisitions=0
+            async def __aenter__(self):
+                result=await super().__aenter__();self.acquisitions+=1;return result
+        limit=Counted(1);entered=asyncio.Event();release=asyncio.Event()
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA]) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+>           m=ModelProvider([endpoint('m')],threads,request_limit=limit)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: ModelProvider.__init__() got an unexpected keyword argument 'request_limit'
+
+tests/primary/test_kernel_request_limit.py:70: TypeError

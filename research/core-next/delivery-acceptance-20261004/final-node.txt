@@ -1,0 +1,19 @@
+npm notice run society0-workbench-template@0.0.0 test
+npm notice run node --test --test-concurrency=1 tests/*.test.mjs
+✔ 新版正式运行结果实际渲染表格与指标曲线 (102.871333ms)
+✔ 空模板没有虚构的主体、机制或记录 (0.335708ms)
+✔ 按运行、tick 和主体精确选择资料 (0.077458ms)
+✔ LLM 主体默认看机制与会话；制度实体只出现有资料的标签 (0.331709ms)
+✔ 配置可按路径修改，并把差异整理为待发送请求 (0.254458ms)
+✔ 主体数组增删时按 id 定位，删掉的主体不能错指其他配置 (0.09875ms)
+✔ 虚拟列表只返回视口附近的行，边界不会越界 (0.075416ms)
+✔ 有实验资料时呈现主体机制、会话与对应组件 (174.163375ms)
+✔ 尚无试运行时，工作台仍展示配置字段和待发送变更 (38.129917ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 663.241625

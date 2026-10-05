@@ -1,0 +1,10 @@
+{
+  "commit": "fc67432",
+  "records": 204882,
+  "publish_seconds": 0.7037693330057664,
+  "rss_before_bytes_macos": 109166592,
+  "rss_peak_bytes_macos": 443990016,
+  "rss_additional_bytes_macos": 334823424,
+  "bytes_written": 1686384,
+  "format_stage": "baseline_whole_gzip"
+}

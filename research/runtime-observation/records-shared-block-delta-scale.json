@@ -1,0 +1,21 @@
+{
+  "table_bytes": {
+    "chunks": 1757184,
+    "paths": 3792896,
+    "prefixes": 4096,
+    "records": 6778880,
+    "records_path": 3645440,
+    "sqlite_autoindex_paths_1": 3923968,
+    "sqlite_autoindex_prefixes_1": 4096,
+    "sqlite_schema": 4096,
+    "totals": 4096
+  },
+  "commit": "working-tree",
+  "records": 204882,
+  "publish_seconds": 3.6659944580023875,
+  "rss_before_bytes_macos": 109903872,
+  "rss_peak_bytes_macos": 118882304,
+  "rss_additional_bytes_macos": 8978432,
+  "bytes_written": 19915806,
+  "format_stage": "shared_1MiB_blocks"
+}

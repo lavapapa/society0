@@ -1,0 +1,18 @@
+...F                                                                     [100%]
+=================================== FAILURES ===================================
+________ test_non_json_nested_keys_are_rejected_without_silent_coercion ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-689/test_non_json_nested_keys_are_0')
+
+    @pytest.mark.asyncio
+    async def test_non_json_nested_keys_are_rejected_without_silent_coercion(tmp_path):
+        async with compose(tmp_path/'run',[interaction_plugin(lambda *a:True),record_plugin(owner='owner')]) as host:
+            records=host.service('records','records')
+>           with pytest.raises(TypeError):records.append('bad',{'nested':{1:'number','1':'string'}})
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE TypeError
+
+tests/primary/test_kernel_record_plugin.py:64: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_record_plugin.py::test_non_json_nested_keys_are_rejected_without_silent_coercion
+1 failed, 3 passed in 0.12s

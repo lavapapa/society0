@@ -1,0 +1,40 @@
+......F                                                                  [100%]
+=================================== FAILURES ===================================
+_____ test_provider_credit_error_is_explicit_incomplete_compatible_failure _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-369/test_provider_credit_error_is_0')
+
+    @pytest.mark.asyncio
+    async def test_provider_credit_error_is_explicit_incomplete_compatible_failure(tmp_path):
+        import httpx,openai
+        from society0.kernel.models import ProviderFailure
+        from society0.kernel.storage import StageStore
+        from society0.kernel.threads import THREAD_SCHEMA, ThreadStore
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store); tid=threads.open('a',0,'decision')
+            provider=ModelProvider([endpoint()],threads)
+            attempts=[]
+            async def execute(*args,**kwargs):
+                attempts.append(1)
+                raise openai.APIStatusError('credits unavailable',response=httpx.Response(402,request=httpx.Request('POST','http://unused.invalid')),body={'code':402})
+            provider.manager._execute_request=execute
+            try:
+>               with pytest.raises(ProviderFailure) as error: await provider.request(tid,{})
+                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_models.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:100: in request
+    return await self.manager._execute_request(endpoint, payload, tool_choice_resolution=resolution)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = (EndpointConfig(id='fake', api_key='unused', base_url='http://unused.invalid/v1', model='fake', concurrency=3, weight=...sion=None, deployment_name=None, trust_env=False, tool_choice_policy='native', send_dimensions=True), {'messages': []})
+kwargs = {'tool_choice_resolution': None}
+
+    async def execute(*args,**kwargs):
+        attempts.append(1)
+>       raise openai.APIStatusError('credits unavailable',response=httpx.Response(402,request=httpx.Request('POST','http://unused.invalid')),body={'code':402})
+E       openai.APIStatusError: credits unavailable
+
+tests/primary/test_kernel_models.py:78: APIStatusError

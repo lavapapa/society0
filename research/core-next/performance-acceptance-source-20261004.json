@@ -1,0 +1,85 @@
+{
+  "head": "6b6417f05ce6e3848287a2f6d66ed8e0a393a2e3",
+  "checked_at": "2026-10-04T09:05:38.738160+08:00",
+  "comparison": "direct bytes, no digest",
+  "files": [
+    {
+      "path": "src/society0/kernel/storage.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/_json_chunks.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/datasets.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/threads.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/models.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/runtime.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": false
+    },
+    {
+      "path": "src/society0/kernel/results.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/memory.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/services.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": true,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/llm.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": true
+    },
+    {
+      "path": "src/society0/kernel/interaction.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": false
+    },
+    {
+      "path": "src/society0/kernel/information_sql.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": false
+    },
+    {
+      "path": "src/society0/resource_managers.py",
+      "head_equals_worktree": true,
+      "0ef012a_equals_head": false,
+      "b51c5f9_equals_head": true
+    }
+  ]
+}

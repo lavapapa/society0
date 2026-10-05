@@ -1,0 +1,38 @@
+.F................                                                       [100%]
+=================================== FAILURES ===================================
+____ test_review_mixed_null_and_large_unicode_documents_page_and_permission ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-811/test_review_mixed_null_and_lar0')
+
+    @pytest.mark.asyncio
+    async def test_review_mixed_null_and_large_unicode_documents_page_and_permission(tmp_path):
+        import json
+        from dataclasses import asdict
+        from society0.kernel.interaction import Information,Unavailable
+        original='原文🙂"\\\n'*40000
+        values=[('a/'+str(n),'alice',None if n%2 else original) for n in range(8)]+[('private','bob',original)]
+>       with StageStore.create(tmp_path/'run',('CREATE TABLE docs(id TEXT PRIMARY KEY,owner TEXT NOT NULL,body TEXT)',),
+            initialize=lambda w:w.executemany('INSERT INTO docs VALUES(?,?,?)',values)) as store:
+
+tests/primary/test_kernel_information_large_review.py:26:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/storage.py:307: in create
+    _tables(connection)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+connection = <apsw.Connection (closed) at 0x10882e840>
+
+    def _tables(connection):
+        tables = []
+        for kind, name, _, sql in _schema(connection):
+            if kind == 'index':
+                continue
+            if kind != 'table' or 'CREATE VIRTUAL' in sql.upper():
+                raise StorageError('schema requires ordinary tables')
+            info = list(connection.execute('PRAGMA table_info(' + '"' + name.replace('"', '""') + '")'))
+            primary = [row for row in info if row[5]]
+            if not primary or any(not row[3] and not (len(primary) == 1 and row[2].upper() == 'INTEGER') for row in primary):
+>               raise StorageError('schema requires an explicit nonnull primary key')
+E               society0.kernel.storage.StorageError: schema requires an explicit nonnull primary key
+
+src/society0/kernel/storage.py:63: StorageError

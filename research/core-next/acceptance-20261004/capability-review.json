@@ -1,0 +1,5182 @@
+{
+  "reviewer": "独立 GPT-6.1 Sol；测试新增文件作者，产品修复非作者",
+  "scope": "本轮78 ID当前测试入口与增补消费者映射；静态读取及现有执行工件核对；不运行测试、产品、模型或凭据",
+  "source_state": "codex/society0-core-next 最终共享块SQLite产品/测试冻结于2026-10-04T06:59:13Z；工作树尚待正式提交/发布，源码身份按执行工件说明",
+  "capabilities": 78,
+  "static_missing_ids": [],
+  "missing_fourth_representative_ids": [],
+  "group_counts": {
+    "A": 8,
+    "L": 12,
+    "M": 10,
+    "E": 4,
+    "S": 6,
+    "B": 5,
+    "N": 5,
+    "R": 5,
+    "O": 4,
+    "P": 8,
+    "Q": 6,
+    "U": 5
+  },
+  "observed_executions": {
+    "full-fourth": "751 passed;15 real-endpoint deselected;34.43s; product not yet declared frozen",
+    "new-contracts-second": "26 passed;3.72s; Auth/Compute/FixedStep/PhasedSchedule/multi-provider专项",
+    "experiments-second": "72 passed;1 collection skipped (isolated sqlite-vec feasibility environment required)",
+    "node-test": "8 passed;1 payload-dependent skipped",
+    "node-pilot-green": "9 passed;actual generated pilot payload",
+    "node-build": "Vite standalone build passed",
+    "opaque-native-process": "14 passed;跨解释器typed opaque恢复+SDK续发、图revision与原生workspace专项；最终统一全量待冻结",
+    "native-compute-final": "原生rebuild/reinstall后31消费者通过；独立执行身份见native-compute-final.txt/xml",
+    "usage-unknown-zero-cache": "5 passed;用量缺失/显式0/7与跨主体缓存物理计数",
+    "full-fifth": "828 passed;1 isolated sqlite-vec collection skipped;15 real-endpoint deselected；尚待主测试最终冻结",
+    "full-final": "838 passed (primary763+experiments75),0skip,15real_e2e deselected,44.34s,exit0；首/第二emit两参数均通过",
+    "linux-final": "同838 passed,15deselected,56.37s,exit0；linux-linux-full-shared-final.txt/xml",
+    "clean-consumers-shared-final": "macOS8能力profile真实wheel消费者全部exit0，base公开RunPlan两步及新目录Dataset巨值/None恢复；无pyzstd/SDK",
+    "sqlite-shared-complete": "23 passed；最终共享块Results/WorkBench/HTTP消费者",
+    "shared-sink-errors-final": "8 passed；producer失败零finish、首/第二emit失败不续producer、不finish、不登记、旧点恢复，单读作用域cache释放",
+    "node-final": "9pass0skip，使用早期pilot载荷，保原身份；最终以node-pilot-frozen-chain为准",
+    "node-build-final": "standalone build passed,exit0",
+    "pilot-cli-final": "冻结源码正式runner CLI两完整步completed+workbench CLI导出，两exit0；实际pilot-workbench-final.json",
+    "node-pilot-frozen-chain": "最后冻结源码新产物Node9pass0skip0fail exit0；区别先前pilot载荷"
+  },
+  "branch_or_line_coverage": {
+    "artifact": "coverage-final.json",
+    "branch_coverage": true,
+    "covered_statements": 7080,
+    "total_statements": 8077,
+    "missing_statements": 997,
+    "percent_statements": 87.65630803516157,
+    "covered_branches": 1927,
+    "total_branches": 2514,
+    "missing_branches": 587,
+    "partial_branches": 451,
+    "percent_branches": 76.65075576770087,
+    "combined_percent": 85.04390520253045,
+    "collection_limits": "父Python进程全src采集；独立子进程/Rust不在本采集范围。logging保留模块子进程有小型构造关闭消费者，完整写入/hook仍有范围边界。",
+    "identified_contract_gaps_resolved": [
+      "真实SDK native response_format消费者",
+      "注册memory.recall实际调用/完整原文/主体和thread范围消费者"
+    ]
+  },
+  "historical_evidence_policy": "历史基线、旧通过、选型试验和旧平台wheel记录各自保留原身份；当前最新执行由artifact字段明确标记",
+  "rows": [
+    {
+      "id": "A01",
+      "consumer_file": "tests/primary/test_kernel_actors.py",
+      "consumer_symbol": "test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields",
+      "current_line": 27,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_actors.py::test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "ActorRecord 持久身份/配置/逐键状态、角色与停用保历史；CognitiveInput.reminders 与 Session.signals 为本次激活材料。ActorFields 独立验证无关冷字段不读、同主体版本变化拒绝混版。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      }
+    },
+    {
+      "id": "A02",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_schedule_lazy_selector_sync_rule_and_real_interview_driver",
+      "current_line": 164,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_schedule.py::test_schedule_lazy_selector_sync_rule_and_real_interview_driver"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_schedule_lazy_selector_sync_rule_and_real_interview_driver",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      },
+      "semantic_scope_from_capability_contract": "同一 Runtime 实际运行同步 RuleDriver 与 LLMDriver interview；干净 base 子进程不载模型/图/向量模块。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_schedule_lazy_selector_sync_rule_and_real_interview_driver",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      }
+    },
+    {
+      "id": "A03",
+      "consumer_file": "tests/primary/test_kernel_cognition.py",
+      "consumer_symbol": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only",
+      "current_line": 108,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_cognition.py::test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[decision]",
+        "tests/primary/test_kernel_cognition.py::test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[interview]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[decision]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[interview]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      },
+      "semantic_scope_from_capability_contract": "实际 CognitiveInput+Memory 验 system 在首、完整背景/视图/记忆原文；独立例验证既有Thread中的persona/precision/state更新与合法None游标。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[decision]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[interview]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      }
+    },
+    {
+      "id": "A04",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_reactivation_same_thread_complete_history_and_provider_session",
+      "current_line": 197,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_reactivation_same_thread_complete_history_and_provider_session"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_reactivation_same_thread_complete_history_and_provider_session",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "同Moment复用Thread和内部provider_session_id，全历史前缀相同；提供方外发session为显式session_transport，实际SDK默认及opt-in已独审。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_reactivation_same_thread_complete_history_and_provider_session",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "A05",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_long_thread_never_projects_a_bounded_message_window",
+      "current_line": 389,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_long_thread_never_projects_a_bounded_message_window"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_long_thread_never_projects_a_bounded_message_window",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "25轮调用后的完整52消息仍输入；认知A→B→A及跨进程游标有实际消费者，无消息窗口裁剪。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_long_thread_never_projects_a_bounded_message_window",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "A06",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_interview_tools_are_measurement_only",
+      "current_line": 495,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_interview_tools_are_measurement_only"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_interview_tools_are_measurement_only",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "真实LLMDriver访谈仅submit_result，Memory activation按kind跳过自动写入；领域动作无执行。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_interview_tools_are_measurement_only",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "A07",
+      "consumer_file": "tests/primary/test_kernel_model_selection.py",
+      "consumer_symbol": "test_driver_activation_override_preserves_same_thread_and_provider_session",
+      "current_line": 22,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_model_selection.py::test_driver_activation_override_preserves_same_thread_and_provider_session"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_driver_activation_override_preserves_same_thread_and_provider_session",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      },
+      "semantic_scope_from_capability_contract": "activation→主体→类型→默认选择复用共享provider，同Moment不重建Thread；阶段标记以原文范围引用返回。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_driver_activation_override_preserves_same_thread_and_provider_session",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      }
+    },
+    {
+      "id": "A08",
+      "consumer_file": "tests/primary/test_kernel_selection.py",
+      "consumer_symbol": "test_real_interview_submit_result_aggregates_explicit_nested_field",
+      "current_line": 60,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_selection.py::test_real_interview_submit_result_aggregates_explicit_nested_field"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_interview_submit_result_aggregates_explicit_nested_field",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "semantic_scope_from_capability_contract": "索引选择/predicate/reservoir/真实访谈嵌套聚合已直接验证；新抽样算法按输入顺序返回。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_interview_submit_result_aggregates_explicit_nested_field",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      }
+    },
+    {
+      "id": "L01",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_exact_selection_does_not_expand_same_named_tag",
+      "current_line": 374,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_exact_selection_does_not_expand_same_named_tag"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_exact_selection_does_not_expand_same_named_tag",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "精确名称/标签/空集过滤同时应用find、describe、invoke；跨scope游标与策略身份有独立消费者。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_exact_selection_does_not_expand_same_named_tag",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "L02",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_invalid_domain_schema_consumes_attempt_without_effect",
+      "current_line": 172,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_invalid_domain_schema_consumes_attempt_without_effect"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_invalid_domain_schema_consumes_attempt_without_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "Action注册check_schema与调用校验、strict归一化有直接组合；非法参数计尝试但无领域写入。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_invalid_domain_schema_consumes_attempt_without_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L03",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_noncompleted_terminal_result_does_not_complete_activation",
+      "current_line": 94,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[accepted]",
+        "tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[rejected]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_noncompleted_terminal_result_does_not_complete_activation[accepted]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_noncompleted_terminal_result_does_not_complete_activation[rejected]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "accepted/rejected的terminal不结束；required纠正及成功completion名称/标签在真实循环中验收。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_noncompleted_terminal_result_does_not_complete_activation[accepted]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_noncompleted_terminal_result_does_not_complete_activation[rejected]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "L04",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_natural_finish_preserves_complete_input_and_thread",
+      "current_line": 69,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_natural_finish_preserves_complete_input_and_thread"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_natural_finish_preserves_complete_input_and_thread",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "自然文本完成允许零行动；ActionResult显式区分受理与完成，不从业务文本猜成功。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_natural_finish_preserves_complete_input_and_thread",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L05",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_batch_budget_rejects_all_before_first_domain_effect",
+      "current_line": 134,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_batch_budget_rejects_all_before_first_domain_effect"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_batch_budget_rejects_all_before_first_domain_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "整批预检总量/逐action上限，失败尝试计数，触达后incomplete且无额外closing请求。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_batch_budget_rejects_all_before_first_domain_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L06",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_duplicate_call_id_reuses_receipt_without_budget_or_effect",
+      "current_line": 145,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_duplicate_call_id_reuses_receipt_without_budget_or_effect"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_duplicate_call_id_reuses_receipt_without_budget_or_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "重复call复用耐久receipt不重放行动，恢复receipt可重建ledger；成功独立行动保留事实。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_duplicate_call_id_reuses_receipt_without_budget_or_effect",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L07",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_parallel_false_has_one_corrective_turn_then_contract_failure",
+      "current_line": 159,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_parallel_false_has_one_corrective_turn_then_contract_failure"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_parallel_false_has_one_corrective_turn_then_contract_failure",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "parallel=false首个合法多调用响应纠正一次，再犯或非法批次明确incomplete；提供方选项真实SDK留证。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_parallel_false_has_one_corrective_turn_then_contract_failure",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "L08",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_hard_limit_never_executes_truncated_tool_or_requests_closing",
+      "current_line": 118,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget]",
+        "tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[length]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_hard_limit_never_executes_truncated_tool_or_requests_closing[length]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "length优先处理、完整-looking tool不执行；预算/length不进入成功Memory写入。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_terminals.py",
+          "tests": [
+            {
+              "symbol": "test_chat_terminal_or_eof_controls_action_execution",
+              "line": 11
+            },
+            {
+              "symbol": "test_responses_terminal_must_precede_action",
+              "line": 36
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_hard_limit_never_executes_truncated_tool_or_requests_closing[length]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L09",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_empty_retry_then_exhaustion_without_domain_calls",
+      "current_line": 306,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_empty_retry_then_exhaustion_without_domain_calls"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_empty_retry_then_exhaustion_without_domain_calls",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "空响应、context、transport与schema错误已有直接消费者；显式空响应温度策略与实际SDK重试选项已由直接及独立消费者验证；完整证据见末尾V01复核。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_terminals.py",
+          "tests": [
+            {
+              "symbol": "test_chat_terminal_or_eof_controls_action_execution",
+              "line": 11
+            },
+            {
+              "symbol": "test_responses_terminal_must_precede_action",
+              "line": 36
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_empty_retry_temperature.py",
+          "tests": [
+            {
+              "symbol": "test_empty_retry_uses_original_temperature_cap_and_durable_options",
+              "line": 15
+            },
+            {
+              "symbol": "test_temperature_option_does_not_extend_turn_or_retry_budget",
+              "line": 39
+            },
+            {
+              "symbol": "test_retry_temperature_state_is_local_to_each_activation",
+              "line": 50
+            },
+            {
+              "symbol": "test_invalid_temperature_adjustment_is_explicit",
+              "line": 66
+            },
+            {
+              "symbol": "test_actual_provider_default_temperature_and_physical_retry_keep_full_evidence",
+              "line": 71
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_repeated_read_temperature.py",
+          "tests": [
+            {
+              "symbol": "test_repeated_facts_temperature_streak_new_fact_write_and_noop",
+              "line": 11
+            },
+            {
+              "symbol": "test_read_temperature_resets_on_new_activation",
+              "line": 42
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_temperature_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_empty_temperature_only_next_request_and_budget_stays_cumulative",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_repeated_read_early_continue_resets_streak",
+              "line": 26
+            },
+            {
+              "symbol": "test_review_any_progress_in_multi_action_turn_clears_read_streak",
+              "line": 49
+            }
+          ],
+          "fourth_execution": {
+            "passed": 5,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_empty_retry_then_exhaustion_without_domain_calls",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L10",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage",
+      "current_line": 595,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "稳定facts跨工具覆盖、changed写清理、noop保留；可选重复轮温度已有直接及独立消费者，单轮新增事实/changed写优先清零。无facts不触发，旧任意全文比较重设为声明式事实。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_empty_retry_temperature.py",
+          "tests": [
+            {
+              "symbol": "test_empty_retry_uses_original_temperature_cap_and_durable_options",
+              "line": 15
+            },
+            {
+              "symbol": "test_temperature_option_does_not_extend_turn_or_retry_budget",
+              "line": 39
+            },
+            {
+              "symbol": "test_retry_temperature_state_is_local_to_each_activation",
+              "line": 50
+            },
+            {
+              "symbol": "test_invalid_temperature_adjustment_is_explicit",
+              "line": 66
+            },
+            {
+              "symbol": "test_actual_provider_default_temperature_and_physical_retry_keep_full_evidence",
+              "line": 71
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_repeated_read_temperature.py",
+          "tests": [
+            {
+              "symbol": "test_repeated_facts_temperature_streak_new_fact_write_and_noop",
+              "line": 11
+            },
+            {
+              "symbol": "test_read_temperature_resets_on_new_activation",
+              "line": 42
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_temperature_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_empty_temperature_only_next_request_and_budget_stays_cumulative",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_repeated_read_early_continue_resets_streak",
+              "line": 26
+            },
+            {
+              "symbol": "test_review_any_progress_in_multi_action_turn_clears_read_streak",
+              "line": 49
+            }
+          ],
+          "fourth_execution": {
+            "passed": 5,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L11",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_structured_submit_result_schema_and_terminal",
+      "current_line": 215,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_structured_submit_result_schema_and_terminal"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_structured_submit_result_schema_and_terminal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "schema失败纠正、成功submit_result一次结束；direct_json显式测量无领域工具，strict不静默降级。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_structured_submit_result_schema_and_terminal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "L12",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_two_concurrent_actors_have_task_local_action_call_ids",
+      "current_line": 622,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_two_concurrent_actors_have_task_local_action_call_ids"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_two_concurrent_actors_have_task_local_action_call_ids",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "并发主体task-local call_id、实际行动起止/失败及完整tool顺序；日志失败不重试已发业务。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_two_concurrent_actors_have_task_local_action_call_ids",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "M01",
+      "consumer_file": "tests/primary/test_kernel_threads.py",
+      "consumer_symbol": "test_original_messages_requests_and_continuation",
+      "current_line": 14,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_threads.py::test_original_messages_requests_and_continuation"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_original_messages_requests_and_continuation",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 13
+      },
+      "semantic_scope_from_capability_contract": "Thread请求按固定through重建，物理重试/响应全原文独立保存；巨正文范围读取与恢复有独立消费者。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_credentials_review.py",
+          "tests": [
+            {
+              "symbol": "test_legacy_request_credentials_are_redacted_recursively",
+              "line": 16
+            },
+            {
+              "symbol": "test_actual_provider_nested_options_and_evidence_keep_noncredentials",
+              "line": 27
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_original_messages_requests_and_continuation",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 13
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "M02",
+      "consumer_file": "tests/primary/test_kernel_thread_publication.py",
+      "consumer_symbol": "test_thread_publication_step_survives_fork_and_new_incomplete_work",
+      "current_line": 6,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_thread_publication.py::test_thread_publication_step_survives_fork_and_new_incomplete_work"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_thread_publication_step_survives_fork_and_new_incomplete_work",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "semantic_scope_from_capability_contract": "close/reopen与publish_step固定前缀随fork保留；同Moment后续事件不混进早期完整视图。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_thread_publication_step_survives_fork_and_new_incomplete_work",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "M03",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_three_memory_switches_are_independent",
+      "current_line": 133,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[False-False-False]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[False-False-True]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[False-True-False]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[False-True-True]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[True-False-False]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[True-False-True]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[True-True-False]",
+        "tests/primary/test_kernel_memory.py::test_three_memory_switches_are_independent[True-True-True]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_three_memory_switches_are_independent[False-False-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-False-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-True-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-True-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-False-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-False-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-True-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-True-True]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "单主体八组合及单服务多主体/逐激活冻结策略已验；test_kernel_memory_activation_review 另验同主体异scope拒绝、日期时点与恢复后步骤版本。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_three_memory_switches_are_independent[False-False-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-False-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-True-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[False-True-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-False-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-False-True]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-True-False]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_three_memory_switches_are_independent[True-True-True]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "M04",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_thread_extractor_preserves_history_and_protocol_boundary",
+      "current_line": 298,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[empty]",
+        "tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[length]",
+        "tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[retry]",
+        "tests/primary/test_kernel_memory.py::test_thread_extractor_preserves_history_and_protocol_boundary[success]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[success]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[empty]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[retry]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[length]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "真实ThreadMemoryExtractor共享协议，原消息前缀保留，纠正续同Thread，空选择成功且失败不造fallback。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[success]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[empty]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[retry]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_thread_extractor_preserves_history_and_protocol_boundary[length]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      }
+    },
+    {
+      "id": "M05",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_index_failure_retries_saved_vectors_and_receipt",
+      "current_line": 86,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_index_failure_retries_saved_vectors_and_receipt"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_index_failure_retries_saved_vectors_and_receipt",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "prepared/written/complete与single-flight均有故障注入；恢复复用原向量，未完成点外部调用不承诺exactly-once。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_index_failure_retries_saved_vectors_and_receipt",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      }
+    },
+    {
+      "id": "M06",
+      "consumer_file": "tests/primary/test_kernel_memory_transfer.py",
+      "consumer_symbol": "test_export_import_and_fork_keep_values_without_reembedding",
+      "current_line": 11,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_export_import_and_fork_keep_values_without_reembedding",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "semantic_scope_from_capability_contract": "原值原向量export/import/seed/fork、更新删除可见区间与批量非法数据全回滚；真实Chroma量化范围单列。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_export_import_and_fork_keep_values_without_reembedding",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      }
+    },
+    {
+      "id": "M07",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_recall_matches_existing_distance_decay_dedup_semantics",
+      "current_line": 101,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_recall_matches_existing_distance_decay_dedup_semantics"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_recall_matches_existing_distance_decay_dedup_semantics",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "L2候选+重要性/步骤衰减/去重/top_k逐值对照，空集合零embedding；真实Chroma与旧新小世界实际召回顺序均有证据。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_recall_matches_existing_distance_decay_dedup_semantics",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "M08",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_historical_recall_uses_visible_versions_and_original_vectors",
+      "current_line": 275,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_historical_recall_uses_visible_versions_and_original_vectors"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_historical_recall_uses_visible_versions_and_original_vectors",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "当前/历史版本和等待embedding时版本变化有独审；fork新身份隔离，SQL权威原向量重建。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_historical_recall_uses_visible_versions_and_original_vectors",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      },
+      "supplementary_execution_artifacts": [
+        "native-schema-memory-action-green.txt"
+      ]
+    },
+    {
+      "id": "M09",
+      "consumer_file": "tests/primary/test_kernel_embedding_provider.py",
+      "consumer_symbol": "test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance",
+      "current_line": 13,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_embedding_provider.py::test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      },
+      "semantic_scope_from_capability_contract": "已有直接测试；最终全量与真实组合另验。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_resource_managers_shared.py",
+          "tests": [
+            {
+              "symbol": "test_strict_normalization_keeps_optional_enum_nullable",
+              "line": 21
+            },
+            {
+              "symbol": "test_managers_route_mixed_trust_env_endpoints_to_distinct_pools",
+              "line": 45
+            },
+            {
+              "symbol": "test_openai_azure_and_embedding_clients_disable_sdk_retries",
+              "line": 63
+            },
+            {
+              "symbol": "test_embedding_microbatch_flushes_same_bucket_batches_in_parallel",
+              "line": 75
+            },
+            {
+              "symbol": "test_embedding_microbatch_preserves_plural_trace_metadata",
+              "line": 94
+            },
+            {
+              "symbol": "test_embedding_microbatch_coalesces_distinct_agent_threads",
+              "line": 112
+            },
+            {
+              "symbol": "test_llm_manager_enforces_hard_timeout_and_logs_failure",
+              "line": 132
+            },
+            {
+              "symbol": "test_llm_manager_retries_after_first_connection_failure",
+              "line": 147
+            },
+            {
+              "symbol": "test_llm_manager_http_transport_preserves_tool_contract_flags",
+              "line": 165
+            }
+          ],
+          "fourth_execution": {
+            "passed": 9,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 9,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_shared_core_assets.py",
+          "tests": [
+            {
+              "symbol": "test_pool_has_no_world_dependency_and_refills_free_slot",
+              "line": 8
+            },
+            {
+              "symbol": "test_strict_schema_keeps_original_and_retired_registry_is_absent",
+              "line": 28
+            },
+            {
+              "symbol": "test_shared_logging_does_not_construct_retired_agent_thread_store",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      }
+    },
+    {
+      "id": "M10",
+      "consumer_file": "tests/primary/test_kernel_memory_transfer.py",
+      "consumer_symbol": "test_export_import_and_fork_keep_values_without_reembedding",
+      "current_line": 11,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory_transfer.py::test_export_import_and_fork_keep_values_without_reembedding"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_export_import_and_fork_keep_values_without_reembedding",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "semantic_scope_from_capability_contract": "Memory关闭先取消收束自身任务、共享client后关闭；转移与真实Chroma恢复已验，最终网络退出链等待V05。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_export_import_and_fork_keep_values_without_reembedding",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      }
+    },
+    {
+      "id": "E01",
+      "consumer_file": "tests/primary/test_kernel_composition.py",
+      "consumer_symbol": "test_plugin_schemas_initialize_in_dependency_order_and_share_store",
+      "current_line": 8,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_composition.py::test_plugin_schemas_initialize_in_dependency_order_and_share_store"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_plugin_schemas_initialize_in_dependency_order_and_share_store",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 6
+      },
+      "semantic_scope_from_capability_contract": "schema/初始化/资源依赖由Plugin声明；领域配置校验由机制拥有，旧统一state_schema接口已重设。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_plugin_schemas_initialize_in_dependency_order_and_share_store",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 6
+      }
+    },
+    {
+      "id": "E02",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+      "current_line": 211,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 28
+      },
+      "semantic_scope_from_capability_contract": "Action按类型注册/对象绑定/schema检查、RuleDriver调用与Information发现分工明确；无旧registry形状兼容。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 29
+      }
+    },
+    {
+      "id": "E03",
+      "consumer_file": "tests/primary/test_kernel_preparation.py",
+      "consumer_symbol": "test_prepare_value_released_before_running_and_restore_skips_loader",
+      "current_line": 15,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_preparation.py::test_prepare_value_released_before_running_and_restore_skips_loader"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_prepare_value_released_before_running_and_restore_skips_loader",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      },
+      "semantic_scope_from_capability_contract": "异步prepare→同步根事务；before/after另见kernel_schedule，临时作用域见kernel_runtime。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_prepare_value_released_before_running_and_restore_skips_loader",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      }
+    },
+    {
+      "id": "E04",
+      "consumer_file": "tests/primary/test_kernel_graph_plugin.py",
+      "consumer_symbol": "test_async_graph_source_and_numeric_projection_restore_without_source",
+      "current_line": 8,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_graph_plugin.py::test_async_graph_source_and_numeric_projection_restore_without_source"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_async_graph_source_and_numeric_projection_restore_without_source",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "semantic_scope_from_capability_contract": "真实异步图源→规范SQL→NetworkX/数值派生，删除外源后完整恢复；projection可在Phase.prepare共享，整图物化成本明示。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_compute_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_two_workers_reach_finite_barrier_concurrently",
+              "line": 30
+            },
+            {
+              "symbol": "test_cancelled_native_work_holds_admission_until_completion",
+              "line": 51
+            },
+            {
+              "symbol": "test_host_close_waits_for_running_native_work",
+              "line": 87
+            },
+            {
+              "symbol": "test_shared_compute_graph_projection_and_parent_canonical_write",
+              "line": 119
+            },
+            {
+              "symbol": "test_graph_snapshot_revision_is_rechecked_after_queued_native_compute",
+              "line": 151
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_async_graph_source_and_numeric_projection_restore_without_source",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt",
+        "native-compute-final.txt"
+      ]
+    },
+    {
+      "id": "S01",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_schedule_hooks_serial_visibility_results_and_single_completion",
+      "current_line": 11,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_schedule.py::test_schedule_hooks_serial_visibility_results_and_single_completion"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_schedule_hooks_serial_visibility_results_and_single_completion",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      },
+      "semantic_scope_from_capability_contract": "before→按序主体/phase→after→唯一complete，StepResult全值与恢复；机制自动钩子含晚安装实例。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_schedule_hooks_serial_visibility_results_and_single_completion",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      }
+    },
+    {
+      "id": "S02",
+      "consumer_file": "tests/primary/test_kernel_llm.py",
+      "consumer_symbol": "test_direct_json_measurement_has_no_domain_tools",
+      "current_line": 418,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_llm.py::test_direct_json_measurement_has_no_domain_tools"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_direct_json_measurement_has_no_domain_tools",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      },
+      "semantic_scope_from_capability_contract": "规则函数直接运行，真实LLMDriver结构化访谈/direct_json校验；结果可用显式字段路径聚合。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_direct_json_measurement_has_no_domain_tools",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 41
+      }
+    },
+    {
+      "id": "S03",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_collect_preserves_ordered_results_and_drain_consumes_once",
+      "current_line": 392,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_runtime.py::test_collect_preserves_ordered_results_and_drain_consumes_once"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_collect_preserves_ordered_results_and_drain_consumes_once",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "semantic_scope_from_capability_contract": "新增Phase.capacity优先于Runtime.capacity（默认1），serial固定1，模型槽位独立；实际ModelProvider端点槽位与phase覆盖已独立验证，联组及独立真实SDK容量消费者已通过，最终全量另验。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_compute_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_two_workers_reach_finite_barrier_concurrently",
+              "line": 30
+            },
+            {
+              "symbol": "test_cancelled_native_work_holds_admission_until_completion",
+              "line": 51
+            },
+            {
+              "symbol": "test_host_close_waits_for_running_native_work",
+              "line": 87
+            },
+            {
+              "symbol": "test_shared_compute_graph_projection_and_parent_canonical_write",
+              "line": 119
+            },
+            {
+              "symbol": "test_graph_snapshot_revision_is_rechecked_after_queued_native_compute",
+              "line": 151
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_collect_preserves_ordered_results_and_drain_consumes_once",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt",
+        "native-compute-final.txt"
+      ]
+    },
+    {
+      "id": "S04",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_signal_merge_followup_mutual_exclusion_and_cursor_retention",
+      "current_line": 83,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_runtime.py::test_signal_merge_followup_mutual_exclusion_and_cursor_retention"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_signal_merge_followup_mutual_exclusion_and_cursor_retention",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "semantic_scope_from_capability_contract": "同主体串行、活跃信号合并后续激活、空槽立即补位；共享ActivationPool仍由Runtime消费。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_signal_merge_followup_mutual_exclusion_and_cursor_retention",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      }
+    },
+    {
+      "id": "S05",
+      "consumer_file": "tests/primary/test_kernel_schedule_review.py",
+      "consumer_symbol": "test_review_second_close_cancellation_does_not_abandon_driver_cleanup",
+      "current_line": 10,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_schedule_review.py::test_review_second_close_cancellation_does_not_abandon_driver_cleanup"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_second_close_cancellation_does_not_abandon_driver_cleanup",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "semantic_scope_from_capability_contract": "test_activation_pool_shared保留三项有效底层边界；Host关闭二次取消仍等Driver清理完成，整step预算跨phase计数。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_compute_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_two_workers_reach_finite_barrier_concurrently",
+              "line": 30
+            },
+            {
+              "symbol": "test_cancelled_native_work_holds_admission_until_completion",
+              "line": 51
+            },
+            {
+              "symbol": "test_host_close_waits_for_running_native_work",
+              "line": 87
+            },
+            {
+              "symbol": "test_shared_compute_graph_projection_and_parent_canonical_write",
+              "line": 119
+            },
+            {
+              "symbol": "test_graph_snapshot_revision_is_rechecked_after_queued_native_compute",
+              "line": 151
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_second_close_cancellation_does_not_abandon_driver_cleanup",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt",
+        "native-compute-final.txt"
+      ]
+    },
+    {
+      "id": "S06",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await",
+      "current_line": 205,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_runtime.py::test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "semantic_scope_from_capability_contract": "阶段顺序、同moment重激活/await时间语义已验；未承诺通用离散事件调度器。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_phase_order_prepare_before_drivers_and_clock_does_not_advance_on_await",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      }
+    },
+    {
+      "id": "B01",
+      "consumer_file": "tests/primary/test_plugin_plain.py",
+      "consumer_symbol": "test_plain_plugin_has_no_domain_state_and_restores",
+      "current_line": 8,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_plugin_plain.py::test_plain_plugin_has_no_domain_state_and_restores"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_plain_plugin_has_no_domain_state_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "semantic_scope_from_capability_contract": "plain最小机制与干净base Rule/Runtime/restore已验；typed键、顺序与小状态合同由P01实际插件消费者验证。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_plain_plugin_has_no_domain_state_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      }
+    },
+    {
+      "id": "B02",
+      "consumer_file": "tests/primary/test_plugin_round_robin.py",
+      "consumer_symbol": "test_four_person_circle_pairs_each_pair_once_and_restores",
+      "current_line": 15,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_plugin_round_robin.py::test_four_person_circle_pairs_each_pair_once_and_restores"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_four_person_circle_pairs_each_pair_once_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "四人配对、消息/广播/轮次清理及恢复与固定旧算法比较；多个strategy原为未执行配置，不迁移占位枚举。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_four_person_circle_pairs_each_pair_once_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      }
+    },
+    {
+      "id": "B03",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_actions_facts_projection_notifications_restore",
+      "current_line": 15,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_plugin_social.py::test_social_actions_facts_projection_notifications_restore"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_actions_facts_projection_notifications_restore",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "实际follow/like/comment/repost/通知/读取恢复及图生成对照；普通热调用使用当前SQL索引。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_actions_facts_projection_notifications_restore",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      }
+    },
+    {
+      "id": "B04",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_active_pool_and_scores_match_old_semantics_without_body_scan",
+      "current_line": 119,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_plugin_social.py::test_social_active_pool_and_scores_match_old_semantics_without_body_scan"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_active_pool_and_scores_match_old_semantics_without_body_scan",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "固定旧算法逐候选分数/次序对照，原生向量召回、preview零曝光、双Social自动after_tick收束均有消费者。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_active_pool_and_scores_match_old_semantics_without_body_scan",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      }
+    },
+    {
+      "id": "B05",
+      "consumer_file": "tests/primary/test_plugin_social.py",
+      "consumer_symbol": "test_social_two_instances_original_body_and_rejections",
+      "current_line": 47,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_plugin_social.py::test_social_two_instances_original_body_and_rejections"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_two_instances_original_body_and_rejections",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "推荐预览与逐帖完整正文分开；两个实例隔离与授权有测试，实际模型自主发现效果等待V06。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_social_two_instances_original_body_and_rejections",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      }
+    },
+    {
+      "id": "N01",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+      "current_line": 211,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_interaction.py::test_action_registry_is_type_sized_and_rechecks_current_conditions"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 28
+      },
+      "semantic_scope_from_capability_contract": "类型级模板、Ref实例绑定、find/describe/invoke当前资格重判；模板数不乘对象数。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_action_registry_is_type_sized_and_rechecks_current_conditions",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 29
+      }
+    },
+    {
+      "id": "N02",
+      "consumer_file": "tests/primary/test_kernel_interaction.py",
+      "consumer_symbol": "test_discover_read_and_invoke_are_independent",
+      "current_line": 105,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_interaction.py::test_discover_read_and_invoke_are_independent"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_discover_read_and_invoke_are_independent",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 28
+      },
+      "semantic_scope_from_capability_contract": "discover/read/invoke独立，目录名称/total过滤与跨权限变更游标有终审回归；actor由scope绑定。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "主体自主获取完整信息及行动结果的效果对照，V06"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_discover_read_and_invoke_are_independent",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 29
+      }
+    },
+    {
+      "id": "N03",
+      "consumer_file": "tests/primary/test_kernel_information_sql.py",
+      "consumer_symbol": "test_authorized_projection_filter_count_and_refs",
+      "current_line": 34,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_information_sql.py::test_authorized_projection_filter_count_and_refs"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_authorized_projection_filter_count_and_refs",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      },
+      "semantic_scope_from_capability_contract": "SQL投影/过滤/keyset/可复现sample及CognitiveInput增量均有消费者；最近记录用显式排序页，Thread追加用独立tail。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_authorized_projection_filter_count_and_refs",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      }
+    },
+    {
+      "id": "N04",
+      "consumer_file": "tests/primary/test_kernel_workspace.py",
+      "consumer_symbol": "test_shared_world_mount_is_dynamic_readonly_and_authorized",
+      "current_line": 62,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_workspace.py::test_shared_world_mount_is_dynamic_readonly_and_authorized"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_shared_world_mount_is_dynamic_readonly_and_authorized",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 6
+      },
+      "semantic_scope_from_capability_contract": "动态World挂载、增量私有workspace及跨平台wheel已验；真实模型自主使用效果待V06。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_shared_world_mount_is_dynamic_readonly_and_authorized",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 7
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "N05",
+      "consumer_file": "tests/primary/test_kernel_plugins_review.py",
+      "consumer_symbol": "test_review_context_is_expired_after_host_closes",
+      "current_line": 11,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_plugins_review.py::test_review_context_is_expired_after_host_closes"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_context_is_expired_after_host_closes",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "主机图预检、显式依赖、多实例服务与清理顺序/失效ctx有直接及独审；运行拓扑固定。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_compute_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_two_workers_reach_finite_barrier_concurrently",
+              "line": 30
+            },
+            {
+              "symbol": "test_cancelled_native_work_holds_admission_until_completion",
+              "line": 51
+            },
+            {
+              "symbol": "test_host_close_waits_for_running_native_work",
+              "line": 87
+            },
+            {
+              "symbol": "test_shared_compute_graph_projection_and_parent_canonical_write",
+              "line": 119
+            },
+            {
+              "symbol": "test_graph_snapshot_revision_is_rechecked_after_queued_native_compute",
+              "line": 151
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_observation_http.py",
+          "tests": [
+            {
+              "symbol": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+              "line": 20
+            },
+            {
+              "symbol": "test_http_paused_large_response_does_not_block_status",
+              "line": 54
+            },
+            {
+              "symbol": "test_raw_request_cancel_keeps_capacity_until_sync_query_finishes",
+              "line": 81
+            },
+            {
+              "symbol": "test_uvicorn_graceful_timeout_waits_for_real_query_before_service_close",
+              "line": 106
+            },
+            {
+              "symbol": "test_cancelled_sync_query_failure_keeps_cancel_with_original_cause",
+              "line": 134
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_context_is_expired_after_host_closes",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt",
+        "native-compute-final.txt"
+      ]
+    },
+    {
+      "id": "R01",
+      "consumer_file": "tests/primary/test_kernel_models.py",
+      "consumer_symbol": "test_profiles_install_through_host_and_preserve_request_defaults",
+      "current_line": 45,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_models.py::test_profiles_install_through_host_and_preserve_request_defaults"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_profiles_install_through_host_and_preserve_request_defaults",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "OpenAI/Azure/Ollama及endpoint配置由成熟manager和实际SDK替身覆盖；当前统一源码的真实LLM/embedding整套仍等V05，既往小请求不升级为通过。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_provider_terminals.py",
+          "tests": [
+            {
+              "symbol": "test_chat_terminal_or_eof_controls_action_execution",
+              "line": 11
+            },
+            {
+              "symbol": "test_responses_terminal_must_precede_action",
+              "line": 36
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_auth_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_dynamic_registration_pkce_oidc_and_reauthorization",
+              "line": 76
+            },
+            {
+              "symbol": "test_authorization_error_never_persists_credentials",
+              "line": 102
+            },
+            {
+              "symbol": "test_expired_refresh_serializes_accounts_and_rotates_tokens",
+              "line": 127
+            },
+            {
+              "symbol": "test_failed_refresh_keeps_previous_registration",
+              "line": 157
+            },
+            {
+              "symbol": "test_login_real_loopback_callback_closes_listener",
+              "line": 169
+            }
+          ],
+          "fourth_execution": {
+            "passed": 12,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_profiles_install_through_host_and_preserve_request_defaults",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 10
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "R02",
+      "consumer_file": "tests/primary/test_kernel_models.py",
+      "consumer_symbol": "test_model_close_drains_request_and_rejects_later_requests",
+      "current_line": 109,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_models.py::test_model_close_drains_request_and_rejects_later_requests"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_model_close_drains_request_and_rejects_later_requests",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "配置/端点/运行共享许可、timeout/retry/close有实际适配器消费者；取消排队零physical，快照失败释放许可。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_auth_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_dynamic_registration_pkce_oidc_and_reauthorization",
+              "line": 76
+            },
+            {
+              "symbol": "test_authorization_error_never_persists_credentials",
+              "line": 102
+            },
+            {
+              "symbol": "test_expired_refresh_serializes_accounts_and_rotates_tokens",
+              "line": 127
+            },
+            {
+              "symbol": "test_failed_refresh_keeps_previous_registration",
+              "line": 157
+            },
+            {
+              "symbol": "test_login_real_loopback_callback_closes_listener",
+              "line": 169
+            }
+          ],
+          "fourth_execution": {
+            "passed": 12,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_resource_managers_shared.py",
+          "tests": [
+            {
+              "symbol": "test_strict_normalization_keeps_optional_enum_nullable",
+              "line": 21
+            },
+            {
+              "symbol": "test_managers_route_mixed_trust_env_endpoints_to_distinct_pools",
+              "line": 45
+            },
+            {
+              "symbol": "test_openai_azure_and_embedding_clients_disable_sdk_retries",
+              "line": 63
+            },
+            {
+              "symbol": "test_embedding_microbatch_flushes_same_bucket_batches_in_parallel",
+              "line": 75
+            },
+            {
+              "symbol": "test_embedding_microbatch_preserves_plural_trace_metadata",
+              "line": 94
+            },
+            {
+              "symbol": "test_embedding_microbatch_coalesces_distinct_agent_threads",
+              "line": 112
+            },
+            {
+              "symbol": "test_llm_manager_enforces_hard_timeout_and_logs_failure",
+              "line": 132
+            },
+            {
+              "symbol": "test_llm_manager_retries_after_first_connection_failure",
+              "line": 147
+            },
+            {
+              "symbol": "test_llm_manager_http_transport_preserves_tool_contract_flags",
+              "line": 165
+            }
+          ],
+          "fourth_execution": {
+            "passed": 9,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 9,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_shared_core_assets.py",
+          "tests": [
+            {
+              "symbol": "test_pool_has_no_world_dependency_and_refills_free_slot",
+              "line": 8
+            },
+            {
+              "symbol": "test_strict_schema_keeps_original_and_retired_registry_is_absent",
+              "line": 28
+            },
+            {
+              "symbol": "test_shared_logging_does_not_construct_retired_agent_thread_store",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_model_close_drains_request_and_rejects_later_requests",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 10
+      }
+    },
+    {
+      "id": "R03",
+      "consumer_file": "tests/primary/test_kernel_provider_fields.py",
+      "consumer_symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+      "current_line": 40,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_provider_fields.py::test_tool_call_extensions_survive_normalized_response_and_next_request[openai-responses]",
+        "tests/primary/test_kernel_provider_fields.py::test_tool_call_extensions_survive_normalized_response_and_next_request[siwc]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_tool_call_extensions_survive_normalized_response_and_next_request[openai-responses]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_tool_call_extensions_survive_normalized_response_and_next_request[siwc]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      },
+      "semantic_scope_from_capability_contract": "strict/parallel/native/auto_restrict与requested→effective留证已验；SDK扩展字段完整进入下一请求。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_tool_call_extensions_survive_normalized_response_and_next_request[openai-responses]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_tool_call_extensions_survive_normalized_response_and_next_request[siwc]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ]
+    },
+    {
+      "id": "R04",
+      "consumer_file": "tests/primary/test_kernel_embedding_provider.py",
+      "consumer_symbol": "test_embedding_profile_controls_http_capacity_and_batching",
+      "current_line": 97,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_embedding_provider.py::test_embedding_profile_controls_http_capacity_and_batching"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_embedding_profile_controls_http_capacity_and_batching",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      },
+      "semantic_scope_from_capability_contract": "真实EmbeddingProvider合批/cache维度隔离、数量/字节上限、超批拆分与失败来源；每逻辑文本保原主体关联。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_resource_managers_shared.py",
+          "tests": [
+            {
+              "symbol": "test_strict_normalization_keeps_optional_enum_nullable",
+              "line": 21
+            },
+            {
+              "symbol": "test_managers_route_mixed_trust_env_endpoints_to_distinct_pools",
+              "line": 45
+            },
+            {
+              "symbol": "test_openai_azure_and_embedding_clients_disable_sdk_retries",
+              "line": 63
+            },
+            {
+              "symbol": "test_embedding_microbatch_flushes_same_bucket_batches_in_parallel",
+              "line": 75
+            },
+            {
+              "symbol": "test_embedding_microbatch_preserves_plural_trace_metadata",
+              "line": 94
+            },
+            {
+              "symbol": "test_embedding_microbatch_coalesces_distinct_agent_threads",
+              "line": 112
+            },
+            {
+              "symbol": "test_llm_manager_enforces_hard_timeout_and_logs_failure",
+              "line": 132
+            },
+            {
+              "symbol": "test_llm_manager_retries_after_first_connection_failure",
+              "line": 147
+            },
+            {
+              "symbol": "test_llm_manager_http_transport_preserves_tool_contract_flags",
+              "line": 165
+            }
+          ],
+          "fourth_execution": {
+            "passed": 9,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 9,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_shared_core_assets.py",
+          "tests": [
+            {
+              "symbol": "test_pool_has_no_world_dependency_and_refills_free_slot",
+              "line": 8
+            },
+            {
+              "symbol": "test_strict_schema_keeps_original_and_retired_registry_is_absent",
+              "line": 28
+            },
+            {
+              "symbol": "test_shared_logging_does_not_construct_retired_agent_thread_store",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_embedding_profile_controls_http_capacity_and_batching",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 11
+      }
+    },
+    {
+      "id": "R05",
+      "consumer_file": "tests/primary/test_kernel_models_review.py",
+      "consumer_symbol": "test_review_retry_evidence_preserves_actual_request_when_thread_advances",
+      "current_line": 13,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_models_review.py::test_review_retry_evidence_preserves_actual_request_when_thread_advances"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_retry_evidence_preserves_actual_request_when_thread_advances",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      },
+      "semantic_scope_from_capability_contract": "trust_env分池与原请求水位独审；session传输opt-in实际SDK验证；test_kernel_credentials_review补实际请求/错误原文递归脱敏回归。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_multi_provider_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire",
+              "line": 17
+            },
+            {
+              "symbol": "test_anthropic_actual_sdk_signature_tool_result_and_single_retry",
+              "line": 56
+            },
+            {
+              "symbol": "test_google_actual_sdk_signature_embedding_retry_and_both_pools_close",
+              "line": 83
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_auth_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_dynamic_registration_pkce_oidc_and_reauthorization",
+              "line": 76
+            },
+            {
+              "symbol": "test_authorization_error_never_persists_credentials",
+              "line": 102
+            },
+            {
+              "symbol": "test_expired_refresh_serializes_accounts_and_rotates_tokens",
+              "line": 127
+            },
+            {
+              "symbol": "test_failed_refresh_keeps_previous_registration",
+              "line": 157
+            },
+            {
+              "symbol": "test_login_real_loopback_callback_closes_listener",
+              "line": 169
+            }
+          ],
+          "fourth_execution": {
+            "passed": 12,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_credentials_review.py",
+          "tests": [
+            {
+              "symbol": "test_legacy_request_credentials_are_redacted_recursively",
+              "line": 16
+            },
+            {
+              "symbol": "test_actual_provider_nested_options_and_evidence_keep_noncredentials",
+              "line": 27
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_review_retry_evidence_preserves_actual_request_when_thread_advances",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      }
+    },
+    {
+      "id": "O01",
+      "consumer_file": "tests/primary/test_kernel_results.py",
+      "consumer_symbol": "test_results_preserve_all_fields_stream_table_once_and_restore",
+      "current_line": 9,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_results.py::test_results_preserve_all_fields_stream_table_once_and_restore"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_results_preserve_all_fields_stream_table_once_and_restore",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "semantic_scope_from_capability_contract": "JSON行/生成器/巨行与恢复已验；test_kernel_result_inputs 新增显式TableValue/DatasetTable，真实pandas tight完整恢复见 result-dataframe-consumer-green；正式 Results→Dataset→Workbench 组合已非作者复验，结果页外壳另有最终协议测试。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_results_preserve_all_fields_stream_table_once_and_restore",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "O02",
+      "consumer_file": "tests/primary/test_kernel_usage.py",
+      "consumer_symbol": "test_real_adapters_project_retry_response_and_shared_cache",
+      "current_line": 84,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_usage.py::test_real_adapters_project_retry_response_and_shared_cache"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_adapters_project_retry_response_and_shared_cache",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 10
+      },
+      "semantic_scope_from_capability_contract": "物理调用、实际行动/终止、阶段时长已有作者及独立消费者；test_kernel_action_timing_review验证重试不重复、complete只读视图与失败live诊断，最终全量另验。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_adapters_project_retry_response_and_shared_cache",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 10
+      },
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "O03",
+      "consumer_file": "tests/primary/test_kernel_results.py",
+      "consumer_symbol": "test_result_page_encodes_each_item_once_and_fixed_prefix",
+      "current_line": 65,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_results.py::test_result_page_encodes_each_item_once_and_fixed_prefix"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_result_page_encodes_each_item_once_and_fixed_prefix",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "semantic_scope_from_capability_contract": "生成器只遍历一次，巨行payload_ref与准确完整边界；内外Results统一value/payload_ref外壳及共享块页缓存独审。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_result_page_encodes_each_item_once_and_fixed_prefix",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "O04",
+      "consumer_file": "tests/primary/test_kernel_schedule.py",
+      "consumer_symbol": "test_progress_io_failure_isolated_but_result_generator_failure_aborts",
+      "current_line": 44,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_schedule.py::test_progress_io_failure_isolated_but_result_generator_failure_aborts"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_progress_io_failure_isolated_but_result_generator_failure_aborts",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      },
+      "semantic_scope_from_capability_contract": "progress写失败不改业务成功；权威Results写失败中止完整发布；runner清理失败保已发布水位并标失败。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_observation_http.py",
+          "tests": [
+            {
+              "symbol": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+              "line": 20
+            },
+            {
+              "symbol": "test_http_paused_large_response_does_not_block_status",
+              "line": 54
+            },
+            {
+              "symbol": "test_raw_request_cancel_keeps_capacity_until_sync_query_finishes",
+              "line": 81
+            },
+            {
+              "symbol": "test_uvicorn_graceful_timeout_waits_for_real_query_before_service_close",
+              "line": 106
+            },
+            {
+              "symbol": "test_cancelled_sync_query_failure_keeps_cancel_with_original_cause",
+              "line": 134
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_progress_io_failure_isolated_but_result_generator_failure_aborts",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 8
+      }
+    },
+    {
+      "id": "P01",
+      "consumer_file": "tests/primary/test_kernel_record_plugin.py",
+      "consumer_symbol": "test_record_projection_and_fact_partial_transaction_rolls_back",
+      "current_line": 30,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_record_projection_and_fact_partial_transaction_rolls_back",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "semantic_scope_from_capability_contract": "typed_records真实插件已作者验证公开append/唯一typed键/ordinal/精度/恢复；受信writer可修改SQL，未声称数据库自动禁止作者更改事实；typed_records独立5项通过。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_record_projection_and_fact_partial_transaction_rolls_back",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "P02",
+      "consumer_file": "tests/primary/test_kernel_record_plugin.py",
+      "consumer_symbol": "test_record_projection_and_fact_partial_transaction_rolls_back",
+      "current_line": 30,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_record_projection_and_fact_partial_transaction_rolls_back",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "semantic_scope_from_capability_contract": "规范writer事务/租期失效与事实+投影复合回滚已有实际消费者；显式插件接口替代旧raw dict别名；typed_records独立消费者已通过。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_record_projection_and_fact_partial_transaction_rolls_back",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 4
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "P03",
+      "consumer_file": "tests/primary/test_kernel_storage.py",
+      "consumer_symbol": "test_process_crash_publication_boundary",
+      "current_line": 162,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_storage.py::test_process_crash_publication_boundary[after_publish-44]",
+        "tests/primary/test_kernel_storage.py::test_process_crash_publication_boundary[before_publish-10]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_process_crash_publication_boundary[before_publish-10]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_process_crash_publication_boundary[after_publish-44]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 35
+      },
+      "semantic_scope_from_capability_contract": "root/native changeset/complete边界已验；每步完整点替代旧多步epoch，重数据实测见V04。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_compression_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_partial_encoding_base_exception_rolls_back",
+              "line": 8
+            },
+            {
+              "symbol": "test_review_chunk_encoder_is_bounded_and_recovered_body_is_exact",
+              "line": 23
+            },
+            {
+              "symbol": "test_review_empty_changesets_are_valid_native_frames_and_restore",
+              "line": 49
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_compression.py",
+          "tests": [
+            {
+              "symbol": "test_writer_small_and_large_native_frames_restore",
+              "line": 11
+            },
+            {
+              "symbol": "test_writer_encoding_callback_expires",
+              "line": 30
+            },
+            {
+              "symbol": "test_native_encoder_matches_json_and_invalid_value_rolls_back",
+              "line": 37
+            },
+            {
+              "symbol": "test_encoder_sink_failure_stops_effects_without_pending_tasks",
+              "line": 53
+            },
+            {
+              "symbol": "test_native_compression_failure_rolls_back_sql_and_remains_usable",
+              "line": 66
+            }
+          ],
+          "fourth_execution": {
+            "passed": 5,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_process_crash_publication_boundary[before_publish-10]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_process_crash_publication_boundary[after_publish-44]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 35
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "P04",
+      "consumer_file": "tests/primary/test_kernel_memory.py",
+      "consumer_symbol": "test_pending_job_full_checkpoint_resumes_without_extraction",
+      "current_line": 61,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_memory.py::test_pending_job_full_checkpoint_resumes_without_extraction"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_pending_job_full_checkpoint_resumes_without_extraction",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 26
+      },
+      "semantic_scope_from_capability_contract": "真实Services/Runtime组合的Actor、Thread、Memory与工件同完整身份，pending作业及跨插件只读导出有消费者；真网进程链等待V05。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_fields.py",
+          "tests": [
+            {
+              "symbol": "test_tool_call_extensions_survive_normalized_response_and_next_request",
+              "line": 40
+            }
+          ],
+          "fourth_execution": {
+            "passed": 2,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_pending_job_full_checkpoint_resumes_without_extraction",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 27
+      },
+      "supplementary_execution_artifacts": [
+        "opaque-native-process.txt"
+      ],
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "P05",
+      "consumer_file": "tests/primary/test_kernel_storage_lifecycle.py",
+      "consumer_symbol": "test_restore_copies_repeated_artifact_once_and_survives_source_removal",
+      "current_line": 10,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_storage_lifecycle.py::test_restore_copies_repeated_artifact_once_and_survives_source_removal"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_restore_copies_repeated_artifact_once_and_survives_source_removal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 7
+      },
+      "semantic_scope_from_capability_contract": "fork脱源恢复、GC可达验证已验；native root复制成本显式保留，未承诺零复制fork。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_restore_copies_repeated_artifact_once_and_survives_source_removal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 7
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "P06",
+      "consumer_file": "tests/primary/test_kernel_analysis_export.py",
+      "consumer_symbol": "test_analysis_directory_is_self_contained_after_source_removal",
+      "current_line": 13,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_analysis_export.py::test_analysis_directory_is_self_contained_after_source_removal"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_analysis_directory_is_self_contained_after_source_removal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "semantic_scope_from_capability_contract": "prepare_readonly 已由 test_kernel_analysis_export 跨Thread/Memory原向量/Results/Dataset实测源删除后独立读取，拒绝writer/restore；无需额外导出包装；Results/Dataset/Workbench 独立贯穿已通过，见 result-inputs-independent-consumer-green-20261004。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_analysis_directory_is_self_contained_after_source_removal",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 1
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "P07",
+      "consumer_file": "tests/primary/test_kernel_storage.py",
+      "consumer_symbol": "test_incremental_blob_read_bounded_and_scope_checked",
+      "current_line": 313,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_storage.py::test_incremental_blob_read_bounded_and_scope_checked"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_incremental_blob_read_bounded_and_scope_checked",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 35
+      },
+      "semantic_scope_from_capability_contract": "SQLite BLOB/Thread块范围与压缩流已验；实际大root下界由V04实测，不承诺任意JSON单值恒定内存。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_compression_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_partial_encoding_base_exception_rolls_back",
+              "line": 8
+            },
+            {
+              "symbol": "test_review_chunk_encoder_is_bounded_and_recovered_body_is_exact",
+              "line": 23
+            },
+            {
+              "symbol": "test_review_empty_changesets_are_valid_native_frames_and_restore",
+              "line": 49
+            }
+          ],
+          "fourth_execution": {
+            "passed": 3,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_compression.py",
+          "tests": [
+            {
+              "symbol": "test_writer_small_and_large_native_frames_restore",
+              "line": 11
+            },
+            {
+              "symbol": "test_writer_encoding_callback_expires",
+              "line": 30
+            },
+            {
+              "symbol": "test_native_encoder_matches_json_and_invalid_value_rolls_back",
+              "line": 37
+            },
+            {
+              "symbol": "test_encoder_sink_failure_stops_effects_without_pending_tasks",
+              "line": 53
+            },
+            {
+              "symbol": "test_native_compression_failure_rolls_back_sql_and_remains_usable",
+              "line": 66
+            }
+          ],
+          "fourth_execution": {
+            "passed": 5,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_incremental_blob_read_bounded_and_scope_checked",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 35
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "P08",
+      "consumer_file": "tests/primary/test_kernel_runtime.py",
+      "consumer_symbol": "test_failed_driver_aborts_and_does_not_retry_successful_action",
+      "current_line": 143,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_runtime.py::test_failed_driver_aborts_and_does_not_retry_successful_action[exception]",
+        "tests/primary/test_kernel_runtime.py::test_failed_driver_aborts_and_does_not_retry_successful_action[incomplete]"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_failed_driver_aborts_and_does_not_retry_successful_action[incomplete]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_failed_driver_aborts_and_does_not_retry_successful_action[exception]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "semantic_scope_from_capability_contract": "handler异常被Driver捕获仍poison步骤/其他scope，业务rejected正常；complete回执丢失回读实际水位后实例失效。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_provider_terminals.py",
+          "tests": [
+            {
+              "symbol": "test_chat_terminal_or_eof_controls_action_execution",
+              "line": 11
+            },
+            {
+              "symbol": "test_responses_terminal_must_precede_action",
+              "line": 36
+            }
+          ],
+          "fourth_execution": {
+            "passed": 13,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 13,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_failed_driver_aborts_and_does_not_retry_successful_action[incomplete]",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_failed_driver_aborts_and_does_not_retry_successful_action[exception]",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 20
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "Q01",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_separate_producer_observer_tracks_pending_failure_without_model_import",
+      "current_line": 83,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation.py::test_separate_producer_observer_tracks_pending_failure_without_model_import"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_separate_producer_observer_tracks_pending_failure_without_model_import",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "独立进程producer阻塞/失败仍读status/tail；当前RapidJSON四条10MiB原文与实际观察时延另有两轮测量。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_separate_producer_observer_tracks_pending_failure_without_model_import",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "Q02",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference",
+      "current_line": 260,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation.py::test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "prepare完整视图/JSON cursor/run身份/元数据及最终字节预算；SQL大正文引用+相关revision续读有实际LLM/Shell/HTTP消费者。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "Q03",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_observer_live_tail_complete_prefix_and_fork_identity",
+      "current_line": 9,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation.py::test_observer_live_tail_complete_prefix_and_fork_identity"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_observer_live_tail_complete_prefix_and_fork_identity",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "Thread固定完整前缀/新增tail、Results与Dataset巨行原文、文档Unicode跨字节范围及权限变更拒绝均实际验证。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_observer_live_tail_complete_prefix_and_fork_identity",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "Q04",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files",
+      "current_line": 148,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation.py::test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "新版权威SQL替代全World派生索引；固定完整点prepare使用prepare_readonly物化只读SQL，成本另测。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_prepare_busy_killed_process_keeps_ready_and_clear_reclaims_owned_files",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "Q05",
+      "consumer_file": "tests/primary/test_kernel_observation_http.py",
+      "consumer_symbol": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+      "current_line": 20,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation_http.py::test_http_slow_body_saturation_disconnect_and_final_wire_bytes"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 6
+      },
+      "semantic_scope_from_capability_contract": "真实TCP慢body/response/饱和503/断线槽释放与最终wire预算有独立测试；非任意网络时延SLA。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_observation_http.py",
+          "tests": [
+            {
+              "symbol": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+              "line": 20
+            },
+            {
+              "symbol": "test_http_paused_large_response_does_not_block_status",
+              "line": 54
+            },
+            {
+              "symbol": "test_raw_request_cancel_keeps_capacity_until_sync_query_finishes",
+              "line": 81
+            },
+            {
+              "symbol": "test_uvicorn_graceful_timeout_waits_for_real_query_before_service_close",
+              "line": 106
+            },
+            {
+              "symbol": "test_cancelled_sync_query_failure_keeps_cancel_with_original_cause",
+              "line": 134
+            }
+          ],
+          "fourth_execution": {
+            "passed": 6,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 6,
+            "failed": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "file": "tests/primary/test_kernel_datasets_review.py",
+          "tests": [
+            {
+              "symbol": "test_review_dataset_page_serializes_items_linearly",
+              "line": 9
+            },
+            {
+              "symbol": "test_review_dataset_restore_changes_cursor_identity_and_readonly_rejects_import",
+              "line": 24
+            },
+            {
+              "symbol": "test_review_dataset_large_range_and_final_page_budget",
+              "line": 37
+            },
+            {
+              "symbol": "test_review_shared_frames_preserve_adjacent_record_ranges",
+              "line": 52
+            },
+            {
+              "symbol": "test_public_observation_requests_read_only_target_chunks_as_history_grows",
+              "line": 69
+            },
+            {
+              "symbol": "test_shared_sink_failure_never_flushes_or_publishes_partial_batch",
+              "line": 100
+            },
+            {
+              "symbol": "test_shared_frame_cache_is_owned_only_by_one_read_request",
+              "line": 134
+            }
+          ],
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 8,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_http_slow_body_saturation_disconnect_and_final_wire_bytes",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 6
+      },
+      "supplementary_execution_artifacts": [
+        "http-owned-worker-cause-second.txt"
+      ],
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "current_cold_resource_evidence": [
+        "linux-performance-shared-final.json",
+        "linux-performance-shared-runtime-final.txt",
+        "linux-performance-shared-access-final.txt"
+      ]
+    },
+    {
+      "id": "Q06",
+      "consumer_file": "tests/primary/test_kernel_observation.py",
+      "consumer_symbol": "test_observer_live_tail_complete_prefix_and_fork_identity",
+      "current_line": 9,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_observation.py::test_observer_live_tail_complete_prefix_and_fork_identity"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_observer_live_tail_complete_prefix_and_fork_identity",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "semantic_scope_from_capability_contract": "live/current与完整点、Thread tail已有；产品语义以新Observation合同为准，不伪造额外sealed水位。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_observer_live_tail_complete_prefix_and_fork_identity",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 12
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ]
+    },
+    {
+      "id": "U01",
+      "consumer_file": "tests/primary/test_kernel_runner.py",
+      "consumer_symbol": "test_runner_freezes_manifest_and_timings_and_restores",
+      "current_line": 24,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_kernel_runner.py::test_runner_freezes_manifest_and_timings_and_restores"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_runner_freezes_manifest_and_timings_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      },
+      "semantic_scope_from_capability_contract": "研究引导与正式RunPlan冻结依赖/有效预算/配置，runner写manifest先于步骤；文档复核已完成，真网与最终发行状态继续TODO。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_schedule_plans_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_public_schedule_order_complete_boundaries_and_selected_restore",
+              "line": 53
+            },
+            {
+              "symbol": "test_public_schedule_failure_does_not_publish_and_recovery_uses_complete_state",
+              "line": 81
+            }
+          ],
+          "fourth_execution": {
+            "passed": 4,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "最后发行身份、公开包与干净入口一致性，U04/V08"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_runner_freezes_manifest_and_timings_and_restores",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 5
+      },
+      "supplementary_execution_artifacts": [
+        "node-final.txt",
+        "node-build-final.txt",
+        "pilot-cli-final.txt",
+        "node-pilot-frozen-chain.txt",
+        "pilot-workbench-final.json"
+      ]
+    },
+    {
+      "id": "U02",
+      "consumer_file": "tests/primary/test_skill_starter.py",
+      "consumer_symbol": "test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory",
+      "current_line": 43,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_skill_starter.py::test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "semantic_scope_from_capability_contract": "实际工厂两轮LLM+显式提取+访谈、非空记忆与原文输入独审；默认预算/凭据环境引用冻结有实际消费者，当前真网starter仍待最终判定。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "本轮真实LLM/embedding及完整恢复链的适用子项，V05",
+        "主体自主获取完整信息及行动结果的效果对照，V06",
+        "最后发行身份、公开包与干净入口一致性，U04/V08"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 3
+      },
+      "supplementary_execution_artifacts": [
+        "node-final.txt",
+        "node-build-final.txt",
+        "pilot-cli-final.txt",
+        "node-pilot-frozen-chain.txt",
+        "pilot-workbench-final.json"
+      ]
+    },
+    {
+      "id": "U03",
+      "consumer_file": "tests/primary/test_core_next_workbench.py",
+      "consumer_symbol": "test_actual_result_rows_and_metrics_have_table_and_chart_views",
+      "current_line": 132,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_core_next_workbench.py::test_actual_result_rows_and_metrics_have_table_and_chart_views"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_actual_result_rows_and_metrics_have_table_and_chart_views",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "真实 Results 表格/指标曲线及已有 React 渲染消费者已验；同名 phase 按 ordinal 分开，实体 namespace 与显式配置版本有独立用例。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证",
+        "最后发行身份、公开包与干净入口一致性，U04/V08"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_actual_result_rows_and_metrics_have_table_and_chart_views",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "supplementary_execution_artifacts": [
+        "node-final.txt",
+        "node-build-final.txt",
+        "pilot-cli-final.txt",
+        "node-pilot-frozen-chain.txt",
+        "pilot-workbench-final.json"
+      ]
+    },
+    {
+      "id": "U04",
+      "consumer_file": "tests/primary/test_core_next_workbench.py",
+      "consumer_symbol": "test_real_pilot_export_and_existing_single_file_renderer",
+      "current_line": 13,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_core_next_workbench.py::test_real_pilot_export_and_existing_single_file_renderer"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_pilot_export_and_existing_single_file_renderer",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "semantic_scope_from_capability_contract": "正式 pilot→完整点→新 workbench payload→既有单文件 renderer 已贯穿；巨行/原始 Thread 范围及 CLI 选取实际 run 另有消费者。",
+      "current_additional_consumers": [],
+      "pending_external_or_resource_gates": [
+        "完整业务阶段、LLM/记忆与整进程组资源测量，V04；当前冷数据大根与有限投影专项分别留证",
+        "最后发行身份、公开包与干净入口一致性，U04/V08"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_real_pilot_export_and_existing_single_file_renderer",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 9
+      },
+      "supplementary_execution_artifacts": [
+        "node-final.txt",
+        "node-build-final.txt",
+        "pilot-cli-final.txt",
+        "node-pilot-frozen-chain.txt",
+        "pilot-workbench-final.json"
+      ]
+    },
+    {
+      "id": "U05",
+      "consumer_file": "tests/primary/test_public_core_api.py",
+      "consumer_symbol": null,
+      "current_line": null,
+      "static_entry_present": true,
+      "prior_collection_matches": [
+        "tests/primary/test_public_core_api.py::test_public_rule_entrypoint_is_light_and_restores",
+        "tests/primary/test_public_core_api.py::test_retired_root_symbols_are_not_public"
+      ],
+      "fourth_execution": {
+        "artifact": "full-fourth.xml",
+        "representative_cases": [
+          {
+            "name": "test_public_rule_entrypoint_is_light_and_restores",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_retired_root_symbols_are_not_public",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      },
+      "semantic_scope_from_capability_contract": "新公共入口和可选依赖惰性导入有直接测试；macOS/Linux wheel 与独立轻安装证据见 installation.md。旧 WorkBuddy 案例保历史身份，新版未另行声称通过 WorkBuddy 场景。",
+      "current_additional_consumers": [
+        {
+          "file": "tests/primary/test_kernel_auth_acceptance.py",
+          "tests": [
+            {
+              "symbol": "test_dynamic_registration_pkce_oidc_and_reauthorization",
+              "line": 76
+            },
+            {
+              "symbol": "test_authorization_error_never_persists_credentials",
+              "line": 102
+            },
+            {
+              "symbol": "test_expired_refresh_serializes_accounts_and_rotates_tokens",
+              "line": 127
+            },
+            {
+              "symbol": "test_failed_refresh_keeps_previous_registration",
+              "line": 157
+            },
+            {
+              "symbol": "test_login_real_loopback_callback_closes_listener",
+              "line": 169
+            }
+          ],
+          "fourth_execution": {
+            "passed": 12,
+            "failed": 0
+          },
+          "final_frozen_execution": {
+            "artifact": "full-final.xml",
+            "passed": 12,
+            "failed": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "pending_external_or_resource_gates": [
+        "最后发行身份、公开包与干净入口一致性，U04/V08"
+      ],
+      "final_frozen_execution": {
+        "artifact": "full-final.xml",
+        "representative_cases": [
+          {
+            "name": "test_public_rule_entrypoint_is_light_and_restores",
+            "outcome": "passed"
+          },
+          {
+            "name": "test_retired_root_symbols_are_not_public",
+            "outcome": "passed"
+          }
+        ],
+        "file_passed": 2
+      },
+      "current_platform_evidence": [
+        "full-final.xml",
+        "linux-linux-full-shared-final.txt",
+        "clean-consumers-shared-final.json",
+        "linux-linux-final-wheel-consumers.json"
+      ],
+      "supplementary_execution_artifacts": [
+        "node-final.txt",
+        "node-build-final.txt",
+        "pilot-cli-final.txt",
+        "node-pilot-frozen-chain.txt",
+        "pilot-workbench-final.json"
+      ]
+    }
+  ],
+  "missing_final_representative_ids": [],
+  "historical_statement_coverage": {
+    "artifact": "coverage-final-candidate.json",
+    "covered_statements": 7053,
+    "total_statements": 8057,
+    "missing_statements": 1004,
+    "percent_statements": 87.53878614869058,
+    "rounded_display": "88%",
+    "branch_coverage": false,
+    "collection_limits": "独立子进程/Rust不在此Python采集范围；四个保留logging模块零执行，不据此推断退役",
+    "contract_gaps_sent_to_main": [
+      "models._parameters native response_format→SDK请求字段",
+      "Memory.actions注册memory.recall公开调用"
+    ]
+  },
+  "current_resource_conclusion": {
+    "final_container": "single immutable SQLite records(raw_start,raw_bytes)+blocks(id,payload); shared ChunkWriter; functools.lru_cache(maxsize=1) within _open only",
+    "source_records": 1448471,
+    "all_values_equal": true,
+    "old_probe_wall_seconds": 133.698955,
+    "new_probe_wall_seconds": 134.099542,
+    "old_combined_unique_allocated_bytes": 226680832,
+    "new_combined_unique_allocated_bytes": 226680832,
+    "new_peak_rss_bytes": 340480000,
+    "old_peak_rss_bytes": 334716928,
+    "new_100_pages_seconds": 0.0221123,
+    "runtime_1000_pages_seconds": 0.2126929,
+    "range_64_bytes_seconds": 0.0003726,
+    "twenty_step_session_bytes": 2416,
+    "interpretation": "完整成本与旧同量级、空间相同，未宣称整体加速；单次试验、保留OS缓存、固定header投影并非完整业务增长斜率。",
+    "rejected_candidates": {
+      "seekable": "linux-performance-new.json，73倍小页退化反证",
+      "per_record_frames": "linux-performance-sqlite-final.json，846508032B combined unique，约3.73倍空间反证"
+    }
+  },
+  "software_independent_review_gate": {
+    "id": "V07",
+    "status": "complete",
+    "basis": "非产品作者冻结后审查+实际跨插件partial write/cancel/cleanup/Thread-Memory/权限/索引与恢复故障消费者，full-final838复验",
+    "external_gate": "V08保持未完成；V05/V06真实服务与效果另验"
+  }
+}

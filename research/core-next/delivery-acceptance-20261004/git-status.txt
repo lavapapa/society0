@@ -1,0 +1,181 @@
+ M README.md
+ M benchmarks/core_next_cold_datasets_probe.py
+ M benchmarks/core_next_compression_probe.py
+ M benchmarks/core_next_large_root_probe.py
+ M benchmarks/core_next_parity_new.py
+ M benchmarks/core_next_step_cost.py
+ M docs/core-next/PRD.md
+ M docs/core-next/SDD.md
+ M docs/core-next/TODO.md
+ M docs/core-next/cold-datasets-design.md
+ M docs/core-next/composition-contract.md
+ M docs/core-next/implementation-result.md
+ M docs/core-next/installation.md
+ M docs/core-next/interaction-contract.md
+ M docs/core-next/language-decision.md
+ M docs/core-next/llm-contract.md
+ M docs/core-next/models-contract.md
+ M docs/core-next/native-json-design.md
+ M docs/core-next/observation-contract.md
+ M docs/core-next/request-limit-design.md
+ M docs/core-next/runner-contract.md
+ M docs/core-next/storage-contract.md
+ M docs/core-next/thread-contract.md
+ M docs/core-next/workspace-contract.md
+ M examples/core_next/graph_environment.py
+ M examples/core_next/rule_run.py
+ D examples/example_usage.py
+ D examples/misinformation_trust_demo.py
+ M native/society0-filesystem/src/lib.rs
+ M pyproject.toml
+ M research/core-next/provider-profile-20261004.md
+ M skill/SKILL.md
+ M skill/assets/minimal_experiment.py
+ M skill/references/debugging.md
+ M skill/references/engine-components.md
+ M skill/references/environment-design.md
+ M skill/references/organization-workflow-collaboration-simulation-design.md
+ M skill/references/researcher-onboarding.md
+ M skill/references/run-monitor-analyze.md
+ M skill/references/runtime-quickstart.md
+ M skill/references/step-dsl.md
+ M skill/references/study-patterns.md
+ M skill/references/workbench-guide.md
+ M src/society0/__init__.py
+ M src/society0/activation_pool.py
+ M src/society0/kernel/_json_chunks.py
+ M src/society0/kernel/composition.py
+ M src/society0/kernel/datasets.py
+ M src/society0/kernel/information_fs.py
+ M src/society0/kernel/interaction.py
+ M src/society0/kernel/llm.py
+ M src/society0/kernel/memory.py
+ M src/society0/kernel/models.py
+ M src/society0/kernel/observation.py
+ M src/society0/kernel/plugins.py
+ M src/society0/kernel/results.py
+ M src/society0/kernel/runtime.py
+ M src/society0/kernel/schedule.py
+ M src/society0/kernel/services.py
+ M src/society0/kernel/shell.py
+ M src/society0/kernel/storage.py
+ M src/society0/kernel/threads.py
+ M src/society0/kernel/usage.py
+ M src/society0/plugins/__init__.py
+ M src/society0/resource_managers.py
+ M tests/e2e/core_next_real_support.py
+ M tests/e2e/core_next_stub_provider.py
+ M tests/e2e/test_core_next_real.py
+ M tests/experiments/test_core_next_compression_probe.py
+ M tests/experiments/test_core_next_large_root_probe.py
+ M tests/primary/test_activation_pool_shared.py
+ M tests/primary/test_core_directory_kind_review.py
+ M tests/primary/test_core_next_real_structure.py
+ M tests/primary/test_core_real_context.py
+ M tests/primary/test_kernel_action_stats.py
+ M tests/primary/test_kernel_action_timing_review.py
+ M tests/primary/test_kernel_capacity_review.py
+ M tests/primary/test_kernel_cognition.py
+ M tests/primary/test_kernel_cognition_review.py
+ M tests/primary/test_kernel_compression.py
+ M tests/primary/test_kernel_compression_review.py
+ M tests/primary/test_kernel_credentials_review.py
+ M tests/primary/test_kernel_datasets.py
+ M tests/primary/test_kernel_datasets_review.py
+ M tests/primary/test_kernel_discovery_description_review.py
+ M tests/primary/test_kernel_embedding_provider.py
+ M tests/primary/test_kernel_empty_retry_temperature.py
+ M tests/primary/test_kernel_information_large.py
+ M tests/primary/test_kernel_interaction.py
+ M tests/primary/test_kernel_llm.py
+ M tests/primary/test_kernel_llm_paging_review.py
+ M tests/primary/test_kernel_llm_review.py
+ M tests/primary/test_kernel_llm_workspace.py
+ M tests/primary/test_kernel_memory.py
+ M tests/primary/test_kernel_memory_activation.py
+ M tests/primary/test_kernel_memory_activation_review.py
+ M tests/primary/test_kernel_models.py
+ M tests/primary/test_kernel_models_review.py
+ M tests/primary/test_kernel_models_storage_review.py
+ M tests/primary/test_kernel_native_json.py
+ M tests/primary/test_kernel_native_json_review.py
+ M tests/primary/test_kernel_observation_http.py
+ M tests/primary/test_kernel_plugins_review.py
+ M tests/primary/test_kernel_preparation_review.py
+ M tests/primary/test_kernel_provider_fields.py
+ M tests/primary/test_kernel_request_limit.py
+ M tests/primary/test_kernel_request_limit_review.py
+ M tests/primary/test_kernel_result_page_envelope.py
+ M tests/primary/test_kernel_results_envelope_review.py
+ M tests/primary/test_kernel_results_review.py
+ M tests/primary/test_kernel_runner.py
+ M tests/primary/test_kernel_runtime.py
+ M tests/primary/test_kernel_schedule.py
+ M tests/primary/test_kernel_selection.py
+ M tests/primary/test_kernel_services.py
+ M tests/primary/test_kernel_session_transport.py
+ M tests/primary/test_kernel_session_transport_review.py
+ M tests/primary/test_kernel_storage.py
+ M tests/primary/test_kernel_threads.py
+ M tests/primary/test_kernel_threads_review.py
+ M tests/primary/test_kernel_timing.py
+ M tests/primary/test_kernel_tool_choice_audit.py
+ M tests/primary/test_kernel_usage.py
+ M tests/primary/test_kernel_usage_review.py
+ M tests/primary/test_kernel_workspace.py
+ M tests/primary/test_resource_managers_shared.py
+ M tests/primary/test_shared_core_assets.py
+ M tests/primary/test_skill_starter.py
+ M tests/primary/test_skill_starter_review.py
+ M uv.lock
+?? docs/core-next/getting-started.md
+?? docs/core-next/size-and-coverage.md
+?? docs/core-next/subscription-guide.md
+?? docs/core-next/technology-decisions.md
+?? examples/core_next/codex_subscription.py
+?? examples/core_next/parallel_graph.py
+?? native/society0-filesystem/.gitignore
+?? research/core-next/acceptance-20261004/
+?? research/core-next/agent-runtime-study-20261004/
+?? research/core-next/delivery-20261004.md
+?? research/core-next/delivery-acceptance-20261004/
+?? research/core-next/design-selection-review-20261004.md
+?? research/core-next/implementation-pretest-20261004.md
+?? research/core-next/implementation-pretest-size-20261004.json
+?? research/core-next/mature-components-review-20261004.md
+?? research/core-next/onboarding-20261004.md
+?? research/core-next/onboarding-green-20261004.txt
+?? research/core-next/onboarding-red-20261004.txt
+?? research/core-next/onboarding-related-20261004.txt
+?? research/core-next/provider-acceptance-20261004/
+?? research/core-next/provider-selection-20261004.md
+?? research/core-next/provider-selection-offline-20261004/
+?? research/core-next/provider-terminal-offline-20261004/
+?? research/core-next/real-source-archive-89ad172.json
+?? research/core-next/reuse-provider-study-20261004.md
+?? research/core-next/reuse-runtime-study-20261004.md
+?? research/core-next/reuse-storage-study-20261004.md
+?? research/core-next/runtime-selection-20261004.md
+?? research/core-next/runtime-selection/
+?? research/core-next/storage-selection-20261004.md
+?? research/core-next/storage-selection-20261004/
+?? research/legacy-examples-v4/
+?? src/society0/kernel/auth.py
+?? src/society0/kernel/compute.py
+?? src/society0/kernel/model_messages.py
+?? tests/primary/http_server.py
+?? tests/primary/provider_http.py
+?? tests/primary/scripted_provider.py
+?? tests/primary/test_kernel_agent_history_acceptance.py
+?? tests/primary/test_kernel_agent_runtime_acceptance.py
+?? tests/primary/test_kernel_auth_acceptance.py
+?? tests/primary/test_kernel_cache_usage_acceptance.py
+?? tests/primary/test_kernel_compute_acceptance.py
+?? tests/primary/test_kernel_information_fs_acceptance.py
+?? tests/primary/test_kernel_memory_snapshot_acceptance.py
+?? tests/primary/test_kernel_multi_provider_acceptance.py
+?? tests/primary/test_kernel_native_tool_protocol.py
+?? tests/primary/test_kernel_provider_terminals.py
+?? tests/primary/test_kernel_schedule_plans_acceptance.py
+?? tests/primary/test_kernel_stream_usage_acceptance.py
+?? tests/primary/test_researcher_quickstart.py

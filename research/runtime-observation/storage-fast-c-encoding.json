@@ -1,0 +1,23 @@
+{
+  "revision": "working-tree",
+  "records": 204882,
+  "write_seconds": 3.624219292003545,
+  "rss_before": 326336512,
+  "rss_peak": 338657280,
+  "rss_extra": 12320768,
+  "file_bytes": 52858880,
+  "table_bytes": {
+    "chunks": 35348480,
+    "paths": 3792896,
+    "prefixes": 4096,
+    "records": 6131712,
+    "records_path": 3645440,
+    "sqlite_autoindex_paths_1": 3923968,
+    "sqlite_autoindex_prefixes_1": 4096,
+    "sqlite_schema": 4096,
+    "totals": 4096
+  },
+  "page_seconds": 0.000800499998149462,
+  "range_seconds": 0.0001737080019665882,
+  "range_bytes": 50
+}

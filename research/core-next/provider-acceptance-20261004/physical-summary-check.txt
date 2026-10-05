@@ -1,0 +1,1 @@
+PASS: same complete snapshot twice retains 6 unique physical calls and identical totals. Invalid historical input totals excluded. Read-only local artifacts, no provider calls.

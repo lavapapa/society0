@@ -1,0 +1,10 @@
+Resolved 95 packages in 1.41s
+   Building society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
+      Built society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
+Downloading bashkit (12.7MiB)
+ Downloading bashkit
+Prepared 2 packages in 2.29s
+Uninstalled 1 package in 1ms
+Installed 2 packages in 1ms
+ + bashkit==0.18.2
+ ~ society0==5.0.0 (from file:///path/to/workspace/.codex-worktrees/society0-core-next)

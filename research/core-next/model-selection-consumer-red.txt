@@ -1,0 +1,54 @@
+..FF                                                                     [100%]
+=================================== FAILURES ===================================
+__ test_driver_activation_override_preserves_same_thread_and_provider_session __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-482/test_driver_activation_overrid0')
+
+    @pytest.mark.asyncio
+    async def test_driver_activation_override_preserves_same_thread_and_provider_session(tmp_path):
+        from tests.primary.test_kernel_llm import setup,FakeProvider,reply
+        store,threads,first,driver,session,_=setup(tmp_path,[reply(text='first full response')])
+        second=FakeProvider(threads,[reply(text='second full response')])
+        resolver=ModelResolver({'first':first,'second':second},'first')
+        overrides=iter(('first','second'))
+        driver.provider_selector=lambda s:resolver.resolve(s.actor.id,override=next(overrides))
+        try:
+            one=await driver.run(session);tid=one.value['thread_id']
+            identity=threads.describe(tid)['provider_session_id']
+>           two=await driver.run(session)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_model_selection.py:32: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:395: in run
+    response = await self.provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.primary.test_kernel_llm.FakeProvider object at 0x10da759d0>
+thread_id = 'bb6851b252a74f8d982a04945fae62a4'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'Find actions available for a targe...}}, ...], 'parallel_tool_calls': False, 'extra_body': {'metadata': {'session_id': '176a8afe27d1412881e7c984132a2e72'}}}
+
+    async def request(self, thread_id, options):
+        messages = self.threads.read_messages(thread_id)
+        self.requests.append((thread_id, options, messages))
+        self.threads.record_request(thread_id, provider_options=options, physical_request_id=str(len(self.requests)))
+>       response = self.replies.pop(0)
+                   ^^^^^^^^^^^^^^^^^^^
+E       IndexError: pop from empty list
+
+tests/primary/test_kernel_llm.py:39: IndexError
+_ test_reasoning_stage_guidance_and_unknown_output_preserve_original_without_extra_request _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-482/test_reasoning_stage_guidance_0')
+
+    @pytest.mark.asyncio
+    async def test_reasoning_stage_guidance_and_unknown_output_preserve_original_without_extra_request(tmp_path):
+        from tests.primary.test_kernel_llm import setup,reply
+        from society0.kernel.llm import LLMPolicy
+        original='前言原文\n-> stage_begin: observe\n完整观察🙂\n-> stage_begin: new_stage\n未知阶段原文'
+>       policy=LLMPolicy(reasoning_stages=({'name':'observe','desc':'观察完整材料'}, {'name':'decide','desc':'自主决定'}))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: LLMPolicy.__init__() got an unexpected keyword argument 'reasoning_stages'
+
+tests/primary/test_kernel_model_selection.py:45: TypeError

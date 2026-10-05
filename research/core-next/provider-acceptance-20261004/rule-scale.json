@@ -1,0 +1,2174 @@
+[
+  {
+    "run": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 1040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "history": 1000,
+      "actors": 8,
+      "steps": [
+        {
+          "step": 1,
+          "wall_s": 0.014184084022417665,
+          "cpu_s": 0.012573,
+          "timing": {
+            "step": 1,
+            "phase_s": 0.01099129201611504,
+            "finalization_s": 0.002203500014729798,
+            "complete_s": 0.0020791669958271086,
+            "total_s": 0.013199583045206964,
+            "failed": false,
+            "complete_step": 1
+          },
+          "peak_rss_bytes": 38830080,
+          "changeset_bytes": 2536,
+          "directory_bytes": 2301593
+        },
+        {
+          "step": 2,
+          "wall_s": 0.012683084001764655,
+          "cpu_s": 0.011190000000000005,
+          "timing": {
+            "step": 2,
+            "phase_s": 0.01079204201232642,
+            "finalization_s": 0.0013541249791160226,
+            "complete_s": 0.001229209010489285,
+            "total_s": 0.01215033303014934,
+            "failed": false,
+            "complete_step": 2
+          },
+          "peak_rss_bytes": 38944768,
+          "changeset_bytes": 5131,
+          "directory_bytes": 3968865
+        },
+        {
+          "step": 3,
+          "wall_s": 0.01081145799253136,
+          "cpu_s": 0.009114000000000011,
+          "timing": {
+            "step": 3,
+            "phase_s": 0.008995082986075431,
+            "finalization_s": 0.0010875000152736902,
+            "complete_s": 0.001023957971483469,
+            "total_s": 0.010087208996992558,
+            "failed": false,
+            "complete_step": 3
+          },
+          "peak_rss_bytes": 38961152,
+          "changeset_bytes": 7689,
+          "directory_bytes": 4762564
+        },
+        {
+          "step": 4,
+          "wall_s": 0.00774300005286932,
+          "cpu_s": 0.006866999999999998,
+          "timing": {
+            "step": 4,
+            "phase_s": 0.006031083001289517,
+            "finalization_s": 0.0011247079819440842,
+            "complete_s": 0.0010636670049279928,
+            "total_s": 0.007160084031056613,
+            "failed": false,
+            "complete_step": 4
+          },
+          "peak_rss_bytes": 39174144,
+          "changeset_bytes": 10340,
+          "directory_bytes": 4765412
+        },
+        {
+          "step": 5,
+          "wall_s": 0.008554292027838528,
+          "cpu_s": 0.007632,
+          "timing": {
+            "step": 5,
+            "phase_s": 0.006777875008992851,
+            "finalization_s": 0.0011221659951843321,
+            "complete_s": 0.0010600420064292848,
+            "total_s": 0.007902749988716096,
+            "failed": false,
+            "complete_step": 5
+          },
+          "peak_rss_bytes": 39174144,
+          "changeset_bytes": 12924,
+          "directory_bytes": 4821441
+        }
+      ],
+      "initialize_s": 0.022989917022641748,
+      "initialize_peak_rss_bytes": 35782656,
+      "peak_rss_bytes": 39174144,
+      "cpu_s": 0.06857500000000001,
+      "wall_s": 0.0801132500055246,
+      "files": {
+        "current.sqlite": 352256,
+        "writer.lock": 0,
+        "root.sqlite": 282624,
+        "run.json": 7350,
+        "steps/00000000000000000001.json": 196,
+        "steps/00000000000000000000.json": 143,
+        "steps/00000000000000000003.json": 197,
+        "steps/00000000000000000002.json": 197,
+        "steps/00000000000000000005.json": 197,
+        "steps/00000000000000000004.json": 197,
+        "changesets/dc42ae3aa5014827b93690fe3de817c8.changeset.zst": 2536,
+        "changesets/2ea79c2c90844536818db7858d548feb.changeset.zst": 2651,
+        "changesets/59860bad2f354cc59471021ffa4c3a72.changeset.zst": 2595,
+        "changesets/3775fbfafe22467786b3128a00d41a17.changeset.zst": 2584,
+        "changesets/d2e30533fbdf4b6787661334928722da.changeset.zst": 2558
+      },
+      "provider_calls": 0,
+      "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "restore": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 1040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "restore_s": 0.010881374997552484,
+      "cpu_s": 0.010022999999999997,
+      "peak_rss_bytes": 31129600,
+      "files": {
+        "current.sqlite": 352256,
+        "writer.lock": 0,
+        "root.sqlite": 352256,
+        "run.json": 7400,
+        "steps/00000000000000000005.json": 143
+      }
+    }
+  },
+  {
+    "run": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 10040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "history": 10000,
+      "actors": 8,
+      "steps": [
+        {
+          "step": 1,
+          "wall_s": 0.013884208048693836,
+          "cpu_s": 0.012201000000000004,
+          "timing": {
+            "step": 1,
+            "phase_s": 0.011995124979875982,
+            "finalization_s": 0.001280958007555455,
+            "complete_s": 0.0011713330168277025,
+            "total_s": 0.01328083302360028,
+            "failed": false,
+            "complete_step": 1
+          },
+          "peak_rss_bytes": 39043072,
+          "changeset_bytes": 2639,
+          "directory_bytes": 2645760
+        },
+        {
+          "step": 2,
+          "wall_s": 0.010915916005615145,
+          "cpu_s": 0.010009999999999991,
+          "timing": {
+            "step": 2,
+            "phase_s": 0.009290957998018712,
+            "finalization_s": 0.0010872079874388874,
+            "complete_s": 0.0009720419766381383,
+            "total_s": 0.010381833009887487,
+            "failed": false,
+            "complete_step": 2
+          },
+          "peak_rss_bytes": 39157760,
+          "changeset_bytes": 5305,
+          "directory_bytes": 4313103
+        },
+        {
+          "step": 3,
+          "wall_s": 0.009147250035312027,
+          "cpu_s": 0.008228,
+          "timing": {
+            "step": 3,
+            "phase_s": 0.007531291979830712,
+            "finalization_s": 0.0011109579936601222,
+            "complete_s": 0.0010437500313855708,
+            "total_s": 0.008644833986181766,
+            "failed": false,
+            "complete_step": 3
+          },
+          "peak_rss_bytes": 39157760,
+          "changeset_bytes": 7976,
+          "directory_bytes": 5106915
+        },
+        {
+          "step": 4,
+          "wall_s": 0.008184999984223396,
+          "cpu_s": 0.007299,
+          "timing": {
+            "step": 4,
+            "phase_s": 0.006540791015140712,
+            "finalization_s": 0.0010957089834846556,
+            "complete_s": 0.0010387079673819244,
+            "total_s": 0.0076386669534258544,
+            "failed": false,
+            "complete_step": 4
+          },
+          "peak_rss_bytes": 39370752,
+          "changeset_bytes": 10586,
+          "directory_bytes": 5109722
+        },
+        {
+          "step": 5,
+          "wall_s": 0.007969208003487438,
+          "cpu_s": 0.007044999999999996,
+          "timing": {
+            "step": 5,
+            "phase_s": 0.0064323749975301325,
+            "finalization_s": 0.0009647920378483832,
+            "complete_s": 0.0009037920390255749,
+            "total_s": 0.007399666006676853,
+            "failed": false,
+            "complete_step": 5
+          },
+          "peak_rss_bytes": 39370752,
+          "changeset_bytes": 13249,
+          "directory_bytes": 5165830
+        }
+      ],
+      "initialize_s": 0.026877583004534245,
+      "initialize_peak_rss_bytes": 36093952,
+      "peak_rss_bytes": 39370752,
+      "cpu_s": 0.07028300000000001,
+      "wall_s": 0.07969558303011581,
+      "files": {
+        "current.sqlite": 524288,
+        "writer.lock": 0,
+        "root.sqlite": 454656,
+        "run.json": 7350,
+        "steps/00000000000000000001.json": 196,
+        "steps/00000000000000000000.json": 143,
+        "steps/00000000000000000003.json": 197,
+        "steps/00000000000000000002.json": 197,
+        "steps/00000000000000000005.json": 197,
+        "steps/00000000000000000004.json": 197,
+        "changesets/616d334413ee41ffb4338f305be50553.changeset.zst": 2671,
+        "changesets/4838ee0868654b918180a91e083ea26c.changeset.zst": 2666,
+        "changesets/a94ebde0444743c8a5c384f74095436f.changeset.zst": 2610,
+        "changesets/bfee1bcc950f40fd9f8b61f47ad835d3.changeset.zst": 2639,
+        "changesets/71ba261eb26e4403b0e6b146d954baba.changeset.zst": 2663
+      },
+      "provider_calls": 0,
+      "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "restore": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 10040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "restore_s": 0.013095375034026802,
+      "cpu_s": 0.012115,
+      "peak_rss_bytes": 31686656,
+      "files": {
+        "current.sqlite": 524288,
+        "writer.lock": 0,
+        "root.sqlite": 524288,
+        "run.json": 7400,
+        "steps/00000000000000000005.json": 143
+      }
+    }
+  },
+  {
+    "run": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 100040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "history": 100000,
+      "actors": 8,
+      "steps": [
+        {
+          "step": 1,
+          "wall_s": 0.014936375024262816,
+          "cpu_s": 0.013639000000000012,
+          "timing": {
+            "step": 1,
+            "phase_s": 0.013100208016112447,
+            "finalization_s": 0.001241415971890092,
+            "complete_s": 0.0010975829791277647,
+            "total_s": 0.014346292009577155,
+            "failed": false,
+            "complete_step": 1
+          },
+          "peak_rss_bytes": 43302912,
+          "changeset_bytes": 2591,
+          "directory_bytes": 6266576
+        },
+        {
+          "step": 2,
+          "wall_s": 0.01191875000949949,
+          "cpu_s": 0.010832999999999982,
+          "timing": {
+            "step": 2,
+            "phase_s": 0.009770917007699609,
+            "finalization_s": 0.0016464999644085765,
+            "complete_s": 0.0014174579991959035,
+            "total_s": 0.011422500014305115,
+            "failed": false,
+            "complete_step": 2
+          },
+          "peak_rss_bytes": 43433984,
+          "changeset_bytes": 5248,
+          "directory_bytes": 7933910
+        },
+        {
+          "step": 3,
+          "wall_s": 0.010848291974980384,
+          "cpu_s": 0.009527999999999981,
+          "timing": {
+            "step": 3,
+            "phase_s": 0.009008167020510882,
+            "finalization_s": 0.0013127080164849758,
+            "complete_s": 0.0012409159680828452,
+            "total_s": 0.010323791997507215,
+            "failed": false,
+            "complete_step": 3
+          },
+          "peak_rss_bytes": 43433984,
+          "changeset_bytes": 7809,
+          "directory_bytes": 8727612
+        },
+        {
+          "step": 4,
+          "wall_s": 0.008978959056548774,
+          "cpu_s": 0.008014999999999994,
+          "timing": {
+            "step": 4,
+            "phase_s": 0.006853375001810491,
+            "finalization_s": 0.0015649999841116369,
+            "complete_s": 0.0014743339852429926,
+            "total_s": 0.008420958009082824,
+            "failed": false,
+            "complete_step": 4
+          },
+          "peak_rss_bytes": 43597824,
+          "changeset_bytes": 10465,
+          "directory_bytes": 8730465
+        },
+        {
+          "step": 5,
+          "wall_s": 0.00840054202126339,
+          "cpu_s": 0.007369000000000014,
+          "timing": {
+            "step": 5,
+            "phase_s": 0.006719292025081813,
+            "finalization_s": 0.0010841659968718886,
+            "complete_s": 0.0010137080098502338,
+            "total_s": 0.007808084017597139,
+            "failed": false,
+            "complete_step": 5
+          },
+          "peak_rss_bytes": 43597824,
+          "changeset_bytes": 13100,
+          "directory_bytes": 8786545
+        }
+      ],
+      "initialize_s": 0.08598308300133795,
+      "initialize_peak_rss_bytes": 40288256,
+      "peak_rss_bytes": 43597824,
+      "cpu_s": 0.132858,
+      "wall_s": 0.1444808329688385,
+      "files": {
+        "current.sqlite": 2334720,
+        "writer.lock": 0,
+        "root.sqlite": 2265088,
+        "run.json": 7350,
+        "steps/00000000000000000001.json": 196,
+        "steps/00000000000000000000.json": 143,
+        "steps/00000000000000000003.json": 197,
+        "steps/00000000000000000002.json": 197,
+        "steps/00000000000000000005.json": 197,
+        "steps/00000000000000000004.json": 197,
+        "changesets/d26ed1070660407eb2acf976c9042b27.changeset.zst": 2561,
+        "changesets/11bb687dfaa74ce2af6b47509a07b3a7.changeset.zst": 2591,
+        "changesets/72296b142afb44a4848f56fa366f09f4.changeset.zst": 2656,
+        "changesets/ae81c9839a154e67bc184c4a8faec1bc.changeset.zst": 2635,
+        "changesets/0070023381fd40cba86af8a7fab3d8cb.changeset.zst": 2657
+      },
+      "provider_calls": 0,
+      "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "restore": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ]
+      ],
+      "trade_count": 100040,
+      "thread_count": 40,
+      "complete_step": 5,
+      "restore_s": 0.017478832975029945,
+      "cpu_s": 0.016068,
+      "peak_rss_bytes": 35258368,
+      "files": {
+        "current.sqlite": 2334720,
+        "writer.lock": 0,
+        "root.sqlite": 2334720,
+        "run.json": 7400,
+        "steps/00000000000000000005.json": 143
+      }
+    }
+  },
+  {
+    "run": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-10",
+          5
+        ],
+        [
+          "a-11",
+          5
+        ],
+        [
+          "a-12",
+          5
+        ],
+        [
+          "a-13",
+          5
+        ],
+        [
+          "a-14",
+          5
+        ],
+        [
+          "a-15",
+          5
+        ],
+        [
+          "a-16",
+          5
+        ],
+        [
+          "a-17",
+          5
+        ],
+        [
+          "a-18",
+          5
+        ],
+        [
+          "a-19",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-20",
+          5
+        ],
+        [
+          "a-21",
+          5
+        ],
+        [
+          "a-22",
+          5
+        ],
+        [
+          "a-23",
+          5
+        ],
+        [
+          "a-24",
+          5
+        ],
+        [
+          "a-25",
+          5
+        ],
+        [
+          "a-26",
+          5
+        ],
+        [
+          "a-27",
+          5
+        ],
+        [
+          "a-28",
+          5
+        ],
+        [
+          "a-29",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-30",
+          5
+        ],
+        [
+          "a-31",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ],
+        [
+          "a-8",
+          5
+        ],
+        [
+          "a-9",
+          5
+        ]
+      ],
+      "trade_count": 10160,
+      "thread_count": 160,
+      "complete_step": 5,
+      "history": 10000,
+      "actors": 32,
+      "steps": [
+        {
+          "step": 1,
+          "wall_s": 0.03173524996964261,
+          "cpu_s": 0.028738,
+          "timing": {
+            "step": 1,
+            "phase_s": 0.029205749975517392,
+            "finalization_s": 0.0018925420008599758,
+            "complete_s": 0.0018310840241611004,
+            "total_s": 0.031102500041015446,
+            "failed": false,
+            "complete_step": 1
+          },
+          "peak_rss_bytes": 39731200,
+          "changeset_bytes": 7023,
+          "directory_bytes": 5109665
+        },
+        {
+          "step": 2,
+          "wall_s": 0.02452945802360773,
+          "cpu_s": 0.021638000000000004,
+          "timing": {
+            "step": 2,
+            "phase_s": 0.02258545800577849,
+            "finalization_s": 0.0014151250361464918,
+            "complete_s": 0.0013524999958463013,
+            "total_s": 0.024004750011954457,
+            "failed": false,
+            "complete_step": 2
+          },
+          "peak_rss_bytes": 39927808,
+          "changeset_bytes": 13980,
+          "directory_bytes": 5170067
+        },
+        {
+          "step": 3,
+          "wall_s": 0.024801041989121586,
+          "cpu_s": 0.02179600000000001,
+          "timing": {
+            "step": 3,
+            "phase_s": 0.022661458991933614,
+            "finalization_s": 0.0015843749861232936,
+            "complete_s": 0.0014976249658502638,
+            "total_s": 0.02424866601359099,
+            "failed": false,
+            "complete_step": 3
+          },
+          "peak_rss_bytes": 40042496,
+          "changeset_bytes": 20831,
+          "directory_bytes": 5250843
+        },
+        {
+          "step": 4,
+          "wall_s": 0.02489995799260214,
+          "cpu_s": 0.022085999999999995,
+          "timing": {
+            "step": 4,
+            "phase_s": 0.022743290988728404,
+            "finalization_s": 0.0014977079699747264,
+            "complete_s": 0.0014339580084197223,
+            "total_s": 0.02424362499732524,
+            "failed": false,
+            "complete_step": 4
+          },
+          "peak_rss_bytes": 40058880,
+          "changeset_bytes": 27893,
+          "directory_bytes": 5364646
+        },
+        {
+          "step": 5,
+          "wall_s": 0.02463662502123043,
+          "cpu_s": 0.02185099999999998,
+          "timing": {
+            "step": 5,
+            "phase_s": 0.022545416024513543,
+            "finalization_s": 0.0014591250219382346,
+            "complete_s": 0.001384916016831994,
+            "total_s": 0.02400725003099069,
+            "failed": false,
+            "complete_step": 5
+          },
+          "peak_rss_bytes": 40058880,
+          "changeset_bytes": 34999,
+          "directory_bytes": 5437701
+        }
+      ],
+      "initialize_s": 0.028036082978360355,
+      "initialize_peak_rss_bytes": 36274176,
+      "peak_rss_bytes": 40157184,
+      "cpu_s": 0.142467,
+      "wall_s": 0.161425500002224,
+      "files": {
+        "current.sqlite": 761856,
+        "writer.lock": 0,
+        "root.sqlite": 454656,
+        "run.json": 7350,
+        "steps/00000000000000000001.json": 197,
+        "steps/00000000000000000000.json": 143,
+        "steps/00000000000000000003.json": 197,
+        "steps/00000000000000000002.json": 197,
+        "steps/00000000000000000005.json": 197,
+        "steps/00000000000000000004.json": 197,
+        "changesets/1c7295f59de24f188cb10b0fea56c420.changeset.zst": 7062,
+        "changesets/e1a67086a06b43b0bf14583c35e80fd5.changeset.zst": 6851,
+        "changesets/86d472a26a3a479f97687206b4b29a52.changeset.zst": 7106,
+        "changesets/d267cf1cd52c40319cd4d4f92d18cb4c.changeset.zst": 7023,
+        "changesets/223d5da6c55444b6b5b34426eb18f37c.changeset.zst": 6957
+      },
+      "provider_calls": 0,
+      "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "restore": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-10",
+          5
+        ],
+        [
+          "a-11",
+          5
+        ],
+        [
+          "a-12",
+          5
+        ],
+        [
+          "a-13",
+          5
+        ],
+        [
+          "a-14",
+          5
+        ],
+        [
+          "a-15",
+          5
+        ],
+        [
+          "a-16",
+          5
+        ],
+        [
+          "a-17",
+          5
+        ],
+        [
+          "a-18",
+          5
+        ],
+        [
+          "a-19",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-20",
+          5
+        ],
+        [
+          "a-21",
+          5
+        ],
+        [
+          "a-22",
+          5
+        ],
+        [
+          "a-23",
+          5
+        ],
+        [
+          "a-24",
+          5
+        ],
+        [
+          "a-25",
+          5
+        ],
+        [
+          "a-26",
+          5
+        ],
+        [
+          "a-27",
+          5
+        ],
+        [
+          "a-28",
+          5
+        ],
+        [
+          "a-29",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-30",
+          5
+        ],
+        [
+          "a-31",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ],
+        [
+          "a-8",
+          5
+        ],
+        [
+          "a-9",
+          5
+        ]
+      ],
+      "trade_count": 10160,
+      "thread_count": 160,
+      "complete_step": 5,
+      "restore_s": 0.015718750015366822,
+      "cpu_s": 0.014600000000000002,
+      "peak_rss_bytes": 31965184,
+      "files": {
+        "current.sqlite": 761856,
+        "writer.lock": 0,
+        "root.sqlite": 761856,
+        "run.json": 7400,
+        "steps/00000000000000000005.json": 143
+      }
+    }
+  },
+  {
+    "run": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-10",
+          5
+        ],
+        [
+          "a-100",
+          5
+        ],
+        [
+          "a-101",
+          5
+        ],
+        [
+          "a-102",
+          5
+        ],
+        [
+          "a-103",
+          5
+        ],
+        [
+          "a-104",
+          5
+        ],
+        [
+          "a-105",
+          5
+        ],
+        [
+          "a-106",
+          5
+        ],
+        [
+          "a-107",
+          5
+        ],
+        [
+          "a-108",
+          5
+        ],
+        [
+          "a-109",
+          5
+        ],
+        [
+          "a-11",
+          5
+        ],
+        [
+          "a-110",
+          5
+        ],
+        [
+          "a-111",
+          5
+        ],
+        [
+          "a-112",
+          5
+        ],
+        [
+          "a-113",
+          5
+        ],
+        [
+          "a-114",
+          5
+        ],
+        [
+          "a-115",
+          5
+        ],
+        [
+          "a-116",
+          5
+        ],
+        [
+          "a-117",
+          5
+        ],
+        [
+          "a-118",
+          5
+        ],
+        [
+          "a-119",
+          5
+        ],
+        [
+          "a-12",
+          5
+        ],
+        [
+          "a-120",
+          5
+        ],
+        [
+          "a-121",
+          5
+        ],
+        [
+          "a-122",
+          5
+        ],
+        [
+          "a-123",
+          5
+        ],
+        [
+          "a-124",
+          5
+        ],
+        [
+          "a-125",
+          5
+        ],
+        [
+          "a-126",
+          5
+        ],
+        [
+          "a-127",
+          5
+        ],
+        [
+          "a-13",
+          5
+        ],
+        [
+          "a-14",
+          5
+        ],
+        [
+          "a-15",
+          5
+        ],
+        [
+          "a-16",
+          5
+        ],
+        [
+          "a-17",
+          5
+        ],
+        [
+          "a-18",
+          5
+        ],
+        [
+          "a-19",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-20",
+          5
+        ],
+        [
+          "a-21",
+          5
+        ],
+        [
+          "a-22",
+          5
+        ],
+        [
+          "a-23",
+          5
+        ],
+        [
+          "a-24",
+          5
+        ],
+        [
+          "a-25",
+          5
+        ],
+        [
+          "a-26",
+          5
+        ],
+        [
+          "a-27",
+          5
+        ],
+        [
+          "a-28",
+          5
+        ],
+        [
+          "a-29",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-30",
+          5
+        ],
+        [
+          "a-31",
+          5
+        ],
+        [
+          "a-32",
+          5
+        ],
+        [
+          "a-33",
+          5
+        ],
+        [
+          "a-34",
+          5
+        ],
+        [
+          "a-35",
+          5
+        ],
+        [
+          "a-36",
+          5
+        ],
+        [
+          "a-37",
+          5
+        ],
+        [
+          "a-38",
+          5
+        ],
+        [
+          "a-39",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-40",
+          5
+        ],
+        [
+          "a-41",
+          5
+        ],
+        [
+          "a-42",
+          5
+        ],
+        [
+          "a-43",
+          5
+        ],
+        [
+          "a-44",
+          5
+        ],
+        [
+          "a-45",
+          5
+        ],
+        [
+          "a-46",
+          5
+        ],
+        [
+          "a-47",
+          5
+        ],
+        [
+          "a-48",
+          5
+        ],
+        [
+          "a-49",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-50",
+          5
+        ],
+        [
+          "a-51",
+          5
+        ],
+        [
+          "a-52",
+          5
+        ],
+        [
+          "a-53",
+          5
+        ],
+        [
+          "a-54",
+          5
+        ],
+        [
+          "a-55",
+          5
+        ],
+        [
+          "a-56",
+          5
+        ],
+        [
+          "a-57",
+          5
+        ],
+        [
+          "a-58",
+          5
+        ],
+        [
+          "a-59",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-60",
+          5
+        ],
+        [
+          "a-61",
+          5
+        ],
+        [
+          "a-62",
+          5
+        ],
+        [
+          "a-63",
+          5
+        ],
+        [
+          "a-64",
+          5
+        ],
+        [
+          "a-65",
+          5
+        ],
+        [
+          "a-66",
+          5
+        ],
+        [
+          "a-67",
+          5
+        ],
+        [
+          "a-68",
+          5
+        ],
+        [
+          "a-69",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ],
+        [
+          "a-70",
+          5
+        ],
+        [
+          "a-71",
+          5
+        ],
+        [
+          "a-72",
+          5
+        ],
+        [
+          "a-73",
+          5
+        ],
+        [
+          "a-74",
+          5
+        ],
+        [
+          "a-75",
+          5
+        ],
+        [
+          "a-76",
+          5
+        ],
+        [
+          "a-77",
+          5
+        ],
+        [
+          "a-78",
+          5
+        ],
+        [
+          "a-79",
+          5
+        ],
+        [
+          "a-8",
+          5
+        ],
+        [
+          "a-80",
+          5
+        ],
+        [
+          "a-81",
+          5
+        ],
+        [
+          "a-82",
+          5
+        ],
+        [
+          "a-83",
+          5
+        ],
+        [
+          "a-84",
+          5
+        ],
+        [
+          "a-85",
+          5
+        ],
+        [
+          "a-86",
+          5
+        ],
+        [
+          "a-87",
+          5
+        ],
+        [
+          "a-88",
+          5
+        ],
+        [
+          "a-89",
+          5
+        ],
+        [
+          "a-9",
+          5
+        ],
+        [
+          "a-90",
+          5
+        ],
+        [
+          "a-91",
+          5
+        ],
+        [
+          "a-92",
+          5
+        ],
+        [
+          "a-93",
+          5
+        ],
+        [
+          "a-94",
+          5
+        ],
+        [
+          "a-95",
+          5
+        ],
+        [
+          "a-96",
+          5
+        ],
+        [
+          "a-97",
+          5
+        ],
+        [
+          "a-98",
+          5
+        ],
+        [
+          "a-99",
+          5
+        ]
+      ],
+      "trade_count": 10640,
+      "thread_count": 640,
+      "complete_step": 5,
+      "history": 10000,
+      "actors": 128,
+      "steps": [
+        {
+          "step": 1,
+          "wall_s": 0.09471033298177645,
+          "cpu_s": 0.08289400000000001,
+          "timing": {
+            "step": 1,
+            "phase_s": 0.09128474997123703,
+            "finalization_s": 0.002732875000219792,
+            "complete_s": 0.002665166975930333,
+            "total_s": 0.0940222920035012,
+            "failed": false,
+            "complete_step": 1
+          },
+          "peak_rss_bytes": 40894464,
+          "changeset_bytes": 22313,
+          "directory_bytes": 5342163
+        },
+        {
+          "step": 2,
+          "wall_s": 0.08986987499520183,
+          "cpu_s": 0.078906,
+          "timing": {
+            "step": 2,
+            "phase_s": 0.08662229200126603,
+            "finalization_s": 0.0027145420317538083,
+            "complete_s": 0.0026482499670237303,
+            "total_s": 0.08934120798949152,
+            "failed": false,
+            "complete_step": 2
+          },
+          "peak_rss_bytes": 41025536,
+          "changeset_bytes": 44638,
+          "directory_bytes": 5602302
+        },
+        {
+          "step": 3,
+          "wall_s": 0.08692295802757144,
+          "cpu_s": 0.07605100000000004,
+          "timing": {
+            "step": 3,
+            "phase_s": 0.08346766699105501,
+            "finalization_s": 0.0028385420446284115,
+            "complete_s": 0.0027606249786913395,
+            "total_s": 0.08630912500666454,
+            "failed": false,
+            "complete_step": 3
+          },
+          "peak_rss_bytes": 41091072,
+          "changeset_bytes": 66625,
+          "directory_bytes": 5853863
+        },
+        {
+          "step": 4,
+          "wall_s": 0.08923833299195394,
+          "cpu_s": 0.07752999999999999,
+          "timing": {
+            "step": 4,
+            "phase_s": 0.08585416694404557,
+            "finalization_s": 0.002675833005923778,
+            "complete_s": 0.002602624997962266,
+            "total_s": 0.08853291702689603,
+            "failed": false,
+            "complete_step": 4
+          },
+          "peak_rss_bytes": 41418752,
+          "changeset_bytes": 89095,
+          "directory_bytes": 6196067
+        },
+        {
+          "step": 5,
+          "wall_s": 0.09367445897078142,
+          "cpu_s": 0.08018799999999998,
+          "timing": {
+            "step": 5,
+            "phase_s": 0.09032191702863201,
+            "finalization_s": 0.002714583999477327,
+            "complete_s": 0.0026326660299673676,
+            "total_s": 0.09304012497887015,
+            "failed": false,
+            "complete_step": 5
+          },
+          "peak_rss_bytes": 41697280,
+          "changeset_bytes": 111060,
+          "directory_bytes": 6406646
+        }
+      ],
+      "initialize_s": 0.038163833029102534,
+      "initialize_peak_rss_bytes": 36388864,
+      "peak_rss_bytes": 41877504,
+      "cpu_s": 0.4242,
+      "wall_s": 0.4959502079873346,
+      "files": {
+        "current.sqlite": 1654784,
+        "writer.lock": 0,
+        "root.sqlite": 454656,
+        "run.json": 7350,
+        "steps/00000000000000000001.json": 197,
+        "steps/00000000000000000000.json": 143,
+        "steps/00000000000000000003.json": 198,
+        "steps/00000000000000000002.json": 198,
+        "steps/00000000000000000005.json": 198,
+        "steps/00000000000000000004.json": 198,
+        "changesets/195003186ebb497687c3207ebaba2efa.changeset.zst": 21987,
+        "changesets/7350f40bd9634ad69ec2da19e3b33615.changeset.zst": 22313,
+        "changesets/8afc8b54a6004b8c86d82a5499ff6e78.changeset.zst": 21965,
+        "changesets/cde88d9f916c448ca85bda3047fbc1a1.changeset.zst": 22470,
+        "changesets/f34e03a1a5f34bda929a76a663073a17.changeset.zst": 22325
+      },
+      "provider_calls": 0,
+      "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+      "platform": "macOS-26.6.2-arm64-arm-64bit"
+    },
+    "restore": {
+      "balances": [
+        [
+          "a-0",
+          5
+        ],
+        [
+          "a-1",
+          5
+        ],
+        [
+          "a-10",
+          5
+        ],
+        [
+          "a-100",
+          5
+        ],
+        [
+          "a-101",
+          5
+        ],
+        [
+          "a-102",
+          5
+        ],
+        [
+          "a-103",
+          5
+        ],
+        [
+          "a-104",
+          5
+        ],
+        [
+          "a-105",
+          5
+        ],
+        [
+          "a-106",
+          5
+        ],
+        [
+          "a-107",
+          5
+        ],
+        [
+          "a-108",
+          5
+        ],
+        [
+          "a-109",
+          5
+        ],
+        [
+          "a-11",
+          5
+        ],
+        [
+          "a-110",
+          5
+        ],
+        [
+          "a-111",
+          5
+        ],
+        [
+          "a-112",
+          5
+        ],
+        [
+          "a-113",
+          5
+        ],
+        [
+          "a-114",
+          5
+        ],
+        [
+          "a-115",
+          5
+        ],
+        [
+          "a-116",
+          5
+        ],
+        [
+          "a-117",
+          5
+        ],
+        [
+          "a-118",
+          5
+        ],
+        [
+          "a-119",
+          5
+        ],
+        [
+          "a-12",
+          5
+        ],
+        [
+          "a-120",
+          5
+        ],
+        [
+          "a-121",
+          5
+        ],
+        [
+          "a-122",
+          5
+        ],
+        [
+          "a-123",
+          5
+        ],
+        [
+          "a-124",
+          5
+        ],
+        [
+          "a-125",
+          5
+        ],
+        [
+          "a-126",
+          5
+        ],
+        [
+          "a-127",
+          5
+        ],
+        [
+          "a-13",
+          5
+        ],
+        [
+          "a-14",
+          5
+        ],
+        [
+          "a-15",
+          5
+        ],
+        [
+          "a-16",
+          5
+        ],
+        [
+          "a-17",
+          5
+        ],
+        [
+          "a-18",
+          5
+        ],
+        [
+          "a-19",
+          5
+        ],
+        [
+          "a-2",
+          5
+        ],
+        [
+          "a-20",
+          5
+        ],
+        [
+          "a-21",
+          5
+        ],
+        [
+          "a-22",
+          5
+        ],
+        [
+          "a-23",
+          5
+        ],
+        [
+          "a-24",
+          5
+        ],
+        [
+          "a-25",
+          5
+        ],
+        [
+          "a-26",
+          5
+        ],
+        [
+          "a-27",
+          5
+        ],
+        [
+          "a-28",
+          5
+        ],
+        [
+          "a-29",
+          5
+        ],
+        [
+          "a-3",
+          5
+        ],
+        [
+          "a-30",
+          5
+        ],
+        [
+          "a-31",
+          5
+        ],
+        [
+          "a-32",
+          5
+        ],
+        [
+          "a-33",
+          5
+        ],
+        [
+          "a-34",
+          5
+        ],
+        [
+          "a-35",
+          5
+        ],
+        [
+          "a-36",
+          5
+        ],
+        [
+          "a-37",
+          5
+        ],
+        [
+          "a-38",
+          5
+        ],
+        [
+          "a-39",
+          5
+        ],
+        [
+          "a-4",
+          5
+        ],
+        [
+          "a-40",
+          5
+        ],
+        [
+          "a-41",
+          5
+        ],
+        [
+          "a-42",
+          5
+        ],
+        [
+          "a-43",
+          5
+        ],
+        [
+          "a-44",
+          5
+        ],
+        [
+          "a-45",
+          5
+        ],
+        [
+          "a-46",
+          5
+        ],
+        [
+          "a-47",
+          5
+        ],
+        [
+          "a-48",
+          5
+        ],
+        [
+          "a-49",
+          5
+        ],
+        [
+          "a-5",
+          5
+        ],
+        [
+          "a-50",
+          5
+        ],
+        [
+          "a-51",
+          5
+        ],
+        [
+          "a-52",
+          5
+        ],
+        [
+          "a-53",
+          5
+        ],
+        [
+          "a-54",
+          5
+        ],
+        [
+          "a-55",
+          5
+        ],
+        [
+          "a-56",
+          5
+        ],
+        [
+          "a-57",
+          5
+        ],
+        [
+          "a-58",
+          5
+        ],
+        [
+          "a-59",
+          5
+        ],
+        [
+          "a-6",
+          5
+        ],
+        [
+          "a-60",
+          5
+        ],
+        [
+          "a-61",
+          5
+        ],
+        [
+          "a-62",
+          5
+        ],
+        [
+          "a-63",
+          5
+        ],
+        [
+          "a-64",
+          5
+        ],
+        [
+          "a-65",
+          5
+        ],
+        [
+          "a-66",
+          5
+        ],
+        [
+          "a-67",
+          5
+        ],
+        [
+          "a-68",
+          5
+        ],
+        [
+          "a-69",
+          5
+        ],
+        [
+          "a-7",
+          5
+        ],
+        [
+          "a-70",
+          5
+        ],
+        [
+          "a-71",
+          5
+        ],
+        [
+          "a-72",
+          5
+        ],
+        [
+          "a-73",
+          5
+        ],
+        [
+          "a-74",
+          5
+        ],
+        [
+          "a-75",
+          5
+        ],
+        [
+          "a-76",
+          5
+        ],
+        [
+          "a-77",
+          5
+        ],
+        [
+          "a-78",
+          5
+        ],
+        [
+          "a-79",
+          5
+        ],
+        [
+          "a-8",
+          5
+        ],
+        [
+          "a-80",
+          5
+        ],
+        [
+          "a-81",
+          5
+        ],
+        [
+          "a-82",
+          5
+        ],
+        [
+          "a-83",
+          5
+        ],
+        [
+          "a-84",
+          5
+        ],
+        [
+          "a-85",
+          5
+        ],
+        [
+          "a-86",
+          5
+        ],
+        [
+          "a-87",
+          5
+        ],
+        [
+          "a-88",
+          5
+        ],
+        [
+          "a-89",
+          5
+        ],
+        [
+          "a-9",
+          5
+        ],
+        [
+          "a-90",
+          5
+        ],
+        [
+          "a-91",
+          5
+        ],
+        [
+          "a-92",
+          5
+        ],
+        [
+          "a-93",
+          5
+        ],
+        [
+          "a-94",
+          5
+        ],
+        [
+          "a-95",
+          5
+        ],
+        [
+          "a-96",
+          5
+        ],
+        [
+          "a-97",
+          5
+        ],
+        [
+          "a-98",
+          5
+        ],
+        [
+          "a-99",
+          5
+        ]
+      ],
+      "trade_count": 10640,
+      "thread_count": 640,
+      "complete_step": 5,
+      "restore_s": 0.028499709034804255,
+      "cpu_s": 0.026625999999999997,
+      "peak_rss_bytes": 34914304,
+      "files": {
+        "current.sqlite": 1650688,
+        "writer.lock": 0,
+        "root.sqlite": 1650688,
+        "run.json": 7400,
+        "steps/00000000000000000005.json": 143
+      }
+    }
+  }
+]

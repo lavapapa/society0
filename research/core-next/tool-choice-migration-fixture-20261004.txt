@@ -1,0 +1,33 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_auto_restrict_keeps_requested_and_effective_choice_with_thread_request __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-734/test_auto_restrict_keeps_reque0')
+
+    @pytest.mark.asyncio
+    async def test_auto_restrict_keeps_requested_and_effective_choice_with_thread_request(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',1,'decision')
+            threads.append_message(tid,{'role':'user','content':'act'})
+>           provider=ModelProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1',
+                'trust_env':False,'tool_choice_policy':'auto_restrict'}],threads,max_attempts=1)
+
+tests/primary/test_kernel_tool_choice_audit.py:15:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/models.py:115: in __init__
+    self.manager = _Manager(endpoints, global_concurrency=global_concurrency,
+src/society0/resource_managers.py:404: in __init__
+    total = sum(endpoint['concurrency'] for endpoint in endpoints)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <list_iterator object at 0x10c8a3f70>
+
+>   total = sum(endpoint['concurrency'] for endpoint in endpoints)
+                ^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'concurrency'
+
+src/society0/resource_managers.py:404: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_tool_choice_audit.py::test_auto_restrict_keeps_requested_and_effective_choice_with_thread_request
+1 failed in 0.46s

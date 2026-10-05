@@ -1,0 +1,17 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+_________ test_request_snapshot_watermark_survives_interleaved_append __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-322/test_request_snapshot_watermar0')
+
+    def test_request_snapshot_watermark_survives_interleaved_append(tmp_path):
+        store, threads = setup(tmp_path/'run')
+        with store:
+            thread = threads.open('a',0,'decision')
+            old = {'role':'user','content':'before'}
+            threads.append_message(thread,old)
+>           snapshot = threads.snapshot_messages(thread)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'ThreadStore' object has no attribute 'snapshot_messages'
+
+tests/primary/test_kernel_threads.py:202: AttributeError

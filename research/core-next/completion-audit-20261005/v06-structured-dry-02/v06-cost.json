@@ -1,0 +1,10 @@
+{
+  "wall_seconds": 0.07142716704402119,
+  "sdk_intervals": [
+    {
+      "kind": "activation",
+      "started": 569837.128210916,
+      "ended": 569837.157011375
+    }
+  ]
+}

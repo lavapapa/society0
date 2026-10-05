@@ -1,0 +1,10 @@
+{
+  "commit": "working-tree",
+  "records": 204882,
+  "publish_seconds": 4.154062375004287,
+  "rss_before_bytes_macos": 110116864,
+  "rss_peak_bytes_macos": 114556928,
+  "rss_additional_bytes_macos": 4440064,
+  "bytes_written": 54174750,
+  "format_stage": "superseded_per_record_gzip"
+}

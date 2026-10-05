@@ -1,71 +1,29 @@
 # Society0 Core Development Principles
 
-This repository contains the standalone `society0` core simulation library. Future agents should treat these principles as durable constraints unless the project owner explicitly changes them.
+This repository contains the standalone `society0` simulation library. Keep research mechanisms domain independent and preserve the information, actions and recorded facts needed for each study.
 
-## Scope
+## Public runtime
 
-- Work inside `society0core/` for this package. The broader SZU platform is a separate project.
-- The public package name is `society0`.
-- The recommended runtime path is `Society0 + CodeSchedule + step(ctx)`.
-- Legacy YAML workflow code may remain importable, but new runtime features should not depend on legacy schedule compatibility unless requested.
-- Do not add campus-network, private-server, or platform-specific endpoint assumptions to product code or public docs. Optional real e2e tests may read endpoints from the local environment, but the open-source core must stay provider-neutral.
-- Real e2e tests should prefer provider-neutral env vars such as `SOCIETY0_REAL_E2E_LLM_BASE_URL`, `SOCIETY0_REAL_E2E_LLM_MODEL`, `SOCIETY0_REAL_E2E_EMBED_BASE_URL`, and `SOCIETY0_REAL_E2E_EMBED_MODEL`. `SOCIETY0_PLATFORM_ROOT` is only a local maintainer fallback, not the public path.
+Use Plugin, compose, Actor/Driver, Information/Actions and Schedule through RunPlan/run_plan. All actors share an environment; mechanism plugins are internal components of that environment. Schema initialization precedes service installation. Declare actual service dependencies and resource ownership explicitly; data schema prerequisites and service installation order have distinct meanings.
 
-## LLM Agent Integrity
+Rule runs should remain a lightweight path. Optional LLM, memory, social, datasets and shell dependencies are imported by their actual consumers. The public package stays provider neutral; credentials and service addresses belong to the explicit runtime environment, never source or public artifacts.
 
-- Do not replace LLM-based simulation behavior with shortcuts for speed.
-- A selected LLM agent must run the real agent loop through `World.instruct_agent()` or `World.interview_agent()`.
-- Default LLM simulations require both `LLMModel` and `EmbedModel`; memory must initialize successfully on the main `Society0` path.
-- `AgentGroup.instruct(..., retrieve_memory=True)` retrieves existing memory. Durable experience is saved explicitly: open an Agent Thread, pass `thread_ids_by_agent`, then call `extract_thread_memories(...)` after the interaction succeeds.
-- Preserve retrieval and explicit extraction in memory-bearing experiments and LLM-agent e2e tests. Change those mechanisms only when the experiment explicitly studies a no-memory condition.
-- Preserve the full tool/action loop, including action filters, terminal actions, completion action tags, action call limits, reasoning stages, and per-call concurrency. These are semantic modeling controls, not performance shortcuts to remove.
-- `prefer_direct_json_output` is an opt-in path for action-free structured measurement. Do not use it for `instruct` rounds where ordinary tools/actions, terminal actions, required actions, or completion action tags are part of the experimental semantics.
-- Treat `terminal_actions` as semantic endpoints only after the terminal action succeeds. A failed terminal action should return feedback to the agent loop so the agent can correct arguments instead of ending the round prematurely.
-- Treat `required_actions` and `required_action_tags` as loop-level semantic constraints, not only post-hoc assertions. If turns remain and the model stops before satisfying them, the loop should guide the model to correct the missing behavior.
-- Unit tests may use fake managers or fake model responses, but product code must still exercise the same LLM, embedding, memory, FoV, and action plumbing.
-- Real endpoint e2e tests must call actual LLM and embedding endpoints when validating model/runtime changes.
+## Agent integrity
 
-## Env-First Architecture
+LLM behavior uses the complete LLMDriver loop. Retain action discovery, parameter schemas, required actions, success-based completion, action budgets, reasoning guidance and original provider fields. Interview mode is a structured measurement path. Accepted actions, completed actions, waiting and incomplete activations remain distinct. Budget exhaustion or length truncation is incomplete, with original diagnostics preserved.
 
-- Experiments should be designed from the environment outward. The env defines the scene, available FoVs, actions, rules, behaviors, and state transitions that agents can perceive and use.
-- Agents interact through env-provided capabilities or registered experiment-specific logic, not by mutating unrelated internals.
-- Keep general env/system interfaces env-agnostic. If a problem is general, fix the generic abstraction; if it is specific to `social_network`, keep the change in that env.
-- Do not add `social_network`-specific assumptions to `Society0`, `CodeSchedule`, `World`, or generic agent APIs.
-- Capabilities exposed through `ctx.capabilities`, `ctx.rule(...)`, `ctx.behavior(...)`, FoVs, and actions should work for any env that declares them.
+Keep the full Thread. Repeated activation in one Moment retains its interaction identity and incremental perception cursor. Paging improves discovery while preserving totals and access to all original content. Memory writing, recall and active tools are independent activation policies. Preserve explicit experience extraction when the research protocol requires it, within the original Thread lifecycle.
 
-## FoV, Actions, Rules, And Behaviors
+## State and concurrency
 
-- FoVs are read-oriented context for prompts.
-- Actions are tools agents may call during `instruct`; they can change state when the env defines that behavior.
-- `interview` is a measurement path: it may read FoVs and memory, but must not expose ordinary actions by default and must not save memory unless explicitly requested.
-- Rules are environment-level or experiment-level logic called directly from code steps.
-- Behaviors are agent-level or experiment-level logic called directly from code steps for selected agents.
-- Missing capability errors should be researcher-friendly and should not confuse FoVs with actions.
+Trusted mechanism writers update authority, current projection and necessary indexes together using native SQL transactions. Immutable data and workspace files have explicit references covered by complete steps. Hot queries use current indexes rather than replaying history. Large bodies use range reads and declared references; requesting a full object retains its actual materialization cost.
 
-## Concurrency
+Serial phases preserve business order. Independent phases use explicit Phase.capacity or Runtime.capacity; endpoint and shared external-request limits separately control physical requests. Resource cleanup must drain owned tasks before closing dependencies. Complete steps publish after required work and artifacts have settled; recovery creates a new run from a trustworthy complete point.
 
-- Never allow unlimited fan-out for LLM calls.
-- Concurrency priority is: explicit `AgentGroup.instruct/interview(..., concurrency=N)`, then `Society0(agent_concurrency=N)`, then `LLMModel.concurrency`, then default `5`.
-- Behaviors and rules may be lightweight, but anything that calls LLM or embedding resources must respect managed concurrency.
-- Batch runs should emit enough runtime events for users and agents to understand active concurrency, progress, and failures.
+## Changes and evidence
 
-## Logging, Outputs, And State
+Use specifications and failure-first tests for substantial work, reuse mature libraries and existing code, and keep interfaces tied to real consumers. Breaking interface changes do not require compatibility layers. Preserve semantic comparison fixtures under tests/reference with their source commit identity. Historical research and old format evidence retain their version context.
 
-- Default runs should write clean JSONL/JSON outputs: steps, metrics, events, summary, checkpoints, and resource logs where relevant.
-- Avoid raw `print(...)` in runtime paths. Use structured logging or event records.
-- Checkpoints store simulation state. Runtime caches, recommendation caches, and other derived indexes should be rebuildable from state and resources unless explicitly designed as research data.
-- `log_state_changes=True` is a debugging choice, not the default user path.
+Run focused deterministic tests followed by the full deterministic suite. Independent review must challenge actual consumers and failure boundaries. Performance evidence should separate compute, service waiting, encoding, storage, Python/native memory and cold/hot behavior. Compare identical information and business semantics; fewer messages or tools are not sufficient evidence of improvement.
 
-## Testing Expectations
-
-- Add focused primary tests for new public APIs and generic abstractions.
-- Add env-specific tests for env behavior, especially built-in env rules, behaviors, FoVs, actions, and hooks.
-- Add e2e tests for runtime changes that affect model calls, memory, resource managers, persistence, or full experiment flow.
-- For real LLM/embedding behavior, use opt-in real endpoint e2e tests rather than weakening product behavior for local speed.
-- Do not update stale tests by asserting old internals when the public behavior has intentionally changed.
-
-## Worktree Hygiene
-
-- The worktree may contain unrelated user changes. Do not revert changes you did not make.
-- Keep edits scoped to the requested package and behavior.
-- Prefer small, reviewable fixes with tests over broad refactors.
+Real endpoint tests use the explicit SOCIETY0_REAL_* environment contract in tests/e2e/core_next_real_support.py. They validate provider parameters, tool execution, memory and process recovery; deterministic fixtures do not substitute for live evidence. Maintain the capability matrix and task checklist with actual evidence and remaining scope. Publish only when release metadata, source identity, dependencies and validation agree.

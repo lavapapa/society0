@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_small_rows_share_native_blocks_and_large_value_crosses_blocks ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-712/test_small_rows_share_native_b0')
+
+    def test_small_rows_share_native_blocks_and_large_value_crosses_blocks(tmp_path):
+        import apsw
+        values=[{'i':i,'shared':'共同🙂'*10} for i in range(1000)]
+        values.insert(500,{'huge':'汉🙂\\"'*100000,'integer':2**90,'float':1.2345678901234567})
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('grouped',iter(values))
+            connection=apsw.Connection(str(store.path/ref['artifact']),flags=apsw.SQLITE_OPEN_READONLY)
+            try:
+                total=connection.execute('SELECT sum(raw_bytes) FROM records').get
+>               assert connection.execute('SELECT count(*) FROM blocks').get == (total+65535)//65536
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_datasets.py:143: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   apsw.SQLError: no such table: blocks
+
+src/cursor.c:1320: SQLError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_datasets.py::test_small_rows_share_native_blocks_and_large_value_crosses_blocks
+1 failed in 0.09s

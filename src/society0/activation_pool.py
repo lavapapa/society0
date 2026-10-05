@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Hashable
 
@@ -128,7 +129,6 @@ class ActivationPool:
     def __init__(
         self,
         *,
-        world: Any,
         capacity: int,
         concurrency_source: str,
         max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
@@ -139,7 +139,6 @@ class ActivationPool:
             raise ValueError("capacity must be a positive integer") from None
         if parsed_capacity <= 0:
             raise ValueError("capacity must be a positive integer")
-        self.world = world
         self.capacity = parsed_capacity
         self.concurrency_source = str(concurrency_source)
         if max_activations is None:
@@ -154,31 +153,25 @@ class ActivationPool:
         self.max_activations = parsed_max_activations
         self._activation_count = 0
         self._activation_limit_reached = False
-        self._activation_limit_event = asyncio.Event()
         self.closed = False
         self._started = False
-        self._queue: asyncio.Queue[Any] = asyncio.Queue()
+        self._queue = deque()
         self._states: dict[ActivationKey, _ActivationState] = {}
         self._seen_tokens: set[tuple[ActivationKey, Hashable]] = set()
-        self._capacity_semaphore = asyncio.Semaphore(self.capacity)
-        self._serial_locks: dict[Hashable, asyncio.Lock] = {}
-        self._scheduler_task: asyncio.Task[None] | None = None
-        self._execution_tasks: set[asyncio.Task[None]] = set()
-        self._execution_errors: list[BaseException] = []
+        self._serial_active = set()
+        self._workers = []
+        self._failure = None
+        self._changed = asyncio.Event()
         self._results: list[ActivationResult] = []
-        self._sentinel = object()
         self._submission_generation = 0
 
-    async def start(self) -> "ActivationPool":
-        if self.closed:
-            raise RuntimeError("Activation pool is closed")
-        if self._started:
-            return self
+    async def start(self, group: asyncio.TaskGroup) -> "ActivationPool":
+        """工作者归调用方的任务组拥有；邮箱不另建后台调度器。"""
+        if self.closed or self._started:
+            raise RuntimeError("activation pool cannot be started again")
         self._started = True
-        self._scheduler_task = asyncio.create_task(
-            self._scheduler(),
-            name="society0-activation-pool-scheduler",
-        )
+        self._workers = [group.create_task(self._worker(), name=f'activation-worker-{i}')
+                         for i in range(self.capacity)]
         return self
 
     def submit(
@@ -229,69 +222,6 @@ class ActivationPool:
             handler_id=handler_id,
         )
 
-    def instruct(
-        self,
-        agent_id: str,
-        instruction: str,
-        *,
-        key: ActivationKey | None = None,
-        payload: Any = None,
-        dedupe_token: Hashable | None = None,
-        fovs: list[str] | None = None,
-        actions: list[str] | None = None,
-        **options: Any,
-    ) -> ActivationSubmission:
-        """Queue one agent ``instruct`` call under the pool's global bound.
-
-        Static instructions submitted to the same queued round are de-duplicated
-        in arrival order and joined with a blank line.
-        """
-        if not isinstance(instruction, str) or not instruction.strip():
-            raise ValueError("instruction must be a non-empty string")
-        task_key = key if key is not None else ("instruct", str(agent_id))
-        normalized_instruction = instruction.strip()
-        resolved_fovs = tuple(fovs or ())
-        resolved_actions = tuple(actions) if actions is not None else None
-        handler_id = (
-            "instruct",
-            str(agent_id),
-            resolved_fovs,
-            resolved_actions,
-            self._freeze_handler_options(options),
-        )
-
-        async def run(batch: ActivationBatch) -> Any:
-            from .schedule import AgentGroup
-
-            instructions: list[str] = []
-            for signal in batch.signals:
-                text = signal.instruction
-                if text and text not in instructions:
-                    instructions.append(text)
-            return await AgentGroup(self.world, [str(agent_id)]).instruct(
-                "\n\n".join(instructions),
-                fovs=list(resolved_fovs),
-                actions=(
-                    list(resolved_actions)
-                    if resolved_actions is not None
-                    else None
-                ),
-                concurrency=1,
-                **options,
-            )
-
-        signal = ActivationSignal(
-            payload=payload,
-            dedupe_token=dedupe_token,
-            instruction=normalized_instruction,
-        )
-        return self._submit_signal(
-            task_key,
-            run,
-            signal,
-            serial_key=self.agent_serial_key(agent_id),
-            handler_id=handler_id,
-        )
 
     @staticmethod
     def agent_serial_key(agent_id: str) -> tuple[str, str]:
@@ -356,7 +286,7 @@ class ActivationPool:
             signals=[signal],
             serial_key=serial_key,
         )
-        self._queue.put_nowait(key)
+        self._queue.append(key)
         return self._accepted_submission(key, "queued")
 
     enqueue = submit
@@ -366,272 +296,113 @@ class ActivationPool:
         return tuple(self._results)
 
     async def drain(self, *, raise_on_error: bool = True) -> tuple[ActivationResult, ...]:
-        """Wait until all work submitted so far, including follow-up work, is done."""
         while True:
-            generation = self._submission_generation
-            if await self._wait_for_queue_or_activation_limit():
-                raise self._build_activation_limit_error()
-            # Queue.join() can be awakened by a transient zero before another
-            # ready task submits work. Give those ready tasks one turn, then
-            # require both the generation and every internal state to be idle.
-            await asyncio.sleep(0)
+            self._changed.clear()
+            if self._failure is not None:
+                raise ActivationPoolError(tuple(item for item in self._results if item.status == 'error'))
+            if self.closed and not self._is_idle():
+                raise RuntimeError('activation pool was cancelled')
             if self._activation_limit_reached:
                 raise self._build_activation_limit_error()
-            if (
-                generation == self._submission_generation
-                and self._is_idle()
-            ):
-                break
-        if self._execution_errors:
-            details = "; ".join(str(error) or repr(error) for error in self._execution_errors)
-            raise RuntimeError(f"Activation pool scheduler failed: {details}")
-        results = self.results
-        failures = tuple(result for result in results if result.status == "error")
-        if raise_on_error and failures:
+            generation = self._submission_generation
+            if self._is_idle():
+                await asyncio.sleep(0)
+                if generation == self._submission_generation and self._is_idle():
+                    break
+                continue
+            await self._changed.wait()
+        failures = tuple(result for result in self._results if result.status == 'error')
+        if failures and raise_on_error:
             raise ActivationPoolError(failures)
-        return results
-
-    async def _wait_for_queue_or_activation_limit(self) -> bool:
-        """Wait for idle work or stop promptly once the finite budget is hit."""
-
-        if self._activation_limit_reached:
-            return True
-        queue_task = asyncio.create_task(self._queue.join())
-        limit_task = asyncio.create_task(self._activation_limit_event.wait())
-        try:
-            done, _ = await asyncio.wait(
-                {queue_task, limit_task},
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            if limit_task in done and self._activation_limit_reached:
-                return True
-            return False
-        finally:
-            for task in (queue_task, limit_task):
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(queue_task, limit_task, return_exceptions=True)
+        return self.results
 
     @property
     def activations_used(self) -> int:
-        """Number of activation rounds that have started in this session."""
-
         return self._activation_count
 
-    def _build_activation_limit_error(self) -> ActivationLimitError:
-        maximum = self.max_activations
-        if maximum is None:
-            raise RuntimeError("activation limit is not configured")
-        pending_keys = tuple(
-            key
-            for key, state in self._states.items()
-            if state.pending is not None or state.follow_up is not None
-        )
-        active_keys = tuple(
-            key for key, state in self._states.items() if state.running
-        )
-        return ActivationLimitError(
-            maximum=maximum,
-            used=self._activation_count,
-            pending_keys=pending_keys,
-            active_keys=active_keys,
-        )
+    def _build_activation_limit_error(self):
+        return ActivationLimitError(maximum=self.max_activations, used=self._activation_count,
+            pending_keys=tuple(key for key, state in self._states.items()
+                               if state.pending is not None or state.follow_up is not None),
+            active_keys=tuple(key for key, state in self._states.items() if state.running))
 
-    def _accepted_submission(
-        self,
-        key: ActivationKey,
-        disposition: str,
-    ) -> ActivationSubmission:
+    def _accepted_submission(self, key, disposition):
         self._submission_generation += 1
+        self._changed.set()
         return ActivationSubmission(key, disposition, True)
 
-    def _is_idle(self) -> bool:
-        if not self._queue.empty() or self._execution_tasks:
-            return False
-        return not any(
-            state.pending is not None
-            or state.follow_up is not None
-            or state.running
-            for state in self._states.values()
-        )
+    def _is_idle(self):
+        return not self._queue and not any(state.running or state.pending or state.follow_up
+                                          for state in self._states.values())
 
-    @classmethod
-    def _freeze_handler_options(cls, value: Any) -> Hashable:
-        if isinstance(value, dict):
-            return tuple(
-                sorted(
-                    (
-                        str(key),
-                        cls._freeze_handler_options(item),
-                    )
-                    for key, item in value.items()
-                )
-            )
-        if isinstance(value, (list, tuple)):
-            return tuple(cls._freeze_handler_options(item) for item in value)
-        if isinstance(value, set):
-            return frozenset(
-                cls._freeze_handler_options(item) for item in value
-            )
-        try:
-            hash(value)
-        except TypeError:
-            return (type(value).__qualname__, repr(value))
-        return value
+    async def close(self, *, raise_on_error=True):
+        await self.drain(raise_on_error=raise_on_error)
+        self.closed = True
+        self._changed.set()
 
-    async def close(self, *, raise_on_error: bool = True) -> None:
+    def cancel(self):
+        """发出一次取消；等待与资源收束由外层 TaskGroup 负责。"""
         if self.closed:
             return
-        try:
-            await self.drain(raise_on_error=raise_on_error)
-        except asyncio.CancelledError:
-            await self.cancel()
-            raise
-        except ActivationLimitError:
-            await self.cancel()
-            raise
-        except BaseException:
-            await self._stop_runtime()
-            raise
-        try:
-            await self._stop_runtime()
-        except asyncio.CancelledError:
-            await self.cancel()
-            raise
-
-    async def _stop_runtime(self) -> None:
         self.closed = True
-        scheduler = self._scheduler_task
-        if scheduler is not None and not scheduler.done():
-            self._queue.put_nowait(self._sentinel)
-            await asyncio.gather(scheduler, return_exceptions=True)
-        self._scheduler_task = None
+        self._queue.clear()
+        for task in self._workers:
+            if task is not asyncio.current_task() and not task.cancelling():
+                task.cancel()
+        self._changed.set()
 
-    async def cancel(self) -> None:
-        """Cancel running work and discard work that has not started."""
-        scheduler = self._scheduler_task
-        if self.closed and scheduler is None and not self._execution_tasks:
-            return
-        self.closed = True
-        if scheduler is not None:
-            scheduler.cancel()
-            await asyncio.gather(scheduler, return_exceptions=True)
-            self._scheduler_task = None
-        execution_tasks = tuple(self._execution_tasks)
-        for execution_task in execution_tasks:
-            execution_task.cancel()
-        if execution_tasks:
-            await asyncio.gather(*execution_tasks, return_exceptions=True)
-        while True:
+    def _take(self):
+        # 被串行域占用的主体留在邮箱，不占用一个等待中的 worker。
+        for _ in range(len(self._queue)):
+            key = self._queue.popleft()
+            state = self._states[key]
+            if state.serial_key is not None and state.serial_key in self._serial_active:
+                self._queue.append(key)
+                continue
+            if self.max_activations is not None and self._activation_count >= self.max_activations:
+                self._queue.appendleft(key)
+                self._activation_limit_reached = True
+                self._changed.set()
+                return None
+            pending = state.pending
+            state.pending = None
+            state.running = True
+            state.round_count += 1
+            self._activation_count += 1
+            if state.serial_key is not None:
+                self._serial_active.add(state.serial_key)
+            return key, state, pending
+        return None
+
+    async def _worker(self):
+        while not self.closed:
+            self._changed.clear()
+            selected = self._take()
+            if selected is None:
+                if self._activation_limit_reached:
+                    return
+                await self._changed.wait()
+                continue
+            key, state, pending = selected
+            batch = ActivationBatch(key, state.round_count, pending.serial_key, tuple(pending.signals))
             try:
-                self._queue.get_nowait()
-            except asyncio.QueueEmpty:
-                break
+                value = await self._invoke_task(pending.task, batch)
+            except BaseException as error:
+                self._results.append(ActivationResult(key, batch.round, 'error', batch, error=error))
+                if isinstance(error, (asyncio.CancelledError, KeyboardInterrupt, SystemExit)):
+                    if not self.closed:
+                        self._failure = error
+                        self.cancel()
+                    raise
             else:
-                self._queue.task_done()
-        self._states.clear()
-        self._serial_locks.clear()
-
-    async def _scheduler(self) -> None:
-        while True:
-            key = await self._queue.get()
-            if key is self._sentinel:
-                self._queue.task_done()
-                return
-            execution_task = asyncio.create_task(
-                self._execute_key(key),
-                name=f"society0-activation-{key!r}",
-            )
-            self._execution_tasks.add(execution_task)
-            execution_task.add_done_callback(self._execution_done)
-
-    def _execution_done(self, task: asyncio.Task[None]) -> None:
-        self._execution_tasks.discard(task)
-        if not task.cancelled():
-            error = task.exception()
-            if error is not None:
-                self._execution_errors.append(error)
-        self._queue.task_done()
-
-    async def _execute_key(self, key: ActivationKey) -> None:
-        state = self._states.get(key)
-        if state is None or state.pending is None:
-            return
-        serial_key = state.pending.serial_key
-        serial_lock = (
-            self._serial_locks.setdefault(serial_key, asyncio.Lock())
-            if serial_key is not None
-            else None
-        )
-        serial_acquired = False
-        if serial_lock is not None:
-            await serial_lock.acquire()
-            serial_acquired = True
-        try:
-            async with self._capacity_semaphore:
-                state = self._states.get(key)
-                if state is None:
-                    return
-                pending = state.pending
-                if pending is None:
-                    return
-                if (
-                    self.max_activations is not None
-                    and self._activation_count >= self.max_activations
-                ):
-                    self._reach_activation_limit()
-                    return
-                state.pending = None
-                state.running = True
-                state.round_count += 1
-                self._activation_count += 1
-                batch = ActivationBatch(
-                    key=key,
-                    round=state.round_count,
-                    serial_key=pending.serial_key,
-                    signals=tuple(pending.signals),
-                )
-                try:
-                    value = await self._invoke_task(pending.task, batch)
-                except (asyncio.CancelledError, Exception) as exc:
-                    self._results.append(
-                        ActivationResult(
-                            key=key,
-                            round=batch.round,
-                            status="error",
-                            batch=batch,
-                            error=exc,
-                        )
-                    )
-                else:
-                    self._results.append(
-                        ActivationResult(
-                            key=key,
-                            round=batch.round,
-                            status="success",
-                            batch=batch,
-                            value=value,
-                        )
-                    )
-                finally:
-                    state.running = False
-                    if state.follow_up is not None:
-                        state.pending = state.follow_up
-                        state.follow_up = None
-                        if self._activation_limit_reached or (
-                            self.max_activations is not None
-                            and self._activation_count >= self.max_activations
-                        ):
-                            self._reach_activation_limit()
-                        else:
-                            self._queue.put_nowait(key)
-        finally:
-            if serial_lock is not None and serial_acquired:
-                serial_lock.release()
-
-    def _reach_activation_limit(self) -> None:
-        self._activation_limit_reached = True
-        self._activation_limit_event.set()
+                self._results.append(ActivationResult(key, batch.round, 'success', batch, value=value))
+            finally:
+                state.running = False
+                self._serial_active.discard(state.serial_key)
+                if state.follow_up is not None and not self.closed:
+                    state.pending, state.follow_up = state.follow_up, None
+                    self._queue.append(key)
+                self._changed.set()
 
     async def _invoke_task(self, task: ActivationCallable, batch: ActivationBatch) -> Any:
         try:
@@ -650,55 +421,3 @@ class ActivationPool:
         if accepts_batch:
             return await invoke_maybe_async(task, batch)
         return await invoke_maybe_async(task)
-
-
-class ActivationPoolSession:
-    """Bind an :class:`ActivationPool` to an environment for one step block."""
-
-    def __init__(
-        self,
-        *,
-        context: Any,
-        concurrency: int | None = None,
-        max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
-    ) -> None:
-        from .schedule import _resolve_agent_call_concurrency_info
-
-        self._env = context.env
-        self._previous_pool: Any = None
-        capacity, source = _resolve_agent_call_concurrency_info(
-            context.world,
-            explicit_concurrency=concurrency,
-            model_id=None,
-        )
-        self.pool = ActivationPool(
-            world=context.world,
-            capacity=capacity,
-            concurrency_source=source,
-            max_activations=max_activations,
-        )
-
-    async def __aenter__(self) -> ActivationPool:
-        active_pool = getattr(self._env, "activation_pool", None)
-        if active_pool is not None:
-            raise RuntimeError("Environment already has an active activation pool")
-        self._previous_pool = active_pool
-        self._env.activation_pool = self.pool
-        try:
-            await self.pool.start()
-        except BaseException:
-            if getattr(self._env, "activation_pool", None) is self.pool:
-                self._env.activation_pool = self._previous_pool
-            raise
-        return self.pool
-
-    async def __aexit__(self, exc_type: Any, exc: Any, traceback: Any) -> bool:
-        try:
-            if exc_type is None:
-                await self.pool.close()
-            else:
-                await self.pool.cancel()
-        finally:
-            if getattr(self._env, "activation_pool", None) is self.pool:
-                self._env.activation_pool = self._previous_pool
-        return False

@@ -1,0 +1,16 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_review_closed_reader_rejects_artifact_operation _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-576/test_review_closed_reader_reje0')
+
+    def test_review_closed_reader_rejects_artifact_operation(tmp_path):
+        with StageStore.create(tmp_path/'run',[]) as store:
+            ref=store.prepare_artifact([b'original'])
+            reader=StageReader(store.path)
+            with reader:assert reader.read_artifact(ref)==(b'original',8)
+>           with pytest.raises(StorageError,match='closed'):reader.read_artifact(ref)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_reader_reuse_review.py:32: Failed

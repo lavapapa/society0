@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_social_public_profile_has_subjective_public_fields_and_recent_original_preview _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-508/test_social_public_profile_has0')
+
+    @pytest.mark.asyncio
+    async def test_social_public_profile_has_subjective_public_fields_and_recent_original_preview(tmp_path):
+        actors=actor_plugin({'rule':lambda record:None},records=[
+            ActorRecord('a','rule',persona='私有画像',state={'interests':['经济','技术'],'mood':'平静'},config={'type':'researcher','archetype':'llm'}),
+            ActorRecord('b','rule')])
+        async with compose(tmp_path/'run',[actors,interaction_plugin(lambda *args:True),social_plugin('ab',edges=[],content_length_limit=-1)]) as host:
+            social=host.service('social','mechanism')
+            text='🙂汉字'*1000
+            social.execute('publish_post','a','a',{'content':text},1)
+            result=social.profile('a')
+>           assert result['type']=='researcher' and result['archetype']=='llm'
+                   ^^^^^^^^^^^^^^
+E           KeyError: 'type'
+
+tests/primary/test_plugin_social.py:323: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_public_profile_has_subjective_public_fields_and_recent_original_preview
+1 failed, 21 deselected in 0.26s

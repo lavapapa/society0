@@ -1,0 +1,16 @@
+........F                                                                [100%]
+=================================== FAILURES ===================================
+___________ test_find_receipts_and_artifacts_survive_process_restore ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-309/test_find_receipts_and_artifac0')
+
+    def test_find_receipts_and_artifacts_survive_process_restore(tmp_path):
+        store, threads = setup(tmp_path/'run')
+        with store:
+            moment = {'time':1,'phase':'decision'}
+            thread = threads.open('a',moment,'decision')
+>           assert threads.find('a',{'phase':'decision','time':1}) == thread
+                   ^^^^^^^^^^^^
+E           AttributeError: 'ThreadStore' object has no attribute 'find'
+
+tests/primary/test_kernel_threads.py:176: AttributeError

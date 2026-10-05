@@ -1,0 +1,22 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_extraction_snapshot_ownership_matches_consumer[True] ___________
+tests/primary/test_kernel_memory_snapshot_acceptance.py:48: in test_extraction_snapshot_ownership_matches_consumer
+    job = await memory.extract_job('a', thread, through=threads.describe(thread)['last_seq'], timestamp=1)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:147: in scoped
+    return await method(self,*args,**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:546: in extract_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:542: in prepare
+    entries=await self.extract(actor,thread_id,snapshot['messages'],metadata={'through':through,'job_key':key})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:628: in __call__
+    response=await self.provider.request(thread_id,{'tools':[_extraction_tool()],
+tests/primary/test_kernel_memory_snapshot_acceptance.py:35: in request
+    assert references[-1]() is None
+E   AssertionError: assert [{'role': 'system', 'content': '完整背景'}, {'role': 'user', 'content': '完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂...身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂'}] is None
+E    +  where [{'role': 'system', 'content': '完整背景'}, {'role': 'user', 'content': '完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂...身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂完整亲身经历🙂'}] = <weakref at 0x10977dbc0; to 'SnapshotMessages' at 0x10977db30>()
+1 failed, 1 passed in 1.52s

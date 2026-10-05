@@ -1,0 +1,17 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_complete_steps_preserve_identical_account_effects[memory] ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-865/test_complete_steps_preserve_i2')
+mode = 'memory'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['rule','llm','memory'])
+    async def test_complete_steps_preserve_identical_account_effects(tmp_path,mode):
+        result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+        assert result['balances']==[('actor-0',2),('actor-1',2)]
+        assert result['complete_step']==2 and len(result['steps'])==2
+>       assert result['provider_calls']==(8 if mode=='memory' else (4 if mode=='llm' else 0))
+E       assert 0 == 8
+
+tests/experiments/test_core_next_step_cost.py:11: AssertionError

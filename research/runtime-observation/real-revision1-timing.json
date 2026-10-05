@@ -1,0 +1,1383 @@
+{
+  "wall_seconds": 248.59885346516967,
+  "exitstatus": 1,
+  "timings": [
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "pytest.setup",
+      "seconds": 0.0023540519177913666,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "EmbeddingManager.request",
+      "seconds": 1.093108620494604
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "LLMManager.request",
+      "seconds": 0.176613699644804
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "EmbeddingManager.close",
+      "seconds": 0.00020814687013626099
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "LLMManager.close",
+      "seconds": 7.675588130950928e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "pytest.call",
+      "seconds": 2.8346753232181072,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_smoke_llm_and_embedding",
+      "stage": "pytest.teardown",
+      "seconds": 0.0009472258388996124,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "pytest.setup",
+      "seconds": 0.0005079358816146851,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.1823975369334221
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.2690750062465668
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.2688421346247196
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.26881981268525124
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.268799539655447
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.268784262239933
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.27153580263257027
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.2719879001379013
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.2725263833999634
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.27311718463897705
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.32037562131881714
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.request",
+      "seconds": 0.321051936596632
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "EmbeddingManager.close",
+      "seconds": 0.000203598290681839
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "LLMManager.close",
+      "seconds": 0.0001925826072692871
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "pytest.call",
+      "seconds": 0.3356582708656788,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_endpoint_saturation_llm_and_embedding_managers",
+      "stage": "pytest.teardown",
+      "seconds": 0.0007117614150047302,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "pytest.setup",
+      "seconds": 0.004271607846021652,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.01235080137848854
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "Society0.__init__",
+      "seconds": 0.017992820590734482
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 4.110505886375904
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012153387069702148
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "Society0._initialize",
+      "seconds": 4.758106958121061
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 0.6045177951455116
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "LLMManager.request",
+      "seconds": 1.0511167421936989
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "Society0._save_summary",
+      "seconds": 0.799683541059494
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012865662574768066
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00013644248247146606
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "LLMManager.close",
+      "seconds": 0.00023416057229042053
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "EmbeddingManager.close",
+      "seconds": 2.864748239517212e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0002683401107788086
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "Society0.run",
+      "seconds": 9.64684547111392
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "pytest.call",
+      "seconds": 9.666927065700293,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_interview_e2e_writes_artifacts",
+      "stage": "pytest.teardown",
+      "seconds": 0.0008670128881931305,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "pytest.setup",
+      "seconds": 0.00307328999042511,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.0077476538717746735
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "Society0.__init__",
+      "seconds": 0.013598192483186722
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 5.449324291199446
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011165812611579895
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "Society0._initialize",
+      "seconds": 6.081266690045595
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 1.078240778297186
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.8401388861238956
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.9315837174654007
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.8795250616967678
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.9382879845798016
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.9750114046037197
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 1.0113270543515682
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 1.3851986713707447
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 1.6754424571990967
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 1.941899798810482
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 2.306166496127844
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 2.6282839365303516
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 3.690635062754154
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 2.458447437733412
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 7.936125095933676
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 10.051253043115139
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 12.98249314725399
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 14.530332814902067
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 17.79515178874135
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.9571894332766533
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.8276112005114555
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.764918390661478
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.6671479009091854
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.44532274827361107
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.16474218294024467
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 0.8303222320973873
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 1.2490782290697098
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 2.1250040754675865
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 2.5398425348103046
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 3.1786382608115673
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.request",
+      "seconds": 3.334135513752699
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "Society0._save_summary",
+      "seconds": 1.3934457413852215
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00013538822531700134
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.0001428462564945221
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "LLMManager.close",
+      "seconds": 0.0004632920026779175
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "EmbeddingManager.close",
+      "seconds": 8.175522089004517e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.000551518052816391
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "Society0.run",
+      "seconds": 45.38886037096381
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "pytest.call",
+      "seconds": 45.436478178948164,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs",
+      "stage": "pytest.teardown",
+      "seconds": 0.0011738240718841553,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.0030566230416297913,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.008623234927654266
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.01436583697795868
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 2.4041822776198387
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011964887380599976
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 2.8676922023296356
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 2.036001954227686
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.7996123321354389
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.7547113038599491
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.3009460866451263
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012496113777160645
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00013058632612228394
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0002248920500278473
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 2.8219074010849e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0002570636570453644
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "Society0.run",
+      "seconds": 11.319664120674133
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "pytest.call",
+      "seconds": 11.350617978721857,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0009204968810081482,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.00287005677819252,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.007463417947292328
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013057392090559006
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 3.631030485033989
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012364238500595093
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 3.8881245777010918
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 0.5805268883705139
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.8107763044536114
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.338830728083849
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.05861133337020874
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.07030164077877998
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.8154544979333878
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 2.7656503915786743
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00013838335871696472
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00014427676796913147
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.00022311881184577942
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 7.967650890350342e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.00030697882175445557
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "Society0.run",
+      "seconds": 16.734886664897203
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "pytest.call",
+      "seconds": 16.83550137653947,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_memory_roundtrip_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0010487399995326996,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.0031408779323101044,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.008252814412117004
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013796400278806686
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 2.5263827592134476
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011352822184562683
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 2.9580534733831882
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 0.8545263782143593
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.8289800509810448
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.540683802217245
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.06527063250541687
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.06492164358496666
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.8239719159901142
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.1383187025785446
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012582167983055115
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00013129040598869324
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.000214502215385437
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 7.465481758117676e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0002926476299762726
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "Society0.run",
+      "seconds": 13.79364811629057
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "pytest.call",
+      "seconds": 13.861034471541643,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_explicit_transactions_memory_roundtrip_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0007715374231338501,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.0029294975101947784,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.0076200105249881744
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013252746313810349
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 11.13165083900094
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011936202645301819
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 12.215999312698841
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 2.2138657681643963
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.7834349647164345
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.0116437673568726
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.0122845768928528
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.000142708420753479
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.0001482926309108734
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0002833269536495209
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 2.950429916381836e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.00031668320298194885
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "Society0.run",
+      "seconds": 18.767883215099573
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "pytest.call",
+      "seconds": 18.855837531387806,
+      "outcome": "failed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0009010210633277893,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.003060217946767807,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.007809717208147049
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.01321721076965332
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 1.448081273585558
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011986494064331055
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 15.67328005284071
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 0.8064608387649059
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.3819424100220203
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.3900676295161247
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.09152792021632195
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 3.1547421887516975
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011846795678138733
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.0001238808035850525
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0002953372895717621
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 9.296461939811707e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0003919340670108795
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "Society0.run",
+      "seconds": 25.761931724846363
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "pytest.call",
+      "seconds": 25.853537879884243,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0009652674198150635,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.0028653480112552643,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.007792286574840546
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013452962040901184
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 1.9383219964802265
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011617690324783325
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 2.0602860264480114
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 0.8432990610599518
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.7485201358795166
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.5584413819015026
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00011936575174331665
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.0001250132918357849
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0002366676926612854
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 2.917274832725525e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0002699419856071472
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "Society0.run",
+      "seconds": 7.322282828390598
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "pytest.call",
+      "seconds": 7.40268324688077,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0009871162474155426,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.003179352730512619,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.0076849982142448425
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013249903917312622
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 2.6707521229982376
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00013431906700134277
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 3.2260592579841614
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 1.2693297751247883
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.7367937564849854
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.6494786478579044
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.447189997881651
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012515485286712646
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00013047829270362854
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.00020942091941833496
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 2.7667731046676636e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.00024079158902168274
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "Society0.run",
+      "seconds": 12.4803426861763
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "pytest.call",
+      "seconds": 12.511204343289137,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0010592490434646606,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.0029501914978027344,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.007552463561296463
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.01310480386018753
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 4.342420406639576
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00010930374264717102
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 6.0638422556221485
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 1.205187413841486
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.5538338497281075
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.2518944442272186
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.4166642352938652
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 0.41735999286174774
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.311845403164625
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.7677382193505764
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 1.172128763049841
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012764334678649902
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00013319402933120728
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0003007464110851288
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 3.152713179588318e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.0003363005816936493
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "Society0.run",
+      "seconds": 17.7569092027843
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "pytest.call",
+      "seconds": 17.800981037318707,
+      "outcome": "failed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0010049603879451752,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "pytest.setup",
+      "seconds": 0.003006860613822937,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager.__init__",
+      "seconds": 0.008144788444042206
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "Society0.__init__",
+      "seconds": 0.013693466782569885
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager._create_chroma_client",
+      "seconds": 4.595818143337965
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00012930110096931458
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "Society0._initialize",
+      "seconds": 5.811640627682209
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager.publish_root",
+      "seconds": 1.4865080416202545
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.4190204180777073
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.316215757280588
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.06776817888021469
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.06956937909126282
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "EmbeddingManager.request",
+      "seconds": 0.09717245399951935
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 1.1995237544178963
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "LLMManager.request",
+      "seconds": 2.480212777853012
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "Society0._save_summary",
+      "seconds": 3.6264597587287426
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager._sync_chroma_to_store",
+      "seconds": 0.00013886019587516785
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "PersistenceManager.close",
+      "seconds": 0.00014465302228927612
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "LLMManager.close",
+      "seconds": 0.0002865232527256012
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "EmbeddingManager.close",
+      "seconds": 8.238479495048523e-05
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "Society0._close_model_managers",
+      "seconds": 0.00037294626235961914
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "Society0.run",
+      "seconds": 27.050133004784584
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "pytest.call",
+      "seconds": 27.17683419212699,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e",
+      "stage": "pytest.teardown",
+      "seconds": 0.0013159625232219696,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_real_process_recovery.py::test_real_exit_restore_memory_and_observation",
+      "stage": "pytest.setup",
+      "seconds": 0.003063283860683441,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_real_process_recovery.py::test_real_exit_restore_memory_and_observation",
+      "stage": "pytest.call",
+      "seconds": 34.36036415025592,
+      "outcome": "passed"
+    },
+    {
+      "test": "tests/e2e/test_real_process_recovery.py::test_real_exit_restore_memory_and_observation",
+      "stage": "pytest.teardown",
+      "seconds": 0.0002785623073577881,
+      "outcome": "passed"
+    }
+  ]
+}

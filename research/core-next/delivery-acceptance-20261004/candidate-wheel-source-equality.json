@@ -1,0 +1,8 @@
+{
+  "source": "source-candidate.tar.gz",
+  "wheel": "social-final/society0-6.0.0-py3-none-any.whl",
+  "python_files": 47,
+  "same_file_set": true,
+  "direct_bytes_equal": true,
+  "reuse_node_installation_evidence": true
+}

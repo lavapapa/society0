@@ -190,7 +190,7 @@ append-only 历史总量 `H_t` 和 replaceable map 中未修改的 entry 数量�
 ### 阶段 B：完整 World 与运行时生命周期
 
 - [x] 覆盖 Agent state/properties/reminders 和框架固定字段。
-- [x] 在 `Society0.run` 与 `SimEngine` 中接入 begin/seal/abort，保证最多一个 sealed delta。
+- [x] 在 `Society0.run` 中接入 begin/seal/abort，保证最多一个 sealed delta。
 - [x] 接入 Thread immutable manifest，补齐取消、marker 前后故障和背压。
 - [x] 加入随机多 Tick 状态机测试与恢复等价验证。
 - [x] 真实运行 plain、round-robin、social-network 与外部产业链 Env，并从各自

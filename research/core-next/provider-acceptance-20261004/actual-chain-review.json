@@ -1,0 +1,2082 @@
+[
+  {
+    "run": "test_real_endpoint_smoke_llm_and_embedding",
+    "calls": [
+      {
+        "physical_id": "b2961c28ac014945a8c7ba1b8f5ed83d",
+        "usage": {
+          "input_tokens": 1542,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 78,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1542,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1542,
+          "completion_tokens": 78,
+          "cache_read_tokens": 0,
+          "total_tokens": 1620
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "4b1957723f5640c1b7bfc4cd849450ab",
+        "usage": {
+          "input_tokens": 1691,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 76,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1691,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1691,
+          "completion_tokens": 76,
+          "cache_read_tokens": 0,
+          "total_tokens": 1767
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "c07d4d0ab3bc47e5b52cd64cc2b602d0",
+        "usage": {
+          "input_tokens": 1838,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 49,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1838,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1838,
+          "completion_tokens": 49,
+          "cache_read_tokens": 0,
+          "total_tokens": 1887
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "c2e8260220024fb4bb7e7270333d2cd0",
+        "usage": {
+          "input_tokens": 1926,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 4,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1926,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1926,
+          "completion_tokens": 4,
+          "cache_read_tokens": 0,
+          "total_tokens": 1930
+        },
+        "continuous": true
+      }
+    ],
+    "dialogs": [
+      {
+        "thread_id": "ee3f4c4a1f2c42f0bcc6546cf3872549",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "9a62af7773754dfca1091f034696cd57",
+          "status": "completed",
+          "last_seq": 25,
+          "message_count": 11,
+          "ordinal": 1,
+          "id": "ee3f4c4a1f2c42f0bcc6546cf3872549"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "请用一句话回答测试已就绪。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10658bf4dcdd69d32e6debe4c4e50",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"default\", \"kind\": \"agent\", \"key\": \"a\"}, \"query\": \"测试\", \"limit\": 20, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10658bf4dcdd69d32e6debe4c4e50",
+            "content": "{\"items\": [], \"total\": 0, \"next_cursor\": null, \"revision\": [\"02a150b7ad844ac4bda43a6648191a84\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10658ccc90e7bbdcddf26dfa2d96a",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"default\", \"kind\": \"agent\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 50, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10658ccc90e7bbdcddf26dfa2d96a",
+            "content": "{\"items\": [], \"total\": 0, \"next_cursor\": null, \"revision\": [\"02a150b7ad844ac4bda43a6648191a84\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10658da232777a23a7ba71a43bec9",
+                "type": "function",
+                "function": {
+                  "name": "data_list",
+                  "arguments": "{\"path\": \"/\", \"limit\": 50, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10658da232777a23a7ba71a43bec9",
+            "content": "{\"items\": [], \"total\": 0, \"next_cursor\": null, \"revision\": null}"
+          },
+          {
+            "role": "assistant",
+            "content": "测试已就绪。"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "actor": null,
+      "timing_scope": "sum_of_physical_attempt_wall_times",
+      "attribution": "physical_calls_once",
+      "totals": {
+        "requests": 5,
+        "responses": 5,
+        "errors": 0,
+        "input_tokens": 7007,
+        "output_tokens": 207,
+        "total_tokens": 7214,
+        "input_reports": 5,
+        "output_reports": 4,
+        "total_reports": 5,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 4,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 1,
+        "duration_s": 39.31555912399199,
+        "queue_s": 3.620609641075134e-05,
+        "jitter_s": 0.0,
+        "provider_s": 39.31126966688316,
+        "duration_reports": 5,
+        "queue_reports": 5,
+        "jitter_reports": 5,
+        "provider_reports": 5,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 1,
+        "unknown_cache_write_calls": 5
+      },
+      "models": [
+        {
+          "kind": "llm",
+          "model": "Qwen/Qwen3.8-27B",
+          "requests": 4,
+          "responses": 4,
+          "errors": 0,
+          "input_tokens": 6997,
+          "output_tokens": 207,
+          "total_tokens": 7204,
+          "input_reports": 4,
+          "output_reports": 4,
+          "total_reports": 4,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 4,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 0,
+          "duration_s": 39.08469337399583,
+          "queue_s": 3.0247087124735117e-05,
+          "jitter_s": 0.0,
+          "provider_s": 39.08144954190357,
+          "duration_reports": 4,
+          "queue_reports": 4,
+          "jitter_reports": 4,
+          "provider_reports": 4,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 0,
+          "unknown_cache_write_calls": 4
+        },
+        {
+          "kind": "embedding",
+          "model": "Qwen/Qwen3-Embedding-0.6B",
+          "requests": 1,
+          "responses": 1,
+          "errors": 0,
+          "input_tokens": 10,
+          "output_tokens": 0,
+          "total_tokens": 10,
+          "input_reports": 1,
+          "output_reports": 0,
+          "total_reports": 1,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 0,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 1,
+          "duration_s": 0.2308657499961555,
+          "queue_s": 5.959009286016226e-06,
+          "jitter_s": 0.0,
+          "provider_s": 0.22982012497959659,
+          "duration_reports": 1,
+          "queue_reports": 1,
+          "jitter_reports": 1,
+          "provider_reports": 1,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 1,
+          "unknown_cache_write_calls": 1
+        }
+      ]
+    }
+  },
+  {
+    "run": "test_real_round_robin_action_loop",
+    "calls": [
+      {
+        "physical_id": "730efc0624954f4bb041da0e7e4f3459",
+        "usage": {
+          "input_tokens": 1583,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 76,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1583,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1583,
+          "completion_tokens": 76,
+          "cache_read_tokens": 0,
+          "total_tokens": 1659
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "98d7ed743e2140828db95bf4e0c86293",
+        "usage": {
+          "input_tokens": 1827,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 58,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1827,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1827,
+          "completion_tokens": 58,
+          "cache_read_tokens": 0,
+          "total_tokens": 1885
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "2bd2e1d0171e470fba27efee8f8291d2",
+        "usage": {
+          "input_tokens": 1989,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 77,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1989,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1989,
+          "completion_tokens": 77,
+          "cache_read_tokens": 0,
+          "total_tokens": 2066
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "7b0e0434a3bb4bf99aee5a1ea56f51bc",
+        "usage": {
+          "input_tokens": 1583,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 76,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1583,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1583,
+          "completion_tokens": 76,
+          "cache_read_tokens": 0,
+          "total_tokens": 1659
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "8d01210d7350476b9e9a6362fa81fc8e",
+        "usage": {
+          "input_tokens": 1827,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 58,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1827,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1827,
+          "completion_tokens": 58,
+          "cache_read_tokens": 0,
+          "total_tokens": 1885
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "96fe1c99a3644e0c837b2071c00e54dc",
+        "usage": {
+          "input_tokens": 1989,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 77,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1989,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1989,
+          "completion_tokens": 77,
+          "cache_read_tokens": 0,
+          "total_tokens": 2066
+        },
+        "continuous": true
+      }
+    ],
+    "dialogs": [
+      {
+        "thread_id": "1e9d29a27b57485abfc7516057fdf3c9",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "34700570f2874547aaf31b03989ff39e",
+          "status": "completed",
+          "last_seq": 24,
+          "message_count": 10,
+          "ordinal": 1,
+          "id": "1e9d29a27b57485abfc7516057fdf3c9"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "你本轮的行动目标是 {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}。发现并描述可用行动，向已配对伙伴发送一次且仅一次原文“共同讨论产业预期”，然后结束。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10658f296d8bc1a0846edbe60ddfd",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 50, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10658f296d8bc1a0846edbe60ddfd",
+            "content": "{\"items\": [{\"name\": \"chat.send_message_to_partner\", \"description\": \"发送完整消息给当前伙伴。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.broadcast_to_group\", \"description\": \"向当前小组其他成员广播完整消息。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.mark_conversation_participant\", \"description\": \"保存本主体的对话参与标记。\", \"terminal\": false, \"tags\": []}], \"total\": 3, \"next_cursor\": null, \"revision\": [\"d1bb4894dd634bf0a9f51c17667e954b\", 1]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065901b5430c7da975c26c2721c5",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065901b5430c7da975c26c2721c5",
+            "content": "{\"name\": \"chat.send_message_to_partner\", \"target_kind\": [\"chat\", \"participants\"], \"description\": \"发送完整消息给当前伙伴。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\"}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106590df0a8dade2fef625165f8f1",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106590df0a8dade2fef625165f8f1",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"round\": 1, \"delivered\": [{\"receiver\": \"b\", \"message_id\": 1}], \"sent_to\": \"b\", \"message_id\": 1}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+          }
+        ]
+      },
+      {
+        "thread_id": "41947685ea8041a2bd3c6c85a9b37121",
+        "head": {
+          "actor": "b",
+          "kind": "decision",
+          "provider_session_id": "eec7a07bdf0c47e2ba40c12a37554a8f",
+          "status": "completed",
+          "last_seq": 24,
+          "message_count": 10,
+          "ordinal": 2,
+          "id": "41947685ea8041a2bd3c6c85a9b37121"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 b。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "你本轮的行动目标是 {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"b\"}。发现并描述可用行动，向已配对伙伴发送一次且仅一次原文“共同讨论产业预期”，然后结束。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106591b1f38bfbe2ac4166dfa839a",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"b\"}, \"query\": \"\", \"limit\": 50, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106591b1f38bfbe2ac4166dfa839a",
+            "content": "{\"items\": [{\"name\": \"chat.send_message_to_partner\", \"description\": \"发送完整消息给当前伙伴。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.broadcast_to_group\", \"description\": \"向当前小组其他成员广播完整消息。\", \"terminal\": false, \"tags\": []}, {\"name\": \"chat.mark_conversation_participant\", \"description\": \"保存本主体的对话参与标记。\", \"terminal\": false, \"tags\": []}], \"total\": 3, \"next_cursor\": null, \"revision\": [\"d1bb4894dd634bf0a9f51c17667e954b\", 1]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065928dcb194c1b338ac5a8849ab",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"b\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065928dcb194c1b338ac5a8849ab",
+            "content": "{\"name\": \"chat.send_message_to_partner\", \"target_kind\": [\"chat\", \"participants\"], \"description\": \"发送完整消息给当前伙伴。\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\"}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106593246620693eaf889ee583258",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"chat.send_message_to_partner\", \"target\": {\"namespace\": \"chat\", \"kind\": \"participants\", \"key\": \"b\"}, \"arguments\": {\"content\": \"共同讨论产业预期\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106593246620693eaf889ee583258",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"round\": 1, \"delivered\": [{\"receiver\": \"a\", \"message_id\": 2}], \"sent_to\": \"a\", \"message_id\": 2}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "actor": null,
+      "timing_scope": "sum_of_physical_attempt_wall_times",
+      "attribution": "physical_calls_once",
+      "totals": {
+        "requests": 6,
+        "responses": 6,
+        "errors": 0,
+        "input_tokens": 10798,
+        "output_tokens": 422,
+        "total_tokens": 11220,
+        "input_reports": 6,
+        "output_reports": 6,
+        "total_reports": 6,
+        "cache_read_tokens": 0,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 6,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 19.55077337595867,
+        "queue_s": 3.699806984513998e-05,
+        "jitter_s": 0.0,
+        "provider_s": 19.54627554200124,
+        "duration_reports": 6,
+        "queue_reports": 6,
+        "jitter_reports": 6,
+        "provider_reports": 6,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 6
+      },
+      "models": [
+        {
+          "kind": "llm",
+          "model": "Qwen/Qwen3.8-27B",
+          "requests": 6,
+          "responses": 6,
+          "errors": 0,
+          "input_tokens": 10798,
+          "output_tokens": 422,
+          "total_tokens": 11220,
+          "input_reports": 6,
+          "output_reports": 6,
+          "total_reports": 6,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 6,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 0,
+          "duration_s": 19.55077337595867,
+          "queue_s": 3.699806984513998e-05,
+          "jitter_s": 0.0,
+          "provider_s": 19.54627554200124,
+          "duration_reports": 6,
+          "queue_reports": 6,
+          "jitter_reports": 6,
+          "provider_reports": 6,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 0,
+          "unknown_cache_write_calls": 6
+        }
+      ]
+    },
+    "chat_messages": [
+      [
+        1,
+        "a",
+        "b",
+        1,
+        1791107864.302648,
+        {
+          "bytes_hex": "e585b1e5908ce8aea8e8aebae4baa7e4b89ae9a284e69c9f"
+        }
+      ],
+      [
+        2,
+        "b",
+        "a",
+        1,
+        1791107873.458498,
+        {
+          "bytes_hex": "e585b1e5908ce8aea8e8aebae4baa7e4b89ae9a284e69c9f"
+        }
+      ]
+    ]
+  },
+  {
+    "run": "test_real_exit_restore_memory_and_observation/restored",
+    "calls": [
+      {
+        "physical_id": "24eb77803ece4b73a38d39973ec291ef",
+        "usage": {
+          "input_tokens": 1599,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 55,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1599,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1599,
+          "completion_tokens": 55,
+          "cache_read_tokens": 0,
+          "total_tokens": 1654
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "bcfaf77971d7464fa7f509c180151c90",
+        "usage": {
+          "input_tokens": 1685,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 76,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1685,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1685,
+          "completion_tokens": 76,
+          "cache_read_tokens": 0,
+          "total_tokens": 1761
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "4cf80dda137b4840bf98891300f0f302",
+        "usage": {
+          "input_tokens": 1951,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 56,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1951,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1951,
+          "completion_tokens": 56,
+          "cache_read_tokens": 0,
+          "total_tokens": 2007
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "e94605dbf94f44ca806faee89abfe586",
+        "usage": {
+          "input_tokens": 2122,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 84,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2122,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2122,
+          "completion_tokens": 84,
+          "cache_read_tokens": 0,
+          "total_tokens": 2206
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "505523aaab824561b126c516fa1bd4d1",
+        "usage": {
+          "input_tokens": 2350,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 45,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2350,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2350,
+          "completion_tokens": 45,
+          "cache_read_tokens": 0,
+          "total_tokens": 2395
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "eebbb1ec9c4e42dda325f4679e64d8be",
+        "usage": {
+          "input_tokens": 1500,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 50,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1500,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1500,
+          "completion_tokens": 50,
+          "cache_read_tokens": 0,
+          "total_tokens": 1550
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "052d91451067452ea92c704f484ec3e3",
+        "usage": {
+          "input_tokens": 1586,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 77,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1586,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1586,
+          "completion_tokens": 77,
+          "cache_read_tokens": 0,
+          "total_tokens": 1663
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "866090f497a04f4e8bd42cb5fe129e23",
+        "usage": {
+          "input_tokens": 1850,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 56,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1850,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1850,
+          "completion_tokens": 56,
+          "cache_read_tokens": 0,
+          "total_tokens": 1906
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "e1eb67a389d8482393691c0423f8144d",
+        "usage": {
+          "input_tokens": 2047,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 95,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2047,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2047,
+          "completion_tokens": 95,
+          "cache_read_tokens": 0,
+          "total_tokens": 2142
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "287e2583099f460d8962c6b34b875861",
+        "usage": {
+          "input_tokens": 2225,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 2048,
+          "output_tokens": 67,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 2048,
+            "prompt_cache_miss_tokens": 177,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2225,
+          "completion_tokens": 67,
+          "cache_read_tokens": 2048,
+          "total_tokens": 2292
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "018bbaacd5ca47f6bb6d1d8a94742a95",
+        "usage": {
+          "input_tokens": 1397,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 50,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1397,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1397,
+          "completion_tokens": 50,
+          "cache_read_tokens": 0,
+          "total_tokens": 1447
+        },
+        "continuous": true
+      }
+    ],
+    "dialogs": [
+      {
+        "thread_id": "e5e158b111434a4c8fcf8daf4d07e61a",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "94ee363a5ea94ada9055d804d34399e2",
+          "status": "completed",
+          "last_seq": 43,
+          "message_count": 18,
+          "ordinal": 2,
+          "id": "e5e158b111434a4c8fcf8daf4d07e61a"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "请从先前记忆指出订单代码与已经收款金额。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "user",
+            "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+          },
+          {
+            "role": "user",
+            "content": "{\"recalled_memories\": [\"B42订单已经收款500元。\"]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659a6e2973d2865af8f51fa586f",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"memory_list\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659a6e2973d2865af8f51fa586f",
+            "content": "{\"error\": \"Unavailable\", \"message\": \"action unavailable\"}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659aeda348778d70ce54b35dca3",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 50, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659aeda348778d70ce54b35dca3",
+            "content": "{\"items\": [{\"name\": \"memory.update\", \"description\": \"修改该主体已经保存的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.delete\", \"description\": \"删除该主体当前可见的记忆，保留既往时点版本\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.remember\", \"description\": \"保存主体明确选择的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.recall\", \"description\": \"检索该主体的相关记忆\", \"terminal\": false, \"tags\": []}], \"total\": 4, \"next_cursor\": null, \"revision\": [\"f74b21d7d2974e4f8f4d08d54af20c2b\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659b915e33d05d42e82b8e97b75",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"memory.recall\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659b915e33d05d42e82b8e97b75",
+            "content": "{\"name\": \"memory.recall\", \"target_kind\": [\"memory\", \"actor\"], \"description\": \"检索该主体的相关记忆\", \"parameters\": {\"type\": \"object\", \"properties\": {\"query\": {\"type\": \"string\"}, \"top_k\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"query\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": true}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659c100a4d09fef5d7670a92384",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"memory.recall\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"arguments\": {\"query\": \"订单代码 收款金额\", \"top_k\": 10}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659c100a4d09fef5d7670a92384",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memories\": [{\"id\": \"762d4768b09e418585f8356a4cde114e\", \"type\": \"episodic\", \"content\": \"B42订单已经收款500元。\", \"score\": 0.7673363659254875}]}, \"process\": null, \"terminal\": false}, \"observation\": {\"known_facts\": [], \"repeated_facts\": []}}"
+          },
+          {
+            "role": "assistant",
+            "content": "根据先前记忆：\n\n- **订单代码**：B42\n- **已收款金额**：500 元\n\n（记忆原文：\"B42订单已经收款500元。\"）"
+          },
+          {
+            "role": "user",
+            "content": "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，由你自己判断哪些经验会影响今后的决策。只调用 extract_memories 工具。每条记忆用第一人称表达，最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，不要复制原始 JSON、表格、重复空白或大段带转义符的文本。如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。importance 取 0 到 5。如果没有值得形成长期记忆的内容，返回 {\"memories\": []}。"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659d344815402f5015923b1fa24",
+                "type": "function",
+                "function": {
+                  "name": "extract_memories",
+                  "arguments": "{\"memories\": [{\"content\": \"B42订单已经收款500元。\", \"importance\": 4}]}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659d344815402f5015923b1fa24",
+            "content": "{\"accepted\": true, \"error\": null}"
+          }
+        ]
+      },
+      {
+        "thread_id": "eb2919bfa7b044d68d3bf3d2496a974b",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "166c1b39ba8344968189a3210a616548",
+          "status": "completed",
+          "last_seq": 36,
+          "message_count": 15,
+          "ordinal": 1,
+          "id": "eb2919bfa7b044d68d3bf3d2496a974b"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "重要经历：B42订单已经收款500元。请原样确认这条必须记住的信息。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "user",
+            "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659429b18fd45f6d4b7639a1058",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 100, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659429b18fd45f6d4b7639a1058",
+            "content": "{\"items\": [{\"name\": \"memory.update\", \"description\": \"修改该主体已经保存的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.delete\", \"description\": \"删除该主体当前可见的记忆，保留既往时点版本\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.remember\", \"description\": \"保存主体明确选择的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.recall\", \"description\": \"检索该主体的相关记忆\", \"terminal\": false, \"tags\": []}], \"total\": 4, \"next_cursor\": null, \"revision\": [\"15e8938d647d4be5a801df5187889aaa\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106594d0cca7d1ade8a00cc22877d",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106594d0cca7d1ade8a00cc22877d",
+            "content": "{\"name\": \"memory.remember\", \"target_kind\": [\"memory\", \"actor\"], \"description\": \"保存主体明确选择的记忆\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\", \"minLength\": 1}, \"importance\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 5}, \"type\": {\"enum\": [\"episodic\", \"semantic\"]}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106595540c6c432fab3a53b200907",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"arguments\": {\"content\": \"B42订单已经收款500元。\", \"type\": \"episodic\", \"importance\": 5}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106595540c6c432fab3a53b200907",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memory_ids\": [\"762d4768b09e418585f8356a4cde114e\"]}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+          },
+          {
+            "role": "assistant",
+            "content": "已原样确认并记住这条信息：\n\n**B42订单已经收款500元。**\n\n（已保存为高重要性记忆，memory_id: 762d4768b09e418585f8356a4cde114e）"
+          },
+          {
+            "role": "user",
+            "content": "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，由你自己判断哪些经验会影响今后的决策。只调用 extract_memories 工具。每条记忆用第一人称表达，最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，不要复制原始 JSON、表格、重复空白或大段带转义符的文本。如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。importance 取 0 到 5。如果没有值得形成长期记忆的内容，返回 {\"memories\": []}。"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065969b612d87031b8962132cb28",
+                "type": "function",
+                "function": {
+                  "name": "extract_memories",
+                  "arguments": "{\"memories\": [{\"content\": \"B42订单已经收款500元。\", \"importance\": 5}]}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065969b612d87031b8962132cb28",
+            "content": "{\"accepted\": true, \"error\": null}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "actor": null,
+      "timing_scope": "sum_of_physical_attempt_wall_times",
+      "attribution": "physical_calls_once",
+      "totals": {
+        "requests": 16,
+        "responses": 16,
+        "errors": 0,
+        "input_tokens": 20357,
+        "output_tokens": 711,
+        "total_tokens": 21068,
+        "input_reports": 16,
+        "output_reports": 11,
+        "total_reports": 16,
+        "cache_read_tokens": 2048,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 11,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 6,
+        "duration_s": 34.15364891703939,
+        "queue_s": 0.00010312499944120646,
+        "jitter_s": 0.0,
+        "provider_s": 34.14339375315467,
+        "duration_reports": 16,
+        "queue_reports": 16,
+        "jitter_reports": 16,
+        "provider_reports": 16,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 5,
+        "unknown_cache_write_calls": 16
+      },
+      "models": [
+        {
+          "kind": "llm",
+          "model": "Qwen/Qwen3.8-27B",
+          "requests": 11,
+          "responses": 11,
+          "errors": 0,
+          "input_tokens": 20312,
+          "output_tokens": 711,
+          "total_tokens": 21023,
+          "input_reports": 11,
+          "output_reports": 11,
+          "total_reports": 11,
+          "cache_read_tokens": 2048,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 11,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 0,
+          "duration_s": 31.62412737600971,
+          "queue_s": 7.258303230628371e-05,
+          "jitter_s": 0.0,
+          "provider_s": 31.615955669083633,
+          "duration_reports": 11,
+          "queue_reports": 11,
+          "jitter_reports": 11,
+          "provider_reports": 11,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 0,
+          "unknown_cache_write_calls": 11
+        },
+        {
+          "kind": "embedding",
+          "model": "Qwen/Qwen3-Embedding-0.6B",
+          "requests": 5,
+          "responses": 5,
+          "errors": 0,
+          "input_tokens": 45,
+          "output_tokens": 0,
+          "total_tokens": 45,
+          "input_reports": 5,
+          "output_reports": 0,
+          "total_reports": 5,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 0,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 6,
+          "duration_s": 2.5295215410296805,
+          "queue_s": 3.054196713492274e-05,
+          "jitter_s": 0.0,
+          "provider_s": 2.5274380840710364,
+          "duration_reports": 5,
+          "queue_reports": 5,
+          "jitter_reports": 5,
+          "provider_reports": 5,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 5,
+          "unknown_cache_write_calls": 5
+        }
+      ]
+    },
+    "memories": [
+      {
+        "id": "27154718727749bf806b7b1cb2712870",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      },
+      {
+        "id": "762d4768b09e418585f8356a4cde114e",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      },
+      {
+        "id": "6ca2ae939c724903885fd6fca8cf85ad",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      }
+    ],
+    "decision_answer": "根据先前记忆：\n\n- **订单代码**：B42\n- **已收款金额**：500 元\n\n（记忆原文：\"B42订单已经收款500元。\"）"
+  },
+  {
+    "run": "test_real_exit_restore_memory_and_observation/source",
+    "calls": [
+      {
+        "physical_id": "6cbf6968ebf04ff187490607b542f0dd",
+        "usage": {
+          "input_tokens": 1610,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 77,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1610,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1610,
+          "completion_tokens": 77,
+          "cache_read_tokens": 0,
+          "total_tokens": 1687
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "c98489bd6ff54593b5669984af7bae5d",
+        "usage": {
+          "input_tokens": 1874,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 56,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1874,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1874,
+          "completion_tokens": 56,
+          "cache_read_tokens": 0,
+          "total_tokens": 1930
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "ab27ab30db094059b2a3f8ad2bae57d6",
+        "usage": {
+          "input_tokens": 2071,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 95,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2071,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2071,
+          "completion_tokens": 95,
+          "cache_read_tokens": 0,
+          "total_tokens": 2166
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "79e98ea37d72492ab21adb9189659b69",
+        "usage": {
+          "input_tokens": 2246,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 65,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2246,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2246,
+          "completion_tokens": 65,
+          "cache_read_tokens": 0,
+          "total_tokens": 2311
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "61417023d1da43209979d2845a0fe582",
+        "usage": {
+          "input_tokens": 1416,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 61,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1416,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1416,
+          "completion_tokens": 61,
+          "cache_read_tokens": 0,
+          "total_tokens": 1477
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "052d91451067452ea92c704f484ec3e3",
+        "usage": {
+          "input_tokens": 1586,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 77,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1586,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1586,
+          "completion_tokens": 77,
+          "cache_read_tokens": 0,
+          "total_tokens": 1663
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "866090f497a04f4e8bd42cb5fe129e23",
+        "usage": {
+          "input_tokens": 1850,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 56,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1850,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1850,
+          "completion_tokens": 56,
+          "cache_read_tokens": 0,
+          "total_tokens": 1906
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "e1eb67a389d8482393691c0423f8144d",
+        "usage": {
+          "input_tokens": 2047,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 95,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 2047,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2047,
+          "completion_tokens": 95,
+          "cache_read_tokens": 0,
+          "total_tokens": 2142
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "287e2583099f460d8962c6b34b875861",
+        "usage": {
+          "input_tokens": 2225,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 2048,
+          "output_tokens": 67,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 2048,
+            "prompt_cache_miss_tokens": 177,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 2225,
+          "completion_tokens": 67,
+          "cache_read_tokens": 2048,
+          "total_tokens": 2292
+        },
+        "continuous": true
+      },
+      {
+        "physical_id": "018bbaacd5ca47f6bb6d1d8a94742a95",
+        "usage": {
+          "input_tokens": 1397,
+          "cache_write_tokens": 0,
+          "cache_read_tokens": 0,
+          "output_tokens": 50,
+          "input_audio_tokens": 0,
+          "cache_audio_read_tokens": 0,
+          "output_audio_tokens": 0,
+          "audio_seconds": 0.0,
+          "details": {
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 1397,
+            "reasoning_tokens": 0
+          },
+          "cost": null,
+          "output_reasoning_tokens": 0
+        },
+        "normalized": {
+          "prompt_tokens": 1397,
+          "completion_tokens": 50,
+          "cache_read_tokens": 0,
+          "total_tokens": 1447
+        },
+        "continuous": true
+      }
+    ],
+    "dialogs": [
+      {
+        "thread_id": "e5506f6c0638441da7afa555d612703a",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "f73a0e46742e40cd95eed3ed2901554f",
+          "status": "completed",
+          "last_seq": 38,
+          "message_count": 16,
+          "ordinal": 2,
+          "id": "e5506f6c0638441da7afa555d612703a"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "重要经历：B42订单已经收款500元。请原样确认这条必须记住的信息。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "user",
+            "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+          },
+          {
+            "role": "user",
+            "content": "{\"recalled_memories\": [\"B42订单已经收款500元。\"]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065971a082bf4d68788a931090a2",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 100, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065971a082bf4d68788a931090a2",
+            "content": "{\"items\": [{\"name\": \"memory.update\", \"description\": \"修改该主体已经保存的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.delete\", \"description\": \"删除该主体当前可见的记忆，保留既往时点版本\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.remember\", \"description\": \"保存主体明确选择的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.recall\", \"description\": \"检索该主体的相关记忆\", \"terminal\": false, \"tags\": []}], \"total\": 4, \"next_cursor\": null, \"revision\": [\"15e8938d647d4be5a801df5187889aaa\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106597be271aca16a3e83de18c968",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106597be271aca16a3e83de18c968",
+            "content": "{\"name\": \"memory.remember\", \"target_kind\": [\"memory\", \"actor\"], \"description\": \"保存主体明确选择的记忆\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\", \"minLength\": 1}, \"importance\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 5}, \"type\": {\"enum\": [\"episodic\", \"semantic\"]}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065984183e45a778f6f878f9d11f",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"arguments\": {\"content\": \"B42订单已经收款500元。\", \"type\": \"episodic\", \"importance\": 5}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065984183e45a778f6f878f9d11f",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memory_ids\": [\"c4d3568169bb4f5fbb1319691d579def\"]}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+          },
+          {
+            "role": "assistant",
+            "content": "已原样确认并记住这条必须记住的信息：\n\n**B42订单已经收款500元。**\n\n（已保存为高重要性记忆，memory_id: c4d3568169bb4f5fbb1319691d579def）"
+          },
+          {
+            "role": "user",
+            "content": "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，由你自己判断哪些经验会影响今后的决策。只调用 extract_memories 工具。每条记忆用第一人称表达，最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，不要复制原始 JSON、表格、重复空白或大段带转义符的文本。如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。importance 取 0 到 5。如果没有值得形成长期记忆的内容，返回 {\"memories\": []}。"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106599911a3fb7a0ca3b7bd7c7501",
+                "type": "function",
+                "function": {
+                  "name": "extract_memories",
+                  "arguments": "{\"memories\": [{\"content\": \"B42订单已经收款500元。这是被明确要求记住的信息，供后续互动使用。\", \"importance\": 5}]}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106599911a3fb7a0ca3b7bd7c7501",
+            "content": "{\"accepted\": true, \"error\": null}"
+          }
+        ]
+      },
+      {
+        "thread_id": "eb2919bfa7b044d68d3bf3d2496a974b",
+        "head": {
+          "actor": "a",
+          "kind": "decision",
+          "provider_session_id": "166c1b39ba8344968189a3210a616548",
+          "status": "completed",
+          "last_seq": 36,
+          "message_count": 15,
+          "ordinal": 1,
+          "id": "eb2919bfa7b044d68d3bf3d2496a974b"
+        },
+        "messages": [
+          {
+            "role": "system",
+            "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+          },
+          {
+            "role": "user",
+            "content": "当前主观状态\n{}"
+          },
+          {
+            "role": "user",
+            "content": "重要经历：B42订单已经收款500元。请原样确认这条必须记住的信息。"
+          },
+          {
+            "role": "user",
+            "content": "本次激活信号\n[null]"
+          },
+          {
+            "role": "user",
+            "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a10659429b18fd45f6d4b7639a1058",
+                "type": "function",
+                "function": {
+                  "name": "action_find",
+                  "arguments": "{\"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"query\": \"\", \"limit\": 100, \"cursor\": null}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a10659429b18fd45f6d4b7639a1058",
+            "content": "{\"items\": [{\"name\": \"memory.update\", \"description\": \"修改该主体已经保存的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.delete\", \"description\": \"删除该主体当前可见的记忆，保留既往时点版本\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.remember\", \"description\": \"保存主体明确选择的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.recall\", \"description\": \"检索该主体的相关记忆\", \"terminal\": false, \"tags\": []}], \"total\": 4, \"next_cursor\": null, \"revision\": [\"15e8938d647d4be5a801df5187889aaa\", 0]}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106594d0cca7d1ade8a00cc22877d",
+                "type": "function",
+                "function": {
+                  "name": "action_describe",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106594d0cca7d1ade8a00cc22877d",
+            "content": "{\"name\": \"memory.remember\", \"target_kind\": [\"memory\", \"actor\"], \"description\": \"保存主体明确选择的记忆\", \"parameters\": {\"type\": \"object\", \"properties\": {\"content\": {\"type\": \"string\", \"minLength\": 1}, \"importance\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 5}, \"type\": {\"enum\": [\"episodic\", \"semantic\"]}}, \"required\": [\"content\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": false}"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a106595540c6c432fab3a53b200907",
+                "type": "function",
+                "function": {
+                  "name": "action_invoke",
+                  "arguments": "{\"name\": \"memory.remember\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}, \"arguments\": {\"content\": \"B42订单已经收款500元。\", \"type\": \"episodic\", \"importance\": 5}}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a106595540c6c432fab3a53b200907",
+            "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memory_ids\": [\"762d4768b09e418585f8356a4cde114e\"]}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+          },
+          {
+            "role": "assistant",
+            "content": "已原样确认并记住这条信息：\n\n**B42订单已经收款500元。**\n\n（已保存为高重要性记忆，memory_id: 762d4768b09e418585f8356a4cde114e）"
+          },
+          {
+            "role": "user",
+            "content": "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，由你自己判断哪些经验会影响今后的决策。只调用 extract_memories 工具。每条记忆用第一人称表达，最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，不要复制原始 JSON、表格、重复空白或大段带转义符的文本。如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。importance 取 0 到 5。如果没有值得形成长期记忆的内容，返回 {\"memories\": []}。"
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "01a1065969b612d87031b8962132cb28",
+                "type": "function",
+                "function": {
+                  "name": "extract_memories",
+                  "arguments": "{\"memories\": [{\"content\": \"B42订单已经收款500元。\", \"importance\": 5}]}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "01a1065969b612d87031b8962132cb28",
+            "content": "{\"accepted\": true, \"error\": null}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "actor": null,
+      "timing_scope": "sum_of_physical_attempt_wall_times",
+      "attribution": "physical_calls_once",
+      "totals": {
+        "requests": 13,
+        "responses": 13,
+        "errors": 0,
+        "input_tokens": 18366,
+        "output_tokens": 699,
+        "total_tokens": 19065,
+        "input_reports": 13,
+        "output_reports": 10,
+        "total_reports": 13,
+        "cache_read_tokens": 2048,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 10,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 5,
+        "duration_s": 24.377646292035934,
+        "queue_s": 7.850094698369503e-05,
+        "jitter_s": 0.0,
+        "provider_s": 24.36962229316123,
+        "duration_reports": 13,
+        "queue_reports": 13,
+        "jitter_reports": 13,
+        "provider_reports": 13,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 3,
+        "unknown_cache_write_calls": 13
+      },
+      "models": [
+        {
+          "kind": "llm",
+          "model": "Qwen/Qwen3.8-27B",
+          "requests": 10,
+          "responses": 10,
+          "errors": 0,
+          "input_tokens": 18322,
+          "output_tokens": 699,
+          "total_tokens": 19021,
+          "input_reports": 10,
+          "output_reports": 10,
+          "total_reports": 10,
+          "cache_read_tokens": 2048,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 10,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 0,
+          "duration_s": 23.924473543069325,
+          "queue_s": 6.354192737489939e-05,
+          "jitter_s": 0.0,
+          "provider_s": 23.917617876140866,
+          "duration_reports": 10,
+          "queue_reports": 10,
+          "jitter_reports": 10,
+          "provider_reports": 10,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 0,
+          "unknown_cache_write_calls": 10
+        },
+        {
+          "kind": "embedding",
+          "model": "Qwen/Qwen3-Embedding-0.6B",
+          "requests": 3,
+          "responses": 3,
+          "errors": 0,
+          "input_tokens": 44,
+          "output_tokens": 0,
+          "total_tokens": 44,
+          "input_reports": 3,
+          "output_reports": 0,
+          "total_reports": 3,
+          "cache_read_tokens": 0,
+          "cache_write_tokens": 0,
+          "cache_read_reports": 0,
+          "cache_write_reports": 0,
+          "cancelled": 0,
+          "decode_errors": 0,
+          "embedding_uses": 5,
+          "duration_s": 0.4531727489666082,
+          "queue_s": 1.4959019608795643e-05,
+          "jitter_s": 0.0,
+          "provider_s": 0.45200441702036187,
+          "duration_reports": 3,
+          "queue_reports": 3,
+          "jitter_reports": 3,
+          "provider_reports": 3,
+          "unknown_usage_calls": 0,
+          "unknown_cache_read_calls": 3,
+          "unknown_cache_write_calls": 3
+        }
+      ]
+    },
+    "memories": [
+      {
+        "id": "27154718727749bf806b7b1cb2712870",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      },
+      {
+        "id": "762d4768b09e418585f8356a4cde114e",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      },
+      {
+        "id": "c4d3568169bb4f5fbb1319691d579def",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。",
+          "metadata": {}
+        }
+      },
+      {
+        "id": "e7f434fa0109485b95f2cc9d18d55b3d",
+        "actor": "a",
+        "body": {
+          "content": "B42订单已经收款500元。这是被明确要求记住的信息，供后续互动使用。",
+          "metadata": {}
+        }
+      }
+    ]
+  }
+]

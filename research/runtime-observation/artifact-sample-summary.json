@@ -1,0 +1,402 @@
+{
+  "sample_date": "2026-09-28",
+  "measurement": "regular-file logical bytes, includes branch/recovery copies; selected collections only",
+  "filesystem_type": "fuse.ceph-fuse",
+  "collections": [
+    {
+      "label": "A",
+      "files": 17700,
+      "bytes": 16887214686,
+      "checkpoint_bytes": 11913698997,
+      "thread_bytes": 2869460990,
+      "metadata_scan_sec": 8.334463153034449
+    },
+    {
+      "label": "B",
+      "files": 18071,
+      "bytes": 14244062849,
+      "checkpoint_bytes": 9564727166,
+      "thread_bytes": 3698765753,
+      "metadata_scan_sec": 7.1722020618617535
+    }
+  ],
+  "samples": [
+    {
+      "label": "A1",
+      "identity": {
+        "steps_requested": 25,
+        "steps_run": 24,
+        "steps_completed": 24,
+        "final_step": 34,
+        "failed": true
+      },
+      "components": [
+        {
+          "step": 28,
+          "is_root": false,
+          "replacement_bytes": 11432938,
+          "replacement_uncompressed_mod_4GiB": 157857113,
+          "append_bytes": 2620141
+        },
+        {
+          "step": 27,
+          "is_root": false,
+          "replacement_bytes": 10543766,
+          "replacement_uncompressed_mod_4GiB": 146385460,
+          "append_bytes": 1961917
+        },
+        {
+          "step": 31,
+          "is_root": false,
+          "replacement_bytes": 9828818,
+          "replacement_uncompressed_mod_4GiB": 126991751,
+          "append_bytes": 1120734
+        },
+        {
+          "step": 21,
+          "is_root": false,
+          "replacement_bytes": 8376885,
+          "replacement_uncompressed_mod_4GiB": 113557889,
+          "append_bytes": 1242202
+        },
+        {
+          "step": 19,
+          "is_root": false,
+          "replacement_bytes": 10203097,
+          "replacement_uncompressed_mod_4GiB": 148685728,
+          "append_bytes": 2839236
+        },
+        {
+          "step": 16,
+          "is_root": false,
+          "replacement_bytes": 8396611,
+          "replacement_uncompressed_mod_4GiB": 122432970,
+          "append_bytes": 1809980
+        },
+        {
+          "step": 13,
+          "is_root": false,
+          "replacement_bytes": 7527599,
+          "replacement_uncompressed_mod_4GiB": 114305605,
+          "append_bytes": 1675164
+        },
+        {
+          "step": 34,
+          "is_root": false,
+          "replacement_bytes": 10696891,
+          "replacement_uncompressed_mod_4GiB": 137117466,
+          "append_bytes": 1530161
+        },
+        {
+          "step": 23,
+          "is_root": false,
+          "replacement_bytes": 9720633,
+          "replacement_uncompressed_mod_4GiB": 135364947,
+          "append_bytes": 2100245
+        },
+        {
+          "step": 22,
+          "is_root": false,
+          "replacement_bytes": 8833258,
+          "replacement_uncompressed_mod_4GiB": 124728325,
+          "append_bytes": 1355450
+        },
+        {
+          "step": 17,
+          "is_root": false,
+          "replacement_bytes": 7193174,
+          "replacement_uncompressed_mod_4GiB": 103472371,
+          "append_bytes": 1142183
+        },
+        {
+          "step": 33,
+          "is_root": false,
+          "replacement_bytes": 11640034,
+          "replacement_uncompressed_mod_4GiB": 153466956,
+          "append_bytes": 2251643
+        },
+        {
+          "step": 18,
+          "is_root": false,
+          "replacement_bytes": 8478681,
+          "replacement_uncompressed_mod_4GiB": 123209847,
+          "append_bytes": 1606176
+        },
+        {
+          "step": 25,
+          "is_root": false,
+          "replacement_bytes": 9862755,
+          "replacement_uncompressed_mod_4GiB": 133677664,
+          "append_bytes": 1867717
+        },
+        {
+          "step": 20,
+          "is_root": false,
+          "replacement_bytes": 9344342,
+          "replacement_uncompressed_mod_4GiB": 129282239,
+          "append_bytes": 2020975
+        },
+        {
+          "step": 14,
+          "is_root": false,
+          "replacement_bytes": 9086220,
+          "replacement_uncompressed_mod_4GiB": 139544357,
+          "append_bytes": 2598108
+        },
+        {
+          "step": 11,
+          "is_root": false,
+          "replacement_bytes": 9076782,
+          "replacement_uncompressed_mod_4GiB": 145434509,
+          "append_bytes": 2947097
+        },
+        {
+          "step": 15,
+          "is_root": false,
+          "replacement_bytes": 9396176,
+          "replacement_uncompressed_mod_4GiB": 141947213,
+          "append_bytes": 2689553
+        },
+        {
+          "step": 24,
+          "is_root": false,
+          "replacement_bytes": 9865875,
+          "replacement_uncompressed_mod_4GiB": 135749138,
+          "append_bytes": 2199638
+        },
+        {
+          "step": 12,
+          "is_root": false,
+          "replacement_bytes": 8091386,
+          "replacement_uncompressed_mod_4GiB": 125141705,
+          "append_bytes": 2129117
+        },
+        {
+          "step": 29,
+          "is_root": false,
+          "replacement_bytes": 10645835,
+          "replacement_uncompressed_mod_4GiB": 143219352,
+          "append_bytes": 2099038
+        },
+        {
+          "step": 30,
+          "is_root": false,
+          "replacement_bytes": 9866556,
+          "replacement_uncompressed_mod_4GiB": 128986690,
+          "append_bytes": 1415591
+        },
+        {
+          "step": 32,
+          "is_root": false,
+          "replacement_bytes": 11922468,
+          "replacement_uncompressed_mod_4GiB": 161099101,
+          "append_bytes": 2482592
+        },
+        {
+          "step": 0,
+          "is_root": true,
+          "replacement_bytes": 58641551,
+          "replacement_uncompressed_mod_4GiB": 634948972,
+          "append_bytes": 0
+        },
+        {
+          "step": 26,
+          "is_root": false,
+          "replacement_bytes": 9127457,
+          "replacement_uncompressed_mod_4GiB": 122455153,
+          "append_bytes": 1384218
+        }
+      ],
+      "summary_fields_compact_bytes": {
+        "steps_requested": 2,
+        "steps_run": 2,
+        "steps_completed": 2,
+        "total_time": 18,
+        "total_execution_time": 18,
+        "average_step_time": 18,
+        "final_step": 2,
+        "world_state_summary": 132,
+        "code_steps": 36,
+        "failed": 4,
+        "runtime": 113,
+        "models": 290,
+        "agent_operations": 2,
+        "resources": 188510,
+        "events": 5416247,
+        "capabilities": 97080,
+        "outputs": 415,
+        "completed_at": 16,
+        "failure": 971
+      },
+      "largest_thread": {
+        "bytes": 2653240,
+        "records": 187,
+        "max_line_bytes": 580526,
+        "event_counts": {
+          "thread_opened": 1,
+          "conversation_message": 63,
+          "provider_request": 28,
+          "provider_response": 28,
+          "tool_execution_started": 29,
+          "tool_execution_completed": 29,
+          "provider_repeated_read_diversification": 4,
+          "memory_extraction_pending": 1,
+          "embedding_provider_request": 1,
+          "embedding_provider_response": 1,
+          "memory_extraction_receipt": 1,
+          "thread_closed": 1
+        },
+        "bytes_by_type": {
+          "thread_opened": 587,
+          "conversation_message": 483255,
+          "provider_request": 39821,
+          "provider_response": 38790,
+          "tool_execution_started": 26709,
+          "tool_execution_completed": 1951397,
+          "provider_repeated_read_diversification": 2411,
+          "memory_extraction_pending": 6341,
+          "embedding_provider_request": 2788,
+          "embedding_provider_response": 99006,
+          "memory_extraction_receipt": 1680,
+          "thread_closed": 455
+        }
+      },
+      "events": {
+        "counts": {
+          "run_started": 1,
+          "code_step_started": 25,
+          "agent_batch_started": 462,
+          "agent_batch_heartbeat": 6528,
+          "agent_action": 2407,
+          "agent_batch_progress": 438,
+          "agent_batch_completed": 462,
+          "code_step_completed": 24,
+          "tick_completed": 24,
+          "code_step_failed": 1,
+          "run_failed": 1
+        },
+        "bytes_by_type": {
+          "run_started": 189,
+          "code_step_started": 2942,
+          "agent_batch_started": 699421,
+          "agent_batch_heartbeat": 11475816,
+          "agent_action": 3554544,
+          "agent_batch_progress": 797620,
+          "agent_batch_completed": 1979979,
+          "code_step_completed": 3723,
+          "tick_completed": 2219,
+          "code_step_failed": 893,
+          "run_failed": 1056
+        },
+        "max_line_bytes": 9701
+      }
+    },
+    {
+      "label": "A2",
+      "identity": {
+        "steps_requested": 1,
+        "steps_run": 1,
+        "steps_completed": 1,
+        "final_step": 35,
+        "failed": false
+      },
+      "components": [
+        {
+          "step": 0,
+          "is_root": true,
+          "replacement_bytes": 173829194,
+          "replacement_uncompressed_mod_4GiB": 1879249233,
+          "append_bytes": 0
+        },
+        {
+          "step": 35,
+          "is_root": false,
+          "replacement_bytes": 11134346,
+          "replacement_uncompressed_mod_4GiB": 144414521,
+          "append_bytes": 1490456
+        }
+      ],
+      "summary_fields_compact_bytes": {
+        "steps_requested": 1,
+        "steps_run": 1,
+        "steps_completed": 1,
+        "total_time": 18,
+        "total_execution_time": 18,
+        "average_step_time": 18,
+        "final_step": 2,
+        "world_state_summary": 132,
+        "code_steps": 36,
+        "failed": 5,
+        "runtime": 113,
+        "models": 290,
+        "agent_operations": 2,
+        "resources": 77213,
+        "events": 636773,
+        "capabilities": 97080,
+        "outputs": 348,
+        "completed_at": 17
+      },
+      "largest_thread": {
+        "bytes": 454525,
+        "records": 30,
+        "max_line_bytes": 155645,
+        "event_counts": {
+          "thread_opened": 1,
+          "conversation_message": 10,
+          "provider_request": 4,
+          "provider_response": 4,
+          "tool_execution_started": 4,
+          "tool_execution_completed": 4,
+          "memory_extraction_pending": 1,
+          "memory_extraction_receipt": 1,
+          "thread_closed": 1
+        },
+        "bytes_by_type": {
+          "thread_opened": 575,
+          "conversation_message": 131919,
+          "provider_request": 5393,
+          "provider_response": 11721,
+          "tool_execution_started": 6461,
+          "tool_execution_completed": 290465,
+          "memory_extraction_pending": 5930,
+          "memory_extraction_receipt": 1613,
+          "thread_closed": 448
+        }
+      },
+      "events": {
+        "counts": {
+          "run_started": 1,
+          "code_step_started": 1,
+          "agent_batch_started": 28,
+          "agent_action": 166,
+          "agent_batch_heartbeat": 474,
+          "agent_batch_progress": 27,
+          "agent_batch_completed": 28,
+          "code_step_completed": 1,
+          "tick_completed": 1,
+          "run_completed": 1
+        },
+        "bytes_by_type": {
+          "run_started": 188,
+          "code_step_started": 118,
+          "agent_batch_started": 42450,
+          "agent_action": 235745,
+          "agent_batch_heartbeat": 828864,
+          "agent_batch_progress": 48883,
+          "agent_batch_completed": 126352,
+          "code_step_completed": 156,
+          "tick_completed": 93,
+          "run_completed": 141
+        },
+        "max_line_bytes": 6417
+      }
+    }
+  ],
+  "delta_component": {
+    "step": 34,
+    "compressed_bytes": 10696891,
+    "expanded_bytes": 137117466,
+    "entry_count": 204882,
+    "scan_sec": 31.429657250642776
+  }
+}

@@ -1,0 +1,19 @@
+.......F                                                                 [100%]
+=================================== FAILURES ===================================
+______ test_step_receipt_metrics_restore_and_hook_cancel_never_completes _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-551/test_step_receipt_metrics_rest0')
+
+    @pytest.mark.asyncio
+    async def test_step_receipt_metrics_restore_and_hook_cancel_never_completes(tmp_path):
+        import asyncio
+        event=asyncio.Event()
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA) as store:
+            result=Results(store)
+            rt=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,results=result)
+            await rt.run_step(1,{'date':'today'},[Phase('empty',lambda ctx:None)])
+>           info=result.step(1)
+                 ^^^^^^^^^^^
+E           AttributeError: 'Results' object has no attribute 'step'
+
+tests/primary/test_kernel_schedule.py:214: AttributeError

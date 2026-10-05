@@ -1,0 +1,17 @@
+{
+  "records": 204882,
+  "value_bytes": 580,
+  "large_value_bytes": 2925528,
+  "payload_input_bytes": 121756508,
+  "record_raw_bytes_total": 141612724,
+  "record_raw_bytes_max": 2925626,
+  "write_seconds": 16.848031628876925,
+  "rss_before": 18828,
+  "rss_peak": 24356,
+  "rss_additional_bytes_linux": 5660672,
+  "file_bytes": 19914752,
+  "tail_page_seconds": 0.002780552953481674,
+  "range_seconds": 0.0012676604092121124,
+  "range_bytes": 50,
+  "page_payload_bytes": 831
+}

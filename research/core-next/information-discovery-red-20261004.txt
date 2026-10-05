@@ -1,0 +1,36 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+______________ test_root_sql_container_types_and_unmodified_rows _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-911/test_root_sql_container_types_0')
+
+    @pytest.mark.asyncio
+    async def test_root_sql_container_types_and_unmodified_rows(tmp_path):
+        store,provider=setup(tmp_path,count=4);info=Information(lambda scope,op,ref:ref.kind!='hidden')
+        info.mount('/market',provider)
+        try:
+            with InteractionScope('alice',Moment(1,'read')) as scope:
+                root=await info.list(scope,'/')
+>               assert root.items[0]['kind']=='directory'
+                       ^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'kind'
+
+tests/primary/test_kernel_information_discovery.py:15: KeyError
+________ test_model_request_explains_container_and_original_file_access ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-911/test_model_request_explains_co0')
+
+    @pytest.mark.asyncio
+    async def test_model_request_explains_container_and_original_file_access(tmp_path):
+        store,_,provider,driver,session,_=llm_setup(tmp_path,[reply(text='done')])
+        try:
+            await driver.run(session)
+            tools={t['function']['name']:t['function']['description'] for t in provider.requests[0][1]['tools']}
+>           assert 'directory' in tools['data_list'] and 'data_query' in tools['data_list']
+E           AssertionError: assert ('directory' in 'List accessible shared resources. Returns total and cursor; pass returned cursor as JSON text to continue. Submit at most one tool call per response.')
+
+tests/primary/test_kernel_information_discovery.py:37: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_discovery.py::test_root_sql_container_types_and_unmodified_rows
+FAILED tests/primary/test_kernel_information_discovery.py::test_model_request_explains_container_and_original_file_access
+2 failed in 1.54s

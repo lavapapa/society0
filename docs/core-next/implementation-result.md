@@ -1,0 +1,31 @@
+# Core 实施结果
+
+Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收、真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，本轮文件接口与主体插件的实际执行范围见 [实施记录](../../research/core-next/filesystem-implementation-20261005/status.md)，此前验收保留在 [历史记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
+
+## 一、结构
+
+机制通过 Plugin 声明数据、初始化、服务与依赖，compose 建立共享状态后安装服务。公共层连接身份、信息、行动与生命周期；Schedule 提供模拟时间与 Phase 阶段顺序，Runtime 执行并发布完整步骤。普通规则主体直接调用结构化服务，LLMDriver 通过同一信息和行动入口决定。安装、组合与最小运行分别见 [安装](installation.md)、[组合](composition-contract.md)和[运行入口](runner-contract.md)。
+
+持久主体按身份和字段读取，休眠主体无需常驻解释器。信息查询提供授权总数、继续游标及原文引用；动态行动按对象类型注册，并在执行时重新判断资格。私有工作区使用 Bashkit 原生文件系统与文件级增量，共享材料按需挂载。具体消费边界由 [主体](actor-contract.md)、[信息](interaction-contract.md)、[SQL 提供者](information-sql-contract.md)与[工作区](workspace-contract.md)合同定义。
+
+## 二、完整性
+
+规范短 SQL 事务同步维护事实与投影，SQLite Session 捕获变化，Runtime 在步骤收束后发布唯一完整身份。当前状态与 Thread 可供诊断读取，恢复从选定完整点建立新运行。大批不可变正文通过工件引用保存；Memory 的原文、原始向量与作业回执属于权威数据，向量检索使用可重建索引。详见 [存储](storage-contract.md)、[生命周期](storage-lifecycle-design.md)、[不可变批次](cold-datasets-design.md)与[记忆](memory-contract.md)。
+
+模型驱动保留完整会话，自动召回、自动写入和主动记忆工具按激活分别配置。业务拒绝允许主体继续决定；进入行动处理器后的异常或取消使步骤失效，即使驱动捕获异常也无法发布完整点。预算耗尽、输出截断和调用故障保留实际原因。对应合同见 [模型循环](llm-contract.md)与[调度](runtime-contract.md)。
+
+[旧新版逐值对照](../../research/core-next/parity-report-20261004.md)通过各版本实际运行路径比较规则与固定模型两条路线，覆盖账户、顺序事实、全部决策材料、原文记忆和恢复。每个版本的连续与恢复路线还比较完整 Thread 和实际模型输入。真实端点参数按V05验收，[V06同源真实任务](../../research/core-next/completion-audit-20261005/v06-report.md)验证旧结构化和当前文件接口都完整取得报价与正文并正确提交，历史完整输入组的误算及自主纠错原失败同时保留。该样例当前接口成本较高，有限任务完成不外推长期经营或统计优越性。
+
+## 三、成本
+
+[性能综合报告](../../research/core-next/performance-acceptance-20261004.md)归并实际大根、冷热记录、固定活动历史增长和恢复证据。领域冷正文按范围读取后，小工作集无需同时构造完整 World；实际机制仍须声明合适的记录边界与索引。完整值读取、大字段修改、变化链恢复以及同库认知历史复制具有各自的数据量成本。
+
+[步骤与多核测量](../../research/core-next/x08-runtime-parallel-20261004.md)分别使用规则、完整 LLMDriver 和真实 Chroma 的确定性响应组合，并比较串行、线程与进程。原生压缩的线程收益、纯 Python 计算的进程收益、IPC 和进程组驻留各有明确负载条件。模型等待、向量索引和领域计算需要分开预算；局部加速无法直接换算为整体仿真加速。
+
+[实时读取测量](../../research/core-next/final-realtime-20261004.md)在四条完整 10 MiB Thread 正文写入期间，由独立进程读取实际状态和追加水位，并逐段核对全部原文。运行事件循环的同步编码空窗与外部观察响应分别记录。该小样本支持接口与水位判断，长期高并发的尾延迟和 WAL 占盘仍需按研究负载测量。工作区已持久化正文支持专用工具范围读取；Bashkit 命令整读和当前 Overlay 巨文件首次物化仍有整文件成本，向量索引驻留也有独立成本。
+
+## 四、使用
+
+研究者从 README 与 skill 的正式示例选择所需基础插件，运行合同冻结代码、依赖、主体、模型参数和预算。外部观察从运行目录读取进度、Thread、行动、资源和结果；工作台消费完整产物。其入口见 [观察](observation-contract.md)、[诊断](diagnostics-contract.md)、[结果](results-contract.md)和[工作台](workbench-contract.md)。在线 SQLite 与 WAL 使用本地文件系统，网络挂载用于封存产物传输；可选原生扩展的构建和平台边界见安装说明。
+
+选型试验保留原有版本、失败与测量，现行调用以模块合同为准。软件能力、确定性等价、真实服务可用性和研究有效性分别判断；最终交付状态由统一验收清单与发行记录确认。

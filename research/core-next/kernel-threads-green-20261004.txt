@@ -1,0 +1,42 @@
+......F                                                                  [100%]
+=================================== FAILURES ===================================
+___________ test_hot_append_and_tail_work_does_not_grow_with_history ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-260/test_hot_append_and_tail_work_0')
+
+    def test_hot_append_and_tail_work_does_not_grow_with_history(tmp_path):
+        import society0.kernel.threads as module
+        counts = []
+        for history in (1000,10000):
+            store, threads = setup(tmp_path / str(history))
+            with store:
+                thread = threads.open('a',0,'operating')
+                store.transaction(lambda writer:[module._append(writer,thread,'message',{'role':'user','content':'old'}) for _ in range(history)])
+                store.complete(1)
+                write_work = [0]
+                store._connection.set_progress_handler(lambda:write_work.__setitem__(0,write_work[0]+1),1)
+>               seq = threads.append_message(thread,{'role':'user','content':'new'})
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_threads.py:124: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:145: in append_message
+    return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', message))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.storage.StageStore object at 0x10ab4e660>
+callback = <function ThreadStore.append_message.<locals>.<lambda> at 0x10ab0aa20>
+
+    def transaction(self, callback):
+        self._check()
+        self._busy = True
+        scope = Writer(self._connection)
+        try:
+>           self._connection.execute('BEGIN IMMEDIATE')
+E           TypeError: Expected a bool, not NoneType
+
+src/society0/kernel/storage.py:296: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_threads.py::test_hot_append_and_tail_work_does_not_grow_with_history
+1 failed, 6 passed in 0.16s

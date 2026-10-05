@@ -1,0 +1,25 @@
+...................                                                      [100%]
+==================================== PASSES ====================================
+_ test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action] _
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-858/test_real_case_fixture_through13/run/shell-results/shell-ddcks30_/output — scripts can modify host files
+=========================== short test summary info ============================
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[decision]
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[interview]
+PASSED tests/primary/test_core_next_real_structure.py::test_official_real_plan_assembles_and_completes_with_explicit_stubs[memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[endpoint_smoke_llm_and_embedding]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[endpoint_saturation_llm_and_embedding_managers]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[interview_writes_artifacts]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[saturation_memory_and_logs]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[phase_capacity_overrides_runtime]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[memory_roundtrip]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[complete_boundary_memory_restore]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[round_robin_action_loop]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[social_publish_with_memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[environment_action_tag_completion]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[terminal_rejection_then_success]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[social_browse_completion_and_memory]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[multi_tick_social_workflow]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_process_fixture_runs_crash_and_restore_against_local_stub_http
+PASSED tests/primary/test_core_next_real_structure.py::test_official_actor_driver_factory_can_consume_persistent_workspace

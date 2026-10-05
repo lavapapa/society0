@@ -50,7 +50,7 @@ Use `plain` only for a first controlled workflow or survey prototype. Use a
 custom env when role permissions, task dependency graphs, artifacts, calendars,
 tool actions, UI/browser state, validators, or organization records are central
 to the research claim. Keep organization-specific mechanics inside the env or
-experiment, not in `Society0`, `CodeSchedule`, `World`, or generic agent APIs.
+experiment, not in `Society0`, `Schedule`, `World`, or generic agent APIs.
 
 High-stakes boundary: organization and work simulations can support mechanism
 exploration, workflow rehearsal, task benchmark design, and research planning.
@@ -187,7 +187,7 @@ rights, or artifact handoffs matter, make them inspectable and replayable.
 
 ### Separate Work Actions From Measurement
 
-Use `instruct(...)` with typed env actions for work:
+Use `LLMPolicy(mode="decision")` with typed env actions for work:
 
 - `claim_task(task_id, rationale)`
 - `delegate_task(task_id, assignee_id, reason)`
@@ -200,7 +200,7 @@ Use `instruct(...)` with typed env actions for work:
 - `close_task(task_id, evidence)` as a terminal action only after validation or
   required evidence succeeds
 
-Use `interview(...)` for measurement:
+Use `LLMPolicy(mode="interview")` for measurement:
 
 - perceived workload, stress, trust, coordination quality, fairness, clarity,
   role conflict, psychological safety, or retrospective explanations.
@@ -230,11 +230,11 @@ organization forgets prior commitments. Preserve:
 - auditability: each final output should cite the trace records or artifacts it
   used, not only the agent's private reasoning.
 
-In Society0, keep `retrieve_memory=True` for LLM work rounds unless the experiment is
+In Society0, keep `MemoryPolicy(auto_recall=True)` for LLM work rounds unless the experiment is
 explicitly a no-memory baseline. Add environment-owned trace tables as well;
 agent memory and env records solve different problems.
 Save durable experience explicitly through Agent Threads and
-`extract_thread_memories(...)` after successful work rounds; use the complete
+the explicit memory completion hook after successful work rounds; use the complete
 pattern in `step-dsl.md`.
 
 ### Make Communication A Hosted Channel

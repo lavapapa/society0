@@ -1,0 +1,11 @@
+{
+  "keys": 1283280,
+  "blocks": 1949,
+  "raw_key_bytes": 111082405,
+  "block_raw_bytes": 122631925,
+  "gzip3_bytes": 25518685,
+  "gzip6_bytes": 23828936,
+  "fence_utf8_bytes": 340948,
+  "gzip3_seconds": 0.8952918685972691,
+  "gzip6_seconds": 1.760402001440525
+}

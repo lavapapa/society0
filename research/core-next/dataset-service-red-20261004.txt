@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_two_mechanisms_share_one_dataset_schema_and_service ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-767/test_two_mechanisms_share_one_0')
+
+    @pytest.mark.asyncio
+    async def test_two_mechanisms_share_one_dataset_schema_and_service(tmp_path):
+        from society0.kernel import datasets as dataset_module
+        from society0.kernel.composition import compose
+        from society0.kernel.plugins import Plugin
+        def mechanism(name):
+            def install(context):
+                data=context.require('datasets','datasets')
+                context.provide('data',data)
+                context.provide('reference',data.import_rows(name,[{'owner':name}]))
+            return Plugin(name,('datasets',),install)
+>       async with compose(tmp_path/'run',[dataset_module.dataset_plugin(),mechanism('market'),mechanism('messages')]) as host:
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'society0.kernel.datasets' has no attribute 'dataset_plugin'
+
+tests/primary/test_kernel_result_inputs.py:69: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_result_inputs.py::test_two_mechanisms_share_one_dataset_schema_and_service
+1 failed in 0.04s

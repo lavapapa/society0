@@ -98,39 +98,9 @@ Records:
 
 ### Minimal Step Loop
 
-This is a domain protocol sketch. For experience-bearing rounds, open and pass Agent Threads, check the action result, then explicitly call `extract_thread_memories(...)` as shown in `step-dsl.md`. `retrieve_memory=True` reads existing experience.
+This is a domain protocol sketch. For experience-bearing rounds, open and pass Agent Threads, check the action result, then explicitly call the explicit memory completion hook as shown in `step-dsl.md`. `MemoryPolicy(auto_recall=True)` reads existing experience.
 
-```python
-@engine.step(name="trading_day")
-async def trading_day(ctx):
-    await ctx.rule("publish_news_and_open_books")
-
-    traders = ctx.agents.where(type="trader")
-    decisions = await traders.instruct(
-        "Review today's market information and submit at most two orders per stock.",
-        fovs=["trader_market_fov"],
-        actions=["trade_action"],
-        completion_action_tags=["trade_write"],
-        max_turns=3,
-        max_tokens=180,
-        retrieve_memory=True,
-        name="trader_order_round",
-    )
-
-    validation = await ctx.rule("validate_orders")
-    trades = await ctx.rule("match_and_settle_orders")
-    close = await ctx.rule("update_closing_prices_and_accounts")
-
-    return ctx.result(
-        metrics=close,
-        tables={
-            "decision_calls": decisions.table(),
-            "orders": decisions.actions(),
-            "validation": validation,
-            "trades": trades,
-        },
-    )
-```
+Use successive Phase callbacks to publish news/open books, activate trader LLMDrivers with the complete market perception, validate orders, match and settle, then update closing prices/accounts. Set completion_tags=("trade_write",) when the accepted trade ends this research task. Save every order, rejection, fill and closing measure through StepResult. Explicit memory extraction follows successful experience-bearing decisions.
 
 Use terminal actions only if one submitted order is supposed to end the round. If agents may place several orders, prefer `completion_action_tags=["trade_write"]` plus a turn/action cap.
 
@@ -377,31 +347,11 @@ In action mode, save the accepted round's experience explicitly with the thread-
 
 Use **survey-intent mode** when reproducing the paper's core design:
 
-```python
-responses = await depositors.interview(
-    "After reading the information available to you, state whether you intend to withdraw deposits.",
-    fovs=["bank_run_survey_fov"],
-    output=WithdrawalIntent,
-    name="withdrawal_intent",
-    retrieve_memory=False,
-)
-await ctx.rule("propagate_withdrawal_propensities")
-```
+Survey-intent mode uses LLMPolicy(mode="interview", result_schema=WithdrawalIntent schema), complete survey perception and auto_recall=False when the study excludes memory. A later rule phase propagates measured withdrawal propensities.
 
 Use **action mode** when the user wants an actual bank balance-sheet simulation:
 
-```python
-await depositors.instruct(
-    "Decide what to do with your deposits today.",
-    fovs=["bank_run_action_fov"],
-    actions=["bank_deposit_action"],
-    required_actions=["withdraw_deposit", "keep_deposit"],
-    terminal_actions=["withdraw_deposit", "keep_deposit"],
-    max_turns=2,
-    retrieve_memory=True,
-)
-await ctx.rule("settle_withdrawals_and_update_liquidity")
-```
+Action mode uses decision LLMDrivers with bank actions discovered against account refs. Withdrawing and retaining deposits are alternative choices; successful choice completion is declared explicitly. A subsequent rule phase settles withdrawals and updates liquidity, preserving every account and transaction.
 
 Do not mix these modes without labeling them. Survey intent measures propensity; action mode changes bank state.
 

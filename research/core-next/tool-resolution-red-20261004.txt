@@ -1,0 +1,65 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____ test_request_resolution_roundtrips_without_repeating_tools_or_messages ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-739/test_request_resolution_roundt0')
+
+    def test_request_resolution_roundtrips_without_repeating_tools_or_messages(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',1,'decision')
+            threads.append_message(tid,{'role':'user','content':'完整原文'*10000})
+            resolution={'policy':'auto_restrict','requested':'required','effective':'auto',
+                        'selected_tool_name':'act','tools_filtered':True,'original_tools_count':2,'effective_tools_count':1}
+            options={'model':'m','tools':[{'type':'function','function':{'name':'act','parameters':{'type':'object'}}}],'tool_choice':'auto'}
+>           seq=threads.record_provider_request(tid,provider_options=options,physical_request_id='p',tool_choice_resolution=resolution)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_tool_resolution.py:13:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.threads.ThreadStore object at 0x10ce16bd0>
+thread_id = '7f7a2f1eb02145e5be5bb181216661c4'
+options = {'provider_options': {'model': 'm', 'tools': [{'type': 'function', 'function': {'name': 'act', 'parameters': {'type': ...solution': {'policy': 'auto_restrict', 'requested': 'required', 'effective': 'auto', 'selected_tool_name': 'act', ...}}
+
+    def record_provider_request(self,thread_id,**options):
+>       return self._record_request(thread_id,track_usage=True,**options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: ThreadStore._record_request() got an unexpected keyword argument 'tool_choice_resolution'
+
+src/society0/kernel/threads.py:225: TypeError
+_ test_auto_restrict_keeps_requested_and_effective_choice_with_thread_request __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-739/test_auto_restrict_keeps_reque0')
+
+    @pytest.mark.asyncio
+    async def test_auto_restrict_keeps_requested_and_effective_choice_with_thread_request(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',1,'decision')
+            threads.append_message(tid,{'role':'user','content':'act'})
+            provider=ModelProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1',
+                'concurrency':1,'trust_env':False,'tool_choice_policy':'auto_restrict'}],threads,max_attempts=1)
+            captured=[]
+            async def create(**kwargs):
+                captured.append(kwargs)
+                return ChatCompletion.model_validate({'id':'response','object':'chat.completion','created':0,'model':'m',
+                    'choices':[{'index':0,'finish_reason':'tool_calls','message':{'role':'assistant','tool_calls':[
+                        {'id':'c','type':'function','function':{'name':'required_action','arguments':'{}'}}]}}]})
+            provider.manager.clients['m'].chat.completions.create=create
+            options={'tools':[{'type':'function','function':{'name':name,'parameters':{'type':'object','properties':{}}}}
+                for name in ('optional_action','required_action')],
+                'tool_choice':{'type':'function','function':{'name':'required_action'}}}
+            original=copy.deepcopy(options)
+            try:await provider.request(tid,options)
+            finally:await provider.close()
+            assert options==original
+            assert captured[0]['tool_choice']=='auto'
+            assert [tool['function']['name'] for tool in captured[0]['tools']]==['required_action']
+            request=next(item for item in threads.tail(tid)['items'] if item['kind']=='request')
+>           assert request['payload']['tool_choice_resolution']=={
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                'policy':'auto_restrict','requested':original['tool_choice'],'effective':'auto',
+                'selected_tool_name':'required_action','tools_filtered':True,
+                'original_tools_count':2,'effective_tools_count':1}
+E           KeyError: 'tool_choice_resolution'
+
+tests/primary/test_kernel_tool_choice_audit.py:34: KeyError

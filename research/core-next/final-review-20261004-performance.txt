@@ -1,0 +1,3 @@
+command: .venv/bin/python -m pytest tests/performance
+exit_code: 5
+reason: tests/performance exists but contains no test files at a0dae58

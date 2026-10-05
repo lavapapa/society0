@@ -1,0 +1,52 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_review_selected_moment_exports_all_threads_above_query_default ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-803/test_review_selected_moment_ex0')
+
+    def test_review_selected_moment_exports_all_threads_above_query_default(tmp_path):
+        moment={'time':1,'phase':'work'}
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            for number in range(1001):
+                tid=threads.open('actor',moment,'kind-'+str(number))
+                threads.append_message(tid,{'role':'user','content':str(number)})
+            store.complete(1)
+            with StageStore.prepare_readonly(store.path,tmp_path/'view',step=1) as reader:
+>               sessions=workbench._sessions(reader,ThreadStore(reader),'actor',moment,1,'source')
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_workbench_review.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/workbench.py:53: in _sessions
+    heads=reader.read(lambda r:r.query('SELECT id,kind FROM thread_heads WHERE actor=? AND moment=? ORDER BY ordinal',(actor,key)))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:266: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/workbench.py:53: in <lambda>
+    heads=reader.read(lambda r:r.query('SELECT id,kind FROM thread_heads WHERE actor=? AND moment=? ORDER BY ordinal',(actor,key)))
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.storage.ReadView object at 0x10b14ac60>
+sql = 'SELECT id,kind FROM thread_heads WHERE actor=? AND moment=? ORDER BY ordinal'
+bindings = ('actor', '{"phase": "work", "time": 1}'), max_rows = 1000
+
+    def query(self, sql, bindings=(), *, max_rows=1000):
+        self._check()
+        if type(max_rows) is not int or max_rows < 0:
+            raise ValueError('max_rows must be nonnegative')
+        cursor = self._connection.cursor()
+        try:
+            cursor.execute(sql, bindings)
+            rows = []
+            for row in cursor:
+                if len(rows) == max_rows:
+>                   raise StorageError('query row limit exceeded')
+E                   society0.kernel.storage.StorageError: query row limit exceeded
+
+src/society0/kernel/storage.py:153: StorageError

@@ -1,0 +1,32 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_reader_probe_reuses_connection_without_changing_query_result _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-446/test_reader_probe_reuses_conne0')
+
+    def test_reader_probe_reuses_connection_without_changing_query_result(tmp_path):
+>       result=reader_probe(tmp_path/'reader',tables=10,iterations=5)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/experiments/test_core_next_persistence_probe.py:16: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+benchmarks/core_next_persistence_probe.py:114: in reader_probe
+    total=sum(store.read(lambda view:view.query('SELECT value FROM table_0 WHERE id=1')[0][0]) for _ in range(iterations))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_persistence_probe.py:114: in <genexpr>
+    total=sum(store.read(lambda view:view.query('SELECT value FROM table_0 WHERE id=1')[0][0]) for _ in range(iterations))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:192: in read
+    connection.execute('BEGIN')
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   apsw.AuthError: not authorized
+
+src/cursor.c:223: AuthError
+=========================== short test summary info ============================
+FAILED tests/experiments/test_core_next_persistence_probe.py::test_reader_probe_reuses_connection_without_changing_query_result
+1 failed, 1 passed in 0.09s

@@ -1,0 +1,49 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_social_notification_original_document_is_recipient_scoped ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-503/test_social_notification_origi0')
+
+    @pytest.mark.asyncio
+    async def test_social_notification_original_document_is_recipient_scoped(tmp_path):
+        import json
+        async with compose(tmp_path/'run',plan(social_plugin('abc',edges=[]))) as host:
+            social=host.service('social','mechanism');info=host.service('interaction','information')
+            actions=host.service('interaction','actions')
+            key=social.execute('publish_post','a','a',{'content':'完整帖子'},1).value['post_id']
+            social.execute('comment','b',key,{'content':'回复原文🙂'},1)
+            a=InteractionScope('a',Moment(1,'p'));b=InteractionScope('b',Moment(1,'p'))
+            page=await info.query(a,'/social/notifications',Query())
+            identifier=page.items[0]['id']
+>           body=await info.read(a,'/social/notification_data/'+str(identifier),size=1000)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_plugin_social.py:304: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/interaction.py:160: in read
+    provider, path = await self._provider(scope, path, 'read')
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:124: in _provider
+    ref = provider.ref(path)
+          ^^^^^^^^^^^^^^^^^^
+src/society0/kernel/information_sql.py:103: in ref
+    route, key = self._route(path)
+                 ^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.plugins.social.SocialInformation object at 0x10c6a4ec0>
+path = '/social/notification_data/1'
+
+    def _route(self, path):
+        parts = path.strip('/').split('/')
+        if parts[0] != self.namespace or len(parts) > 3:
+            raise Unavailable('resource unavailable')
+        route = parts[1] if len(parts) > 1 else None
+        if route is not None and route not in self._routes:
+>           raise Unavailable('resource unavailable')
+E           society0.kernel.interaction.Unavailable: resource unavailable
+
+src/society0/kernel/information_sql.py:95: Unavailable
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_notification_original_document_is_recipient_scoped
+1 failed, 20 deselected in 0.28s

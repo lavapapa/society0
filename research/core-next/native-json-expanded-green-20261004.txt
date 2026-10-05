@@ -1,0 +1,267 @@
+......................................................................FF [ 52%]
+FFF..............................................................        [100%]
+=================================== FAILURES ===================================
+_ test_review_memory_action_unavailable_record_is_business_rejection[missing-update] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-754/test_review_memory_action_unav0')
+operation = 'update', case = 'missing'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+            from tests.primary.test_kernel_memory_activation import session
+            current=session('a',actions=actions)
+>           async with memory.activation(current,tid):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_review.py:152:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x10cbc50a0>
+session = Session(actor=Actor(id='a', driver=None, state_ref=None, config=None), scope=InteractionScope(actor='a', moment=Moment...ctor='a', moment=Moment(time=1, phase='decision'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+thread_id = '60f8690169f34a49af0ef97b500395bc'
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+>               raise ValueError('automatic memory write requires an extractor')
+E               ValueError: automatic memory write requires an extractor
+
+src/society0/kernel/memory.py:196: ValueError
+_ test_review_memory_action_unavailable_record_is_business_rejection[missing-delete] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-754/test_review_memory_action_unav1')
+operation = 'delete', case = 'missing'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+            from tests.primary.test_kernel_memory_activation import session
+            current=session('a',actions=actions)
+>           async with memory.activation(current,tid):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_review.py:152:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x10cc253a0>
+session = Session(actor=Actor(id='a', driver=None, state_ref=None, config=None), scope=InteractionScope(actor='a', moment=Moment...ctor='a', moment=Moment(time=1, phase='decision'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+thread_id = '8bc4a5eacb2f493f827f07892d1f83ce'
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+>               raise ValueError('automatic memory write requires an extractor')
+E               ValueError: automatic memory write requires an extractor
+
+src/society0/kernel/memory.py:196: ValueError
+_ test_review_memory_action_unavailable_record_is_business_rejection[other_actor-update] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-754/test_review_memory_action_unav2')
+operation = 'update', case = 'other_actor'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+            from tests.primary.test_kernel_memory_activation import session
+            current=session('a',actions=actions)
+>           async with memory.activation(current,tid):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_review.py:152:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x10cc26fc0>
+session = Session(actor=Actor(id='a', driver=None, state_ref=None, config=None), scope=InteractionScope(actor='a', moment=Moment...ctor='a', moment=Moment(time=1, phase='decision'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+thread_id = '22ca937dd1a64f818d170cecea489546'
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+>               raise ValueError('automatic memory write requires an extractor')
+E               ValueError: automatic memory write requires an extractor
+
+src/society0/kernel/memory.py:196: ValueError
+_ test_review_memory_action_unavailable_record_is_business_rejection[other_actor-delete] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-754/test_review_memory_action_unav3')
+operation = 'delete', case = 'other_actor'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('operation',['update','delete'])
+    @pytest.mark.parametrize('case',['missing','other_actor'])
+    async def test_review_memory_action_unavailable_record_is_business_rejection(tmp_path,operation,case):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier='missing'
+            if case=='other_actor':
+                identifier=(await memory.seed('b','b-seed',timestamp=0,entries=[{'content':'private b'}]))[0]
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            arguments={'memory_id':identifier}
+            if operation=='update':arguments['content']='changed'
+            before=len(embed.calls)
+            from tests.primary.test_kernel_memory_activation import session
+            current=session('a',actions=actions)
+>           async with memory.activation(current,tid):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_review.py:152:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x10cbc6420>
+session = Session(actor=Actor(id='a', driver=None, state_ref=None, config=None), scope=InteractionScope(actor='a', moment=Moment...ctor='a', moment=Moment(time=1, phase='decision'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+thread_id = '1da586c5e2794418b9afa2613511d641'
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+>               raise ValueError('automatic memory write requires an extractor')
+E               ValueError: automatic memory write requires an extractor
+
+src/society0/kernel/memory.py:196: ValueError
+_________ test_review_memory_action_provider_failure_still_propagates __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-754/test_review_memory_action_prov0')
+
+    @pytest.mark.asyncio
+    async def test_review_memory_action_provider_failure_still_propagates(tmp_path):
+        from society0.kernel.interaction import Actions, InteractionScope, Moment, Ref
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier=(await memory.seed('a','seed',timestamp=0,entries=[{'content':'before'}]))[0]
+            async def failed(*args,**kwargs):raise OSError('embedding transport failure')
+            memory.embed=failed
+            actions=Actions(lambda *args:True)
+            for action in memory.actions():actions.register(action)
+            from tests.primary.test_kernel_memory_activation import session
+            current=session('a',actions=actions)
+>           async with memory.activation(current,tid):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory_review.py:171:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.memory.Memory object at 0x10cc26360>
+session = Session(actor=Actor(id='a', driver=None, state_ref=None, config=None), scope=InteractionScope(actor='a', moment=Moment...ctor='a', moment=Moment(time=1, phase='decision'), revision=None)), cursors={}, prepared=None, signals=(), _phase=None)
+thread_id = 'f0a6902ab729468da65113e523a0ac86'
+
+    @asynccontextmanager
+    async def activation(self,session,thread_id):
+        from ..async_utils import invoke_maybe_async
+        with _operation_scope(self):
+            session.scope.check_active()
+            selection=(MemoryActivation(self.policy,self.recall_top_k) if self.policy_selector is None
+                       else await invoke_maybe_async(self.policy_selector,session))
+            if not isinstance(selection,MemoryActivation):
+                raise TypeError('memory policy selector must return MemoryActivation')
+            session.scope.check_active()
+            head=self.threads.describe(thread_id)
+            if head['actor']!=session.actor.id:
+                raise PermissionError('memory Thread owner differs')
+            if selection.policy.auto_write and head['kind']!='interview' and self.extract is None:
+>               raise ValueError('automatic memory write requires an extractor')
+E               ValueError: automatic memory write requires an extractor
+
+src/society0/kernel/memory.py:196: ValueError

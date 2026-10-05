@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_discovery_rejects_revision_change_during_async_candidate_check ______
+
+    @pytest.mark.asyncio
+    async def test_discovery_rejects_revision_change_during_async_candidate_check():
+        version = [1]
+        async def available(scope, target):
+            await asyncio.sleep(0)
+            version[0] += 1
+            return True
+        actions = Actions(lambda *args: True, revision=lambda scope: version[0])
+        actions.register(Action('a', ('m', 'job'), 'a', {},
+                                lambda *args: ActionResult('completed'), available=available))
+        with InteractionScope('alice', Moment(0, 'act')) as scope:
+>           with pytest.raises(ValueError, match='revision'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_interaction.py:438: Failed
+1 failed, 23 deselected in 0.07s

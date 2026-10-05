@@ -1,0 +1,37 @@
+................................F.........                               [100%]
+=================================== FAILURES ===================================
+__ test_social_preference_preserves_recent_interaction_ties_and_read_actions ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1053/test_social_preference_preserv0')
+
+    @pytest.mark.asyncio
+    async def test_social_preference_preserves_recent_interaction_ties_and_read_actions(tmp_path):
+        from society0.plugins.social_models import SocialNetworkConfig
+        from tests.reference.builtin_algorithms import SocialNetworkEnv
+        from types import SimpleNamespace
+        cfg=SocialNetworkConfig(social_media={'recommendation':{'use_embedding_similarity':False,'interaction_limit':4,'include_following_in_query':True}})
+        async with compose(tmp_path/'run',plan(social_plugin('abc',config=cfg,edges=[('a','b')]))) as host:
+            social=host.service('social','mechanism')
+            for actor in 'bca':social.execute('publish_post',actor,actor,{'content':actor+' body','tags':['x']},1)
+            social.execute('comment','a','post_2',{'content':'comment on two'},2)
+            social.execute('like_post','a','post_1',{},2)
+            social.execute('comment','a','post_1',{'content':'comment on one'},2)
+            social.execute('like_post','a','post_2',{},2)
+            posts={key:social.post_details(key) for key in ('post_1','post_2','post_3')}
+            for key,post in posts.items():
+                post['like_events']=[{'agent_id':x,'created_tick':2} for x in post['likes']]
+            proxy=SimpleNamespace(_config=cfg,_posts_view=lambda:posts,
+                                  _collect_recent_posts_for_agent=lambda actor,limit:[posts['post_3']],
+                                  graph=__import__('networkx').DiGraph([('a','b')]))
+            proxy._collect_recent_interactions_for_agent=SocialNetworkEnv._collect_recent_interactions_for_agent.__get__(proxy)
+            expected=SocialNetworkEnv._build_agent_preference_text(proxy,SimpleNamespace(id='a',get_raw_data=lambda:{'persona':''}))
+            assert social.preference_text('a')==expected
+            actions=host.service('interaction','actions');scope=InteractionScope('a',Moment(2,'read'))
+            result=await actions.invoke(scope,'social.get_post_details',Ref('social','posts','post_1'),{})
+>           assert result.status=='completed' and result.value['content']=='b body'
+E           AssertionError: assert ('rejected' == 'completed'
+E
+E             - completed
+E             + rejected)
+
+tests/primary/test_plugin_social.py:206: AssertionError

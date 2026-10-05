@@ -1,0 +1,221 @@
+..FFFFFFFFFF.                                                            [100%]
+=================================== FAILURES ===================================
+_____ test_social_topology_matches_existing_algorithm[True-distribution0] ______
+
+distribution = {'type': 'random', 'params': {'connection_probability': 0.3}}
+directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[True-distribution1] ______
+
+distribution = {'type': 'small_world', 'params': {'k_neighbors': 4, 'rewiring_probability': 0.2}}
+directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[True-distribution2] ______
+
+distribution = {'type': 'scale_free', 'params': {'m_edges': 2}}, directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[True-distribution3] ______
+
+distribution = {'type': 'complete', 'params': {}}, directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[True-distribution4] ______
+
+distribution = {'type': 'cv_targeted', 'params': {'target_cv_mean': 0.6, 'max_iterations': 25}}
+directed = True
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution0] _____
+
+distribution = {'type': 'random', 'params': {'connection_probability': 0.3}}
+directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution1] _____
+
+distribution = {'type': 'small_world', 'params': {'k_neighbors': 4, 'rewiring_probability': 0.2}}
+directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution2] _____
+
+distribution = {'type': 'scale_free', 'params': {'m_edges': 2}}
+directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution3] _____
+
+distribution = {'type': 'complete', 'params': {}}, directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+_____ test_social_topology_matches_existing_algorithm[False-distribution4] _____
+
+distribution = {'type': 'cv_targeted', 'params': {'target_cv_mean': 0.6, 'max_iterations': 25}}
+directed = False
+
+    @pytest.mark.parametrize('distribution',[
+        {'type':'random','params':{'connection_probability':0.3}},
+        {'type':'small_world','params':{'k_neighbors':4,'rewiring_probability':0.2}},
+        {'type':'scale_free','params':{'m_edges':2}},
+        {'type':'complete','params':{}},
+        {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
+    ])
+    @pytest.mark.parametrize('directed',[True,False])
+    def test_social_topology_matches_existing_algorithm(distribution,directed):
+        import random
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+>       from society0.plugins.social_topology import generate_topology
+E       ModuleNotFoundError: No module named 'society0.plugins.social_topology'
+
+tests/primary/test_plugin_social.py:75: ModuleNotFoundError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution0]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution1]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution2]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution3]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[True-distribution4]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution0]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution1]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution2]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution3]
+FAILED tests/primary/test_plugin_social.py::test_social_topology_matches_existing_algorithm[False-distribution4]
+10 failed, 3 passed in 0.59s

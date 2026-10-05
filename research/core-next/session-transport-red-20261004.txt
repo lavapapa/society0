@@ -1,0 +1,72 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+________ test_driver_sdk_session_transport_is_explicit_and_stable[None] ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-890/test_driver_sdk_session_transp0')
+transport = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('transport',[None,'metadata','extra_body_metadata'])
+    async def test_driver_sdk_session_transport_is_explicit_and_stable(tmp_path,transport):
+        store,threads,_,driver,session,_=setup(tmp_path,[])
+        options={} if transport is None else {'session_transport':transport}
+        provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'https://provider.invalid/v1','model':'m',
+            'concurrency':1,'trust_env':False}],threads,max_attempts=1,**options)
+        sent=[]
+        async def respond(request):
+            body=json.loads(request.content);sent.append(body)
+            if transport is None and 'metadata' in body:
+                return httpx.Response(400,json={'error':{'message':'Unknown name metadata','type':'invalid_request_error'}})
+            return httpx.Response(200,json={'id':'reply','created':0,'model':'m','object':'chat.completion',
+                'choices':[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'完整回答'}}]})
+        await provider.manager.clients['p'].close()
+        provider.manager.clients['p']=openai.AsyncOpenAI(api_key='unused',base_url='https://provider.invalid/v1',max_retries=0,
+            http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+        driver.provider=provider
+        try:
+>           assert (await driver.run(session)).status=='completed'
+E           AssertionError: assert 'incomplete' == 'completed'
+E             
+E             - completed
+E             ?         -
+E             + incomplete
+E             ? ++
+
+tests/primary/test_kernel_session_transport.py:29: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint p after 1 attempts: Error code: 400 - {'error': {'message': 'Unknown name metadata', 'type': 'invalid_request_error'}}
+______ test_driver_sdk_session_transport_is_explicit_and_stable[metadata] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-890/test_driver_sdk_session_transp1')
+transport = 'metadata'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('transport',[None,'metadata','extra_body_metadata'])
+    async def test_driver_sdk_session_transport_is_explicit_and_stable(tmp_path,transport):
+        store,threads,_,driver,session,_=setup(tmp_path,[])
+        options={} if transport is None else {'session_transport':transport}
+>       provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'https://provider.invalid/v1','model':'m',
+            'concurrency':1,'trust_env':False}],threads,max_attempts=1,**options)
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'session_transport'
+
+tests/primary/test_kernel_session_transport.py:15: TypeError
+_ test_driver_sdk_session_transport_is_explicit_and_stable[extra_body_metadata] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-890/test_driver_sdk_session_transp2')
+transport = 'extra_body_metadata'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('transport',[None,'metadata','extra_body_metadata'])
+    async def test_driver_sdk_session_transport_is_explicit_and_stable(tmp_path,transport):
+        store,threads,_,driver,session,_=setup(tmp_path,[])
+        options={} if transport is None else {'session_transport':transport}
+>       provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'https://provider.invalid/v1','model':'m',
+            'concurrency':1,'trust_env':False}],threads,max_attempts=1,**options)
+E       TypeError: ModelProvider.__init__() got an unexpected keyword argument 'session_transport'
+
+tests/primary/test_kernel_session_transport.py:15: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_session_transport.py::test_driver_sdk_session_transport_is_explicit_and_stable[None]
+FAILED tests/primary/test_kernel_session_transport.py::test_driver_sdk_session_transport_is_explicit_and_stable[metadata]
+FAILED tests/primary/test_kernel_session_transport.py::test_driver_sdk_session_transport_is_explicit_and_stable[extra_body_metadata]
+3 failed in 0.76s

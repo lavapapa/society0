@@ -1,0 +1,42 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_review_reasoning_guidance_explains_actual_stage_marker __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-494/test_review_reasoning_guidance0')
+
+    @pytest.mark.asyncio
+    async def test_review_reasoning_guidance_explains_actual_stage_marker(tmp_path):
+        from tests.primary.test_kernel_llm import setup,reply
+        store,threads,provider,driver,session,_=setup(tmp_path,[reply(text='done')],
+            policy=LLMPolicy(reasoning_stages=({'name':'observe','desc':'观察'},)))
+        try:
+            await driver.run(session)
+>           assert any('-> stage_begin:' in message.get('content','') for message in provider.requests[0][2])
+E           assert False
+E            +  where False = any(<generator object test_review_reasoning_guidance_explains_actual_stage_marker.<locals>.<genexpr> at 0x10ad758c0>)
+
+tests/primary/test_kernel_model_selection_review.py:13: AssertionError
+_____ test_review_stage_result_keeps_ranges_instead_of_copying_large_body ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-494/test_review_stage_result_keeps0')
+
+    @pytest.mark.asyncio
+    async def test_review_stage_result_keeps_ranges_instead_of_copying_large_body(tmp_path):
+        from tests.primary.test_kernel_llm import setup,reply
+        original='前言\n-> stage_begin: observe\n'+('完整正文🙂'*100000)
+        store,threads,provider,driver,session,_=setup(tmp_path,[reply(text=original)],
+            policy=LLMPolicy(reasoning_stages=({'name':'observe','desc':'观察'},)))
+        try:
+            result=await driver.run(session)
+            stages=result.value['reasoning_stages']
+>           assert len(json.dumps(stages,ensure_ascii=False))<2048
+E           assert 500138 < 2048
+E            +  where 500138 = len('[{"message_seq": 8, "segments": [{"name": "default", "known": true, "content": "前言"}, {"name": "observe", "known": tr...正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂"}]}]')
+E            +    where '[{"message_seq": 8, "segments": [{"name": "default", "known": true, "content": "前言"}, {"name": "observe", "known": tr...正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂"}]}]' = <function dumps at 0x10373a0c0>([{'message_seq': 8, 'segments': [{'name': 'default', 'known': True, 'content': '前言'}, {'name': 'observe', 'known': Tru...整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂完整正文🙂'}]}], ensure_ascii=False)
+E            +      where <function dumps at 0x10373a0c0> = json.dumps
+
+tests/primary/test_kernel_model_selection_review.py:26: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_model_selection_review.py::test_review_reasoning_guidance_explains_actual_stage_marker
+FAILED tests/primary/test_kernel_model_selection_review.py::test_review_stage_result_keeps_ranges_instead_of_copying_large_body
+2 failed in 0.48s

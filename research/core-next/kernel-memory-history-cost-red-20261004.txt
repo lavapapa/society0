@@ -1,0 +1,37 @@
+.......................F                                                 [100%]
+=================================== FAILURES ===================================
+_______ test_empty_extraction_history_does_not_require_vector_dimension ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-402/test_empty_extraction_history_0')
+
+    @pytest.mark.asyncio
+    async def test_empty_extraction_history_does_not_require_vector_dimension(tmp_path):
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+            job=memory.prepare_job('a',thread,'empty',timestamp=5,entries=[])
+            await memory.finish_job(job)
+>           assert await memory.recall('a','nothing',current_step=1)==[]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory.py:366: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/memory.py:279: in recall
+    return await self._recall_history(actor,query,top_k,current_step,thread_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.memory.Memory object at 0x10c9426c0>, actor = 'a'
+query = 'nothing', top_k = 10, step = 1, thread_id = None
+query_vectors = [[0.0, 1.0]]
+
+    async def _recall_history(self,actor,query,top_k,step,thread_id,query_vectors=None):
+        if query_vectors is None:
+            query_vectors=await self.embed([query],metadata={'actor':actor,'thread_id':thread_id,'purpose':'memory_recall'})
+>       dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+src/society0/kernel/memory.py:310: IndexError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_empty_extraction_history_does_not_require_vector_dimension
+1 failed, 23 passed in 0.89s

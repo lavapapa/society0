@@ -1,0 +1,281 @@
+{
+  "network": "MockTransport only; socket connect blocked",
+  "packages": {
+    "opentelemetry-api": "1.45.0",
+    "pydantic-graph": "2.54.0",
+    "griffelib": "2.3.0",
+    "requests": "2.34.2",
+    "jiter": "0.17.0",
+    "pydantic-ai-slim": "2.54.0",
+    "pydantic_core": "2.46.5",
+    "openai": "3.24.0",
+    "httpcore": "1.0.9",
+    "cryptography": "50.0.2",
+    "logfire-api": "5.1.1",
+    "Authlib": "1.8.0",
+    "joserfc": "1.7.5",
+    "urllib3": "2.8.0",
+    "h11": "0.16.0",
+    "pydantic": "2.13.5",
+    "sniffio": "1.3.1",
+    "pycparser": "3.0",
+    "cffi": "2.1.1",
+    "certifi": "2026.7.22",
+    "annotated-types": "0.8.0",
+    "regex": "2026.9.29",
+    "genai-prices": "0.1.9",
+    "typing-inspection": "0.4.4",
+    "tiktoken": "0.14.0",
+    "httpx": "0.28.1",
+    "typing_extensions": "4.16.0",
+    "httpx2": "2.13.1",
+    "truststore": "0.10.4",
+    "charset-normalizer": "3.5.2",
+    "httpcore2": "2.13.1",
+    "anyio": "4.15.1",
+    "idna": "3.20"
+  },
+  "request_count": 2,
+  "synthetic_refresh_count": 1,
+  "tool_arguments_roundtrip": true,
+  "thinking_signature_roundtrip": true,
+  "sdk_retries_explicitly_disabled": true,
+  "SIWC_mismatches": [
+    "bare_top_level_function_requires_SIWC_namespace_mapping",
+    "explicit_system_message_rejected_by_SIWC"
+  ],
+  "codex_bodies": [
+    {
+      "model": "gpt-5.3-codex",
+      "stream": true,
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "input": [
+        {
+          "role": "system",
+          "content": "完整系统材料"
+        },
+        {
+          "role": "user",
+          "content": "执行一次"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "prompt_cache_key": "simulation-thread",
+      "store": false,
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "name": "settle",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "note": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "note",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          "type": "function",
+          "description": null,
+          "strict": true
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "stream": true,
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "input": [
+        {
+          "role": "system",
+          "content": "完整系统材料"
+        },
+        {
+          "role": "user",
+          "content": "执行一次"
+        },
+        {
+          "id": "rs_mock",
+          "summary": [],
+          "encrypted_content": "mock-opaque-signature",
+          "type": "reasoning"
+        },
+        {
+          "name": "settle",
+          "arguments": "{\"note\":\"完整中文\", \"amount\":7}",
+          "call_id": "call_mock",
+          "type": "function_call",
+          "id": "fc_mock",
+          "namespace": "society"
+        },
+        {
+          "type": "function_call_output",
+          "call_id": "call_mock",
+          "output": "{\"accepted\":true}"
+        }
+      ],
+      "prompt_cache_key": "simulation-thread",
+      "store": false,
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "name": "settle",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "note": {
+                "type": "string"
+              },
+              "amount": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "note",
+              "amount"
+            ],
+            "additionalProperties": false
+          },
+          "type": "function",
+          "description": null,
+          "strict": true
+        }
+      ]
+    }
+  ],
+  "SIWC_offline_adapter_bodies": [
+    {
+      "model": "gpt-5.3-codex",
+      "stream": true,
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "input": [
+        {
+          "role": "developer",
+          "content": "完整系统材料"
+        },
+        {
+          "role": "user",
+          "content": "执行一次"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "store": false,
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "society",
+          "description": "Society0 domain actions",
+          "tools": [
+            {
+              "name": "settle",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "note",
+                  "amount"
+                ],
+                "additionalProperties": false
+              },
+              "type": "function",
+              "description": null,
+              "strict": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "model": "gpt-5.3-codex",
+      "stream": true,
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "input": [
+        {
+          "role": "developer",
+          "content": "完整系统材料"
+        },
+        {
+          "role": "user",
+          "content": "执行一次"
+        },
+        {
+          "id": "rs_mock",
+          "summary": [],
+          "encrypted_content": "mock-opaque-signature",
+          "type": "reasoning"
+        },
+        {
+          "name": "settle",
+          "arguments": "{\"note\":\"完整中文\", \"amount\":7}",
+          "call_id": "call_mock",
+          "type": "function_call",
+          "id": "fc_mock",
+          "namespace": "society"
+        },
+        {
+          "type": "function_call_output",
+          "call_id": "call_mock",
+          "output": "{\"accepted\":true}"
+        }
+      ],
+      "parallel_tool_calls": false,
+      "store": false,
+      "tool_choice": "auto",
+      "tools": [
+        {
+          "type": "namespace",
+          "name": "society",
+          "description": "Society0 domain actions",
+          "tools": [
+            {
+              "name": "settle",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "note": {
+                    "type": "string"
+                  },
+                  "amount": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "note",
+                  "amount"
+                ],
+                "additionalProperties": false
+              },
+              "type": "function",
+              "description": null,
+              "strict": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "SIWC_tool_namespace_roundtrip": true
+}

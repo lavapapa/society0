@@ -1,0 +1,42 @@
+FFF.F................................................................... [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 49%]
+........................................................................ [ 59%]
+........................................................................ [ 69%]
+........................................................................ [ 79%]
+........................................................................ [ 89%]
+........................................................................ [ 99%]
+....                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it __
+tests/primary/test_activation_pool_shared.py:14: in test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+_____________ test_drain_waits_for_work_submitted_on_idle_boundary _____________
+tests/primary/test_activation_pool_shared.py:42: in test_drain_waits_for_work_submitted_on_idle_boundary
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+_____________ test_close_waits_for_work_submitted_on_idle_boundary _____________
+tests/primary/test_activation_pool_shared.py:84: in test_close_waits_for_work_submitted_on_idle_boundary
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+___ test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorization ____
+tests/primary/test_core_directory_kind_review.py:50: in test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorization
+    assert (await fs.callback('list','/data'))[0][1]=='directory'
+E   AssertionError: assert 'file' == 'directory'
+E     
+E     - directory
+E     + file
+=========================== short test summary info ============================
+FAILED tests/primary/test_activation_pool_shared.py::test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it
+FAILED tests/primary/test_activation_pool_shared.py::test_drain_waits_for_work_submitted_on_idle_boundary
+FAILED tests/primary/test_activation_pool_shared.py::test_close_waits_for_work_submitted_on_idle_boundary
+FAILED tests/primary/test_core_directory_kind_review.py::test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorization
+4 failed, 720 passed, 15 deselected in 30.19s
+
+exit_code=1

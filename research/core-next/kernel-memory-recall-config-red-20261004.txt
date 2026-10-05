@@ -1,0 +1,34 @@
+.........................F                                               [100%]
+=================================== FAILURES ===================================
+_____ test_automatic_recall_top_k_controls_candidates_and_complete_context _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-409/test_automatic_recall_top_k_co0')
+
+    @pytest.mark.asyncio
+    async def test_automatic_recall_top_k_controls_candidates_and_complete_context(tmp_path):
+        import json
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+>       store,threads,thread,memory,embed,client=setup(tmp_path,recall_top_k=2,recall_query=lambda session:'x',policy=MemoryPolicy(True,False,False))
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory.py:390: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-409/test_automatic_recall_top_k_co0')
+options = {'recall_top_k': 2, 'recall_query': <function test_automatic_recall_top_k_controls_candidates_and_complete_context.<locals>.<lambda> at 0x1130e2160>, 'policy': MemoryPolicy(auto_recall=True, auto_write=False, active_tools=False)}
+
+    def setup(tmp_path,**options):
+        store = StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*MEMORY_SCHEMA])
+        threads = ThreadStore(store)
+        thread = threads.open('a',0,'decision')
+        embed = Embed()
+        client = Client()
+>       memory = Memory(store,threads,embed=embed,client=client,**options)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: Memory.__init__() got an unexpected keyword argument 'recall_top_k'
+
+tests/primary/test_kernel_memory.py:56: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_automatic_recall_top_k_controls_candidates_and_complete_context
+1 failed, 25 passed in 0.89s

@@ -1,0 +1,1661 @@
+..........................F............................................. [ 56%]
+...............FFFFFFFFFFFFFF...FFFFFFF.FFF.FFFFFFFF.FFF                 [100%]
+=================================== FAILURES ===================================
+_ test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_review_workspace_save_fai0')
+
+    @pytest.mark.asyncio
+    async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
+        closed=[]
+        async def close():closed.append(True)
+        shell=SimpleNamespace(has_workspace=True,aclose=close)
+        driver.shell_factory=lambda *a:shell
+        def save(*a):raise OSError('disk full')
+        shell.save_workspace=save
+        try:
+>           with pytest.raises(OSError,match='disk full'):await driver.run(session)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_workspace_review.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afdd610>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+___________ test_natural_finish_preserves_complete_input_and_thread ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_natural_finish_preserves_0')
+
+    @pytest.mark.asyncio
+    async def test_natural_finish_preserves_complete_input_and_thread(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(text='finished')])
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x108e29610>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______________ test_terminal_completed_ends_without_extra_request ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_terminal_completed_ends_w0')
+
+    @pytest.mark.asyncio
+    async def test_terminal_completed_ends_without_extra_request(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke())], terminal=True)
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afde870>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+___ test_noncompleted_terminal_result_does_not_complete_activation[accepted] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_noncompleted_terminal_res0')
+outcome = 'accepted'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('outcome', ['accepted', 'rejected'])
+    async def test_noncompleted_terminal_result_does_not_complete_activation(tmp_path, outcome):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='finish')],
+            terminal=True, handler=lambda *a: ActionResult(outcome))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10b083320>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+___ test_noncompleted_terminal_result_does_not_complete_activation[rejected] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_noncompleted_terminal_res1')
+outcome = 'rejected'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('outcome', ['accepted', 'rejected'])
+    async def test_noncompleted_terminal_result_does_not_complete_activation(tmp_path, outcome):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='finish')],
+            terminal=True, handler=lambda *a: ActionResult(outcome))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afdcc80>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_______________ test_required_corrections_continue_within_budget _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_required_corrections_cont0')
+
+    @pytest.mark.asyncio
+    async def test_required_corrections_continue_within_budget(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path,
+            [reply(text='early1'), reply(text='early2'), reply(invoke())], terminal=True,
+            policy=LLMPolicy(required_names=('work',), max_turns=4))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:109: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afdd7f0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__ test_hard_limit_never_executes_truncated_tool_or_requests_closing[length] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_hard_limit_never_executes0')
+finish = 'length'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('finish', ['length', 'budget'])
+    async def test_hard_limit_never_executes_truncated_tool_or_requests_closing(tmp_path, finish):
+        responses = [reply(invoke(), finish='length')] if finish == 'length' else [reply(invoke())]
+        store, threads, provider, driver, session, calls = setup(tmp_path, responses,
+            policy=LLMPolicy(max_action_calls=1))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x108e28c50>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__ test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_hard_limit_never_executes1')
+finish = 'budget'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('finish', ['length', 'budget'])
+    async def test_hard_limit_never_executes_truncated_tool_or_requests_closing(tmp_path, finish):
+        responses = [reply(invoke(), finish='length')] if finish == 'length' else [reply(invoke())]
+        store, threads, provider, driver, session, calls = setup(tmp_path, responses,
+            policy=LLMPolicy(max_action_calls=1))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:122: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x108e2acc0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+___________ test_batch_budget_rejects_all_before_first_domain_effect ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_batch_budget_rejects_all_0')
+
+    @pytest.mark.asyncio
+    async def test_batch_budget_rejects_all_before_first_domain_effect(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke('one'), invoke('two'))],
+            policy=LLMPolicy(max_action_calls=1, parallel_tool_calls=True))
+        try:
+>           assert (await driver.run(session)).status == 'incomplete'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:137: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10b0808f0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+________ test_duplicate_call_id_reuses_receipt_without_budget_or_effect ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_duplicate_call_id_reuses_0')
+
+    @pytest.mark.asyncio
+    async def test_duplicate_call_id_reuses_receipt_without_budget_or_effect(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(invoke('same')), reply(invoke('same')), reply(text='done')],
+            policy=LLMPolicy(max_action_calls=2))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:149: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10b0835f0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______ test_parallel_false_has_one_corrective_turn_then_contract_failure _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_parallel_false_has_one_co0')
+
+    @pytest.mark.asyncio
+    async def test_parallel_false_has_one_corrective_turn_then_contract_failure(tmp_path):
+        pair = reply(invoke('a'), invoke('b'))
+        store, _, provider, driver, session, calls = setup(tmp_path, [pair, pair],
+            policy=LLMPolicy(parallel_tool_calls=False))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:163: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afde150>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__________ test_invalid_domain_schema_consumes_attempt_without_effect __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_invalid_domain_schema_con0')
+
+    @pytest.mark.asyncio
+    async def test_invalid_domain_schema_consumes_attempt_without_effect(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke(arguments={'value': 'bad'}))],
+            policy=LLMPolicy(max_action_calls=1), schema={'type': 'object', 'properties': {'value': {'type': 'integer'}}})
+        try:
+>           assert (await driver.run(session)).status == 'incomplete'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:175: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afdf3b0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_________ test_partial_domain_error_propagates_without_next_model_call _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_partial_domain_error_prop0')
+
+    @pytest.mark.asyncio
+    async def test_partial_domain_error_propagates_without_next_model_call(tmp_path):
+        def broken(*a):
+            raise ValueError('partial domain write')
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke())], handler=broken)
+        try:
+            with pytest.raises(ValueError, match='partial domain write'):
+>               await driver.run(session)
+
+tests/primary/test_kernel_llm.py:188: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afded50>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_____ test_reactivation_same_thread_complete_history_and_provider_session ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_reactivation_same_thread_0')
+
+    @pytest.mark.asyncio
+    async def test_reactivation_same_thread_complete_history_and_provider_session(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(invoke()), reply(text='done'), reply(text='again')])
+        try:
+>           await driver.run(session)
+
+tests/primary/test_kernel_llm.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10af8c9b0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______________ test_structured_submit_result_schema_and_terminal _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_structured_submit_result_0')
+
+    @pytest.mark.asyncio
+    async def test_structured_submit_result_schema_and_terminal(tmp_path):
+        schema = {'type': 'object', 'properties': {'amount': {'type': 'integer'}}, 'required': ['amount'], 'additionalProperties': False}
+        store, _, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('bad', 'submit_result', {'amount': 'x'})), reply(call('ok', 'submit_result', {'amount': 7}))],
+            policy=LLMPolicy(result_schema=schema))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:219: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10d0edc70>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+____________ test_empty_retry_then_exhaustion_without_domain_calls _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_empty_retry_then_exhausti0')
+
+    @pytest.mark.asyncio
+    async def test_empty_retry_then_exhaustion_without_domain_calls(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(), reply()], policy=LLMPolicy(empty_retries=1))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:304: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10af3fec0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+____ test_action_selection_and_live_rejection_are_feedback_not_domain_fault ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_action_selection_and_live0')
+
+    @pytest.mark.asyncio
+    async def test_action_selection_and_live_rejection_are_feedback_not_domain_fault(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')],
+                                                        policy=LLMPolicy(allowed_names=()))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:316: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10af8f530>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_______ test_domain_unavailable_between_discovery_and_invoke_is_feedback _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_domain_unavailable_betwee0')
+
+    @pytest.mark.asyncio
+    async def test_domain_unavailable_between_discovery_and_invoke_is_feedback(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')])
+        session.actions.actions._allows = lambda *a: False
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:327: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afde8d0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__ test_completed_terminal_batch_records_unexecuted_siblings_for_continuation __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_completed_terminal_batch_0')
+
+    @pytest.mark.asyncio
+    async def test_completed_terminal_batch_records_unexecuted_siblings_for_continuation(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('first'), invoke('second'))],
+            terminal=True, policy=LLMPolicy(parallel_tool_calls=True))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:338: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10af3fec0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+________________ test_per_action_batch_limit_and_tag_completion ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_per_action_batch_limit_an0')
+
+    @pytest.mark.asyncio
+    async def test_per_action_batch_limit_and_tag_completion(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke('a'), invoke('b'))],
+            policy=LLMPolicy(parallel_tool_calls=True, per_action_limits={'work': 1}))
+        try:
+>           assert (await driver.run(session)).reason == 'per_action_budget_exhausted'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:353: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afdec30>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_____________ test_exact_selection_does_not_expand_same_named_tag ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_exact_selection_does_not_0')
+
+    @pytest.mark.asyncio
+    async def test_exact_selection_does_not_expand_same_named_tag(tmp_path):
+        find = call('find', 'action_find', {'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'query': '', 'limit': 100, 'cursor': None})
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(find), reply(text='done')],
+            tags=('unrelated',), policy=LLMPolicy(allowed_names=('work',)))
+        session.actions.actions.register(Action('other', ('m', 'job'), '', {}, lambda *a: ActionResult('completed'), tags=('work',)))
+        try:
+>           await driver.run(session)
+
+tests/primary/test_kernel_llm.py:375: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10da3e750>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+___________ test_long_thread_never_projects_a_bounded_message_window ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_long_thread_never_project0')
+
+    @pytest.mark.asyncio
+    async def test_long_thread_never_projects_a_bounded_message_window(tmp_path):
+        responses = [reply(invoke(str(i))) for i in range(25)] + [reply(text='done')]
+        store, threads, provider, driver, session, calls = setup(tmp_path, responses)
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:388: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10afde600>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_______________ test_direct_json_measurement_has_no_domain_tools _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_direct_json_measurement_h0')
+
+    @pytest.mark.asyncio
+    async def test_direct_json_measurement_has_no_domain_tools(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(text='{"score":3}')],
+            policy=LLMPolicy(direct_json=True, result_schema={'type': 'object', 'properties': {'score': {'type': 'integer'}}, 'required': ['score']}))
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:417: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10da18f20>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______ test_shell_actual_domain_attempts_share_budget_and_no_reexecution _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_actual_domain_attem0')
+
+    @pytest.mark.asyncio
+    async def test_shell_actual_domain_attempts_share_budget_and_no_reexecution(tmp_path):
+        from society0.kernel.shell import ShellSession
+        def command():
+            import shlex
+            return 'action invoke ' + shlex.quote(json.dumps({'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': {}}))
+        response = reply(call('bash-1', 'bash', {'script': command() + '; ' + command()}))
+        store, threads, provider, driver, session, calls = setup(tmp_path, [response], policy=LLMPolicy(max_action_calls=1))
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+>           result = await driver.run(session)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10af8fb30>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_actual_domain_attem0/results/shell-wxuryqy6/output — scripts can modify host files
+_____________ test_terminal_inside_shell_stops_later_domain_calls ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_terminal_inside_shell_sto0')
+
+    @pytest.mark.asyncio
+    async def test_terminal_inside_shell_stops_later_domain_calls(tmp_path):
+        from society0.kernel.shell import ShellSession
+        import shlex
+        command = 'action invoke ' + shlex.quote(json.dumps({'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': {}}))
+        store, _, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('shell', 'bash', {'script': command + '; ' + command}))], terminal=True)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:454: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10da3fa40>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_terminal_inside_shell_sto0/results/shell-d_pb0tgc/output — scripts can modify host files
+_________ test_malformed_inner_arguments_consume_failed_domain_attempt _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_malformed_inner_arguments0')
+
+    @pytest.mark.asyncio
+    async def test_malformed_inner_arguments_consume_failed_domain_attempt(tmp_path):
+        malformed = call('bad', 'action_invoke', {'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': '{not json'})
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(malformed)], policy=LLMPolicy(max_action_calls=1))
+        try:
+>           assert (await driver.run(session)).reason == 'action_budget_exhausted'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10de70080>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__________________ test_interview_tools_are_measurement_only ___________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_interview_tools_are_measu0')
+
+    @pytest.mark.asyncio
+    async def test_interview_tools_are_measurement_only(tmp_path):
+        schema = {'type': 'object', 'properties': {'score': {'type': 'integer'}}, 'required': ['score']}
+        store, _, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('result', 'submit_result', {'score': 2}))], policy=LLMPolicy(mode='interview', result_schema=schema))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:495: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10de71760>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______ test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_default_data_read_is_utf80')
+
+    @pytest.mark.asyncio
+    async def test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback(tmp_path):
+        from society0.kernel.interaction import DocumentChunk
+        class Document:
+            def ref(self, path): return Ref('m', 'doc', path)
+            def read(self, scope, path, *, offset, size):
+                body = '完整正文🙂'.encode()
+                return DocumentChunk(body[offset:offset+size], len(body), None, 1, self.ref(path))
+        read = call('read', 'data_read', {'path': '/doc', 'offset': 0, 'size': 100})
+        invalid = call('query', 'data_query', {'path': '/doc', 'query': '{bad'})
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(read), reply(invalid), reply(text='done')])
+        session.information.information.mount('/doc', Document())
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:515: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10de71a90>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+________ test_restore_same_moment_reuses_thread_and_prior_tool_receipt _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_restore_same_moment_reuse0')
+
+    @pytest.mark.asyncio
+    async def test_restore_same_moment_reuses_thread_and_prior_tool_receipt(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('stable')), reply(text='done')])
+>       await driver.run(session)
+
+tests/primary/test_kernel_llm.py:526: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10de73830>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+______ test_shell_output_artifact_survives_restore_and_result_read[False] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_output_artifact_sur0')
+via_shell = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("via_shell", [False, True])
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, via_shell):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+>           await driver.run(session)
+
+tests/primary/test_kernel_llm.py:559: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10d9eb110>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_output_artifact_sur0/results/shell-dt1u0koh/output — scripts can modify host files
+______ test_shell_output_artifact_survives_restore_and_result_read[True] _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_output_artifact_sur1')
+via_shell = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("via_shell", [False, True])
+    async def test_shell_output_artifact_survives_restore_and_result_read(tmp_path, via_shell):
+        from society0.kernel.shell import ShellSession
+        from pathlib import Path
+        store, threads, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('script', 'bash', {'script': "printf '原文🙂'"})), reply(text='done')])
+        phase = SimpleNamespace(prepare_artifact=store.prepare_artifact)
+        session = Session(session.actor, session.scope, session.information, session.actions, session.cursors, None, (), phase)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+>           await driver.run(session)
+
+tests/primary/test_kernel_llm.py:559: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10da3c9b0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_shell_output_artifact_sur1/results/shell-0q8olue5/output — scripts can modify host files
+_ test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_fact_union_keeps_full_rea0')
+
+    @pytest.mark.asyncio
+    async def test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage(tmp_path):
+        def named(identifier, name):
+            return invoke(identifier, name=name)
+        responses = [reply(named('r1', 'read1')), reply(named('r2', 'read2')),
+                     reply(named('n', 'noop')), reply(named('r3', 'read1')),
+                     reply(named('w', 'write')), reply(named('r4', 'read1')), reply(text='done')]
+        store, threads, provider, driver, session, calls = setup(tmp_path, responses)
+        fact1, fact2 = {'namespace': 'm', 'kind': 'fact', 'key': '1'}, {'namespace': 'm', 'kind': 'fact', 'key': '2'}
+        for name, facts in [('read1', [fact1]), ('read2', [fact1, fact2])]:
+            session.actions.actions.register(Action(name, ('m', 'job'), '', {},
+                lambda *a, facts=facts: ActionResult('completed', {'text': '完整原文不能删', 'facts': facts}), read_only=True))
+        for name, changed in [('noop', False), ('write', True)]:
+            session.actions.actions.register(Action(name, ('m', 'job'), '', {},
+                lambda *a, changed=changed: ActionResult('completed', {'changed': changed})))
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:605: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10dd9c0b0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+__________ test_two_concurrent_actors_have_task_local_action_call_ids __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_two_concurrent_actors_hav0')
+
+    @pytest.mark.asyncio
+    async def test_two_concurrent_actors_have_task_local_action_call_ids(tmp_path):
+        import asyncio
+        entered = asyncio.Event()
+        seen = []
+        async def work(scope, target, arguments):
+            first = current_action_call_id.get()
+            if scope.actor == 'a':
+                entered.set()
+                await asyncio.sleep(0)
+            else:
+                await entered.wait()
+            seen.append((scope.actor, first, current_action_call_id.get()))
+            return ActionResult('completed')
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('a-call')), reply(invoke('b-call'))], terminal=True, handler=work)
+        other_scope = InteractionScope('b', session.moment)
+        other = Session(Actor('b', driver), other_scope, session.information.information.bound(other_scope),
+                        session.actions.actions.bound(other_scope), {}, None, (), None)
+        try:
+>           results = await asyncio.gather(driver.run(session), driver.run(other))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:635: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10db24650>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+________ test_memory_hooks_keep_original_input_boundary_and_thread_open ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_memory_hooks_keep_origina0')
+
+    @pytest.mark.asyncio
+    async def test_memory_hooks_keep_original_input_boundary_and_thread_open(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision')])
+        seen=[]
+        async def before(current,tid):
+            seen.append(('before',threads.describe(tid)['status']))
+            return [{'role':'user','content':'full recalled memory'}]
+        async def after(current,tid,result):
+            seen.append(('after',threads.describe(tid)['status']))
+            assert result.value['memory_input_through']==threads.describe(tid)['last_seq']
+            threads.append_message(tid,{'role':'user','content':'extract memory from complete decision'})
+            assert result.value['memory_input_through']<threads.describe(tid)['last_seq']
+        driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+        try:
+>           result=await driver.run(session)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:683: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10dd9d7f0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_ test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_memory_success_hook_skips0')
+failure = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',[False,True])
+    async def test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete(tmp_path,failure):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision',finish='stop' if failure else 'length')])
+        seen=[]
+        async def before(*args):return []
+        async def after(*args):
+            seen.append(True)
+            raise OSError('embedding evidence failed')
+        driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+        try:
+            if failure:
+                with pytest.raises(OSError,match='embedding evidence'):await driver.run(session)
+>           else:assert (await driver.run(session)).status=='incomplete'
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:704: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10db25550>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+_ test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[True] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-626/test_memory_success_hook_skips1')
+failure = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure',[False,True])
+    async def test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete(tmp_path,failure):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='decision',finish='stop' if failure else 'length')])
+        seen=[]
+        async def before(*args):return []
+        async def after(*args):
+            seen.append(True)
+            raise OSError('embedding evidence failed')
+        driver.memory=SimpleNamespace(before_activation=before,after_activation=after)
+        try:
+            if failure:
+>               with pytest.raises(OSError,match='embedding evidence'):await driver.run(session)
+                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:703: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:412: in run
+    response = await provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_llm.py:42: in request
+    self.threads.event(thread_id, 'provider_response', response)
+src/society0/kernel/threads.py:202: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10db274a0>
+
+    def write(writer):
+        sequence=_append(writer,thread_id,kind,payload)
+        if kind in ('provider_response','provider_error','provider_decode_error'):
+            body=payload.get('payload',{})
+>           usage.finish(writer,'thread',payload['physical_request_id'],response=kind=='provider_response',
+                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                         body=body.get('raw_response',body.get('response')))
+E           KeyError: 'physical_request_id'
+
+src/society0/kernel/threads.py:199: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm_workspace_review.py::test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell
+FAILED tests/primary/test_kernel_llm.py::test_natural_finish_preserves_complete_input_and_thread
+FAILED tests/primary/test_kernel_llm.py::test_terminal_completed_ends_without_extra_request
+FAILED tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[accepted]
+FAILED tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[rejected]
+FAILED tests/primary/test_kernel_llm.py::test_required_corrections_continue_within_budget
+FAILED tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[length]
+FAILED tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget]
+FAILED tests/primary/test_kernel_llm.py::test_batch_budget_rejects_all_before_first_domain_effect
+FAILED tests/primary/test_kernel_llm.py::test_duplicate_call_id_reuses_receipt_without_budget_or_effect
+FAILED tests/primary/test_kernel_llm.py::test_parallel_false_has_one_corrective_turn_then_contract_failure
+FAILED tests/primary/test_kernel_llm.py::test_invalid_domain_schema_consumes_attempt_without_effect
+FAILED tests/primary/test_kernel_llm.py::test_partial_domain_error_propagates_without_next_model_call
+FAILED tests/primary/test_kernel_llm.py::test_reactivation_same_thread_complete_history_and_provider_session
+FAILED tests/primary/test_kernel_llm.py::test_structured_submit_result_schema_and_terminal
+FAILED tests/primary/test_kernel_llm.py::test_empty_retry_then_exhaustion_without_domain_calls
+FAILED tests/primary/test_kernel_llm.py::test_action_selection_and_live_rejection_are_feedback_not_domain_fault
+FAILED tests/primary/test_kernel_llm.py::test_domain_unavailable_between_discovery_and_invoke_is_feedback
+FAILED tests/primary/test_kernel_llm.py::test_completed_terminal_batch_records_unexecuted_siblings_for_continuation
+FAILED tests/primary/test_kernel_llm.py::test_per_action_batch_limit_and_tag_completion
+FAILED tests/primary/test_kernel_llm.py::test_exact_selection_does_not_expand_same_named_tag
+FAILED tests/primary/test_kernel_llm.py::test_long_thread_never_projects_a_bounded_message_window
+FAILED tests/primary/test_kernel_llm.py::test_direct_json_measurement_has_no_domain_tools
+FAILED tests/primary/test_kernel_llm.py::test_shell_actual_domain_attempts_share_budget_and_no_reexecution
+FAILED tests/primary/test_kernel_llm.py::test_terminal_inside_shell_stops_later_domain_calls
+FAILED tests/primary/test_kernel_llm.py::test_malformed_inner_arguments_consume_failed_domain_attempt
+FAILED tests/primary/test_kernel_llm.py::test_interview_tools_are_measurement_only
+FAILED tests/primary/test_kernel_llm.py::test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback
+FAILED tests/primary/test_kernel_llm.py::test_restore_same_moment_reuses_thread_and_prior_tool_receipt
+FAILED tests/primary/test_kernel_llm.py::test_shell_output_artifact_survives_restore_and_result_read[False]
+FAILED tests/primary/test_kernel_llm.py::test_shell_output_artifact_survives_restore_and_result_read[True]
+FAILED tests/primary/test_kernel_llm.py::test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage
+FAILED tests/primary/test_kernel_llm.py::test_two_concurrent_actors_have_task_local_action_call_ids
+FAILED tests/primary/test_kernel_llm.py::test_memory_hooks_keep_original_input_boundary_and_thread_open
+FAILED tests/primary/test_kernel_llm.py::test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[False]
+FAILED tests/primary/test_kernel_llm.py::test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[True]
+36 failed, 92 passed in 4.37s

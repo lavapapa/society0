@@ -1,0 +1,38 @@
+.............FFF                                                         [100%]
+=================================== FAILURES ===================================
+________ test_native_session_across_transactions_rollback_and_streaming ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-210/test_native_session_across_tra0')
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立/tmp/core-next-session-venv，正式依赖未变')
+    def test_native_session_across_transactions_rollback_and_streaming(tmp_path):
+>       result = module.session_probe('split', body_bytes=32768, rows=4)
+                 ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_probe'
+
+tests/experiments/test_core_next_storage.py:146: AttributeError
+_____ test_native_session_wide_row_capture_is_not_bounded_by_small_change ______
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立临时venv')
+    def test_native_session_wide_row_capture_is_not_bounded_by_small_change():
+>       wide = module.session_probe('wide', body_bytes=65536, rows=4)
+               ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_probe'
+
+tests/experiments/test_core_next_storage.py:157: AttributeError
+___________ test_native_session_json_cell_update_and_append_payload ____________
+
+    @pytest.mark.skipif(importlib.util.find_spec('apsw') is None, reason='Session研究使用独立临时venv')
+    def test_native_session_json_cell_update_and_append_payload():
+>       huge = module.session_probe('json', body_bytes=65536, rows=4)
+               ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'session_probe'
+
+tests/experiments/test_core_next_storage.py:167: AttributeError
+=============================== warnings summary ===============================
+../../../../../../tmp/core-next-session-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1464
+  /tmp/core-next-session-venv/lib/python3.12/site-packages/_pytest/config/__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_mode
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html

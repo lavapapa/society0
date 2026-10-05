@@ -1,0 +1,29 @@
+[
+  {
+    "id": "openai/text-embedding-3-small",
+    "pricing": {
+      "prompt": "0.00000002",
+      "completion": "0"
+    },
+    "supported_parameters": [],
+    "context_length": 8192
+  },
+  {
+    "id": "qwen/qwen3-embedding-8b",
+    "pricing": {
+      "prompt": "0.00000001",
+      "completion": "0"
+    },
+    "supported_parameters": [],
+    "context_length": 32768
+  },
+  {
+    "id": "qwen/qwen3-embedding-4b",
+    "pricing": {
+      "prompt": "0.00000002",
+      "completion": "0"
+    },
+    "supported_parameters": [],
+    "context_length": 32768
+  }
+]

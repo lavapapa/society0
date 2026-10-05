@@ -1,0 +1,81 @@
+{
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "status": 200,
+  "request": {
+    "model": "deepseek-flash",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Call report with value 7."
+      }
+    ],
+    "max_tokens": 1024,
+    "temperature": 0,
+    "thinking": {
+      "type": "disabled"
+    },
+    "parallel_tool_calls": false,
+    "tools": [
+      {
+        "type": "function",
+        "function": {
+          "name": "report",
+          "description": "Report an integer",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "value"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    ],
+    "tool_choice": "auto"
+  },
+  "response": {
+    "id": "e844e14b-db50-4410-b84e-be6f14ef1b6e",
+    "object": "chat.completion",
+    "created": 1791076929,
+    "model": "deepseek-flash",
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "index": 0,
+              "id": "call_00_3cWXKXPLAUXTTE1H9nG78051",
+              "type": "function",
+              "function": {
+                "name": "report",
+                "arguments": "{\"value\": 7}"
+              }
+            }
+          ]
+        },
+        "logprobs": null,
+        "finish_reason": "tool_calls"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 272,
+      "completion_tokens": 36,
+      "total_tokens": 308,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 272
+    },
+    "system_fingerprint": "aeb56401ca74e127821c4f9126dcb669"
+  }
+}

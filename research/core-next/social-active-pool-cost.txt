@@ -1,0 +1,37 @@
+{'history': [100, 10000], 'active_pool_sql_vm': [877, 40477]}
+F
+=================================== FAILURES ===================================
+_______ test_social_fixed_active_pool_queries_do_not_replay_long_history _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-527/test_social_fixed_active_pool_0')
+
+    @pytest.mark.asyncio
+    async def test_social_fixed_active_pool_queries_do_not_replay_long_history(tmp_path):
+        measured=[]
+        config={'social_media':{'recommendation':{'use_embedding_similarity':False,'full_scan_until':10,
+            'recent_keep_count':5,'top_engagement_keep_count':5,'min_lifetime_ticks':1}}}
+        for count in (100,10000):
+            async with compose(tmp_path/str(count),plan(social_plugin('abc',config=config,edges=[]))) as host:
+                social=host.service('social','mechanism');store=host.service('storage','store')
+                def seed(w):
+                    w.executemany('INSERT INTO social_posts VALUES(?,?,?,0,NULL,0,0,0,0,0)',
+                        ((f'post_{i:08d}',i,'b') for i in range(1,count+1)))
+                    w.execute('UPDATE social_head SET post_count=? WHERE id=1',(count,))
+                store.transaction(seed)
+                original=store.read;vm=[0]
+                def read(callback,**kwargs):
+                    def run(view):
+                        view._connection.set_progress_handler(lambda:vm.__setitem__(0,vm[0]+1) or False,1)
+                        return callback(view)
+                    return original(run,**kwargs)
+                store.read=read
+                assert len(social.active_pool(100))==5
+                measured.append(vm[0])
+        print({'history':[100,10000],'active_pool_sql_vm':measured})
+>       assert measured[1]<measured[0]*1.2+30
+E       assert 40477 < ((877 * 1.2) + 30)
+
+tests/primary/test_plugin_social.py:434: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_fixed_active_pool_queries_do_not_replay_long_history
+1 failed, 25 deselected in 0.27s

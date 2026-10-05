@@ -1,0 +1,56 @@
+..FF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page[actions] _
+
+kind = 'actions'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind', ['actions', 'root'])
+    async def test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page(kind):
+        scope = InteractionScope('alice', Moment(0, 'p'))
+        if kind == 'actions':
+            service = action_service()
+            async def page(cursor=None):
+                return await service.find(scope, Ref('m', 'thing', 'x'), limit=1, cursor=cursor)
+        else:
+            service = Information(lambda *a: True)
+            service.mount('/a', Directory('a'))
+            service.mount('/b', Directory('b'))
+            async def page(cursor=None):
+                return await service.list(scope, '/', limit=1, cursor=cursor)
+        cursor = json.loads(json.dumps((await page()).next_cursor))
+        cursor['offset'] = -1
+>       with pytest.raises(ValueError, match='cursor|offset'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_interaction_review.py:81: Failed
+_ test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page[root] _
+
+kind = 'root'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind', ['actions', 'root'])
+    async def test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page(kind):
+        scope = InteractionScope('alice', Moment(0, 'p'))
+        if kind == 'actions':
+            service = action_service()
+            async def page(cursor=None):
+                return await service.find(scope, Ref('m', 'thing', 'x'), limit=1, cursor=cursor)
+        else:
+            service = Information(lambda *a: True)
+            service.mount('/a', Directory('a'))
+            service.mount('/b', Directory('b'))
+            async def page(cursor=None):
+                return await service.list(scope, '/', limit=1, cursor=cursor)
+        cursor = json.loads(json.dumps((await page()).next_cursor))
+        cursor['offset'] = -1
+>       with pytest.raises(ValueError, match='cursor|offset'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_interaction_review.py:81: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_interaction_review.py::test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page[actions]
+FAILED tests/primary/test_kernel_interaction_review.py::test_review_negative_cursor_is_rejected_instead_of_empty_nonprogress_page[root]
+2 failed, 2 passed in 0.06s

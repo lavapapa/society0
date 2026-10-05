@@ -1,0 +1,220 @@
+FFFFFFFF                                                                 [100%]
+=================================== FAILURES ===================================
+_ test_review_route_comparison_rejects_non_note_message_corruption[system-old] _
+
+version = 'old', damage = 'system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[system-new] _
+
+version = 'new', damage = 'system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[assistant-old] _
+
+version = 'old', damage = 'assistant'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[assistant-new] _
+
+version = 'new', damage = 'assistant'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-old] _
+
+version = 'old', damage = 'tool_amount'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-new] _
+
+version = 'new', damage = 'tool_amount'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[provider_system-old] _
+
+version = 'old', damage = 'provider_system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+_ test_review_route_comparison_rejects_non_note_message_corruption[provider_system-new] _
+
+version = 'new', damage = 'provider_system'
+
+    @pytest.mark.parametrize('version',['old','new'])
+    @pytest.mark.parametrize('damage',['system','assistant','tool_amount','provider_system'])
+    def test_review_route_comparison_rejects_non_note_message_corruption(version,damage):
+        data=outputs();item=data[f'{version}-llm-restored']
+        histories=[row['messages'] for row in item['threads']] if isinstance(item['threads'],list) else list(item['threads'].values())
+        history=histories[0]
+        if damage=='system':history[0]['content']='changed instructions'
+        elif damage=='assistant':next(m for m in history if m['role']=='assistant')['content']='changed reasoning'
+        elif damage=='tool_amount':
+            tool=next(m for m in history if m['role']=='tool')
+            old="'amount': 1" if version=='old' else '"amount": 1'
+            assert old in tool['content']
+            tool['content']=tool['content'].replace(old,old[:-1]+'999',1)
+        else:
+            request=item['provider_inputs'][0]
+            messages=request['messages'] if isinstance(request,dict) else request
+            messages[0]['content']='changed actual provider system'
+>       with pytest.raises(AssertionError):module.compare(data)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE AssertionError
+
+tests/experiments/test_core_next_parity_review.py:23: Failed
+=========================== short test summary info ============================
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[system-old]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[system-new]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[assistant-old]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[assistant-new]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-old]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[tool_amount-new]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[provider_system-old]
+FAILED tests/experiments/test_core_next_parity_review.py::test_review_route_comparison_rejects_non_note_message_corruption[provider_system-new]
+8 failed in 0.03s

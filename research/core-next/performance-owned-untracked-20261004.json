@@ -1,0 +1,96 @@
+{
+  "inventory_at": "2026-10-04T09:10:59.715291+08:00",
+  "scope": "仅明确本人归属；peer日志与不确定归属未纳入；未执行删除",
+  "items": [
+    {
+      "path": "research/core-next/cold-datasets-groups-probe-green-20261004.txt",
+      "bytes": 98,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-datasets-native-subset-executed-probe-20261004.py",
+      "bytes": 7296,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-datasets-probe-green-20261004.txt",
+      "bytes": 98,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-datasets-probe-instrumented-green-20261004.txt",
+      "bytes": 98,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-datasets-probe-red-20261004.txt",
+      "bytes": 1133,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-datasets-zstd-sync-20261004.txt",
+      "bytes": 554,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-native-runtime-20261004.json",
+      "bytes": 0,
+      "recommendation": "may_delete",
+      "reason": "空输出占位；正式结果已在 cold-native-runtime-final-20261004.json 保存，无测量内容"
+    },
+    {
+      "path": "research/core-next/cold-runtime-probe-green-20261004.txt",
+      "bytes": 80,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-sqlite-codec-green-20261004.txt",
+      "bytes": 98,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/cold-sqlite-codec-red-20261004.txt",
+      "bytes": 1125,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/kernel-compression-final-integration-r2-20261004.txt",
+      "bytes": 240,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/kernel-memory-action-owner-green-20261004.txt",
+      "bytes": 99,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/optional-dependency-uv-sync-20261004.txt",
+      "bytes": 531,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/retirement-storage-independent-20261004.json",
+      "bytes": 225,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    },
+    {
+      "path": "research/core-next/typed-records-independent-fixture-20261004.txt",
+      "bytes": 2193,
+      "recommendation": "retain",
+      "reason": "本人历史实验或非作者复验的小证据；保留原失败/环境/执行源码上下文，文件名green不保证所有尝试成功"
+    }
+  ]
+}

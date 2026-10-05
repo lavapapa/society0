@@ -1,0 +1,147 @@
+...........................FFFFF                                         [100%]
+=================================== FAILURES ===================================
+_____________ test_terminal_inside_shell_stops_later_domain_calls ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_terminal_inside_shell_sto0')
+
+    @pytest.mark.asyncio
+    async def test_terminal_inside_shell_stops_later_domain_calls(tmp_path):
+        from society0.kernel.shell import ShellSession
+        import shlex
+        command = 'action invoke ' + shlex.quote(json.dumps({'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': {}}))
+        store, _, provider, driver, session, calls = setup(tmp_path,
+            [reply(call('shell', 'bash', {'script': command + '; ' + command}))], terminal=True)
+        driver.shell_factory = lambda s, ledger: ShellSession(s.scope, s.information.information,
+            bound_actions=ledger, result_dir=tmp_path / 'results')
+        try:
+            assert (await driver.run(session)).status == 'completed'
+>           assert len(calls) == 1
+E           AssertionError: assert 2 == 1
+E            +  where 2 = len([({}, 'shell:1'), ({}, 'shell:2')])
+
+tests/primary/test_kernel_llm.py:455: AssertionError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_terminal_inside_shell_sto0/results/shell-vbxyrscw/output — scripts can modify host files
+___________ test_filtered_discovery_cursor_binds_subject_and_moment ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_filtered_discovery_cursor0')
+
+    @pytest.mark.asyncio
+    async def test_filtered_discovery_cursor_binds_subject_and_moment(tmp_path):
+        from society0.kernel.llm import _Ledger
+        store, threads, _, driver, session, _ = setup(tmp_path, [])
+        session.actions.actions.register(Action('other', ('m', 'job'), '', {}, lambda *a: ActionResult('completed')))
+        tid = threads.open('a', session.moment, 'decision')
+        first = _Ledger(driver, session, tid)
+        target = Ref('m', 'job', '1')
+        try:
+            cursor = (await first.find(target, limit=1)).next_cursor
+            other = Session(Actor('b', driver), InteractionScope('b', session.moment), session.information,
+                            session.actions, {}, None, (), None)
+>           with pytest.raises(ValueError, match='cursor'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_llm.py:472: Failed
+_________ test_malformed_inner_arguments_consume_failed_domain_attempt _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_malformed_inner_arguments0')
+
+    @pytest.mark.asyncio
+    async def test_malformed_inner_arguments_consume_failed_domain_attempt(tmp_path):
+        malformed = call('bad', 'action_invoke', {'name': 'work', 'target': {'namespace': 'm', 'kind': 'job', 'key': '1'}, 'arguments': '{not json'})
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(malformed)], policy=LLMPolicy(max_action_calls=1))
+        try:
+>           assert (await driver.run(session)).reason == 'action_budget_exhausted'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:483: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:238: in run
+    response = await self.provider.request(thread_id, options)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <tests.primary.test_kernel_llm.FakeProvider object at 0x10df0d160>
+thread_id = 'fea2a418f06349b5a9230ed90c4389c9'
+options = {'tools': [{'type': 'function', 'function': {'name': 'action_find', 'description': 'action_find', 'parameters': {'type...alse}}}], 'parallel_tool_calls': False, 'extra_body': {'metadata': {'session_id': '9b81e2fcda434506a038041ffb05b68f'}}}
+
+    async def request(self, thread_id, options):
+        messages = self.threads.read_messages(thread_id)
+        self.requests.append((thread_id, options, messages))
+        self.threads.record_request(thread_id, provider_options=options, physical_request_id=str(len(self.requests)))
+>       response = self.replies.pop(0)
+                   ^^^^^^^^^^^^^^^^^^^
+E       IndexError: pop from empty list
+
+tests/primary/test_kernel_llm.py:39: IndexError
+__________________ test_interview_tools_are_measurement_only ___________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_interview_tools_are_measu0')
+
+    @pytest.mark.asyncio
+    async def test_interview_tools_are_measurement_only(tmp_path):
+        schema = {'type': 'object', 'properties': {'score': {'type': 'integer'}}, 'required': ['score']}
+        store, _, provider, driver, session, calls = setup(tmp_path,
+>           [reply(call('result', 'submit_result', {'score': 2}))], policy=LLMPolicy(mode='interview', result_schema=schema))
+                                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: LLMPolicy.__init__() got an unexpected keyword argument 'mode'
+
+tests/primary/test_kernel_llm.py:493: TypeError
+______ test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-304/test_default_data_read_is_utf80')
+
+    @pytest.mark.asyncio
+    async def test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback(tmp_path):
+        from society0.kernel.interaction import DocumentChunk
+        class Document:
+            def ref(self, path): return Ref('m', 'doc', path)
+            def read(self, scope, path, *, offset, size):
+                body = '完整正文🙂'.encode()
+                return DocumentChunk(body[offset:offset+size], len(body), None, 1, self.ref(path))
+        read = call('read', 'data_read', {'path': '/doc', 'offset': 0, 'size': 100})
+        invalid = call('query', 'data_query', {'path': '/doc', 'query': '{bad'})
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(read), reply(invalid), reply(text='done')])
+        session.information.information.mount('/doc', Document())
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:515: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:339: in run
+    feedback = _json(await session.information.query(arguments['path'], Query(**json.loads(arguments['query']))))
+                                                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <json.decoder.JSONDecoder object at 0x1059de8a0>, s = '{bad', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+    
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+    
+        """
+        try:
+>           obj, end = self.scan_once(s, idx)
+                       ^^^^^^^^^^^^^^^^^^^^^^
+E           json.decoder.JSONDecodeError: Expecting property name enclosed in double quotes: line 1 column 2 (char 1)
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:354: JSONDecodeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm.py::test_terminal_inside_shell_stops_later_domain_calls
+FAILED tests/primary/test_kernel_llm.py::test_filtered_discovery_cursor_binds_subject_and_moment
+FAILED tests/primary/test_kernel_llm.py::test_malformed_inner_arguments_consume_failed_domain_attempt
+FAILED tests/primary/test_kernel_llm.py::test_interview_tools_are_measurement_only
+FAILED tests/primary/test_kernel_llm.py::test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback
+5 failed, 27 passed in 1.27s

@@ -1,0 +1,3 @@
+2026/10/04 07:37:50 tshttpproxy: using proxy "http://127.0.0.1:7890" for URL: "https://controlplane.tailscale.com/"
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell

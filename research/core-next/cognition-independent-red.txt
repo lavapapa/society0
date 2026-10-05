@@ -1,0 +1,29 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_review_changed_persona_environment_precision_are_visible_in_existing_thread _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-401/test_review_changed_persona_en0')
+
+    @pytest.mark.asyncio
+    async def test_review_changed_persona_environment_precision_are_visible_in_existing_thread(tmp_path):
+        settings={'environment':'old environment','precision':'old precision'}
+        async def perception(current,cursor): return ([],cursor)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store); provider=Provider(threads)
+            builder=CognitiveInput(threads,perception,environment=lambda s:settings['environment'],precision=lambda s:settings['precision'])
+            driver=LLMDriver(provider,threads,input_builder=builder)
+            await driver.run(session(driver))
+            changed=session(driver)
+            changed.actor.config.persona={'instance':'new persona'}
+            changed.actor.config.state={'state':'new state'}
+            settings.update(environment='new environment',precision='new precision')
+            await driver.run(changed)
+            text='\n'.join(m['content'] for m in provider.inputs[-1])
+>           assert all(value in text for value in ('new persona','new environment','new precision','new state'))
+E           assert False
+E            +  where False = all(<generator object test_review_changed_persona_environment_precision_are_visible_in_existing_thread.<locals>.<genexpr> at 0x10ce08380>)
+
+tests/primary/test_kernel_cognition_review.py:25: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_cognition_review.py::test_review_changed_persona_environment_precision_are_visible_in_existing_thread
+1 failed, 1 passed in 0.50s

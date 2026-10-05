@@ -1,0 +1,44 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_provider_receives_literal_search_and_policy_specific_call_guidance[False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-902/test_provider_receives_literal0')
+parallel = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('parallel',[False,True])
+    async def test_provider_receives_literal_search_and_policy_specific_call_guidance(tmp_path,parallel):
+        store,threads,provider,driver,session,_=setup(tmp_path,[reply(text='done')],policy=LLMPolicy(parallel_tool_calls=parallel))
+        try:
+            assert (await driver.run(session)).status=='completed'
+            options=provider.requests[0][1]
+            tools={tool['function']['name']:tool['function'] for tool in options['tools']}
+            find=tools['action_find'];description=find['description']
+>           query=find['parameters']['properties']['query']['description']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'description'
+
+tests/primary/test_kernel_discovery_description.py:15: KeyError
+_ test_provider_receives_literal_search_and_policy_specific_call_guidance[True] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-902/test_provider_receives_literal1')
+parallel = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('parallel',[False,True])
+    async def test_provider_receives_literal_search_and_policy_specific_call_guidance(tmp_path,parallel):
+        store,threads,provider,driver,session,_=setup(tmp_path,[reply(text='done')],policy=LLMPolicy(parallel_tool_calls=parallel))
+        try:
+            assert (await driver.run(session)).status=='completed'
+            options=provider.requests[0][1]
+            tools={tool['function']['name']:tool['function'] for tool in options['tools']}
+            find=tools['action_find'];description=find['description']
+>           query=find['parameters']['properties']['query']['description']
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'description'
+
+tests/primary/test_kernel_discovery_description.py:15: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_discovery_description.py::test_provider_receives_literal_search_and_policy_specific_call_guidance[False]
+FAILED tests/primary/test_kernel_discovery_description.py::test_provider_receives_literal_search_and_policy_specific_call_guidance[True]
+2 failed in 0.58s

@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_two_sessions_have_unambiguous_run_relative_result_refs __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-236/test_two_sessions_have_unambig0')
+
+    @pytest.mark.asyncio
+    async def test_two_sessions_have_unambiguous_run_relative_result_refs(tmp_path):
+        first, _, _ = build(tmp_path)
+        second, _, _ = build(tmp_path)
+        left = await first.execute('echo left')
+        right = await second.execute('echo right')
+        assert left.command_id == right.command_id == '1'
+>       assert left.stdout_ref != right.stdout_ref
+E       AssertionError: assert 'output/1.stdout' != 'output/1.stdout'
+E        +  where 'output/1.stdout' = ShellResult(command_id='1', stdout='left\n', stderr='', exit_code=0, stdout_truncated=False, stderr_truncated=False, s... receipts=(), stdout_total_bytes=5, stderr_total_bytes=0, stdout_next_offset=None, stderr_next_offset=None, error=None).stdout_ref
+E        +  and   'output/1.stdout' = ShellResult(command_id='1', stdout='right\n', stderr='', exit_code=0, stdout_truncated=False, stderr_truncated=False, ... receipts=(), stdout_total_bytes=6, stderr_total_bytes=0, stdout_next_offset=None, stderr_next_offset=None, error=None).stdout_ref
+
+tests/primary/test_kernel_shell.py:214: AssertionError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-236/test_two_sessions_have_unambig0/shell-jsyd4dwb/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-236/test_two_sessions_have_unambig0/shell-ct0so1gj/output — scripts can modify host files
+1 failed, 10 deselected in 0.14s

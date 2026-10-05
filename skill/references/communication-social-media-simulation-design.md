@@ -31,7 +31,7 @@ platform / movement / event -> bounded exposure -> LLM interpretation
 
 The environment owns the platform and institutions: user graph, follow graph, timelines, recommendation algorithms, search exposure, social exposure, post/comment tables, engagement counts, moderation or intervention rules, time, online schedules, event injections, ground-truth labels, and output records. LLM agents own situated interpretation: attention, relevance, trust, belief, emotion, stance, rhetoric, memory, reasoning, and constrained communication choices.
 
-Use `social_network` when the study can be represented by feeds, posts, replies, recommendations, endorsements, and diffusion. Use a custom env only when the paper requires a platform affordance, hybrid agent layer, or deterministic dynamics not expressible with the built-in env. Keep social-network-specific assumptions inside the env or experiment logic, not in `Society0`, `CodeSchedule`, `World`, or generic agent APIs.
+Use `social_network` when the study can be represented by feeds, posts, replies, recommendations, endorsements, and diffusion. Use a custom env only when the paper requires a platform affordance, hybrid agent layer, or deterministic dynamics not expressible with the built-in env. Keep social-network-specific assumptions inside the env or experiment logic, not in `Society0`, `Schedule`, `World`, or generic agent APIs.
 
 Use `instruct` with environment actions when behavior changes the simulated world: post, repost, quote, comment, reply, like, dislike, follow, unfollow, search, refresh, report, or ignore. Use `interview` for measurement: perceived credibility, belief, trust, intention, stance, explanation, manipulation check, or post-hoc survey. Do not expose ordinary social actions during interviews unless the interview is explicitly an action-mode extension.
 
@@ -116,7 +116,7 @@ Use this env-first split in every communication simulation:
 | Posting, reposting, replying, liking, following, searching, refreshing, reporting, deciding not to act | `instruct` with env actions |
 | Credibility rating, belief, perceived toxicity, manipulation check, survey answer, explanation, stance coding | `interview` or analysis model outside the action loop |
 | Recommendation, ranking, propagation, graph updates, CA/SIR/IC/LT dynamics, online sampling, decay, intervention delivery | env rules or code steps |
-| Metrics and audit records | `ctx.result(metrics=..., tables=...)` plus analysis scripts |
+| Metrics and audit records | `StepResult(metrics=..., tables=...)` plus analysis scripts |
 
 Design rules:
 
@@ -129,8 +129,8 @@ Design rules:
 - Keep hidden truth and treatment labels out of FoV. A fake-news experiment may tell an agent about an official correction only when the intervention schedule delivers it.
 - Keep public-opinion trajectories, event labels, source truth labels, and benchmark curves out of FoV unless the source study makes them visible to the simulated user. Store them as hidden properties, env records, or validation tables.
 - Make time meaningful: one tick might be a minute, 3 minutes, an hour, a day, or an event stage. Record the mapping and whether agents are synchronously or asynchronously activated.
-- Keep memory as a modeled mechanism. For ongoing social interaction, `retrieve_memory=True` is usually appropriate; ablate memory only to test its effect. Do not turn it off for speed in a memory-bearing design.
-  Durable experience requires explicit Agent Threads and `extract_thread_memories(...)` after successful behavior rounds; follow the complete pattern in `step-dsl.md`.
+- Keep memory as a modeled mechanism. For ongoing social interaction, `MemoryPolicy(auto_recall=True)` is usually appropriate; ablate memory only to test its effect. Do not turn it off for speed in a memory-bearing design.
+  Durable experience requires explicit Agent Threads and the explicit memory completion hook after successful behavior rounds; follow the complete pattern in `step-dsl.md`.
 - Separate language generation from metric coding. An LLM may generate a post; a separate rule, classifier, human coder, or analysis model may code stance, toxicity, or bridging quality.
 - Pilot with a small network and visible traces before scaling. Large agent counts do not rescue weak FoVs, action schemas, or validation design.
 

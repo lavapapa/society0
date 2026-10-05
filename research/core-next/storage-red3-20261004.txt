@@ -1,0 +1,10 @@
+.........F                                                               [100%]
+=================================== FAILURES ===================================
+___________ test_native_transaction_visibility_and_long_reader_cost ____________
+
+    def test_native_transaction_visibility_and_long_reader_cost():
+>       result = module.transaction_probe()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'core_next_storage' has no attribute 'transaction_probe'
+
+tests/experiments/test_core_next_storage.py:114: AttributeError

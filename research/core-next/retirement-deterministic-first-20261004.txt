@@ -1,0 +1,39 @@
+...............................F........................................ [ 11%]
+........................................................................ [ 22%]
+........................................................................ [ 33%]
+........................................................................ [ 44%]
+........................................................................ [ 55%]
+........................................................................ [ 66%]
+........................................................................ [ 77%]
+........................................................................ [ 88%]
+........................................................................ [100%]
+=================================== FAILURES ===================================
+____________ test_repeated_phase_names_keep_metric_series_separate _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-855/test_repeated_phase_names_keep0')
+
+    @pytest.mark.asyncio
+    async def test_repeated_phase_names_keep_metric_series_separate(tmp_path):
+        from society0.kernel.interaction import interaction_plugin
+        from society0.kernel.results import results_plugin,StepResult
+        from society0.kernel.runtime import runtime_plugin,Phase
+        from society0.kernel.schedule import schedule_plugin
+        from society0.kernel.runner import RunPlan,RunContract
+        current=RunPlan([interaction_plugin(lambda *a:True),results_plugin(),
+            runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),
+            schedule_plugin([Phase('measure',lambda ctx:StepResult(metrics={'n':1})),Phase('measure',lambda ctx:StepResult(metrics={'n':2}))])],
+            (1,2),RunContract({'commit':'test'},{},{},{},{}))
+        await run_plan(tmp_path/'run',current)
+        payload=export_payload([RunSelection(tmp_path/'run','v',(1,2),())])
+        modules=payload['versions'][0]['runs'][0]['snapshots'][-1]['tabs'][0]['modules']
+        series=[m['views'][0]['rows'] for m in modules if ':metric:' in m['id']]
+>       assert [[point['y'] for point in rows] for rows in series]==[[1,1],[2,2]]
+E       assert [[1, 2, 1], [1, 2, 1, 2]] == [[1, 1], [2, 2]]
+E         
+E         At index 0 diff: [1, 2, 1] != [1, 1]
+E         Use -v to get more diff
+
+tests/primary/test_core_next_workbench.py:162: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_next_workbench.py::test_repeated_phase_names_keep_metric_series_separate
+1 failed, 647 passed, 15 deselected in 25.80s

@@ -1,0 +1,35 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_context_manager_receives_install_error __________________
+
+    def test_context_manager_receives_install_error():
+        received = []
+    
+        @contextmanager
+        def resource():
+            try:
+                yield
+            except LookupError as error:
+                received.append(str(error))
+                raise
+    
+        async def install(ctx):
+            await ctx.enter_context(resource())
+            raise LookupError("original failure")
+    
+        async def run():
+            with pytest.raises(LookupError, match="original failure"):
+                async with PluginHost([Plugin("p", install=install)]):
+                    pass
+    
+        asyncio.run(run())
+>       assert received == ["original failure"]
+E       AssertionError: assert [] == ['original failure']
+E         
+E         Right contains one more item: 'original failure'
+E         Use -v to get more diff
+
+tests/primary/test_kernel_plugins.py:267: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_plugins.py::test_context_manager_receives_install_error
+1 failed in 0.03s

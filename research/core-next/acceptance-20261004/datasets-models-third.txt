@@ -1,0 +1,14 @@
+...........F...............................................F............ [ 83%]
+..............                                                           [100%]
+=================================== FAILURES ===================================
+____________ test_review_dataset_large_range_and_final_page_budget _____________
+tests/primary/test_kernel_datasets_review.py:48: in test_review_dataset_large_range_and_final_page_budget
+    assert len(calls)==1
+E   assert 2 == 1
+E    +  where 2 = len([1, 1])
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+tests/primary/test_kernel_llm.py:273: in test_physical_retry_preserves_request_reference_and_full_raw_response
+    raw=threads.read_messages(tid,raw=True)[-1]['model_message']
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: ThreadStore.read_messages() got an unexpected keyword argument 'raw'
+2 failed, 84 passed in 3.31s

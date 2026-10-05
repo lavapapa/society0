@@ -1,0 +1,22 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_review_blob_rowid_alias_selection_is_case_insensitive __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-281/test_review_blob_rowid_alias_s0')
+
+    @pytest.mark.asyncio
+    async def test_review_blob_rowid_alias_selection_is_case_insensitive(tmp_path):
+        with StageStore.create(tmp_path/'run', ['CREATE TABLE docs(id INTEGER PRIMARY KEY,RowID INTEGER NOT NULL,owner TEXT NOT NULL,body BLOB NOT NULL)'],
+                               initialize=lambda w:w.executemany('INSERT INTO docs VALUES(?,?,?,?)',[(1,2,'alice',b'alice'),(2,1,'bob',b'bob')])) as store:
+            provider = SQLInformation('m',StageReader(store.path),{'docs':DocumentSpec('docs','id','body',authorize=lambda scope:('owner=?',(scope.actor,)))})
+            chunk = await provider.read(InteractionScope('alice',Moment(0,'read')),'/m/docs/1',size=64)
+>           assert chunk.data == b'alice'
+E           AssertionError: assert b'bob' == b'alice'
+E             
+E             At index 0 diff: b'b' != b'a'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_information_sql_review.py:38: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_sql_review.py::test_review_blob_rowid_alias_selection_is_case_insensitive
+1 failed, 2 passed in 0.14s

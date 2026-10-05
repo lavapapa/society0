@@ -1,0 +1,49 @@
+...FF..FFFFFF.                                                           [100%]
+=================================== FAILURES ===================================
+___ test_real_society0_saturation_default_model_concurrency_memory_and_logs ____
+tests/e2e/test_society0_real_e2e.py:686: in test_real_society0_saturation_default_model_concurrency_memory_and_logs
+    seed_batch = summary["events"]["agent_batches"]["instruct / saturation_seed"]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'instruct / saturation_seed'
+------------------------------ Captured log call -------------------------------
+WARNING  society0.resource_managers:resource_managers.py:2272 Embedding request retry 1/3 failed on endpoint default_embed: Connection error.
+___ test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e ____
+tests/e2e/test_society0_real_e2e.py:806: in test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e
+    batch = summary["events"]["agent_batches"]["instruct / explicit_concurrency_round"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'instruct / explicit_concurrency_round'
+_______ test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e _______
+tests/e2e/test_society0_real_e2e.py:1121: in test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e
+    assert metrics["message_success"] == agent_count
+E   assert 0 == 2
+_________________ test_real_society0_social_publish_action_e2e _________________
+tests/e2e/test_society0_real_e2e.py:1215: in test_real_society0_social_publish_action_e2e
+    assert metrics["publish_errors"] == 0
+E   assert 2 == 0
+________________ test_real_society0_environment_action_tag_e2e _________________
+tests/e2e/test_society0_real_e2e.py:1362: in test_real_society0_environment_action_tag_e2e
+    assert metrics["lookup_errors"] == 0
+E   assert 1 == 0
+______ test_real_society0_terminal_action_retry_preserves_agent_loop_e2e _______
+tests/e2e/test_society0_real_e2e.py:1475: in test_real_society0_terminal_action_retry_preserves_agent_loop_e2e
+    batch = summary["events"]["agent_batches"]["instruct / terminal_retry_round"]
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'instruct / terminal_retry_round'
+_____ test_real_society0_social_browse_completion_tags_default_memory_e2e ______
+tests/e2e/test_society0_real_e2e.py:1622: in test_real_society0_social_browse_completion_tags_default_memory_e2e
+    assert publish_metrics["publish_errors"] == 0
+E   assert 2 == 0
+______________ test_real_society0_multi_tick_social_workflow_e2e _______________
+tests/e2e/test_society0_real_e2e.py:1787: in test_real_society0_multi_tick_social_workflow_e2e
+    assert metrics[0]["step"] == 0 and metrics[0]["metrics"]["published_this_tick"] == agent_count
+E   assert (0 == 0 and 0 == 2)
+=========================== short test summary info ============================
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_saturation_default_model_concurrency_memory_and_logs
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_explicit_agent_group_concurrency_overrides_model_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_round_robin_env_logic_and_llm_action_loop_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_social_publish_action_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_environment_action_tag_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_terminal_action_retry_preserves_agent_loop_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_social_browse_completion_tags_default_memory_e2e
+FAILED tests/e2e/test_society0_real_e2e.py::test_real_society0_multi_tick_social_workflow_e2e
+8 failed, 6 passed in 940.08s (0:15:40)

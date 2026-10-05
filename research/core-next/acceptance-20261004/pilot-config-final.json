@@ -1,0 +1,10 @@
+{
+  "release": {
+    "commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+    "branch": "codex/society0-core-next",
+    "source_state": "accepted dirty worktree",
+    "freeze_utc": "2026-10-04T06:59:13Z"
+  },
+  "start": 1,
+  "end": 2
+}

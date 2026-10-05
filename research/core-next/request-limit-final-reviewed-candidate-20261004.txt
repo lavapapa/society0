@@ -1,0 +1,166 @@
+........................................................................ [ 73%]
+..........................                                               [100%]
+==================================== PASSES ====================================
+____ test_required_evidence_failure_and_cancelled_sdk_release_shared_permit ____
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint m after 1 attempts: required Thread evidence could not be saved
+______ test_snapshot_failure_releases_admission_without_physical_attempt _______
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint m after 1 attempts: snapshot read failed
+_____ test_retry_backoff_releases_full_history_and_rebuilds_same_watermark _____
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint m after 1 attempts: Request timed out.
+___ test_review_retry_evidence_preserves_actual_request_when_thread_advances ___
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint test after 1 attempts: Request timed out.
+_ test_required_embedding_evidence_failure_never_splits_or_retries_sdk[request] _
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: required resource evidence could not be saved
+_ test_failed_late_joiner_retains_every_original_position_and_partial_success __
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: rejected
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[400] _
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: rejected
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[401] _
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: rejected
+_ test_review_nonretryable_embedding_status_keeps_one_complete_original_request[402] _
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: rejected
+______ test_review_failed_embedding_keeps_thread_to_physical_attempt_link ______
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: rejected
+_ test_review_retry_and_cached_consumer_retain_each_physical_attempt_after_restore _
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2280 Embedding request failed on endpoint e after 1 attempts: temporary
+______ test_usage_reads_fixed_projection_and_failed_step_stays_diagnostic ______
+----------------------------- Captured stdout call -----------------------------
+{'history_calls': [100, 10000], 'query_vm_instructions': [396, 396]}
+__________ test_real_adapters_project_retry_response_and_shared_cache __________
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint endpoint after 1 attempts: Connection error.
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint test after 1 attempts: Request timed out.
+___ test_required_thread_failure_never_retries_actual_model_request[request] ___
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint test after 1 attempts: required Thread evidence could not be saved
+______ test_shell_actual_domain_attempts_share_budget_and_no_reexecution _______
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-826/test_shell_actual_domain_attem0/results/shell-08f2uftl/output — scripts can modify host files
+_____________ test_terminal_inside_shell_stops_later_domain_calls ______________
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-826/test_terminal_inside_shell_sto0/results/shell-xhon5vva/output — scripts can modify host files
+______ test_shell_output_artifact_survives_restore_and_result_read[False] ______
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-826/test_shell_output_artifact_sur0/results/shell-rz6bzg7r/output — scripts can modify host files
+______ test_shell_output_artifact_survives_restore_and_result_read[True] _______
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-826/test_shell_output_artifact_sur1/results/shell-1zxqvt68/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-826/test_shell_output_artifact_sur1/new-results/shell-d6ina_1r/output — scripts can modify host files
+___________ test_llm_manager_enforces_hard_timeout_and_logs_failure ____________
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint default after 1 attempts:
+___________ test_llm_manager_retries_after_first_connection_failure ____________
+------------------------------ Captured log call -------------------------------
+WARNING  society0.resource_managers:resource_managers.py:1162 LLM request retry 1/2 failed on endpoint default: temporary connection failure
+=========================== short test summary info ============================
+PASSED tests/primary/test_kernel_request_limit.py::test_two_profiles_and_embedding_share_physical_capacity
+PASSED tests/primary/test_kernel_request_limit.py::test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request
+PASSED tests/primary/test_kernel_request_limit.py::test_required_evidence_failure_and_cancelled_sdk_release_shared_permit
+PASSED tests/primary/test_kernel_request_limit.py::test_factories_share_explicit_limit_across_every_profile
+PASSED tests/primary/test_kernel_request_limit.py::test_waiting_request_loads_no_history_and_keeps_original_watermark[False]
+PASSED tests/primary/test_kernel_request_limit.py::test_waiting_request_loads_no_history_and_keeps_original_watermark[True]
+PASSED tests/primary/test_kernel_request_limit.py::test_snapshot_failure_releases_admission_without_physical_attempt
+PASSED tests/primary/test_kernel_request_limit.py::test_retry_backoff_releases_full_history_and_rebuilds_same_watermark
+PASSED tests/primary/test_kernel_models.py::test_model_capacity_defaults_to_endpoint_capacity_and_no_jitter
+PASSED tests/primary/test_kernel_models.py::test_model_capacity_is_explicitly_configurable
+PASSED tests/primary/test_kernel_models.py::test_invalid_resource_capacity_fails_before_opening_clients[options0]
+PASSED tests/primary/test_kernel_models.py::test_invalid_resource_capacity_fails_before_opening_clients[options1]
+PASSED tests/primary/test_kernel_models.py::test_invalid_resource_capacity_fails_before_opening_clients[options2]
+PASSED tests/primary/test_kernel_models.py::test_profiles_install_through_host_and_preserve_request_defaults
+PASSED tests/primary/test_kernel_models.py::test_provider_credit_error_is_explicit_incomplete_compatible_failure
+PASSED tests/primary/test_kernel_models.py::test_embedding_cache_uses_exact_model_dimensions_text_identity_and_byte_budget
+PASSED tests/primary/test_kernel_models.py::test_model_close_drains_request_and_rejects_later_requests
+PASSED tests/primary/test_kernel_models_review.py::test_review_retry_evidence_preserves_actual_request_when_thread_advances
+PASSED tests/primary/test_kernel_models_review.py::test_review_provider_diagnostics_do_not_encode_or_copy_full_history
+PASSED tests/primary/test_kernel_embedding_provider.py::test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance
+PASSED tests/primary/test_kernel_embedding_provider.py::test_one_cancelled_cache_waiter_does_not_cancel_other_actor
+PASSED tests/primary/test_kernel_embedding_provider.py::test_required_embedding_evidence_failure_never_splits_or_retries_sdk[request]
+PASSED tests/primary/test_kernel_embedding_provider.py::test_required_embedding_evidence_failure_never_splits_or_retries_sdk[response]
+PASSED tests/primary/test_kernel_embedding_provider.py::test_resource_events_keep_exact_raw_lengths_for_bounded_observers
+PASSED tests/primary/test_kernel_embedding_provider.py::test_embedding_profile_controls_http_capacity_and_batching
+PASSED tests/primary/test_kernel_embedding_provider.py::test_embedding_plugin_declares_shared_schema_and_closes_named_profiles
+PASSED tests/primary/test_kernel_embedding_provider.py::test_failed_late_joiner_retains_every_original_position_and_partial_success
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_closed_embedding_provider_rejects_cached_work_without_new_evidence
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_nonretryable_embedding_status_keeps_one_complete_original_request[400]
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_nonretryable_embedding_status_keeps_one_complete_original_request[401]
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_nonretryable_embedding_status_keeps_one_complete_original_request[402]
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_embedding_close_drains_waiter_before_return
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_declared_embedding_dimension_is_validated_before_cache
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_cache_eviction_retains_exact_physical_sources
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_failed_embedding_keeps_thread_to_physical_attempt_link
+PASSED tests/primary/test_kernel_models_storage_review.py::test_review_retry_and_cached_consumer_retain_each_physical_attempt_after_restore
+PASSED tests/primary/test_kernel_usage.py::test_physical_retries_shared_batches_cache_and_restore
+PASSED tests/primary/test_kernel_usage.py::test_usage_projection_rolls_back_with_original_fact
+PASSED tests/primary/test_kernel_usage.py::test_usage_reads_fixed_projection_and_failed_step_stays_diagnostic
+PASSED tests/primary/test_kernel_usage.py::test_real_adapters_project_retry_response_and_shared_cache
+PASSED tests/primary/test_kernel_usage.py::test_generic_response_event_does_not_claim_a_physical_call
+PASSED tests/primary/test_kernel_usage.py::test_response_decode_failure_and_cancellation_are_distinct_facts
+PASSED tests/primary/test_kernel_usage.py::test_physical_response_requires_its_request_thread
+PASSED tests/primary/test_kernel_usage.py::test_projection_failure_rolls_back_full_request
+PASSED tests/primary/test_kernel_usage.py::test_non_model_resource_event_keeps_generic_fact_contract
+PASSED tests/primary/test_kernel_usage.py::test_http_usage_and_prepared_complete_share_same_projection
+PASSED tests/primary/test_kernel_usage_review.py::test_review_cancel_after_physical_dispatch_counts_one_unknown_call
+PASSED tests/primary/test_kernel_usage_review.py::test_review_response_projection_failure_rolls_back_body_and_counters
+PASSED tests/primary/test_kernel_llm.py::test_natural_finish_preserves_complete_input_and_thread
+PASSED tests/primary/test_kernel_llm.py::test_terminal_completed_ends_without_extra_request
+PASSED tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[accepted]
+PASSED tests/primary/test_kernel_llm.py::test_noncompleted_terminal_result_does_not_complete_activation[rejected]
+PASSED tests/primary/test_kernel_llm.py::test_required_corrections_continue_within_budget
+PASSED tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[length]
+PASSED tests/primary/test_kernel_llm.py::test_hard_limit_never_executes_truncated_tool_or_requests_closing[budget]
+PASSED tests/primary/test_kernel_llm.py::test_batch_budget_rejects_all_before_first_domain_effect
+PASSED tests/primary/test_kernel_llm.py::test_duplicate_call_id_reuses_receipt_without_budget_or_effect
+PASSED tests/primary/test_kernel_llm.py::test_parallel_false_has_one_corrective_turn_then_contract_failure
+PASSED tests/primary/test_kernel_llm.py::test_invalid_domain_schema_consumes_attempt_without_effect
+PASSED tests/primary/test_kernel_llm.py::test_partial_domain_error_propagates_without_next_model_call
+PASSED tests/primary/test_kernel_llm.py::test_reactivation_same_thread_complete_history_and_provider_session
+PASSED tests/primary/test_kernel_llm.py::test_structured_submit_result_schema_and_terminal
+PASSED tests/primary/test_kernel_llm.py::test_physical_retry_preserves_request_reference_and_full_raw_response
+PASSED tests/primary/test_kernel_llm.py::test_required_thread_failure_never_retries_actual_model_request[request]
+PASSED tests/primary/test_kernel_llm.py::test_required_thread_failure_never_retries_actual_model_request[response]
+PASSED tests/primary/test_kernel_llm.py::test_empty_retry_then_exhaustion_without_domain_calls
+PASSED tests/primary/test_kernel_llm.py::test_action_selection_and_live_rejection_are_feedback_not_domain_fault
+PASSED tests/primary/test_kernel_llm.py::test_domain_unavailable_between_discovery_and_invoke_is_feedback
+PASSED tests/primary/test_kernel_llm.py::test_completed_terminal_batch_records_unexecuted_siblings_for_continuation
+PASSED tests/primary/test_kernel_llm.py::test_per_action_batch_limit_and_tag_completion
+PASSED tests/primary/test_kernel_llm.py::test_exact_selection_does_not_expand_same_named_tag
+PASSED tests/primary/test_kernel_llm.py::test_long_thread_never_projects_a_bounded_message_window
+PASSED tests/primary/test_kernel_llm.py::test_context_failure_is_incomplete_and_strict_request_is_not_downgraded
+PASSED tests/primary/test_kernel_llm.py::test_direct_json_measurement_has_no_domain_tools
+PASSED tests/primary/test_kernel_llm.py::test_shell_actual_domain_attempts_share_budget_and_no_reexecution
+PASSED tests/primary/test_kernel_llm.py::test_terminal_inside_shell_stops_later_domain_calls
+PASSED tests/primary/test_kernel_llm.py::test_filtered_discovery_cursor_binds_subject_and_moment
+PASSED tests/primary/test_kernel_llm.py::test_malformed_inner_arguments_consume_failed_domain_attempt
+PASSED tests/primary/test_kernel_llm.py::test_interview_tools_are_measurement_only
+PASSED tests/primary/test_kernel_llm.py::test_default_data_read_is_utf8_and_invalid_query_is_tool_feedback
+PASSED tests/primary/test_kernel_llm.py::test_restore_same_moment_reuses_thread_and_prior_tool_receipt
+PASSED tests/primary/test_kernel_llm.py::test_shell_output_artifact_survives_restore_and_result_read[False]
+PASSED tests/primary/test_kernel_llm.py::test_shell_output_artifact_survives_restore_and_result_read[True]
+PASSED tests/primary/test_kernel_llm.py::test_fact_union_keeps_full_read_text_and_changed_write_resets_only_coverage
+PASSED tests/primary/test_kernel_llm.py::test_two_concurrent_actors_have_task_local_action_call_ids
+PASSED tests/primary/test_kernel_llm.py::test_cancelled_provider_keeps_thread_incomplete_and_no_actions
+PASSED tests/primary/test_kernel_llm.py::test_memory_hooks_keep_original_input_boundary_and_thread_open
+PASSED tests/primary/test_kernel_llm.py::test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[False]
+PASSED tests/primary/test_kernel_llm.py::test_memory_success_hook_skips_incomplete_and_failure_marks_thread_incomplete[True]
+PASSED tests/primary/test_resource_managers_shared.py::test_strict_normalization_keeps_optional_enum_nullable
+PASSED tests/primary/test_resource_managers_shared.py::test_managers_route_mixed_trust_env_endpoints_to_distinct_pools
+PASSED tests/primary/test_resource_managers_shared.py::test_openai_azure_and_embedding_clients_disable_sdk_retries
+PASSED tests/primary/test_resource_managers_shared.py::test_embedding_microbatch_flushes_same_bucket_batches_in_parallel
+PASSED tests/primary/test_resource_managers_shared.py::test_embedding_microbatch_preserves_plural_trace_metadata
+PASSED tests/primary/test_resource_managers_shared.py::test_embedding_microbatch_coalesces_distinct_agent_threads
+PASSED tests/primary/test_resource_managers_shared.py::test_llm_manager_enforces_hard_timeout_and_logs_failure
+PASSED tests/primary/test_resource_managers_shared.py::test_llm_manager_retries_after_first_connection_failure
+PASSED tests/primary/test_resource_managers_shared.py::test_llm_manager_http_transport_preserves_tool_contract_flags

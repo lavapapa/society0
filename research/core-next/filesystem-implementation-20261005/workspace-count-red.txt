@@ -1,0 +1,42 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_workspace_directory_counts_follow_normative_save _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1131/test_workspace_directory_count0')
+
+    @pytest.mark.asyncio
+    async def test_workspace_directory_counts_follow_normative_save(tmp_path):
+        from society0.kernel.actors import ActorRecord,actor_plugin
+        from society0.kernel.composition import compose
+        from society0.kernel.workspace import workspace_plugin
+        plugins=[actor_plugin({'rule':lambda r:None},records=[ActorRecord('a','rule')]) ,workspace_plugin()]
+        async with compose(tmp_path/'run',plugins) as host:
+            lease=host.service('workspace','workspace').open(InteractionScope('a',Moment(1,'read')))
+            def entry(path):return {'path':path,'kind':'file','mode':420,'modified_ns':0,'created_ns':0,'content':b'x'}
+            lease.save(b'',{'removed':[],'entries':[entry('/d/a'),entry('/d/b'),entry('/other')]})
+            store=host.service('storage','store')
+>           assert store.read(lambda v:v.query('SELECT parent,total FROM workspace_counts WHERE actor=? ORDER BY parent',('a',)))==[('/',1),('/d',2)]
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_filesystem_ranges.py:67:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/storage.py:488: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+tests/primary/test_filesystem_ranges.py:67: in <lambda>
+    assert store.read(lambda v:v.query('SELECT parent,total FROM workspace_counts WHERE actor=? ORDER BY parent',('a',)))==[('/',1),('/d',2)]
+                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:152: in query
+    cursor.execute(sql, bindings)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+>   ???
+E   apsw.SQLError: no such table: workspace_counts
+
+src/cursor.c:1320: SQLError

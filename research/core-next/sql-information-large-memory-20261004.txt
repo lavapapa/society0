@@ -1,0 +1,5 @@
+{"body_type": "TEXT", "body_bytes": 20000000, "sqlite_extra_peak": 170512, "python_heap_peak": 9675, "page_bytes": 265}
+.{"body_type": "BLOB", "body_bytes": 20000000, "sqlite_extra_peak": 170512, "python_heap_peak": 8851, "page_bytes": 265}
+.......bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-795/test_shell_and_observer_forwar0/shell/shell-4s311bu7/output — scripts can modify host files
+.
+9 passed in 1.56s

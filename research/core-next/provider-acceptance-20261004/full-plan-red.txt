@@ -1,0 +1,23 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+_______ test_all_fifteen_cases_are_partitioned_and_keep_existing_budgets _______
+
+    def test_all_fifteen_cases_are_partitioned_and_keep_existing_budgets():
+        module=load('real_acceptance')
+>       remaining=module.command('remaining',Path('/tmp/remaining'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+research/core-next/provider-acceptance-20261004/test_preparation.py:67: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mode = 'remaining', output = PosixPath('/tmp/remaining')
+
+    def command(mode,output):
+>       if mode!='chain':raise ValueError(mode)
+                         ^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: remaining
+
+research/core-next/provider-acceptance-20261004/real_acceptance.py:14: ValueError
+=========================== short test summary info ============================
+FAILED research/core-next/provider-acceptance-20261004/test_preparation.py::test_all_fifteen_cases_are_partitioned_and_keep_existing_budgets
+1 failed, 4 passed in 0.26s

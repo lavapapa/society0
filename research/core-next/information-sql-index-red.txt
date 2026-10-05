@@ -1,0 +1,45 @@
+.......F.                                                                [100%]
+=================================== FAILURES ===================================
+____ test_large_history_hot_query_vm_and_materialized_bytes_remain_bounded _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-271/test_large_history_hot_query_v0')
+
+    @pytest.mark.asyncio
+    async def test_large_history_hot_query_vm_and_materialized_bytes_remain_bounded(tmp_path):
+        measurements = []
+        for count in (1000, 10000):
+            store, provider = setup(tmp_path / str(count), count)
+            base_read = provider.reader.read
+            metrics = {'vm': 0, 'rows': 0, 'bytes': 0, 'sql': []}
+            def measured(callback, **kwargs):
+                def instrument(view):
+                    def progress():
+                        metrics['vm'] += 1
+                        return False
+                    view._connection.set_progress_handler(progress, 1)
+                    query = view.query
+                    def counted(sql, bindings=(), **options):
+                        metrics['sql'].append(sql)
+                        rows = query(sql, bindings, **options)
+                        metrics['rows'] += len(rows)
+                        metrics['bytes'] += sum(len(value) if isinstance(value,(str,bytes)) else 8 for row in rows for value in row)
+                        return rows
+                    view.query = counted
+                    return callback(view)
+                return base_read(instrument, **kwargs)
+            provider.reader.read = measured
+            try:
+                scope = InteractionScope('alice',Moment(0,'p'))
+                page = await provider.query(scope,'/market/orders',Query(fields=('id',),limit=5))
+                assert page.total == count//2 and len(page.items) == 5
+                measurements.append(dict(metrics))
+                assert not any('COUNT(*)' in sql for sql in metrics['sql'])
+                metrics.update(vm=0,rows=0,bytes=0,sql=[])
+                chunk = await provider.read(scope,'/market/docs/1',offset=1000000,size=64)
+                assert len(chunk.data)==64 and metrics['bytes']<=100
+            finally: store.close()
+>       assert measurements[1]['vm'] <= measurements[0]['vm'] * 2
+E       assert 35047 <= (3547 * 2)
+
+tests/primary/test_kernel_information_sql.py:165: AssertionError
+1 failed, 8 passed in 0.17s

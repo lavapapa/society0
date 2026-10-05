@@ -1,0 +1,23 @@
+2026/10/04 07:48:18 tshttpproxy: using proxy "http://127.0.0.1:7890" for URL: "https://controlplane.tailscale.com/"
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+Traceback (most recent call last):
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/benchmarks/core_next_cold_runtime_probe.py", line 56, in <module>
+    print(json.dumps(probe(args.source,args.target,ordinal=args.ordinal)))
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/benchmarks/core_next_cold_runtime_probe.py", line 15, in probe
+    with StageStore.open(source) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/src/society0/kernel/storage.py", line 364, in open
+    self._manifest = _manifest(self.path)
+                     ^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/society0-core-next-20261004/cold-datasets-native-full-source/src/society0/kernel/storage.py", line 22, in _manifest
+    value=json.loads((Path(path)/'run.json').read_text())
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/miniforge3/lib/python3.12/pathlib.py", line 1027, in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/miniforge3/lib/python3.12/pathlib.py", line 1013, in open
+    return io.open(self, mode, buffering, encoding, errors, newline)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/tmp/society0-core-next-20261004/cold-datasets-native-full/source/run.json'

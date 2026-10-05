@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_page_decompresses_each_adjacent_block_once ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-737/test_page_decompresses_each_ad0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106c4e450>
+
+    def test_page_decompresses_each_adjacent_block_once(tmp_path, monkeypatch):
+        import society0.kernel.datasets as module
+        values=[{'n':i,'body':'顺序正文'*10} for i in range(1000)]
+        calls=[]
+        original=module._decompress
+        def counted(decoder,body):
+            result=original(decoder,body);calls.append(len(result));return result
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('page',values)
+            monkeypatch.setattr(module,'_decompress',counted)
+            page=data.page(ref,limit=1000,max_bytes=1000000)
+            assert [item['value'] for item in page['items']]==values
+            total=sum(item['raw_bytes'] for item in page['items'])
+>           assert len(calls)==(total+65535)//65536
+E           assert 1002 == ((138890 + 65535) // 65536)
+E            +  where 1002 = len([65536, 65536, 65536, 65536, 65536, 65536, ...])
+
+tests/primary/test_kernel_datasets.py:168: AssertionError

@@ -1,0 +1,35 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_shared_world_mount_is_dynamic_readonly_and_authorized __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-597/test_shared_world_mount_is_dyn0')
+
+    @pytest.mark.asyncio
+    async def test_shared_world_mount_is_dynamic_readonly_and_authorized(tmp_path):
+        from society0.kernel.information_sql import SQLInformation, DatasetSpec, DocumentSpec
+        from society0.kernel.plugins import Plugin
+        p=plugins()+[Plugin('docs',schema=(
+            'CREATE TABLE docs(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,body BLOB NOT NULL)',
+            'CREATE INDEX docs_owner ON docs(owner,id)',
+        ),initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,?)',('alice','完整信息🙂'.encode())))]
+        async with compose(tmp_path/'run',p) as host:
+            store=host.service('storage','store');info=Information(lambda *a:True)
+            access=lambda scope:('owner=?',(scope.actor,))
+            info.mount('/docs',SQLInformation('docs',store,{
+                'items':DatasetSpec('docs','id',('id','owner'),authorize=access),
+                'texts':DocumentSpec('docs','id','body',authorize=access),
+            }))
+            scoped=InteractionScope('alice',Moment(1,'work'))
+            one=ShellSession(scoped,info,Actions(lambda *a:True),result_dir=tmp_path/'out',workspace=host.service('workspace','workspace'))
+            result=await one.execute('cat /world/docs/texts/1')
+>           assert result.stdout=='完整信息🙂' and result.exit_code==0
+E           AssertionError: assert ('' == '完整信息🙂'
+E             
+E             - 完整信息🙂)
+
+tests/primary/test_kernel_workspace.py:79: AssertionError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-597/test_shared_world_mount_is_dyn0/out/shell-oidzbyp6/output — scripts can modify host files
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_workspace.py::test_shared_world_mount_is_dynamic_readonly_and_authorized
+1 failed, 2 passed in 0.24s

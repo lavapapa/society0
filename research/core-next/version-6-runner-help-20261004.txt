@@ -1,0 +1,12 @@
+usage: runner.py [-h] --factory FACTORY --config CONFIG --output OUTPUT
+                 [--source SOURCE] [--step STEP]
+
+执行明确配置的 Society0 插件运行计划
+
+options:
+  -h, --help         show this help message and exit
+  --factory FACTORY  公开计划工厂 module:function
+  --config CONFIG    公开配置 JSON；凭据通过环境提供
+  --output OUTPUT
+  --source SOURCE    从已有完整运行创建新分支
+  --step STEP        所选完整步骤

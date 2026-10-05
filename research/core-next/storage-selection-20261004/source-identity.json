@@ -1,0 +1,12 @@
+{
+  "reference_commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "files": {
+    "src/society0/kernel/storage.py": true,
+    "src/society0/kernel/datasets.py": true,
+    "src/society0/kernel/_json_chunks.py": true,
+    "src/society0/kernel/threads.py": true,
+    "src/society0/kernel/workspace.py": true,
+    "src/society0/kernel/memory.py": true,
+    "src/society0/kernel/information_sql.py": true
+  }
+}

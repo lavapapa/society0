@@ -50,7 +50,7 @@ Use `plain` only for the first mechanism sketch when geography is not yet
 essential. Use a custom env when maps, FoVs, movement, traffic, accessibility,
 resource availability, hazards, or location-indexed records define the research
 claim. Keep city-specific assumptions in the env or experiment, not in
-`Society0`, `CodeSchedule`, `World`, or generic agent APIs.
+`Society0`, `Schedule`, `World`, or generic agent APIs.
 
 High-stakes boundary: city, traffic, and emergency simulations can support
 scenario rehearsal, stakeholder sensemaking, mechanism exploration, training
@@ -152,7 +152,7 @@ Use this env-first split:
 | Move, shelter, evacuate, choose destination, send message, request help, assist, choose POI, select traffic phase, propose plan edit, accept/reject revision | `instruct` with typed env actions |
 | Survey, trust rating, satisfaction score, reason explanation, manipulation check, post-hoc agent interview | `interview` |
 | Movement physics, pathfinding, congestion, traffic simulator, hazard spread, resource depletion, signal phase timing, land-use metric computation, branch/fork, replay | env rules, behaviors, or code steps |
-| Records, metrics, replay, audit logs | `ctx.result(metrics=..., tables=...)` plus analysis scripts |
+| Records, metrics, replay, audit logs | `StepResult(metrics=..., tables=...)` plus analysis scripts |
 
 Design rules:
 

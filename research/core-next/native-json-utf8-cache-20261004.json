@@ -1,0 +1,11 @@
+{
+  "string_size_before": 8000060,
+  "string_size_after": 15000061,
+  "string_size_after_second_dump": 15000061,
+  "size_increase": 7000001,
+  "expected_utf8_bytes_plus_nul": 7000001,
+  "traced_before": 8000088,
+  "traced_after": 15000149,
+  "traced_after_input_release": 916,
+  "rapidjson": "1.25"
+}

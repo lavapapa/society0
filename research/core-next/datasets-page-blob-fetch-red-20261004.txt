@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_page_reuses_cached_block_without_fetching_blob_again ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-752/test_page_reuses_cached_block_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b94ff20>
+
+    def test_page_reuses_cached_block_without_fetching_blob_again(tmp_path, monkeypatch):
+        from contextlib import contextmanager
+        values=[{'i':i} for i in range(1000)]
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('small',values)
+            original=data._open;queries=[]
+            class Connection:
+                def __init__(self,connection):self.connection=connection
+                def execute(self,sql,bindings=()):
+                    if 'FROM blocks' in sql:queries.append(sql)
+                    return self.connection.execute(sql,bindings)
+            @contextmanager
+            def opened(reference):
+                with original(reference) as (connection,*rest):
+                    yield Connection(connection),*rest
+            monkeypatch.setattr(data,'_open',opened)
+            assert len(data.page(ref,limit=1000,max_bytes=1000000)['items'])==1000
+>           assert len(queries)==1
+E           AssertionError: assert 1000 == 1
+E            +  where 1000 = len(['SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id', 'SELECT id,payload FROM blocks WHERE id>=? AND id<...FROM blocks WHERE id>=? AND id<=? ORDER BY id', 'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id', ...])
+
+tests/primary/test_kernel_datasets.py:191: AssertionError

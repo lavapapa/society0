@@ -1,0 +1,15 @@
+npm notice run society0-workbench-template@0.0.0 build
+npm notice run vite build --config vite.standalone.config.mjs
+vite v6.4.2 building for production...
+transforming...
+✓ 6239 modules transformed.
+rendering chunks...
+[plugin vite:singlefile] 
+
+[plugin vite:singlefile] Inlining: index-Bmr4DDq2.js
+[plugin vite:singlefile] Inlining: style-DIqxERnl.css
+computing gzip size...
+dist/standalone/index.html  252.86 kB │ gzip: 78.05 kB
+✓ built in 1.71s
+
+exit_code=0

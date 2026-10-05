@@ -1,0 +1,156 @@
+{
+  "source": "current checkout; record git identity with invocation",
+  "python": "3.12.12",
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "body_bytes": 10485760,
+  "messages": 4,
+  "writer_peak_rss_bytes": 85229568,
+  "event_loop": {
+    "samples": 6014,
+    "p95_s": 1.554097980260849e-05,
+    "max_s": 0.10888491704827175
+  },
+  "writes": [
+    {
+      "seq": 2,
+      "start": 482099.667481208,
+      "returned": 482099.739962,
+      "wall_s": 0.07248079200508073,
+      "start_to_visible_s": 0.06372725003166124,
+      "return_to_visible_s": -0.008753541973419487
+    },
+    {
+      "seq": 3,
+      "start": 482099.760022041,
+      "returned": 482099.86881125,
+      "wall_s": 0.10878920904360712,
+      "start_to_visible_s": 0.06259579199831933,
+      "return_to_visible_s": -0.04619341704528779
+    },
+    {
+      "seq": 4,
+      "start": 482099.888865166,
+      "returned": 482099.966250333,
+      "wall_s": 0.07738516700919718,
+      "start_to_visible_s": 0.0648786670062691,
+      "return_to_visible_s": -0.012506500002928078
+    },
+    {
+      "seq": 5,
+      "start": 482099.986345458,
+      "returned": 482100.056312541,
+      "wall_s": 0.06996708299266174,
+      "start_to_visible_s": 0.06481520796660334,
+      "return_to_visible_s": -0.005151875026058406
+    }
+  ],
+  "complete_s": 0.03904729196801782,
+  "initial_status": {
+    "run_id": "ba1b2571a6804a91aeb05d192b264ad2",
+    "live_revision": 1,
+    "complete_step_lower_bound": 0,
+    "complete": {
+      "run_id": "ba1b2571a6804a91aeb05d192b264ad2",
+      "step": 0,
+      "live_revision": 0
+    },
+    "failed": false,
+    "progress": null
+  },
+  "observer": {
+    "seen": {
+      "2": 482099.731208458,
+      "3": 482099.822617833,
+      "4": 482099.953743833,
+      "5": 482100.051160666
+    },
+    "response": {
+      "samples": 66,
+      "p95_s": 0.0004366249777376652,
+      "max_s": 0.0012782500125467777
+    },
+    "poll_sleep_s": 0.005,
+    "watermarks": [
+      {
+        "at": 482099.667450125,
+        "value": [
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "at": 482099.731208458,
+        "value": [
+          0,
+          0,
+          2
+        ]
+      },
+      {
+        "at": 482099.822617833,
+        "value": [
+          0,
+          0,
+          3
+        ]
+      },
+      {
+        "at": 482099.953743833,
+        "value": [
+          0,
+          0,
+          4
+        ]
+      },
+      {
+        "at": 482100.051160666,
+        "value": [
+          0,
+          0,
+          5
+        ]
+      },
+      {
+        "at": 482100.120926666,
+        "value": [
+          1,
+          5,
+          5
+        ]
+      }
+    ],
+    "observer_peak_before_full_read_bytes": 30228480,
+    "observer_peak_after_full_read_bytes": 110739456,
+    "originals": [
+      {
+        "seq": 2,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 3,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 4,
+        "content_bytes": 10485760,
+        "equal": true
+      },
+      {
+        "seq": 5,
+        "content_bytes": 10485760,
+        "equal": true
+      }
+    ]
+  },
+  "limits": "local filesystem; 5ms observer sleep is sampling cadence, visibility measured by actual first observation timestamps; return-to-visible may be negative because COMMIT precedes append return; full JSON verification materializes original body and has separate RSS high water",
+  "source_commit": "650caa0be24ef54d03e1c04dcd879878e292378a",
+  "requested_2590cf3_product_bytes_equal": {
+    "src/society0/kernel/threads.py": true,
+    "src/society0/kernel/storage.py": true,
+    "src/society0/kernel/observation.py": true,
+    "src/society0/kernel/_json_chunks.py": true
+  }
+}

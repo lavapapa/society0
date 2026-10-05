@@ -1,0 +1,38 @@
+.F..........................................                             [100%]
+=================================== FAILURES ===================================
+___ test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-796/test_cache_bypasses_busy_limit0')
+
+    @pytest.mark.asyncio
+    async def test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request(tmp_path):
+        class Counted(asyncio.Semaphore):
+            acquisitions=0
+            def __init__(self,value):super().__init__(value);self.attempted=asyncio.Event()
+            async def __aenter__(self):
+                self.attempted.set()
+                result=await super().__aenter__();self.acquisitions+=1;return result
+        limit=Counted(1);entered=asyncio.Event();release=asyncio.Event()
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*RESOURCE_SCHEMA]) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            m=ModelProvider([endpoint('m')],threads,request_limit=limit)
+            e=EmbeddingProvider([endpoint('e')],store,threads,dimensions=2,request_limit=limit,batch_wait_ms=0)
+            async def ec(**kw):return vectors(kw['input'])
+            async def mc(**kw):entered.set();await release.wait();return response()
+            e.manager.clients['e'].embeddings.create=ec
+            m.manager.clients['m'].chat.completions.create=mc
+            try:
+                await e.embed(['cached'],metadata={'actor':'a'})
+                task=asyncio.create_task(m.request(tid,{}));await asyncio.wait_for(entered.wait(),1)
+                assert await asyncio.wait_for(e.embed(['cached'],metadata={'actor':'b'}),1)==[[1.,2.]]
+                assert limit.acquisitions==2
+                limit.attempted.clear()
+                pending=asyncio.create_task(e.embed(['uncached'],metadata={'actor':'a'}))
+                await asyncio.wait_for(limit.attempted.wait(),1)
+                await asyncio.wait_for(e.close(),1)
+                with pytest.raises(asyncio.CancelledError):await pending
+                assert limit._value==0
+>               assert store.read(lambda r:r.query("SELECT count(*) FROM resource_calls"))[0][0]==1
+E               assert 3 == 1
+
+tests/primary/test_kernel_request_limit.py:89: AssertionError

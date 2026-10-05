@@ -1,0 +1,17 @@
+.FF                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_chat_terminal_or_eof_controls_action_execution[length] __________
+tests/primary/test_kernel_provider_terminals.py:29: in test_chat_terminal_or_eof_controls_action_execution
+    assert any(e['kind'] in ('model_response','provider_error') for e in threads.tail(tid)['items'])
+E   assert False
+E    +  where False = any(<generator object test_chat_terminal_or_eof_controls_action_execution.<locals>.<genexpr> at 0x10eb91a40>)
+__________ test_chat_terminal_or_eof_controls_action_execution[None] ___________
+tests/primary/test_kernel_provider_terminals.py:27: in test_chat_terminal_or_eof_controls_action_execution
+    assert result.status=='incomplete' and actions==[]
+E   AssertionError: assert ('completed' == 'incomplete'
+E     
+E     - incomplete
+E     ? --
+E     + completed
+E     ?         +)
+2 failed, 1 passed in 0.95s

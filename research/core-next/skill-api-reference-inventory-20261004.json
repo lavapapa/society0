@@ -1,0 +1,192 @@
+{
+  "purpose": "text locations requiring semantic review, not automatic replacement or deletion",
+  "files": [
+    {
+      "file": "skill/SKILL.md",
+      "matched_lines": [
+        33,
+        35,
+        56,
+        82,
+        83,
+        84,
+        87,
+        118,
+        120,
+        134,
+        136,
+        146
+      ]
+    },
+    {
+      "file": "skill/references/agent-design.md",
+      "matched_lines": [
+        92,
+        94,
+        105,
+        147,
+        172,
+        181
+      ]
+    },
+    {
+      "file": "skill/references/city-community-emergency-simulation-design.md",
+      "matched_lines": [
+        53
+      ]
+    },
+    {
+      "file": "skill/references/communication-social-media-simulation-design.md",
+      "matched_lines": [
+        34,
+        57,
+        133,
+        342
+      ]
+    },
+    {
+      "file": "skill/references/debugging.md",
+      "matched_lines": [
+        11,
+        35,
+        40,
+        41,
+        52,
+        69,
+        100,
+        116
+      ]
+    },
+    {
+      "file": "skill/references/economics-finance-expectations-survey-simulation.md",
+      "matched_lines": [
+        354,
+        356
+      ]
+    },
+    {
+      "file": "skill/references/economics-finance-financial-market-simulation.md",
+      "matched_lines": [
+        101,
+        104,
+        108
+      ]
+    },
+    {
+      "file": "skill/references/economics-finance-macro-urban-simulation.md",
+      "matched_lines": [
+        117,
+        121,
+        123
+      ]
+    },
+    {
+      "file": "skill/references/economics-finance-simulation-design.md",
+      "matched_lines": [
+        105
+      ]
+    },
+    {
+      "file": "skill/references/engine-components.md",
+      "matched_lines": [
+        7,
+        12,
+        17,
+        19,
+        81,
+        113,
+        127,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        158
+      ]
+    },
+    {
+      "file": "skill/references/environment-design.md",
+      "matched_lines": [
+        30,
+        82,
+        209
+      ]
+    },
+    {
+      "file": "skill/references/international-relations-conflict-security-simulation-design.md",
+      "matched_lines": [
+        56,
+        314,
+        358
+      ]
+    },
+    {
+      "file": "skill/references/interview-survey-deliberation-simulation-design.md",
+      "matched_lines": [
+        200
+      ]
+    },
+    {
+      "file": "skill/references/law-justice-crime-simulation-design.md",
+      "matched_lines": [
+        63
+      ]
+    },
+    {
+      "file": "skill/references/organization-workflow-collaboration-simulation-design.md",
+      "matched_lines": [
+        53,
+        75,
+        237
+      ]
+    },
+    {
+      "file": "skill/references/run-monitor-analyze.md",
+      "matched_lines": [
+        9,
+        33,
+        191,
+        192
+      ]
+    },
+    {
+      "file": "skill/references/runtime-quickstart.md",
+      "matched_lines": [
+        13,
+        16,
+        17,
+        28
+      ]
+    },
+    {
+      "file": "skill/references/simulation-paper-distillation.md",
+      "matched_lines": [
+        280
+      ]
+    },
+    {
+      "file": "skill/references/step-dsl.md",
+      "matched_lines": [
+        10,
+        25,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        95,
+        125,
+        207,
+        214,
+        215,
+        220,
+        225,
+        239,
+        332
+      ]
+    }
+  ]
+}

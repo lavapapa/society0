@@ -1,0 +1,167 @@
+...FF....FFFFF....F.FF............................FF.................... [100%]
+=================================== FAILURES ===================================
+______ test_real_consumer_one_batch_shared_body_and_single_readonly_copy _______
+tests/experiments/test_core_next_cold_datasets_probe.py:5: in test_real_consumer_one_batch_shared_body_and_single_readonly_copy
+    result=probe(tmp_path, lambda: iter([{'id':i,'body':'汉🙂'*1000} for i in range(100)]))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_cold_datasets_probe.py:33: in probe
+    original_compressor=datasets.zstandard.ZstdCompressor
+                        ^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'society0.kernel.datasets' has no attribute 'zstandard'
+______ test_cold_fixed_workload_preserves_body_and_small_complete_changes ______
+tests/experiments/test_core_next_cold_runtime_probe.py:10: in test_cold_fixed_workload_preserves_body_and_small_complete_changes
+    result=probe(tmp_path/'source',tmp_path/'copy',ordinal=0,steps=3)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_cold_runtime_probe.py:22: in probe
+    page=data.page(ref,limit=10,max_bytes=4096)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:138: in page
+    with self._open(reference) as (connection, run_id, total, body):
+         ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:90: in _open
+    run_id, artifact, body_artifact, count = self.store.read(lookup)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:488: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:88: in lookup
+    _, artifact, body_artifact, count = self._registration(view, reference)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:74: in _registration
+    or rows[0][1:3] != (reference['artifact'], reference['body_artifact'])):
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'body_artifact'
+_________ test_probe_runs_actual_thread_writer_and_status_reader[sync] _________
+tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'
+_______ test_probe_runs_actual_thread_writer_and_status_reader[threaded] _______
+tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'
+_______ test_probe_runs_actual_thread_writer_and_status_reader[spooled] ________
+tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'
+________ test_probe_runs_actual_thread_writer_and_status_reader[bytes] _________
+tests/experiments/test_core_next_compression_probe.py:67: in test_probe_runs_actual_thread_writer_and_status_reader
+    result = await probe(tmp_path/mode,mode,131072,iterations=2)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_compression_probe.py:137: in probe
+    with StageStore.create(path,THREAD_SCHEMA,compression_workers=workers if mode=='product' else 1) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TypeError: StageStore.create() got an unexpected keyword argument 'compression_workers'
+__________ test_sequential_pages_advance_and_random_reads_match_bytes __________
+tests/experiments/test_core_next_dataset_access.py:10: in test_sequential_pages_advance_and_random_reads_match_bytes
+    result=probe(tmp_path/'run',pages=20,limit=3,random_reads=20)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_dataset_access.py:20: in probe
+    page=data.page(ref,cursor=cursor,limit=limit,max_bytes=65536)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:138: in page
+    with self._open(reference) as (connection, run_id, total, body):
+         ^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:90: in _open
+    run_id, artifact, body_artifact, count = self.store.read(lookup)
+                                             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:88: in lookup
+    _, artifact, body_artifact, count = self._registration(view, reference)
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/datasets.py:74: in _registration
+    or rows[0][1:3] != (reference['artifact'], reference['body_artifact'])):
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'body_artifact'
+_________ test_fixture_keeps_order_types_ranges_and_selected_complete __________
+tests/experiments/test_core_next_large_root_probe.py:12: in test_fixture_keeps_order_types_ranges_and_selected_complete
+    raw=read_range(store,0,65000,100)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:71: in read_range
+    return store.read(read)
+           ^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:488: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:270: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:66: in read
+    raw=zlib.decompress(payload)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E   zlib.error: Error -3 while decompressing data: incorrect header check
+______________ test_ten_mib_cold_record_exposes_full_rewrite_cost ______________
+tests/experiments/test_core_next_large_root_probe.py:48: in test_ten_mib_cold_record_exposes_full_rewrite_cost
+    assert whole['session_bytes_before_complete']>split['session_bytes_before_complete']*10
+E   assert 22448 > (2640 * 10)
+_____ test_alignment_probe_compares_three_positions_without_assumed_ratio ______
+tests/experiments/test_core_next_large_root_probe.py:54: in test_alignment_probe_compares_three_positions_without_assumed_ratio
+    results=alignment_probe(tmp_path,body_bytes=256*1024)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_large_root_probe.py:143: in alignment_probe
+    for change in apsw.Changeset.iter(stream.read):
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   apsw.CorruptError: database disk image is malformed
+_________ test_complete_steps_preserve_identical_account_effects[llm] __________
+tests/experiments/test_core_next_step_cost.py:8: in test_complete_steps_preserve_identical_account_effects
+    result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_step_cost.py:61: in probe
+    provider.manager.clients['fake'].chat.completions.create=sdk
+    ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+________ test_complete_steps_preserve_identical_account_effects[memory] ________
+tests/experiments/test_core_next_step_cost.py:8: in test_complete_steps_preserve_identical_account_effects
+    result=await probe(tmp_path/'run',mode=mode,steps=2,actors=2)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+benchmarks/core_next_step_cost.py:61: in probe
+    provider.manager.clients['fake'].chat.completions.create=sdk
+    ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+=========================== short test summary info ============================
+FAILED tests/experiments/test_core_next_cold_datasets_probe.py::test_real_consumer_one_batch_shared_body_and_single_readonly_copy
+FAILED tests/experiments/test_core_next_cold_runtime_probe.py::test_cold_fixed_workload_preserves_body_and_small_complete_changes
+FAILED tests/experiments/test_core_next_compression_probe.py::test_probe_runs_actual_thread_writer_and_status_reader[sync]
+FAILED tests/experiments/test_core_next_compression_probe.py::test_probe_runs_actual_thread_writer_and_status_reader[threaded]
+FAILED tests/experiments/test_core_next_compression_probe.py::test_probe_runs_actual_thread_writer_and_status_reader[spooled]
+FAILED tests/experiments/test_core_next_compression_probe.py::test_probe_runs_actual_thread_writer_and_status_reader[bytes]
+FAILED tests/experiments/test_core_next_dataset_access.py::test_sequential_pages_advance_and_random_reads_match_bytes
+FAILED tests/experiments/test_core_next_large_root_probe.py::test_fixture_keeps_order_types_ranges_and_selected_complete
+FAILED tests/experiments/test_core_next_large_root_probe.py::test_ten_mib_cold_record_exposes_full_rewrite_cost
+FAILED tests/experiments/test_core_next_large_root_probe.py::test_alignment_probe_compares_three_positions_without_assumed_ratio
+FAILED tests/experiments/test_core_next_step_cost.py::test_complete_steps_preserve_identical_account_effects[llm]
+FAILED tests/experiments/test_core_next_step_cost.py::test_complete_steps_preserve_identical_account_effects[memory]
+12 failed, 60 passed, 1 skipped in 4.24s
+
+exit_code=1

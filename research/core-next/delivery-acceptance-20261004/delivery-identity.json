@@ -1,0 +1,18 @@
+{
+  "implementation_commit": "a452b32b4c96be4295dc42f8da6d3d38a512fc49",
+  "branch": "codex/society0-core-next",
+  "candidate_archive": "source-candidate.tar.gz",
+  "compared_scope": [
+    "src",
+    "tests",
+    "native",
+    "pyproject.toml",
+    "uv.lock"
+  ],
+  "compared_files": 229,
+  "different_paths": [],
+  "method": "direct byte comparison; no digest",
+  "publication": "branch candidate; not a PyPI release",
+  "provider_report": "../provider-acceptance-20261004/final-report.md",
+  "platform_report": "review.md"
+}

@@ -1,0 +1,171 @@
+{
+  "tested_product": {
+    "commit": "ab6469d",
+    "source_files": 50,
+    "snapshot_changed": [],
+    "commit_changed": [],
+    "comparison": "direct bytes"
+  },
+  "coverage": "14 successful scenes from real-final-04 + one successful unchanged-contract repeat from real-final-05",
+  "passed_scenarios": 15,
+  "results": [
+    {
+      "name": "test_real_endpoint_smoke_llm_and_embedding",
+      "seconds": 1.943,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_endpoint_saturation_llm_and_embedding_managers",
+      "seconds": 7.472,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_interview_writes_artifacts",
+      "seconds": 1.591,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_saturation_memory_and_logs",
+      "seconds": 23.028,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_phase_capacity_overrides_runtime",
+      "seconds": 12.635,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_memory_roundtrip",
+      "seconds": 17.756,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_complete_boundary_memory_restore",
+      "seconds": 26.585,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_round_robin_action_loop",
+      "seconds": 13.15,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_social_publish_with_memory",
+      "seconds": 8.89,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_environment_action_tag_completion",
+      "seconds": 9.825,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_terminal_rejection_then_success",
+      "seconds": 8.763,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_social_browse_completion_and_memory",
+      "seconds": 30.836,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_multi_tick_social_workflow",
+      "seconds": 21.232,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_exit_restore_memory_and_observation",
+      "seconds": 19.647,
+      "status": "passed"
+    },
+    {
+      "name": "test_real_vfs_discovery_pagination_original_and_action",
+      "seconds": 59.168,
+      "status": "passed"
+    }
+  ],
+  "attempts": [
+    {
+      "path": "real-final-04",
+      "passed": 14,
+      "failed": 1,
+      "failure": "provider timeout inferred at configured60s; not overwritten"
+    },
+    {
+      "path": "real-final-05",
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "models_including_failed_attempt": {
+    "llm:Qwen/Qwen3.8-27B": {
+      "requests": 112,
+      "responses": 111,
+      "errors": 1,
+      "input_tokens": null,
+      "output_tokens": null,
+      "total_tokens": null,
+      "input_reports": null,
+      "output_reports": null,
+      "total_reports": null,
+      "cache_read_tokens": null,
+      "cache_write_tokens": null,
+      "cache_read_reports": null,
+      "cache_write_reports": null,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 350.94758512615226,
+      "queue_s": 15.870902669266798,
+      "jitter_s": 0.0,
+      "provider_s": 334.96071033133194,
+      "duration_reports": 112,
+      "queue_reports": 112,
+      "jitter_reports": 112,
+      "provider_reports": 112
+    },
+    "embedding:Qwen/Qwen3-Embedding-0.6B": {
+      "requests": 27,
+      "responses": 27,
+      "errors": 0,
+      "input_tokens": 695,
+      "output_tokens": 0,
+      "total_tokens": 695,
+      "input_reports": 27,
+      "output_reports": 0,
+      "total_reports": 27,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cache_read_reports": 0,
+      "cache_write_reports": 0,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 5.610582083463669,
+      "queue_s": 0.00025341776199638844,
+      "jitter_s": 0.0,
+      "provider_s": 5.589518249616958,
+      "duration_reports": 27,
+      "queue_reports": 27,
+      "jitter_reports": 27,
+      "provider_reports": 27
+    }
+  },
+  "physical_calls_including_failed_attempt": 139,
+  "tool_tokens": null,
+  "tool_tokens_note": "LLM token/cache unavailable; independent tool token counts were not reported",
+  "budget": {
+    "default_max_turns": 8,
+    "vfs_max_turns": 20,
+    "default_max_action_calls": 4,
+    "vfs_max_action_calls": 2,
+    "request_max_tokens": 1024,
+    "raised": false
+  },
+  "product_changes_between_attempts": false,
+  "oracle": "original assertions passed across all15 scenes; full docs/pages/action/memory/recovery retained",
+  "llm_usage_valid": false,
+  "usage_limits": "LLM token/cache unavailable: SDK summed cumulative streaming usage; raw final chunk not retained; original values preserved as invalid historical measurements",
+  "original_measurement": "real-coverage-summary-original.json"
+}

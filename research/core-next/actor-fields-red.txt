@@ -1,0 +1,47 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_activation_reads_small_head_without_materializing_large_cold_actor_fields _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-556/test_activation_reads_small_he0')
+
+    @pytest.mark.asyncio
+    async def test_activation_reads_small_head_without_materializing_large_cold_actor_fields(tmp_path):
+        big='完整资料🙂'*200000
+        async with compose(tmp_path/'run',[actor_plugin({'rule':lambda record:record.id},records=[
+            ActorRecord('a','rule',persona=big,state={'balance':7,'archive':big},config={'large':big})])]) as host:
+            actors=host.service('actors','actors');store=host.service('storage','store');sql=[]
+            original=store.read
+            def read(callback,**kwargs):
+                def traced(view):
+                    view._connection.set_exec_trace(lambda cursor,statement,bindings:sql.append(statement) or True)
+                    return callback(view)
+                return original(traced,**kwargs)
+            store.read=read
+            actor=actors['a']
+            assert actor.driver=='a'
+>           assert not any('actor_personas' in item or 'actor_configs' in item or 'FROM actor_state' in item for item in sql)
+E           assert not True
+E            +  where True = any(<generator object test_activation_reads_small_head_without_materializing_large_cold_actor_fields.<locals>.<genexpr> at 0x109328450>)
+
+tests/primary/test_kernel_actor_fields.py:21: AssertionError
+_ test_actor_field_view_is_same_actor_version_bound_and_history_survives_deactivation _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-556/test_actor_field_view_is_same_0')
+
+    @pytest.mark.asyncio
+    async def test_actor_field_view_is_same_actor_version_bound_and_history_survives_deactivation(tmp_path):
+        records=[ActorRecord('a','rule',state={'n':1},roles=('buyer',)),ActorRecord('b','rule')]
+        plugins=[actor_plugin({'rule':lambda record:None,'other':lambda record:record.id},records=records)]
+        async with compose(tmp_path/'run',plugins) as host:
+            actors=host.service('actors','actors');store=host.service('storage','store')
+            view=actors['a'].config
+            actors.set_state('b','n',8)
+>           assert view.state_values(('n',))=={'n':1}
+                   ^^^^^^^^^^^^^^^^^
+E           AttributeError: 'ActorRecord' object has no attribute 'state_values'
+
+tests/primary/test_kernel_actor_fields.py:36: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_actor_fields.py::test_activation_reads_small_head_without_materializing_large_cold_actor_fields
+FAILED tests/primary/test_kernel_actor_fields.py::test_actor_field_view_is_same_actor_version_bound_and_history_survives_deactivation
+2 failed in 0.19s
