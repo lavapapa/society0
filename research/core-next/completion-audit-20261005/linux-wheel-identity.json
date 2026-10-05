@@ -1,0 +1,8 @@
+{
+  "python_source_files_byte_compared": 50,
+  "differences": [],
+  "installed_python_root": "/mnt/data/l20/qin/society0-filesystem-final-20261005/env/lib/python3.12/site-packages/society0",
+  "installed_native_binary_paths": [
+    "/mnt/data/l20/qin/society0-filesystem-final-20261005/env/lib/python3.12/site-packages/society0_filesystem/society0_filesystem.abi3.so"
+  ]
+}

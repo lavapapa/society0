@@ -1,0 +1,12 @@
+{
+  "platform": "Linux-5.4.119-19-0009.11-x86_64-with-glibc2.35",
+  "society0": "/mnt/data/l20/qin/society0-filesystem-final-20261005/env/lib/python3.12/site-packages/society0/__init__.py",
+  "native": "/mnt/data/l20/qin/society0-filesystem-final-20261005/env/lib/python3.12/site-packages/society0_filesystem/__init__.py",
+  "reader": {
+    "matches": 5000,
+    "bytes_read": 120000,
+    "sink_batches": 5
+  },
+  "hits_original_bytes": true,
+  "outside_source_cwd": "/mnt/data/l20/qin/society0-filesystem-final-20261005"
+}

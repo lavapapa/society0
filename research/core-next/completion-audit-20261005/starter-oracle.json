@@ -1,0 +1,86 @@
+{
+  "passed": true,
+  "source": "ab6469d",
+  "source_files_equal": [
+    "src/society0/memory_extraction_protocol.py",
+    "src/society0/async_utils.py",
+    "src/society0/resource_managers.py",
+    "src/society0/__init__.py",
+    "src/society0/function_registry.py",
+    "src/society0/activation_pool.py",
+    "src/society0/plugins/social_topology.py",
+    "src/society0/plugins/social_models.py",
+    "src/society0/plugins/social.py",
+    "src/society0/plugins/__init__.py",
+    "src/society0/plugins/round_robin.py",
+    "src/society0/plugins/plain.py",
+    "src/society0/logging/__init__.py",
+    "src/society0/logging/spec.py",
+    "src/society0/logging/context.py",
+    "src/society0/logging/utils.py",
+    "src/society0/kernel/plugins.py",
+    "src/society0/kernel/auth.py",
+    "src/society0/kernel/model_messages.py",
+    "src/society0/kernel/observation.py",
+    "src/society0/kernel/runner.py",
+    "src/society0/kernel/services.py",
+    "src/society0/kernel/drivers.py",
+    "src/society0/kernel/models.py",
+    "src/society0/kernel/interaction.py",
+    "src/society0/kernel/memory.py",
+    "src/society0/kernel/results.py",
+    "src/society0/kernel/actor_files.py",
+    "src/society0/kernel/information_fs.py",
+    "src/society0/kernel/shell.py",
+    "src/society0/kernel/model_selection.py",
+    "src/society0/kernel/datasets.py",
+    "src/society0/kernel/__init__.py",
+    "src/society0/kernel/llm.py",
+    "src/society0/kernel/information_sql.py",
+    "src/society0/kernel/cognition.py",
+    "src/society0/kernel/runtime.py",
+    "src/society0/kernel/workbench.py",
+    "src/society0/kernel/threads.py",
+    "src/society0/kernel/activation.py",
+    "src/society0/kernel/_json_chunks.py",
+    "src/society0/kernel/storage.py",
+    "src/society0/kernel/action_stats.py",
+    "src/society0/kernel/composition.py",
+    "src/society0/kernel/selection.py",
+    "src/society0/kernel/schedule.py",
+    "src/society0/kernel/workspace.py",
+    "src/society0/kernel/actors.py",
+    "src/society0/kernel/usage.py",
+    "src/society0/kernel/compute.py",
+    "skill/assets/minimal_experiment.py",
+    "native/society0-filesystem/src/lib.rs"
+  ],
+  "memory_rows_equal": true,
+  "memory_original_vectors_equal": true,
+  "first_step_full_thread_equal": true,
+  "original_first_step_action_reexecuted": false,
+  "continuous_survey": {
+    "credibility": 2,
+    "reason": "该消息仅来自本地非官方账号，且明确\"尚无官方通知\"。地铁末班车时间调整属于运营方重大变更，必然由地铁运营方或交通委等官方渠道正式公告。在无官方确认、无可靠佐证、来源权威性低的情况下，可信度很低。作为依赖地铁通勤的主体，我坚持以官方渠道为准，未证实前不改变通勤计划，仅记录跟踪。"
+  },
+  "restored_survey": {
+    "credibility": 2,
+    "reason": "该消息仅来自本地非官方账号，且明确\"尚无官方通知\"。地铁末班车时间调整属于运营方重大变更，通常需经交通委/运营方正式公告并预留缓冲期，不会仅由自媒体提前透露而无任何官方渠道印证。结合我以往经验（2025-06-10 类似事件最终未获证实），此类未证实传闻可信度低。建议：暂不调整通勤计划，持续关注地铁运营方官网、官方App及交通委公告，待官方确认后再做决定。"
+  },
+  "memory_payloads": [
+    {
+      "content": "2025-06-10 收到本地账号消息：称下月地铁末班车将提前，但尚无官方通知。Alice 判断为未证实信息，暂不调整通勤计划，等待官方公告。",
+      "metadata": {}
+    },
+    {
+      "content": "我关注本地交通消息，日常依赖地铁通勤。判断交通类信息时，我坚持以官方渠道（地铁运营方、交通委等）为准，非官方账号的消息在未获证实前不改变通勤计划。",
+      "metadata": {}
+    },
+    {
+      "content": "2025年6月10日，我收到一条本地账号消息称下月地铁末班车将提前，但无官方通知。我判断为未证实信息，决定暂不调整通勤，等待官方公告。已记录此事件以便后续跟踪。",
+      "metadata": {}
+    }
+  ],
+  "new_physical_calls": 2,
+  "raw_artifacts": "/tmp/society0-official-starter-20261005"
+}

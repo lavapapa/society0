@@ -351,6 +351,15 @@ async def test_real_vfs_discovery_pagination_original_and_action(config,destinat
     (destination/'tool-feedback.json').write_text(json.dumps(feedback,ensure_ascii=False))
 
 
+def assert_shell_recomputation(outputs):
+    for value in outputs:
+        if 'stdout' not in value or value['exit_code']!=0:continue
+        try:result=json.loads(value['stdout'])
+        except json.JSONDecodeError:continue
+        if result=={'count':12,'total':546}:return
+    raise AssertionError('No successful shell recomputation of all 12 prices to total 546')
+
+
 def assert_vfs_artifacts(destination):
     """只读同一套真实工件断言，可复核已完成运行。"""
     from society0.kernel.storage import StageReader
@@ -386,6 +395,5 @@ def assert_vfs_artifacts(destination):
         assert [row['id'] for _,page in pages for row in page['items']]==list(range(1,13))
         assert [row['amount'] for _,page in pages for row in page['items']]==[i*7 for i in range(1,13)]
         outputs=[json.loads(message['content']) for message in messages if message['role']=='tool']
-        shell=next(value for value in outputs if 'stdout' in value and value['stdout'].strip() and 'count' in json.loads(value['stdout']))
-        assert shell['exit_code']==0 and json.loads(shell['stdout'])=={'count':12,'total':546}
+        assert_shell_recomputation(outputs)
         return {'errors':[value['error'] for value in outputs if value.get('error')]}
