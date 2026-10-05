@@ -1525,7 +1525,9 @@ class World:
 
         self._memory_branch_id = str(branch_id)
         self._memory_branch_lineage = list(branch_lineage)
-        self._committed_memory_epoch_ids = set(committed_write_epoch_ids)
+        from .incremental_checkpoint import _MemoryEpochView
+
+        self._committed_memory_epoch_ids = _MemoryEpochView.from_ids(committed_write_epoch_ids)
         for memory in self._iter_agent_memories():
             memory.branch_id = self._memory_branch_id
             memory.set_memory_view(

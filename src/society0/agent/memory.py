@@ -240,9 +240,9 @@ class Memory:
         if committed_write_epoch_ids is None:
             self._committed_write_epoch_ids = None
         else:
-            self._committed_write_epoch_ids = {
-                str(epoch_id) for epoch_id in committed_write_epoch_ids
-            }
+            from ..incremental_checkpoint import _MemoryEpochView
+
+            self._committed_write_epoch_ids = _MemoryEpochView.from_ids(committed_write_epoch_ids)
         return self
 
     # 显式别名便于 checkpoint resolver 传递 marker 的 memory_view。
