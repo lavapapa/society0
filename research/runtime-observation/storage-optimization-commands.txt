@@ -1,0 +1,70 @@
+Workdir: /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation
+Python: /Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python
+Environment: PYTHONPATH=src; deterministic tests SOCIETY0_RUN_REAL_E2E=0
+
+python benchmarks/storage_optimization_probe.py --revision c2ad77b --profile research/runtime-observation/storage-c2ad77b-profile.txt
+python benchmarks/storage_optimization_probe.py --revision c2ad77b
+python benchmarks/storage_optimization_probe.py
+(Last two commands alternated three times; storage-final-durability-paired-local.json)
+python benchmarks/storage_optimization_probe.py --stream-input --count 2048820
+python benchmarks/checkpoint_root_probe.py
+python benchmarks/storage_merge_probe.py --module /tmp/storage-c2ad77b-records.py
+python benchmarks/storage_merge_probe.py --module src/society0/checkpoint_records.py
+python benchmarks/runtime_stage_comparison.py --baseline c2ad77b --output research/runtime-observation/stage-comparison-optimization.json
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py tests/primary/test_storage_review.py tests/primary/test_persistence_manager_v4.py
+python -m pytest -o addopts='' -q tests/primary/test_observation_review.py tests/primary/test_observation_compact.py
+
+Remote dir: simulation:/mnt/data/l20/qin/runtime-observation-storage-20260929
+Connection: ssh -o ControlPath=/tmp/society0-observation-ssh simulation 'bash -ilc "..."'
+python3 storage_optimization_probe.py --module storage-c2ad77b-records.py --revision c2ad77b --directory .
+python3 storage_optimization_probe.py --module checkpoint_records.py --directory . --compression-level LEVEL
+LEVEL=1,3,6; page size=512,1024,4096 separately compared
+python3 storage_optimization_probe.py --module MODULE --directory . --uniform-value-bytes 9160
+python3 storage_merge_probe.py --module MODULE --directory .
+MODULE=storage-c2ad77b-records.py/checkpoint_records.py
+
+Final page policy:
+python benchmarks/storage_optimization_probe.py --revision c2ad77b
+python benchmarks/storage_optimization_probe.py
+(Alternated three times; storage-final-adaptive-paired-local.json)
+python benchmarks/runtime_stage_comparison.py --baseline c2ad77b --output research/runtime-observation/stage-comparison-final-adaptive.json
+python benchmarks/checkpoint_root_probe.py
+(Also starts a separate process for identity-only RSS; storage-root-resolver-final.json)
+python benchmarks/storage_optimization_probe.py --stream-input --count 2048820
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py tests/primary/test_storage_review.py tests/primary/test_incremental_checkpoint_v4.py tests/primary/test_persistence_manager_v4.py tests/primary/test_observation_compact.py tests/primary/test_observation_review.py
+86 passed in 5.08s
+python -m pytest -o addopts='' -q tests/primary/test_storage_review.py tests/primary/test_observation_review.py tests/primary/test_observation_compact.py
+37 passed in 4.52s (latest independent review additions included)
+git diff --check
+exit 0
+
+# v3 actual long-key optimization (2026-09-29)
+# PYTHONPATH=src; Python=/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py -k 'metadata_random or record_reader_reuses'
+# RED: 2 failed; 5794 key-block decompressions vs <50; RecordReader missing.
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py tests/primary/test_storage_review.py tests/primary/test_persistence_manager_v4.py
+# GREEN: 60 passed in 1.10s.
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py -k stops_metadata_cursor
+# RED: fetchall raised 'page metadata materialized before byte budget'.
+python -m pytest -o addopts='' -q tests/primary/test_checkpoint_records.py tests/primary/test_storage_review.py tests/primary/test_storage_v3_independent.py tests/primary/test_result_datasets.py tests/primary/test_summary_storage_independent.py
+# GREEN: 58 passed in 1.28s; subsequent independent page boundary suite owner threads.
+python -m pytest -o addopts='' -q tests/primary/test_observation_http_independent.py tests/primary/test_query_storage_independent.py tests/primary/test_observation_compact.py
+# GREEN: 24 passed in 4.96s; log query-http-storage-review.txt.
+python benchmarks/storage_optimization_probe.py > research/runtime-observation/storage-v3-local.json
+python benchmarks/storage_optimization_probe.py --count 2048820 --stream-input --large-bytes 0 > research/runtime-observation/storage-v3-2m.json
+python benchmarks/storage_merge_probe.py --module src/society0/checkpoint_records.py > research/runtime-observation/storage-v3-merge-local.json
+python benchmarks/runtime_stage_comparison.py --baseline c2ad77b --output research/runtime-observation/stage-comparison-v3.json
+# All four initial/final/restored state, Thread, memory and model-input comparisons equivalent.
+# Remote v3 snapshot: /mnt/data/l20/qin/runtime-observation-storage-20260929/source-v3/src
+# Remote Python: /mnt/data/l20/qin/deploy/lithium-accepted-v0.7.2-20260922/venv/bin/python
+# Remote prefix PYTHONPATH=<snapshot>; script in /mnt/data/l20/qin/runtime-observation-storage-20260929
+python real_state_conversion_probe.py --mode convert --source /mnt/data/l20/qin/runs/lithium-accepted-repetitions-20260922/R3/8pct/attempt-003 --target /mnt/data/l20/qin/runtime-observation-storage-20260929/converted-state-v3
+# 90.200s; 332935168B; checkpoint f3284ea9d83646928d24178aa9848ebe.
+python metadata_read_probe.py /mnt/data/l20/qin/runtime-observation-storage-20260929/converted-state-v3/checkpoints/v4/replacements/f3284ea9d83646928d24178aa9848ebe.sqlite
+# 1448471 entries; 6.628s; 2238 decoded blocks; 18.867MB peak RSS.
+# Final remote sequential runs, no concurrent benchmark/model workload:
+PYTHONPATH=/mnt/data/l20/qin/runtime-observation-storage-20260929/source-v3/src python3 real_record_range_probe.py /mnt/data/l20/qin/runtime-observation-real-tests-20260929/converted-state/checkpoints/v4/replacements/61b5daef7d7e44918679df096b44f7c2.sqlite /mnt/data/l20/qin/runtime-observation-storage-20260929/converted-state-v3/checkpoints/v4/replacements/f3284ea9d83646928d24178aa9848ebe.sqlite
+python3 storage_optimization_probe.py --module checkpoint_records_v3.py --directory /mnt/data/l20/qin/runtime-observation-storage-20260929
+# 6.666s, 46706688B, +10047488B RSS.
+python3 storage_merge_probe.py --module checkpoint_records_v3.py --directory /mnt/data/l20/qin/runtime-observation-storage-20260929
+# stage2.933s + merge0.733s =3.666s; final5468160B.

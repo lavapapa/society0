@@ -1,0 +1,7 @@
+🐍 Found CPython 3.12 at /Users/marvin/.cache/uv/builds-v0/.tmpnxXHTL/bin/python
+🔗 Found pyo3 bindings with abi3-py3.9 support
+📡 Using build options features from pyproject.toml
+💻 Using `MACOSX_DEPLOYMENT_TARGET=11.0` for aarch64-apple-darwin by default
+   Compiling society0-filesystem v0.1.0 (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/native/society0-filesystem)
+    Finished `dev` profile [unoptimized] target(s) in 1.44s
+📦 Built wheel for abi3 Python ≥ 3.9 to /tmp/society0-f05-wheel/society0_filesystem-0.1.0-cp39-abi3-macosx_11_0_arm64.whl

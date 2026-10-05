@@ -1,0 +1,61 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+__ test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges[TEXT] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-773/test_large_body_query_keeps_sq0')
+kind = 'TEXT'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['TEXT','BLOB'])
+    async def test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges(tmp_path,kind):
+        original=('原文🙂'*2000000).encode()
+        with StageStore.create(tmp_path/'run',(f'CREATE TABLE docs(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,body {kind} NOT NULL)',),
+            initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,?)',('alice',original.decode() if kind=='TEXT' else original))) as store:
+            def authorize(scope):return 'owner=?',(scope.actor,)
+            provider=SQLInformation('world',StageReader(store.path),{
+>               'rows':DatasetSpec('docs','id',('id','body'),authorize=authorize,documents=(('body','body'),)),
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                'body':DocumentSpec('docs','id','body',authorize=authorize)})
+E           TypeError: DatasetSpec.__init__() got an unexpected keyword argument 'documents'
+
+tests/primary/test_kernel_information_large.py:19: TypeError
+__ test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges[BLOB] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-773/test_large_body_query_keeps_sq1')
+kind = 'BLOB'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['TEXT','BLOB'])
+    async def test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges(tmp_path,kind):
+        original=('原文🙂'*2000000).encode()
+        with StageStore.create(tmp_path/'run',(f'CREATE TABLE docs(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,body {kind} NOT NULL)',),
+            initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,?)',('alice',original.decode() if kind=='TEXT' else original))) as store:
+            def authorize(scope):return 'owner=?',(scope.actor,)
+            provider=SQLInformation('world',StageReader(store.path),{
+>               'rows':DatasetSpec('docs','id',('id','body'),authorize=authorize,documents=(('body','body'),)),
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                'body':DocumentSpec('docs','id','body',authorize=authorize)})
+E           TypeError: DatasetSpec.__init__() got an unexpected keyword argument 'documents'
+
+tests/primary/test_kernel_information_large.py:19: TypeError
+__________ test_query_byte_budget_keeps_exact_total_and_continuation ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-773/test_query_byte_budget_keeps_e0')
+
+    @pytest.mark.asyncio
+    async def test_query_byte_budget_keeps_exact_total_and_continuation(tmp_path):
+        with StageStore.create(tmp_path/'run',('CREATE TABLE items(id INTEGER PRIMARY KEY,label TEXT NOT NULL)',),
+            initialize=lambda w:w.executemany('INSERT INTO items VALUES(?,?)',((i,'轻字段'*30) for i in range(20)))) as store:
+            provider=SQLInformation('world',store,{'items':DatasetSpec('items','id',('id','label'))})
+            scope=InteractionScope('a',Moment(1,'read'));cursor=None;found=[]
+            while True:
+>               page=await provider.query(scope,'/world/items',Query(limit=20,max_bytes=1024,cursor=cursor))
+                                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               TypeError: Query.__init__() got an unexpected keyword argument 'max_bytes'
+
+tests/primary/test_kernel_information_large.py:43: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_large.py::test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges[TEXT]
+FAILED tests/primary/test_kernel_information_large.py::test_large_body_query_keeps_sqlite_memory_bounded_and_unicode_ranges[BLOB]
+FAILED tests/primary/test_kernel_information_large.py::test_query_byte_budget_keeps_exact_total_and_continuation
+3 failed in 0.32s

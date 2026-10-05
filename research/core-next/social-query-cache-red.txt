@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_social_consecutive_feed_pages_reuse_same_semantic_query _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-520/test_social_consecutive_feed_p0')
+
+    @pytest.mark.asyncio
+    async def test_social_consecutive_feed_pages_reuse_same_semantic_query(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.plugins import Plugin
+        from tests.primary.test_kernel_memory import Embed,Client
+        embed=Embed();client=Client()
+        def install(ctx):
+            ctx.provide('embeddings',{'default':SimpleNamespace(embed=embed)});ctx.provide('client',client)
+        plugins=plan(Plugin('vectors',install=install),social_plugin('abc',edges=[],embedding=('vectors','default'),vector_client=('vectors','client')))
+        async with compose(tmp_path/'run',plugins) as host:
+            social=host.service('social','mechanism');info=host.service('interaction','information')
+            for text in ('one','two','three'):social.execute('publish_post','b','b',{'content':text},1)
+            scope=InteractionScope('a',Moment(1,'p'))
+            first=await info.query(scope,'/social/feed',Query(limit=1))
+            await info.query(scope,'/social/feed',Query(limit=1,cursor=first.next_cursor))
+>           assert len(embed.calls)==2  # 一次帖子批量，一次完整偏好查询。
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: assert 3 == 2
+E            +  where 3 = len([['one', 'two', 'three'], ['Social feed preference'], ['Social feed preference']])
+E            +    where [['one', 'two', 'three'], ['Social feed preference'], ['Social feed preference']] = <tests.primary.test_kernel_memory.Embed object at 0x10c388560>.calls
+
+tests/primary/test_plugin_social.py:406: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_consecutive_feed_pages_reuse_same_semantic_query
+1 failed, 24 deselected in 0.36s

@@ -12,20 +12,49 @@ permissions:
 jobs:
   deterministic-suite:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    env:
+      SOCIETY0_RUN_REAL_E2E: "0"
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: pip
+          version: "0.8.12"
+          enable-cache: true
 
-      - name: Install package and test dependencies
-        run: python -m pip install -e ".[dev]"
+      - name: Install Python and native filesystem toolchain
+        run: |
+          uv python install 3.12
+          rustup toolchain install 1.95.0 --profile minimal
 
-      - name: Run deterministic test suite
-        run: python -m pytest
+      - name: Install locked package with all test extras
+        run: uv sync --frozen --all-extras --python 3.12
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: tools/workbench-template/package-lock.json
+
+      - name: Install workbench dependencies
+        run: npm ci --prefix tools/workbench-template
+
+      - name: Run deterministic suite and local experiments
+        # sqlite-vec belongs to a separate feasibility environment and is explicitly skipped here.
+        run: uv run --no-sync pytest tests/primary tests/e2e tests/experiments -m 'not real_e2e'
+
+      - name: Produce actual pilot workbench payload
+        run: |
+          printf '{"release":{"commit":"%s"},"start":1,"end":2}\n' "$GITHUB_SHA" > "$RUNNER_TEMP/pilot.json"
+          uv run --no-sync python -m society0.kernel.runner --factory examples.core_next.conversation_pilot:build --config "$RUNNER_TEMP/pilot.json" --output "$RUNNER_TEMP/pilot-run"
+          uv run --no-sync python -m society0.kernel.workbench --run "$RUNNER_TEMP/pilot-run" --version ci --steps 1 2 --actors a b c d --output "$RUNNER_TEMP/pilot-payload.json"
+
+      - name: Render and test actual pilot results
+        env:
+          CORE_NEXT_WORKBENCH_PAYLOAD: ${{ runner.temp }}/pilot-payload.json
+        run: npm test --prefix tools/workbench-template

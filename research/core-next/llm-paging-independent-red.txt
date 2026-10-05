@@ -1,0 +1,96 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[data_query] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-447/test_review_llm_thread_writes_0')
+tool = 'data_query'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)'],
+                initialize=lambda w:w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')])) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':cursor})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True)]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact))
+                result=await driver.run(session)
+                assert result.status=='completed'
+                assert len(received)==2
+>               assert all('error' not in page for page in received),received
+E               AssertionError: [{'items': [{'id': 1, 'value': 'one', 'ref': {'namespace': 'domain', 'kind': 'items', 'key': '1'}}], 'total': 2, 'next...', 'revision': 5, 'last': [1]}, 'revision': 5}, {'error': 'ValueError', 'message': 'query cursor or revision changed'}]
+E               assert False
+E                +  where False = all(<generator object test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages.<locals>.<genexpr> at 0x10d1092f0>)
+
+tests/primary/test_kernel_llm_paging_review.py:52: AssertionError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[action_find] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-447/test_review_llm_thread_writes_1')
+tool = 'action_find'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)'],
+                initialize=lambda w:w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')])) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':cursor})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True)]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact))
+                result=await driver.run(session)
+                assert result.status=='completed'
+                assert len(received)==2
+>               assert all('error' not in page for page in received),received
+E               AssertionError: [{'items': [{'name': 'first', 'description': 'first', 'terminal': False, 'tags': []}], 'total': 2, 'next_cursor': {'id...nd": "item", "key": "1"}, "", ["first", "second"]]', 'offset': 1}, 'revision': 5}, {'error': 'invalid_tool_arguments'}]
+E               assert False
+E                +  where False = all(<generator object test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages.<locals>.<genexpr> at 0x10d10a740>)
+
+tests/primary/test_kernel_llm_paging_review.py:52: AssertionError

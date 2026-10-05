@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_parity_new.py", line 119, in <module>
+    asyncio.run(run(parser.parse_args()))
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_parity_new.py", line 19, in run
+    from tests.primary.scripted_provider import TypedScriptProvider
+ModuleNotFoundError: No module named 'tests'

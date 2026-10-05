@@ -1,0 +1,40 @@
+{
+  "expected": {
+    "count": 12,
+    "total": 546,
+    "phrase": "原文校验成功。"
+  },
+  "actual": [
+    {
+      "count": 12,
+      "total": 504,
+      "phrase": "原文校验成功。"
+    }
+  ],
+  "judgment_correct": false,
+  "complete_original_in_every_request": true,
+  "requests": 1,
+  "provider_seconds": 4.800432124990039,
+  "reported_input_tokens": 668,
+  "reported_output_tokens": 55,
+  "raw_usage": [
+    {
+      "completion_tokens": 55,
+      "prompt_tokens": 668,
+      "total_tokens": 723,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 0,
+        "rejected_prediction_tokens": null
+      },
+      "prompt_tokens_details": {
+        "audio_tokens": null,
+        "cache_write_tokens": null,
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 668
+    }
+  ]
+}

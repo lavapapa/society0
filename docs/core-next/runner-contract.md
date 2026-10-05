@@ -1,0 +1,32 @@
+# 运行入口
+
+运行计划把公开配置和插件组合交给 compose。Schedule 的 next_step(completed_step) 返回 StepPlan(time, phases)，内置 SequenceSchedule 保存完整时间序列与有序阶段；schedule_plugin 发布独立的调度服务。Runtime 继续负责唯一的步骤执行和完整点发布，runner 保存本次运行合同及逐步诊断，输出可供独立观察和工作台读取的运行目录。
+
+## 一、配置
+
+RunPlan 包含 plugins、RunContract、schedule 与 runtime 服务引用。RunContract 的 release、dependencies、configuration、time、budgets 描述明确发布版本、固定依赖、插件及主体模型参数、时间范围和预算；credential_env 保存所需环境变量名称，凭据值由提供方插件在进程内取得。研究者在工厂中把这些公开值实际用于插件构造。runner 不推断源码版本，正式运行须提供已发布版本并从相应部署执行。
+
+runner.json 在首个模拟步骤前创建并同步落盘，失败会终止启动。文件绑定实际 run_id、插件名称及依赖、实际 Runtime 容量和激活预算，以及恢复来源完整步骤。配置文件描述期望值，effective_runtime 保存实际执行容量。SequenceSchedule 的 times 始终描述完整时间序列；恢复从已完成步骤对应的下一位置读取，避免重复或跳过业务时点。自定义 Schedule 可根据已完成事实产生下一计划，权威状态变更留在 Runtime 的阶段内。
+
+## 二、执行
+
+Python 使用 `await run_plan(path, plan, source=None, step=None)`。source 与 step 通过 compose 创建新的运行分支。runner 逐次读取 schedule.next_step，并调用 runtime.run_step(number, plan.time, plan.phases)，完整描述符决定成功范围。领域错误和取消继续向调用方传播；runner-status.json 记录错误类型及最新完整步骤，Thread 与结果保存各自的事实和失败诊断。
+
+`timings.jsonl` 每次尝试只追加 Runtime.last_timing 的短数值。该诊断写入失败增加 diagnostic_errors 并报告日志，已完成步骤保持其真实发布状态。runner-status.json 使用独立进度快照；该文件缺失或落后时，应查询完整描述符确认范围。
+
+命令行通过 `python -m society0.kernel.runner --factory module:function --config CONFIG.json --output RUN_DIR` 调用同步计划工厂。恢复增加 `--source SOURCE_DIR --step N`。成功输出结构化运行结果；失败返回非零状态及错误类型。具体请求原文和业务异常保留在运行事实中，命令行不会将异常字符串自动复制到标准输出。
+
+## 三、示例
+
+`examples.core_next.rule_run:build` 展示两个规则主体的短运行，使用真实 Runtime、结果表与完整恢复协议。公开配置提供 start、end 和 release，例如 `{"start":1,"end":2,"release":{"commit":"填写实际源码提交"}}`；两端均包含在执行范围中。恢复配置保留完整时间范围，例如 start=1、end=2。完整第 1 步恢复后，调度返回第二个时点 2；runner 续步骤编号。完整可执行命令见 [第一次运行与恢复](getting-started.md)。该示例使用基础依赖。
+
+LLM 与记忆组合使用 services-contract 中的标准 thread_plugin 和 memory_plugin，提供方配置使用 models-contract。运行入口和领域计划分别负责执行协议与业务选择，生命周期统一交由 PluginHost 管理。
+
+
+订阅接入的完整计划使用 `examples.core_next.codex_subscription:build`，配置和授权步骤见 [Codex 订阅指南](subscription-guide.md)。实际模型 ID、账户别名和本次源码身份由研究者明确选择。
+
+## 共享计算
+
+`from society0.plugins import compute_plugin` 可安装单运行共享服务：`compute_plugin(max_workers=2, max_pending=4)`。机制声明依赖 compute，在安装时获取 `context.require('compute', 'compute')`，通过 `await compute.run(top_level_function, compact_input)` 提交可序列化输入。函数需要模块顶层定义，输入应为紧凑批次或不可变引用；数据库连接、Runtime 和可写状态留在拥有者进程。计算返回后，机制检查来源版本并按业务顺序写入规范存储。
+
+[图计算示例](../../examples/core_next/parallel_graph.py) 为现有 graph_plugin 接入该服务。projection_async 读取一次节点和边的短快照，在子进程构造派生图，返回时复核相关表版本。该示例仍会完整传输图输入和派生输出，成本随所选图规模增长。max_pending 限制已提交且实际未完成的任务数，等待调用方已构造的参数仍会占内存。取消等待者后，运行中的工作在真实完成时才归还额度；关闭使用标准 executor.shutdown 等待进程结束，长任务会延长退出时间。每次 `compute.run` 提交一个函数任务；单次整图调用使用一个工作进程。多个独立调用才可占用多个 worker，任务拆分与结果的业务顺序由机制作者确定。实际执行与测量范围见 [计算消费者及规模边界](../../research/core-next/acceptance-20261004/capability-review.md)。

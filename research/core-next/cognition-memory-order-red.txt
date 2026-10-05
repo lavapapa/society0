@@ -1,0 +1,108 @@
+...FF                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[decision] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-408/test_default_cognition_and_act0')
+mode = 'decision'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['decision','interview'])
+    async def test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only(tmp_path,mode):
+        from society0.kernel.memory import Memory, MEMORY_SCHEMA, ThreadMemoryExtractor
+        from society0.kernel.llm import LLMPolicy
+        from tests.primary.test_kernel_memory import Embed,Client
+        from tests.primary.test_kernel_llm import FakeProvider,reply,call
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*MEMORY_SCHEMA]) as store:
+            threads=ThreadStore(store)
+            extraction=call('extract','extract_memories',{'memories':[{'content':'我保留决定经历','importance':3}]})
+            provider=FakeProvider(threads,[reply(text='完整的决定或测量原文'),reply(extraction)])
+            embed=Embed()
+            memory=Memory(store,threads,embed=embed,client=Client(),extract=ThreadMemoryExtractor(threads,provider),recall_query=lambda s:'earlier')
+            job=memory.prepare_job('a',None,'seed',timestamp=0,entries=[{'content':'此前完整记忆'}])
+            await memory.finish_job(job)
+            async def perception(current,position):return ([{'role':'user','content':'完整经营视图'}],1)
+            driver=LLMDriver(provider,threads,input_builder=CognitiveInput(threads,perception),memory=memory,policy=LLMPolicy(mode=mode))
+>           result=await driver.run(session(driver))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_cognition.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:513: in run
+    await self.memory.after_activation(session, thread_id, result)
+src/society0/kernel/memory.py:386: in after_activation
+    job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=session.moment.time)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:367: in extract_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:363: in prepare
+    entries=await self.extract(actor,thread_id,snapshot['messages'],metadata={'through':through,'job_key':key})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.memory.ThreadMemoryExtractor object at 0x108f99490>
+actor = 'a', thread_id = '13d4a83d7ef24ff7bcd4889174c9fb9f'
+messages = [{'role': 'user', 'content': '{"memory_actions_target": {"namespace": "memory", "kind": "actor", "key": "a"}}'}, {'rol...l": "主观状态"}'}, {'role': 'user', 'content': '完整经营视图'}, {'role': 'assistant', 'content': '完整的决定或测量原文', 'tool_calls': []}]
+metadata = {'through': 10, 'job_key': 'thread:13d4a83d7ef24ff7bcd4889174c9fb9f:through:10'}
+
+    async def __call__(self,actor,thread_id,messages,*,metadata):
+        from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response
+        if self.threads.describe(thread_id)['actor']!=actor:raise PermissionError('Thread owner differs')
+>       if not messages or messages[0].get('role')!='system':raise ValueError('memory extraction requires original system context')
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: memory extraction requires original system context
+
+src/society0/kernel/memory.py:435: ValueError
+_ test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only[interview] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-408/test_default_cognition_and_act1')
+mode = 'interview'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['decision','interview'])
+    async def test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only(tmp_path,mode):
+        from society0.kernel.memory import Memory, MEMORY_SCHEMA, ThreadMemoryExtractor
+        from society0.kernel.llm import LLMPolicy
+        from tests.primary.test_kernel_memory import Embed,Client
+        from tests.primary.test_kernel_llm import FakeProvider,reply,call
+        with StageStore.create(tmp_path/'run',[*THREAD_SCHEMA,*MEMORY_SCHEMA]) as store:
+            threads=ThreadStore(store)
+            extraction=call('extract','extract_memories',{'memories':[{'content':'我保留决定经历','importance':3}]})
+            provider=FakeProvider(threads,[reply(text='完整的决定或测量原文'),reply(extraction)])
+            embed=Embed()
+            memory=Memory(store,threads,embed=embed,client=Client(),extract=ThreadMemoryExtractor(threads,provider),recall_query=lambda s:'earlier')
+            job=memory.prepare_job('a',None,'seed',timestamp=0,entries=[{'content':'此前完整记忆'}])
+            await memory.finish_job(job)
+            async def perception(current,position):return ([{'role':'user','content':'完整经营视图'}],1)
+            driver=LLMDriver(provider,threads,input_builder=CognitiveInput(threads,perception),memory=memory,policy=LLMPolicy(mode=mode))
+>           result=await driver.run(session(driver))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_cognition.py:123: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:513: in run
+    await self.memory.after_activation(session, thread_id, result)
+src/society0/kernel/memory.py:386: in after_activation
+    job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=session.moment.time)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:367: in extract_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:363: in prepare
+    entries=await self.extract(actor,thread_id,snapshot['messages'],metadata={'through':through,'job_key':key})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.memory.ThreadMemoryExtractor object at 0x1090150a0>
+actor = 'a', thread_id = '82b613c777654a108def8ea20c952c12'
+messages = [{'role': 'user', 'content': '{"memory_actions_target": {"namespace": "memory", "kind": "actor", "key": "a"}}'}, {'rol...l": "主观状态"}'}, {'role': 'user', 'content': '完整经营视图'}, {'role': 'assistant', 'content': '完整的决定或测量原文', 'tool_calls': []}]
+metadata = {'through': 10, 'job_key': 'thread:82b613c777654a108def8ea20c952c12:through:10'}
+
+    async def __call__(self,actor,thread_id,messages,*,metadata):
+        from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response
+        if self.threads.describe(thread_id)['actor']!=actor:raise PermissionError('Thread owner differs')
+>       if not messages or messages[0].get('role')!='system':raise ValueError('memory extraction requires original system context')
+                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: memory extraction requires original system context
+
+src/society0/kernel/memory.py:435: ValueError

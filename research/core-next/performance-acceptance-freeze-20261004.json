@@ -1,0 +1,18 @@
+{
+  "paths": [
+    "research/core-next/performance-acceptance-20261004.md",
+    "research/core-next/performance-acceptance-source-20261004.json",
+    "research/core-next/performance-acceptance-source-final-20261004.json",
+    "research/core-next/performance-acceptance-history-20261004.txt",
+    "research/core-next/performance-active-scale-probe-20261004.py",
+    "research/core-next/performance-active-scale-20261004.json",
+    "research/core-next/performance-active-scale-command-20261004.txt",
+    "research/core-next/performance-owned-untracked-20261004.json"
+  ],
+  "include_manifest_itself": true,
+  "product_changes": false,
+  "network_calls": false,
+  "git_operations": "read-only identity and archive; no commit/stage",
+  "review": "aggregate report and new activity scaling await independent review; X08/vector reviewed by spec",
+  "limits": "historical results remain bound to original frozen sources; peer pending model transport code not measured"
+}

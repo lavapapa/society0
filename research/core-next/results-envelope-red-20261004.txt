@@ -1,0 +1,76 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_________ test_record_reference_shaped_value_remains_exact_json[False] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-829/test_record_reference_shaped_v0')
+sealed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('sealed',[False,True])
+    async def test_record_reference_shaped_value_remains_exact_json(tmp_path,sealed):
+        business={'kind':'record_ref','id':'anything','origin':'run','ordinal':0,'total_bytes':123,
+                  'dataset':{'kind':'dataset','id':'fake','artifact':'never-read'}}
+        values=[business,{'body':'完整🙂'*30000}]
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            results=Results(store)
+            rows=DatasetTable(Datasets(store).import_rows('data',values)) if sealed else values
+            header=await results.write_phase(1,0,'step',StepResult(tables={'table':rows}))
+            reference=header['tables']['table']
+            first=results.page(reference,limit=1,max_bytes=1024)
+>           assert first['items'][0]['value']==business
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'value'
+
+tests/primary/test_kernel_result_page_envelope.py:22: KeyError
+_________ test_record_reference_shaped_value_remains_exact_json[True] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-829/test_record_reference_shaped_v1')
+sealed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('sealed',[False,True])
+    async def test_record_reference_shaped_value_remains_exact_json(tmp_path,sealed):
+        business={'kind':'record_ref','id':'anything','origin':'run','ordinal':0,'total_bytes':123,
+                  'dataset':{'kind':'dataset','id':'fake','artifact':'never-read'}}
+        values=[business,{'body':'完整🙂'*30000}]
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            results=Results(store)
+            rows=DatasetTable(Datasets(store).import_rows('data',values)) if sealed else values
+            header=await results.write_phase(1,0,'step',StepResult(tables={'table':rows}))
+            reference=header['tables']['table']
+            first=results.page(reference,limit=1,max_bytes=1024)
+>           assert first['items'][0]['value']==business
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'value'
+
+tests/primary/test_kernel_result_page_envelope.py:22: KeyError
+______ test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-829/test_workbench_thousand_small_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1072de990>
+
+    @pytest.mark.asyncio
+    async def test_workbench_thousand_small_dataset_rows_fetch_shared_blob_once(tmp_path,monkeypatch):
+        from society0.kernel.workbench import _rows
+        values=[{'i':i} for i in range(1000)]
+        queries=[];opens=[];original=Datasets._open
+        class Connection:
+            def __init__(self,connection):self.connection=connection
+            def execute(self,sql,bindings=()):
+                if 'FROM blocks' in sql:queries.append(sql)
+                return self.connection.execute(sql,bindings)
+        @contextmanager
+        def opened(self,reference):
+            opens.append(reference['id'])
+            with original(self,reference) as (connection,*rest):yield Connection(connection),*rest
+        with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
+            ref=Datasets(store).import_rows('tiny',values)
+            results=Results(store)
+            header=await results.write_phase(1,0,'step',StepResult(tables={'data':DatasetTable(ref)}))
+            monkeypatch.setattr(Datasets,'_open',opened)
+            assert list(_rows(results,header['tables']['data']))==values
+>           assert len(queries)==1 and len(opens)==1
+E           AssertionError: assert (1001 == 1)
+E            +  where 1001 = len(['SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id', 'SELECT id,payload FROM blocks WHERE id>=? AND id<...FROM blocks WHERE id>=? AND id<=? ORDER BY id', 'SELECT id,payload FROM blocks WHERE id>=? AND id<=? ORDER BY id', ...])
+
+tests/primary/test_kernel_result_page_envelope.py:60: AssertionError

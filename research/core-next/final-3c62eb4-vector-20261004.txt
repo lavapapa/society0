@@ -1,0 +1,6 @@
+CWD: /tmp/society0-final-3c62eb4-storage-20261004
+COMMAND: ['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 'pytest', '-o', 'addopts=', '-q', '-rs', 'tests/experiments/test_core_next_vector_backends.py']
+...                                                                      [100%]
+3 passed in 0.42s
+
+EXIT: 0

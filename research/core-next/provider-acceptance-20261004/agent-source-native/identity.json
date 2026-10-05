@@ -1,0 +1,6 @@
+{
+  "release": "working-tree-agent-native-continuous-20261004",
+  "base_commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "source": "frozen working tree; base commit is lineage only",
+  "request_profile": "Qwen3.8-27B, original budgets, native objects, openai_continuous_usage_stats=true"
+}

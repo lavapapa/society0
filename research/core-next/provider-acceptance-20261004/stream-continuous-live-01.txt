@@ -1,0 +1,91 @@
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_transports/default.py", line 98, in map_httpcore_exceptions
+    yield
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_transports/default.py", line 245, in handle_request
+    resp = self._pool.handle_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/connection_pool.py", line 242, in handle_request
+    raise exc from None
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/connection_pool.py", line 224, in handle_request
+    response = connection.handle_request(pool_request.request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/http_proxy.py", line 326, in handle_request
+    return self._connection.handle_request(request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/http11.py", line 125, in handle_request
+    raise exc
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/http11.py", line 97, in handle_request
+    ) = self._receive_response_headers(**kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/http11.py", line 167, in _receive_response_headers
+    event = self._receive_event(timeout=timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_sync/http11.py", line 200, in _receive_event
+    data = self._network_stream.read(self.READ_NUM_BYTES, timeout=timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_backends/sync.py", line 125, in read
+    with map_exceptions(exc_map):
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpcore2/_exceptions.py", line 17, in map_exceptions
+    raise to_exc(exc) from exc
+httpcore2.ReadTimeout: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1148, in request
+    response = self._send_request(
+               ^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_client.py", line 601, in _send_request
+    response = self._send_with_auth_retry(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_client.py", line 580, in _send_with_auth_retry
+    response = super()._send_request(request, stream=stream, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1069, in _send_request
+    return self._client.send(request, stream=stream, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_client.py", line 980, in send
+    response = self._send_handling_auth(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_client.py", line 1008, in _send_handling_auth
+    response = self._send_handling_redirects(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_client.py", line 1043, in _send_handling_redirects
+    response = self._send_single_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_client.py", line 1076, in _send_single_request
+    response = transport.handle_request(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_transports/default.py", line 244, in handle_request
+    with map_httpcore_exceptions():
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/httpx2/_transports/default.py", line 115, in map_httpcore_exceptions
+    raise mapped_exc(message) from exc
+httpx2.ReadTimeout: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/stream_usage_probe.py", line 54, in <module>
+    result=probe(client,request,a.output,continuous=a.continuous)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/research/core-next/provider-acceptance-20261004/stream_usage_probe.py", line 29, in probe
+    with client.chat.completions.create(**request,stream=True,stream_options=options) as stream:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_utils/_utils.py", line 298, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/resources/chat/completions/completions.py", line 1318, in create
+    return self._post(
+           ^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1440, in post
+    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/openai/_base_client.py", line 1166, in request
+    raise APITimeoutError(request=request) from err
+openai.APITimeoutError: Request timed out.

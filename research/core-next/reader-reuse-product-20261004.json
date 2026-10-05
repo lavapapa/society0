@@ -1,0 +1,62 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "cases": [
+    {
+      "tables": 20,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.007722624985035509,
+        "cpu_seconds": 0.0076979999999999965,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.0007153339684009552,
+        "cpu_seconds": 0.0007159999999999944,
+        "connections": 1,
+        "sum": 700
+      }
+    },
+    {
+      "tables": 200,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.021321541047655046,
+        "cpu_seconds": 0.021317000000000003,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.000887958041857928,
+        "cpu_seconds": 0.0008869999999999989,
+        "connections": 1,
+        "sum": 700
+      }
+    },
+    {
+      "tables": 1000,
+      "iterations": 100,
+      "fresh": {
+        "wall_seconds": 0.0825634160428308,
+        "cpu_seconds": 0.082453,
+        "connections": 100,
+        "sum": 700
+      },
+      "reused": {
+        "wall_seconds": 0.0013861249899491668,
+        "cpu_seconds": 0.0013859999999999983,
+        "connections": 1,
+        "sum": 700
+      }
+    }
+  ],
+  "nested": {
+    "nested": 9,
+    "outer": [
+      7,
+      7
+    ],
+    "next_request": 9,
+    "connections": 2
+  }
+}

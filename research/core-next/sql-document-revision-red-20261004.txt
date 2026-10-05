@@ -1,0 +1,52 @@
+.....FF                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_document_reference_version_survives_unrelated_write_but_not_domain_change[body] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-786/test_document_reference_versio0')
+change = 'body'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change',['body','permission'])
+    async def test_document_reference_version_survives_unrelated_write_but_not_domain_change(tmp_path,change):
+        from society0.kernel.interaction import Information
+        schema=('CREATE TABLE docs(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,body TEXT NOT NULL)',
+                'CREATE TABLE diagnostics(id INTEGER PRIMARY KEY,n INTEGER)')
+        with StageStore.create(tmp_path/'run',schema,initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,?)',('a','完整🙂'*20))) as store:
+            auth=lambda s:('owner=?',(s.actor,))
+            provider=SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body'),authorize=auth,documents=(('body','body'),)),
+                'body':DocumentSpec('docs','id','body',authorize=auth)})
+            information=Information(lambda *a:True);information.mount('/world',provider)
+            bound=information.bound(InteractionScope('a',Moment(1,'read')))
+            ref=(await bound.query('/world/rows',Query())).items[0]['body']
+>           first=await bound.read(ref['path'],size=7,expected_revision=ref['expected_revision'])
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'expected_revision'
+
+tests/primary/test_kernel_information_large.py:93: KeyError
+_ test_document_reference_version_survives_unrelated_write_but_not_domain_change[permission] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-786/test_document_reference_versio1')
+change = 'permission'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change',['body','permission'])
+    async def test_document_reference_version_survives_unrelated_write_but_not_domain_change(tmp_path,change):
+        from society0.kernel.interaction import Information
+        schema=('CREATE TABLE docs(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,body TEXT NOT NULL)',
+                'CREATE TABLE diagnostics(id INTEGER PRIMARY KEY,n INTEGER)')
+        with StageStore.create(tmp_path/'run',schema,initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,?)',('a','完整🙂'*20))) as store:
+            auth=lambda s:('owner=?',(s.actor,))
+            provider=SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body'),authorize=auth,documents=(('body','body'),)),
+                'body':DocumentSpec('docs','id','body',authorize=auth)})
+            information=Information(lambda *a:True);information.mount('/world',provider)
+            bound=information.bound(InteractionScope('a',Moment(1,'read')))
+            ref=(await bound.query('/world/rows',Query())).items[0]['body']
+>           first=await bound.read(ref['path'],size=7,expected_revision=ref['expected_revision'])
+                                                                        ^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'expected_revision'
+
+tests/primary/test_kernel_information_large.py:93: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_information_large.py::test_document_reference_version_survives_unrelated_write_but_not_domain_change[body]
+FAILED tests/primary/test_kernel_information_large.py::test_document_reference_version_survives_unrelated_write_but_not_domain_change[permission]
+2 failed, 5 passed in 0.93s

@@ -1,0 +1,5 @@
+..                                                                       [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/primary/test_core_next_real_structure.py::test_real_profile_freezes_explicit_llm_proxy_choice[0]
+PASSED tests/primary/test_core_next_real_structure.py::test_real_profile_freezes_explicit_llm_proxy_choice[1]

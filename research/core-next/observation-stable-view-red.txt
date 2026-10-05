@@ -1,0 +1,36 @@
+..........F                                                              [100%]
+=================================== FAILURES ===================================
+_ test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-611/test_cli_rebuilt_same_complete0')
+
+    def test_cli_rebuilt_same_complete_identity_continues_cursor_and_large_reference(tmp_path):
+        import subprocess,sys,os
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            original={'role':'user','content':'完整🙂'*2000}
+            threads.append_message(tid,original);threads.open('b',0,'decision');store.complete(1);store.complete(2)
+        command=[sys.executable,'-m','society0.kernel.observation',str(tmp_path/'run')]
+        def call(method,params,step=1,success=True):
+            run=subprocess.run([*command,'--complete-step',str(step),'--request',json.dumps({'method':method,'params':params})],capture_output=True,env=os.environ.copy())
+            assert (run.returncode==0)==success,run.stderr.decode()
+            return json.loads(run.stdout)
+        first=call('list_threads',{'limit':1})
+>       second=call('list_threads',{'cursor':first['cursor'],'limit':1})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_observation.py:267: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+method = 'list_threads'
+params = {'cursor': {'identity': ['472756b3095e4072abd331ccc3bdab87', 'threads', None], 'after': 1}, 'limit': 1}
+step = 1, success = True
+
+    def call(method,params,step=1,success=True):
+        run=subprocess.run([*command,'--complete-step',str(step),'--request',json.dumps({'method':method,'params':params})],capture_output=True,env=os.environ.copy())
+>       assert (run.returncode==0)==success,run.stderr.decode()
+E       AssertionError: 
+E       assert (1 == 0) == True
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 's... 1}}'], returncode=1, stdout=b'{"error":{"code":"cursor_invalid","message":"cursor identity mismatch"}}\n', stderr=b'').returncode
+
+tests/primary/test_kernel_observation.py:264: AssertionError

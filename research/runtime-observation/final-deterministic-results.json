@@ -1,0 +1,36 @@
+{
+  "recorded_at_utc": "2026-09-28T15:45:04.731048+00:00",
+  "cwd": "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation",
+  "command": "SOCIETY0_RUN_REAL_E2E=0 PYTHONPATH=src /Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python -m pytest -o addopts='' -q -m 'not real_e2e'",
+  "testpaths": [
+    "tests/primary",
+    "tests/e2e"
+  ],
+  "passed": 592,
+  "failed": 0,
+  "deselected_real_e2e": 13,
+  "skipped": 0,
+  "duration_seconds": 29.11,
+  "real_model_calls_requested": false,
+  "git_diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "initial_run": {
+    "passed": 587,
+    "failed": 2,
+    "deselected": 13,
+    "seconds": 29.84,
+    "cause": "Two tests required full-container json.dumps, an implementation detail intentionally replaced by recursive JSON compatibility validation. Copy isolation, scalar subtype validation, invalid JSON, cycles and nonfinite values remain covered."
+  },
+  "open_review_findings": [],
+  "iterations": [
+    {
+      "passed": 589,
+      "duration_seconds": 27.63,
+      "results_file": "final-deterministic-results-589.json",
+      "log_file": "final-deterministic-tests-589.txt",
+      "followup": "Three independent storage review tests added; product files unchanged."
+    }
+  ]
+}

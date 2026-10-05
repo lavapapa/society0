@@ -1,0 +1,596 @@
+{
+  "sample_count": 111421,
+  "raw_utf8_bytes": 8677969,
+  "raw_deflate_bytes": 6856646,
+  "dictionary_deflate_bytes": 5267661,
+  "dictionary_bytes": 115172,
+  "plain_seconds": 0.8259033374488354,
+  "dictionary_seconds": 1.2548501379787922,
+  "prefixes": [
+    {
+      "path": [
+        "environment",
+        "state",
+        "accounts"
+      ],
+      "raw": 74,
+      "plain": 79,
+      "dictionary": 41
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "actors"
+      ],
+      "raw": 76,
+      "plain": 81,
+      "dictionary": 35
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "agenda"
+      ],
+      "raw": 371,
+      "plain": 319,
+      "dictionary": 114
+    },
+    {
+      "path": [
+        "environment",
+        "state"
+      ],
+      "raw": 132261,
+      "plain": 144190,
+      "dictionary": 129456
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "calendar"
+      ],
+      "raw": 779,
+      "plain": 663,
+      "dictionary": 218
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "daily_market"
+      ],
+      "raw": 5471,
+      "plain": 6250,
+      "dictionary": 6160
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "facilities"
+      ],
+      "raw": 1322,
+      "plain": 1322,
+      "dictionary": 794
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "inboxes"
+      ],
+      "raw": 75,
+      "plain": 80,
+      "dictionary": 44
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "inventories"
+      ],
+      "raw": 779103,
+      "plain": 685435,
+      "dictionary": 675383
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "market_statistics_index",
+        "by_day"
+      ],
+      "raw": 216,
+      "plain": 234,
+      "dictionary": 138
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "plans"
+      ],
+      "raw": 94,
+      "plain": 98,
+      "dictionary": 54
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "productions"
+      ],
+      "raw": 231903,
+      "plain": 214191,
+      "dictionary": 157422
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "accounts_by_actor"
+      ],
+      "raw": 118,
+      "plain": 122,
+      "dictionary": 66
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_calendar_ids_by_actor_date_status"
+      ],
+      "raw": 25,
+      "plain": 27,
+      "dictionary": 10
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_calendar_index_by_id"
+      ],
+      "raw": 799,
+      "plain": 675,
+      "dictionary": 186
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_inventory_lot_ids"
+      ],
+      "raw": 40434,
+      "plain": 35589,
+      "dictionary": 31138
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_inventory_lot_ids_by_owner"
+      ],
+      "raw": 82,
+      "plain": 87,
+      "dictionary": 37
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_inventory_owner_by_lot"
+      ],
+      "raw": 40242,
+      "plain": 35427,
+      "dictionary": 30741
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_record_index_by_id"
+      ],
+      "raw": 11734,
+      "plain": 9386,
+      "dictionary": 2943
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "active_resource_allocation_ids"
+      ],
+      "raw": 1763,
+      "plain": 1805,
+      "dictionary": 1271
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "cash_flow_event_ids_by_actor_date"
+      ],
+      "raw": 25090,
+      "plain": 25928,
+      "dictionary": 16508
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "cash_flow_index_by_record_id"
+      ],
+      "raw": 411059,
+      "plain": 365069,
+      "dictionary": 291835
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "facility_ids_by_owner"
+      ],
+      "raw": 89,
+      "plain": 94,
+      "dictionary": 43
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "facility_ids_by_owner_location"
+      ],
+      "raw": 164,
+      "plain": 166,
+      "dictionary": 36
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "facility_owner_location_by_id"
+      ],
+      "raw": 1328,
+      "plain": 1307,
+      "dictionary": 815
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "historical_request_keys_by_agenda"
+      ],
+      "raw": 66,
+      "plain": 57,
+      "dictionary": 8
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "inbox_latest_sequence_by_actor_kind_ref"
+      ],
+      "raw": 27,
+      "plain": 29,
+      "dictionary": 10
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "inventory_balance_lot_ids_by_signature"
+      ],
+      "raw": 346305,
+      "plain": 149842,
+      "dictionary": 80027
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "inventory_balance_signature_by_lot_id"
+      ],
+      "raw": 40318,
+      "plain": 35488,
+      "dictionary": 31543
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "inventory_by_actor_product_location"
+      ],
+      "raw": 7321,
+      "plain": 6184,
+      "dictionary": 2215
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "market_delivery_transfer_ids_by_trade"
+      ],
+      "raw": 225080,
+      "plain": 230658,
+      "dictionary": 195931
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "market_trade_id_by_idempotency_key"
+      ],
+      "raw": 2238815,
+      "plain": 1094142,
+      "dictionary": 646298
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "market_transfer_ids_by_trade"
+      ],
+      "raw": 225080,
+      "plain": 230658,
+      "dictionary": 195931
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "open_commitments_by_actor_product"
+      ],
+      "raw": 832,
+      "plain": 840,
+      "dictionary": 327
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "operating_period_dates_by_actor"
+      ],
+      "raw": 92,
+      "plain": 97,
+      "dictionary": 40
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "operating_period_digest"
+      ],
+      "raw": 53,
+      "plain": 57,
+      "dictionary": 33
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "product_costs_by_actor_product_date"
+      ],
+      "raw": 68414,
+      "plain": 68691,
+      "dictionary": 46180
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "product_economics_index_by_record_id"
+      ],
+      "raw": 1382515,
+      "plain": 1203068,
+      "dictionary": 703477
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "product_economics_record_ids_by_actor_product_date"
+      ],
+      "raw": 68717,
+      "plain": 68953,
+      "dictionary": 46253
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "public_information_index",
+        "kinds"
+      ],
+      "raw": 15,
+      "plain": 16,
+      "dictionary": 6
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "record_bucket_trie_by_actor_type"
+      ],
+      "raw": 96,
+      "plain": 100,
+      "dictionary": 59
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "record_counts_by_actor_type"
+      ],
+      "raw": 64,
+      "plain": 68,
+      "dictionary": 25
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "record_ids_by_actor_type_date_status"
+      ],
+      "raw": 121,
+      "plain": 125,
+      "dictionary": 65
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "record_index_by_id"
+      ],
+      "raw": 1470394,
+      "plain": 1309460,
+      "dictionary": 1246622
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "running_production_ids"
+      ],
+      "raw": 3971,
+      "plain": 3626,
+      "dictionary": 1819
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "trade_portfolio_by_actor"
+      ],
+      "raw": 67,
+      "plain": 71,
+      "dictionary": 41
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "projections",
+        "trade_portfolio_contribution_by_id"
+      ],
+      "raw": 225080,
+      "plain": 230645,
+      "dictionary": 195707
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "public_information"
+      ],
+      "raw": 8,
+      "plain": 9,
+      "dictionary": 5
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "purchase_requests"
+      ],
+      "raw": 2241,
+      "plain": 1969,
+      "dictionary": 1629
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "resource_allocations"
+      ],
+      "raw": 413321,
+      "plain": 423345,
+      "dictionary": 318277
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "run_config",
+        "decision_modes"
+      ],
+      "raw": 103,
+      "plain": 107,
+      "dictionary": 63
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "tax_liabilities"
+      ],
+      "raw": 49077,
+      "plain": 39037,
+      "dictionary": 13758
+    },
+    {
+      "path": [
+        "environment",
+        "state",
+        "trades"
+      ],
+      "raw": 225080,
+      "plain": 230654,
+      "dictionary": 195812
+    },
+    {
+      "path": [
+        "agents",
+        "actor:calb"
+      ],
+      "raw": 12,
+      "plain": 13,
+      "dictionary": 6
+    },
+    {
+      "path": [
+        "agents",
+        "actor:huayou"
+      ],
+      "raw": 12,
+      "plain": 13,
+      "dictionary": 6
+    }
+  ]
+}

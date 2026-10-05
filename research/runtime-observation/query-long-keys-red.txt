@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_long_typed_keys_have_compact_reversible_index_and_exact_pages ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-142/test_long_typed_keys_have_comp0')
+
+    def test_long_typed_keys_have_compact_reversible_index_and_exact_pages(tmp_path):
+        keys = [f'actor:{i}:resource:原料:date:2026-09-29:' + ('delivery:contract:"签约"\\\n' * 35) for i in range(2000)]
+        store = V4CheckpointStore(tmp_path)
+        marker = store.publish_root({'sequence': i, 'path': ['rows', key], 'operation': 'set', 'value': i} for i, key in enumerate(keys))
+        with ObservationReader(tmp_path) as reader:
+            reader.sync()
+            path_bytes = reader.db.execute("SELECT sum(pgsize) FROM dbstat WHERE name='paths' OR name LIKE '%paths%' OR name='parts' OR name LIKE '%parts%'").fetchone()[0]
+>           assert path_bytes < 1000000
+E           assert 12075008 < 1000000
+
+tests/primary/test_observation_compact.py:260: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_observation_compact.py::test_long_typed_keys_have_compact_reversible_index_and_exact_pages
+1 failed, 12 deselected in 0.42s

@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_non_model_resource_event_keeps_generic_fact_contract ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-640/test_non_model_resource_event_0')
+
+    def test_non_model_resource_event_keeps_generic_fact_contract(tmp_path):
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+            calls=ResourceCalls(store);identifier=calls.begin('export','','',{})
+>           calls.event(identifier,'response',{'rows':3})
+
+tests/primary/test_kernel_usage.py:172: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:215: in event
+    return self.store.transaction(write)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:476: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:213: in write
+    usage.finish(writer,'resource',identifier,outcome=kind,body=payload.get('response'))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10ae83ec0>
+prefix = 'resource', identifier = 'a0b15844a46644ea804c0a1976a7ed45'
+outcome = 'response', body = None
+
+    def finish(writer,prefix,identifier,*,outcome,body):
+        rows=writer.query(f'SELECT model,{",".join(COUNTERS)} FROM {prefix}_usage_calls WHERE id=?',(identifier,))
+>       if not rows:raise KeyError('physical request not found')
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'physical request not found'
+
+src/society0/kernel/usage.py:41: KeyError

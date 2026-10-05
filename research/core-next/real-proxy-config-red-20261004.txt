@@ -1,0 +1,24 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_real_profile_freezes_explicit_llm_proxy_choice[1] ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108cd6f60>
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-873/test_real_profile_freezes_expl1')
+trust = '1'
+
+    @pytest.mark.parametrize('trust',['0','1'])
+    def test_real_profile_freezes_explicit_llm_proxy_choice(monkeypatch,tmp_path,trust):
+        from tests.e2e.core_next_real_support import configuration,public_profile
+        for name,value in {'RELEASE':'test','OUTPUT':str(tmp_path),'LLM_URL':'https://unused.invalid/v1','LLM_MODEL':'m',
+                'LLM_KEY':'private-test','EMBED_URL':'http://unused.invalid/v1','EMBED_MODEL':'e','EMBED_KEY':'private-test',
+                'LLM_TRUST_ENV':trust}.items():monkeypatch.setenv('SOCIETY0_REAL_'+name,value)
+        config=configuration()
+>       assert config['llm']['endpoints'][0]['trust_env']==(trust=='1')
+E       AssertionError: assert False == ('1' == '1'
+E         
+E           1)
+
+tests/primary/test_core_next_real_structure.py:124: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_next_real_structure.py::test_real_profile_freezes_explicit_llm_proxy_choice[1]
+1 failed, 1 passed, 19 deselected in 0.50s

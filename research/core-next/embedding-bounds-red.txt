@@ -1,0 +1,51 @@
+....FF                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_resource_events_keep_exact_raw_lengths_for_bounded_observers _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-440/test_resource_events_keep_exac0')
+
+    def test_resource_events_keep_exact_raw_lengths_for_bounded_observers(tmp_path):
+        import json
+        from society0.kernel.models import ResourceCalls
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+            calls=ResourceCalls(store)
+            payload={'text':'中文🙂'*30000}
+            identifier=calls.begin('embedding','e','m',payload)
+            expected=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode()
+>           total=store.read(lambda r:r.query('SELECT raw_bytes FROM resource_events WHERE call_id=?',(identifier,))[0][0])
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_embedding_provider.py:87: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:198: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+tests/primary/test_kernel_embedding_provider.py:87: in <lambda>
+    total=store.read(lambda r:r.query('SELECT raw_bytes FROM resource_events WHERE call_id=?',(identifier,))[0][0])
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:123: in query
+    cursor.execute(sql, bindings)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   apsw.SQLError: no such column: raw_bytes
+
+src/cursor.c:1320: SQLError
+__________ test_embedding_profile_controls_http_capacity_and_batching __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-440/test_embedding_profile_control0')
+
+    @pytest.mark.asyncio
+    async def test_embedding_profile_controls_http_capacity_and_batching(tmp_path):
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+>           provider=EmbeddingProvider([{'id':'e','api_key':'unused','base_url':'http://unused.invalid/v1','model':'e','concurrency':3,'trust_env':False}],store,
+                http_connections=4,batch_texts=7,batch_chars=12345,batch_wait_ms=2)
+E           TypeError: EmbeddingProvider.__init__() got an unexpected keyword argument 'http_connections'
+
+tests/primary/test_kernel_embedding_provider.py:97: TypeError

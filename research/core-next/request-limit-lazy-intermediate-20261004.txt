@@ -1,0 +1,33 @@
+.........F.....                                                          [100%]
+=================================== FAILURES ===================================
+_______ test_profiles_install_through_host_and_preserve_request_defaults _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-810/test_profiles_install_through_0')
+
+    @pytest.mark.asyncio
+    async def test_profiles_install_through_host_and_preserve_request_defaults(tmp_path):
+        from society0.kernel.plugins import Plugin, PluginHost
+        from society0.kernel.models import model_plugin
+        from society0.kernel.storage import StageStore
+        from society0.kernel.threads import THREAD_SCHEMA, ThreadStore
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            tid=threads.open('a',0,'decision')
+            threads.append_message(tid,{'role':'user','content':'complete'})
+            plugins=[Plugin('threads',install=lambda ctx:ctx.provide('threads',threads)),
+                model_plugin({'decision':{'endpoints':[endpoint()], 'request_options':{'temperature':0,'max_tokens':256}},
+                              'analysis':{'endpoints':[endpoint(id='analysis')], 'request_options':{'temperature':0.7}}})]
+            async with PluginHost(plugins) as host:
+                models=host.service('models','models')
+                received=[]
+                async def execute(endpoint,payload,**kw):
+                    received.append(payload)
+                    return {'content':'done'}
+                models['decision'].manager._execute_request=execute
+                await models['decision'].request(tid,{'max_tokens':128})
+                assert received[0]['temperature']==0 and received[0]['max_tokens']==128
+>               assert received[0]['messages']==[{'role':'user','content':'complete'}]
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'messages'
+
+tests/primary/test_kernel_models.py:61: KeyError

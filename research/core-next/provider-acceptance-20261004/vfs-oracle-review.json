@@ -1,0 +1,21 @@
+{
+  "source": "research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_vfs_discovery_pagination_original_and_action",
+  "thread_id": "b69bc62908fa4d319322d6f8798f07aa",
+  "status": "passed_offline_artifact_review",
+  "expected_source": "reports.body after exact newline marker 核对短语：; no trimming",
+  "expected_phrase": "原文校验成功。",
+  "submission": [
+    [
+      "a",
+      12,
+      546,
+      "原文校验成功。"
+    ]
+  ],
+  "query_pages": 4,
+  "document_ranges": 2,
+  "document_bytes": 117,
+  "all_original_following_assertions": true,
+  "extra_full_document_range_equivalence": true,
+  "provider_calls_added": 0
+}

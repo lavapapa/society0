@@ -1,222 +1,16 @@
-# Run, Monitor, Analyze
+# 运行、观察与分析
 
-## Before Running
+正式运行保存代码/依赖身份、研究配置、模型请求参数与公开 RunContract。runner.json 是运行合同，runner-status.json 是轻进度，timings.jsonl 记录稳定阶段数字。密钥来自环境，使用独立新目录保存每次尝试。
 
-Check:
+## 读取运行
 
-- Imports use `society0`, not `simengine`.
-- LLM agents have both `llm=...` and `embed=...`.
-- `LLMModel(..., concurrency=N)` matches the provider's known concurrent request limit; use 5 if unknown.
-- The first run is small.
-- Output schemas are simple.
-- `save_dir` is intentional and not reused accidentally.
+Observation 提供 status、list_threads、thread_tail、原文范围、result_phases/result_page、resource_usage、action_summary。实时诊断与已完成步骤分别读取。固定历史视图通过 prepare_complete 准备；巨大原文使用引用完整续读，保留总数与继续位置。Memory/Thread/业务 SQL 与工作区引用在同一个完整点恢复。
 
-## Run Artifacts
+工作台由 kernel.workbench 从实际运行与结果引用生成静态数据；它不执行研究计划，也不把浏览器草稿直接作为已应用配置。研究配置变更生成新版本并经明确运行请求产生新工件。原始 Thread 的信息暴露与测量结果分别解释。
 
-Inspect:
+## 解释成本
 
-```text
-steps.jsonl
-metrics.jsonl
-events.jsonl
-summary.json
-diagnostics.md
-checkpoints/
-logs/
-chroma_store/
-```
-
-Use `events.jsonl` first for failures and live monitoring. Use `steps.jsonl` for tables, notes, and observations. Use `metrics.jsonl` for time-series analysis. Use `summary.json` for final state, run metadata, resource cost, artifact sizes, and agent-operation summaries.
-
-Checkpoints are complete machine-readable state snapshots and are written in compact JSON to keep long simulations smaller. Read them with `json.loads(...)` or pandas/json tooling rather than treating them as human-facing reports. For explanations to researchers, prefer `summary.json`, `metrics.jsonl`, and designed tables in `steps.jsonl`; use checkpoints when full world state is needed.
-
-Default `events.jsonl` records are monitor-friendly semantic events such as run lifecycle, code-step lifecycle, agent-batch progress, action traces, recommendation traces, and failures. Raw `STATE_CHANGE` rows are hidden by default to keep multi-agent runs readable. If a debugging task truly needs state-change summaries in `events.jsonl`, construct the engine with `Society0(..., log_state_changes=True)`. Do not treat `events.jsonl` or compacted action tables as the complete research data source. Use checkpoints for full world state, `steps.jsonl` and `metrics.jsonl` for designed outputs, `resource_calls.jsonl` for model-call attribution, and Chroma for memory/vector persistence.
-
-`summary.json` includes an `outputs` block that reports artifact size and line-count diagnostics:
-
-```json
-{
-  "outputs": {
-    "total_bytes": 182340,
-    "files": {
-      "events.jsonl": {"bytes": 6500, "line_count": 42},
-      "steps.jsonl": {"bytes": 21000, "line_count": 10},
-      "resource_calls.jsonl": {"bytes": 78000, "line_count": 60}
-    },
-    "checkpoints": {
-      "count": 3,
-      "total_bytes": 76840
-    }
-  }
-}
-```
-
-Use this block to decide whether a run is growing because of monitoring events, designed step outputs, model-call traces, or checkpoints.
-
-`summary.json` includes an `agent_operations` block when step outputs contain agent rows or action rows:
-
-```json
-{
-  "agent_operations": {
-    "browse_round": {
-      "agent_count": 20,
-      "success_count": 19,
-      "error_count": 1,
-      "turns_avg": 1.85,
-      "turns_max": 3,
-      "action_counts": {
-        "comment": 12,
-        "get_trending_posts": 20,
-        "like_post": 5
-      },
-      "action_tag_counts": {
-        "social_read": 20,
-        "social_write": 17
-      },
-      "action_error_count": 1,
-      "error_samples": [
-        {
-          "agent_id": "user_4",
-          "status": "error",
-          "error": "Missing required action tags for user_4: social_write"
-        }
-      ],
-      "resources": {
-        "llm": {
-          "call_count": 40,
-          "total_duration_sec": 320.5,
-          "total_input_characters": 72000,
-          "total_tools_characters": 18000,
-          "total_payload_characters": 94000,
-          "messages_count_max": 4,
-          "tools_count_max": 8,
-          "total_tokens": 31600
-        },
-        "embedding": {
-          "call_count": 3,
-          "texts_count": 20,
-          "total_duration_sec": 0.42
-        }
-      },
-      "slowest_agents_by_turns": [
-        {"agent_id": "user_7", "total_turns": 3, "status": "success"}
-      ]
-    }
-  }
-}
-```
-
-Use this block first when explaining what agents did: how many agents succeeded, how many LLM turns were needed, which actions were used, which action tags were successfully completed, which memory path ran, and which agents need inspection. Agent-level `success_count` means the agent operation returned a usable result. `action_counts` counts total action attempts by action name, `successful_action_counts` counts completed attempts, and `failed_action_counts` counts failed tool attempts. `action_tag_counts` counts successful action rows only, so a failed `comment` attempt should not be treated as a completed `social_write` behavior. `action_error_count` is separate and catches recoverable tool mistakes such as trying to comment on a non-existent post before correcting the ID. `memory_summary` reports how many agent records had memory retrieval, saving, extractive memory enabled, extractive memory succeeded, and memory extraction errors. If `turns_avg` or `turns_max` is higher than expected, inspect the step's instruction, FoVs, exposed actions, `completion_action_tags`, `terminal_actions`, and `action_call_limits`.
-
-When `resources` appears inside an agent operation, use it to explain why that specific code step was slow or expensive. `llm.call_count`, `messages_count_max`, `total_input_characters`, `total_tools_characters`, `total_payload_characters`, `total_tokens`, and `total_duration_sec` usually reveal whether the cost came from too many agent turns, large FoVs, large tool schemas, structured-output repair, or a slow provider. `embedding.texts_count` and batched `slowest_calls` show whether memory, post embedding, or semantic recommendation was involved.
-
-`summary.json` also includes a `resources` block when LLM or embedding calls were made:
-
-```json
-{
-  "resources": {
-    "llm": {
-      "call_count": 30,
-      "error_count": 0,
-      "duration_sec_max": 220.35,
-      "duration_sec_p90": 180.20,
-      "total_duration_sec": 1800.0,
-      "total_input_characters": 480000,
-      "total_tools_characters": 90000,
-      "total_payload_characters": 600000,
-      "messages_count_max": 4,
-      "tools_count_max": 8,
-      "prompt_tokens": 26847,
-      "completion_tokens": 4571,
-      "slowest_calls": [
-        {
-          "duration_sec": 220.35,
-          "step_name": "browse_round",
-          "interaction_type": "instruct",
-          "interaction_name": "feed_interaction",
-          "agent_id": "user_17"
-        }
-      ]
-    },
-    "embedding": {
-      "call_count": 19,
-      "texts_count": 31
-    }
-  }
-}
-```
-
-Use this to explain runtime cost in plain language: how many LLM calls were made, whether failures occurred, which resource had the slowest call, and whether embedding calls were batched. A high `duration_sec_max` means one slow model request held back the run even if concurrency was configured correctly. Use `duration_sec_p50`, `duration_sec_p90`, `duration_sec_p99`, `slowest_calls`, and `by_interaction` to find whether slowness came from a specific step, interaction, agent, or provider.
-
-Start with `timing_breakdown` when explaining bottlenecks. It splits resource time into provider time, queue wait, and local runtime overhead, and labels the largest component as `bottleneck`. Provider bottlenecks usually mean the model endpoint is slow or saturated. Queue bottlenecks usually mean configured concurrency is below demand or the provider limit is being respected. Runtime overhead bottlenecks usually mean local prompt assembly, logging, parsing, memory/vector work, or environment code needs inspection.
-
-For prompt-size diagnosis, prefer `total_input_characters`, `total_tools_characters`, `total_payload_characters`, `messages_count_total`, `messages_count_max`, and per-interaction versions of those fields. `total_input_characters` is message content, `total_tools_characters` is the serialized action schema, and `total_payload_characters` approximates the full provider payload excluding internal metadata. Large prompts usually come from long FoVs, too many retrieved memories, too many exposed actions, or multi-turn tool loops. If memory is enabled, check the step code for `memory_top_k`; for pilots and survey-style interviews, values such as `3` or `5` are often enough. If `total_tools_characters` is high, narrow `actions=[...]` to the env tools needed for that step. A browse round with `messages_count_max=4` usually means the agent made at least one read action, received the tool result, and then spent a second LLM call deciding the next action. That can be correct, but it is a real cost.
-
-If `llm.call_count` is higher than the number of selected agents, inspect structured output repair, multiple action turns, explicit thread-memory extraction, and retries. These calls implement the declared experiment mechanisms. Read `memory_extract` batches separately from behavior and measurement batches. For short outputs, set `max_tokens` to a value that accommodates valid tool arguments and the requested response.
-
-For detailed attribution, inspect `resource_calls.jsonl`. LLM records should include `agent_id`, `step_name`, `interaction_type`, and `interaction_name`. Embedding records can be batched; when a batch covers multiple agents or memory operations, read plural fields such as `agent_ids`, `step_names`, `interaction_types`, and `interaction_names`.
-
-Each run writes `diagnostics.md`, a compact first-pass runtime report generated from `summary.json`. To regenerate it after copying or editing a run summary:
-
-```python
-from pathlib import Path
-from society0.diagnostics import render_runtime_diagnostic_report
-
-run_dir = Path("runs/demo")
-(run_dir / "diagnostics.md").write_text(
-    render_runtime_diagnostic_report(run_dir),
-    encoding="utf-8",
-)
-```
-
-Use the report to decide where to inspect next: environment capability design, env tick hooks, deterministic rules and behaviors, provider capacity, concurrency, FoV collection, action duration, memory extraction, or environment caches. Read it from the top down: first confirm the environment type and available FoVs/actions/rules/behaviors, then check `before_tick`/`after_tick`, then inspect rule/behavior executions, model and embedding resources, and finally agent batches. The helper does not change runtime behavior and should not be used as a shortcut to disable memory, FoVs, tools, actions, terminal/completion semantics, or extractive memory just to make a test faster.
-
-During a long `instruct` or `interview`, `metrics.jsonl` may stay empty until the code step returns. Watch `events.jsonl` instead. `agent_batch_heartbeat` shows in-flight progress while model calls are still running: completed count, started count, in-flight count, pending count, and a sample of running agent ids. `agent_batch_progress` records each completion with the same concurrency state, so short batches without heartbeat events can still be diagnosed. `agent_batch_completed` closes the batch and includes `agent_duration_summary`, an end-to-end per-agent timing summary for that batch.
-
-## Runtime Explanation
-
-Before running, tell the researcher the effective LLM-agent concurrency in plain language. After running, verify it from `summary.json` or the `run_started` event:
-
-```json
-{
-  "runtime": {
-    "agent_concurrency": 5,
-    "agent_concurrency_source": "llm_model"
-  }
-}
-```
-
-Interpretation:
-
-- `society0`: set globally with `Society0(..., agent_concurrency=N)`.
-- `llm_model`: inherited from `LLMModel(..., concurrency=N)`.
-- `default`: provider limit was unknown, so Society0 used 5.
-
-For most users, do not tune per-call concurrency. Adjust the model declaration if the provider limit is known.
-
-For completed runs, inspect `summary.json -> events.agent_batches` for each `instruct` or `interview`. The batch entry includes configured `concurrency`, `concurrency_source`, `concurrency_source_counts`, cumulative `action_counts`, `successful_action_counts`, `failed_action_counts`, successful cumulative `action_tag_counts`, `action_error_samples`, `action_duration_summary`, `termination_reason_counts`, `memory_summary`, `agent_duration_summary`, `phase_timing_summary`, `resources`, `batch_started_count`, `batch_completed_count`, `success_count_total`, `error_count_total`, `completed_count_total`, `duration_sec_total`, and progress diagnostics such as `progress_event_count`, `heartbeat_event_count`, `max_in_flight_count`, `max_pending_count`, and `max_started_count`. The plain `success_count`, `error_count`, `completed_count`, `duration_sec`, and `concurrency_source` fields describe the latest batch event for that interaction name; use the `*_total` fields and `concurrency_source_counts` when a named interaction repeats across ticks. For tick-level explanation, use `summary.json -> events.agent_batches.<interaction>.by_tick`, which has the same counters split by simulation tick. Use these fields to explain whether the run actually had agents in flight, where its concurrency value came from, what direct model-call cost the batch incurred, and whether required behavior categories occurred; do not infer runtime behavior from provider settings alone.
-
-`agent_duration_summary` is the batch-level view of how long selected agents spent inside the full `instruct` or `interview` operation, including FoV collection, agent loop turns, actions, memory retrieval, and memory save/extraction where enabled. It contains `record_count`, `total_sec`, `mean_sec`, `min_sec`, `max_sec`, and `slowest_agents`. Each slow-agent sample includes `agent_id`, `status`, `duration_sec`, and when available `total_turns`, `llm_calls`, `termination_reason`, and `model_id`. Use it to find whether one agent held back a batch. Then compare with `resources.llm.timing_breakdown` and `resources.embedding.timing_breakdown` to decide whether the cause was provider latency, queueing, multi-turn tool correction, large FoVs/tool schemas, or memory/vector work.
-
-`phase_timing_summary` breaks the same batch into Society0 runtime phases such as `fov_collection`, `prompt_build`, `actionset_build`, `agent_loop`, `memory_retrieve`, `memory_extract`, `memory_write`, and `memory_save`. It contains per-phase `record_count`, `total_sec`, `mean_sec`, `max_sec`, and a batch-level `bottleneck`. Use it before proposing optimizations: if `agent_loop` dominates, inspect model/provider latency, turns, terminal/completion action design, and action errors; if `fov_collection` dominates, inspect env FoVs and recommendation/cache behavior; if memory phases dominate, inspect embedding latency, Chroma state, and extractive memory output size. Do not disable memory, actions, or FoVs merely to make a test faster unless the experiment explicitly changes those conditions.
-
-`action_duration_summary` breaks successful and failed tool/action attempts down by action name. It includes `record_count`, `total_sec`, `mean_sec`, `bottleneck_action`, `by_action`, and `slowest_actions`. Use it when the agent loop is slow but provider timing alone does not explain the delay: a slow `recommended_feed`, `publish_post`, `comment`, rule-backed custom action, or external API action should show up here. Action duration is diagnostic only; do not remove actions or terminal/completion semantics to hide a slow action.
-
-`events.agent_batches.<interaction>.resources` joins direct model calls for the same `interaction_type` and `interaction_name`. For example, `instruct / feed_interaction` includes the LLM calls that ran that agent loop, with `timing_breakdown`, `total_input_characters`, `total_tools_characters`, `total_payload_characters`, durations, token counts, and slowest calls. Separate fidelity phases such as extractive memory use their own interaction types such as `memory_extract`; inspect global `summary.json -> resources` and the batch `memory_summary` to explain those costs rather than merging them into the main agent-loop call count.
-
-For memory-bearing simulations, inspect the explicit `memory_extract` batch's success/error totals, returned extraction table, original thread's extraction turn and commit receipt, and embedding resource traces. Retrieval-only `instruct` and `interview` batches can correctly report zero saved memories. A completed run with no extraction records has not demonstrated that the experience was saved; compare it with the declared protocol before interpreting later recall.
-
-When a step uses `required_actions`, `required_action_tags`, or `completion_action_tags`, also inspect `summary.json -> events.agent_batches.<interaction>.action_semantics`. It connects the configured semantic controls to observed successful action or action-tag counts. Use it to explain, for example, that `publish_post` was required and observed 20 times, or that `social_write` completed 12 times. Do not treat a configured action as completed until the observed count or agent result table proves it.
-
-If `error_samples` says an action filter matched no tools, or that a required action/tag is not available after applying `actions=[...]`, treat it as a preflight configuration error. Fix `fovs=[...]`, `actions=[...]`, `required_actions=[...]`, and `required_action_tags=[...]` so they describe the same capability set. Do not weaken the tool/action loop, disable memory, or blame the provider before fixing this configuration mismatch.
-
-If `failed_action_counts` is non-empty but the batch `error_count` is zero, the agents may have made recoverable tool mistakes and corrected them in later turns. Inspect `action_error_samples` for the agent ID, action name, arguments, and compact error/result. Do not remove tools or shorten the action loop merely because a recoverable action failed once; first decide whether the failure indicates a prompt/FoV issue, an ambiguous ID, or a real environment constraint.
-
-Use `termination_reason_counts` to explain why the agent loop stopped. Typical reasons include `terminal_action`, `completion_action_tag`, `action_budget_exhausted`, `no_action_calls`, `max_turns`, and `direct_structured_output`. A terminal action only counts after a successful call; if it failed, the loop should continue when turns remain. This helps distinguish a slow but faithful multi-turn correction from a broken or underspecified experiment.
-
-For deterministic logic, inspect `summary.json -> events.logic_executions`. Repeated rules or behaviors also include `by_tick`, so use that split when explaining policy updates, environment maintenance, rule baselines, or behavior failures over time.
-
-For environment lifecycle maintenance, inspect `summary.json -> events.env_hooks`. Repeated `before_tick` and `after_tick` hooks include `by_tick`, so use that split when explaining cache rebuilds, index refreshes, delayed counter flushes, or hook failures over time. Do not confuse hook duration with LLM-agent thinking time; LLM and embedding calls appear under `resources` and agent batches.
+区分模型端等待、记忆检索、领域计算、权威存储与展示导出；资源用量的未知值不推算为零。Activation、工具和物理调用计时有包含关系，避免重复累加。范围读取和按需字段保留完整内容的继续访问路径；显式全人口分析与全图构建仍按请求规模计成本。
 
 ## Quantitative Analysis
 
@@ -234,33 +28,75 @@ Typical checks:
 - treatment/control differences.
 - persona or group differences.
 - missing/failed agent calls.
-- `agent_batch_started` / `agent_batch_heartbeat` / `agent_batch_progress` / `agent_batch_completed` events for each `instruct` or `interview`: agent count, concurrency, started count, in-flight count, pending count, completed count, duration, success count, error count, action counts, and successful action tag counts. After the run, prefer `summary.json -> events.agent_batches` for the compact roll-up, especially the cumulative fields when the same interaction name repeats over many ticks.
-- `logic_execution_started` / `logic_execution_completed` / `logic_execution_failed` events for `ctx.rule(...)` and deterministic `behavior(...)`: started/completed/failed counts, success/error counts, agent totals, duration totals, and `by_tick`.
-- `env_hook_started` / `env_hook_completed` / `env_hook_failed` events for `Environment.before_tick(...)` and `Environment.after_tick(...)`: started/completed/failed counts, duration totals, error samples, and `by_tick`.
 - variance across repeated runs.
 - for recommendation experiments: active pool size, pruning thresholds, scoring weights, final displayed post count, and exposure/impression counts.
 
-Minimal pandas pattern:
+### 读取完整步骤的指标与表
+
+下面代码可在完成无模型起步后直接运行，读取 `runs/first-study/resumed` 的第 2 步。分析其他运行时修改 `run_dir`、`step` 与 `table_name`。LLM starter 的表名为 `responses`；先通过阶段结果头部的 `tables` 查看实际表名。代码准备一个选定完整步骤的只读目录，逐页读取结果，大行按引用拼接完整 JSON，并保留阶段序号。显式分析全部所选行的成本随行数与原文大小增长。
 
 ```python
+import base64
 import json
-import pandas as pd
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from society0.kernel.observation import Observation
+from society0.kernel.storage import StageStore
 
-run_dir = Path("runs/demo")
-metrics = pd.DataFrame(json.loads(line) for line in (run_dir / "metrics.jsonl").read_text().splitlines())
+run_dir = Path("runs/first-study/resumed")
+step = 2
+table_name = "decisions"
+
+
+def values(reader, reference):
+    cursor = None
+    while True:
+        page = reader.result_page(reference, cursor=cursor)
+        for item in page['items']:
+            if 'value' in item:
+                yield item['value']
+            else:
+                body = bytearray()
+                offset = 0
+                while True:
+                    part = reader.read_result_record(item['payload_ref'], offset=offset)
+                    body.extend(base64.b64decode(part['data']))
+                    offset = part['next_offset']
+                    if offset is None:
+                        break
+                yield json.loads(body)
+        cursor = page['next_cursor']
+        if cursor is None:
+            break
+
+
+metric_rows, table_rows = [], []
+with TemporaryDirectory() as temporary:
+    view = Path(temporary) / 'complete'
+    with StageStore.prepare_readonly(run_dir, view, step=step):
+        pass
+    with Observation(view) as reader:
+        cursor = None
+        seen = 0
+        while True:
+            phases = reader.result_phases(step=step, cursor=cursor)
+            for phase in phases['items']:
+                identity = {'step': step, 'phase': phase['name'], 'phase_index': phase['ordinal']}
+                header = next(values(reader, phase['reference']))
+                metric_rows.extend({**identity, **metric} for metric in values(reader, header['metrics']))
+                if table_name in header['tables']:
+                    table_rows.extend({**identity, 'table': table_name, 'value': value}
+                                      for value in values(reader, header['tables'][table_name]))
+            seen += len(phases['items'])
+            if seen == phases['total']:
+                break
+            cursor = phases['cursor']
+
+print('指标：', metric_rows)
+print('表行：', table_rows)
 ```
 
-For tables inside steps:
-
-```python
-rows = []
-for line in (run_dir / "steps.jsonl").read_text().splitlines():
-    item = json.loads(line)
-    for row in item["result"].get("tables", {}).get("survey", []):
-        rows.append({"step": item["step"], **row})
-survey = pd.DataFrame(rows)
-```
+需要 DataFrame 时，可在研究环境安装 pandas 后将 `metric_rows` 或 `table_rows` 传给 `pandas.DataFrame`。`value` 保留表行的原始 JSON，包括空值、布尔值、数组和对象；按实际研究表结构再选择字段。大型分析也可逐页消费 `values`，避免把所有行同时放进列表。
 
 ## Qualitative Analysis
 

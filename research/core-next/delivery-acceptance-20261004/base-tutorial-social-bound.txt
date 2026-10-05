@@ -1,0 +1,7 @@
+{"run_id": "7f24fc12ab134f81bde1b2e0830fa9a7", "status": "completed", "complete_step": 1, "diagnostic_errors": 0}
+{"run_id":"7f24fc12ab134f81bde1b2e0830fa9a7","live_revision":14,"complete_step_lower_bound":1,"complete":{"run_id":"7f24fc12ab134f81bde1b2e0830fa9a7","step":1,"live_revision":14},"failed":false,"progress":null}
+指标： [{'name': 'decisions', 'value': 2}]
+决定： [{'actor': 'alice', 'time': 1}, {'actor': 'bob', 'time': 1}]
+{"run_id": "82dcc3779a224d9f8e433ae7522bff76", "status": "completed", "complete_step": 2, "diagnostic_errors": 0}
+{"run_id":"82dcc3779a224d9f8e433ae7522bff76","live_revision":14,"complete_step_lower_bound":2,"complete":{"run_id":"82dcc3779a224d9f8e433ae7522bff76","step":2,"live_revision":14},"failed":false,"progress":null}
+{"wheel_import": "/tmp/society0-delivery-20261004-social-base/lib/python3.12/site-packages/society0/__init__.py", "complete_step": 2, "base_only": true}

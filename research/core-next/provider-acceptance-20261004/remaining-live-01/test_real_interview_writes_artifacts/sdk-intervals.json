@@ -1,0 +1,1 @@
+{"peak": {"activation": 1, "llm_sdk": 1}, "intervals": [{"kind": "llm_sdk", "started": 513205.247200291, "ended": 513205.777693375}, {"kind": "activation", "started": 513205.243816958, "ended": 513207.235697708}]}

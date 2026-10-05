@@ -1,0 +1,44 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_registered_memory_recall_action_preserves_actor_original_and_thread_scope _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-969/test_registered_memory_recall_0')
+
+    @pytest.mark.asyncio
+    async def test_registered_memory_recall_action_preserves_actor_original_and_thread_scope(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Actions,InteractionScope,Moment,Ref
+        store,threads,_,memory,embed,client=setup(tmp_path,policy=MemoryPolicy(False,False,True))
+        with store:
+            moment=Moment(1,'decision');thread=threads.open('a',moment,'decision')
+            original='采购三吨原料，每吨2000元。完整原文🙂'*1000
+            await memory.finish_job(memory.prepare_job('a',thread,'a',timestamp=0,entries=[{'content':original}]))
+>           await memory.finish_job(memory.prepare_job('b',thread,'b',timestamp=0,entries=[{'content':'其他主体私有原文'}]))
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_memory.py:421: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/memory.py:322: in prepare_job
+    self.store.transaction(write)
+src/society0/kernel/storage.py:468: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:82: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10a9073b0>
+
+    def write(writer):
+        if thread_id is not None:
+            rows=writer.query('SELECT actor FROM thread_heads WHERE id=?',(thread_id,))
+>           if not rows or rows[0][0]!=actor:raise PermissionError('Thread owner differs')
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           PermissionError: Thread owner differs
+
+src/society0/kernel/memory.py:315: PermissionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_registered_memory_recall_action_preserves_actor_original_and_thread_scope
+1 failed, 1 passed in 0.85s
+exit_code=1

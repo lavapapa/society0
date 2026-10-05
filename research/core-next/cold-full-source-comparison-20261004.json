@@ -1,0 +1,15 @@
+{
+  "src/society0/kernel/storage.py": {
+    "equals_0ef012a": true
+  },
+  "src/society0/kernel/_json_chunks.py": {
+    "equals_0ef012a": true
+  },
+  "src/society0/kernel/datasets.py": {
+    "equals_0ef012a": true
+  },
+  "benchmarks/core_next_cold_datasets_probe.py": {
+    "equals_0ef012a": true,
+    "actual_copy": "research/core-next/cold-full-executed-core_next_cold_datasets_probe.py"
+  }
+}

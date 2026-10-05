@@ -1,0 +1,24 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_action_outcomes_tags_error_refs_and_closed_activation __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-660/test_action_outcomes_tags_erro0')
+
+    def test_action_outcomes_tags_error_refs_and_closed_activation(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+>           first=threads.start_action(tid,{'call_id':'1','name':'send','target':{},'arguments':{'full':'原文'*1000}})
+                  ^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'ThreadStore' object has no attribute 'start_action'
+
+tests/primary/test_kernel_action_stats.py:11: AttributeError
+__________ test_action_outcome_failure_rolls_back_body_and_projection __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-660/test_action_outcome_failure_ro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108cc1b20>
+
+    def test_action_outcome_failure_rolls_back_body_and_projection(tmp_path,monkeypatch):
+>       from society0.kernel import action_stats
+E       ImportError: cannot import name 'action_stats' from 'society0.kernel' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/__init__.py)
+
+tests/primary/test_kernel_action_stats.py:35: ImportError

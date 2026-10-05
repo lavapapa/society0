@@ -1,0 +1,65 @@
+FF........                                                               [100%]
+=================================== FAILURES ===================================
+______ test_review_cancelled_queued_profile_does_not_cancel_current_owner ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-844/test_review_cancelled_queued_p0')
+
+    @pytest.mark.asyncio
+    async def test_review_cancelled_queued_profile_does_not_cancel_current_owner(tmp_path):
+        entered=asyncio.Event();release=asyncio.Event();queued=asyncio.Event();calls=[]
+        class Limit(asyncio.Semaphore):
+            async def __aenter__(self):
+                if self.locked():queued.set()
+                return await super().__aenter__()
+        limit=Limit(1)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);one=threads.open('one',1,'decision');two=threads.open('two',1,'decision')
+            for tid in (one,two):threads.append_message(tid,{'role':'user','content':'完整请求🙂'})
+            a=ModelProvider([endpoint('a')],threads,request_limit=limit)
+            b=ModelProvider([endpoint('b')],threads,request_limit=limit)
+            async def first(**kw):calls.append('a');entered.set();await release.wait();return response()
+            async def second(**kw):calls.append('b');return response()
+            a.manager.clients['a'].chat.completions.create=first;b.manager.clients['b'].chat.completions.create=second
+            running=asyncio.create_task(a.request(one,{}));await asyncio.wait_for(entered.wait(),2)
+            waiting=asyncio.create_task(b.request(two,{}));await asyncio.wait_for(queued.wait(),2)
+            try:
+                await b.close()
+                with pytest.raises(asyncio.CancelledError):await waiting
+                assert not running.done() and calls==['a'] and limit._value==0
+>               assert threads.describe(two)['last_seq']==1
+E               assert 2 == 1
+
+tests/primary/test_kernel_request_limit_review.py:32: AssertionError
+___ test_review_snapshot_failure_releases_permits_for_next_complete_request ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-844/test_review_snapshot_failure_r0')
+
+    @pytest.mark.asyncio
+    async def test_review_snapshot_failure_releases_permits_for_next_complete_request(tmp_path):
+        limit=asyncio.Semaphore(1);calls=[]
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',1,'decision')
+            original=[{'role':'user','content':'全文🙂'*10000}]
+            threads.append_message(tid,original[0])
+            provider=ModelProvider([endpoint('a')],threads,request_limit=limit)
+            snapshot=threads.snapshot_messages
+            def broken(*args,**kwargs):raise OSError('snapshot unavailable')
+            threads.snapshot_messages=broken
+            async def create(**kwargs):calls.append(kwargs['messages']);return response()
+            provider.manager.clients['a'].chat.completions.create=create
+            try:
+                with pytest.raises((ThreadWriteError,OSError),match='snapshot unavailable'):
+                    await provider.request(tid,{})
+>               assert limit._value==1 and calls==[] and threads.describe(tid)['last_seq']==1
+E               assert (1 == 1 and [] == []
+E                +  where 1 = <asyncio.locks.Semaphore object at 0x10e32f230 [unlocked, value:1]>._value
+E                 
+E                 Use -v to get more diff and 2 == 1)
+
+tests/primary/test_kernel_request_limit_review.py:54: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1170 LLM request failed on endpoint a after 1 attempts: snapshot unavailable
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_request_limit_review.py::test_review_cancelled_queued_profile_does_not_cancel_current_owner
+FAILED tests/primary/test_kernel_request_limit_review.py::test_review_snapshot_failure_releases_permits_for_next_complete_request
+2 failed, 8 passed in 0.80s

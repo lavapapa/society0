@@ -1,0 +1,2 @@
+{"kind": "llm", "error_type": "ProviderFailure", "reason": "provider_request_error"}
+exit_code=0

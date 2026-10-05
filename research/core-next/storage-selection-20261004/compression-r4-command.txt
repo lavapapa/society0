@@ -1,0 +1,139 @@
+{
+  "environment": {
+    "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "cpu_count": 12,
+    "versions": {
+      "pyzstd": "0.19.1",
+      "backports-zstd": "1.7.0",
+      "zstandard": "0.25.0",
+      "apsw": "3.53.4.0",
+      "python-rapidjson": "1.25"
+    }
+  },
+  "results": [
+    {
+      "mode": "sqlite64",
+      "write_wall_s": 0.05235758295748383,
+      "write_cpu_s": 0.045416000000000005,
+      "write_peak_bytes": 32735232,
+      "disk_bytes": 13783040,
+      "range_queries": 502,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.030166583019308746,
+      "range_cpu_s": 0.029982999999999996,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": null
+    },
+    {
+      "mode": "seek64_0",
+      "write_wall_s": 0.04523791704559699,
+      "write_cpu_s": 0.03376899999999999,
+      "write_peak_bytes": 31014912,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00011199997970834374,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.029965749999973923,
+      "range_cpu_s": 0.029910000000000006,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek64_4",
+      "write_wall_s": 0.036380416015163064,
+      "write_cpu_s": 0.03644699999999999,
+      "write_peak_bytes": 31031296,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00010766700142994523,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.029658625018782914,
+      "range_cpu_s": 0.02957499999999999,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek1m_0",
+      "write_wall_s": 0.03365574998315424,
+      "write_cpu_s": 0.033264999999999996,
+      "write_peak_bytes": 32391168,
+      "disk_bytes": 13416210,
+      "range_queries": 502,
+      "reader_open_s": 7.72500061430037e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.22275725001236424,
+      "range_cpu_s": 0.220822,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "seek1m_4",
+      "write_wall_s": 0.03330874996026978,
+      "write_cpu_s": 0.033469,
+      "write_peak_bytes": 35962880,
+      "disk_bytes": 13416153,
+      "range_queries": 502,
+      "reader_open_s": 5.362497176975012e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.22167233302025124,
+      "range_cpu_s": 0.22076400000000002,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "stream4",
+      "write_wall_s": 0.01673070900142193,
+      "write_cpu_s": 0.03691200000000001,
+      "write_peak_bytes": 67239936,
+      "disk_bytes": 13411484,
+      "range_queries": 0,
+      "full_bytes_equal": true
+    },
+    {
+      "mode": "zlib_pool",
+      "write_wall_s": 0.20070879097329453,
+      "write_cpu_s": 0.7986500000000001,
+      "write_peak_bytes": 77627392,
+      "disk_bytes": 32341980,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "zstd_serial64",
+      "write_wall_s": 0.11192779202247038,
+      "write_cpu_s": 0.11005599999999999,
+      "write_peak_bytes": 74334208,
+      "disk_bytes": 31489972,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "native_serial64",
+      "write_wall_s": 0.07281345798401162,
+      "write_cpu_s": 0.07108,
+      "write_peak_bytes": 74219520,
+      "disk_bytes": 31489972,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "seek1m4_event",
+      "write_wall_s": 0.08224258403060958,
+      "write_cpu_s": 0.07182999999999999,
+      "write_peak_bytes": 79216640,
+      "disk_bytes": 31466112,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    }
+  ],
+  "raw_bytes": 20791529
+}

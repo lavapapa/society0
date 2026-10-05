@@ -1,0 +1,38 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_review_retry_evidence_preserves_actual_request_when_thread_advances ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-316/test_review_retry_evidence_pre0')
+
+    @pytest.mark.asyncio
+    async def test_review_retry_evidence_preserves_actual_request_when_thread_advances(tmp_path):
+        with StageStore.create(tmp_path/'run', THREAD_SCHEMA) as store:
+            threads = ThreadStore(store)
+            tid = threads.open('a', 0, 'decision')
+            original = {'role': 'user', 'content': 'original'}
+            threads.append_message(tid, original)
+            provider = ModelProvider([{'id': 'test', 'api_key': 'unused', 'base_url': 'http://unused.invalid/v1',
+                'model': 'fake', 'concurrency': 1, 'trust_env': False}], threads, retry_delay=0)
+            actual = []
+            async def create(**kwargs):
+                actual.append(kwargs['messages'])
+                if len(actual) == 1:
+                    threads.append_message(tid, {'role': 'user', 'content': 'arrived during request'})
+                    raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
+                return ChatCompletion(id='r', created=0, model='fake', object='chat.completion',
+                    choices=[{'index':0,'finish_reason':'stop','message':{'role':'assistant','content':'done'}}])
+            provider.manager.clients['test'].chat.completions.create = create
+            try:
+                await provider.request(tid, {})
+                records = [e for e in threads.tail(tid)['items'] if e['kind']=='request']
+                assert len(records) == len(actual) == 2
+                for record, sent in zip(records, actual):
+>                   assert threads.read_request(tid, record['seq'])['messages'] == sent
+E                   AssertionError: assert [{'role': 'us...ing request'}] == [{'role': 'us...: 'original'}]
+E                     
+E                     Left contains one more item: {'role': 'user', 'content': 'arrived during request'}
+E                     Use -v to get more diff
+
+tests/primary/test_kernel_models_review.py:34: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1164 LLM request failed on endpoint test after 1 attempts: Request timed out.

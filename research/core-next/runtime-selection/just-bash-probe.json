@@ -1,0 +1,19 @@
+{
+  "node": "v24.16.0",
+  "just_bash": "3.6.0",
+  "source_bytes": 8388608,
+  "lazy_calls": 1,
+  "source_bytes_materialized": 8388608,
+  "results": [
+    {
+      "script": "head -c 4 /large",
+      "exit_code": 0,
+      "output_bytes": 4
+    },
+    {
+      "script": "tail -c 4 /large",
+      "exit_code": 0,
+      "output_bytes": 4
+    }
+  ]
+}

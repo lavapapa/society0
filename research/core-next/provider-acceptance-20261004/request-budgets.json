@@ -1,0 +1,81 @@
+{
+  "cases": {
+    "test_real_endpoint_smoke_llm_and_embedding": {
+      "activations": 1,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_endpoint_saturation_llm_and_embedding_managers": {
+      "activations": 3,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_interview_writes_artifacts": {
+      "activations": 1,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_saturation_memory_and_logs": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 2
+    },
+    "test_real_phase_capacity_overrides_runtime": {
+      "activations": 3,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_memory_roundtrip": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 2
+    },
+    "test_real_complete_boundary_memory_restore": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 2
+    },
+    "test_real_round_robin_action_loop": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_social_publish_with_memory": {
+      "activations": 1,
+      "turns": 8,
+      "auto_write_activations": 1
+    },
+    "test_real_environment_action_tag_completion": {
+      "activations": 1,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_terminal_rejection_then_success": {
+      "activations": 1,
+      "turns": 8,
+      "auto_write_activations": 0
+    },
+    "test_real_social_browse_completion_and_memory": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 2
+    },
+    "test_real_multi_tick_social_workflow": {
+      "activations": 2,
+      "turns": 8,
+      "auto_write_activations": 2
+    },
+    "test_real_exit_restore_memory_and_observation": {
+      "activations": 3,
+      "turns": 8,
+      "auto_write_activations": 3
+    },
+    "test_real_vfs_discovery_pagination_original_and_action": {
+      "activations": 1,
+      "turns": 20,
+      "auto_write_activations": 0
+    }
+  },
+  "physical_llm_ceiling": 256,
+  "assumptions": "one execution per case; max_attempts=1; all activation turns consumed plus two extraction attempts on normal outcomes. Mutually exclusive worst cases make this a conservative ceiling, not expected spend. Embedding calls depend on actual extracted entries and microbatch packing; no fabricated fixed bound."
+}

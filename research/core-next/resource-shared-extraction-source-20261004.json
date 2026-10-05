@@ -1,0 +1,45 @@
+{
+  "source": "tests/primary/test_society0_primary.py",
+  "checks": [
+    {
+      "name": "test_strict_normalization_keeps_optional_enum_nullable",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_managers_route_mixed_trust_env_endpoints_to_distinct_pools",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_openai_azure_and_embedding_clients_disable_sdk_retries",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_embedding_microbatch_flushes_same_bucket_batches_in_parallel",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_embedding_microbatch_preserves_plural_trace_metadata",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_embedding_microbatch_coalesces_distinct_agent_threads",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_llm_manager_enforces_hard_timeout_and_logs_failure",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_llm_manager_retries_after_first_connection_failure",
+      "function_body_equal": true
+    },
+    {
+      "name": "test_llm_manager_http_transport_preserves_tool_contract_flags",
+      "function_body_equal": true
+    },
+    {
+      "name": "_read_jsonl",
+      "function_body_equal": true
+    }
+  ]
+}

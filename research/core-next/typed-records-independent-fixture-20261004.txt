@@ -1,0 +1,40 @@
+....F                                                                    [100%]
+=================================== FAILURES ===================================
+__ test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revision ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-694/test_review_duplicate_fact_kee0')
+
+    @pytest.mark.asyncio
+    async def test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revision(tmp_path):
+        plugins=[interaction_plugin(lambda *a:True),record_plugin(owner='a')]
+        async with compose(tmp_path/'run',plugins) as host:
+            records=host.service('records','records');store=host.service('storage','store')
+            values=[(-(2**90),{'order':[None,False,0,-0.0]}),(str(-(2**90)),{'text':'原文🙂'})]
+            for key,value in values:assert records.append(key,value)
+            store.complete(1)
+>           before=store.read(lambda r:r.revision)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_record_plugin_review.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:503: in read
+    return self._reader.read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:279: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+r = <society0.kernel.storage.ReadView object at 0x109d28350>
+
+>   before=store.read(lambda r:r.revision)
+                               ^^^^^^^^^^
+E   AttributeError: 'ReadView' object has no attribute 'revision'
+
+tests/primary/test_kernel_record_plugin_review.py:17: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_record_plugin_review.py::test_review_duplicate_fact_keeps_original_and_failed_value_keeps_revision
+1 failed, 4 passed in 0.19s

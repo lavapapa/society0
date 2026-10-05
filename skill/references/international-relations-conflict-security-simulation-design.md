@@ -314,7 +314,7 @@ Use this env-first split:
 | World-changing diplomatic/security moves, game choices, messages, treaty actions, movement in historical sandbox | `instruct` with typed env actions |
 | Post-hoc risk rating, rationale coding, perceived intent, trust, explanation, qualitative reflection | `interview` |
 | Relationship updates, action validation, severity scoring, dynamic-variable transitions, game termination, casualty/emulation update, safety guardrail checks | env rules, behaviors, or code steps |
-| Action trace, prompt/FoV version, model/provider, seed, parsed action, validation failure, score table, qualitative trace | `ctx.result(metrics=..., tables=...)` plus run artifacts |
+| Action trace, prompt/FoV version, model/provider, seed, parsed action, validation failure, score table, qualitative trace | `StepResult(metrics=..., tables=...)` plus run artifacts |
 
 Design rules:
 

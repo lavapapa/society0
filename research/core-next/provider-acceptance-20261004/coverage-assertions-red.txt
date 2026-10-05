@@ -1,0 +1,31 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_decision_answer_excludes_user_and_later_memory_extraction ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1018/test_decision_answer_excludes_0')
+
+    def test_decision_answer_excludes_user_and_later_memory_extraction(tmp_path):
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',{'time':2,'phase':'decision'},'decision')
+            threads.append_message(tid,{'role':'user','content':'召回材料：B42订单已收500元。'})
+            threads.append_message(tid,{'role':'assistant','content':'资料不足，无法回答。'})
+            threads.record_request(tid,provider_options={'tools':[{'type':'function','function':{'name':'extract_memories'}}]},physical_request_id='extract')
+            threads.append_message(tid,{'role':'assistant','content':'记忆提取：B42已收500元。'})
+>           assert suite.decision_answer(store,'a',2)=='资料不足，无法回答。'
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'tests.e2e.test_core_next_real' has no attribute 'decision_answer'
+
+research/core-next/provider-acceptance-20261004/test_coverage_assertions.py:14: AttributeError
+___________ test_factual_answer_rejects_merely_missing_or_wrong_fact ___________
+
+    def test_factual_answer_rejects_merely_missing_or_wrong_fact():
+        import pytest
+>       with pytest.raises(AssertionError):suite.assert_order_answer('B420订单已收5000元')
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'tests.e2e.test_core_next_real' has no attribute 'assert_order_answer'
+
+research/core-next/provider-acceptance-20261004/test_coverage_assertions.py:19: AttributeError
+=========================== short test summary info ============================
+FAILED research/core-next/provider-acceptance-20261004/test_coverage_assertions.py::test_decision_answer_excludes_user_and_later_memory_extraction
+FAILED research/core-next/provider-acceptance-20261004/test_coverage_assertions.py::test_factual_answer_rejects_merely_missing_or_wrong_fact
+2 failed in 0.17s

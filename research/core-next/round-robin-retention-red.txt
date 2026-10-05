@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_clear_current_messages_preserves_history_and_precision_originals _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-380/test_clear_current_messages_pr0')
+
+    @pytest.mark.asyncio
+    async def test_clear_current_messages_preserves_history_and_precision_originals(tmp_path):
+        async with compose(tmp_path/'run',plugins(round_robin_plugin('abcd',group_size=4))) as host:
+            env=host.service('conversation','mechanism'); env.start_round(1)
+            actions=host.service('interaction','actions')
+            a=InteractionScope('a',Moment(1,'p'))
+            target=Ref('conversation','participants','a')
+            await actions.invoke(a,'conversation.send_message_to_partner',target,{'content':'first original'})
+>           view=env.conversation_view('d')
+                 ^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'RoundRobin' object has no attribute 'conversation_view'
+
+tests/primary/test_plugin_round_robin.py:91: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_round_robin.py::test_clear_current_messages_preserves_history_and_precision_originals
+1 failed, 4 deselected in 0.11s

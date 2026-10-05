@@ -1,0 +1,129 @@
+{
+  "environment": {
+    "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "cpu_count": 12,
+    "versions": {
+      "pyzstd": "0.19.1",
+      "backports-zstd": "1.7.0",
+      "zstandard": "0.25.0",
+      "apsw": "3.53.4.0",
+      "python-rapidjson": "1.25"
+    }
+  },
+  "results": [
+    {
+      "mode": "sqlite64",
+      "write_wall_s": 0.07715912500862032,
+      "write_cpu_s": 0.052079,
+      "write_peak_bytes": 33751040,
+      "disk_bytes": 13783040,
+      "range_queries": 502,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.03004383301595226,
+      "range_cpu_s": 0.030000999999999986,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": null
+    },
+    {
+      "mode": "seek64_0",
+      "write_wall_s": 0.04362512496300042,
+      "write_cpu_s": 0.035514,
+      "write_peak_bytes": 31227904,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00038904102984815836,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.030508750001899898,
+      "range_cpu_s": 0.030075000000000005,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek64_4",
+      "write_wall_s": 0.04550970799755305,
+      "write_cpu_s": 0.037365999999999996,
+      "write_peak_bytes": 31768576,
+      "disk_bytes": 13493881,
+      "range_queries": 502,
+      "reader_open_s": 0.00013029196998104453,
+      "open_read_bytes": 2570,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.028871833987068385,
+      "range_cpu_s": 0.02881199999999999,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 65400572
+    },
+    {
+      "mode": "seek1m_0",
+      "write_wall_s": 0.041564624989405274,
+      "write_cpu_s": 0.034101000000000006,
+      "write_peak_bytes": 32210944,
+      "disk_bytes": 13416210,
+      "range_queries": 502,
+      "reader_open_s": 5.154201062396169e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.21596649999264628,
+      "range_cpu_s": 0.21517999999999998,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "seek1m_4",
+      "write_wall_s": 0.04459283401956782,
+      "write_cpu_s": 0.035531,
+      "write_peak_bytes": 35782656,
+      "disk_bytes": 13416153,
+      "range_queries": 502,
+      "reader_open_s": 5.9999991208314896e-05,
+      "open_read_bytes": 186,
+      "full_bytes_equal": true,
+      "range_wall_s": 0.21723516698693857,
+      "range_cpu_s": 0.216604,
+      "range_bytes_equal": true,
+      "compressed_read_bytes": 215787994
+    },
+    {
+      "mode": "stream4",
+      "write_wall_s": 0.023142083024140447,
+      "write_cpu_s": 0.037117,
+      "write_peak_bytes": 68173824,
+      "disk_bytes": 13411484,
+      "range_queries": 0,
+      "full_bytes_equal": true
+    },
+    {
+      "mode": "zlib_pool",
+      "write_wall_s": 0.22502587497001514,
+      "write_cpu_s": 0.803173,
+      "write_peak_bytes": 77578240,
+      "disk_bytes": 32341980,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "zstd_serial64",
+      "write_wall_s": 0.09233479102840647,
+      "write_cpu_s": 0.072158,
+      "write_peak_bytes": 74334208,
+      "disk_bytes": 31489972,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    },
+    {
+      "mode": "seek1m4_event",
+      "write_wall_s": 0.08723900001496077,
+      "write_cpu_s": 0.075165,
+      "write_peak_bytes": 78315520,
+      "disk_bytes": 31466112,
+      "events": 4,
+      "each_body_bytes": 10485760,
+      "all_values_equal": true
+    }
+  ],
+  "raw_bytes": 20791529
+}

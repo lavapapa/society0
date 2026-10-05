@@ -1,0 +1,149 @@
+{
+  "commit": "89ad172ea4e18e8a5572f00c1bd140b3a5c0af73",
+  "source_dir": "/tmp/society0-final-89ad172-storage-20261004",
+  "created_at": "2026-10-04T10:05:51.530293+08:00",
+  "python": "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+  "real_network": false,
+  "results": [
+    {
+      "name": "deterministic",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/primary",
+        "tests/e2e",
+        "-m",
+        "not real_e2e"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 29.497431208961643,
+      "log": "research/core-next/final-89ad172-deterministic-20261004.txt"
+    },
+    {
+      "name": "experiments",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/experiments"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.5232123330351897,
+      "log": "research/core-next/final-89ad172-experiments-20261004.txt"
+    },
+    {
+      "name": "vector",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/experiments/test_core_next_vector_backends.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.6633438330027275,
+      "log": "research/core-next/final-89ad172-vector-20261004.txt"
+    },
+    {
+      "name": "pilot",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "society0.kernel.runner",
+        "--factory",
+        "examples.core_next.conversation_pilot:build",
+        "--config",
+        "/tmp/society0-final-89ad172-storage-20261004/pilot-config.json",
+        "--output",
+        "/tmp/society0-final-89ad172-storage-20261004/pilot-run"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.13882545795058832,
+      "log": "research/core-next/final-89ad172-pilot-20261004.txt"
+    },
+    {
+      "name": "payload",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "society0.kernel.workbench",
+        "--run",
+        "/tmp/society0-final-89ad172-storage-20261004/pilot-run",
+        "--version",
+        "final-independent",
+        "--steps",
+        "1",
+        "2",
+        "--actors",
+        "a",
+        "b",
+        "c",
+        "d",
+        "--output",
+        "/tmp/society0-final-89ad172-storage-20261004/pilot-payload.json"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.061726875021122396,
+      "log": "research/core-next/final-89ad172-payload-20261004.txt"
+    },
+    {
+      "name": "node",
+      "command": [
+        "npm",
+        "test",
+        "--prefix",
+        "tools/workbench-template"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 1.143555834016297,
+      "log": "research/core-next/final-89ad172-node-20261004.txt"
+    }
+  ],
+  "head_at_start": "89ad172ea4e18e8a5572f00c1bd140b3a5c0af73",
+  "origin_at_start": "89ad172ea4e18e8a5572f00c1bd140b3a5c0af73",
+  "source_byte_comparison": {
+    "files": 50,
+    "all_equal": true
+  },
+  "skip_contract": {
+    "deterministic": "real_e2e explicitly deselected; no model network",
+    "experiments": "sqlite_vec module skipped in normal environment then separately executed",
+    "node": "actual generated pilot payload supplied; no intended skip"
+  },
+  "dependencies": {
+    "python_version": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "packages": {
+      "apsw": "3.53.4.0",
+      "python-rapidjson": "1.25",
+      "chromadb": "1.5.9",
+      "openai": "2.53.0",
+      "bashkit": "0.18.2",
+      "society0-filesystem": "0.1.0",
+      "pytest": "9.1.1",
+      "zstandard": "0.25.0"
+    },
+    "node": "v24.16.0",
+    "npm": "12.0.2"
+  },
+  "capability_inventory_check": {
+    "rows": 78,
+    "unique_ids": 78,
+    "matrix_ids": 78,
+    "missing_or_extra_ids": [],
+    "consumer_files_exist": true,
+    "scope": "index completeness plus review of judgments; not substitute for semantic tests"
+  }
+}

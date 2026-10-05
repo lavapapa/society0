@@ -1,0 +1,15 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/primary/test_kernel_memory.py _____________
+tests/primary/test_kernel_memory.py:6: in <module>
+    from society0.kernel.memory import Memory, MemoryPolicy, MEMORY_SCHEMA
+src/society0/kernel/memory.py:41: in <module>
+    @dataclass(frozen=True)
+     ^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/dataclasses.py:1265: in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash,
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/dataclasses.py:950: in _process_class
+    for b in cls.__mro__[-1:0:-1]:
+             ^^^^^^^^^^^
+E   AttributeError: 'function' object has no attribute '__mro__'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

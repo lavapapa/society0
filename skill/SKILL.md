@@ -29,15 +29,15 @@ For an introductory study that fits the starter's exposure–memory–measuremen
 6. Choose agent style:
    - Prefer **LLM-based agents** for interpretation, language, memory, persuasion, trust, identity, interviews, and social meaning.
    - Use **rule-based agents** for baselines, deterministic mechanisms, controls, parameter sweeps, fixtures, or non-linguistic updates.
-7. For LLM agents, verify both provider layers: one LLM endpoint and one embedding endpoint. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
-8. Explain concurrency in plain language before running. If the user's LLM provider has a known concurrent request limit, set it on `LLMModel(..., concurrency=N)`; if unknown, use 5. `instruct` and `interview` automatically use this limit unless explicitly overridden. After running, verify batch-level `concurrency` and `concurrency_source` in `summary.json`.
-9. For the first pilot, retain the starter's per-stage output limits and reduce agent count or repetitions to keep costs small while preserving the target comparison. Later tune `max_tokens` from successful observed outputs; an overly short limit can truncate actions or measurements. Inspect `summary.json` fields such as `total_input_characters`, `total_tools_characters`, `total_payload_characters`, and `outputs.total_bytes` when runtime is slow or run artifacts are large.
-10. Treat memory as part of the simulation. `retrieve_memory=True` retrieves existing experience; durable writes are explicit. Open an Agent Thread, pass `thread_ids_by_agent` to the behavior round, then call `extract_thread_memories(...)` after it succeeds. Include extraction in the cost estimate and verify its result separately. See `references/step-dsl.md` and the complete starter.
-11. Treat the tool/action loop as part of the model of the social situation. Do not replace an action-bearing `instruct` round with direct JSON output just to reduce latency; use direct structured output only for action-free measurement tasks.
-12. Use `terminal_actions=[...]` only when an action is semantically the named endpoint of the current task, such as submitting a final decision, leaving a round, or handing in a ballot. For social browsing rounds where read tools may continue but one real write interaction should finish the round, prefer `completion_action_tags=["social_write"]` instead of pretending each social action is terminal. Read actions can return user IDs and post IDs; when calling `comment`, `like_post`, `repost`, or `get_post_details`, use the explicit `post_id` shown by the environment.
+7. For LLM agents, verify the LLM endpoint. Add and verify an embedding endpoint when the study uses memory or vector retrieval; the complete starter uses both. Suggest Ollama locally or OpenAI-compatible hosted providers such as OpenRouter, SiliconFlow, OpenAI, or Claude-compatible routes where appropriate.
+8. Explain concurrency in plain language. Serial phases preserve business order; explicitly independent phases select their capacity. Provider endpoints and a shared request limit control actual external calls separately. Choose capacity from the known service contract and inspect the recorded effective phase capacity.
+9. Keep the first pilot small by reducing actors or repetitions while retaining the comparison. Preserve verified model budgets; truncated output is incomplete. Diagnose latency using recorded stage timings, actual provider usage, materialized bytes and persistence costs.
+10. Treat memory as part of the research design. Configure auto_write, auto_recall and active_tools independently for each activation. The starter keeps writes explicit in a successful browsing completion hook before the original Thread closes; interview measurement keeps current perception even when retrieval is empty.
+11. Treat the action loop as part of the situation. LLMDriver decision mode discovers and executes domain actions; interview mode uses submit_result for action-free measurement. Preserve the original information and actionable domain operations.
+12. Action.terminal and LLMPolicy.completion_names/completion_tags identify genuine task completion. A failed or merely accepted action does not complete the task. Use explicit resource refs returned by discovery, and read the schema before invoking an action.
 13. Create one clean experiment folder per study. Strongly prefer a `versions/<version-id>/` folder for each experiment configuration, with its `runs/<run-id>/` folders inside; keep analysis and the workbench at the study level. Existing layouts may be retained when reorganizing them would disrupt the study. This is a researcher-facing organization convention, not a Society0 runtime requirement. Never overwrite an earlier configuration or mix its run outputs with a later version. Read [references/workbench-guide.md](references/workbench-guide.md) for the layout and conversion contract when a workbench is requested.
 14. After a concrete configuration draft exists and before the first pilot, offer the researcher an optional static visual workbench to check Agent settings, environment parameters, FoV definitions, and the planned version. Ask once, in terms of this study: “实验配置已有初稿。我可以做一个可视化工作台，让你按主体检查〔填入已定义的配置内容〕并提出修改；页面会把修改整理成一段可复制的请求，发回给我后才会改实验文件。你需要吗？” If they opt in, read [references/workbench-guide.md](references/workbench-guide.md), extract the current effective configuration into a versioned workbench data file, and generate the HTML even when there are no runs. If they decline, proceed without repeating the offer for this study. Then build the smallest useful pilot: a few agents, a few ticks, explicit metrics, one qualitative table, and a clear run directory.
-15. Inspect artifacts and explain what happened. Before substantive interpretation or proposing a follow-up comparison, read the quantitative and qualitative analysis sections of [references/run-monitor-analyze.md](references/run-monitor-analyze.md). Separate observed results from possible mechanisms and state which contrast would test each explanation. Use checkpoints for full state; default `events.jsonl` is a semantic monitoring log and does not include raw state-change rows.
+15. Inspect artifacts and explain what happened. Before substantive interpretation or proposing a follow-up comparison, read the quantitative and qualitative analysis sections of [references/run-monitor-analyze.md](references/run-monitor-analyze.md). Separate observed results from possible mechanisms and state which contrast would test each explanation. Use complete steps for recovery; Observation separates live diagnostic facts from completed business state.
     If the workbench was already requested, update the same workbench with this version's saved run records. Otherwise, after inspecting the first completed run, offer it once if the researcher has not declined it for this study: “这次实验已有保存结果。我可以把〔填入已核对的指标、事件或会话〕加入可视化工作台，按配置版本、试运行、主体和 tick 查看。你需要吗？” The workbench never reads live data or controls the simulation. Use [references/workbench-guide.md](references/workbench-guide.md) to create an experiment-specific conversion script; preserve earlier versions and their run records. Keep FoV eligibility, recorded session content, and measured outcomes distinct. The supplied components are starting points; choose or add others when the study needs them.
     When a researcher sends a copied workbench change request, compare `baseVersionId`, `configSource`, `before`, and the actual experiment files; clarify conflicts, apply accepted changes in a new version folder, leave earlier versions intact, and regenerate the static workbench. Do not treat a browser draft as an applied experiment change or rerun the study without a separate request.
 16. If the user creates a useful environment, finds a bug, or develops a clear need from research practice, help them draft a focused GitHub issue or pull request for Society0.
@@ -50,92 +50,11 @@ Keep progress visible in a short researcher-facing status. First studies need a 
 
 ## Minimal Entrypoints
 
-Imports:
+Copy `assets/minimal_experiment.py` into the experiment version directory. It is a complete two-step LLM study with a declared mechanism, persistent Actor, shared provider services, explicit experience extraction and structured measurement. Its `--check` mode initializes without provider calls. Read `references/runtime-quickstart.md` for environment configuration and invocation.
 
-```python
-from society0 import EmbedModel, LLMModel, Society0
-```
+Use `RunPlan` and `run_plan` for public runs, `Plugin` and `compose` for mechanism composition, and `Schedule`/`Phase` for the study protocol. Driver plugins expose named factory services; `actor_plugin({'rule': ('rules', 'factory')})` consumes them. Activation extensions provide shared cognition and memory to rule, LLM and third-party drivers. Domain schema and canonical writers replace implicit whole-World object serialization. Read `references/engine-components.md` before extending a mechanism.
 
-For a complete first experiment, copy `assets/minimal_experiment.py` to the chosen version directory and adapt its configuration, FoV, action, and measurement. It supports initialization-only checking and a two-tick pilot. See `references/runtime-quickstart.md` for provider setup and commands.
-
-Every custom state field needs a schema and a persistence declaration. For example:
-
-```python
-config = {
-    "agent_types": [{"id": "reader", "archetype": "llm", "state_schema": {
-        "type": "object", "additionalProperties": False,
-        "properties": {"trust": {"type": "number", "persistence": {"kind": "replaceable"}}},
-    }}],
-    "agents": [
-        {"id": "alice", "type": "reader", "persona": "A skeptical reader.", "state": {"trust": 0.45}}
-    ],
-    "environment": {"type": "plain", "state": {"topic": "misinformation"}, "state_schema": {
-        "type": "object", "additionalProperties": False,
-        "properties": {"topic": {"type": "string", "persistence": {"kind": "replaceable"}}},
-    }},
-}
-```
-
-Providers:
-
-```python
-llm = LLMModel.ollama(model="llama3.1", concurrency=5)
-embed = EmbedModel.ollama(model="nomic-embed-text", concurrency=5)
-engine = Society0(save_dir="runs/demo", base_config=config, llm=llm, embed=embed)
-```
-
-Use `Society0(..., agent_concurrency=N)` only when the experiment should globally override the LLM model's concurrency. Per-call `users.instruct(..., concurrency=N)` and `users.interview(..., concurrency=N)` are higher-priority overrides for special cases.
-
-Experiment workspace:
-
-```text
-experiments/trust_pilot/
-  versions/
-    v001/
-      experiment.py
-      runs/
-        pilot-001/
-    v002/
-      experiment.py
-      runs/
-  analysis/
-    build_workbench.py
-  workbench.html
-  report.md
-```
-
-Do not reuse a run directory for a different experiment or model setup. Run artifacts can contain prompts, FoVs, memory retrievals, LLM outputs, interviews, and researcher data; keep them inside the experiment folder and do not commit or share them without review.
-
-Code step:
-
-```python
-from pydantic import BaseModel, Field
-
-class TrustSurvey(BaseModel):
-    trust_score: int = Field(ge=1, le=7)
-    reason: str
-
-@engine.step(name="measure_trust")
-async def measure_trust(ctx):
-    users = ctx.agents.where(type="reader")
-    survey = await users.interview("请评价这条信息的可信度。", output=TrustSurvey)
-    return ctx.result(metrics={"avg_trust": survey.mean("trust_score")}, tables={"survey": survey.table()})
-```
-
-Run:
-
-```python
-await engine.run(steps=3)
-```
-
-Rule-only baseline:
-
-```python
-@engine.step(name="rule_update")
-async def rule_update(ctx):
-    for agent_id in ctx.agents.where(type="reader").ids():
-        ctx.world.agents_data[agent_id]["state"]["trust"] *= 0.95
-```
+Keep one versioned experiment directory per study and one fresh run directory per attempt. The run contract records release, dependencies, configuration, business time and budgets. Credentials are supplied by the execution environment. `Observation` and the workbench consume recorded runs and complete views.
 
 ## Read References As Needed
 
@@ -143,7 +62,7 @@ async def rule_update(ctx):
 - `references/founder-experience.md`: Cross-domain founder-level design lessons for evidence boundaries, subject layers, env-hosted consequences, semantic-rich FoVs, ABM drift, and scale discipline.
 - `references/environment-design.md`: Why environment comes first, built-in environments, FoVs, actions, rules, and how to add a new env.
 - `references/agent-design.md`: Agent types, personas, state, properties, models, memory, and reasoning stages.
-- `references/step-dsl.md`: CodeSchedule, StepContext, AgentGroup, instruct/interview, results, outputs.
+- `references/step-dsl.md`: Schedule, Phase, actor selection, LLM decision/interview, results and outputs.
 - `references/research-design.md`: Convert social science observations into simulation experiments.
 - `references/researcher-onboarding.md`: First-use paths, step-by-step Society0 learning, experiment preparation, and optional pre-run token/cost estimates.
 - `references/runtime-quickstart.md`: First implementation, existing Python setup, initialization check, explicit memory, provider verification, and complete pilot starter.
@@ -188,7 +107,7 @@ Use this catalog once a substantive design or paper-adaptation question needs do
 
 Consolidate distillation products by discipline or simulation target instead of creating one reference file per paper. Create a general cross-domain simulation guide only after multiple domain guides exist and there is enough evidence to extract shared principles without flattening discipline-specific design constraints.
 
-If the skill or references are not specific enough, inspect the source directly. Start from `src/society0/society.py`, `src/society0/schedule.py`, `src/society0/environment.py`, `src/society0/env/`, and `src/society0/agent/core.py`. Treat source behavior as authoritative.
+If the skill or references are not specific enough, inspect `src/society0/kernel/` and `src/society0/plugins/`, then the corresponding `docs/core-next/` contract. Treat executable behavior as authoritative.
 
 ## Contribution Support
 
@@ -198,8 +117,8 @@ When a researcher wants to contribute, treat their research artifact as the sour
 
 - Do not describe Society0 as a traditional ABM system with LLMs merely swapped in for rules. It is a language-mediated simulation paradigm that can borrow ABM rigor.
 - Do not design agents before the environment. The environment defines what agents can see, do, and leave behind as evidence.
-- Do not hide provider requirements. LLM agents require working LLM and embedding providers.
-- Do not ask researchers to tune concurrency by default. Put known provider limits on the model declaration; use 5 when unknown.
+- Do not hide provider requirements. LLM agents require a working LLM provider; memory and vector retrieval additionally require the embedding provider selected by that mechanism.
+- Do not ask researchers to tune concurrency by default. Use known provider limits and an explicit independent-phase capacity; keep uncertain service capacity a configuration question.
 - Do not turn off memory, actions, terminal/completion semantics, or the agent loop simply because a run is slow. Diagnose first; only simplify when the user explicitly accepts the modeling tradeoff.
 - Do not mix multiple studies in one run folder. Create a fresh experiment folder before writing code, running simulations, or analyzing outputs.
 - Do not make first experiments large. Prototype, inspect, then scale.

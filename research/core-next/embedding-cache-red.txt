@@ -1,0 +1,11 @@
+.......F                                                                 [100%]
+=================================== FAILURES ===================================
+_ test_embedding_cache_uses_exact_model_dimensions_text_identity_and_byte_budget _
+
+    def test_embedding_cache_uses_exact_model_dimensions_text_identity_and_byte_budget():
+        from society0.resource_managers import EmbeddingManager
+>       manager=EmbeddingManager([],cache_max_bytes=512,cache_max_items=10)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: EmbeddingManager.__init__() got an unexpected keyword argument 'cache_max_bytes'
+
+tests/primary/test_kernel_models.py:88: TypeError

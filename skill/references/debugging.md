@@ -1,145 +1,17 @@
-# Debugging
+# 调试
 
-## Start Small
+先定位首次改变业务事实或主体认知的错误，再决定恢复范围。当前状态、诊断 Thread 和完整恢复点各有用途；发生错误的步骤保留诊断，恢复选择可信完整步骤的新目录。
 
-Reduce to one step, one or two agents, and a fresh run directory. Confirm the base config loads before debugging large experiments.
+## 一、入口
 
-For a first implementation, follow `runtime-quickstart.md` and `../assets/minimal_experiment.py`. Use `engine.run(steps=0)` for real initialization checking, then verify the used call signatures and execute a small pilot. Initialization alone does not exercise the step body.
+确认实际解释器、依赖组、包路径与代码提交。公开入口是 compose、RunPlan/run_plan、Actor/Driver、Information/Actions 和 Schedule。检查插件明确依赖与具名服务，schema 与初始化在资源安装前完成。规则路径不要求模型；LLM、记忆、social、shell 按所用功能安装；不可变数据集属于基础安装。
 
-## State And Interface Errors
+## 二、证据
 
-For `undeclared initial state field` or `missing persistence declaration`, add the field to the environment or agent type's `state_schema`, with its actual JSON type and appropriate `persistence.kind`. Plain environments have no custom fields predeclared. For an unexpected keyword error, inspect the installed method signature. Current CodeSchedule methods use `retrieve_memory`; saving experience requires explicit `extract_thread_memories(...)` over an Agent Thread. See `step-dsl.md`.
+读取 runner-status.json、Observation.status、Thread 原请求与响应、action_summary 和 resource_usage。无服务响应与业务拒绝分开判断；未知资源/无资格的正常动作可以 rejected，未回滚的部分写入和基础设施故障继续失败。模型 length、硬预算触达、无效测量字段均不会当作成功。
 
-## Import Errors
+记忆需要检查三开关、实际激活策略、原始向量、索引水位和作业回执。只读页游标绑定主体、相关业务与权限版本；Thread 追加不会使不相关数据页失效。正文续读带 expected_revision，相关变化后重新定位。
 
-Symptom:
+## 三、验证
 
-```text
-ModuleNotFoundError: No module named 'society0'
-```
-
-Fix:
-
-```bash
-pip install -e .
-python -m pytest tests/primary
-```
-
-Use `society0`, not the old `simengine` import.
-
-## Missing LLM Provider
-
-Symptom:
-
-```text
-LLM agents require Society0(..., llm=LLMModel...)
-```
-
-Fix:
-
-- Pass an `LLMModel`.
-- Pass an `EmbedModel` for LLM agents.
-- For no-network smoke tests, use rule agents and avoid LLM `instruct` or `interview`.
-
-## Provider Failures
-
-Check:
-
-- `base_url` includes the right path for the provider.
-- API key is present but not committed.
-- model name exists.
-- Ollama is running and the model is pulled.
-- `LLMModel(..., concurrency=N)` is not higher than the provider actually allows; use 5 if the limit is unknown.
-- timeout is sufficient.
-
-Use a direct provider smoke test before blaming Society0.
-
-## Chroma Or Embedding Failures
-
-Likely causes:
-
-- embedding endpoint unavailable.
-- wrong embedding dimensions.
-- reused run directory with a different embedding model.
-- stale Chroma files after interruption.
-
-Fix:
-
-- use a fresh `save_dir`.
-- match `EmbedModel(..., dimensions=...)` to the provider.
-- avoid mixing embedding models in one run directory.
-
-## Structured Output Failures
-
-If `AgentBatchResult.error_count` is nonzero or tables are empty:
-
-- simplify the Pydantic schema.
-- ask one question at a time.
-- define numeric scales explicitly.
-- inspect `result.table()` and `result.by_agent(agent_id)`.
-
-## FoV Failures
-
-If a FoV is missing:
-
-- confirm the environment type supports that FoV.
-- confirm the environment module is imported/registered.
-- test without FoVs first.
-- inspect `events.jsonl` for `fov_failed`.
-- read `src/society0/env/<env_name>/env.py` to verify the exact `@fov` names.
-
-## Action Failures
-
-If an LLM agent cannot call an expected environment action:
-
-- start with `actions=None` or `actions=["environment"]` during a prototype; `actions=None` exposes default non-memory actions.
-- narrow later by action name or short action tag.
-
-## State Or Output Inspection
-
-Default `events.jsonl` is for monitoring. Read v4 checkpoints through `V4CheckpointStore(run_dir).restore(step)` for full saved state. If you need state-change summaries for focused debugging, use a fresh directory and `Society0(..., log_state_changes=True)`.
-
-If a run is unexpectedly slow or produces very large files, open `summary.json` and inspect:
-
-- `resources.llm` and `agent_operations.*.resources.llm` for model latency, prompt size, tool-schema size, and turns.
-- `resources.embedding` for memory, post, or recommendation embedding calls.
-- `outputs.files` and `outputs.checkpoints` for artifact sizes and JSONL line counts.
-- read the env source to confirm the exact `@action` method name and parameters.
-- remember that `interview(...)` intentionally does not expose ordinary actions.
-
-## State Selection Issues
-
-If selection returns no agents:
-
-- check each agent's `type`.
-- check `agent_types` and inherited `archetype`.
-- print or return `ctx.agents.all().ids()` in a smoke step.
-
-## Useful Test Commands
-
-```bash
-python -m pytest tests/primary
-python -m pytest tests/e2e
-SOCIETY0_RUN_REAL_E2E=1 python -m pytest tests/e2e/test_society0_real_e2e.py
-SOCIETY0_RUN_REAL_E2E=1 SOCIETY0_REAL_E2E_SATURATION_CONCURRENCY=6 python -m pytest tests/e2e/test_society0_real_e2e.py -m saturation
-python -m pytest
-```
-
-Real E2E requires working LLM and embedding endpoints. Skipped real E2E does not prove provider integration works.
-
-Preferred real E2E endpoint variables:
-
-```bash
-export SOCIETY0_RUN_REAL_E2E=1
-export SOCIETY0_REAL_E2E_LLM_BASE_URL="https://your-llm-provider/v1"
-export SOCIETY0_REAL_E2E_LLM_MODEL="your-chat-model"
-export SOCIETY0_REAL_E2E_EMBED_BASE_URL="https://your-embedding-provider/v1"
-export SOCIETY0_REAL_E2E_EMBED_MODEL="your-embedding-model"
-export SOCIETY0_REAL_E2E_EMBED_PROVIDER="openai_compatible"
-export SOCIETY0_REAL_E2E_EMBED_DIMENSIONS=768
-```
-
-Keep provider credentials in the local environment or secret manager used by the
-test runner; do not commit them to docs or run artifacts. For local Ollama
-embeddings, set `SOCIETY0_REAL_E2E_EMBED_PROVIDER=ollama` and
-`SOCIETY0_REAL_E2E_EMBED_BASE_URL=http://localhost:11434`.
+先相关确定性用例，再完整确定性组合；真实模型验证提供方参数、工具与记忆恢复链。失败留证和原始工件保留。性能测量区分 Python 与原生内存、等待与计算、编码与磁盘、冷启动与热路径；分页返回小不意味着原生数据库没有读取完整字段。

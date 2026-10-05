@@ -1,0 +1,535 @@
+{
+  "expected": {
+    "count": 12,
+    "total": 546,
+    "phrase": "原文校验成功。"
+  },
+  "actual": [
+    {
+      "count": 12,
+      "total": 546,
+      "phrase": "原文校验成功。"
+    }
+  ],
+  "judgment_correct": true,
+  "original_check": {
+    "complete_rows": 12,
+    "complete_original_bytes": 117
+  },
+  "messages": [
+    {
+      "role": "system",
+      "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+    },
+    {
+      "role": "user",
+      "content": "当前主观状态\n{}"
+    },
+    {
+      "role": "user",
+      "content": "从共享根目录开始查找 catalog 信息。分页读取全部 prices，每页 limit=3，依据 total 和 next_cursor 读到结束，然后用 bash 中的 jq 对这些完整报价复算，输出 JSON 对象含 count 记录数和 total 金额合计。找到 reports 正文引用，每次 data_read 的 size=64，透传 expected_revision 并按 next_offset 续读直到结束，保留核对短语。从 actors 找到属于你的 Ref，使用 action_find 和 action_describe 发现提交方法，提交 count、total、phrase 三个字段，成功后结束。所有数字必须来自实际完整资料。"
+    },
+    {
+      "role": "user",
+      "content": "本次激活信号\n[null]"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4655be430ff5b84e7a8624d1c",
+          "type": "function",
+          "function": {
+            "name": "data_list",
+            "arguments": "{\"path\": \"/\", \"limit\": 100, \"cursor\": null}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4655be430ff5b84e7a8624d1c",
+      "content": "{\"items\": [{\"path\": \"/catalog\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"directory\", \"key\": \"\"}, \"kind\": \"directory\"}], \"total\": 1, \"next_cursor\": null, \"revision\": null}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c46d66e959bf38afc0fd671cf3",
+          "type": "function",
+          "function": {
+            "name": "data_list",
+            "arguments": "{\"path\": \"/catalog\", \"limit\": 100, \"cursor\": null}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c46d66e959bf38afc0fd671cf3",
+      "content": "{\"items\": [{\"path\": \"/catalog/prices\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/catalog/actors\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"actors\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/catalog/reports\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"reports\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/catalog/body\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"body\", \"key\": \"\"}, \"kind\": \"directory\"}], \"total\": 4, \"next_cursor\": null, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c47799c005e7118d7e814a224a",
+          "type": "function",
+          "function": {
+            "name": "data_query",
+            "arguments": "{\"path\": \"/catalog/prices\", \"query\": {\"limit\": 3, \"cursor\": null}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c47799c005e7118d7e814a224a",
+      "content": "{\"items\": [{\"id\": 1, \"amount\": 7, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"1\"}}, {\"id\": 2, \"amount\": 14, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"2\"}}, {\"id\": 3, \"amount\": 21, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"3\"}}], \"total\": 12, \"next_cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [3]}, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c47f59b40b5fc837e35ae23e37",
+          "type": "function",
+          "function": {
+            "name": "data_query",
+            "arguments": "{\"path\": \"/catalog/prices\", \"query\": {\"limit\": 3, \"cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [3]}}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c47f59b40b5fc837e35ae23e37",
+      "content": "{\"items\": [{\"id\": 4, \"amount\": 28, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"4\"}}, {\"id\": 5, \"amount\": 35, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"5\"}}, {\"id\": 6, \"amount\": 42, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"6\"}}], \"total\": 12, \"next_cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [6]}, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c491332b7a9d940f68c1e2b5b1",
+          "type": "function",
+          "function": {
+            "name": "data_query",
+            "arguments": "{\"path\": \"/catalog/prices\", \"query\": {\"limit\": 3, \"cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [6]}}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c491332b7a9d940f68c1e2b5b1",
+      "content": "{\"items\": [{\"id\": 7, \"amount\": 49, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"7\"}}, {\"id\": 8, \"amount\": 56, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"8\"}}, {\"id\": 9, \"amount\": 63, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"9\"}}], \"total\": 12, \"next_cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [9]}, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4a9aad9346148bfee7d819cbe",
+          "type": "function",
+          "function": {
+            "name": "data_query",
+            "arguments": "{\"path\": \"/catalog/prices\", \"query\": {\"limit\": 3, \"cursor\": {\"identity\": \"[\\\"a\\\", {\\\"phase\\\": \\\"decision\\\", \\\"time\\\": 1}, \\\"/catalog/prices\\\", [\\\"id\\\", \\\"amount\\\"], [], [[\\\"id\\\", \\\"asc\\\"]], null, \\\"(1)\\\", []]\", \"revision\": 0, \"run_id\": \"dcb11e4580f64baba2dca8728426a287\", \"last\": [9]}}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4a9aad9346148bfee7d819cbe",
+      "content": "{\"items\": [{\"id\": 10, \"amount\": 70, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"10\"}}, {\"id\": 11, \"amount\": 77, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"11\"}}, {\"id\": 12, \"amount\": 84, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"prices\", \"key\": \"12\"}}], \"total\": 12, \"next_cursor\": null, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4cb0c5256aad5e7f6725c8871",
+          "type": "function",
+          "function": {
+            "name": "bash",
+            "arguments": "{\"script\": \"echo '[7,14,21,28,35,42,49,56,63,70,77,84]' | jq '{count: length, total: (map(.[] | .) | add)}'\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4cb0c5256aad5e7f6725c8871",
+      "content": "{\"session_id\": \"shell-319i6n60\", \"command_id\": \"1\", \"stdout\": \"\", \"stderr\": \"jq: error: Cannot iterate over number (7)\\n\", \"exit_code\": 5, \"stdout_truncated\": false, \"stderr_truncated\": false, \"stdout_ref\": \"shell-319i6n60/output/1.stdout\", \"stderr_ref\": \"shell-319i6n60/output/1.stderr\", \"receipts\": [], \"stdout_total_bytes\": 0, \"stderr_total_bytes\": 42, \"stdout_next_offset\": null, \"stderr_next_offset\": null, \"error\": null}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4d893819a9178a37fc0426f3e",
+          "type": "function",
+          "function": {
+            "name": "bash",
+            "arguments": "{\"script\": \"echo '[7,14,21,28,35,42,49,56,63,70,77,84]' | jq '{count: length, total: add}'\"}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4d893819a9178a37fc0426f3e",
+      "content": "{\"session_id\": \"shell-319i6n60\", \"command_id\": \"2\", \"stdout\": \"{\\n  \\\"count\\\": 12,\\n  \\\"total\\\": 546\\n}\\n\", \"stderr\": \"\", \"exit_code\": 0, \"stdout_truncated\": false, \"stderr_truncated\": false, \"stdout_ref\": \"shell-319i6n60/output/2.stdout\", \"stderr_ref\": \"shell-319i6n60/output/2.stderr\", \"receipts\": [], \"stdout_total_bytes\": 34, \"stderr_total_bytes\": 0, \"stdout_next_offset\": null, \"stderr_next_offset\": null, \"error\": null}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4e3c5360def1122a87f2f49d1",
+          "type": "function",
+          "function": {
+            "name": "data_list",
+            "arguments": "{\"path\": \"/catalog/reports\", \"limit\": 100, \"cursor\": null}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4e3c5360def1122a87f2f49d1",
+      "content": "{\"items\": [{\"id\": 1, \"body\": {\"kind\": \"document_ref\", \"path\": \"/catalog/body/1\", \"total_bytes\": 117, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"body\", \"key\": \"1\"}, \"expected_revision\": 0}, \"ref\": {\"namespace\": \"catalog\", \"kind\": \"reports\", \"key\": \"1\"}}], \"total\": 1, \"next_cursor\": null, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4ee8e9ea47b1627fb7b465799",
+          "type": "function",
+          "function": {
+            "name": "data_read",
+            "arguments": "{\"path\": \"/catalog/body/1\", \"offset\": 0, \"size\": 64, \"expected_revision\": 0}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4ee8e9ea47b1627fb7b465799",
+      "content": "{\"data\": \"完整信息：报价均为同一计量单位，金额按各行 \", \"encoding\": \"utf-8\", \"total_bytes\": 117, \"next_offset\": 64, \"revision\": 0, \"source\": {\"namespace\": \"catalog\", \"kind\": \"body\", \"key\": \"1\"}}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c4f93a75349a52bc69918a27ac",
+          "type": "function",
+          "function": {
+            "name": "data_read",
+            "arguments": "{\"path\": \"/catalog/body/1\", \"offset\": 64, \"size\": 64, \"expected_revision\": 0}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c4f93a75349a52bc69918a27ac",
+      "content": "{\"data\": \"amount 合计。\\n核对短语：原文校验成功。\", \"encoding\": \"utf-8\", \"total_bytes\": 117, \"next_offset\": null, \"revision\": 0, \"source\": {\"namespace\": \"catalog\", \"kind\": \"body\", \"key\": \"1\"}}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c50bb3be48c4ce503be6e6db72",
+          "type": "function",
+          "function": {
+            "name": "data_list",
+            "arguments": "{\"path\": \"/catalog/actors\", \"limit\": 100, \"cursor\": null}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c50bb3be48c4ce503be6e6db72",
+      "content": "{\"items\": [{\"id\": \"a\", \"task\": \"核对所有报价后提交总数、合计与报告核对短语。\", \"ref\": {\"namespace\": \"catalog\", \"kind\": \"actors\", \"key\": \"a\"}}], \"total\": 1, \"next_cursor\": null, \"revision\": 0}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c515784c51607253b826be468e",
+          "type": "function",
+          "function": {
+            "name": "action_find",
+            "arguments": "{\"target\": {\"namespace\": \"catalog\", \"kind\": \"actors\", \"key\": \"a\"}, \"query\": \"submit\", \"limit\": 100, \"cursor\": null}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c515784c51607253b826be468e",
+      "content": "{\"items\": [{\"name\": \"catalog.submit\", \"description\": \"提交本主体核对的完整报价结果\", \"terminal\": true, \"tags\": []}], \"total\": 1, \"next_cursor\": null, \"revision\": [\"dcb11e4580f64baba2dca8728426a287\", 0]}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c5208f9bed601e5f7398809d3d",
+          "type": "function",
+          "function": {
+            "name": "action_describe",
+            "arguments": "{\"name\": \"catalog.submit\", \"target\": {\"namespace\": \"catalog\", \"kind\": \"actors\", \"key\": \"a\"}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c5208f9bed601e5f7398809d3d",
+      "content": "{\"name\": \"catalog.submit\", \"target_kind\": [\"catalog\", \"actors\"], \"description\": \"提交本主体核对的完整报价结果\", \"parameters\": {\"type\": \"object\", \"properties\": {\"count\": {\"type\": \"integer\"}, \"total\": {\"type\": \"integer\"}, \"phrase\": {\"type\": \"string\"}}, \"required\": [\"count\", \"total\", \"phrase\"], \"additionalProperties\": false}, \"terminal\": true, \"tags\": [], \"strict\": false, \"read_only\": false}"
+    },
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "01a109c52b14c5f7a8434cfda59b1a04",
+          "type": "function",
+          "function": {
+            "name": "action_invoke",
+            "arguments": "{\"name\": \"catalog.submit\", \"target\": {\"namespace\": \"catalog\", \"kind\": \"actors\", \"key\": \"a\"}, \"arguments\": {\"count\": 12, \"total\": 546, \"phrase\": \"原文校验成功。\"}}"
+          }
+        }
+      ]
+    },
+    {
+      "role": "tool",
+      "tool_call_id": "01a109c52b14c5f7a8434cfda59b1a04",
+      "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"count\": 12, \"total\": 546, \"phrase\": \"原文校验成功。\"}, \"process\": null, \"terminal\": true}, \"observation\": null}"
+    }
+  ],
+  "usage": {
+    "actor": null,
+    "timing_scope": "sum_of_physical_attempt_wall_times",
+    "attribution": "physical_calls_once",
+    "totals": {
+      "requests": 15,
+      "responses": 15,
+      "errors": 0,
+      "input_tokens": 53693,
+      "output_tokens": 1188,
+      "total_tokens": 54881,
+      "input_reports": 15,
+      "output_reports": 15,
+      "total_reports": 15,
+      "cache_read_tokens": 34304,
+      "cache_write_tokens": 0,
+      "cache_read_reports": 15,
+      "cache_write_reports": 0,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 55.0593332919525,
+      "queue_s": 0.00014296011067926884,
+      "jitter_s": 0.0,
+      "provider_s": 55.044205250917,
+      "duration_reports": 15,
+      "queue_reports": 15,
+      "jitter_reports": 15,
+      "provider_reports": 15,
+      "unknown_usage_calls": 0,
+      "unknown_cache_read_calls": 0,
+      "unknown_cache_write_calls": 15
+    },
+    "models": [
+      {
+        "kind": "llm",
+        "model": "Qwen/Qwen3.8-27B",
+        "requests": 15,
+        "responses": 15,
+        "errors": 0,
+        "input_tokens": 53693,
+        "output_tokens": 1188,
+        "total_tokens": 54881,
+        "input_reports": 15,
+        "output_reports": 15,
+        "total_reports": 15,
+        "cache_read_tokens": 34304,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 15,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 55.0593332919525,
+        "queue_s": 0.00014296011067926884,
+        "jitter_s": 0.0,
+        "provider_s": 55.044205250917,
+        "duration_reports": 15,
+        "queue_reports": 15,
+        "jitter_reports": 15,
+        "provider_reports": 15,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 15
+      }
+    ]
+  },
+  "cost": {
+    "wall_seconds": 55.31979412492365,
+    "sdk_intervals": [
+      {
+        "kind": "llm_sdk",
+        "started": 570408.771199291,
+        "ended": 570410.254223291
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570411.4829615,
+        "ended": 570412.313994416
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570413.52025925,
+        "ended": 570414.922428791
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570416.076589791,
+        "ended": 570416.920382833
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570420.344223208,
+        "ended": 570421.412351458
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570426.587831541,
+        "ended": 570427.709439333
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570435.55453575,
+        "ended": 570436.2162625
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570439.1335005,
+        "ended": 570439.746506333
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570441.528637916,
+        "ended": 570442.210796625
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570444.800460416,
+        "ended": 570445.398925541
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570447.372473291,
+        "ended": 570448.087918
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570452.042177416,
+        "ended": 570452.764715583
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570454.60427275,
+        "ended": 570455.31550325
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570457.218150208,
+        "ended": 570458.040339208
+      },
+      {
+        "kind": "llm_sdk",
+        "started": 570460.008297958,
+        "ended": 570460.76728
+      },
+      {
+        "kind": "activation",
+        "started": 570408.735441666,
+        "ended": 570464.008055166
+      }
+    ]
+  },
+  "shell_attempts": [
+    {
+      "call": {
+        "id": "01a109c4cb0c5256aad5e7f6725c8871",
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "arguments": "{\"script\": \"echo '[7,14,21,28,35,42,49,56,63,70,77,84]' | jq '{count: length, total: (map(.[] | .) | add)}'\"}"
+        }
+      },
+      "result": {
+        "session_id": "shell-319i6n60",
+        "command_id": "1",
+        "stdout": "",
+        "stderr": "jq: error: Cannot iterate over number (7)\n",
+        "exit_code": 5,
+        "stdout_truncated": false,
+        "stderr_truncated": false,
+        "stdout_ref": "shell-319i6n60/output/1.stdout",
+        "stderr_ref": "shell-319i6n60/output/1.stderr",
+        "receipts": [],
+        "stdout_total_bytes": 0,
+        "stderr_total_bytes": 42,
+        "stdout_next_offset": null,
+        "stderr_next_offset": null,
+        "error": null
+      },
+      "verified_recomputation": false
+    },
+    {
+      "call": {
+        "id": "01a109c4d893819a9178a37fc0426f3e",
+        "type": "function",
+        "function": {
+          "name": "bash",
+          "arguments": "{\"script\": \"echo '[7,14,21,28,35,42,49,56,63,70,77,84]' | jq '{count: length, total: add}'\"}"
+        }
+      },
+      "result": {
+        "session_id": "shell-319i6n60",
+        "command_id": "2",
+        "stdout": "{\n  \"count\": 12,\n  \"total\": 546\n}\n",
+        "stderr": "",
+        "exit_code": 0,
+        "stdout_truncated": false,
+        "stderr_truncated": false,
+        "stdout_ref": "shell-319i6n60/output/2.stdout",
+        "stderr_ref": "shell-319i6n60/output/2.stderr",
+        "receipts": [],
+        "stdout_total_bytes": 34,
+        "stderr_total_bytes": 0,
+        "stdout_next_offset": null,
+        "stderr_next_offset": null,
+        "error": null
+      },
+      "verified_recomputation": true
+    }
+  ],
+  "recomputation_correct": true,
+  "independent_task_complete": true,
+  "frozen_test_result": "failed: first bash stdout selected before later successful correction"
+}

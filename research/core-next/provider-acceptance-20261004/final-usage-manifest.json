@@ -1,0 +1,114 @@
+[
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-01/test_real_endpoint_smoke_llm_and_embedding",
+    "usage_valid": false
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-01/test_real_round_robin_action_loop",
+    "usage_valid": false
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/round-live-02/test_real_round_robin_action_loop",
+    "usage_valid": false
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_endpoint_smoke_llm_and_embedding",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_exit_restore_memory_and_observation/before",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_exit_restore_memory_and_observation/restored",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_exit_restore_memory_and_observation/source",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/chain-live-03/test_real_round_robin_action_loop",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_complete_boundary_memory_restore",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_complete_boundary_memory_restore-failed",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_complete_boundary_memory_restore-recovered",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_endpoint_saturation_llm_and_embedding_managers",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_environment_action_tag_completion",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_interview_writes_artifacts",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_memory_roundtrip",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_memory_roundtrip-restored",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_phase_capacity_overrides_runtime",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_saturation_memory_and_logs",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_social_browse_completion_and_memory",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_social_publish_with_memory",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/remaining-live-01/test_real_terminal_rejection_then_success",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/tail-live-01/test_real_multi_tick_social_workflow",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_multi_tick_social_workflow",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_social_browse_completion_and_memory",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_social_publish_with_memory",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/social-vfs-final-01/test_real_vfs_discovery_pagination_original_and_action",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/effects-live-02/recall-off",
+    "usage_valid": true
+  },
+  {
+    "path": "research/core-next/provider-acceptance-20261004/effects-live-02/recall-on",
+    "usage_valid": true
+  }
+]

@@ -1,0 +1,21 @@
+.......F                                                                 [100%]
+=================================== FAILURES ===================================
+_____ test_large_tail_uses_reference_and_range_decodes_only_needed_blocks ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-267/test_large_tail_uses_reference0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108c95220>
+
+    def test_large_tail_uses_reference_and_range_decodes_only_needed_blocks(tmp_path, monkeypatch):
+        import society0.kernel.threads as module
+        store, threads = setup(tmp_path / 'run')
+        with store:
+            thread = threads.open('a',0,'operating')
+            message = {'role':'user','content':'引号"\\\n🌍'*1_000_000,'number':-123456789123456789,'float':1.2345e-200}
+            seq = threads.append_message(thread,message)
+            original = module._load
+            monkeypatch.setattr(module,'_load',lambda *a:(_ for _ in ()).throw(AssertionError('full body read')))
+>           page = threads.tail(thread,after_seq=seq-1,inline_payload_bytes=1024)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: ThreadStore.tail() got an unexpected keyword argument 'inline_payload_bytes'
+
+tests/primary/test_kernel_threads.py:151: TypeError

@@ -1,0 +1,34 @@
+{
+  "python": "3.12.12",
+  "anyio": "4.14.2",
+  "bashkit": "0.18.2",
+  "asyncio_child_cancel": [
+    "write",
+    "group_exited_normally"
+  ],
+  "anyio_scoped_cleanup": [
+    "cleanup_started",
+    "cleanup_finished",
+    "resources_may_close"
+  ],
+  "anyio_raw_cancel_boundary": {
+    "raw_asyncio_task_cancel_pierces_anyio_shield": true,
+    "events": [
+      "cleanup_started"
+    ]
+  },
+  "bounded_workers": {
+    "submitted": 1000,
+    "worker_tasks": 3,
+    "buffer_capacity": 8,
+    "peak_active": 1
+  },
+  "bashkit_lazy": {
+    "source_bytes_materialized": 8388608,
+    "calls": 1,
+    "first_output_bytes": 4,
+    "second_output_bytes": 4,
+    "tail_c_exit": 1,
+    "tail_c_stderr": "tail: invalid option -- 'c'\n"
+  }
+}

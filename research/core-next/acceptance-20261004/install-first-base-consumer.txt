@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/tmp/acceptance_clean_consumers.py", line 66, in <module>
+    asyncio.run(main(sys.argv[1]))
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/tmp/acceptance_clean_consumers.py", line 18, in main
+    plan=RunPlan(plugins=[Plugin('counter',schema=('CREATE TABLE counter(n INTEGER NOT NULL)',),initialize=lambda w:w.execute('INSERT INTO counter VALUES(0)')),interaction_plugin(lambda *args:True),results_plugin(),runtime_plugin(),schedule_plugin(FixedStep(phase))],moments=iter((1,2)),contract=RunContract(release={'commit':'clean-install'},dependencies={},configuration={},time={},budgets={}))
+                                                                                                                                                                                                                       ^^^^^^^^^^^^^^^^
+TypeError: runtime_plugin() missing 3 required keyword-only arguments: 'information', 'actions', and 'store'

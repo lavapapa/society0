@@ -1,0 +1,150 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_________ test_post_metadata_names_content_without_loading_body[list] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_post_metadata_names_conte0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c9320c0>
+method = 'list'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('method',['list','query','read'])
+    async def test_post_metadata_names_content_without_loading_body(tmp_path,monkeypatch,method):
+        async with compose(tmp_path/'run',plan(social_plugin('abc',name='public',content_length_limit=-1))) as host:
+            social=host.service('public','mechanism'); info=host.service('interaction','information')
+            original='完整冷正文🙂'*100000
+            key=social.execute('publish_post','a','a',{'content':original},0).value['post_id']
+            scope=InteractionScope('b',Moment(1,'read'))
+            def no_body(*args,**kwargs):raise AssertionError('metadata must not load body')
+            with monkeypatch.context() as patch:
+                patch.setattr(ReadView,'read_blob',no_body)
+                if method=='list':item=(await info.list(scope,'/public/posts',limit=1)).items[0]
+                elif method=='query':item=(await info.query(scope,'/public/posts',Query(fields=('id',),limit=1))).items[0]
+                else:item=json.loads((await info.read(scope,'/public/posts/'+key,size=4096)).data)
+>           assert item['content_path']=='/public/content/'+key
+                   ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:26: KeyError
+_________ test_post_metadata_names_content_without_loading_body[query] _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_post_metadata_names_conte1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10cd5c4a0>
+method = 'query'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('method',['list','query','read'])
+    async def test_post_metadata_names_content_without_loading_body(tmp_path,monkeypatch,method):
+        async with compose(tmp_path/'run',plan(social_plugin('abc',name='public',content_length_limit=-1))) as host:
+            social=host.service('public','mechanism'); info=host.service('interaction','information')
+            original='完整冷正文🙂'*100000
+            key=social.execute('publish_post','a','a',{'content':original},0).value['post_id']
+            scope=InteractionScope('b',Moment(1,'read'))
+            def no_body(*args,**kwargs):raise AssertionError('metadata must not load body')
+            with monkeypatch.context() as patch:
+                patch.setattr(ReadView,'read_blob',no_body)
+                if method=='list':item=(await info.list(scope,'/public/posts',limit=1)).items[0]
+                elif method=='query':item=(await info.query(scope,'/public/posts',Query(fields=('id',),limit=1))).items[0]
+                else:item=json.loads((await info.read(scope,'/public/posts/'+key,size=4096)).data)
+>           assert item['content_path']=='/public/content/'+key
+                   ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:26: KeyError
+_________ test_post_metadata_names_content_without_loading_body[read] __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_post_metadata_names_conte2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10cf0a750>
+method = 'read'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('method',['list','query','read'])
+    async def test_post_metadata_names_content_without_loading_body(tmp_path,monkeypatch,method):
+        async with compose(tmp_path/'run',plan(social_plugin('abc',name='public',content_length_limit=-1))) as host:
+            social=host.service('public','mechanism'); info=host.service('interaction','information')
+            original='完整冷正文🙂'*100000
+            key=social.execute('publish_post','a','a',{'content':original},0).value['post_id']
+            scope=InteractionScope('b',Moment(1,'read'))
+            def no_body(*args,**kwargs):raise AssertionError('metadata must not load body')
+            with monkeypatch.context() as patch:
+                patch.setattr(ReadView,'read_blob',no_body)
+                if method=='list':item=(await info.list(scope,'/public/posts',limit=1)).items[0]
+                elif method=='query':item=(await info.query(scope,'/public/posts',Query(fields=('id',),limit=1))).items[0]
+                else:item=json.loads((await info.read(scope,'/public/posts/'+key,size=4096)).data)
+>           assert item['content_path']=='/public/content/'+key
+                   ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:26: KeyError
+_______ test_content_link_preserves_member_and_resource_read_permissions _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_content_link_preserves_me0')
+
+    @pytest.mark.asyncio
+    async def test_content_link_preserves_member_and_resource_read_permissions(tmp_path):
+        async with compose(tmp_path/'run',plan(social_plugin('abc'))) as host:
+            social=host.service('social','mechanism'); store=host.service('storage','store')
+            key=social.execute('publish_post','a','a',{'content':'受权限约束的原文'},0).value['post_id']
+            info=Information(lambda scope,operation,ref:not (operation=='read' and ref.kind=='content'))
+            info.mount('/social',social_information(store))
+            scope=InteractionScope('b',Moment(1,'read'))
+            item=(await info.query(scope,'/social/posts',Query())).items[0]
+>           assert item['content_path']=='/social/content/'+key
+                   ^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:41: KeyError
+___________ test_post_content_links_participate_in_page_byte_budget ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_post_content_links_partic0')
+
+    @pytest.mark.asyncio
+    async def test_post_content_links_participate_in_page_byte_budget(tmp_path):
+        async with compose(tmp_path/'run',plan(social_plugin('abc'))) as host:
+            social=host.service('social','mechanism'); info=host.service('interaction','information')
+            for index in range(20):social.execute('publish_post','a','a',{'content':str(index)},0)
+            scope=InteractionScope('b',Moment(1,'read')); cursor=None;found=[]
+            while True:
+                page=await info.query(scope,'/social/posts',Query(limit=20,max_bytes=1024,cursor=cursor))
+                assert page.total==20
+                assert len(json.dumps(asdict(page),ensure_ascii=False,separators=(',',':')).encode())<=1024
+>               assert all(item['content_path']=='/social/content/'+item['id'] for item in page.items)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_content_discovery.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+.0 = <list_iterator object at 0x10cf08670>
+
+>   assert all(item['content_path']=='/social/content/'+item['id'] for item in page.items)
+               ^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:58: KeyError
+_____ test_readonly_complete_and_restored_runtime_share_content_discovery ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1036/test_readonly_complete_and_res0')
+
+    @pytest.mark.asyncio
+    async def test_readonly_complete_and_restored_runtime_share_content_discovery(tmp_path):
+        plugins=plan(social_plugin('abc'))
+        scope=InteractionScope('b',Moment(1,'read'))
+        async with compose(tmp_path/'run',plugins) as host:
+            social=host.service('social','mechanism'); store=host.service('storage','store')
+            key=social.execute('publish_post','a','a',{'content':'完整点原文🙂'},0).value['post_id']
+            store.complete(1)
+        with StageReader(tmp_path/'run') as reader:
+            info=Information(lambda *args:True);info.mount('/social',social_information(reader))
+            saved=(await info.query(scope,'/social/posts',Query())).items
+>           assert saved[0]['content_path']=='/social/content/'+key
+                   ^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'content_path'
+
+tests/primary/test_social_content_discovery.py:76: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_social_content_discovery.py::test_post_metadata_names_content_without_loading_body[list]
+FAILED tests/primary/test_social_content_discovery.py::test_post_metadata_names_content_without_loading_body[query]
+FAILED tests/primary/test_social_content_discovery.py::test_post_metadata_names_content_without_loading_body[read]
+FAILED tests/primary/test_social_content_discovery.py::test_content_link_preserves_member_and_resource_read_permissions
+FAILED tests/primary/test_social_content_discovery.py::test_post_content_links_participate_in_page_byte_budget
+FAILED tests/primary/test_social_content_discovery.py::test_readonly_complete_and_restored_runtime_share_content_discovery
+6 failed in 0.45s

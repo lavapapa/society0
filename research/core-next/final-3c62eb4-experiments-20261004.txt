@@ -1,0 +1,8 @@
+CWD: /tmp/society0-final-3c62eb4-storage-20261004
+COMMAND: ['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 'pytest', '-o', 'addopts=', '-q', '-rs', 'tests/experiments']
+........................................................................ [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/experiments/test_core_next_vector_backends.py:2: isolated sqlite-vec feasibility environment required
+72 passed, 1 skipped in 3.00s
+
+EXIT: 0

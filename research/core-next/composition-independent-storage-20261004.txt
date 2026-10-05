@@ -1,0 +1,21 @@
+.F.                                                                      [100%]
+=================================== FAILURES ===================================
+__ test_review_restore_preflight_ignores_dirty_current_and_never_initializes ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-341/test_review_restore_preflight_0')
+
+    @pytest.mark.asyncio
+    async def test_review_restore_preflight_ignores_dirty_current_and_never_initializes(tmp_path):
+        schema=('CREATE TABLE facts(id INTEGER PRIMARY KEY)',)
+        with StageStore.create(tmp_path/'source',schema,initialize=lambda w:w.execute('INSERT INTO facts VALUES(1)')) as store:
+            store.transaction(lambda w:w.execute('INSERT INTO facts VALUES(2)'))
+            def forbidden(w):raise AssertionError('initializer reran')
+            async with compose(tmp_path/'restore',[Plugin('facts',schema=schema,initialize=forbidden)],source=store.path) as host:
+>               restored=host.get('storage','store')
+                         ^^^^^^^^
+E               AttributeError: 'PluginHost' object has no attribute 'get'
+
+tests/primary/test_kernel_composition_review.py:28: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_composition_review.py::test_review_restore_preflight_ignores_dirty_current_and_never_initializes
+1 failed, 2 passed in 0.06s

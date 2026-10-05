@@ -1,0 +1,93 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_typed_record_actions_preserve_facts_keys_order_precision_and_restore ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-669/test_typed_record_actions_pres0')
+
+    @pytest.mark.asyncio
+    async def test_typed_record_actions_preserve_facts_keys_order_precision_and_restore(tmp_path):
+        plugins=[interaction_plugin(lambda *a:True),record_plugin(owner='owner')]
+>       async with compose(tmp_path/'run',plugins) as host:
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_record_plugin.py:10: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:34: in compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:141: in __aenter__
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+context = <society0.kernel.plugins.PluginContext object at 0x10792aae0>
+
+    def install(context):
+        records=Records(context.require('storage','store'))
+        actions=context.require('interaction','actions')
+        schema={'type':'object','properties':{'key':{'type':['integer','string']},'value':{}},
+                'required':['key','value'],'additionalProperties':False}
+        def append(scope,target,args):
+            if not records.owns(scope,target):return ActionResult('rejected')
+            return ActionResult('completed' if records.append(args['key'],args['value']) else 'rejected')
+        def project(scope,target,args):
+            if not records.owns(scope,target):return ActionResult('rejected')
+            records.project(args['key'],args['value']);return ActionResult('completed')
+        for name,handler in (('append',append),('project',project)):
+>           actions.register(Action('records.'+name,('records','ledger'),name,schema,handler,
+                available=records.owns,dependencies=('record_settings','record_facts','record_projection')))
+E           TypeError: Action.__init__() got an unexpected keyword argument 'dependencies'
+
+examples/core_next/typed_records.py:73: TypeError
+________ test_record_projection_and_fact_partial_transaction_rolls_back ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-669/test_record_projection_and_fac0')
+
+    @pytest.mark.asyncio
+    async def test_record_projection_and_fact_partial_transaction_rolls_back(tmp_path):
+>       async with compose(tmp_path/'run',[interaction_plugin(lambda *a:True),record_plugin(owner='owner')]) as host:
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_record_plugin.py:31: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:34: in compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:141: in __aenter__
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+context = <society0.kernel.plugins.PluginContext object at 0x107d8c4d0>
+
+    def install(context):
+        records=Records(context.require('storage','store'))
+        actions=context.require('interaction','actions')
+        schema={'type':'object','properties':{'key':{'type':['integer','string']},'value':{}},
+                'required':['key','value'],'additionalProperties':False}
+        def append(scope,target,args):
+            if not records.owns(scope,target):return ActionResult('rejected')
+            return ActionResult('completed' if records.append(args['key'],args['value']) else 'rejected')
+        def project(scope,target,args):
+            if not records.owns(scope,target):return ActionResult('rejected')
+            records.project(args['key'],args['value']);return ActionResult('completed')
+        for name,handler in (('append',append),('project',project)):
+>           actions.register(Action('records.'+name,('records','ledger'),name,schema,handler,
+                available=records.owns,dependencies=('record_settings','record_facts','record_projection')))
+E           TypeError: Action.__init__() got an unexpected keyword argument 'dependencies'
+
+examples/core_next/typed_records.py:73: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_record_plugin.py::test_typed_record_actions_preserve_facts_keys_order_precision_and_restore
+FAILED tests/primary/test_kernel_record_plugin.py::test_record_projection_and_fact_partial_transaction_rolls_back
+2 failed in 0.08s

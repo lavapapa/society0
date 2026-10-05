@@ -1,0 +1,8 @@
+# 本机安装、冻结副本与运行正文留在本地；报告与脱敏摘要进入版本库。
+native-release-final/
+wheels/
+wheels-final/
+wheels-metadata-final/
+independent-node-run/
+real-final-*/source/
+real-final-*/test_*/

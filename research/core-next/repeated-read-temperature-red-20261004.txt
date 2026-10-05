@@ -1,0 +1,46 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+____ test_repeated_facts_temperature_streak_new_fact_write_and_noop[False] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-921/test_repeated_facts_temperatur0')
+enabled = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('enabled',[False,True])
+    async def test_repeated_facts_temperature_streak_new_fact_write_and_noop(tmp_path,enabled):
+        names=['read','read','read','new','new','noop','new','write','new','raw','raw']
+>       policy=LLMPolicy(max_turns=12,request_options={'temperature':0.1},
+            repeated_read_temperature_delta=0.2 if enabled else None,repeated_read_temperature_max=0.4)
+E       TypeError: LLMPolicy.__init__() got an unexpected keyword argument 'repeated_read_temperature_delta'
+
+tests/primary/test_kernel_repeated_read_temperature.py:13: TypeError
+_____ test_repeated_facts_temperature_streak_new_fact_write_and_noop[True] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-921/test_repeated_facts_temperatur1')
+enabled = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('enabled',[False,True])
+    async def test_repeated_facts_temperature_streak_new_fact_write_and_noop(tmp_path,enabled):
+        names=['read','read','read','new','new','noop','new','write','new','raw','raw']
+>       policy=LLMPolicy(max_turns=12,request_options={'temperature':0.1},
+            repeated_read_temperature_delta=0.2 if enabled else None,repeated_read_temperature_max=0.4)
+E       TypeError: LLMPolicy.__init__() got an unexpected keyword argument 'repeated_read_temperature_delta'
+
+tests/primary/test_kernel_repeated_read_temperature.py:13: TypeError
+________________ test_read_temperature_resets_on_new_activation ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-921/test_read_temperature_resets_o0')
+
+    @pytest.mark.asyncio
+    async def test_read_temperature_resets_on_new_activation(tmp_path):
+>       policy=LLMPolicy(request_options={'temperature':.1},repeated_read_temperature_delta=.2)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: LLMPolicy.__init__() got an unexpected keyword argument 'repeated_read_temperature_delta'
+
+tests/primary/test_kernel_repeated_read_temperature.py:43: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_repeated_read_temperature.py::test_repeated_facts_temperature_streak_new_fact_write_and_noop[False]
+FAILED tests/primary/test_kernel_repeated_read_temperature.py::test_repeated_facts_temperature_streak_new_fact_write_and_noop[True]
+FAILED tests/primary/test_kernel_repeated_read_temperature.py::test_read_temperature_resets_on_new_activation
+3 failed in 0.48s

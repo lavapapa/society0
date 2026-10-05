@@ -1,0 +1,104 @@
+F.........                                                               [100%]
+=================================== FAILURES ===================================
+_________________ test_two_mechanism_pilot_and_complete_branch _________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-724/test_two_mechanism_pilot_and_c0')
+
+    @pytest.mark.asyncio
+    async def test_two_mechanism_pilot_and_complete_branch(tmp_path):
+        config={'release':{'commit':'explicit-test-release'},'start':1,'end':2}
+>       result=await run_plan(tmp_path/'run',build(config))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_pilot.py:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:302: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:258: in _run_phase
+    await self.results.write_phase(self._step,phase_index,phase.name,result,
+src/society0/kernel/results.py:87: in write_phase
+    reference=await self._dataset(step,phase_index,'header','header',(header,))
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/results.py:70: in _dataset
+    ordinal+=self.store.transaction(batch)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:483: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/results.py:58: in batch
+    self._row(writer,identifier,ordinal+count,value)
+src/society0/kernel/results.py:42: in _row
+    writer.executemany('INSERT INTO result_chunks VALUES(?,?,?,?,?,?)',chunks())
+src/society0/kernel/storage.py:194: in executemany
+    cursor = self._connection.executemany(sql, bindings)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/results.py:39: in chunks
+    for number,(size,body) in enumerate(writer.encode_chunks(value)):
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:167: in encode_chunks
+    for item in stream:
+                ^^^^^^
+src/society0/kernel/_json_chunks.py:83: in encode
+    prefix = list(islice(source, 4))
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/_json_chunks.py:49: in raw_chunks
+    for part in _json_parts(value):
+                ^^^^^^^^^^^^^^^^^^
+src/society0/kernel/_json_chunks.py:37: in _json_parts
+    yield from _json_parts(item, ancestors)
+src/society0/kernel/_json_chunks.py:37: in _json_parts
+    yield from _json_parts(item, ancestors)
+src/society0/kernel/_json_chunks.py:37: in _json_parts
+    yield from _json_parts(item, ancestors)
+src/society0/kernel/_json_chunks.py:37: in _json_parts
+    yield from _json_parts(item, ancestors)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+value = ('a', 'd'), ancestors = set()
+
+    def _json_parts(value, ancestors=None):
+        """字符串先切片再转义；不构造巨大 JSON 字符串。"""
+        if type(value) is str:
+            yield b'"'
+            for start in range(0, len(value), 8192):
+                yield json.dumps(value[start:start + 8192], ensure_ascii=False)[1:-1].encode('utf8')
+            yield b'"'
+        elif type(value) in (dict, list):
+            ancestors = set() if ancestors is None else ancestors
+            if id(value) in ancestors:
+                raise ValueError('circular JSON value')
+            ancestors.add(id(value))
+            try:
+                mapping = type(value) is dict
+                yield b'{' if mapping else b'['
+                for index, pair in enumerate(value.items() if mapping else value):
+                    if index:
+                        yield b','
+                    if mapping:
+                        key, item = pair
+                        if type(key) is not str:
+                            raise TypeError('JSON object keys must be strings')
+                        yield from _json_parts(key, ancestors)
+                        yield b':'
+                    else:
+                        item = pair
+                    yield from _json_parts(item, ancestors)
+                yield b'}' if mapping else b']'
+            finally:
+                ancestors.remove(id(value))
+        elif value is None or type(value) in (bool, int, float):
+            yield json.dumps(value, allow_nan=False).encode('ascii')
+        else:
+>           raise TypeError('Thread values must be JSON values')
+E           TypeError: Thread values must be JSON values
+
+src/society0/kernel/_json_chunks.py:44: TypeError

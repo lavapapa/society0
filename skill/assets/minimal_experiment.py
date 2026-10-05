@@ -1,146 +1,120 @@
-"""两轮 LLM Agent 起步示例：查看消息、保存经验、测量判断。"""
-
+"""两轮 LLM 研究计划：完整感知、查看详情、显式保存经验、结构化测量。"""
 import argparse
 import asyncio
-import copy
 import json
 import os
-import shutil
+import inspect
+import platform
+from dataclasses import asdict
+from importlib.metadata import version
 from pathlib import Path
+from society0.kernel.actors import ActorRecord,actor_plugin
+from society0.kernel.cognition import CognitiveInput
+from society0.kernel.interaction import Action,ActionResult,interaction_plugin
+from society0.kernel.llm import LLMPolicy
+from society0.kernel.drivers import llm_driver_plugin
+from society0.kernel.memory import MemoryPolicy
+from society0.kernel.plugins import Plugin
+from society0.kernel.results import StepResult,results_plugin
+from society0.kernel.runner import RunPlan,RunContract,run_plan
+from society0.kernel.runtime import Phase,runtime_plugin
+from society0.activation_pool import DEFAULT_MAX_ACTIVATIONS
+from society0.kernel.schedule import SequenceSchedule,activate
+from society0.kernel.selection import result_mean,result_rows
+from society0.kernel.services import thread_plugin,memory_plugin
 
-from pydantic import BaseModel, Field
-from society0 import EmbedModel, LLMModel, Society0
-
-
-CONFIG = {
-    "agent_types": [{
-        "id": "reader", "archetype": "llm",
-        "state_schema": {
-            "type": "object", "additionalProperties": False,
-            "properties": {"attention": {
-                "type": "string", "persistence": {"kind": "replaceable"},
-            }},
-        },
-    }],
-    "agents": [{
-        "id": "alice", "type": "reader", "persona": "关注本地交通消息的通勤者。",
-        "state": {"attention": "正常"}, "properties": {"cohort": "pilot"},
-    }],
-    "environment": {
-        "type": "plain",
-        "state": {
-            "message": "某个本地账号称下月地铁末班车将提前；尚无官方通知。",
-            "detail_views": [],
-        },
-        "state_schema": {
-            "type": "object", "additionalProperties": False,
-            "properties": {
-                "message": {"type": "string", "persistence": {"kind": "replaceable"}},
-                "detail_views": {
-                    "type": "array", "items": {"type": "string"},
-                    "persistence": {"kind": "append_only_list"},
-                },
-            },
-        },
-    },
-}
+MESSAGE='某个本地账号称下月地铁末班车将提前；尚无官方通知。'
+SURVEY={'type':'object','properties':{'credibility':{'type':'integer','minimum':1,'maximum':7},
+    'reason':{'type':'string'}},'required':['credibility','reason'],'additionalProperties':False}
 
 
-class CredibilitySurvey(BaseModel):
-    credibility: int = Field(ge=1, le=7, description="1 完全不信，7 完全相信")
-    reason: str = Field(description="一句话解释判断依据")
-
-
-def require_success(batch, phase):
-    if batch.error_count:
-        raise RuntimeError(f"{phase}失败：{batch.error_samples(limit=3)}")
-
-
-def build_engine(run_dir, llm, embed):
-    engine = Society0(save_dir=str(run_dir), base_config=copy.deepcopy(CONFIG), llm=llm, embed=embed)
-
-    @engine.registry.env.fov(desc="信息流中的消息摘要。")
-    def message_preview(agent, env):
-        return env.state["message"]
-
-    @engine.registry.env.action(desc="查看消息详情与来源，记录本次查看。", tags=["read"])
-    def view_details(agent, env):
-        env.state["detail_views"].append(agent.id)
-        return {"message": env.state["message"], "source": "本地账号，未见官方证实"}
-
-    # 每个 tick 都执行全部注册步骤；用分支表达前后两轮。
-    @engine.step(name="exposure_then_measurement")
-    async def protocol(ctx):
-        readers = ctx.agents.where(type="reader")
-        if ctx.step == 0:
-            threads = {
-                agent_id: ctx.log.open_agent_thread(
-                    agent_id=agent_id, checkpoint_step=ctx.step + 1,
-                    scope={"kind": "exposure", "tick": ctx.step},
-                )
-                for agent_id in readers.ids()
-            }
-            browsing = await readers.instruct(
-                "查看消息详情，再说明你目前怎样理解这则消息。",
-                fovs=["message_preview"], actions=["view_details"],
-                required_actions=["view_details"], retrieve_memory=True,
-                thread_ids_by_agent=threads, max_turns=3, max_tokens=512,
-                temperature=0, name="browse",
-            )
-            require_success(browsing, "浏览")
-            memories = await readers.extract_thread_memories(
-                threads, timestamp=ctx.step,
-                idempotency_key=f"exposure:{ctx.step}", name="remember_exposure",
-            )
-            require_success(memories, "保存本轮经验")
-            return ctx.result(tables={"browsing": browsing.table(), "memory": memories.table()})
-
-        survey = await readers.interview(
-            "结合当前呈现的消息和此前经验，评价这则消息的可信度，给出 1–7 分和一句理由。",
-            fovs=["message_preview"], output=CredibilitySurvey,
-            retrieve_memory=True, memory_top_k=3,
-            max_turns=2, max_tokens=512, temperature=0, name="credibility_survey",
-        )
-        require_success(survey, "测量")
-        return ctx.result(
-            metrics={"mean_credibility": survey.mean("credibility")},
-            tables={"survey": survey.table()},
-        )
-
-    return engine
+def build_plan(*,release,resource_plugins=None,model=None,embedding=None,moments=(1,2)):
+    """resources 提供具名 models/embeddings/client；正式端点从运行环境取得。"""
+    browse_policy=LLMPolicy(required_names=('news.view_details',))
+    interview_policy=LLMPolicy(mode='interview',result_schema=SURVEY)
+    if resource_plugins is None:
+        from society0.kernel.models import model_plugin,embedding_plugin,ModelProvider,EmbeddingProvider
+        def resolved(provider, supplied):
+            options={name:parameter.default for name,parameter in inspect.signature(provider).parameters.items()
+                if parameter.kind is inspect.Parameter.KEYWORD_ONLY and parameter.default is not inspect.Parameter.empty and name!='request_limit'}
+            options.update(supplied)
+            options['endpoints']=[{'timeout':30.0,**endpoint} for endpoint in options['endpoints']]
+            capacity=max(1,sum(endpoint['concurrency'] for endpoint in options['endpoints']))
+            if options.get('http_connections') is None:options['http_connections']=capacity
+            if provider is ModelProvider and options['global_concurrency'] is None:options['global_concurrency']=capacity
+            return options
+        model=resolved(ModelProvider,model)
+        embedding=resolved(EmbeddingProvider,embedding)
+        def vectors(ctx):
+            import chromadb
+            client=chromadb.EphemeralClient();ctx.on_close(client.close);ctx.provide('client',client)
+            ctx.provide('models',ctx.require('models','models'))
+            ctx.provide('embeddings',ctx.require('embeddings','embeddings'))
+        resource_plugins=[model_plugin({'main':model}),embedding_plugin({'main':embedding}),
+            Plugin('resources',('models','embeddings'),vectors)]
+    def news(ctx):
+        store=ctx.require('storage','store')
+        def detail(scope,target,arguments):
+            if target.key!='current':return ActionResult('rejected',{'reason':'message_unavailable'})
+            store.transaction(lambda w:w.execute('INSERT INTO news_views(actor) VALUES(?)',(scope.actor,)))
+            return ActionResult('completed',{'message':MESSAGE,'source':'本地账号，未见官方证实'})
+        ctx.require('interaction','actions').register(Action('news.view_details',('news','message'),
+            '查看完整消息及来源，并记录查看事实。',{'type':'object','properties':{},'additionalProperties':False},detail))
+    def cognition(ctx):
+        threads=ctx.require('threads','threads')
+        async def perceive(session,cursor):
+            task=('调用 news.view_details 查看详情，然后说明你的判断。目标为 '
+                  '{"namespace":"news","kind":"message","key":"current"}。' if session.step==1 else '评价可信度，提交 1–7 分与理由。')
+            return ([{'role':'user','content':MESSAGE+'\n'+task}],session.step)
+        inputs=CognitiveInput(threads,perceive,environment='消息传播研究；信息与来源供主体自主判断。',precision='完整原文')
+        ctx.provide('input',inputs)
+    moments=tuple(moments)
+    def schedule(ctx):
+        actors=ctx.require('actors','actors')
+        async def study(phase):
+            actors.update('alice',driver='browse' if phase.moment.time==moments[0] else 'interview')
+            outcomes=await activate(phase,('alice',))
+            for item in outcomes:
+                if item.result.status!='completed':raise RuntimeError('主体未完成：'+str(item.result.reason))
+            return StepResult(metrics={'mean_credibility':result_mean(outcomes,('result','credibility'))},tables={'responses':result_rows(outcomes)})
+        ctx.provide('schedule',SequenceSchedule(moments,[Phase('study',study)]))
+    plugins=[thread_plugin(),interaction_plugin(lambda *args:True),results_plugin(),*resource_plugins,
+        memory_plugin(client=('resources','client'),embedding=('resources','embeddings','main'),extraction=('resources','models','main'),
+            policy=MemoryPolicy(auto_write=True,auto_recall=True,active_tools=True),recall_query=lambda session:'此前看到的消息与判断'),
+        Plugin('news',('storage','interaction'),news,schema=('CREATE TABLE news_views(ordinal INTEGER PRIMARY KEY,actor TEXT NOT NULL)',)),
+        Plugin('cognition',('threads',),cognition),
+        llm_driver_plugin(provider=('resources','models','main'),input_builder=('cognition','input'),policy=browse_policy,
+            extensions=(('memory','extension'),),name='browse_driver'),
+        llm_driver_plugin(provider=('resources','models','main'),input_builder=('cognition','input'),policy=interview_policy,
+            extensions=(('memory','extension'),),name='interview_driver'),
+        actor_plugin({'browse':('browse_driver','factory'),'interview':('interview_driver','factory')},
+            records=[ActorRecord('alice','browse',persona='关注本地交通消息的通勤者。',state={'attention':'正常'})]),
+        runtime_plugin(actor_service=('actors','actors'),information=('interaction','information'),actions=('interaction','actions'),
+            store=('storage','store'),results=('results','results'),capacity=1,max_activations=DEFAULT_MAX_ACTIVATIONS),
+        Plugin('schedule',('runtime','memory','news','actors'),schedule)]
+    profiles={name:{**options,'endpoints':[{key:value for key,value in endpoint.items() if key!='api_key'} for endpoint in options['endpoints']]}
+        for name,options in (('llm',model),('embedding',embedding)) if options is not None}
+    dependencies={name:version(name) for name in ('society0','apsw','jsonschema','python-rapidjson','backports-zstd','pydantic-ai-slim','openai','httpx2','chromadb','pydantic','json-repair')}
+    dependencies['python']=platform.python_version()
+    return RunPlan(plugins,RunContract(release=release,dependencies=dependencies,
+        configuration={'models':profiles,'message':MESSAGE,'memory':{'auto_write':True,'auto_recall':True,'active_tools':True},'survey':SURVEY},
+        time={'moments':list(moments)},budgets={'browse':asdict(browse_policy),'interview':asdict(interview_policy),
+            'runtime':{'capacity':1,'max_activations':DEFAULT_MAX_ACTIVATIONS}},
+        credential_env=('SOCIETY0_LLM_API_KEY','SOCIETY0_EMBED_API_KEY')))
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="两轮 Society0 LLM Agent 起步实验")
-    parser.add_argument("--run-dir", required=True, type=Path, help="本次新建的产物目录")
-    parser.add_argument("--check", action="store_true", help="初始化配置并生成检查产物，不执行实验轮次")
-    args = parser.parse_args()
-    if args.run_dir.exists():
-        parser.error(f"目录已存在，请为本次检查或试运行选择新目录：{args.run_dir}")
-    # 由 AI 将本地模型配置文件加载到这些环境变量；程序不输出凭据。
-    llm = LLMModel.openai_compatible(
-        model=os.environ["SOCIETY0_LLM_MODEL"], base_url=os.environ["SOCIETY0_LLM_BASE_URL"],
-        api_key=os.environ["SOCIETY0_LLM_API_KEY"], concurrency=1, timeout=60,
-    )
-    embed = EmbedModel.openai_compatible(
-        model=os.environ["SOCIETY0_EMBED_MODEL"], base_url=os.environ["SOCIETY0_EMBED_BASE_URL"],
-        api_key=os.environ["SOCIETY0_EMBED_API_KEY"],
-        dimensions=int(os.environ["SOCIETY0_EMBED_DIMENSIONS"]),
-        send_dimensions=False, concurrency=1, timeout=60,
-    )
-    engine = build_engine(args.run_dir, llm, embed)
-    shutil.copyfile(__file__, args.run_dir / "experiment-source.py")
-    (args.run_dir / "config-used.json").write_text(
-        json.dumps({"config": CONFIG, "models": {
-            "llm": llm.model, "embedding": embed.model,
-            "embedding_dimensions": embed.dimensions, "concurrency": 1,
-        }}, ensure_ascii=False, indent=2), encoding="utf-8",
-    )
-    await engine.run(steps=0 if args.check else 2)
-    summary = json.loads((args.run_dir / "summary.json").read_text(encoding="utf-8"))
-    print(json.dumps({"failed": summary["failed"], "steps_completed": summary["steps_completed"],
-                      "run_dir": str(args.run_dir)}, ensure_ascii=False))
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--run-dir',required=True,type=Path)
+    parser.add_argument('--check',action='store_true',help='仅初始化，不请求提供方')
+    args=parser.parse_args()
+    def endpoint(prefix):
+        return {'id':prefix.lower(),'model':os.environ[prefix+'_MODEL'],'base_url':os.environ[prefix+'_BASE_URL'],
+            'api_key':os.environ[prefix+'_API_KEY'],'concurrency':1,'timeout':60}
+    model={'endpoints':[endpoint('SOCIETY0_LLM')],'request_options':json.loads(os.environ.get('SOCIETY0_LLM_OPTIONS','{}'))}
+    embedding={'endpoints':[{**endpoint('SOCIETY0_EMBED'),'send_dimensions':False}],'dimensions':int(os.environ['SOCIETY0_EMBED_DIMENSIONS'])}
+    plan=build_plan(release={'commit':os.environ['SOCIETY0_RELEASE']},model=model,embedding=embedding,moments=() if args.check else (1,2))
+    print(json.dumps(await run_plan(args.run_dir,plan),ensure_ascii=False))
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__=='__main__':asyncio.run(main())

@@ -1,0 +1,111 @@
+...F.F..FFF.........F.....................F.F........................    [100%]
+=================================== FAILURES ===================================
+____ test_invalid_resource_capacity_fails_before_opening_clients[options1] _____
+tests/primary/test_kernel_models.py:41: in test_invalid_resource_capacity_fails_before_opening_clients
+    with pytest.raises(ValueError):ModelProvider([endpoint()],None,**options)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ValueError
+_______ test_profiles_install_through_host_and_preserve_request_defaults _______
+tests/primary/test_kernel_models.py:59: in test_profiles_install_through_host_and_preserve_request_defaults
+    assert received[0]['temperature']==0 and received[0]['max_tokens']==128
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'max_tokens'
+__________ test_model_close_drains_request_and_rejects_later_requests __________
+tests/primary/test_kernel_models.py:119: in test_model_close_drains_request_and_rejects_later_requests
+    assert waiter.done()
+E   AssertionError: assert False
+E    +  where False = <built-in method done of _asyncio.Task object at 0x10a158040>()
+E    +    where <built-in method done of _asyncio.Task object at 0x10a158040> = <Task pending name='Task-353' coro=<ModelProvider.request() running at /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/models.py:53> wait_for=<Future finished result=True>>.done
+___ test_review_retry_evidence_preserves_actual_request_when_thread_advances ___
+tests/primary/test_kernel_models_review.py:26: in create
+    raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
+E   openai.APITimeoutError: Request timed out.
+
+The above exception was the direct cause of the following exception:
+src/society0/kernel/models.py:335: in request
+    async with endpoint.model.request_stream(messages, settings, params) as stream:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:1120: in request_stream
+    response = await self._completions_create(messages, True, model_settings_cast, model_request_parameters)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:1173: in _completions_create
+    with _map_api_errors(self.model_name, self._provider.model_id_namespace), map_decode_errors(self.model_name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:245: in _map_api_errors
+    raise ModelAPIError(model_name=model_name, message=e.message) from e
+E   pydantic_ai.exceptions.ModelAPIError: Request timed out.
+
+The above exception was the direct cause of the following exception:
+tests/primary/test_kernel_models_review.py:31: in test_review_retry_evidence_preserves_actual_request_when_thread_advances
+    await provider.request(tid, {})
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:370: in request
+    raise ProviderFailure(reason, redact_credentials(str(error), secrets=(endpoint.secret,))) from error
+E   society0.kernel.models.ProviderFailure: Request timed out.
+_____ test_review_provider_diagnostics_do_not_encode_or_copy_full_history ______
+tests/primary/test_kernel_models_review.py:65: in test_review_provider_diagnostics_do_not_encode_or_copy_full_history
+    assert encoded==[threads.describe(tid)['last_seq']-2]
+E   assert [21] == [22]
+E     
+E     At index 0 diff: 21 != 22
+E     Use -v to get more diff
+__ test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance ___
+tests/primary/test_kernel_embedding_provider.py:29: in test_shared_physical_batch_preserves_duplicate_texts_and_actor_provenance
+    assert a==[[1.,10.],[1.,10.]] and b==[[2.,10.],[1.,10.]]
+E   assert ([[2.0, 10.0], [2.0, 10.0]] == [[1.0, 10.0], [1.0, 10.0]]
+E     
+E     At index 0 diff: [2.0, 10.0] != [1.0, 10.0]
+E     Use -v to get more diff)
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+tests/primary/test_kernel_llm.py:254: in create
+    raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
+E   openai.APITimeoutError: Request timed out.
+
+The above exception was the direct cause of the following exception:
+src/society0/kernel/models.py:335: in request
+    async with endpoint.model.request_stream(messages, settings, params) as stream:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:1120: in request_stream
+    response = await self._completions_create(messages, True, model_settings_cast, model_request_parameters)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:1173: in _completions_create
+    with _map_api_errors(self.model_name, self._provider.model_id_namespace), map_decode_errors(self.model_name):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:158: in __exit__
+    self.gen.throw(value)
+.venv/lib/python3.12/site-packages/pydantic_ai/models/openai.py:245: in _map_api_errors
+    raise ModelAPIError(model_name=model_name, message=e.message) from e
+E   pydantic_ai.exceptions.ModelAPIError: Request timed out.
+
+The above exception was the direct cause of the following exception:
+tests/primary/test_kernel_llm.py:259: in test_physical_retry_preserves_request_reference_and_full_raw_response
+    result = await provider.request(tid, {'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}})
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:47: in scoped
+    try: return await result
+                ^^^^^^^^^^^^
+src/society0/kernel/models.py:40: in invoke
+    try: value = await method(self, *args, **kwargs)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/models.py:370: in request
+    raise ProviderFailure(reason, redact_credentials(str(error), secrets=(endpoint.secret,))) from error
+E   society0.kernel.models.ProviderFailure: Request timed out.
+__ test_required_thread_failure_never_retries_actual_model_request[response] ___
+tests/primary/test_kernel_llm.py:296: in test_required_thread_failure_never_retries_actual_model_request
+    with pytest.raises(ThreadWriteError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE ThreadWriteError
+8 failed, 61 passed in 2.96s

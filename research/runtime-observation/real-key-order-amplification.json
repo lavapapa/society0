@@ -1,0 +1,21 @@
+{
+  "sequence_block_misses": 1137282,
+  "sequence_compressed_bytes_read": 21551600885,
+  "dictionary_compressed_bytes": 25518685,
+  "compressed": true,
+  "keys": 1283280,
+  "blocks": 1949,
+  "metadata_file_bytes": 97927168,
+  "build_seconds": 9.48726088181138,
+  "table_bytes": {
+    "key_blocks": 27643904,
+    "key_fence": 442368,
+    "prefixes": 12288,
+    "records": 46780416,
+    "records_path": 23031808,
+    "sqlite_autoindex_prefixes_1": 12288,
+    "sqlite_schema": 4096
+  },
+  "exact_query_median_seconds": 0.002901814877986908,
+  "exact_query_p95_seconds": 0.004258539527654648
+}

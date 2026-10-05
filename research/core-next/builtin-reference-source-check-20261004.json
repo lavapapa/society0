@@ -1,0 +1,80 @@
+{
+  "source_commit": "96b1f3b11aee3c146f5b43e0b8158ec29294e98a",
+  "checks": [
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_generate_topology",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_create_traditional_graph",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_build_active_pool_ids",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_score_posts",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_collect_recent_interactions_for_agent",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_build_agent_preference_text",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_create_cv_targeted_graph",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_create_base_graph_for_cv",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_get_base_distribution",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_optimize_cv_distribution",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_increase_mutual_connections",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_decrease_mutual_connections",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_calculate_cv_for_node",
+      "source_text_equal": true
+    },
+    {
+      "class": "SocialNetworkEnv",
+      "method": "_calculate_average_cv_for_graph",
+      "source_text_equal": true
+    },
+    {
+      "class": "RoundRobinConversationEnv",
+      "method": "_build_round_robin_schedule",
+      "source_text_equal": true
+    }
+  ]
+}

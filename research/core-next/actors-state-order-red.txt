@@ -1,0 +1,25 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+___ test_subjective_state_key_update_preserves_order_and_skips_cold_neighbor ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-363/test_subjective_state_key_upda0')
+
+    @pytest.mark.asyncio
+    async def test_subjective_state_key_update_preserves_order_and_skips_cold_neighbor(tmp_path):
+        state={'z':'原文'*500000,'a':1}
+        async with compose(tmp_path/'run',[actor_plugin({'rule':lambda r:None},records=[ActorRecord('a','rule',state=state)])]) as host:
+            actors=host.service('actors','actors')
+            actors.set_state('a','a',2)
+            actors.set_state('a','new',3)
+            assert host.service('storage','store')._session.memory_used<65536
+            restored=actors.get_record('a').state
+>           assert list(restored)==['z','a','new']
+E           AssertionError: assert ['a', 'new', 'z'] == ['z', 'a', 'new']
+E             
+E             At index 0 diff: 'a' != 'z'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_actors.py:139: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_actors.py::test_subjective_state_key_update_preserves_order_and_skips_cold_neighbor
+1 failed, 1 passed, 6 deselected in 0.12s

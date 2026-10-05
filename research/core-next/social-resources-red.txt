@@ -1,0 +1,45 @@
+...............F.F                                                       [100%]
+=================================== FAILURES ===================================
+__ test_social_embedding_batch_original_vectors_restore_and_exposure_boundary __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-478/test_social_embedding_batch_or0')
+
+    @pytest.mark.asyncio
+    async def test_social_embedding_batch_original_vectors_restore_and_exposure_boundary(tmp_path):
+        from society0.kernel.plugins import Plugin
+        from tests.primary.test_kernel_memory import Embed,Client
+        from society0.plugins.social_models import SocialNetworkConfig
+        embed=Embed();client=Client()
+        def resources(ctx):
+            from types import SimpleNamespace
+            ctx.provide('embeddings',{'default':SimpleNamespace(embed=embed)});ctx.provide('vector_client',client)
+        config=SocialNetworkConfig(social_media={'recommendation':{'post_count':2,'use_embedding_similarity':True}})
+>       plugins=plan(Plugin('vectors',install=resources),social_plugin('abc',edges=[],config=config,embedding=('vectors','default'),vector_client=('vectors','vector_client')))
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: social_plugin() got an unexpected keyword argument 'embedding'
+
+tests/primary/test_plugin_social.py:155: TypeError
+_ test_social_actual_chroma_rebuild_preserves_ranking_without_embedding_posts __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-478/test_social_actual_chroma_rebu0')
+
+    @pytest.mark.asyncio
+    async def test_social_actual_chroma_rebuild_preserves_ranking_without_embedding_posts(tmp_path):
+        import chromadb
+        from society0.kernel.plugins import Plugin
+        from tests.primary.test_kernel_memory import Embed
+        from society0.plugins.social_models import SocialNetworkConfig
+        embed=Embed();client=chromadb.PersistentClient(path=str(tmp_path/'vectors'))
+        def resources(ctx):
+            from types import SimpleNamespace
+            ctx.provide('embeddings',{'default':SimpleNamespace(embed=embed)});ctx.provide('vector_client',client)
+        cfg=SocialNetworkConfig(social_media={'recommendation':{'post_count':2,'use_embedding_similarity':True}})
+>       plugins=plan(Plugin('vectors',install=resources),social_plugin('abc',edges=[],config=cfg,embedding=('vectors','default'),vector_client=('vectors','vector_client')))
+                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: social_plugin() got an unexpected keyword argument 'embedding'
+
+tests/primary/test_plugin_social.py:227: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_embedding_batch_original_vectors_restore_and_exposure_boundary
+FAILED tests/primary/test_plugin_social.py::test_social_actual_chroma_rebuild_preserves_ranking_without_embedding_posts
+2 failed, 16 passed in 0.86s

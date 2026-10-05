@@ -1,0 +1,1 @@
+COMMAND: .venv/bin/python benchmarks/core_next_compression_probe.py --mode sync --size 10485760 --output research/core-next/compression-pipeline-10485760-sync-20261004.json

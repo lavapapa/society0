@@ -1,0 +1,39 @@
+......FFF                                                                [100%]
+=================================== FAILURES ===================================
+____________________ test_cursor_is_bound_to_store_identity ____________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-202/test_cursor_is_bound_to_store_0')
+
+    def test_cursor_is_bound_to_store_identity(tmp_path):
+        with Store(tmp_path / 'one') as first, Store(tmp_path / 'two') as second:
+            first.seed(1000)
+            second.seed(1000)
+            with first.view('alice') as a, second.view('alice') as b:
+>               with pytest.raises(ValueError, match='cursor'):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE ValueError
+
+tests/experiments/test_core_next_storage.py:85: Failed
+_______________ test_active_index_and_count_change_in_same_stage _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-202/test_active_index_and_count_ch0')
+
+    def test_active_index_and_count_change_in_same_stage(tmp_path):
+        with Store(tmp_path) as store:
+            store.seed(1000)
+>           store.stage([], [], active_changes=[(0, False), (100, True)])
+E           TypeError: Store.stage() got an unexpected keyword argument 'active_changes'
+
+tests/experiments/test_core_next_storage.py:92: TypeError
+___________ test_commit_ack_failure_does_not_undo_completed_revision ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-202/test_commit_ack_failure_does_n0')
+
+    def test_commit_ack_failure_does_not_undo_completed_revision(tmp_path):
+        with Store(tmp_path) as store:
+            store.seed(1000)
+>           with pytest.raises(RuntimeError, match='after_commit'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/experiments/test_core_next_storage.py:106: Failed

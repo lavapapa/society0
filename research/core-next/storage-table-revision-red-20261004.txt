@@ -1,0 +1,69 @@
+..............................FF                                         [100%]
+=================================== FAILURES ===================================
+_ test_native_table_revisions_track_cached_sql_without_rowid_and_artifact_switch _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-451/test_native_table_revisions_tr0')
+
+    def test_native_table_revisions_track_cached_sql_without_rowid_and_artifact_switch(tmp_path):
+        schema=('CREATE TABLE records(id INTEGER PRIMARY KEY,value INTEGER)',
+                'CREATE TABLE keyed(id TEXT PRIMARY KEY NOT NULL,value INTEGER) WITHOUT ROWID')
+        with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute('INSERT INTO records VALUES(1,0)'),w.execute("INSERT INTO keyed VALUES('a',0)"))) as store:
+>           assert store.read(lambda v:(v.run_id,v.revision_for(['records']),v.revision_for([])))==(store.run_id,0,0)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:393: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:198: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+v = <society0.kernel.storage.ReadView object at 0x10ab87ce0>
+
+>   assert store.read(lambda v:(v.run_id,v.revision_for(['records']),v.revision_for([])))==(store.run_id,0,0)
+                                ^^^^^^^^
+E   AttributeError: 'ReadView' object has no attribute 'run_id'
+
+tests/primary/test_kernel_storage.py:393: AttributeError
+___________ test_native_table_revisions_include_foreign_key_cascade ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-451/test_native_table_revisions_in0')
+
+    def test_native_table_revisions_include_foreign_key_cascade(tmp_path):
+        schema=('CREATE TABLE parent(id INTEGER PRIMARY KEY)',
+                'CREATE TABLE child(id INTEGER PRIMARY KEY,parent_id INTEGER REFERENCES parent(id) ON DELETE CASCADE)')
+        with StageStore.create(tmp_path/'run',schema,initialize=lambda w:(w.execute('INSERT INTO parent VALUES(1)'),w.execute('INSERT INTO child VALUES(1,1)'))) as store:
+            store.transaction(lambda w:w.execute('DELETE FROM parent WHERE id=1'))
+>           assert store.read(lambda v:v.revision_for(['child']))==1
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:424: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:376: in read
+    return StageReader(self.path).read(callback, expected_revision=expected_revision)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:198: in read
+    return _call(callback, scope)
+           ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:72: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+v = <society0.kernel.storage.ReadView object at 0x10ab86570>
+
+>   assert store.read(lambda v:v.revision_for(['child']))==1
+                               ^^^^^^^^^^^^^^
+E   AttributeError: 'ReadView' object has no attribute 'revision_for'
+
+tests/primary/test_kernel_storage.py:424: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_storage.py::test_native_table_revisions_track_cached_sql_without_rowid_and_artifact_switch
+FAILED tests/primary/test_kernel_storage.py::test_native_table_revisions_include_foreign_key_cascade
+2 failed, 30 passed in 0.41s

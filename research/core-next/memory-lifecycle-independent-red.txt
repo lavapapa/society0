@@ -1,0 +1,33 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_review_close_collects_update_wait_before_shared_resources_can_close ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-428/test_review_close_collects_upd0')
+
+    @pytest.mark.asyncio
+    async def test_review_close_collects_update_wait_before_shared_resources_can_close(tmp_path):
+        import asyncio
+        store,threads,tid,memory,embed,client=setup(tmp_path)
+        with store:
+            identifier=(await memory.seed('a','initial',timestamp=0,entries=[{'content':'before close'}]))[0]
+            started=asyncio.Event(); release=asyncio.Event(); settled=[]
+            async def pending(texts,*,metadata):
+                started.set()
+                try:await release.wait()
+                finally:settled.append(True)
+                return await embed(texts,metadata=metadata)
+            memory.embed=pending
+            update=asyncio.create_task(memory.update(identifier,actor='a',content='after close',timestamp=1))
+            await started.wait()
+            try:
+                await memory.close()
+>               assert update.done(), 'close returned with an active embedding update'
+E               AssertionError: close returned with an active embedding update
+E               assert False
+E                +  where False = <built-in method done of _asyncio.Task object at 0x107a0d480>()
+E                +    where <built-in method done of _asyncio.Task object at 0x107a0d480> = <Task pending name='Task-3' coro=<Memory.update() running at /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/memory.py:267> wait_for=<Future pending cb=[Task.task_wakeup()]>>.done
+
+tests/primary/test_kernel_memory_review.py:127: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory_review.py::test_review_close_collects_update_wait_before_shared_resources_can_close
+1 failed, 5 deselected in 0.06s

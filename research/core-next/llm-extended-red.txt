@@ -1,0 +1,104 @@
+..............F....FF                                                    [100%]
+=================================== FAILURES ===================================
+____ test_physical_retry_preserves_request_reference_and_full_raw_response _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-279/test_physical_retry_preserves_0')
+
+    @pytest.mark.asyncio
+    async def test_physical_retry_preserves_request_reference_and_full_raw_response(tmp_path):
+        import httpx
+        import openai
+        store, threads, tid, provider = real_provider(tmp_path)
+        requests = []
+        async def create(**kwargs):
+            requests.append(kwargs)
+            if len(requests) == 1:
+                raise openai.APITimeoutError(request=httpx.Request('POST', 'http://unused.invalid'))
+            return sdk_response('complete response')
+        provider.manager.clients['test'].chat.completions.create = create
+        try:
+            assert provider.manager.clients['test'].max_retries == 0
+            result = await provider.request(tid, {'temperature': 0.7, 'extra_body': {'metadata': {'session_id': 'stable'}}})
+            assert result['content'] == 'complete response'
+            assert len(requests) == 2 and requests[0]['messages'] is requests[1]['messages']
+            events = threads.tail(tid)['items']
+            recorded = [e for e in events if e['kind'] == 'request']
+            assert len(recorded) == 2
+            rebuilt = threads.read_request(tid, recorded[1]['seq'])
+            assert rebuilt['messages'] == [{'role': 'user', 'content': 'complete original'}]
+            assert rebuilt['retry_of'] == recorded[0]['seq']
+            assert rebuilt['provider_options']['model'] == 'fake'
+            assert rebuilt['provider_options']['temperature'] == 0.7
+            response = [e for e in events if e['kind'] == 'provider_response'][0]
+>           assert response['payload']['payload']['choices'][0]['message']['content'] == 'complete response'
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'choices'
+
+tests/primary/test_kernel_llm.py:269: KeyError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:1164 LLM request failed on endpoint test after 1 attempts: Request timed out.
+_______ test_domain_unavailable_between_discovery_and_invoke_is_feedback _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-279/test_domain_unavailable_betwee0')
+
+    @pytest.mark.asyncio
+    async def test_domain_unavailable_between_discovery_and_invoke_is_feedback(tmp_path):
+        store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')])
+        session.actions.actions._allows = lambda *a: False
+        try:
+>           assert (await driver.run(session)).status == 'completed'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm.py:327: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:319: in run
+    result = await ledger.invoke(arguments['name'], Ref(**arguments['target']), domain_arguments)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:115: in invoke
+    description = await self.describe(name, target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/llm.py:99: in describe
+    description = await self.base.describe(name, target)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/interaction.py:380: in describe
+    return await self.actions.describe(self.scope, name, target)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.interaction.Actions object at 0x10bf82a50>
+scope = InteractionScope(actor='a', moment=Moment(time=1, phase='p'), revision=None)
+name = 'work', target = Ref(namespace='m', kind='job', key='1')
+
+    async def describe(self, scope, name, target):
+        registered = self._actions.get(name)
+        action = registered[0] if registered else None
+        if not await self._eligible(scope, action, target):
+>           raise Unavailable('action unavailable')
+E           society0.kernel.interaction.Unavailable: action unavailable
+
+src/society0/kernel/interaction.py:349: Unavailable
+__ test_completed_terminal_batch_records_unexecuted_siblings_for_continuation __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-279/test_completed_terminal_batch_0')
+
+    @pytest.mark.asyncio
+    async def test_completed_terminal_batch_records_unexecuted_siblings_for_continuation(tmp_path):
+        store, threads, provider, driver, session, calls = setup(tmp_path, [reply(invoke('first'), invoke('second'))],
+            terminal=True, policy=LLMPolicy(parallel_tool_calls=True))
+        try:
+            assert (await driver.run(session)).status == 'completed'
+            messages = threads.read_messages(session.cursors['thread_id'])
+            feedback = {m['tool_call_id']: m['content'] for m in messages if m['role'] == 'tool'}
+>           assert set(feedback) == {'first', 'second'}
+E           AssertionError: assert {'first'} == {'first', 'second'}
+E             
+E             Extra items in the right set:
+E             'second'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_llm.py:341: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_llm.py::test_physical_retry_preserves_request_reference_and_full_raw_response
+FAILED tests/primary/test_kernel_llm.py::test_domain_unavailable_between_discovery_and_invoke_is_feedback
+FAILED tests/primary/test_kernel_llm.py::test_completed_terminal_batch_records_unexecuted_siblings_for_continuation
+3 failed, 18 passed in 1.31s

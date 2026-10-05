@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________ test_page_reuses_one_bounded_content_reader __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-169/test_page_reuses_one_bounded_c0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108cb2ae0>
+
+    def test_page_reuses_one_bounded_content_reader(tmp_path,monkeypatch):
+        from society0 import checkpoint_records as records
+        store=V4CheckpointStore(tmp_path)
+        store.publish_root({'sequence':i,'path':['rows',str(i)],'operation':'set','value':i} for i in range(100))
+        with ObservationReader(tmp_path) as reader:
+            reader.sync()
+            verified=[];require=reader._require_source
+            monkeypatch.setattr(reader,'_require_source',lambda path:(verified.append(path),require(path))[1])
+            opens=[];decode=[];original=records._open;decompress=records.gzip.decompress
+            monkeypatch.setattr(records,'_open',lambda path:(opens.append(path),original(path))[1])
+            monkeypatch.setattr(records.gzip,'decompress',lambda data:(decode.append(len(data)),decompress(data))[1])
+            assert len(reader.state_page(path=['rows'])['items'])==100
+            assert len(opens)==1
+            assert len(decode)==1
+>           assert len(verified)==1
+E           AssertionError: assert 100 == 1
+E            +  where 100 = len(['/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-169/test_page_reuses_one_bounded_c0...n/pytest-169/test_page_reuses_one_bounded_c0/checkpoints/v4/replacements/85ad332d44a2444e897e3b19c2897456.sqlite', ...])
+
+tests/primary/test_observation_compact.py:334: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_observation_compact.py::test_page_reuses_one_bounded_content_reader
+1 failed, 17 deselected in 0.05s

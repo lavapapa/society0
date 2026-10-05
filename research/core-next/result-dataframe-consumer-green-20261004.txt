@@ -1,0 +1,1 @@
+pandas tight value: columns, index, order, large integers and restore equal

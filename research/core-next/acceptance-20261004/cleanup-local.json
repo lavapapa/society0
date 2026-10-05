@@ -1,0 +1,7 @@
+{
+  "deleted_owned_regenerable": [
+    "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/native/society0-filesystem/target",
+    "/private/tmp/society0-acceptance-clean-20261004"
+  ],
+  "retained": "本树.venv、最终八profile隔离venv、全部小型测试/构建/失败证据；未清理共享general环境包"
+}

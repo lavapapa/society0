@@ -1,0 +1,29 @@
+..............F                                                          [100%]
+=================================== FAILURES ===================================
+___ test_social_active_pool_and_scores_match_old_semantics_without_body_scan ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-435/test_social_active_pool_and_sc0')
+
+    @pytest.mark.asyncio
+    async def test_social_active_pool_and_scores_match_old_semantics_without_body_scan(tmp_path):
+        from society0.env.social_network.models import SocialNetworkConfig
+        from society0.env.social_network.env import SocialNetworkEnv
+        from types import SimpleNamespace
+        config=SocialNetworkConfig(social_media={'recommendation':{'full_scan_until':5,'recent_keep_count':3,'top_engagement_keep_count':2,'min_lifetime_ticks':2,'use_embedding_similarity':False}})
+        async with compose(tmp_path/'run',plan(social_plugin('abc',edges=[('a','b')],config=config))) as host:
+            social=host.service('social','mechanism'); posts={}
+            for index in range(12):
+                actor='b' if index%2 else 'c'
+                key=social.execute('publish_post',actor,actor,{'content':str(index)},index).value['post_id']
+                if index%3==0:social.execute('like_post','a',key,{},index)
+                posts[key]=social.post_details(key)
+            features={key:{'created_tick':p['created_tick'],'engagement_score':float(len(p['likes']))} for key,p in posts.items()}
+            expected=SocialNetworkEnv._build_active_pool_ids(SimpleNamespace(_config=config),posts,features,12)
+>           pool=social.active_pool(12)
+                 ^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Social' object has no attribute 'active_pool'
+
+tests/primary/test_plugin_social.py:133: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_social.py::test_social_active_pool_and_scores_match_old_semantics_without_body_scan
+1 failed, 14 passed in 0.39s

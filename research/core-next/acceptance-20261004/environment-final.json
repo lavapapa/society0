@@ -1,0 +1,17 @@
+{
+  "python": "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+  "product_import": "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/src/society0/__init__.py",
+  "native_extension": "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/society0_filesystem/society0_filesystem.abi3.so",
+  "versions": {
+    "apsw": "3.53.4.0",
+    "backports-zstd": "1.7.0",
+    "pydantic-ai-slim": "2.54.0",
+    "openai": "3.24.0",
+    "authlib": "1.8.0",
+    "httpx2": "2.13.1",
+    "bashkit": "0.18.2",
+    "society0-filesystem": "0.1.0",
+    "starlette": "1.7.0",
+    "uvicorn": "0.52.1"
+  }
+}

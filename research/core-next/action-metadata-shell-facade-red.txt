@@ -1,0 +1,51 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+______ test_action_metadata_tags_frozen_and_strict_nullable_normalization ______
+
+    @pytest.mark.asyncio
+    async def test_action_metadata_tags_frozen_and_strict_nullable_normalization():
+        tags = ['trade']
+        observed = []
+        schema = {'type': 'object', 'properties': {
+            'note': {'type': ['string', 'null']},
+            'code': {'type': ['string', 'null'], 'enum': ['null', None]},
+        }, 'required': ['note', 'code'], 'additionalProperties': False}
+>       action = Action('strict', ('m', 'job'), 'strict', schema,
+                        lambda scope, target, args: observed.append(args) or ActionResult('completed'),
+                        tags=tags, strict=True, read_only=True)
+E       TypeError: Action.__init__() got an unexpected keyword argument 'tags'
+
+tests/primary/test_kernel_interaction.py:461: TypeError
+______________ test_strict_action_requires_explicit_strict_schema ______________
+
+    def test_strict_action_requires_explicit_strict_schema():
+        actions = Actions(lambda *args: True)
+        with pytest.raises(ValueError, match='strict'):
+>           actions.register(Action('strict', ('m', 'job'), '', {'type': 'object'}, lambda *args: None, strict=True))
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: Action.__init__() got an unexpected keyword argument 'strict'
+
+tests/primary/test_kernel_interaction.py:483: TypeError
+_____ test_shell_accepts_bound_driver_action_facade_for_all_three_entries ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-256/test_shell_accepts_bound_drive0')
+
+    @pytest.mark.asyncio
+    async def test_shell_accepts_bound_driver_action_facade_for_all_three_entries(tmp_path):
+        calls = []
+        class Facade:
+            async def find(self, target, **kwargs):
+                calls.append('find')
+                return Page([], 0, None, 1)
+            async def describe(self, name, target):
+                calls.append('describe')
+                raise ValueError('filtered by driver')
+            async def invoke(self, name, target, arguments):
+                calls.append('invoke')
+                return ActionResult('rejected', {'reason': 'driver_policy'})
+>       shell = ShellSession(InteractionScope('a', Moment(0, 'p')), Information(lambda *args: True),
+                             bound_actions=Facade(), result_dir=tmp_path)
+E       TypeError: ShellSession.__init__() got an unexpected keyword argument 'bound_actions'
+
+tests/primary/test_kernel_shell.py:238: TypeError
+3 failed, 36 deselected in 0.14s

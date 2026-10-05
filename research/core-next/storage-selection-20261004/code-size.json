@@ -1,0 +1,30 @@
+{
+  "src/society0/kernel/storage.py": {
+    "physical_lines": 762,
+    "nonempty_noncomment_nondocstring_lines": 680
+  },
+  "src/society0/kernel/datasets.py": {
+    "physical_lines": 185,
+    "nonempty_noncomment_nondocstring_lines": 160
+  },
+  "src/society0/kernel/_json_chunks.py": {
+    "physical_lines": 101,
+    "nonempty_noncomment_nondocstring_lines": 89
+  },
+  "src/society0/kernel/threads.py": {
+    "physical_lines": 349,
+    "nonempty_noncomment_nondocstring_lines": 308
+  },
+  "src/society0/kernel/workspace.py": {
+    "physical_lines": 100,
+    "nonempty_noncomment_nondocstring_lines": 84
+  },
+  "src/society0/kernel/information_sql.py": {
+    "physical_lines": 386,
+    "nonempty_noncomment_nondocstring_lines": 355
+  },
+  "src/society0/kernel/memory.py": {
+    "physical_lines": 640,
+    "nonempty_noncomment_nondocstring_lines": 578
+  }
+}

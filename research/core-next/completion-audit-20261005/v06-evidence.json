@@ -1,0 +1,114 @@
+{
+  "fixture": "v06-fixture.json",
+  "models": {
+    "llm": "Qwen/Qwen3.8-27B",
+    "embedding": "unused"
+  },
+  "budgets": {
+    "max_turns": 20,
+    "max_action_calls": 2,
+    "timeout_seconds": 60,
+    "max_tokens": 1024
+  },
+  "groups": {
+    "structured": {
+      "source": "edabcad3e88ba7b7b92c68dcfa5c22bf6f2e304a",
+      "evidence": "v06-structured-independent.json",
+      "original_process_exit": 1,
+      "independent_task_complete": true,
+      "original_failure": "frozen oracle selected first unsuccessful jq stdout before later autonomous correction",
+      "requests": 15,
+      "usage": {
+        "requests": 15,
+        "responses": 15,
+        "errors": 0,
+        "input_tokens": 53693,
+        "output_tokens": 1188,
+        "total_tokens": 54881,
+        "input_reports": 15,
+        "output_reports": 15,
+        "total_reports": 15,
+        "cache_read_tokens": 34304,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 15,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 55.0593332919525,
+        "queue_s": 0.00014296011067926884,
+        "jitter_s": 0.0,
+        "provider_s": 55.044205250917,
+        "duration_reports": 15,
+        "queue_reports": 15,
+        "jitter_reports": 15,
+        "provider_reports": 15,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 15
+      },
+      "task_wall_seconds": 55.31979412492365
+    },
+    "current": {
+      "source": "ab6469d",
+      "evidence": "v06-current-independent.json",
+      "original_process_exit": 0,
+      "independent_task_complete": true,
+      "usage": {
+        "requests": 19,
+        "responses": 19,
+        "errors": 0,
+        "input_tokens": 95482,
+        "output_tokens": 1181,
+        "total_tokens": 96663,
+        "input_reports": 19,
+        "output_reports": 19,
+        "total_reports": 19,
+        "cache_read_tokens": 46336,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 19,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 144.72000162384938,
+        "queue_s": 0.0001753740943968296,
+        "jitter_s": 0.0,
+        "provider_s": 144.69823241839185,
+        "duration_reports": 19,
+        "queue_reports": 19,
+        "jitter_reports": 19,
+        "provider_reports": 19,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 19
+      },
+      "activation_seconds": 145.09724375000224
+    },
+    "world": {
+      "source": "96b1f3b",
+      "evidence": "v06-world-independent.json",
+      "original_process_exit": 1,
+      "judgment_correct": false,
+      "actual": [
+        {
+          "count": 12,
+          "total": 504,
+          "phrase": "原文校验成功。"
+        }
+      ],
+      "requests": 1,
+      "input_tokens": 668,
+      "output_tokens": 55,
+      "provider_seconds": 4.800432124990039
+    }
+  },
+  "excluded_design_attempt": {
+    "directory": "v06-structured-01",
+    "reason": "omitted frozen baseline workspace/jq capability",
+    "actual_total": 528
+  },
+  "original_current_usage": "real-final-05 token/cache unknown: cumulative streaming aggregation cannot be recovered from saved SDK aggregates",
+  "test_validation": "v06-oracle-related.txt: 25 passed",
+  "limits": "single fixed task, different input/tool contracts, SDK versions and service timing; no statistical superiority or general optimization claim"
+}

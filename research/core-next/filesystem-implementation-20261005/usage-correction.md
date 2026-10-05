@@ -1,0 +1,9 @@
+# 累计流用量纠正
+
+完成度审查发现本轮研究启动器的request_options遗漏openai_continuous_usage_stats=True；共享真实服务配置没有默认补入该字段。SiliconFlow流式响应的usage采用累计值，SDK默认相加会重复计算此前累计输入、输出与缓存。real-final-04/05的provider_response保存了SDK聚合后的usage，未保留原始最后一块，现有工件无法还原模型真实token/cache。
+
+本次修改研究启动器加入SDK连续累计用量配置；摘要脚本检查launch.json的实际profile，缺少该配置时，将LLM的token及对应报告字段设为空并写corrected-summary.json。原real-final-04/05的summary.json、launch.json、SQLite、real.xml和日志保留。原汇总复制为real-coverage-summary-original.json；现行real-coverage-summary.json保留测试、调用与时间，将LLM计量标为llm_usage_valid=false。此前缓存读取370688、模型输入2925280、输出48657等数值属于失真历史测量，不用于费用、缓存命中或成本比较。
+
+物理请求139次、模型112次（111响应、1错误）、嵌入27次及既有耗时仍有效。嵌入使用独立非流式响应，其实报输入695 token不受本问题影响；输出与缓存未报告，不能将缺失字段解释为有报告的零值。十四加一场景的完整原文、分页、实际行动、记忆、恢复和失败oracle保持有效。预算、端点期限及产品ab6469d未变，本次未重跑十五场景或发起其他真实请求。
+
+只读重汇总原两次工件分别得到120与19次物理调用，原通过/失败分别为14/1与1/0，LLM用量字段均为空。修复后的独立新VFS成本对照由对应研究任务另留证，不从旧失真数值推算。正式starter使用了正确的连续用量profile，其独立实报计量保留。

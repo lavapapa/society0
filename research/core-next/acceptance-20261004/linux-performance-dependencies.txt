@@ -1,0 +1,17 @@
+2026/10/04 14:20:27 tshttpproxy: using proxy "http://127.0.0.1:7890" for URL: "https://controlplane.tailscale.com/"
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/
+Collecting zstandard==0.25.0
+  Downloading http://mirrors.aliyun.com/pypi/packages/53/60/7be26e610767316c028a2cbedb9a3beabdbe33e2182c373f71a1c0b88f36/zstandard-0.25.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.5 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.5/5.5 MB 149.4 MB/s eta 0:00:00
+Collecting pyzstd==0.19.1
+  Using cached http://mirrors.aliyun.com/pypi/packages/4d/62/f55d1363512d1b1cc122af6ca5951008e42605b63675c7d6781affc7c475/pyzstd-0.19.1-py3-none-any.whl (23 kB)
+Requirement already satisfied: backports-zstd>=1.0.0 in /mnt/data/l20/qin/society0-acceptance-20261004/base/lib/python3.12/site-packages (from pyzstd==0.19.1) (1.7.0)
+Requirement already satisfied: typing-extensions>=4.13.2 in /mnt/data/l20/qin/society0-acceptance-20261004/base/lib/python3.12/site-packages (from pyzstd==0.19.1) (4.16.0)
+Installing collected packages: zstandard, pyzstd
+Successfully installed pyzstd-0.19.1 zstandard-0.25.0
+
+[notice] A new release of pip is available: 24.3.1 -> 26.2.1
+[notice] To update, run: python -m pip install --upgrade pip
+exit_code=0

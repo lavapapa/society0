@@ -1,6 +1,6 @@
-# Environment Design
+# 环境设计
 
-Use this reference when the user asks what kind of world, platform, institution, media setting, interaction scene, or experimental condition to model.
+所有主体共享一个环境，插件实现其中的机制。
 
 ## Why Environment Comes First
 
@@ -22,231 +22,25 @@ Use three concepts to design the environment:
 
 These are not only implementation details. They are research variables. Recommendation rules, visibility windows, action permissions, and hosted constraints are often the actual mechanism being studied.
 
-## Environment And Agents
+## 实现机制
 
-The current runtime connects env and agents this way:
+Plugin 声明本机制 schema、同步 initialize 或可选异步 prepare、安装服务与显式依赖。权威 SQL 记录和不可变正文由规范写入器同步维护投影；小状态可以直接用明确表，派生图/数组作为可重建缓存。需要非 JSON 外源的初始化先准备资源，在根发布后释放；例子见 graph_environment。
 
-- `Society0` loads `environment.type`, `environment.config`, and `environment.state`.
-- `World.get_environment()` instantiates the matching env class.
-- Env capabilities registered with `@fov`, `@action`, and `@rule` become available to steps and LLM agents.
-- `environment.agent_instruction` is injected into the LLM agent system prompt.
-- FoV results are inserted into the user prompt for `instruct(...)` or `interview(...)`.
-- Actions are exposed as callable tools during `instruct(...)`.
-- Agent `state` appears in the LLM prompt. Do not put hidden treatment labels or ground-truth answers there.
-- `before_tick(ctx)` and `after_tick(ctx)` let an env maintain derived caches, indexes, and delayed writes around each simulation tick.
+Information 定义主体可读的文档与数据集，Actions 注册按对象类型发现的模板；发现、读取、调用权限独立，执行重新校验当前条件。一次领域写入有明确事务边界，跨介质部分失败使整个步骤失效。信息文档保原文、授权与版本，巨大列通过正文引用范围读取。
 
-Design implication: use env state and FoVs for social context; use agent state for what the agent should know about itself; use agent properties or run tables for researcher-only labels.
+plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 提供网络、帖子、推荐、互动及曝光。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。Schedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
 
-Boundary rules:
+### 从双机制例子构建自己的世界
 
-- The env may shape what agents can see and do.
-- The env may update env-owned or hosted state through rules and actions.
-- The env should not inspect an agent's private memory directly.
-- The env should not rewrite stable persona unless the study explicitly models identity reconstruction and records that choice.
-- Hidden treatment labels and ground-truth answers should stay in `properties`, step params, or output tables, not visible `state`.
+[conversation_pilot.py](../../examples/core_next/conversation_pilot.py) 中，`a/b/c/d` 是共享的主体，`work` 与 `commons` 是同一环境的两个机制实例。两者各自维护配对与消息，Actor 身份在两个机制间一致。研究者的 `schedule` 先通过 `pair` 阶段调用两个机制的 `start_round`，再通过 `talk` 阶段激活主体；主体的 `talk(session)` 调用各机制的发送行动，StepResult 保存实际配对与消息。
 
-### Restrict Actions By Agent Type
+改造成自己的世界时，先把领域事实放入所属机制的表和规范写入器，再把允许主体读取的内容注册到 Information，把能够改变事实的行为注册到 Actions。插件作者通过共享 SQL 事务维护事实和投影，跨机制变更通过约定的服务或事务内写入函数组合；服务名称空间表示接口归属，领域维护责任由机制实现承担。主体私有资料、共享事实和研究者测量分别保留在各自接口中。
 
-Environment actions are available to every agent by default. When an action belongs only to one social type, pass `role`; when several types share it, pass `roles`. Both options compare against `Agent.type`, and they cannot be used together. Do not add a separate `Agent.role` field.
+`requires` 保证服务安装与资源退出的顺序，初始化在统一 schema 建立后进行。步骤 before/after 钩子也按依赖安装顺序登记，因此依赖调整可能改变钩子顺序。配对后才能发送、交付后才能计税等研究因果次序，应像例子的 `pair → talk` 一样写成显式 Phase。钩子和资源关系见 [插件合同](../../docs/core-next/plugin-contract.md)。
 
-```python
-@action(description="Remove a reported post.", role="moderator")
-def remove_reported_post(self, agent, post_id: str):
-    ...
+同一 Moment 表示同一个业务时点，各次读取仍可取得最新 live 状态：串行阶段中 Bob 可以看到 Alice 刚刚产生的事实。若研究要求全部主体依据同一份开场材料决定，可在 `Phase.prepare` 取得一次不可变材料，并让主体使用 `session.prepared`；其他 Information 查询仍遵守其自身版本合同。将机制标为 independent 是作者对行动顺序无关性的声明，服务安装完成本身不作这种判断。
 
-@action(
-    description="Review a reported post.",
-    roles=["moderator", "administrator"],
-    tags=["moderation"],
-)
-def review_report(self, agent, post_id: str):
-    ...
-```
-
-The runtime omits an unauthorized action when it assembles that agent's `ActionSet`, then checks `Agent.type` again immediately before the wrapper calls the environment method. Passing the action name or one of its tags through `instruct(..., actions=[...])` cannot grant access. Role restrictions are serialized in capability metadata as `target_agent_types`.
-
-## Logic Sources
-
-Use "logic" to mean deterministic rule/behavior code:
-
-- Env-provided `rule`: built into an environment to update environment/system state.
-- Env-provided `behavior`: built into an environment to update or prepare individual agents in that environment.
-- Experiment-specific `rule`: written for one study when the environment needs a custom system update.
-- Experiment-specific `behavior`: written for one study when rule-based agents or baselines need custom deterministic behavior.
-- Experiment-specific `env.action`: written for one study when LLM agents need a custom environment tool, such as submitting a ballot, requesting a resource, recording an exposure, or interacting with a one-off institution.
-
-Examples:
-
-```python
-await ctx.rule("advance_round_robin_with_pairing", round_number=1)
-await ctx.agents.where(archetype="rule").behavior("mark_conversation_participant", marker="ready")
-```
-
-Discover first:
-
-```python
-ctx.capabilities.names("rule")
-ctx.capabilities.names("behavior")
-ctx.capabilities.names("tools", source="experiment")
-ctx.capabilities.names("rule", source="environment")
-ctx.capabilities.find("publish_post")
-ctx.capabilities.by_source("experiment", kind="behaviors")
-ctx.capabilities.get("action", "env.publish_post")
-```
-
-Use source filtering to explain whether a rule or behavior is part of the selected environment or custom logic written for this study. That distinction helps decide whether a later improvement belongs in the env or in the experiment code.
-
-Capability discovery is alias-friendly. A capability can be checked or retrieved by display name, canonical ID, registry key, underlying function name, or an alias listed in the entry. Kind names may be singular or plural, and `tool`/`tools` are accepted as action aliases. When you only know a copied name, use `ctx.capabilities.find(name)` to determine whether it is a FoV, action/tool, rule, or behavior before wiring it into `fovs=[...]`, `actions=[...]`, `ctx.rule(...)`, or `ctx.behavior(...)`. This matters when an agent reads both docs and source code: `recommended_feed`, `env.recommended_feed`, and a canonical `environments.<env_type>.fovs.<name>` may all refer to the same declared capability. Use `entry["parameters"]` to confirm argument names before calling a rule, behavior, or action.
-
-Use `engine.registry.env.action(...)` for study-specific tools that belong to the environment:
-
-```python
-@engine.registry.env.action(
-    name="submit_ballot",
-    desc="Submit one final ballot for the current round.",
-    tags=["voting", "decision"],
-)
-async def submit_ballot(agent, env, choice: str, context=None):
-    env.state.setdefault("ballots", []).append(
-        {"agent_id": agent.id, "choice": choice, "step": context.step_number}
-    )
-    return {"ok": True, "choice": choice}
-```
-
-Expose it to LLM agents through `instruct(..., actions=["submit_ballot"])`, `actions=["voting"]`, or another declared tag. If the action is the semantic endpoint of the task, pair it with `terminal_actions=["submit_ballot"]`; if it is only one possible way to complete a category, use `completion_action_tags=[...]`. Do not call env actions directly to bypass the LLM agent loop when the study is about agent behavior.
-
-## Env Tick Lifecycle Hooks
-
-Every code-driven simulation tick has this order:
-
-```text
-Environment.before_tick(ctx)
-registered code steps in order
-Environment.after_tick(ctx)
-world.advance_step()
-```
-
-`EnvironmentTickContext` contains `step`, `world`, and `log`. Hooks can be sync or async. If `before_tick` or `after_tick` raises, the run fails and Society0 still writes the final checkpoint through the normal failure path. If a code step raises, `after_tick` is not called.
-
-Use hooks for environment maintenance that should not be hidden inside user-facing experiment logic:
-
-- rebuild or clear derived runtime caches.
-- refresh indexes from env state.
-- batch-write delayed counters after all agents have acted.
-- flush pending observations that should only commit on a successful tick.
-
-Monitor hook behavior through `summary.json -> events.env_hooks`. For repeated runs, use each hook's `by_tick` split to identify which simulation tick spent time on cache maintenance, delayed writes, or hook failures.
-
-Do not use hooks to hide the main experimental mechanism. A researcher-facing rule, intervention, or measurement should usually stay explicit in `step(ctx)`.
-
-## Built-In Environments
-
-### `plain`
-
-Use for:
-
-- first experiments.
-- survey/interview prototypes.
-- deterministic rule baselines.
-- experiments where the step function directly updates state.
-
-Behavior:
-
-- no built-in FoVs or actions.
-- no required config.
-- `environment.state` can hold simple study variables.
-
-Example:
-
-```python
-"environment": {"type": "plain", "state": {"topic": "misinformation"}}
-```
-
-### `social_network`
-
-Use when platform visibility or interaction matters:
-
-- posts, reposts, comments, likes, follows, notifications.
-- recommendation feeds and trending posts.
-- friend endorsement, social proof, diffusion, polarization, information exposure.
-- experiments where FoV design is part of the mechanism.
-
-Important config areas:
-
-- `distribution.type`: `random`, `small_world`, `scale_free`, `complete`, or `cv_targeted`.
-- `is_directed`: whether relationships behave like directed follows.
-- `social_media.recommendation`: weights for chronology, engagement, similarity, and network proximity.
-- `social_media.recommendation.full_scan_until`: active pool size threshold for full-pool scoring. Default is 5000.
-- `social_media.recommendation.recent_keep_count`, `top_engagement_keep_count`, and `min_lifetime_ticks`: pruning controls used only after the active pool exceeds the full-scan threshold.
-- `social_media.recommendation.feed_content_preview_chars`: maximum characters shown from each post in `recommended_feed`.
-- `social_media.recommendation.feed_max_chars`: maximum total characters returned by `recommended_feed`.
-- `social_media.trending`: whether trending content is calculated and injected.
-- `social_media.content_length_limit`: content length guard.
-
-Useful FoVs include:
-
-- `recommended_feed`: personalized feed and follow suggestions. Use `recommended_feed` in `fovs=[...]`; the Python env method is also `recommended_feed(...)`.
-- `recommended_feed_preview`: same recommendation view without recording impressions or updating `recommended_posts`; use it for interviews, measurement, debugging, and pre-run inspection.
-- `get_trending_feed` / `trending_feed`: trending feed when enabled.
-- `get_notifications` / `notifications`: interactions involving the current agent.
-
-Useful actions include:
-
-- `publish_post`
-- `like_post`
-- `comment`
-- `repost`
-- `follow`
-- `unfollow`
-- `get_post_details`
-- `get_trending_posts`
-- `get_agent_profile`
-
-Read actions such as `get_trending_posts`, `get_post_details`, and `get_agent_profile` are active tools, not FoVs. Their output can include both user IDs and post IDs. When a later write action needs a post reference, use the explicit `post_id` / `帖子 ID` field. Do not pass an author/user ID as `post_id`.
-
-`get_trending_posts` represents actively opening the trending panel, so it records exposure for the returned posts. The exposure is batched and flushed after the tick, just like `recommended_feed`. Use the trending FoV/preview-style inspection path only when the researcher wants to inspect ranking without creating an exposure event.
-
-For prototypes, call `instruct(..., actions=None)` or `actions=["environment"]`. `actions=None` exposes default non-memory actions. Narrow later by action name or short tag. Use `actions=["memory"]` for autonomous memory-tool use. Ordinary rounds retrieve memory through `retrieve_memory=True` and save experience explicitly through `extract_thread_memories(...)`; see `step-dsl.md`.
-
-Recommendation behavior:
-
-- The recommended feed scores the full active pool by default; it no longer takes only the latest `candidate_count` posts before ranking.
-- `candidate_count` remains for legacy/semantic recall compatibility and should not be described as the default recommendation pool size.
-- Under `full_scan_until`, all posts remain eligible for recommendation unless filtered by the current viewer.
-- Above `full_scan_until`, the active pool keeps recent posts, high-engagement posts, and posts that have not reached `min_lifetime_ticks`.
-- Pruning only removes posts from the recommendation pool. It does not delete posts, logs, checkpoints, analysis data, or detail lookup ability.
-- Engagement score uses the same feature layer for recommendations and trending: likes, replies, and reposts.
-- View counts are recorded as impressions and flushed after the tick when agents read `recommended_feed`. Reading a feed during a code step should not immediately mutate the post's `view_count`.
-- Use `recommended_feed_preview` when the researcher wants to measure perceptions or inspect recommendations without creating an exposure event. Do not use preview for actual browsing behavior.
-- Post embeddings are generated once when possible. Semantic recommendation queries the active collection, not a latest-post sample; under the full-scan threshold the semantic query should cover the whole active pool.
-- The feed FoV and trending output are prompt-budgeted: long post bodies and very long feeds are truncated or rendered compactly for the LLM prompt. This does not delete or truncate the underlying post state, logs, checkpoint data, or analysis records.
-- `social_recommendation_trace` events include a compact `score_breakdown` for returned posts: rank, post ID, author ID, chronology, engagement, network, semantic contributions, and total score. Use it to explain why a post was exposed without treating it as the full research data source.
-
-When helping a researcher, explain the recommendation mechanism as part of the experimental condition: active pool rule, weights, pruning thresholds, semantic similarity setting, and final `post_count`. For communication research, these settings can be the treatment.
-
-### `round_robin_conversation`
-
-Use when structured interaction protocol matters:
-
-- pairwise conversation experiments.
-- rotating interviews.
-- deliberation, peer influence, group discussion, negotiation.
-- designs where each agent must meet each other agent or each assigned partner.
-
-Config:
-
-- `group_size`: required, must divide the number of agents.
-- `session_duration_minutes`: protocol metadata for the scenario.
-- `pairing_strategy`: `standard`, `tournament`, or `custom`.
-- `message_persistence`: whether messages persist across rounds.
-
-Useful rules/actions/FoVs:
-
-- `advance_round_robin_with_pairing` or `advance_round_robin`: start or advance rounds.
-- `send_message_to_partner`: message current paired partner.
-- `broadcast_to_group`: message group members.
-- `get_conversation_fov`: current partner, history, and round progress.
-- `get_group_fov`: group-level context.
+文件式交互延续同一行动规则。`/world` 呈现主体有权取得的共享材料，`/workspace` 保存主体自己的草稿和分析文件；购买订单需要调用购买 action，保存一份购买笔记只改变私有文件。模型应依照 action 回执区分受理、完成和拒绝，恢复身份在完整步骤发布后形成。可沿 [共享环境例子](../../examples/core_next/shared_environment.py) 的“查询订单 → 私有计算 → 购买行动 → 另一主体读通知”查看这条链，其 shell 依赖与调用方式见 [Shell 合同](../../docs/core-next/shell-contract.md)。
 
 ## Designing Realistic LLM Scenes
 
@@ -258,7 +52,7 @@ For LLM-based agents, design the env around constrained evidence:
 4. Expose those as actions, not prose-only instructions.
 5. Decide what is recorded as state, logs, tables, or memories.
 6. Keep hidden variables out of visible agent state.
-7. Use `interview(...)` for measurement and `instruct(...)` for behavior.
+7. Use `LLMPolicy(mode="interview")` for measurement and `LLMPolicy(mode="decision")` for behavior.
 
 Example design move:
 
@@ -276,73 +70,3 @@ FoVs can be plain text or structured values. In current use, they should be desi
 Actions should represent real affordances, not vague intentions. Prefer `publish_post`, `comment`, `follow`, `send_message`, `vote`, or `apply_for_job` over a broad "respond to society" action. The narrower the action, the easier it is to audit what happened.
 
 Hosting is useful when the social situation should enforce constraints directly. Examples: a platform marks an agent as muted, a city env updates a resident's district, an organization env limits who can approve a decision, or a market env controls remaining inventory.
-
-## Extending Or Writing A New Env
-
-Read source first when adding a real env:
-
-- `src/society0/environment.py`
-- `src/society0/decorators.py`
-- `src/society0/env/plain/env.py`
-- `src/society0/env/social_network/env.py`
-- `src/society0/env/round_robin/env.py`
-
-Minimal pattern:
-
-```python
-from society0.core_data import ExecutionContext
-from society0.decorators import action, env_type, fov, rule
-from society0.environment import Environment
-
-CONFIG_SCHEMA = {"type": "object", "properties": {}, "additionalProperties": True}
-STATE_SCHEMA = {"type": "object", "properties": {}, "additionalProperties": True}
-
-
-@env_type(
-    type_name="news_room",
-    config_schema=CONFIG_SCHEMA,
-    state_schema=STATE_SCHEMA,
-    agent_managed_fields_schema={"type": "object", "properties": {}},
-    display_name="News Room",
-    description="A news exposure environment for credibility experiments.",
-)
-class NewsRoomEnv(Environment):
-    @property
-    def agent_instruction(self) -> str:
-        return "Only rely on articles shown in your FoV. Do not invent unseen sources."
-
-    def initialize(self, agents, world):
-        self.state.setdefault("articles", {})
-        self.state.setdefault("exposures", [])
-
-    @fov(description="Show articles currently visible to this participant.")
-    async def news_feed(self, agent, env) -> str:
-        return str(self.state.get("articles", {}))
-
-    @action(description="Record that the participant shares an article.")
-    async def share_article(self, context: ExecutionContext, article_id: str) -> str:
-        agent_id = getattr(context.caller, "id", "unknown")
-        self.state.setdefault("shares", []).append(
-            {"agent_id": agent_id, "article_id": article_id, "step": context.step_number}
-        )
-        return "shared"
-
-    @rule(description="Advance environment-level exposure counters.")
-    async def update_exposure(self, context: ExecutionContext) -> str:
-        return "updated"
-```
-
-For a core contribution, place the env under `src/society0/env/<name>/`, import/register it in `src/society0/env/__init__.py` if needed, add a primary-path test, and document its intended research use. For a one-off experiment, prefer a simple `plain` env plus code steps until the env abstraction is clearly needed.
-
-## Env Design Checklist
-
-- What is the setting: platform, organization, classroom, market, community, media field?
-- What does each agent see at each tick?
-- Which FoVs expose that evidence?
-- What can agents do, and which actions implement those affordances?
-- What is recorded for later analysis?
-- What is intentionally hidden from agents?
-- Which state belongs to env, which state belongs to agents, and which labels belong only to researcher outputs?
-- What would make the first run too large, and what can be simplified?
-- Which mechanism is being varied: visibility, permission, hosting constraint, agent heterogeneity, memory, or timing?
-- What small run would produce one interpretable curve or table before adding realism?

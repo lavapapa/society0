@@ -1,0 +1,66 @@
+F...FF.                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_review_closed_embedding_provider_rejects_cached_work_without_new_evidence _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-465/test_review_closed_embedding_p0')
+
+    @pytest.mark.asyncio
+    async def test_review_closed_embedding_provider_rejects_cached_work_without_new_evidence(tmp_path):
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+            resource=provider(store)
+            async def create(**kwargs):return response(len(kwargs['input']))
+            resource.manager.clients['e'].embeddings.create=create
+            await resource.embed(['cached'],metadata={'actor':'a'})
+            await resource.close()
+            before=store.read(lambda view:view.live_revision)
+>           with pytest.raises(RuntimeError,match='closed'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/primary/test_kernel_models_storage_review.py:30: Failed
+___________ test_review_embedding_close_drains_waiter_before_return ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-465/test_review_embedding_close_dr0')
+
+    @pytest.mark.asyncio
+    async def test_review_embedding_close_drains_waiter_before_return(tmp_path):
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+            resource=provider(store)
+            entered=asyncio.Event()
+            async def create(**kwargs):
+                entered.set()
+                await asyncio.Event().wait()
+            resource.manager.clients['e'].embeddings.create=create
+            waiter=asyncio.create_task(resource.embed(['pending'],metadata={'actor':'a'}))
+            await entered.wait()
+            await resource.close()
+>           assert waiter.done(), 'resource close returned with logical consumer still active'
+E           AssertionError: resource close returned with logical consumer still active
+E           assert False
+E            +  where False = <built-in method done of _asyncio.Task object at 0x10e2ec700>()
+E            +    where <built-in method done of _asyncio.Task object at 0x10e2ec700> = <Task pending name='Task-18' coro=<EmbeddingProvider.embed() running at /Users/marvin/Documents/同花顺（2）/.codex-worktree...in/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/tasks.py:922, Task.task_wakeup()]>>.done
+
+tests/primary/test_kernel_models_storage_review.py:69: AssertionError
+______ test_review_declared_embedding_dimension_is_validated_before_cache ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-465/test_review_declared_embedding0')
+
+    @pytest.mark.asyncio
+    async def test_review_declared_embedding_dimension_is_validated_before_cache(tmp_path):
+        with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+            resource=provider(store)
+            async def wrong(**kwargs):
+                return CreateEmbeddingResponse(model='e',object='list',usage={'prompt_tokens':1,'total_tokens':1},
+                    data=[{'object':'embedding','index':0,'embedding':[1.,2.,3.]}])
+            resource.manager.clients['e'].embeddings.create=wrong
+            try:
+>               with pytest.raises(ValueError,match='dimension'):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_models_storage_review.py:82: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_models_storage_review.py::test_review_closed_embedding_provider_rejects_cached_work_without_new_evidence
+FAILED tests/primary/test_kernel_models_storage_review.py::test_review_embedding_close_drains_waiter_before_return
+FAILED tests/primary/test_kernel_models_storage_review.py::test_review_declared_embedding_dimension_is_validated_before_cache
+3 failed, 4 passed in 0.61s

@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="2" time="42.306" timestamp="2026-10-04T17:34:03.656190+08:00" hostname="marvin-mbp"><testcase classname="tests.e2e.test_core_next_real" name="test_real_endpoint_smoke_llm_and_embedding" time="6.554" /><testcase classname="tests.e2e.test_core_next_real" name="test_real_round_robin_action_loop" time="35.659"><failure message="society0.kernel.runtime.IncompleteActivation: max_turns">+ Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in &lt;lambda&gt;
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 154, in test_real_round_robin_action_loop
+    |     await execute(config,destination,goals=goal,policy=policy(completion_names=('chat.send_message_to_partner',)),mechanism='round',actors=('a','b'))
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 39, in execute
+    |     await run_plan(destination,current)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: max_turns
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 154, in test_real_round_robin_action_loop
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('chat.send_message_to_partner',)),mechanism='round',actors=('a','b'))
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 39, in execute
+    await run_plan(destination,current)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: max_turns
+
+During handling of the above exception, another exception occurred:
+
+config = &lt;real endpoint configuration; credentials omitted&gt;
+destination = PosixPath('research/core-next/provider-acceptance-20261004/chain-live-01/test_real_round_robin_action_loop')
+
+    @pytest.mark.asyncio
+    async def test_real_round_robin_action_loop(config,destination):
+        goal=lambda s:'你本轮的行动目标是 '+json.dumps({'namespace':'chat','kind':'participants','key':s.actor.id})+'。发现并描述可用行动，向已配对伙伴发送一次且仅一次原文“共同讨论产业预期”，然后结束。'
+&gt;       await execute(config,destination,goals=goal,policy=policy(completion_names=('chat.send_message_to_partner',)),mechanism='round',actors=('a','b'))
+
+tests/e2e/test_core_next_real.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+&gt;               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: max_turns
+
+src/society0/kernel/runtime.py:161: IncompleteActivation</failure></testcase></testsuite></testsuites>

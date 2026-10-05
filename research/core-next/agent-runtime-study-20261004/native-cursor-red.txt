@@ -1,0 +1,122 @@
+............F.F.F.F.                                                     [100%]
+=================================== FAILURES ===================================
+__ test_data_list_preserves_provider_owned_scalar_or_sequence_cursor[3-False] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1027/test_data_list_preserves_provi0')
+strict = False, cursor = 3
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    @pytest.mark.parametrize('cursor',[3,'opaque-token',[1,'🙂'],False])
+    async def test_data_list_preserves_provider_owned_scalar_or_sequence_cursor(tmp_path,strict,cursor):
+        from society0.kernel.interaction import Page, Ref
+        seen=[]
+        class Rows:
+            def ref(self,path):return Ref('data','rows',path)
+            def list(self,scope,path,*,limit,cursor):
+                seen.append(cursor)
+                return Page([{'value':'完整行'}],10,None,'v1')
+        encoded=json.dumps(cursor) if strict else cursor
+        store,threads,provider,driver,session,calls=setup(tmp_path,
+            [reply(call('page','data_list',{'path':'/rows','limit':1,'cursor':encoded})),reply(text='完成')],
+            policy=LLMPolicy(strict_tools=strict))
+        session.information.information.mount('/rows',Rows())
+        with store:
+            assert (await driver.run(session)).status=='completed'
+>           assert seen==[cursor]
+E           assert [] == [3]
+E             
+E             Right contains one more item: 3
+E             Use -v to get more diff
+
+tests/primary/test_kernel_native_tool_protocol.py:114: AssertionError
+_ test_data_list_preserves_provider_owned_scalar_or_sequence_cursor[opaque-token-False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1027/test_data_list_preserves_provi2')
+strict = False, cursor = 'opaque-token'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    @pytest.mark.parametrize('cursor',[3,'opaque-token',[1,'🙂'],False])
+    async def test_data_list_preserves_provider_owned_scalar_or_sequence_cursor(tmp_path,strict,cursor):
+        from society0.kernel.interaction import Page, Ref
+        seen=[]
+        class Rows:
+            def ref(self,path):return Ref('data','rows',path)
+            def list(self,scope,path,*,limit,cursor):
+                seen.append(cursor)
+                return Page([{'value':'完整行'}],10,None,'v1')
+        encoded=json.dumps(cursor) if strict else cursor
+        store,threads,provider,driver,session,calls=setup(tmp_path,
+            [reply(call('page','data_list',{'path':'/rows','limit':1,'cursor':encoded})),reply(text='完成')],
+            policy=LLMPolicy(strict_tools=strict))
+        session.information.information.mount('/rows',Rows())
+        with store:
+            assert (await driver.run(session)).status=='completed'
+>           assert seen==[cursor]
+E           AssertionError: assert [] == ['opaque-token']
+E             
+E             Right contains one more item: 'opaque-token'
+E             Use -v to get more diff
+
+tests/primary/test_kernel_native_tool_protocol.py:114: AssertionError
+_ test_data_list_preserves_provider_owned_scalar_or_sequence_cursor[cursor2-False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1027/test_data_list_preserves_provi4')
+strict = False, cursor = [1, '🙂']
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    @pytest.mark.parametrize('cursor',[3,'opaque-token',[1,'🙂'],False])
+    async def test_data_list_preserves_provider_owned_scalar_or_sequence_cursor(tmp_path,strict,cursor):
+        from society0.kernel.interaction import Page, Ref
+        seen=[]
+        class Rows:
+            def ref(self,path):return Ref('data','rows',path)
+            def list(self,scope,path,*,limit,cursor):
+                seen.append(cursor)
+                return Page([{'value':'完整行'}],10,None,'v1')
+        encoded=json.dumps(cursor) if strict else cursor
+        store,threads,provider,driver,session,calls=setup(tmp_path,
+            [reply(call('page','data_list',{'path':'/rows','limit':1,'cursor':encoded})),reply(text='完成')],
+            policy=LLMPolicy(strict_tools=strict))
+        session.information.information.mount('/rows',Rows())
+        with store:
+            assert (await driver.run(session)).status=='completed'
+>           assert seen==[cursor]
+E           AssertionError: assert [] == [[1, '🙂']]
+E             
+E             Right contains one more item: [1, '🙂']
+E             Use -v to get more diff
+
+tests/primary/test_kernel_native_tool_protocol.py:114: AssertionError
+_ test_data_list_preserves_provider_owned_scalar_or_sequence_cursor[False-False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1027/test_data_list_preserves_provi6')
+strict = False, cursor = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('strict',[False,True])
+    @pytest.mark.parametrize('cursor',[3,'opaque-token',[1,'🙂'],False])
+    async def test_data_list_preserves_provider_owned_scalar_or_sequence_cursor(tmp_path,strict,cursor):
+        from society0.kernel.interaction import Page, Ref
+        seen=[]
+        class Rows:
+            def ref(self,path):return Ref('data','rows',path)
+            def list(self,scope,path,*,limit,cursor):
+                seen.append(cursor)
+                return Page([{'value':'完整行'}],10,None,'v1')
+        encoded=json.dumps(cursor) if strict else cursor
+        store,threads,provider,driver,session,calls=setup(tmp_path,
+            [reply(call('page','data_list',{'path':'/rows','limit':1,'cursor':encoded})),reply(text='完成')],
+            policy=LLMPolicy(strict_tools=strict))
+        session.information.information.mount('/rows',Rows())
+        with store:
+            assert (await driver.run(session)).status=='completed'
+>           assert seen==[cursor]
+E           assert [] == [False]
+E             
+E             Right contains one more item: False
+E             Use -v to get more diff
+
+tests/primary/test_kernel_native_tool_protocol.py:114: AssertionError

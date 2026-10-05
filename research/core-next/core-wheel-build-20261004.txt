@@ -1,0 +1,258 @@
+Building wheel...
+running egg_info
+writing src/society0.egg-info/PKG-INFO
+writing dependency_links to src/society0.egg-info/dependency_links.txt
+writing requirements to src/society0.egg-info/requires.txt
+writing top-level names to src/society0.egg-info/top_level.txt
+reading manifest file 'src/society0.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+no previously-included directories found matching 'tests'
+no previously-included directories found matching 'runs'
+no previously-included directories found matching 'output'
+no previously-included directories found matching 'tmp'
+no previously-included directories found matching 'artifacts'
+no previously-included directories found matching 'reports'
+no previously-included directories found matching 'logs'
+no previously-included directories found matching 'checkpoints'
+no previously-included directories found matching 'chroma_store'
+no previously-included directories found matching 'chroma_backups'
+no previously-included directories found matching 'metadata'
+no previously-included directories found matching 'diffs'
+no previously-included directories found matching 'interviews'
+no previously-included directories found matching 'edit_history'
+no previously-included directories found matching '.refs'
+warning: no previously-included files matching '__pycache__' found anywhere in distribution
+warning: no previously-included files matching '*.egg-info' found anywhere in distribution
+warning: no previously-included files matching '.env' found anywhere in distribution
+warning: no previously-included files matching '.env.*' found anywhere in distribution
+warning: no previously-included files matching '*.jsonl' found anywhere in distribution
+warning: no previously-included files matching '*.log' found anywhere in distribution
+warning: no previously-included files matching '*.sqlite' found anywhere in distribution
+warning: no previously-included files matching '*.sqlite3' found anywhere in distribution
+warning: no previously-included files matching '*.db' found anywhere in distribution
+adding license file 'LICENSE'
+writing manifest file 'src/society0.egg-info/SOURCES.txt'
+running bdist_wheel
+running build
+running build_py
+copying src/society0/kernel/composition.py -> build/lib/society0/kernel
+running egg_info
+writing src/society0.egg-info/PKG-INFO
+writing dependency_links to src/society0.egg-info/dependency_links.txt
+writing requirements to src/society0.egg-info/requires.txt
+writing top-level names to src/society0.egg-info/top_level.txt
+reading manifest file 'src/society0.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+no previously-included directories found matching 'tests'
+no previously-included directories found matching 'runs'
+no previously-included directories found matching 'output'
+no previously-included directories found matching 'tmp'
+no previously-included directories found matching 'artifacts'
+no previously-included directories found matching 'reports'
+no previously-included directories found matching 'logs'
+no previously-included directories found matching 'checkpoints'
+no previously-included directories found matching 'chroma_store'
+no previously-included directories found matching 'chroma_backups'
+no previously-included directories found matching 'metadata'
+no previously-included directories found matching 'diffs'
+no previously-included directories found matching 'interviews'
+no previously-included directories found matching 'edit_history'
+no previously-included directories found matching '.refs'
+warning: no previously-included files matching '__pycache__' found anywhere in distribution
+warning: no previously-included files matching '*.egg-info' found anywhere in distribution
+warning: no previously-included files matching '.env' found anywhere in distribution
+warning: no previously-included files matching '.env.*' found anywhere in distribution
+warning: no previously-included files matching '*.jsonl' found anywhere in distribution
+warning: no previously-included files matching '*.log' found anywhere in distribution
+warning: no previously-included files matching '*.sqlite' found anywhere in distribution
+warning: no previously-included files matching '*.sqlite3' found anywhere in distribution
+warning: no previously-included files matching '*.db' found anywhere in distribution
+adding license file 'LICENSE'
+writing manifest file 'src/society0.egg-info/SOURCES.txt'
+installing to build/bdist.macosx-11.0-arm64/wheel
+running install
+running install_lib
+creating build/bdist.macosx-11.0-arm64/wheel
+creating build/bdist.macosx-11.0-arm64/wheel/society0
+copying build/lib/society0/llm_model_types.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/result_datasets.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/observation.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/persistence.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/recovery.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/models.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/memory_extraction_protocol.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/state_transactions.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/async_utils.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+creating build/bdist.macosx-11.0-arm64/wheel/society0/plugins
+copying build/lib/society0/plugins/social_topology.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/plugins/social_models.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/plugins/social.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/plugins/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/plugins/round_robin.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/plugins/plain.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/plugins
+copying build/lib/society0/resource_managers.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/events.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/diagnostics.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/transaction.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/checkpoint_records.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/state_proxy.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/runtime_scope.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+creating build/bdist.macosx-11.0-arm64/wheel/society0/agent
+copying build/lib/society0/agent/memory_view.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/memory.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/memory_extraction.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/agent_loop.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/thread_store.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/core.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/behavior_action.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/agent/thread_observation.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/agent
+copying build/lib/society0/context_stack.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+creating build/bdist.macosx-11.0-arm64/wheel/society0/env
+creating build/bdist.macosx-11.0-arm64/wheel/society0/env/social_network
+copying build/lib/society0/env/social_network/env.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/social_network
+copying build/lib/society0/env/social_network/models.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/social_network
+copying build/lib/society0/env/social_network/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/social_network
+creating build/bdist.macosx-11.0-arm64/wheel/society0/env/plain
+copying build/lib/society0/env/plain/env.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/plain
+copying build/lib/society0/env/plain/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/plain
+creating build/bdist.macosx-11.0-arm64/wheel/society0/env/round_robin
+copying build/lib/society0/env/round_robin/env.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/round_robin
+copying build/lib/society0/env/round_robin/models.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/round_robin
+copying build/lib/society0/env/round_robin/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env/round_robin
+copying build/lib/society0/env/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/env
+copying build/lib/society0/function_registry.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/society.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/environment.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/activation_pool.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/schedule.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/state_persistence.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/incremental_checkpoint.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/env_discovery.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/jmespath_context.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+creating build/bdist.macosx-11.0-arm64/wheel/society0/logging
+copying build/lib/society0/logging/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/logging
+copying build/lib/society0/logging/spec.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/logging
+copying build/lib/society0/logging/context.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/logging
+copying build/lib/society0/logging/utils.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/logging
+creating build/bdist.macosx-11.0-arm64/wheel/society0/kernel
+copying build/lib/society0/kernel/plugins.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/observation.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/models.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/interaction.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/memory.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/results.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/information_fs.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/shell.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/model_selection.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/llm.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/information_sql.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/cognition.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/runtime.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/threads.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/_json_chunks.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/storage.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/composition.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/schedule.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/workspace.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/actors.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/kernel/usage.py -> build/bdist.macosx-11.0-arm64/wheel/./society0/kernel
+copying build/lib/society0/event_pipeline.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/core_data.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/meta.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+copying build/lib/society0/decorators.py -> build/bdist.macosx-11.0-arm64/wheel/./society0
+running install_egg_info
+Copying src/society0.egg-info to build/bdist.macosx-11.0-arm64/wheel/./society0-5.0.0-py3.13.egg-info
+running install_scripts
+creating build/bdist.macosx-11.0-arm64/wheel/society0-5.0.0.dist-info/WHEEL
+creating '/tmp/society0-core-wheel/.tmp-pck84val/society0-5.0.0-py3-none-any.whl' and adding 'build/bdist.macosx-11.0-arm64/wheel' to it
+adding 'society0/__init__.py'
+adding 'society0/activation_pool.py'
+adding 'society0/async_utils.py'
+adding 'society0/checkpoint_records.py'
+adding 'society0/context_stack.py'
+adding 'society0/core_data.py'
+adding 'society0/decorators.py'
+adding 'society0/diagnostics.py'
+adding 'society0/env_discovery.py'
+adding 'society0/environment.py'
+adding 'society0/event_pipeline.py'
+adding 'society0/events.py'
+adding 'society0/function_registry.py'
+adding 'society0/incremental_checkpoint.py'
+adding 'society0/jmespath_context.py'
+adding 'society0/llm_model_types.py'
+adding 'society0/memory_extraction_protocol.py'
+adding 'society0/meta.py'
+adding 'society0/models.py'
+adding 'society0/observation.py'
+adding 'society0/persistence.py'
+adding 'society0/recovery.py'
+adding 'society0/resource_managers.py'
+adding 'society0/result_datasets.py'
+adding 'society0/runtime_scope.py'
+adding 'society0/schedule.py'
+adding 'society0/society.py'
+adding 'society0/state_persistence.py'
+adding 'society0/state_proxy.py'
+adding 'society0/state_transactions.py'
+adding 'society0/transaction.py'
+adding 'society0/agent/__init__.py'
+adding 'society0/agent/agent_loop.py'
+adding 'society0/agent/behavior_action.py'
+adding 'society0/agent/core.py'
+adding 'society0/agent/memory.py'
+adding 'society0/agent/memory_extraction.py'
+adding 'society0/agent/memory_view.py'
+adding 'society0/agent/thread_observation.py'
+adding 'society0/agent/thread_store.py'
+adding 'society0/env/__init__.py'
+adding 'society0/env/plain/__init__.py'
+adding 'society0/env/plain/env.py'
+adding 'society0/env/round_robin/__init__.py'
+adding 'society0/env/round_robin/env.py'
+adding 'society0/env/round_robin/models.py'
+adding 'society0/env/social_network/__init__.py'
+adding 'society0/env/social_network/env.py'
+adding 'society0/env/social_network/models.py'
+adding 'society0/kernel/__init__.py'
+adding 'society0/kernel/_json_chunks.py'
+adding 'society0/kernel/actors.py'
+adding 'society0/kernel/cognition.py'
+adding 'society0/kernel/composition.py'
+adding 'society0/kernel/information_fs.py'
+adding 'society0/kernel/information_sql.py'
+adding 'society0/kernel/interaction.py'
+adding 'society0/kernel/llm.py'
+adding 'society0/kernel/memory.py'
+adding 'society0/kernel/model_selection.py'
+adding 'society0/kernel/models.py'
+adding 'society0/kernel/observation.py'
+adding 'society0/kernel/plugins.py'
+adding 'society0/kernel/results.py'
+adding 'society0/kernel/runtime.py'
+adding 'society0/kernel/schedule.py'
+adding 'society0/kernel/shell.py'
+adding 'society0/kernel/storage.py'
+adding 'society0/kernel/threads.py'
+adding 'society0/kernel/usage.py'
+adding 'society0/kernel/workspace.py'
+adding 'society0/logging/__init__.py'
+adding 'society0/logging/context.py'
+adding 'society0/logging/spec.py'
+adding 'society0/logging/utils.py'
+adding 'society0/plugins/__init__.py'
+adding 'society0/plugins/plain.py'
+adding 'society0/plugins/round_robin.py'
+adding 'society0/plugins/social.py'
+adding 'society0/plugins/social_models.py'
+adding 'society0/plugins/social_topology.py'
+adding 'society0-5.0.0.dist-info/licenses/LICENSE'
+adding 'society0-5.0.0.dist-info/METADATA'
+adding 'society0-5.0.0.dist-info/WHEEL'
+adding 'society0-5.0.0.dist-info/top_level.txt'
+adding 'society0-5.0.0.dist-info/RECORD'
+removing build/bdist.macosx-11.0-arm64/wheel
+Successfully built /tmp/society0-core-wheel/society0-5.0.0-py3-none-any.whl

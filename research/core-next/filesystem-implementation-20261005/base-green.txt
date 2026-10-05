@@ -1,0 +1,227 @@
+.........F.................................                              [100%]
+=================================== FAILURES ===================================
+___________ test_shared_environment_example_checkpoint_and_workspace ___________
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_information_sql.py", line 211, in test_shared_environment_example_checkpoint_and_workspace
+    |     report = await example['demonstrate'](tmp_path / 'example', history=1000)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/examples/core_next/shared_environment.py", line 138, in demonstrate
+    |     descriptor = await host.service('runtime','runtime').run_step(1,0,[Phase('trade',phase)])
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 156, in execute
+    |     result = await actor.driver.run(session)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/examples/core_next/shared_environment.py", line 102, in run
+    |     target = json.loads(listing.stdout)['items'][0]['ref']
+    |              ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+    | KeyError: 'items'
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_information_sql.py", line 211, in test_shared_environment_example_checkpoint_and_workspace
+    report = await example['demonstrate'](tmp_path / 'example', history=1000)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/examples/core_next/shared_environment.py", line 138, in demonstrate
+    descriptor = await host.service('runtime','runtime').run_step(1,0,[Phase('trade',phase)])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 156, in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/examples/core_next/shared_environment.py", line 102, in run
+    target = json.loads(listing.stdout)['items'][0]['ref']
+             ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyError: 'items'
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1062/test_shared_environment_exampl0')
+
+    @pytest.mark.asyncio
+    async def test_shared_environment_example_checkpoint_and_workspace(tmp_path):
+        import runpy
+        from pathlib import Path
+        pytest.importorskip('bashkit')
+        example = runpy.run_path(str(Path(__file__).parents[2] / 'examples/core_next/shared_environment.py'))
+>       report = await example['demonstrate'](tmp_path / 'example', history=1000)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_information_sql.py:211:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+examples/core_next/shared_environment.py:138: in demonstrate
+    descriptor = await host.service('runtime','runtime').run_step(1,0,[Phase('trade',phase)])
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:156: in execute
+    result = await actor.driver.run(session)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <<run_path>.demonstrate.<locals>.RuleDriver object at 0x1089d1a60>
+session = Session(actor=Actor(id='alice', driver=<<run_path>.demonstrate.<locals>.RuleDriver object at 0x1089d1a60>, state_ref=N...ursors={}, prepared=None, signals=(None,), _phase=<society0.kernel.runtime.PhaseContext object at 0x1081b7bc0>, step=1)
+
+    async def run(self, session):
+        shell = ShellSession(session.scope, interfaces['information'],
+                             bound_actions=session.actions, result_dir=output / 'shell-results')
+        results = []
+        try:
+            if session.actor.id == 'alice':
+                results.append(await shell.execute('data read /world/documents/1 ' + argument({'size':64})))
+                results.append(await shell.execute('data query /world/history ' + argument({'fields':['id','price'],'limit':5,'sample_seed':7})))
+                listing = await shell.execute('data query /world/orders')
+                results.append(listing)
+>               target = json.loads(listing.stdout)['items'][0]['ref']
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               KeyError: 'items'
+
+examples/core_next/shared_environment.py:102: KeyError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1062/test_shared_environment_exampl0/example/shell-results/shell-bc8jylra/output — scripts can modify host files

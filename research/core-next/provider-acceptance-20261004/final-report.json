@@ -1,0 +1,232 @@
+{
+  "scenario_mapping": [
+    {
+      "scenario": "test_real_endpoint_smoke_llm_and_embedding",
+      "run": "chain-live-03/test_real_endpoint_smoke_llm_and_embedding",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_round_robin_action_loop",
+      "run": "chain-live-03/test_real_round_robin_action_loop",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_exit_restore_memory_and_observation",
+      "run": "chain-live-03/test_real_exit_restore_memory_and_observation",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_endpoint_saturation_llm_and_embedding_managers",
+      "run": "remaining-live-01/test_real_endpoint_saturation_llm_and_embedding_managers",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_interview_writes_artifacts",
+      "run": "remaining-live-01/test_real_interview_writes_artifacts",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_saturation_memory_and_logs",
+      "run": "remaining-live-01/test_real_saturation_memory_and_logs",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_phase_capacity_overrides_runtime",
+      "run": "remaining-live-01/test_real_phase_capacity_overrides_runtime",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_memory_roundtrip",
+      "run": "remaining-live-01/test_real_memory_roundtrip",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_complete_boundary_memory_restore",
+      "run": "remaining-live-01/test_real_complete_boundary_memory_restore",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_environment_action_tag_completion",
+      "run": "remaining-live-01/test_real_environment_action_tag_completion",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_terminal_rejection_then_success",
+      "run": "remaining-live-01/test_real_terminal_rejection_then_success",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_social_publish_with_memory",
+      "run": "social-vfs-final-01/test_real_social_publish_with_memory",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_social_browse_completion_and_memory",
+      "run": "social-vfs-final-01/test_real_social_browse_completion_and_memory",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_multi_tick_social_workflow",
+      "run": "social-vfs-final-01/test_real_multi_tick_social_workflow",
+      "verdict": "pytest_pass"
+    },
+    {
+      "scenario": "test_real_vfs_discovery_pagination_original_and_action",
+      "run": "social-vfs-final-01/test_real_vfs_discovery_pagination_original_and_action",
+      "verdict": "same_artifact_exact_source_oracle_pass"
+    }
+  ],
+  "distinct_selected_physical_calls": 191,
+  "selected_rows_before_dedup": 237,
+  "usage_groups": [
+    {
+      "kind": "thread",
+      "model": "Qwen/Qwen3.8-27B",
+      "usage_valid": false,
+      "physical_calls": 18,
+      "requests": 18,
+      "responses": 18,
+      "errors": 0,
+      "cancelled": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "input_reports": null,
+      "output_reports": null,
+      "cache_read_reports": null,
+      "cache_write_reports": null,
+      "cache_read_fraction": null
+    },
+    {
+      "kind": "resource",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "usage_valid": false,
+      "physical_calls": 1,
+      "requests": 1,
+      "responses": 1,
+      "errors": 0,
+      "cancelled": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cache_read_tokens": null,
+      "input_reports": null,
+      "output_reports": null,
+      "cache_read_reports": null,
+      "cache_write_reports": null,
+      "cache_read_fraction": null
+    },
+    {
+      "kind": "thread",
+      "model": "Qwen/Qwen3.8-27B",
+      "usage_valid": true,
+      "physical_calls": 134,
+      "requests": 134,
+      "responses": 133,
+      "errors": 1,
+      "cancelled": 0,
+      "input_tokens": 263474,
+      "output_tokens": 9106,
+      "cache_read_tokens": 61184,
+      "input_reports": 133,
+      "output_reports": 133,
+      "cache_read_reports": 133,
+      "cache_write_reports": 0,
+      "cache_read_fraction": 0.23222025702725885
+    },
+    {
+      "kind": "resource",
+      "model": "Qwen/Qwen3-Embedding-0.6B",
+      "usage_valid": true,
+      "physical_calls": 38,
+      "requests": 38,
+      "responses": 38,
+      "errors": 0,
+      "cancelled": 0,
+      "input_tokens": 996,
+      "output_tokens": 0,
+      "cache_read_tokens": 0,
+      "input_reports": 38,
+      "output_reports": 0,
+      "cache_read_reports": 0,
+      "cache_write_reports": 0,
+      "cache_read_fraction": null
+    }
+  ],
+  "effects": [
+    {
+      "auto_recall": false,
+      "outcomes": [
+        "completed"
+      ],
+      "answer": "\n当前根目录 total=0，没有可访问的信息挂载。\n\n**资料不足，无法回答。**\n\n- 先前订单代码：无可见材料，无法提供。\n- 已收款金额：无可见材料，无法提供。\n\n我不会进行猜测。如需我继续核查，请提供相关订单/收款材料的访问路径或挂载信息。",
+      "new_usage": {
+        "requests": 2,
+        "input_tokens": 3207,
+        "output_tokens": 122,
+        "cache_read_tokens": 0
+      },
+      "auto_write": false,
+      "active_tools": false
+    },
+    {
+      "auto_recall": true,
+      "outcomes": [
+        "completed"
+      ],
+      "answer": "\n根据当前可见材料：\n\n- **先前订单代码**：B42\n- **已收款金额**：500 元\n\n（来源：召回记忆\"B42订单已经收款500元\"；当前根目录无其他可访问信息挂载，total=0。）",
+      "new_usage": {
+        "requests": 3,
+        "input_tokens": 3263,
+        "output_tokens": 111,
+        "cache_read_tokens": 0
+      },
+      "auto_write": false,
+      "active_tools": false
+    }
+  ],
+  "historical_failures": [
+    {
+      "run": "chain-live-01",
+      "reason": "round default object arguments rejected by old string meta schema; smoke passed"
+    },
+    {
+      "run": "round-live-02",
+      "reason": "same argument transport mismatch despite detailed error"
+    },
+    {
+      "run": "remaining-live-01",
+      "reason": "browse b exhausted 8 turns after empty memory search and metadata-only post; nine cases passed"
+    },
+    {
+      "run": "tail-live-01",
+      "reason": "first multi_tick provider streaming request interrupted near 60s; exception class absent; VFS unrun"
+    },
+    {
+      "run": "social-vfs-final-01",
+      "reason": "VFS original oracle removed source punctuation; actual preserved exact source; shared offline oracle verifies all assertions"
+    },
+    {
+      "run": "stream-continuous-live-01",
+      "reason": "proxy ReadTimeout; direct replacement evidence retained"
+    },
+    {
+      "run": "effects-live-01",
+      "reason": "import failure before provider calls; PYTHONPATH corrected"
+    }
+  ],
+  "raw_probes_separate": [
+    "endpoint-live-01",
+    "cache-live-02",
+    "stream-default-live-01",
+    "stream-continuous-live-01",
+    "stream-continuous-direct-02"
+  ],
+  "limits": [
+    "Composite 15-scenario evidence across documented source snapshots, not one fresh identical-source all-pass pytest execution.",
+    "Old non-continuous runs excluded from token aggregates.",
+    "Valid totals include current diagnostic failures and superseded successful runs, deduplicated inherited history.",
+    "One timed-out call has unknown terminal usage; no monetary estimate.",
+    "Single recall pair is usability evidence, not a statistical effect size.",
+    "Physical power failure and long-run stability not proved."
+  ]
+}

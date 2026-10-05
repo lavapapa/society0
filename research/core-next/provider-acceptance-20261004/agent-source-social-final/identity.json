@@ -1,0 +1,6 @@
+{
+  "release": "working-tree-agent-native-social-link-20261004",
+  "base_commit": "0ae6f7dd3a5baac4fbaacc272c500c0cbcb0e4d0",
+  "source": "frozen working tree; base commit is lineage only",
+  "changes_since_previous": "social metadata content_path discoverability only"
+}

@@ -1,0 +1,138 @@
+{
+  "commit": "40d385ded0cbbfdbecaa55e658ca8c2c7b440ceb",
+  "source_dir": "/tmp/society0-final-40d385d-storage-20261004",
+  "created_at": "2026-10-04T09:50:45.352618+08:00",
+  "python": "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+  "real_network": false,
+  "results": [
+    {
+      "name": "deterministic",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/primary",
+        "tests/e2e",
+        "-m",
+        "not real_e2e"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 27.986188667011447,
+      "log": "research/core-next/final-40d385d-deterministic-20261004.txt"
+    },
+    {
+      "name": "experiments",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/experiments"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 3.1555914590135217,
+      "log": "research/core-next/final-40d385d-experiments-20261004.txt"
+    },
+    {
+      "name": "vector",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "tests/experiments/test_core_next_vector_backends.py"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.6598066660226323,
+      "log": "research/core-next/final-40d385d-vector-20261004.txt"
+    },
+    {
+      "name": "pilot",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "society0.kernel.runner",
+        "--factory",
+        "examples.core_next.conversation_pilot:build",
+        "--config",
+        "/tmp/society0-final-40d385d-storage-20261004/pilot-config.json",
+        "--output",
+        "/tmp/society0-final-40d385d-storage-20261004/pilot-run"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.17305054096505046,
+      "log": "research/core-next/final-40d385d-pilot-20261004.txt"
+    },
+    {
+      "name": "payload",
+      "command": [
+        "/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/.venv/bin/python",
+        "-m",
+        "society0.kernel.workbench",
+        "--run",
+        "/tmp/society0-final-40d385d-storage-20261004/pilot-run",
+        "--version",
+        "final-independent",
+        "--steps",
+        "1",
+        "2",
+        "--actors",
+        "a",
+        "b",
+        "c",
+        "d",
+        "--output",
+        "/tmp/society0-final-40d385d-storage-20261004/pilot-payload.json"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.055045666988007724,
+      "log": "research/core-next/final-40d385d-payload-20261004.txt"
+    },
+    {
+      "name": "node",
+      "command": [
+        "npm",
+        "test",
+        "--prefix",
+        "tools/workbench-template"
+      ],
+      "exit_code": 0,
+      "wall_seconds": 0.9187663749908097,
+      "log": "research/core-next/final-40d385d-node-20261004.txt"
+    }
+  ],
+  "head_at_start": "40d385ded0cbbfdbecaa55e658ca8c2c7b440ceb",
+  "origin_at_start": "40d385ded0cbbfdbecaa55e658ca8c2c7b440ceb",
+  "source_byte_comparison": {
+    "files": 50,
+    "all_equal": true
+  },
+  "skip_contract": {
+    "deterministic": "real_e2e explicitly deselected; no model network",
+    "experiments": "sqlite_vec module skipped in normal environment then separately executed",
+    "node": "actual generated pilot payload supplied; no intended skip"
+  },
+  "dependencies": {
+    "apsw": "3.53.4.0",
+    "python-rapidjson": "1.25",
+    "chromadb": "1.5.9",
+    "openai": "2.53.0",
+    "zstandard": "0.25.0",
+    "bashkit": "0.18.2",
+    "society0-filesystem": "0.1.0",
+    "pytest": "9.1.1"
+  },
+  "python_version": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+  "node_version": "v24.16.0",
+  "dependency_scope": "existing locked local .venv and workbench node_modules; archive source, not a clean Linux install"
+}

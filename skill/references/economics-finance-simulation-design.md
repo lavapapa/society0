@@ -105,7 +105,7 @@ Use this env-first split in every economics/finance simulation:
 | World-changing behavior | `instruct` with env actions |
 | Survey answer, forecast, reason, confidence, mental-model text | `interview` |
 | Accounting and market consequences | rules/behaviors after decisions |
-| Validation and analysis | `ctx.result(metrics=..., tables=...)` plus analysis scripts |
+| Validation and analysis | `StepResult(metrics=..., tables=...)` plus analysis scripts |
 
 Always record raw agent output, validated action, fallback reason, model/provider, prompt version, FoV version, seed, and treatment assignment in tables that make metrics recomputable.
 

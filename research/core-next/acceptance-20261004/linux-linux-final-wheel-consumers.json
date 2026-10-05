@@ -1,0 +1,53 @@
+[
+  {
+    "command": [
+      "python",
+      "-m",
+      "venv",
+      "/tmp/society0-acceptance-20261004/base-final"
+    ],
+    "exit_code": 0,
+    "stdout": "",
+    "stderr": "",
+    "seconds": 2.1762111857533455
+  },
+  {
+    "command": [
+      "/tmp/society0-acceptance-20261004/base-final/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "/mnt/data/l20/qin/society0-acceptance-20261004/source"
+    ],
+    "exit_code": 0,
+    "stdout": "Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/\nProcessing /mnt/data/l20/qin/society0-acceptance-20261004/source\n  Installing build dependencies: started\n  Installing build dependencies: finished with status 'done'\n  Getting requirements to build wheel: started\n  Getting requirements to build wheel: finished with status 'done'\n  Preparing metadata (pyproject.toml): started\n  Preparing metadata (pyproject.toml): finished with status 'done'\nCollecting apsw>=3.53.4.0 (from society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/bc/20/c83561b62be054bc0d04216b7d1cb037c4d95078a8250a062a61bd1a6659/apsw-3.53.4.0-cp312-cp312-manylinux_2_28_x86_64.whl (3.6 MB)\nCollecting jsonschema>=4.0.0 (from society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/69/90/f63fb5873511e014207a475e2bb4e8b2e570d655b00ac19a9a0ca0a385ee/jsonschema-4.26.0-py3-none-any.whl (90 kB)\nCollecting python-rapidjson==1.25 (from society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/89/db/259cafa8461482d017c65ddb0a299b39a9c4038d83f18b293e89d101ffc4/python_rapidjson-1.25-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (1.8 MB)\nCollecting backports-zstd==1.7.0 (from society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/1e/40/121917bd2671bc3f1507c25503c0554f0b52483edcca4e6210e6d22228df/backports_zstd-1.7.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (496 kB)\nCollecting attrs>=22.2.0 (from jsonschema>=4.0.0->society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl (67 kB)\nCollecting jsonschema-specifications>=2023.03.6 (from jsonschema>=4.0.0->society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)\nCollecting referencing>=0.28.4 (from jsonschema>=4.0.0->society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl (26 kB)\nCollecting rpds-py>=0.25.0 (from jsonschema>=4.0.0->society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/04/8f/d2f3f532616be4d06c316ef119683e832bd3d41e112bf3a88f4151c95b17/rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (366 kB)\nCollecting typing-extensions>=4.4.0 (from referencing>=0.28.4->jsonschema>=4.0.0->society0==6.0.0)\n  Using cached http://mirrors.aliyun.com/pypi/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl (45 kB)\nBuilding wheels for collected packages: society0\n  Building wheel for society0 (pyproject.toml): started\n  Building wheel for society0 (pyproject.toml): finished with status 'done'\n  Created wheel for society0: filename=society0-6.0.0-py3-none-any.whl size=161991 sha256=6e352c1100a2238c2b6e8d41d18f01b77b4ecf2c003aec47ae3450dfb9f598e8\n  Stored in directory: /tmp/pip-ephem-wheel-cache-ngdm4muy/wheels/83/04/eb/b4632a2528f3c15dde4f32d45b4b2c60cba6fe71714a243147\nSuccessfully built society0\nInstalling collected packages: typing-extensions, rpds-py, python-rapidjson, backports-zstd, attrs, apsw, referencing, jsonschema-specifications, jsonschema, society0\nSuccessfully installed apsw-3.53.4.0 attrs-26.1.0 backports-zstd-1.7.0 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 python-rapidjson-1.25 referencing-0.37.0 rpds-py-2026.6.3 society0-6.0.0 typing-extensions-4.16.0\n",
+    "stderr": "\n[notice] A new release of pip is available: 24.3.1 -> 26.2.1\n[notice] To update, run: python -m pip install --upgrade pip\n",
+    "seconds": 7.107006773352623
+  },
+  {
+    "command": [
+      "/tmp/society0-acceptance-20261004/base-final/bin/python",
+      "/tmp/society0-acceptance-20261004/clean_consumer.py",
+      "base"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"base\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-20261004/base-final/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": "",
+    "seconds": 0.19019553437829018
+  },
+  {
+    "command": [
+      "/tmp/society0-acceptance-20261004/all/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "--force-reinstall",
+      "--no-deps",
+      "/mnt/data/l20/qin/society0-acceptance-20261004/source"
+    ],
+    "exit_code": 0,
+    "stdout": "Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/\nProcessing /mnt/data/l20/qin/society0-acceptance-20261004/source\n  Installing build dependencies: started\n  Installing build dependencies: finished with status 'done'\n  Getting requirements to build wheel: started\n  Getting requirements to build wheel: finished with status 'done'\n  Preparing metadata (pyproject.toml): started\n  Preparing metadata (pyproject.toml): finished with status 'done'\nBuilding wheels for collected packages: society0\n  Building wheel for society0 (pyproject.toml): started\n  Building wheel for society0 (pyproject.toml): finished with status 'done'\n  Created wheel for society0: filename=society0-6.0.0-py3-none-any.whl size=161991 sha256=a56f1bef5e51ece52d6a23a670b0f1a9324a00f391887b1df6fd01a89962cf6a\n  Stored in directory: /tmp/pip-ephem-wheel-cache-qtxsjlhi/wheels/83/04/eb/b4632a2528f3c15dde4f32d45b4b2c60cba6fe71714a243147\nSuccessfully built society0\nInstalling collected packages: society0\n  Attempting uninstall: society0\n    Found existing installation: society0 6.0.0\n    Uninstalling society0-6.0.0:\n      Successfully uninstalled society0-6.0.0\nSuccessfully installed society0-6.0.0\n",
+    "stderr": "\n[notice] A new release of pip is available: 24.3.1 -> 26.2.1\n[notice] To update, run: python -m pip install --upgrade pip\n",
+    "seconds": 3.8037285208702087
+  }
+]

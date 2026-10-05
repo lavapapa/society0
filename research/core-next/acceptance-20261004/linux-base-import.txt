@@ -1,0 +1,15 @@
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+info: profile set to minimal
+info: default host tuple is x86_64-unknown-linux-gnu
+info: syncing channel updates for 1.95.0-x86_64-unknown-linux-gnu
+info: latest update on 2026-04-16 for version 1.95.0 (59807616e 2026-04-14)
+info: downloading 3 components
+info: default toolchain set to 1.95.0-x86_64-unknown-linux-gnu
+
+  1.95.0-x86_64-unknown-linux-gnu installed - rustc 1.95.0 (59807616e 2026-04-14)
+
+
+Rust is installed now. Great!
+
+{"import_path": "/mnt/data/l20/qin/society0-acceptance-20261004/base/lib/python3.12/site-packages/society0/__init__.py", "pydantic_ai": false, "basic_public_imports": true}

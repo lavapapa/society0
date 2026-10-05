@@ -1,0 +1,68 @@
+..FF                                                                     [100%]
+=================================== FAILURES ===================================
+_ test_runtime_reports_phase_and_complete_time_without_changing_receipt[False] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-684/test_runtime_reports_phase_and0')
+fail = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('fail',[False,True])
+    async def test_runtime_reports_phase_and_complete_time_without_changing_receipt(tmp_path,fail):
+        import time
+        from society0.kernel.runtime import Runtime,Phase
+        from society0.kernel.interaction import Information,Actions
+        from society0.kernel.schedule import Progress
+        with StageStore.create(tmp_path/'run',[]) as store:
+            original=store.complete
+            def complete(*args,**kwargs):
+                time.sleep(.01)
+                if fail:raise OSError('publish failed')
+                return original(*args,**kwargs)
+            store.complete=complete
+            async def phase(ctx):await asyncio.sleep(.01)
+            progress=Progress(tmp_path/'progress.json',store.run_id)
+            runtime=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,progress=progress)
+            try:
+                if fail:
+                    with pytest.raises(OSError):await runtime.run_step(1,1,[Phase('env',phase)])
+                else:
+                    receipt=await runtime.run_step(1,1,[Phase('env',phase)])
+                    assert receipt['step']==1
+>               timing=runtime.last_timing
+                       ^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Runtime' object has no attribute 'last_timing'
+
+tests/primary/test_kernel_timing.py:85: AttributeError
+_ test_runtime_reports_phase_and_complete_time_without_changing_receipt[True] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-684/test_runtime_reports_phase_and1')
+fail = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('fail',[False,True])
+    async def test_runtime_reports_phase_and_complete_time_without_changing_receipt(tmp_path,fail):
+        import time
+        from society0.kernel.runtime import Runtime,Phase
+        from society0.kernel.interaction import Information,Actions
+        from society0.kernel.schedule import Progress
+        with StageStore.create(tmp_path/'run',[]) as store:
+            original=store.complete
+            def complete(*args,**kwargs):
+                time.sleep(.01)
+                if fail:raise OSError('publish failed')
+                return original(*args,**kwargs)
+            store.complete=complete
+            async def phase(ctx):await asyncio.sleep(.01)
+            progress=Progress(tmp_path/'progress.json',store.run_id)
+            runtime=Runtime([],information=Information(lambda *a:True),actions=Actions(lambda *a:True),store=store,progress=progress)
+            try:
+                if fail:
+                    with pytest.raises(OSError):await runtime.run_step(1,1,[Phase('env',phase)])
+                else:
+                    receipt=await runtime.run_step(1,1,[Phase('env',phase)])
+                    assert receipt['step']==1
+>               timing=runtime.last_timing
+                       ^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'Runtime' object has no attribute 'last_timing'
+
+tests/primary/test_kernel_timing.py:85: AttributeError

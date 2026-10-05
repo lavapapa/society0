@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_namespace_directory_does_not_disclose_hidden_dataset ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-880/test_namespace_directory_does_0')
+
+    @pytest.mark.asyncio
+    async def test_namespace_directory_does_not_disclose_hidden_dataset(tmp_path):
+        store = StageStore.create(tmp_path / "run", [
+            "CREATE TABLE public_rows(id INTEGER PRIMARY KEY)",
+            "CREATE TABLE private_rows(id INTEGER PRIMARY KEY)",
+        ])
+        try:
+            provider = SQLInformation("world", store, {
+                "public": DatasetSpec("public_rows", "id", ("id",)),
+                "private": DatasetSpec("private_rows", "id", ("id",)),
+            })
+            information = Information(
+                lambda scope, operation, ref: ref.kind != "private"
+            )
+            information.mount("/world", provider)
+            with InteractionScope("alice", Moment(1, "read")) as scope:
+                page = await information.list(scope, "/world")
+>               assert page.total == 1
+E               AssertionError: assert 2 == 1
+E                +  where 2 = Page(items=[{'path': '/world/public', 'ref': Ref(namespace='world', kind='public', key='')}, {'path': '/world/private', 'ref': Ref(namespace='world', kind='private', key='')}], total=2, next_cursor=None, revision=None).total
+
+tests/primary/test_core_final_review.py:30: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_core_final_review.py::test_namespace_directory_does_not_disclose_hidden_dataset
+1 failed, 1 deselected in 0.72s

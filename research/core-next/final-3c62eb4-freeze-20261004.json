@@ -1,0 +1,17 @@
+{
+  "paths": [
+    "research/core-next/final-3c62eb4-independent-20261004.md",
+    "research/core-next/final-3c62eb4-independent-results-20261004.json",
+    "research/core-next/final-3c62eb4-independent-runner-20261004.py",
+    "research/core-next/final-3c62eb4-deterministic-20261004.txt",
+    "research/core-next/final-3c62eb4-experiments-20261004.txt",
+    "research/core-next/final-3c62eb4-vector-20261004.txt",
+    "research/core-next/final-3c62eb4-pilot-20261004.txt",
+    "research/core-next/final-3c62eb4-payload-20261004.txt",
+    "research/core-next/final-3c62eb4-node-20261004.txt"
+  ],
+  "include_manifest_itself": true,
+  "product_changes": false,
+  "network_model_calls": 0,
+  "source_commit": "3c62eb473b59dd3c3ffabb4ab5b1816a3afbdc9d"
+}

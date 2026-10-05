@@ -1,0 +1,29 @@
+Core-next deterministic baseline
+Commit: 738ba70cf7881649c38422d4b3f00ffed12ab51c
+PYTHONPATH: /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src
+Scope: explicit tracked primary/e2e test files at baseline; excludes new tests, performance and Node.
+Command: ['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'pytest', '-m', 'not real_e2e', 'tests/e2e/test_real_process_recovery.py', 'tests/e2e/test_society0_e2e.py', 'tests/e2e/test_society0_real_e2e.py', 'tests/primary/test_action_role_permissions.py', 'tests/primary/test_activation_pool.py', 'tests/primary/test_agent_persistence_semantics_v4.py', 'tests/primary/test_agent_thread_store.py', 'tests/primary/test_builtin_explicit_transactions.py', 'tests/primary/test_builtin_persistence_semantics_v4.py', 'tests/primary/test_checkpoint_component_read.py', 'tests/primary/test_checkpoint_memory_pairing.py', 'tests/primary/test_checkpoint_records.py', 'tests/primary/test_embedding_thread_trace.py', 'tests/primary/test_env_tick_hooks.py', 'tests/primary/test_explicit_state_transaction_concurrency.py', 'tests/primary/test_explicit_state_transactions.py', 'tests/primary/test_external_environment_injection.py', 'tests/primary/test_incremental_checkpoint_v4.py', 'tests/primary/test_incremental_checkpoint_v4_branch_gc.py', 'tests/primary/test_incremental_checkpoint_v4_process_crash.py', 'tests/primary/test_incremental_checkpoint_v4_state_machine.py', 'tests/primary/test_lazy_runtime_imports.py', 'tests/primary/test_memory_epoch_sharing.py', 'tests/primary/test_memory_receipt_recovery.py', 'tests/primary/test_memory_visibility_v4.py', 'tests/primary/test_observation.py', 'tests/primary/test_observation_compact.py', 'tests/primary/test_observation_http_independent.py', 'tests/primary/test_observation_review.py', 'tests/primary/test_persistence_architecture_v4.py', 'tests/primary/test_persistence_declarations_v4.py', 'tests/primary/test_persistence_lazy_chroma.py', 'tests/primary/test_persistence_manager_v4.py', 'tests/primary/test_persistence_schema_lookup.py', 'tests/primary/test_query_storage_independent.py', 'tests/primary/test_real_action_contract.py', 'tests/primary/test_real_e2e_endpoint_config.py', 'tests/primary/test_result_datasets.py', 'tests/primary/test_runtime_checkpoint_v4.py', 'tests/primary/test_runtime_diagnostics.py', 'tests/primary/test_runtime_entrypoint.py', 'tests/primary/test_skill_starter.py', 'tests/primary/test_social_network_recommendation.py', 'tests/primary/test_society0_primary.py', 'tests/primary/test_state_persistence_api_v4.py', 'tests/primary/test_state_proxy_collections.py', 'tests/primary/test_step_recovery.py', 'tests/primary/test_step_runtime_scope.py', 'tests/primary/test_storage_review.py', 'tests/primary/test_storage_v3_independent.py', 'tests/primary/test_summary_storage_independent.py', 'tests/primary/test_thread_integrity.py', 'tests/primary/test_thread_native_memory.py', 'tests/primary/test_thread_observation.py', 'tests/primary/test_tool_choice_policy.py', 'tests/primary/test_workbench_renderer.py']
+
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+........................................................................ [ 42%]
+........................................................................ [ 53%]
+............................................F........................... [ 64%]
+........................................................................ [ 75%]
+........................................................................ [ 85%]
+........................................................................ [ 96%]
+......................                                                   [100%]
+=================================== FAILURES ===================================
+__________ test_society0_skill_requires_visible_experiment_todo_list ___________
+
+    def test_society0_skill_requires_visible_experiment_todo_list():
+        skill_text = Path(__file__).resolve().parents[2].joinpath("skill", "SKILL.md").read_text(encoding="utf-8")
+        assert "Start and maintain a visible todo list" in skill_text
+>       assert "Keep the todo list visible" in skill_text
+E       assert 'Keep the todo list visible' in '---\nname: society0\ndescription: "Help humanities, social science, communication, economics, finance, and interdisci...erclaim from one run. Treat outputs as simulated evidence requiring robustness checks and researcher interpretation.\n'
+
+tests/primary/test_society0_primary.py:2173: AssertionError
+1 failed, 669 passed, 14 deselected in 34.28s
+
+Exit code: 1

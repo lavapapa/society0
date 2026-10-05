@@ -1,0 +1,17 @@
+baseline mapping input: ['column']
+Traceback (most recent call last):
+  File "/tmp/society0-result-shape-baseline.py", line 19, in <module>
+    asyncio.run(main())
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/tmp/society0-result-shape-baseline.py", line 18, in main
+    assert actual==[{'column':[1,2]}], 'mapping silently became column names'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: mapping silently became column names

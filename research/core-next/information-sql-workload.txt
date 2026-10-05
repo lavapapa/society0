@@ -1,0 +1,3 @@
+{"history_sizes": [1000, 10000], "measurements": [{"vm": 58, "rows": 7, "bytes": 56, "sql": ["SELECT n FROM counts WHERE owner=?", "SELECT \"id\" FROM \"orders\" WHERE (owner=?) ORDER BY \"id\" asc LIMIT ?"]}, {"vm": 58, "rows": 7, "bytes": 56, "sql": ["SELECT n FROM counts WHERE owner=?", "SELECT \"id\" FROM \"orders\" WHERE (owner=?) ORDER BY \"id\" asc LIMIT ?"]}]}
+.
+1 passed, 9 deselected in 0.11s

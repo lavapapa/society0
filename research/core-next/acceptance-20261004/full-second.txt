@@ -1,0 +1,929 @@
+FFF.F....FFFFFFFFFFFFFFFFFF..............FF.......FF.................... [ 10%]
+........................................................................ [ 20%]
+........................................................................ [ 30%]
+........................................................................ [ 40%]
+........................................................................ [ 50%]
+...................FF.................................FF................ [ 60%]
+.F.F..F................................................................. [ 71%]
+.........FFFF........................................................... [ 81%]
+.......................................F........F.....F....F............ [ 91%]
+..................................................F..........            [100%]
+=================================== FAILURES ===================================
+_ test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it __
+tests/primary/test_activation_pool_shared.py:14: in test_activation_pool_limit_surfaces_unfinished_follow_up_without_running_it
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+_____________ test_drain_waits_for_work_submitted_on_idle_boundary _____________
+tests/primary/test_activation_pool_shared.py:42: in test_drain_waits_for_work_submitted_on_idle_boundary
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+_____________ test_close_waits_for_work_submitted_on_idle_boundary _____________
+tests/primary/test_activation_pool_shared.py:84: in test_close_waits_for_work_submitted_on_idle_boundary
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+___ test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorization ____
+tests/primary/test_core_directory_kind_review.py:50: in test_review_sql_rows_vfs_and_observer_keep_real_types_and_authorization
+    assert (await fs.callback('list','/data'))[0][1]=='directory'
+E   AssertionError: assert 'file' == 'directory'
+E     
+E     - directory
+E     + file
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[decision] _
+tests/primary/test_core_next_real_structure.py:30: in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[interview] _
+tests/primary/test_core_next_real_structure.py:30: in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[memory] __
+tests/primary/test_core_next_real_structure.py:30: in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[endpoint_smoke_llm_and_embedding] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:66: in test_real_endpoint_smoke_llm_and_embedding
+    await execute(config,destination,goals='请用一句话回答测试已就绪。',policy=policy(),after=after)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[endpoint_saturation_llm_and_embedding_managers] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:76: in test_real_endpoint_saturation_llm_and_embedding_managers
+    held=await execute(config,destination,goals='请回答你的主体编号。',policy=policy(),actors=tuple('abc'),capacity=3,after=after)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[interview_writes_artifacts] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:85: in test_real_interview_writes_artifacts
+    held=await execute(config,destination,goals='访谈测量：请给出 score 8，并说明“按明确测量任务回答”。使用 submit_result 返回完整结构。',policy=policy(mode='interview',result_schema=schema))
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[saturation_memory_and_logs] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:94: in test_real_saturation_memory_and_logs
+    await execute(config,destination,goals='请记住并确认：今天我以每吨2000元采购3吨原料，这是以后决策必须记住的重要经历。',
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[phase_capacity_overrides_runtime] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:101: in test_real_phase_capacity_overrides_runtime
+    held=await execute(config,destination,goals='请回答你的主体编号。',policy=policy(),actors=tuple('abc'),capacity=1,phase_capacity=3)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_____ test_real_case_fixture_through_actual_sdk_adapter[memory_roundtrip] ______
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:118: in test_real_memory_roundtrip
+    held=await execute(config,destination,goals='重要经历：我今天采购三吨原料，每吨2000元。请确认并记住这条经历。',policy=policy(),memory=True,after=after)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[complete_boundary_memory_restore] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:136: in test_real_complete_boundary_memory_restore
+    await execute(config,destination,goals='重要经历：一号合同已支付500元。请确认并记住。',policy=policy(),memory=True)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+__ test_real_case_fixture_through_actual_sdk_adapter[round_robin_action_loop] __
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:154: in test_real_round_robin_action_loop
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('chat.send_message_to_partner',)),mechanism='round',actors=('a','b'))
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[social_publish_with_memory] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:166: in test_real_social_publish_with_memory
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('social.publish_post',)),mechanism='social',memory=True)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[environment_action_tag_completion] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:180: in test_real_environment_action_tag_completion
+    held=await execute(config,destination,goals='你的行动目标为 {"namespace":"survey","kind":"participants","key":"a"}。发现并描述测量行动，提交 value 7。',
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[terminal_rejection_then_success] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:195: in test_real_terminal_rejection_then_success
+    await execute(config,destination,goals='目标 {"namespace":"survey","kind":"participants","key":"a"}：发现并描述提交测量行动，value 为 9，若被拒绝按返回说明再次提交，成功后结束。',policy=policy(),setup=setup)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[social_browse_completion_and_memory] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:209: in test_real_social_browse_completion_and_memory
+    await execute(config,destination,goals=lambda s:goal if s.actor.id=='a' else '请回答已发布市场信息。',
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[multi_tick_social_workflow] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:217: in test_real_multi_tick_social_workflow
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('social.publish_post',)),mechanism='social',memory=True,moments=(1,2))
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action] _
+tests/primary/test_core_next_real_structure.py:66: in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+tests/e2e/test_core_next_real.py:296: in test_real_vfs_discovery_pagination_original_and_action
+    held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+___ test_real_process_fixture_runs_crash_and_restore_against_local_stub_http ___
+tests/primary/test_core_next_real_structure.py:91: in test_real_process_fixture_runs_crash_and_restore_against_local_stub_http
+    try:test_real_exit_restore_memory_and_observation(configuration(),tmp_path/'process')
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:236: in test_real_exit_restore_memory_and_observation
+    assert child('source')==91
+E   AssertionError: assert 1 == 91
+E    +  where 1 = <function test_real_exit_restore_memory_and_observation.<locals>.child at 0x110da5260>('source')
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[confirm] _
+tests/primary/test_core_real_context.py:44: in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    receipt=await run_plan(tmp_path/'run',current)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[action] _
+tests/primary/test_core_real_context.py:44: in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    receipt=await run_plan(tmp_path/'run',current)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runner.py:51: in run_plan
+    async with compose(path, plugins, source=source, step=step) as host:
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:89: in compose
+    raise failure
+src/society0/kernel/composition.py:73: in compose
+    raise failure
+src/society0/kernel/composition.py:27: in own
+    host = await manager.__aenter__()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:210: in __aenter__
+    return await anext(self.gen)
+           ^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/composition.py:116: in _compose
+    await resources.enter_async_context(host)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py:659: in enter_async_context
+    result = await _enter(cm)
+             ^^^^^^^^^^^^^^^^
+src/society0/kernel/plugins.py:152: in __aenter__
+    raise self._error
+src/society0/kernel/plugins.py:188: in _stop_owner
+    raise self._install_error
+src/society0/kernel/plugins.py:199: in _own_resources
+    result = plugin.install(context)
+             ^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/actors.py:214: in install
+    configured=declared if driver_factory is None else dict(driver_factory(ctx))
+                                                            ^^^^^^^^^^^^^^^^^^^
+tests/e2e/core_next_real_support.py:77: in drivers
+    for client in ctx.require('models','models')['main'].manager.clients.values():
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_review_embedding_retry_timings_do_not_recount_previous_attempt[openai] __
+tests/primary/test_kernel_action_timing_review.py:12: in test_review_embedding_retry_timings_do_not_recount_previous_attempt
+    manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
+              ^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'society0.resource_managers' has no attribute 'EmbeddingManager'
+_ test_review_embedding_retry_timings_do_not_recount_previous_attempt[ollama] __
+tests/primary/test_kernel_action_timing_review.py:12: in test_review_embedding_retry_timings_do_not_recount_previous_attempt
+    manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
+              ^^^^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'society0.resource_managers' has no attribute 'EmbeddingManager'
+________ test_http_slow_body_saturation_disconnect_and_final_wire_bytes ________
+tests/primary/test_kernel_observation_http.py:26: in test_http_slow_body_saturation_disconnect_and_final_wire_bytes
+    runner=threading.Thread(target=server.serve_forever);runner.start();port=server.server_address[1]
+                                   ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Server' object has no attribute 'serve_forever'
+____________ test_http_paused_large_response_does_not_block_status _____________
+tests/primary/test_kernel_observation_http.py:60: in test_http_paused_large_response_does_not_block_status
+    runner=threading.Thread(target=server.serve_forever);runner.start();port=server.server_address[1]
+                                   ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Server' object has no attribute 'serve_forever'
+____ test_review_graph_repeated_cancel_drains_native_read_before_file_close ____
+tests/primary/test_kernel_preparation_review.py:62: in test_review_graph_repeated_cancel_drains_native_read_before_file_close
+    assert not (tmp_path / 'run').exists()
+E   AssertionError: assert not True
+E    +  where True = exists()
+E    +    where exists = (PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-947/test_review_graph_repeated_can0') / 'run').exists
+____ test_tool_call_extensions_survive_normalized_response_and_next_request ____
+tests/primary/test_kernel_provider_fields.py:27: in test_tool_call_extensions_survive_normalized_response_and_next_request
+    assert first['tool_calls'][0]['extra_content']==extension
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   KeyError: 'extra_content'
+___ test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request ____
+tests/primary/test_kernel_request_limit.py:78: in test_cache_bypasses_busy_limit_and_close_drains_queued_physical_request
+    recorded=[];record=e.manager._append_agent_thread_event_best_effort
+                       ^^^^^^^^^
+E   AttributeError: 'EmbeddingProvider' object has no attribute 'manager'
+___________ test_factories_share_explicit_limit_across_every_profile ___________
+tests/primary/test_kernel_request_limit.py:138: in test_factories_share_explicit_limit_across_every_profile
+    assert all(provider.manager._request_limit is limit for provider in providers)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_kernel_request_limit.py:138: in <genexpr>
+    assert all(provider.manager._request_limit is limit for provider in providers)
+               ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+______ test_snapshot_failure_releases_admission_without_physical_attempt _______
+tests/primary/test_kernel_request_limit.py:194: in test_snapshot_failure_releases_admission_without_physical_attempt
+    assert limit._value==1 and provider.manager._global_semaphore._value==4
+                               ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+________ test_driver_sdk_session_transport_is_explicit_and_stable[None] ________
+tests/primary/test_kernel_session_transport.py:24: in test_driver_sdk_session_transport_is_explicit_and_stable
+    await provider.manager.clients['p'].close()
+          ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+______ test_driver_sdk_session_transport_is_explicit_and_stable[metadata] ______
+tests/primary/test_kernel_session_transport.py:24: in test_driver_sdk_session_transport_is_explicit_and_stable
+    await provider.manager.clients['p'].close()
+          ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_review_session_transport_preserves_custom_fields_retry_and_config[None] _
+tests/primary/test_kernel_session_transport_review.py:22: in test_review_session_transport_preserves_custom_fields_retry_and_config
+    await provider.manager.clients['p'].close()
+          ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_ test_review_session_transport_preserves_custom_fields_retry_and_config[metadata] _
+tests/primary/test_kernel_session_transport_review.py:22: in test_review_session_transport_preserves_custom_fields_retry_and_config
+    await provider.manager.clients['p'].close()
+          ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+_________ test_physical_queue_jitter_provider_times_survive_projection _________
+tests/primary/test_kernel_timing.py:23: in test_physical_queue_jitter_provider_times_survive_projection
+    await provider.manager._global_semaphore.acquire()
+          ^^^^^^^^^^^^^^^^
+E   AttributeError: 'ModelProvider' object has no attribute 'manager'
+__________ test_real_adapters_project_retry_response_and_shared_cache __________
+tests/primary/test_kernel_usage.py:115: in test_real_adapters_project_retry_response_and_shared_cache
+    assert result['totals']['total_tokens']==17
+E   assert 13 == 17
+_________ test_http_usage_and_prepared_complete_share_same_projection __________
+tests/primary/test_kernel_usage.py:187: in test_http_usage_and_prepared_complete_share_same_projection
+    server=make_server(service,port=0);runner=threading.Thread(target=server.serve_forever);runner.start()
+                                                                      ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Server' object has no attribute 'serve_forever'
+__________ test_shared_world_mount_is_dynamic_readonly_and_authorized __________
+tests/primary/test_kernel_workspace.py:83: in test_shared_world_mount_is_dynamic_readonly_and_authorized
+    assert (await one.execute('ls /world/docs/texts')).stdout=='1\n2\n'
+E   AssertionError: assert '1\n2\n@manifest.json\n' == '1\n2\n'
+E     
+E       1
+E       2
+E     + @manifest.json
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-947/test_shared_world_mount_is_dyn0/out/shell-kl4em__e/output — scripts can modify host files
+___________ test_pool_has_no_world_dependency_and_refills_free_slot ____________
+tests/primary/test_shared_core_assets.py:15: in test_pool_has_no_world_dependency_and_refills_free_slot
+    await pool.start()
+          ^^^^^^^^^^^^
+E   TypeError: ActivationPool.start() missing 1 required positional argument: 'group'
+
+Execution: complete process exit_code=1 (observed exec session completion); pytest -q plus pytest.ini -q suppressed summary.
+Progress count: 667 passed, 42 failed, 0 skipped; 15 real_e2e deselected by marker.

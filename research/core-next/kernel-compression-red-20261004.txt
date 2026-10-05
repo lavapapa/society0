@@ -1,0 +1,81 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+______________ test_writer_small_path_and_shared_large_pool_close ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-502/test_writer_small_path_and_sha0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ae1f350>
+
+    def test_writer_small_path_and_shared_large_pool_close(tmp_path,monkeypatch):
+        from society0.kernel import _json_chunks as codec
+        created=[]
+>       native=codec.ThreadPoolExecutor
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'society0.kernel._json_chunks' has no attribute 'ThreadPoolExecutor'
+
+tests/primary/test_kernel_compression.py:14: AttributeError
+_____ test_writer_encoding_iterator_expires_and_partial_consumption_drains _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-502/test_writer_encoding_iterator_0')
+
+    def test_writer_encoding_iterator_expires_and_partial_consumption_drains(tmp_path):
+        with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            retained=[]
+            def write(writer):
+                stream=writer.encode_chunks({'body':'x'*1000000})
+                next(stream)
+                retained.append(stream)
+>           store.transaction(write)
+
+tests/primary/test_kernel_compression.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:382: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10ae1f890>
+
+    def write(writer):
+>       stream=writer.encode_chunks({'body':'x'*1000000})
+               ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Writer' object has no attribute 'encode_chunks'
+
+tests/primary/test_kernel_compression.py:40: AttributeError
+_______ test_parallel_encoder_matches_serial_and_drains_on_invalid_json ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-502/test_parallel_encoder_matches_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10aed2e40>
+
+    def test_parallel_encoder_matches_serial_and_drains_on_invalid_json(tmp_path,monkeypatch):
+        from society0.kernel import _json_chunks as codec
+        threads=set();native=codec.zlib.compress
+        def compress(raw,level):
+            threads.add(threading.get_ident())
+            assert type(raw) is bytes
+            return native(raw,level)
+        monkeypatch.setattr(codec.zlib,'compress',compress)
+        with StageStore.create(tmp_path/'run',['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            value={'body':'\\"\n中文🙂'*100000,'tail':[1,2.5,None,True]}
+>           chunks=store.transaction(lambda writer:list(writer.encode_chunks(value)))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_compression.py:60: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:382: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x10aed12b0>
+
+>   chunks=store.transaction(lambda writer:list(writer.encode_chunks(value)))
+                                                ^^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Writer' object has no attribute 'encode_chunks'
+
+tests/primary/test_kernel_compression.py:60: AttributeError

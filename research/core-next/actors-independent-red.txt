@@ -1,0 +1,18 @@
+F..                                                                      [100%]
+=================================== FAILURES ===================================
+_________________ test_review_selector_cursor_is_bound_to_run __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-348/test_review_selector_cursor_is0')
+
+    @pytest.mark.asyncio
+    async def test_review_selector_cursor_is_bound_to_run(tmp_path):
+        def plugin():
+            return actor_plugin({'rule': lambda r: None}, records=[ActorRecord('a','rule'),ActorRecord('b','rule')])
+        async with compose(tmp_path/'first',[plugin()]) as first:
+            cursor=json.loads(json.dumps(first.service('actors','actors').select(limit=1).next_cursor))
+            async with compose(tmp_path/'second',[plugin()]) as second:
+>               with pytest.raises(ValueError,match='cursor'):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE ValueError
+
+tests/primary/test_kernel_actors_review.py:15: Failed

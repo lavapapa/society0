@@ -1,0 +1,26 @@
+.................FF                                                      [100%]
+=================================== FAILURES ===================================
+__________ test_independent_reader_sees_live_and_confirmed_watermarks __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-230/test_independent_reader_sees_l0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10721d7c0>
+
+    def test_independent_reader_sees_live_and_confirmed_watermarks(tmp_path, monkeypatch):
+>       from society0.kernel.storage import StageReader
+E       ImportError: cannot import name 'StageReader' from 'society0.kernel.storage' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/storage.py)
+
+tests/primary/test_kernel_storage.py:224: ImportError
+___________ test_streaming_prepared_artifact_is_independent_of_input ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-230/test_streaming_prepared_artifa0')
+
+    def test_streaming_prepared_artifact_is_independent_of_input(tmp_path):
+        with make(tmp_path / 'source') as store:
+            original = tmp_path / 'input'
+            original.write_bytes(b'a' * 100_000)
+            with original.open('rb') as source:
+>               ref = store.prepare_artifact(iter(lambda: source.read(4096), b''))
+                      ^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: 'StageStore' object has no attribute 'prepare_artifact'
+
+tests/primary/test_kernel_storage.py:261: AttributeError

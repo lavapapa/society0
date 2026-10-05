@@ -1,0 +1,321 @@
+[
+  {
+    "head": {
+      "actor": "a",
+      "kind": "decision",
+      "provider_session_id": "337deb494d274565aa7c5857805572df",
+      "status": "completed",
+      "last_seq": 37,
+      "message_count": 16,
+      "ordinal": 1,
+      "id": "97d519ac79cf4bc4bbc025a9933b1579"
+    },
+    "messages": [
+      {
+        "role": "system",
+        "content": "主体背景\n你是主体 a。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+      },
+      {
+        "role": "user",
+        "content": "当前主观状态\n{}"
+      },
+      {
+        "role": "user",
+        "content": "你的目标为 {\"namespace\":\"social\",\"kind\":\"participants\",\"key\":\"a\"}。查找并描述 get_trending_posts 行动，执行一次读取市场信息。"
+      },
+      {
+        "role": "user",
+        "content": "本次激活信号\n[null]"
+      },
+      {
+        "role": "user",
+        "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"a\"}}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065cde9c2c03465a9ee3785f5e04",
+            "type": "function",
+            "function": {
+              "name": "action_describe",
+              "arguments": "{\"name\": \"get_trending_posts\", \"target\": {\"namespace\": \"social\", \"kind\": \"participants\", \"key\": \"a\"}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065cde9c2c03465a9ee3785f5e04",
+        "content": "{\"error\": \"Unavailable\", \"message\": \"action unavailable\"}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065ce611db9dae816eaaa18614f2",
+            "type": "function",
+            "function": {
+              "name": "action_find",
+              "arguments": "{\"target\": {\"namespace\": \"social\", \"kind\": \"participants\", \"key\": \"a\"}, \"query\": \"get_trending_posts\", \"limit\": 10, \"cursor\": null}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065ce611db9dae816eaaa18614f2",
+        "content": "{\"items\": [{\"name\": \"social.get_trending_posts\", \"description\": \"读取当前热门帖子并记录本次曝光。\", \"terminal\": false, \"tags\": [\"social_read\", \"lookup\"]}], \"total\": 1, \"next_cursor\": null, \"revision\": [\"0b064cfa6ee94ce49bc864c4a362968b\", 1]}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065cf5626b158c921910c325de45",
+            "type": "function",
+            "function": {
+              "name": "action_describe",
+              "arguments": "{\"name\": \"social.get_trending_posts\", \"target\": {\"namespace\": \"social\", \"kind\": \"participants\", \"key\": \"a\"}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065cf5626b158c921910c325de45",
+        "content": "{\"name\": \"social.get_trending_posts\", \"target_kind\": [\"social\", \"participants\"], \"description\": \"读取当前热门帖子并记录本次曝光。\", \"parameters\": {\"type\": \"object\", \"properties\": {}, \"additionalProperties\": false}, \"terminal\": false, \"tags\": [\"social_read\", \"lookup\"], \"strict\": false, \"read_only\": false}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065cfd365f0f8bcbff61203dc1e3",
+            "type": "function",
+            "function": {
+              "name": "action_invoke",
+              "arguments": "{\"name\": \"social.get_trending_posts\", \"target\": {\"namespace\": \"social\", \"kind\": \"participants\", \"key\": \"a\"}, \"arguments\": {}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065cfd365f0f8bcbff61203dc1e3",
+        "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"posts\": [{\"post_id\": \"post_1\", \"author_id\": \"b\", \"created_tick\": 1, \"reply_to\": null, \"like_count\": 0, \"reply_count\": 0, \"repost_count\": 0, \"view_count\": 0, \"content\": \"重要市场信息：明日物流费用增加10%。\", \"tags\": [\"market\"], \"likes\": [], \"like_events\": [], \"special_tags\": [], \"replies\": []}]}, \"process\": null, \"terminal\": false}, \"observation\": null}"
+      },
+      {
+        "role": "user",
+        "content": "请回顾这条 Agent Thread 中你刚刚亲自经历的完整过程，由你自己判断哪些经验会影响今后的决策。只调用 extract_memories 工具。每条记忆用第一人称表达，最多保留 5 条，每条不超过 500 字；用简洁的自然语言概括，不要复制原始 JSON、表格、重复空白或大段带转义符的文本。如果 Thread 明确要求你记住某项信息供后续互动使用，必须保留该信息。importance 取 0 到 5。如果没有值得形成长期记忆的内容，返回 {\"memories\": []}。"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d05ee49da7f2cf987453a35eb",
+            "type": "function",
+            "function": {
+              "name": "extract_memories",
+              "arguments": "{\"memories\": [{\"content\": \"我读取市场信息时，发现 b 在 tick 1 发布了一条重要市场信息：明日物流费用增加10%（post_1，tags: market）。这条信息可能影响后续与物流、成本相关的决策。\", \"importance\": 4}, {\"content\": \"调用行动时，直接用短名（如 get_trending_posts）会返回 unavailable；需要先 action_find 找到完整名（social.get_trending_posts）再 action_describe 和 invoke。\", \"importance\": 3}]}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d05ee49da7f2cf987453a35eb",
+        "content": "{\"accepted\": true, \"error\": null}"
+      }
+    ]
+  },
+  {
+    "head": {
+      "actor": "b",
+      "kind": "decision",
+      "provider_session_id": "d51c0a0e30e548f2869e8e6fd18b896e",
+      "status": "incomplete",
+      "last_seq": 53,
+      "message_count": 21,
+      "ordinal": 2,
+      "id": "150da8d6fa1a466496425247730d67ff"
+    },
+    "messages": [
+      {
+        "role": "system",
+        "content": "主体背景\n你是主体 b。认真遵照本轮任务，保留事实原文。\n环境说明\n这是共享社会模拟。可按当前目标需要使用信息与行动工具。信息从根路径 / 用 data_list 发现；根目录 total=0 表示当前无可访问的信息挂载。需要行动时可用 action_find 发现可用行动，再用 action_describe 获取完整参数。action_invoke.arguments 使用 JSON 对象。只执行本次任务要求的行动。\n感知精度\n所有已提供材料均为原文。"
+      },
+      {
+        "role": "user",
+        "content": "当前主观状态\n{}"
+      },
+      {
+        "role": "user",
+        "content": "请回答已发布市场信息。"
+      },
+      {
+        "role": "user",
+        "content": "本次激活信号\n[null]"
+      },
+      {
+        "role": "user",
+        "content": "{\"memory_actions_target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"b\"}}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d15aa54fe63dde8f05ab4ae42",
+            "type": "function",
+            "function": {
+              "name": "action_find",
+              "arguments": "{\"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"b\"}, \"query\": \"\", \"limit\": 50, \"cursor\": null}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d15aa54fe63dde8f05ab4ae42",
+        "content": "{\"items\": [{\"name\": \"memory.update\", \"description\": \"修改该主体已经保存的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.delete\", \"description\": \"删除该主体当前可见的记忆，保留既往时点版本\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.remember\", \"description\": \"保存主体明确选择的记忆\", \"terminal\": false, \"tags\": []}, {\"name\": \"memory.recall\", \"description\": \"检索该主体的相关记忆\", \"terminal\": false, \"tags\": []}], \"total\": 4, \"next_cursor\": null, \"revision\": [\"0b064cfa6ee94ce49bc864c4a362968b\", 0]}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d20f9d10eb58d36fb948660a8",
+            "type": "function",
+            "function": {
+              "name": "action_describe",
+              "arguments": "{\"name\": \"memory.recall\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"b\"}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d20f9d10eb58d36fb948660a8",
+        "content": "{\"name\": \"memory.recall\", \"target_kind\": [\"memory\", \"actor\"], \"description\": \"检索该主体的相关记忆\", \"parameters\": {\"type\": \"object\", \"properties\": {\"query\": {\"type\": \"string\"}, \"top_k\": {\"type\": \"integer\", \"minimum\": 1}}, \"required\": [\"query\"], \"additionalProperties\": false}, \"terminal\": false, \"tags\": [], \"strict\": false, \"read_only\": true}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d29226dfe8beb5926579462a2",
+            "type": "function",
+            "function": {
+              "name": "action_invoke",
+              "arguments": "{\"name\": \"memory.recall\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"b\"}, \"arguments\": {\"query\": \"已发布市场信息\", \"top_k\": 10}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d29226dfe8beb5926579462a2",
+        "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memories\": []}, \"process\": null, \"terminal\": false}, \"observation\": {\"known_facts\": [], \"repeated_facts\": []}}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d33a8acb9319fe89cd9cc128d",
+            "type": "function",
+            "function": {
+              "name": "action_invoke",
+              "arguments": "{\"name\": \"memory.recall\", \"target\": {\"namespace\": \"memory\", \"kind\": \"actor\", \"key\": \"b\"}, \"arguments\": {\"query\": \"市场\", \"top_k\": 10}}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d33a8acb9319fe89cd9cc128d",
+        "content": "{\"result\": {\"status\": \"completed\", \"value\": {\"memories\": []}, \"process\": null, \"terminal\": false}, \"observation\": {\"known_facts\": [], \"repeated_facts\": []}}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d3e13ef321774b1585e1b2fb3",
+            "type": "function",
+            "function": {
+              "name": "data_list",
+              "arguments": "{\"path\": \"/\", \"limit\": 50, \"cursor\": null}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d3e13ef321774b1585e1b2fb3",
+        "content": "{\"items\": [{\"path\": \"/social\", \"ref\": {\"namespace\": \"social\", \"kind\": \"directory\", \"key\": \"\"}, \"kind\": \"directory\"}], \"total\": 1, \"next_cursor\": null, \"revision\": null}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d442ee079c06678014b3072f1",
+            "type": "function",
+            "function": {
+              "name": "data_list",
+              "arguments": "{\"path\": \"/social\", \"limit\": 50, \"cursor\": null}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d442ee079c06678014b3072f1",
+        "content": "{\"items\": [{\"path\": \"/social/feed\", \"ref\": {\"namespace\": \"social\", \"kind\": \"feed\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/participants\", \"ref\": {\"namespace\": \"social\", \"kind\": \"participants\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/posts\", \"ref\": {\"namespace\": \"social\", \"kind\": \"posts\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/content\", \"ref\": {\"namespace\": \"social\", \"kind\": \"content\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/replies\", \"ref\": {\"namespace\": \"social\", \"kind\": \"replies\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/reply_content\", \"ref\": {\"namespace\": \"social\", \"kind\": \"reply_content\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/notification_data\", \"ref\": {\"namespace\": \"social\", \"kind\": \"notification_data\", \"key\": \"\"}, \"kind\": \"directory\"}, {\"path\": \"/social/notifications\", \"ref\": {\"namespace\": \"social\", \"kind\": \"notifications\", \"key\": \"\"}, \"kind\": \"directory\"}], \"total\": 8, \"next_cursor\": null, \"revision\": 0}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d4a526d3775163cc130d6a8c2",
+            "type": "function",
+            "function": {
+              "name": "data_list",
+              "arguments": "{\"path\": \"/social/posts\", \"limit\": 50, \"cursor\": null}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d4a526d3775163cc130d6a8c2",
+        "content": "{\"items\": [{\"id\": \"post_1\", \"author\": \"b\", \"created_tick\": 1, \"reply_to\": null, \"like_count\": 0, \"reply_count\": 0, \"repost_count\": 0, \"view_count\": 0, \"ref\": {\"namespace\": \"social\", \"kind\": \"posts\", \"key\": \"post_1\"}}], \"total\": 1, \"next_cursor\": null, \"revision\": 1}"
+      },
+      {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "01a1065d50b4488df60c555721b9fc13",
+            "type": "function",
+            "function": {
+              "name": "data_read",
+              "arguments": "{\"path\": \"/social/posts/post_1\", \"offset\": 0, \"size\": 4096}"
+            }
+          }
+        ]
+      },
+      {
+        "role": "tool",
+        "tool_call_id": "01a1065d50b4488df60c555721b9fc13",
+        "content": "{\"data\": \"{\\\"id\\\":\\\"post_1\\\",\\\"author\\\":\\\"b\\\",\\\"created_tick\\\":1,\\\"reply_to\\\":null,\\\"like_count\\\":0,\\\"reply_count\\\":0,\\\"repost_count\\\":0,\\\"view_count\\\":0,\\\"ref\\\":{\\\"namespace\\\":\\\"social\\\",\\\"kind\\\":\\\"posts\\\",\\\"key\\\":\\\"post_1\\\"}}\", \"encoding\": \"utf-8\", \"total_bytes\": 183, \"next_offset\": null, \"revision\": 1, \"source\": {\"namespace\": \"social\", \"kind\": \"posts\", \"key\": \"post_1\"}}"
+      }
+    ]
+  }
+]

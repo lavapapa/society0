@@ -1,0 +1,10 @@
+{
+  "count_per_step": 20000,
+  "steps": 5,
+  "stage_seconds": 2.8944747149944305,
+  "merge_seconds": 0.8506373725831509,
+  "total_seconds": 3.7451120875775814,
+  "staged_bytes": 4177920,
+  "final_bytes": 6280192,
+  "rss_extra_bytes": 5488640
+}

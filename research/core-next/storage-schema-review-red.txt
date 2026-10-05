@@ -1,0 +1,41 @@
+......FF                                                                 [100%]
+=================================== FAILURES ===================================
+___ test_review_schema_filter_preserves_ordinary_table_names[astage_records] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-251/test_review_schema_filter_pres0')
+table = 'astage_records'
+
+    @pytest.mark.parametrize('table', ['astage_records', 'sqliteFacts'])
+    def test_review_schema_filter_preserves_ordinary_table_names(tmp_path, table):
+        path = tmp_path / 'run'
+        with StageStore.create(path, [f'CREATE TABLE {table}(id INTEGER PRIMARY KEY,value TEXT NOT NULL)']) as store:
+            store.transaction(lambda w: w.execute(f'INSERT INTO {table} VALUES(1,?)', ('must persist',)))
+            store.complete(1)
+        with StageStore.restore(path, tmp_path / 'restored', step=1) as restored:
+>           assert restored.read(lambda r: r.query(f'SELECT value FROM {table}')) == [('must persist',)]
+E           AssertionError: assert [] == [('must persist',)]
+E             
+E             Right contains one more item: ('must persist',)
+E             Use -v to get more diff
+
+tests/primary/test_kernel_storage_review.py:119: AssertionError
+____ test_review_schema_filter_preserves_ordinary_table_names[sqliteFacts] _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-251/test_review_schema_filter_pres1')
+table = 'sqliteFacts'
+
+    @pytest.mark.parametrize('table', ['astage_records', 'sqliteFacts'])
+    def test_review_schema_filter_preserves_ordinary_table_names(tmp_path, table):
+        path = tmp_path / 'run'
+        with StageStore.create(path, [f'CREATE TABLE {table}(id INTEGER PRIMARY KEY,value TEXT NOT NULL)']) as store:
+            store.transaction(lambda w: w.execute(f'INSERT INTO {table} VALUES(1,?)', ('must persist',)))
+            store.complete(1)
+        with StageStore.restore(path, tmp_path / 'restored', step=1) as restored:
+>           assert restored.read(lambda r: r.query(f'SELECT value FROM {table}')) == [('must persist',)]
+E           AssertionError: assert [] == [('must persist',)]
+E             
+E             Right contains one more item: ('must persist',)
+E             Use -v to get more diff
+
+tests/primary/test_kernel_storage_review.py:119: AssertionError
+2 failed, 6 passed in 0.12s

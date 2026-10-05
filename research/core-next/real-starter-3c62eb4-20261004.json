@@ -1,0 +1,25 @@
+{
+  "complete_step": 2,
+  "threads": 2,
+  "all_threads_completed": true,
+  "memory_count": 4,
+  "memory_vector_count": 4,
+  "memory_timestamps": [
+    1,
+    1,
+    1,
+    1
+  ],
+  "news_views": 1,
+  "interview_score": 2.0,
+  "interview_contains_original_topic": true,
+  "interview_contains_all_four_original_memories": true,
+  "raw_threads_in_run": true,
+  "transport": {
+    "llm_trust_env": true,
+    "embedding_trust_env": true,
+    "no_proxy_and_NO_PROXY_include": "10.244.93.52"
+  },
+  "commit": "3c62eb473b59dd3c3ffabb4ab5b1816a3afbdc9d",
+  "run": "/tmp/society0-core-real-3c62eb4-deepseek/starter-direct"
+}

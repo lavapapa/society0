@@ -1,0 +1,11 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+_______ test_reader_reuse_preserves_outer_snapshot_and_nested_fresh_read _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-547/test_reader_reuse_preserves_ou0')
+
+    def test_reader_reuse_preserves_outer_snapshot_and_nested_fresh_read(tmp_path):
+>       from benchmarks.core_next_persistence_probe import nested_reader_probe
+E       ImportError: cannot import name 'nested_reader_probe' from 'benchmarks.core_next_persistence_probe' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_persistence_probe.py)
+
+tests/experiments/test_core_next_persistence_probe.py:23: ImportError

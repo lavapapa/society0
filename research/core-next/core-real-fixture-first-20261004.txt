@@ -1,0 +1,770 @@
+......F.FF.FF.FF                                                         [100%]
+=================================== FAILURES ===================================
+_ test_real_case_fixture_through_actual_sdk_adapter[saturation_memory_and_logs] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1142938f0>
+case = 'saturation_memory_and_logs'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:94: in test_real_saturation_memory_and_logs
+    await execute(config,destination,goals='请记住并确认：今天我以每吨2000元采购3吨原料，这是以后决策必须记住的重要经历。',
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:255: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            scope = InteractionScope(actor.id, self.moment)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: action_budget_exhausted
+
+src/society0/kernel/runtime.py:155: IncompleteActivation
+_____ test_real_case_fixture_through_actual_sdk_adapter[memory_roundtrip] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through5')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11426fc50>
+case = 'memory_roundtrip'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:118: in test_real_memory_roundtrip
+    held=await execute(config,destination,goals='重要经历：我今天采购三吨原料，每吨2000元。请确认并记住这条经历。',policy=policy(),memory=True,after=after)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:255: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            scope = InteractionScope(actor.id, self.moment)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: action_budget_exhausted
+
+src/society0/kernel/runtime.py:155: IncompleteActivation
+_ test_real_case_fixture_through_actual_sdk_adapter[complete_boundary_memory_restore] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through6')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1142d4980>
+case = 'complete_boundary_memory_restore'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:131: in test_real_complete_boundary_memory_restore
+    await execute(config,destination,goals='重要经历：一号合同已支付500元。请确认并记住。',policy=policy(),memory=True)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:255: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            scope = InteractionScope(actor.id, self.moment)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: action_budget_exhausted
+
+src/society0/kernel/runtime.py:155: IncompleteActivation
+_ test_real_case_fixture_through_actual_sdk_adapter[social_publish_with_memory] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through8')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x114220cb0>
+case = 'social_publish_with_memory'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:156: in test_real_social_publish_with_memory
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('social.publish_post',)),mechanism='social',memory=True)
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:256: in _run_phase
+    result=await task
+           ^^^^^^^^^^
+src/society0/kernel/runtime.py:247: in body
+    result=await invoke_maybe_async(phase.run, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:276: in run
+    async def run(context):return await invoke_maybe_async(callback)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/plugins/social.py:25: in run
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/plugins/social.py:374: in after_tick
+    await self.flush_embeddings()
+src/society0/plugins/social.py:25: in run
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.plugins.social.Social object at 0x1142ffc80>
+
+    @_operation
+    async def flush_embeddings(self):
+        if not self.config.social_media.recommendation.use_embedding_similarity:return
+>       if self.embed is None or self.client is None:raise ValueError('semantic recommendations require embedding and vector resources')
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: semantic recommendations require embedding and vector resources
+
+src/society0/plugins/social.py:273: ValueError
+_ test_real_case_fixture_through_actual_sdk_adapter[environment_action_tag_completion] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through9')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x114a2f410>
+case = 'environment_action_tag_completion'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+config = {'release': 'explicit-sdk-fixture', 'output': PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pyte...url': 'http://127.0.0.1:1/v1', 'api_key': 'explicit-stub', 'model': 'stub', ...}], 'dimensions': 4, 'max_attempts': 1}}
+destination = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through9/run')
+
+    @pytest.mark.asyncio
+    async def test_real_environment_action_tag_completion(config,destination):
+        from society0.kernel.interaction import Action,ActionResult
+        async def setup(ctx,phase,held):
+            registry=ctx.require('interaction','actions')
+            registry.register(Action('record_observation',('survey','participants'),'提交本轮观测',
+                {'type':'object','properties':{'value':{'type':'integer'}},'required':['value'],'additionalProperties':False},
+                lambda scope,target,args:ActionResult('completed',args),tags=('measurement',)))
+        held=await execute(config,destination,goals='你的行动目标为 {"namespace":"survey","kind":"participants","key":"a"}。发现并描述测量行动，提交 value 7。',
+            policy=policy(required_tags=('measurement',),completion_tags=('measurement',)),setup=setup)
+>       assert held['outcomes'][0].result.reason=='completion_action_tag'
+E       AssertionError: assert 'terminal_action' == 'completion_action_tag'
+E         
+E         - completion_action_tag
+E         + terminal_action
+
+tests/e2e/test_core_next_real.py:172: AssertionError
+_ test_real_case_fixture_through_actual_sdk_adapter[social_browse_completion_and_memory] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through11')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x114a740b0>
+case = 'social_browse_completion_and_memory'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:199: in test_real_social_browse_completion_and_memory
+    await execute(config,destination,goals=lambda s:goal if s.actor.id=='a' else '请回答已发布市场信息。',
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:255: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:507: in _execute_key
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:563: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='b', round=1, serial_key=('agent', 'b'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            scope = InteractionScope(actor.id, self.moment)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: action_budget_exhausted
+
+src/society0/kernel/runtime.py:155: IncompleteActivation
+_ test_real_case_fixture_through_actual_sdk_adapter[multi_tick_social_workflow] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-815/test_real_case_fixture_through12')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x114a778f0>
+case = 'multi_tick_social_workflow'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            messages=request['messages'];tools=request.get('tools',[])
+            names=[item['function']['name'] for item in tools]
+            replies=[json.loads(m['content']) for m in messages if m['role']=='tool']
+            user='\n'.join(str(m.get('content','')) for m in messages if m['role']=='user')
+            name=None;args={}
+            if names==['extract_memories'] or (isinstance(request.get('tool_choice'),dict) and request['tool_choice']['function']['name']=='extract_memories'):
+                name='extract_memories';args={'memories':[{'content':'重要经历：三吨原料每吨2000元；B42订单已经收款500元。','importance':4}]}
+            elif 'submit_result' in names and '访谈测量' in user:
+                name='submit_result';args={'score':8,'reason':'按明确测量任务回答'}
+            elif '"namespace"' in user:
+                target=json.loads(re.search(r'\{"namespace"[^}]+\}',user).group())
+                if target['namespace']=='chat':action='chat.send_message_to_partner';inner={'content':'共同讨论产业预期'}
+                elif target['namespace']=='social':
+                    if 'get_trending_posts' in user:action='social.get_trending_posts';inner={}
+                    else:
+                        action='social.publish_post'
+                        number=re.findall(r'这是第(\d+)步',user)
+                        inner={'content':'这是第'+number[-1]+'步的完整更新' if number else '原料价格保持稳定','tags':[] if number else ['market']}
+                elif 'value 为 9' in user:action='submit_measurement';inner={'value':9}
+                else:action='record_observation';inner={'value':7}
+                if not replies:name='action_find';args={'target':target,'query':'','limit':10,'cursor':None}
+                elif len(replies)==1:name='action_describe';args={'name':action,'target':target}
+                else:name='action_invoke';args={'name':action,'target':target,'arguments':json.dumps(inner)}
+            message={'role':'assistant','content':'B42订单已经收款500元。三吨原料每吨2000元。'}
+            if name:message={'role':'assistant','content':None,'tool_calls':[{'id':'call-'+str(len(messages)), 'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return ChatCompletion(id='fixture',model=request['model'],object='chat.completion',created=0,
+                choices=[{'index':0,'finish_reason':'tool_calls' if name else 'stop','message':message}],
+                usage={'prompt_tokens':10,'completion_tokens':5,'total_tokens':15})
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/e2e/test_core_next_real.py:207: in test_real_multi_tick_social_workflow
+    await execute(config,destination,goals=goal,policy=policy(completion_names=('social.publish_post',)),mechanism='social',memory=True,moments=(1,2))
+tests/e2e/test_core_next_real.py:39: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:57: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:303: in run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:256: in _run_phase
+    result=await task
+           ^^^^^^^^^^
+src/society0/kernel/runtime.py:247: in body
+    result=await invoke_maybe_async(phase.run, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/kernel/runtime.py:276: in run
+    async def run(context):return await invoke_maybe_async(callback)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+src/society0/plugins/social.py:25: in run
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/plugins/social.py:374: in after_tick
+    await self.flush_embeddings()
+src/society0/plugins/social.py:25: in run
+    try:return await method(self,*args,**kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.plugins.social.Social object at 0x114a98620>
+
+    @_operation
+    async def flush_embeddings(self):
+        if not self.config.social_media.recommendation.use_embedding_similarity:return
+>       if self.embed is None or self.client is None:raise ValueError('semantic recommendations require embedding and vector resources')
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: semantic recommendations require embedding and vector resources
+
+src/society0/plugins/social.py:273: ValueError

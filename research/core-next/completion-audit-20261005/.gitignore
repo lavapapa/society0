@@ -1,0 +1,22 @@
+# 运行正文与冻结源码保留本地或指定服务器，提交小型摘要与验收证据。
+v06-*/current.sqlite*
+v06-*/root.sqlite*
+v06-*/roots/
+v06-*/steps/
+v06-*/changesets/
+v06-*/artifacts/
+v06-*/vectors/
+v06-*/writer.lock
+*.tar.gz
+*.whl
+
+v06-current-*/source/
+v06-current-*/*/current.sqlite*
+v06-current-*/*/root.sqlite*
+v06-current-*/*/roots/
+v06-current-*/*/steps/
+v06-current-*/*/changesets/
+v06-current-*/*/artifacts/
+v06-current-*/*/vectors/
+v06-current-*/*/writer.lock
+starter-artifacts/

@@ -1,0 +1,24 @@
+{
+  "route": "World -> PersistenceManager.publish_root",
+  "records": 204882,
+  "record_raw_bytes_total": 1899238802,
+  "record_raw_bytes_max": 9271,
+  "publish_seconds": 6.196305875011603,
+  "rss_before_bytes_macos": 109314048,
+  "rss_peak_bytes_macos": 116457472,
+  "rss_additional_bytes_macos": 7143424,
+  "bytes_written": 21600339,
+  "world_payload_strings_shared": true,
+  "whole_world_snapshot_forbidden": true,
+  "identity_resolve_seconds": 0.009602208010619506,
+  "identity_resolve_extra_high_water_rss_bytes": 0,
+  "independent_process_identity": {
+    "seconds": 0.06991645900416188,
+    "rss_before_bytes": 24002560,
+    "rss_peak_bytes": 42647552,
+    "rss_extra_peak_bytes": 18644992,
+    "step": 0
+  },
+  "configure_existing_seconds": 0.009891833004076034,
+  "discard_seconds": 1.5124998753890395e-05
+}

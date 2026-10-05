@@ -1,0 +1,882 @@
+{
+  "runs": [
+    {
+      "name": "chain-live-01",
+      "calls": [
+        {
+          "physical_id": "fb903e9ee42442ad82cf14ab59817aa8",
+          "response_seq": 9,
+          "sdk_typed_usage": {
+            "input_tokens": 14166,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 450,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 14166,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 14166,
+            "completion_tokens": 450,
+            "cache_read_tokens": 0,
+            "total_tokens": 14616
+          },
+          "thread_message_count": 4,
+          "recorded_messages_json_chars": 504,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 5206,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 6.0380759999970905
+        },
+        {
+          "physical_id": "8c55e507ea9e444ca726647ffb55c82f",
+          "response_seq": 14,
+          "sdk_typed_usage": {
+            "input_tokens": 12726,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 259,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 12726,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 12726,
+            "completion_tokens": 259,
+            "cache_read_tokens": 0,
+            "total_tokens": 12985
+          },
+          "thread_message_count": 6,
+          "recorded_messages_json_chars": 2146,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 6848,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 3.654747958004009
+        },
+        {
+          "physical_id": "43020dd493bd47118e4be0f397e3ed97",
+          "response_seq": 19,
+          "sdk_typed_usage": {
+            "input_tokens": 15840,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 384,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 15840,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 15840,
+            "completion_tokens": 384,
+            "cache_read_tokens": 0,
+            "total_tokens": 16224
+          },
+          "thread_message_count": 8,
+          "recorded_messages_json_chars": 3683,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 8385,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 3.4598353750188835
+        },
+        {
+          "physical_id": "d5c0cf97c9d347a5b7c13999c69c8d1d",
+          "response_seq": 24,
+          "sdk_typed_usage": {
+            "input_tokens": 18747,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 457,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 315,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 18747,
+            "completion_tokens": 457,
+            "cache_read_tokens": 18432,
+            "total_tokens": 19204
+          },
+          "thread_message_count": 10,
+          "recorded_messages_json_chars": 4942,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 9644,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 4.424345583014656
+        },
+        {
+          "physical_id": "faec6a6cbde642e9b443c2d61a4c65ce",
+          "response_seq": 29,
+          "sdk_typed_usage": {
+            "input_tokens": 18096,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 16384,
+            "output_tokens": 384,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 16384,
+              "prompt_cache_miss_tokens": 1712,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 18096,
+            "completion_tokens": 384,
+            "cache_read_tokens": 16384,
+            "total_tokens": 18480
+          },
+          "thread_message_count": 12,
+          "recorded_messages_json_chars": 6355,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 11057,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 3.2183376670000143
+        },
+        {
+          "physical_id": "28c6588d71304b2cb97adbd7dc3b836d",
+          "response_seq": 34,
+          "sdk_typed_usage": {
+            "input_tokens": 18920,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 384,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 488,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 18920,
+            "completion_tokens": 384,
+            "cache_read_tokens": 18432,
+            "total_tokens": 19304
+          },
+          "thread_message_count": 14,
+          "recorded_messages_json_chars": 7621,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 12323,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 4.810673166997731
+        },
+        {
+          "physical_id": "146e7fbb9e044222a0a66d2eecd45d6d",
+          "response_seq": 39,
+          "sdk_typed_usage": {
+            "input_tokens": 19744,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 380,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 1312,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 19744,
+            "completion_tokens": 380,
+            "cache_read_tokens": 18432,
+            "total_tokens": 20124
+          },
+          "thread_message_count": 16,
+          "recorded_messages_json_chars": 8886,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 13588,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 5.0138214160106145
+        },
+        {
+          "physical_id": "38286df29ca84ec5a6415e907a3901b7",
+          "response_seq": 44,
+          "sdk_typed_usage": {
+            "input_tokens": 20568,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 380,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 2136,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 20568,
+            "completion_tokens": 380,
+            "cache_read_tokens": 18432,
+            "total_tokens": 20948
+          },
+          "thread_message_count": 18,
+          "recorded_messages_json_chars": 10152,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 14854,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 4.909741749987006
+        }
+      ],
+      "sql_physical_rows": [
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"146e7fbb9e044222a0a66d2eecd45d6d\"]",
+          19744,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"28c6588d71304b2cb97adbd7dc3b836d\"]",
+          18920,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"38286df29ca84ec5a6415e907a3901b7\"]",
+          20568,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"43020dd493bd47118e4be0f397e3ed97\"]",
+          15840,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"8c55e507ea9e444ca726647ffb55c82f\"]",
+          12726,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"d5c0cf97c9d347a5b7c13999c69c8d1d\"]",
+          18747,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"faec6a6cbde642e9b443c2d61a4c65ce\"]",
+          18096,
+          16384,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"7377347fe01946a9b846a0d0e50a2c70\", \"fb903e9ee42442ad82cf14ab59817aa8\"]",
+          14166,
+          0,
+          1,
+          0,
+          0
+        ]
+      ],
+      "projection": {
+        "requests": 8,
+        "responses": 8,
+        "errors": 0,
+        "input_tokens": 138807,
+        "output_tokens": 3078,
+        "total_tokens": 141885,
+        "input_reports": 8,
+        "output_reports": 8,
+        "total_reports": 8,
+        "cache_read_tokens": 90112,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 8,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 35.53943945793435,
+        "queue_s": 4.920799983665347e-05,
+        "jitter_s": 0.0,
+        "provider_s": 35.529578916030005,
+        "duration_reports": 8,
+        "queue_reports": 8,
+        "jitter_reports": 8,
+        "provider_reports": 8,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 8
+      }
+    },
+    {
+      "name": "round-live-02",
+      "calls": [
+        {
+          "physical_id": "840de3ec34ad41999cbf11dfbb7bdbf8",
+          "response_seq": 9,
+          "sdk_typed_usage": {
+            "input_tokens": 14166,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 445,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 14166,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 14166,
+            "completion_tokens": 445,
+            "cache_read_tokens": 0,
+            "total_tokens": 14611
+          },
+          "thread_message_count": 4,
+          "recorded_messages_json_chars": 504,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 5206,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 12.754951250040904
+        },
+        {
+          "physical_id": "0d6e6666e237427dad7fe7d672c4ea72",
+          "response_seq": 14,
+          "sdk_typed_usage": {
+            "input_tokens": 12719,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 259,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 12719,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 12719,
+            "completion_tokens": 259,
+            "cache_read_tokens": 0,
+            "total_tokens": 12978
+          },
+          "thread_message_count": 6,
+          "recorded_messages_json_chars": 2145,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 6847,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 2.8727429159916937
+        },
+        {
+          "physical_id": "4a248eb760804456a8868b63a5171107",
+          "response_seq": 19,
+          "sdk_typed_usage": {
+            "input_tokens": 15832,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 0,
+            "output_tokens": 384,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 0,
+              "prompt_cache_miss_tokens": 15832,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 15832,
+            "completion_tokens": 384,
+            "cache_read_tokens": 0,
+            "total_tokens": 16216
+          },
+          "thread_message_count": 8,
+          "recorded_messages_json_chars": 3682,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 8384,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 8.202740166976582
+        },
+        {
+          "physical_id": "4eea9e3ecb9c421bbf32476346de8ae0",
+          "response_seq": 24,
+          "sdk_typed_usage": {
+            "input_tokens": 16992,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 16384,
+            "output_tokens": 384,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 16384,
+              "prompt_cache_miss_tokens": 608,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 16992,
+            "completion_tokens": 384,
+            "cache_read_tokens": 16384,
+            "total_tokens": 17376
+          },
+          "thread_message_count": 10,
+          "recorded_messages_json_chars": 5102,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 9804,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 26.18895016598981
+        },
+        {
+          "physical_id": "cf60629f815c4d09b8a03c1c24813e26",
+          "response_seq": 29,
+          "sdk_typed_usage": {
+            "input_tokens": 18152,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 16384,
+            "output_tokens": 380,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 16384,
+              "prompt_cache_miss_tokens": 1768,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 18152,
+            "completion_tokens": 380,
+            "cache_read_tokens": 16384,
+            "total_tokens": 18532
+          },
+          "thread_message_count": 12,
+          "recorded_messages_json_chars": 6528,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 11230,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 3.2191396669950336
+        },
+        {
+          "physical_id": "060630908dc64b9dac32088df27b8bed",
+          "response_seq": 34,
+          "sdk_typed_usage": {
+            "input_tokens": 19312,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 390,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 880,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 19312,
+            "completion_tokens": 390,
+            "cache_read_tokens": 18432,
+            "total_tokens": 19702
+          },
+          "thread_message_count": 14,
+          "recorded_messages_json_chars": 7955,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 12657,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 9.618061083019711
+        },
+        {
+          "physical_id": "435f8ec2faab432586a252bbdf0104ea",
+          "response_seq": 39,
+          "sdk_typed_usage": {
+            "input_tokens": 20472,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 18432,
+            "output_tokens": 386,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 18432,
+              "prompt_cache_miss_tokens": 2040,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 20472,
+            "completion_tokens": 386,
+            "cache_read_tokens": 18432,
+            "total_tokens": 20858
+          },
+          "thread_message_count": 16,
+          "recorded_messages_json_chars": 9381,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 14083,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 11.282692249980755
+        },
+        {
+          "physical_id": "c367a80fafc54375a604f67169f748b8",
+          "response_seq": 44,
+          "sdk_typed_usage": {
+            "input_tokens": 21632,
+            "cache_write_tokens": 0,
+            "cache_read_tokens": 20480,
+            "output_tokens": 390,
+            "input_audio_tokens": 0,
+            "cache_audio_read_tokens": 0,
+            "output_audio_tokens": 0,
+            "audio_seconds": 0.0,
+            "details": {
+              "prompt_cache_hit_tokens": 20480,
+              "prompt_cache_miss_tokens": 1152,
+              "reasoning_tokens": 0
+            },
+            "cost": null,
+            "output_reasoning_tokens": 0
+          },
+          "stored_normalized_usage": {
+            "prompt_tokens": 21632,
+            "completion_tokens": 390,
+            "cache_read_tokens": 20480,
+            "total_tokens": 22022
+          },
+          "thread_message_count": 18,
+          "recorded_messages_json_chars": 10808,
+          "recorded_tools_json_chars": 4552,
+          "recorded_request_json_chars": 15510,
+          "recorded_tool_names": [
+            "action_find",
+            "action_describe",
+            "action_invoke",
+            "data_list",
+            "data_read",
+            "data_query",
+            "result_read"
+          ],
+          "provider_seconds": 20.201697875047103
+        }
+      ],
+      "sql_physical_rows": [
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"060630908dc64b9dac32088df27b8bed\"]",
+          19312,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"0d6e6666e237427dad7fe7d672c4ea72\"]",
+          12719,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"435f8ec2faab432586a252bbdf0104ea\"]",
+          20472,
+          18432,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"4a248eb760804456a8868b63a5171107\"]",
+          15832,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"4eea9e3ecb9c421bbf32476346de8ae0\"]",
+          16992,
+          16384,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"840de3ec34ad41999cbf11dfbb7bdbf8\"]",
+          14166,
+          0,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"c367a80fafc54375a604f67169f748b8\"]",
+          21632,
+          20480,
+          1,
+          0,
+          0
+        ],
+        [
+          "[\"714038805eb54bdd834cf175474ccabd\", \"cf60629f815c4d09b8a03c1c24813e26\"]",
+          18152,
+          16384,
+          1,
+          0,
+          0
+        ]
+      ],
+      "projection": {
+        "requests": 8,
+        "responses": 8,
+        "errors": 0,
+        "input_tokens": 139277,
+        "output_tokens": 3018,
+        "total_tokens": 142295,
+        "input_reports": 8,
+        "output_reports": 8,
+        "total_reports": 8,
+        "cache_read_tokens": 90112,
+        "cache_write_tokens": 0,
+        "cache_read_reports": 8,
+        "cache_write_reports": 0,
+        "cancelled": 0,
+        "decode_errors": 0,
+        "embedding_uses": 0,
+        "duration_s": 94.34772203909233,
+        "queue_s": 6.362301064655185e-05,
+        "jitter_s": 0.0,
+        "provider_s": 94.34097537404159,
+        "duration_reports": 8,
+        "queue_reports": 8,
+        "jitter_reports": 8,
+        "provider_reports": 8,
+        "unknown_usage_calls": 0,
+        "unknown_cache_read_calls": 0,
+        "unknown_cache_write_calls": 8
+      }
+    }
+  ],
+  "limits": "SDK terminal usages and provider-named fields retained inside SDK usage.details; original streaming SSE chunks were not stored. Equality excludes SQL projection duplication, not SDK chunk accumulation. Recorded message/options JSON characters are not wire bytes or tokenizer counts.",
+  "interpretation": {
+    "usage_authority": "Historical SDK aggregate; cumulative streaming usage was added repeatedly. These totals are invalid for billing or cache volume.",
+    "raw_stream_evidence": "stream-default-live-01/result.json",
+    "raw_stream_reports": 9,
+    "last_prompt_tokens": 1574,
+    "summed_prompt_tokens": 14166,
+    "last_completion_tokens": 76,
+    "summed_completion_tokens": 445,
+    "positive_cache_evidence": "Historical provider-origin positive cache fields establish at least one hit; the summed 90112 values are not valid hit-token counts.",
+    "cache_write": "Missing provider field remains unknown; typed SDK default zero is not evidence of a reported zero.",
+    "request_size": "Recorded request JSON characters are serialization sizes, not tokenizer counts or wire byte counts.",
+    "continuous_probe": {
+      "source": "stream-continuous-direct-02/result.json",
+      "accepted": true,
+      "usage_reports": 9,
+      "last_prompt_tokens": 1574,
+      "last_completion_tokens": 77,
+      "latency_s": 39.411904874956235,
+      "product_sdk_verification": "pending chain-live-03"
+    }
+  }
+}

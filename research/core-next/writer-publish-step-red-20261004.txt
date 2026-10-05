@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_writer_publish_step_survives_complete_restore_and_empty_steps ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-567/test_writer_publish_step_survi0')
+
+    def test_writer_publish_step_survives_complete_restore_and_empty_steps(tmp_path):
+        seen=[]
+>       with StageStore.create(tmp_path/'source',SCHEMA,initialize=lambda writer:seen.append(writer.publish_step)) as store:
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_storage.py:442: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/storage.py:273: in create
+    _call(initialize, scope)
+src/society0/kernel/storage.py:78: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+writer = <society0.kernel.storage.Writer object at 0x109253fb0>
+
+>   with StageStore.create(tmp_path/'source',SCHEMA,initialize=lambda writer:seen.append(writer.publish_step)) as store:
+                                                                                         ^^^^^^^^^^^^^^^^^^^
+E   AttributeError: 'Writer' object has no attribute 'publish_step'
+
+tests/primary/test_kernel_storage.py:442: AttributeError

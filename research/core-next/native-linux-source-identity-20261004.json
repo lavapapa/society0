@@ -1,0 +1,16 @@
+{
+  "method": "byte-for-byte archive comparison; no digest",
+  "files": [
+    "Cargo.toml",
+    "Cargo.lock",
+    "build.rs",
+    "pyproject.toml",
+    "rust-toolchain.toml",
+    "src/lib.rs"
+  ],
+  "wheel": "society0_filesystem-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl",
+  "rust": "1.95.0",
+  "python": "3.12.9",
+  "remote_artifacts": "/mnt/data/l20/qin/runtime-observation-core-native-20261004",
+  "result": "native source archive equals current product sources"
+}

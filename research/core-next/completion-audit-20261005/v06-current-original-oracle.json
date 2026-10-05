@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "source": "research/core-next/completion-audit-20261005/v06-current-01/test_real_vfs_discovery_pagination_original_and_action",
+  "complete_rows": 12,
+  "total": 546,
+  "complete_original_bytes": 117,
+  "body": "完整信息：报价均为同一计量单位，金额按各行 amount 合计。\n核对短语：原文校验成功。",
+  "chunks": [
+    [
+      {
+        "path": "/world/catalog/body/1",
+        "size": 64,
+        "expected_revision": 0
+      },
+      {
+        "data": "完整信息：报价均为同一计量单位，金额按各行 ",
+        "encoding": "utf-8",
+        "total_bytes": 117,
+        "next_offset": 64,
+        "revision": 0,
+        "source": {
+          "namespace": "catalog",
+          "kind": "body",
+          "key": "1"
+        },
+        "path": "/world/catalog/body/1"
+      }
+    ],
+    [
+      {
+        "path": "/world/catalog/body/1",
+        "offset": 64,
+        "size": 64,
+        "expected_revision": 0
+      },
+      {
+        "data": "amount 合计。\n核对短语：原文校验成功。",
+        "encoding": "utf-8",
+        "total_bytes": 117,
+        "next_offset": null,
+        "revision": 0,
+        "source": {
+          "namespace": "catalog",
+          "kind": "body",
+          "key": "1"
+        },
+        "path": "/world/catalog/body/1"
+      }
+    ]
+  ],
+  "actual_submission": "original SQL oracle exact one submission passed",
+  "correction_policy": "successful exact jq recomputation may follow preserved failures"
+}

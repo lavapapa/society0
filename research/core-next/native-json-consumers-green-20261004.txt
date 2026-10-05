@@ -1,0 +1,63 @@
+.....F..............................................................     [100%]
+=================================== FAILURES ===================================
+_________ test_request_reference_validation_and_json_cycles_are_atomic _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-745/test_request_reference_validat0')
+
+    def test_request_reference_validation_and_json_cycles_are_atomic(tmp_path):
+        store, threads = setup(tmp_path / 'run')
+        with store:
+            thread = threads.open('a', 0, 'operating')
+            other = threads.open('b', 0, 'operating')
+            seq = threads.append_message(other, {'role':'user','content':'other'})
+            with pytest.raises(ValueError):
+                threads.record_request(thread, message_seqs=[seq], provider_options={}, physical_request_id='bad')
+            cyclic = {}; cyclic['self'] = cyclic
+>           with pytest.raises(ValueError): threads.append_message(thread, cyclic)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_threads.py:109:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/threads.py:190: in append_message
+    return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', message))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:470: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:190: in <lambda>
+    return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', message))
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/threads.py:56: in _append
+    writer.write_json_chunks(payload, emit)
+src/society0/kernel/storage.py:164: in write_json_chunks
+    self._encoder.write(value, emit)
+src/society0/kernel/_json_chunks.py:172: in write
+    write_json(value, accept)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+value = {'self': {'self': {'self': {'self': {'self': {'self': {...}}}}}}}
+emit = <function ChunkEncoder.write.<locals>.accept at 0x10d5e1ee0>
+
+    def write_json(value, emit):
+        """原生同步编码；首个写入错误后停止副作用，完成遍历后保留原异常。"""
+        import rapidjson
+        class Sink:
+            error = None
+            def write(self, raw):
+                if self.error is None:
+                    try:
+                        emit(raw)
+                    except BaseException as error:
+                        self.error = error
+        sink = Sink()
+        try:
+>           rapidjson.dump(value, sink, ensure_ascii=False, allow_nan=False,
+                          number_mode=rapidjson.NM_NONE, bytes_mode=rapidjson.BM_NONE,
+                          iterable_mode=rapidjson.IM_ONLY_LISTS,
+                          mapping_mode=rapidjson.MM_ONLY_DICTS, chunk_size=CHUNK_BYTES)
+E                         RecursionError: maximum recursion depth exceeded while JSONifying dict object
+
+src/society0/kernel/_json_chunks.py:24: RecursionError

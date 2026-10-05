@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_mixed_indexed_seek_does_not_scan_prior_equal_rank ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-299/test_mixed_indexed_seek_does_n0')
+
+    @pytest.mark.asyncio
+    async def test_mixed_indexed_seek_does_not_scan_prior_equal_rank(tmp_path):
+        with StageStore.create(tmp_path/'mixed',[
+            'CREATE TABLE items(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,rank INTEGER NOT NULL)',
+            'CREATE INDEX mixed_order ON items(owner,rank DESC,id ASC)'],
+            initialize=lambda w:w.executemany('INSERT INTO items VALUES(?,?,?)',((i,'a',0) for i in range(10000)))) as store:
+            reader=StageReader(store.path)
+            provider=SQLInformation('m',reader,{'items':DatasetSpec('items','id',('id','rank'),order_fields=('rank',),
+                authorize=lambda s:('owner=?',(s.actor,)),base_count=lambda s:('SELECT 10000',()))},max_page_size=10000)
+            scope=InteractionScope('a',Moment(0,'p'))
+            original=reader.read
+            measured=[]
+            for position in (100,9000):
+                cursor=(await provider.query(scope,'/m/items',Query(order=(('rank','desc'),('id','asc')),limit=position))).next_cursor
+                count=[0]
+                def read(callback,**kwargs):
+                    def wrapped(view):
+                        view._connection.set_progress_handler(lambda:count.__setitem__(0,count[0]+1) or False,1)
+                        return callback(view)
+                    return original(wrapped,**kwargs)
+                reader.read=read
+                page=await provider.query(scope,'/m/items',Query(order=(('rank','desc'),('id','asc')),limit=1,cursor=cursor))
+                reader.read=original
+                assert page.items[0]['id']==position
+                measured.append(count[0])
+>           assert measured[1] < measured[0]*2, measured
+E           AssertionError: [873, 72073]
+E           assert 72073 < (873 * 2)
+
+tests/primary/test_kernel_information_sql.py:236: AssertionError
+1 failed, 10 deselected in 0.10s

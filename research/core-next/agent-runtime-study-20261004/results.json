@@ -1,0 +1,57 @@
+{
+  "typed_validation_retry": {
+    "effects": [
+      2
+    ],
+    "requests": 3,
+    "output": "done"
+  },
+  "from_schema_validation_gap": [
+    {
+      "amount": "invalid"
+    }
+  ],
+  "length_text_default": {
+    "output": "truncated body",
+    "requests": 1
+  },
+  "iter_length_gate": {
+    "effects": [],
+    "retained_finish_reason": "length"
+  },
+  "duplicate_call_id_default": {
+    "effects": [],
+    "error": "UnexpectedModelBehavior"
+  },
+  "duplicate_across_turns": [
+    4,
+    4
+  ],
+  "iter_terminal_without_extra_model": {
+    "effects": [
+      5
+    ],
+    "requests": 1,
+    "pending_return_parts": 1,
+    "message_history_contains_tool_return": false
+  },
+  "required_action_output_validator": {
+    "effects": [
+      6
+    ],
+    "requests": 3
+  },
+  "deferred_roundtrip": {
+    "executions": [
+      7
+    ],
+    "output": "resumed",
+    "history_messages": 4,
+    "separate_run_ids": true
+  },
+  "structured_output_validation": {
+    "value": 8,
+    "requests": 2
+  },
+  "default_request_limit": 50
+}

@@ -1,0 +1,13 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_profiles_install_through_host_and_preserve_request_defaults _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-357/test_profiles_install_through_0')
+
+    @pytest.mark.asyncio
+    async def test_profiles_install_through_host_and_preserve_request_defaults(tmp_path):
+        from society0.kernel.plugins import Plugin, PluginHost
+>       from society0.kernel.models import model_plugin
+E       ImportError: cannot import name 'model_plugin' from 'society0.kernel.models' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/models.py)
+
+tests/primary/test_kernel_models.py:42: ImportError

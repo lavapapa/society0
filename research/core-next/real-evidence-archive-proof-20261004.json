@@ -1,0 +1,72 @@
+{
+  "sources": [
+    {
+      "path": "/tmp/society0-core-real-9180498",
+      "comparison": {
+        "files": 193,
+        "bytes": 2228964,
+        "equal": true
+      }
+    },
+    {
+      "path": "/tmp/society0-core-real-2590cf3",
+      "comparison": {
+        "files": 200,
+        "bytes": 2246207,
+        "equal": true
+      }
+    },
+    {
+      "path": "/tmp/society0-core-real-2590cf3-deepseek",
+      "comparison": {
+        "files": 200,
+        "bytes": 2246207,
+        "equal": true
+      }
+    },
+    {
+      "path": "/tmp/society0-core-real-e0779c4-deepseek",
+      "comparison": {
+        "files": 203,
+        "bytes": 2252547,
+        "equal": true
+      }
+    },
+    {
+      "path": "/tmp/society0-core-real-3c62eb4-deepseek",
+      "comparison": {
+        "files": 206,
+        "bytes": 2258515,
+        "equal": true
+      }
+    },
+    {
+      "path": "/tmp/society0-core-real-40d385d-deepseek",
+      "comparison": {
+        "files": 208,
+        "bytes": 2264434,
+        "equal": true
+      }
+    }
+  ],
+  "archives": [
+    {
+      "source": "/tmp/society0-core-real-20261004-failures.tgz",
+      "archive": "/mnt/data/l20/qin/society0-core-real-20261004-evidence/failures-through-e0779c4.tgz",
+      "bytes": 47460832,
+      "direct_bytes_equal": true
+    },
+    {
+      "source": "/tmp/society0-core-real-3c62eb4-evidence.tgz",
+      "archive": "/mnt/data/l20/qin/society0-core-real-20261004-evidence/3c62eb4-suite-and-starter.tgz",
+      "bytes": 13414276,
+      "direct_bytes_equal": true
+    },
+    {
+      "source": "/tmp/society0-core-real-40d385d-evidence.tgz",
+      "archive": "/mnt/data/l20/qin/society0-core-real-20261004-evidence/40d385d-suite-and-starter.tgz",
+      "bytes": 13471752,
+      "direct_bytes_equal": true
+    }
+  ]
+}

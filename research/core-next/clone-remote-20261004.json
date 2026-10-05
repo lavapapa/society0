@@ -1,0 +1,25 @@
+{
+  "platform": "Linux-5.4.119-19-0009.11-x86_64-with-glibc2.35",
+  "sqlite": "3.49.1",
+  "filesystem_path": "/tmp/core-next-clone-zqb0q7r_",
+  "source_bytes": 135274496,
+  "source_allocated_bytes": 135274496,
+  "comparisons": [
+    {
+      "method": "copy",
+      "supported": true,
+      "wall_seconds": 0.14729294180870056,
+      "parent_cpu_seconds": 0.118855465,
+      "logical_bytes": 135274496,
+      "reported_allocated_bytes": 135278592,
+      "volume_free_delta_bytes": 135278592,
+      "isolated_write_verified": true,
+      "source_removal_verified": true
+    },
+    {
+      "method": "clone",
+      "supported": false,
+      "stderr": "cp: failed to clone '/tmp/core-next-clone-zqb0q7r_/clone.sqlite' from '/tmp/core-next-clone-zqb0q7r_/immutable.sqlite': Operation not supported\n"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+______ test_review_inbox_count_matches_rows_after_clear_and_round_revisit ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-433/test_review_inbox_count_matche0')
+
+    @pytest.mark.asyncio
+    async def test_review_inbox_count_matches_rows_after_clear_and_round_revisit(tmp_path):
+        async with compose(tmp_path/'run',plugins(round_robin_plugin('abcd',group_size=4))) as host:
+            mechanism=host.service('conversation','mechanism')
+            actions=host.service('interaction','actions')
+            mechanism.start_round(1)
+            await actions.invoke(InteractionScope('a',Moment(1,'talk')),'conversation.send_message_to_partner',Ref('conversation','participants','a'),{'content':'round1'})
+            mechanism.advance_round()
+            mechanism.start_round(2)
+            mechanism.initialize_round_messages(2)
+            mechanism.start_round(1)
+            info=host.service('interaction','information')
+            page=await info.query(InteractionScope('d',Moment(1,'talk')),'/conversation/messages',Query())
+>           assert page.total==len(page.items)==len(mechanism.conversation_view('d')['messages'])
+E           assert 1 == 0
+E            +  where 1 = Page(items=[], total=1, next_cursor=None, revision=6).total
+E            +  and   0 = len([])
+E            +    where [] = Page(items=[], total=1, next_cursor=None, revision=6).items
+
+tests/primary/test_plugin_builtin_review.py:22: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_builtin_review.py::test_review_inbox_count_matches_rows_after_clear_and_round_revisit
+1 failed, 1 passed in 0.15s

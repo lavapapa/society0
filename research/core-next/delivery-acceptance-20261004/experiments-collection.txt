@@ -1,0 +1,19 @@
+tests/experiments/test_core_next_artifact_link_probe.py: 1
+tests/experiments/test_core_next_chroma_residency.py: 1
+tests/experiments/test_core_next_codec_sample.py: 1
+tests/experiments/test_core_next_cold_datasets_probe.py: 1
+tests/experiments/test_core_next_cold_runtime_probe.py: 1
+tests/experiments/test_core_next_cold_sqlite_codec.py: 1
+tests/experiments/test_core_next_compression_probe.py: 7
+tests/experiments/test_core_next_dataset_access.py: 1
+tests/experiments/test_core_next_deployment.py: 4
+tests/experiments/test_core_next_large_root_probe.py: 4
+tests/experiments/test_core_next_parallel_codec.py: 6
+tests/experiments/test_core_next_parity.py: 5
+tests/experiments/test_core_next_parity_review.py: 8
+tests/experiments/test_core_next_persistence_probe.py: 3
+tests/experiments/test_core_next_shell.py: 5
+tests/experiments/test_core_next_step_cost.py: 3
+tests/experiments/test_core_next_storage.py: 20
+tests/experiments/test_core_next_vector_backends.py: 3
+

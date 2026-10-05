@@ -1,0 +1,16 @@
+
+==================================== ERRORS ====================================
+_____________ ERROR collecting tests/primary/test_plugin_social.py _____________
+ImportError while importing test module '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_plugin_social.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/primary/test_plugin_social.py:6: in <module>
+    from society0.plugins.social import social_plugin
+E   ModuleNotFoundError: No module named 'society0.plugins.social'
+=========================== short test summary info ============================
+ERROR tests/primary/test_plugin_social.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.10s

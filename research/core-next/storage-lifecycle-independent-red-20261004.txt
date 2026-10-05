@@ -1,0 +1,24 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_review_gc_validates_descriptor_filename_and_required_changeset_before_delete[missing_nonroot_changeset] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-555/test_review_gc_validates_descr1')
+corruption = 'missing_nonroot_changeset'
+
+    @pytest.mark.parametrize('corruption',['wrong_latest_step','missing_nonroot_changeset'])
+    def test_review_gc_validates_descriptor_filename_and_required_changeset_before_delete(tmp_path,corruption):
+        path=tmp_path/'run'
+        with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            store.transaction(lambda w:w.execute('INSERT INTO item VALUES(1)'))
+            descriptor=store.complete(1)
+            orphan=store.prepare_artifact([b'diagnostic'])
+        marker=path/'steps'/'00000000000000000001.json'
+        bad=json.loads(marker.read_text())
+        if corruption=='wrong_latest_step':bad['step']=0
+        else:bad['changeset']=None
+        marker.write_text(json.dumps(bad))
+>       with pytest.raises(StorageError):StageStore.collect_orphans(path)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_storage_lifecycle_review.py:42: Failed

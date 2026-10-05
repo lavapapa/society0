@@ -1,0 +1,26 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_model_close_drains_request_and_rejects_later_requests __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-464/test_model_close_drains_reques0')
+
+    @pytest.mark.asyncio
+    async def test_model_close_drains_request_and_rejects_later_requests(tmp_path):
+        import asyncio
+        from society0.kernel.storage import StageStore
+        from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            provider=ModelProvider([endpoint()],threads)
+            entered=asyncio.Event()
+            async def request(*args,**kwargs):
+                entered.set();await asyncio.Event().wait()
+            provider.manager._execute_request=request
+            waiter=asyncio.create_task(provider.request(tid,{}));await entered.wait()
+            await provider.close()
+>           assert waiter.done()
+E           AssertionError: assert False
+E            +  where False = <built-in method done of _asyncio.Task object at 0x10a7de200>()
+E            +    where <built-in method done of _asyncio.Task object at 0x10a7de200> = <Task pending name='Task-2' coro=<ModelProvider.request() running at /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/models.py:100> wait_for=<Future pending cb=[Task.task_wakeup()]>>.done
+
+tests/primary/test_kernel_models.py:115: AssertionError

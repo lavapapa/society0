@@ -1,0 +1,33 @@
+{
+  "rapidjson": "1.25",
+  "results": [
+    {
+      "shape": "single_string",
+      "guarded": false,
+      "exit_code": 0,
+      "stdout": "{\n  \"rapidjson\": \"1.25\",\n  \"python\": \"3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]\",\n  \"results\": [\n    {\n      \"shape\": \"single_string\",\n      \"guarded\": false,\n      \"outcome\": \"returned\",\n      \"calls\": 107,\n      \"effects\": 107,\n      \"wall_seconds\": 0.009537958016153425,\n      \"tail_size_before\": 8000060,\n      \"tail_size_after\": 15000061\n    }\n  ]\n}\n",
+      "stderr": "Exception ignored in tp_clear of: <class 'type'>\nTraceback (most recent call last):\n  File \"/Users/marvin/Documents/\u540c\u82b1\u987a\uff082\uff09/.codex-worktrees/society0-core-next/research/core-next/native-json-sink-probe-20261004.py\", line 25, in write\n    def write(self,body):\n\nSystemError: <function Sink.write at 0x1031ea200> returned a result with an exception set\n"
+    },
+    {
+      "shape": "single_string",
+      "guarded": true,
+      "exit_code": 0,
+      "stdout": "{\n  \"rapidjson\": \"1.25\",\n  \"python\": \"3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]\",\n  \"results\": [\n    {\n      \"shape\": \"single_string\",\n      \"guarded\": true,\n      \"outcome\": \"OSError\",\n      \"calls\": 107,\n      \"effects\": 1,\n      \"wall_seconds\": 0.007442916976287961,\n      \"tail_size_before\": 8000060,\n      \"tail_size_after\": 15000061\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "shape": "two_values",
+      "guarded": false,
+      "exit_code": 0,
+      "stdout": "{\n  \"rapidjson\": \"1.25\",\n  \"python\": \"3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]\",\n  \"results\": [\n    {\n      \"shape\": \"two_values\",\n      \"guarded\": false,\n      \"outcome\": \"OSError\",\n      \"calls\": 1,\n      \"effects\": 1,\n      \"wall_seconds\": 7.329101208597422e-05,\n      \"tail_size_before\": 8000060,\n      \"tail_size_after\": 8000060\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "shape": "two_values",
+      "guarded": true,
+      "exit_code": 0,
+      "stdout": "{\n  \"rapidjson\": \"1.25\",\n  \"python\": \"3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]\",\n  \"results\": [\n    {\n      \"shape\": \"two_values\",\n      \"guarded\": true,\n      \"outcome\": \"OSError\",\n      \"calls\": 109,\n      \"effects\": 1,\n      \"wall_seconds\": 0.0077194999903440475,\n      \"tail_size_before\": 8000060,\n      \"tail_size_after\": 15000061\n    }\n  ]\n}\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "commit": "89ad172ea4e18e8a5572f00c1bd140b3a5c0af73",
+  "owner": "storage independent review",
+  "product_changes": false,
+  "files": [
+    "research/core-next/final-89ad172-deterministic-20261004.txt",
+    "research/core-next/final-89ad172-experiments-20261004.txt",
+    "research/core-next/final-89ad172-independent-20261004.md",
+    "research/core-next/final-89ad172-independent-results-20261004.json",
+    "research/core-next/final-89ad172-independent-runner-20261004.py",
+    "research/core-next/final-89ad172-node-20261004.txt",
+    "research/core-next/final-89ad172-payload-20261004.txt",
+    "research/core-next/final-89ad172-pilot-20261004.txt",
+    "research/core-next/final-89ad172-vector-20261004.txt",
+    "research/core-next/final-89ad172-freeze-20261004.json"
+  ]
+}

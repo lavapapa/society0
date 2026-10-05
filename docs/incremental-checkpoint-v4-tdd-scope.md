@@ -19,7 +19,7 @@
 | 状态声明 | JSON Schema 只描述类型、权限和默认值 | 每个持久化字段必须声明语义；未声明字段在 Tick 写入前失败 |
 | canonical state | `agents_data` / `environment_data` 是公开可变 dict | bootstrap/restore 使用专用 writer；Tick 内只能通过代理或 canonical writer |
 | 变化捕获 | StateProxy 生成审计事件，raw dict 可绕过 | 独立 journal 与写入同源；审计日志不能充当恢复 delta |
-| Tick 生命周期 | Society0、SimEngine 各自推进并保存 | 统一 begin → mutate → seal/abort → publish；失败直接丢 runtime delta |
+| Tick 生命周期 | Society0 推进并保存 | 统一 begin → mutate → seal/abort → publish；失败直接丢 runtime delta |
 | checkpoint | v3 gzip 完整 World，并复制 Chroma 目录 | v4 replacement + append segment + manifest + marker；删除 v3 读写路径 |
 | Thread | 独立 append-only 文件，checkpoint 每次发布清单 | 保持独立事实，只引用不可变清单；不进入 World 或 replacement |
 | Chroma | 每 checkpoint 复制/恢复目录；多个集合可直接写 | 每条 checkpoint lineage 共用一个物理数据库；所有集合统一 Tick/分支元数据与查询视图 |
@@ -30,7 +30,7 @@
 
 - Environment state、Agent state/properties/reminders，以及 World 固定身份字段。
 - 内置 plain、round-robin、social-network 环境和外部 Environment schema。
-- `Society0 + CodeSchedule` 主路径与仍受支持的 SimEngine 路径。
+- `Society0 + CodeSchedule` 主路径。
 - Agent Memory collection、social-network post embedding collection，以及通过 PersistenceManager 取得的其他向量集合。
 - 初始 step 0、周期 checkpoint、诊断 checkpoint、跨 run 恢复、任意 Tick 分叉。
 - 失败、取消、线程写入、进程中断遗留文件、同一步替换和保存背压。

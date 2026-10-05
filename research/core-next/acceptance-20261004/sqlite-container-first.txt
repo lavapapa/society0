@@ -1,0 +1,120 @@
+FF....FFF...F                                                            [100%]
+=================================== FAILURES ===================================
+________ test_batch_values_ranges_restore_share_and_source_independence ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_batch_values_ranges_resto0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10993a360>
+
+    def test_batch_values_ranges_restore_share_and_source_independence(tmp_path, monkeypatch):
+        values = [None, True, 123, {'汉字': '🙂\\"' * 200000}, [], {'x': [1, 2]}]
+        with StageStore.create(tmp_path/'run', DATASET_SCHEMA) as store:
+            data = Datasets(store)
+            ref = data.import_rows('facts', iter(values))
+>           assert len(list((store.path/'artifacts').iterdir())) == 2
+E           AssertionError: assert 1 == 2
+E            +  where 1 = len([PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_batch_values_ranges_resto0/run/artifacts/004e824ac12347d392bfc8bf78538cae.artifact')])
+E            +    where [PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_batch_values_ranges_resto0/run/artifacts/004e824ac12347d392bfc8bf78538cae.artifact')] = list(<generator object Path.iterdir at 0x109773850>)
+E            +      where <generator object Path.iterdir at 0x109773850> = iterdir()
+E            +        where iterdir = (PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_batch_values_ranges_resto0/run') / 'artifacts').iterdir
+E            +          where PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_batch_values_ranges_resto0/run') = <society0.kernel.storage.StageStore object at 0x109751370>.path
+
+tests/primary/test_kernel_datasets.py:16: AssertionError
+________ test_failed_import_and_attach_are_unpublished_and_collectable _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_failed_import_and_attach_0')
+
+    def test_failed_import_and_attach_are_unpublished_and_collectable(tmp_path):
+        with StageStore.create(tmp_path/'run', DATASET_SCHEMA) as store:
+            def broken():
+                yield {'x':1}
+                raise ValueError('producer failed')
+            with pytest.raises(ValueError,match='producer'):
+                Datasets(store).import_rows('bad',broken())
+            assert list((store.path/'artifacts').iterdir())==[]
+            def attach(writer,ref): raise ValueError('attach failed')
+            with pytest.raises(ValueError,match='attach'):
+                Datasets(store).import_rows('bad',[1],attach=attach)
+            assert store.read(lambda r:r.query('SELECT * FROM datasets'))==[]
+            store.complete(1)
+        removed=StageStore.collect_orphans(tmp_path/'run')
+>       assert len(removed)==2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = len(['artifacts/d478bfec545a40a09d48b79fb72226c7.artifact'])
+
+tests/primary/test_kernel_datasets.py:57: AssertionError
+______ test_small_rows_share_native_blocks_and_large_value_crosses_blocks ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_small_rows_share_native_b0')
+
+    def test_small_rows_share_native_blocks_and_large_value_crosses_blocks(tmp_path):
+        import apsw
+        import society0.kernel.datasets as module
+        values=[{'i':i,'shared':'共同🙂'*10} for i in range(1000)]
+        values.insert(500,{'huge':'汉🙂\\"'*100000,'integer':2**90,'float':1.2345678901234567})
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('grouped',iter(values))
+            connection=apsw.Connection(str(store.path/ref['artifact']),flags=apsw.SQLITE_OPEN_READONLY)
+            try:
+                total=connection.execute('SELECT sum(raw_bytes) FROM records').get
+>               with module.SeekableZstdFile(store.path/ref['body_artifact'],'rb') as body:
+                     ^^^^^^^^^^^^^^^^^^^^^^^
+E               AttributeError: module 'society0.kernel.datasets' has no attribute 'SeekableZstdFile'
+
+tests/primary/test_kernel_datasets.py:145: AttributeError
+_______________ test_page_decompresses_each_adjacent_block_once ________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_page_decompresses_each_ad0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109ac4fb0>
+
+    def test_page_decompresses_each_adjacent_block_once(tmp_path, monkeypatch):
+        import society0.kernel.datasets as module
+        values=[{'n':i,'body':'顺序正文'*10} for i in range(1000)]
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('page',values)
+            calls=count_dataset_frames(monkeypatch)
+            page=data.page(ref,limit=1000,max_bytes=1000000)
+            assert [item['value'] for item in page['items']]==values
+            total=sum(item['raw_bytes'] for item in page['items'])
+>           assert len(calls)==(total+65535)//65536
+E           assert 0 == ((138890 + 65535) // 65536)
+E            +  where 0 = len([])
+
+tests/primary/test_kernel_datasets.py:167: AssertionError
+__________ test_page_reuses_cached_block_without_fetching_blob_again ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_page_reuses_cached_block_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a1698e0>
+
+    def test_page_reuses_cached_block_without_fetching_blob_again(tmp_path, monkeypatch):
+        values=[{'i':i} for i in range(1000)]
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);ref=data.import_rows('small',values)
+            calls=count_dataset_frames(monkeypatch)
+            assert len(data.page(ref,limit=1000,max_bytes=1000000)['items'])==1000
+>           assert len(calls)==1
+E           assert 0 == 1
+E            +  where 0 = len([])
+
+tests/primary/test_kernel_datasets.py:179: AssertionError
+____ test_review_shared_compression_blocks_preserve_adjacent_record_ranges _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-973/test_review_shared_compression0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10954ec30>
+
+    def test_review_shared_compression_blocks_preserve_adjacent_record_ranges(tmp_path,monkeypatch):
+        import society0.kernel.datasets as module
+        # 第一条原文总长恰好留下 7 字节；下一条的 UTF8 正文跨共享块边界。
+        first='x'*(module.CHUNK_BYTES-9)
+        second={'text':'相邻🙂'*20000}
+        with StageStore.create(tmp_path/'run',DATASET_SCHEMA) as store:
+            data=Datasets(store);reference=data.import_rows('mixed',[first,second,{},None,True,2**90])
+            calls=count_dataset_frames(monkeypatch)
+            raw=json.dumps(second,ensure_ascii=False,separators=(',',':')).encode()
+            assert data.read_payload(reference,1,offset=0,size=17)['data']==raw[:17]
+>           assert len(calls)==2
+E           assert 0 == 2
+E            +  where 0 = len([])
+
+tests/primary/test_kernel_datasets_review.py:62: AssertionError
+
+EXIT_CODE=1

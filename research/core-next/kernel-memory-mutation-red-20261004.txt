@@ -1,0 +1,41 @@
+.............FF                                                          [100%]
+=================================== FAILURES ===================================
+______ test_update_delete_keep_job_receipt_and_restore_old_complete_state ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-373/test_update_delete_keep_job_re0')
+
+    @pytest.mark.asyncio
+    async def test_update_delete_keep_job_receipt_and_restore_old_complete_state(tmp_path):
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+            entry={'content':'old fact'}
+            job=memory.prepare_job('a',thread,'original',timestamp=0,entries=[entry])
+            identifier=(await memory.finish_job(job))[0]
+            assert memory.get(identifier,actor='a')['importance']==3.0
+            store.complete(1)
+>           await memory.update(identifier,actor='a',content='new fact',timestamp=2,importance=4,metadata={'x':1})
+                  ^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'update'
+
+tests/primary/test_kernel_memory.py:192: AttributeError
+_____ test_update_embedding_failure_and_concurrent_delete_do_not_overwrite _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-373/test_update_embedding_failure_0')
+
+    @pytest.mark.asyncio
+    async def test_update_embedding_failure_and_concurrent_delete_do_not_overwrite(tmp_path):
+        store,threads,thread,memory,embed,client=setup(tmp_path)
+        with store:
+            job=memory.prepare_job('a',thread,'job',timestamp=0,entries=[{'content':'before'}])
+            identifier=(await memory.finish_job(job))[0]
+            async def fail(texts,*,metadata):raise OSError('embedding failed')
+            memory.embed=fail
+>           with pytest.raises(OSError):await memory.update(identifier,actor='a',content='after',timestamp=1)
+                                              ^^^^^^^^^^^^^
+E           AttributeError: 'Memory' object has no attribute 'update'
+
+tests/primary/test_kernel_memory.py:222: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_update_delete_keep_job_receipt_and_restore_old_complete_state
+FAILED tests/primary/test_kernel_memory.py::test_update_embedding_failure_and_concurrent_delete_do_not_overwrite
+2 failed, 13 passed in 0.28s

@@ -1,0 +1,602 @@
+........F................FFF............................................ [  8%]
+F....................................................................... [ 17%]
+........................................................................ [ 25%]
+........................................................................ [ 34%]
+......................................F................................. [ 42%]
+........................................................................ [ 51%]
+........................................................................ [ 60%]
+........................................................................ [ 68%]
+...............................................................F........ [ 77%]
+........................................................................ [ 85%]
+........................................................................ [ 94%]
+..............................................                           [100%]
+=================================== FAILURES ===================================
+_________________ test_two_mechanism_pilot_and_complete_branch _________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_two_mechanism_pilot_and_c0')
+
+    @pytest.mark.asyncio
+    async def test_two_mechanism_pilot_and_complete_branch(tmp_path):
+        config={'release':{'commit':'explicit-test-release'},'start':1,'end':2}
+        result=await run_plan(tmp_path/'run',build(config))
+        assert result['complete_step']==2
+        with StageReader(tmp_path/'run') as reader:
+            for name in ('work','commons'):
+                rows=reader.read(lambda r:r.query(f'SELECT sender,receiver,round,body FROM {name}_messages ORDER BY id'))
+                assert len(rows)==8
+                assert rows[0][3].decode()==f'a 在 {name} 的第 1 轮完整消息'
+            data=Results(reader).phase(2,1)
+            assert Results(reader).page(data['tables']['messages'])['total']==8
+        branch=await run_plan(tmp_path/'branch',build({**config,'start':2,'end':3}),source=tmp_path/'run',step=1)
+>       assert branch['complete_step']==3 and branch['run_id']!=result['run_id']
+E       assert (2 == 3)
+
+tests/primary/test_core_next_pilot.py:22: AssertionError
+_ test_real_case_fixture_through_actual_sdk_adapter[vfs_discovery_pagination_original_and_action] _
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 72, in test_real_case_fixture_through_actual_sdk_adapter
+    |     await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 348, in test_real_vfs_discovery_pagination_original_and_action
+    |     held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 66, in execute
+    |     await run_plan(destination,current)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 76, in run_plan
+    |     await runtime.run_step(number, planned.time, planned.phases)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: model_protocol_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 72, in test_real_case_fixture_through_actual_sdk_adapter
+    await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 348, in test_real_vfs_discovery_pagination_original_and_action
+    held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/e2e/test_core_next_real.py", line 66, in execute
+    await run_plan(destination,current)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 76, in run_plan
+    await runtime.run_step(number, planned.time, planned.phases)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: model_protocol_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_real_case_fixture_through13')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11a1aa060>
+case = 'vfs_discovery_pagination_original_and_action'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('case',[
+        'endpoint_smoke_llm_and_embedding','endpoint_saturation_llm_and_embedding_managers',
+        'interview_writes_artifacts','saturation_memory_and_logs','phase_capacity_overrides_runtime',
+        'memory_roundtrip','complete_boundary_memory_restore','round_robin_action_loop',
+        'social_publish_with_memory','environment_action_tag_completion','terminal_rejection_then_success',
+        'social_browse_completion_and_memory','multi_tick_social_workflow','vfs_discovery_pagination_original_and_action'])
+    async def test_real_case_fixture_through_actual_sdk_adapter(tmp_path,monkeypatch,case):
+        """SDK 响应由确定脚本提供，用于提前检查正式真实案例的装配和断言。"""
+        import asyncio,re
+        from openai.resources.chat.completions import AsyncCompletions
+        from openai.resources.embeddings import AsyncEmbeddings
+        from openai.types.chat import ChatCompletion,ChatCompletionChunk
+        from openai import AsyncStream
+        import httpx2
+        from tests.primary.provider_http import chat_http_response
+        from openai.types import CreateEmbeddingResponse
+        from tests.e2e import test_core_next_real as suite
+        async def create(self,**request):
+            await asyncio.sleep(.02)
+            from tests.e2e.core_next_stub_provider import chat_response
+            response=chat_http_response(chat_response(request))
+            response.request=httpx2.Request('POST','http://unused.invalid/v1/chat/completions')
+            return AsyncStream(cast_to=ChatCompletionChunk,response=response,client=self._client)
+        async def embedding(self,**request):
+            await asyncio.sleep(.01)
+            inputs=request['input']
+            return CreateEmbeddingResponse(object='list',model=request['model'],usage={'prompt_tokens':len(inputs),'total_tokens':len(inputs)},
+                data=[{'object':'embedding','index':i,'embedding':[1.,(sum(map(ord,text))%997)/997.,0.,0.]} for i,text in enumerate(inputs)])
+        monkeypatch.setattr(AsyncCompletions,'create',create);monkeypatch.setattr(AsyncEmbeddings,'create',embedding)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':2}
+        config={'release':'explicit-sdk-fixture','output':tmp_path,'llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+>       await getattr(suite,'test_real_'+case)(config,tmp_path/'run')
+
+tests/primary/test_core_next_real_structure.py:72:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/e2e/test_core_next_real.py:348: in test_real_vfs_discovery_pagination_original_and_action
+    held=await execute(config,destination,goals=task,policy=LLMPolicy(max_turns=20,max_action_calls=2),
+tests/e2e/test_core_next_real.py:66: in execute
+    await run_plan(destination,current)
+src/society0/kernel/runner.py:76: in run_plan
+    await runtime.run_step(number, planned.time, planned.phases)
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: model_protocol_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_real_case_fixture_through13/run/shell-results/shell-bijnqesp/output — scripts can modify host files
+___ test_real_process_fixture_runs_crash_and_restore_against_local_stub_http ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_real_process_fixture_runs0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x11a312f60>
+
+    def test_real_process_fixture_runs_crash_and_restore_against_local_stub_http(tmp_path,monkeypatch):
+        from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
+        from threading import Thread
+        from tests.e2e.core_next_stub_provider import chat_response
+        from tests.e2e.core_next_real_support import configuration
+        from tests.e2e.test_core_next_real import test_real_exit_restore_memory_and_observation
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self,*args):pass
+            def do_POST(self):
+                value=json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+                if self.path.endswith('/embeddings'):
+                    body={'object':'list','model':value['model'],'usage':{'prompt_tokens':1,'total_tokens':1},
+                        'data':[{'object':'embedding','index':i,'embedding':[1.,0.,0.,0.]} for i,_ in enumerate(value['input'])]}
+                else:body=chat_response(value)
+                if value.get('stream'):
+                    from tests.primary.provider_http import chat_http_response
+                    response=chat_http_response(body);raw=response.content;content_type='text/event-stream'
+                else:raw=json.dumps(body).encode();content_type='application/json'
+                self.send_response(200);self.send_header('Content-Type',content_type);self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+        server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+        thread=Thread(target=server.serve_forever,daemon=True);thread.start()
+        address='http://127.0.0.1:'+str(server.server_port)+'/v1'
+        for name,value in {'RELEASE':'offline-process-fixture','OUTPUT':str(tmp_path),'LLM_URL':address,'LLM_MODEL':'stub','LLM_KEY':'explicit-stub',
+            'EMBED_URL':address,'EMBED_MODEL':'stub','EMBED_KEY':'explicit-stub','EMBED_DIMENSIONS':'4'}.items():
+            monkeypatch.setenv('SOCIETY0_REAL_'+name,value)
+>       try:test_real_exit_restore_memory_and_observation(configuration(),tmp_path/'process')
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_real_structure.py:100:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+config = <real endpoint configuration; credentials omitted>
+destination = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_real_process_fixture_runs0/process')
+
+    def test_real_exit_restore_memory_and_observation(config,destination):
+        import subprocess,sys
+        from society0.kernel.storage import StageStore,StageReader
+        from society0.kernel.threads import ThreadStore
+        destination.mkdir(parents=True)
+        def child(mode):
+            result=subprocess.run([sys.executable,'-m','tests.e2e.core_next_real_process',str(destination),mode],
+                capture_output=True,text=True,timeout=600)
+            body=result.stdout+'\n'+result.stderr
+            for kind in ('llm','embed'):
+                for endpoint in config[kind]['endpoints']:body=body.replace(endpoint['api_key'],'[credential]')
+            (destination/(mode+'-process.log')).write_text(body)
+            return result.returncode
+        assert child('source')==91
+        with StageReader(destination/'source') as reader:
+            threads=ThreadStore(reader)
+            dirty=threads.find('a',{'time':2,'phase':'decision'})
+            assert dirty is not None
+        from society0.kernel.observation import Observation
+        with Observation(destination/'source') as observer:
+            assert observer.status()['complete']['step']==1
+            assert observer.thread_tail(dirty)['complete_through']==0
+        with StageStore.prepare_readonly(destination/'source',destination/'before',step=1) as reader:
+            threads=ThreadStore(reader);tid=threads.find('a',{'time':1,'phase':'decision'})
+            original=threads.read_messages(tid)
+            assert threads.find('a',{'time':2,'phase':'decision'}) is None
+>       assert child('restore')==0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = <function test_real_exit_restore_memory_and_observation.<locals>.child at 0x11a44d4e0>('restore')
+
+tests/e2e/test_core_next_real.py:299: AssertionError
+_____ test_official_actor_driver_factory_can_consume_persistent_workspace ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_official_actor_driver_fac0')
+
+    @pytest.mark.asyncio
+    async def test_official_actor_driver_factory_can_consume_persistent_workspace(tmp_path):
+        from society0.kernel.actors import actor_plugin,ActorRecord
+        from society0.kernel.services import thread_plugin
+        from society0.kernel.workspace import workspace_plugin
+        from society0.kernel.composition import compose
+>       from society0.kernel.schedule import RuleDriver
+E       ImportError: cannot import name 'RuleDriver' from 'society0.kernel.schedule' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py)
+
+tests/primary/test_core_next_real_structure.py:110: ImportError
+___________________________ TestFilesMachine.runTest ___________________________
+
+self = <hypothesis.stateful.FilesMachine.TestCase testMethod=runTest>
+
+    def runTest(self):
+>       run_state_machine_as_test(cls, settings=self.settings)
+
+.venv/lib/python3.12/site-packages/hypothesis/stateful.py:507:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv/lib/python3.12/site-packages/hypothesis/stateful.py:271: in run_state_machine_as_test
+    state_machine_test()
+.venv/lib/python3.12/site-packages/hypothesis/stateful.py:122: in run_state_machine
+    @given(st.data())
+               ^^^
+tests/primary/test_kernel_actor_files_stateful.py:31: in __init__
+    self.open()
+tests/primary/test_kernel_actor_files_stateful.py:38: in open
+    self.scope=InteractionScope(self.actor,Moment(self.store.complete_step+1,'files'))
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.shell.ShellSession object at 0x11ac56510>
+scope = InteractionScope(actor='a', moment=Moment(time=1, phase='files'), revision=None)
+information = <society0.kernel.interaction.Information object at 0x11ac57bf0>
+actions = <society0.kernel.interaction.Actions object at 0x11ac56f90>
+bound_actions = None
+result_dir = PosixPath('/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpwpk4r14n/outputs')
+workspace_snapshot = None, preview_bytes = 65536, result_reader = None
+workspace = <society0.kernel.workspace.WorkspaceStore object at 0x11ac54230>
+projection_file_bytes = 65536, projection_page_size = 100
+
+    def __init__(self, scope: InteractionScope, information: Information, actions: Actions | None = None,
+                 *, bound_actions=None, result_dir, workspace_snapshot=None, preview_bytes=65536, result_reader=None, workspace=None,
+                 projection_file_bytes=65536, projection_page_size=100):
+        scope.check_active()
+        if preview_bytes < 4:
+            raise ValueError('preview_bytes must be at least 4')
+        self.scope = scope
+        if workspace is not None and workspace_snapshot is not None:
+            raise ValueError('workspace service and standalone snapshot are mutually exclusive')
+        self._workspace = workspace.open(scope) if workspace is not None else None
+        if self._workspace is not None:
+            workspace_snapshot=self._workspace.state
+        self.information = information.bound(scope)
+        if (actions is None) == (bound_actions is None):
+            raise ValueError('provide actions or bound_actions')
+        self.actions = bound_actions if bound_actions is not None else actions.bound(scope)
+        self.preview_bytes = preview_bytes
+        self._result_reader = result_reader
+        root = Path(result_dir)
+        root.mkdir(parents=True, exist_ok=True)
+        self.result_dir = Path(tempfile.mkdtemp(prefix='shell-', dir=root)).resolve()
+        self.session_id = self.result_dir.name
+        self._output_dir = self.result_dir / 'output'
+        self._output_dir.mkdir()
+        self._sequence = 0
+        self._receipts = []
+        self._fault = None
+        self._callbacks = set()
+        self._closed = False
+        self._lock = asyncio.Lock()
+        self._running = None
+        self._idle = asyncio.Event()
+        self._idle.set()
+        options = dict(
+            mounts=[{'host_path': str(self._output_dir), 'vfs_path': '/__output', 'writable': True}],
+            allowed_mount_paths=[str(self._output_dir)],
+            custom_builtins={name: self._builtin(name) for name in ('data', 'action', 'result')},
+        )
+        if self._workspace is not None and workspace_snapshot is None:
+            options['cwd']='/workspace'
+        self._bash = (Bash(**options) if workspace_snapshot is None
+                      else Bash.from_snapshot(workspace_snapshot, **options))
+        from bashkit import FileSystem
+        from society0_filesystem import Overlay, callback_filesystem
+        from .information_fs import InformationFiles
+        self._world_files=InformationFiles(self.information,scope,
+            max_file_bytes=projection_file_bytes,page_size=projection_page_size)
+>       self._bash.mount('/world',FileSystem.from_capsule(callback_filesystem(self._file_callback(self._world_files.callback))),read_only=True)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       RuntimeError: no running event loop
+E       Failing test case:
+
+src/society0/kernel/shell.py:108: RuntimeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmp_9pfbxjd/outputs/shell-klhrrufr/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/tmpwpk4r14n/outputs/shell-xuhjy5fi/output — scripts can modify host files
+_ test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_review_workspace_save_fai0')
+
+    @pytest.mark.asyncio
+    async def test_review_workspace_save_failure_leaves_incomplete_thread_and_closes_shell(tmp_path):
+        store,threads,provider,driver,session,calls=setup(tmp_path,[reply(text='done')])
+        closed=[]
+        async def close():closed.append(True)
+        shell=SimpleNamespace(has_workspace=True,aclose=close)
+        driver.shell_factory=lambda *a:shell
+        def save(*a):raise OSError('disk full')
+        shell.save_workspace=save
+        try:
+>           with pytest.raises(OSError,match='disk full'):await driver.run(session)
+                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_workspace_review.py:17:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <society0.kernel.llm.LLMDriver object at 0x11a40d160>
+session = Session(actor=Actor(id='a', driver=<society0.kernel.llm.LLMDriver object at 0x11a40d160>, state_ref=None, config=None)...fact=<bound method StageStore.prepare_artifact of <society0.kernel.storage.StageStore object at 0x11a34d1f0>>), step=1)
+
+    async def run(self, session):
+        session.scope.check_active()
+        activation_started=time.perf_counter()
+        thread_id = self.threads.find(session.actor.id, session.moment, kind=self.policy.mode)
+        if thread_id is None:
+            thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode)
+        else:
+            if self.threads.describe(thread_id)['status'] not in ('completed', 'waiting'):
+                raise RuntimeError('unfinished Thread requires explicit recovery; budgets are not reset')
+            self.threads.reopen(thread_id)
+        session.cursors['thread_id'] = thread_id
+        ledger = _Ledger(self, session, thread_id)
+        shell = None
+        status, reason, structured = 'incomplete', 'driver_error', None
+        reasoning=[]
+        timings={}
+        from .activation import ActivationContext, activation_scope
+        context=ActivationContext(session,thread_id,self.policy.mode,timings=timings)
+        extension_scope=AsyncExitStack()
+        try:
+            await extension_scope.enter_async_context(activation_scope(context,self.extensions))
+            with _timed(timings,'prompt_s'):
+                provider=self.provider if self.provider_selector is None else await invoke_maybe_async(self.provider_selector,session)
+                inputs = await invoke_maybe_async(self.input_builder, session)
+                context.inputs=inputs
+                if isinstance(inputs, InputBatch):
+                    self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
+                else:
+                    for message in inputs:
+                        self.threads.append_message(thread_id, message)
+            await context.prepare()
+            for message in context.messages:
+                self.threads.append_message(thread_id,message)
+            with _timed(timings,'setup_s'):
+                if self.policy.reasoning_stages and self.policy.result_schema is None:
+                    guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                        '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                        '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                    if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                        self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
+                tools = self._tools()
+                schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+                options = dict(self.policy.request_options)
+                options['tools'] = tools
+                options['parallel_tool_calls'] = self.policy.parallel_tool_calls
+                if self.policy.direct_json:
+                    options.pop('tools')
+                    options.pop('parallel_tool_calls')
+                    options['response_format'] = {'type': 'json_schema', 'json_schema': {
+                        'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+                if self.shell_factory is not None:
+                    shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+                from .actor_files import ActorFiles
+                files=ActorFiles(session,self.threads,shell=shell)
+                session.cursors['files']=files
+>               if shell is not None:shell.bind_files(files)
+                                     ^^^^^^^^^^^^^^^^
+E               AttributeError: 'types.SimpleNamespace' object has no attribute 'bind_files'
+
+src/society0/kernel/llm.py:436: AttributeError
+__________ test_review_binary_information_base64_keeps_original_bytes __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_review_binary_information0')
+
+    @pytest.mark.asyncio
+    async def test_review_binary_information_base64_keeps_original_bytes(tmp_path):
+        class Binary:
+            def ref(self, path):
+                return Ref('binary', 'document', path)
+            def read(self, scope, path, *, offset, size):
+                body = b'\xff\x00A'
+                data = body[offset:offset+size]
+                return DocumentChunk(data, len(body), None, 1, self.ref(path))
+        info = Information(lambda *a: True)
+        info.mount('/binary', Binary())
+        session = ShellSession(InteractionScope('a', Moment(1, 'p')), info,
+                               Actions(lambda *a: True), result_dir=tmp_path)
+        try:
+            output = await session.execute('data read /binary/file \'{"encoding":"base64"}\'')
+>           assert base64.b64decode(json.loads(output.stdout)['data']) == b'\xff\x00A'
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_shell_review.py:96:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:346: in loads
+    return _default_decoder.decode(s)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:338: in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <json.decoder.JSONDecoder object at 0x103026e40>, s = '', idx = 0
+
+    def raw_decode(self, s, idx=0):
+        """Decode a JSON document from ``s`` (a ``str`` beginning with
+        a JSON document) and return a 2-tuple of the Python
+        representation and the index in ``s`` where the document ended.
+
+        This can be used to decode a JSON document from a string that may
+        have extraneous data at the end.
+
+        """
+        try:
+            obj, end = self.scan_once(s, idx)
+        except StopIteration as err:
+>           raise JSONDecodeError("Expecting value", s, err.value) from None
+E           json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:356: JSONDecodeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1079/test_review_binary_information0/shell-wgw1udlk/output — scripts can modify host files

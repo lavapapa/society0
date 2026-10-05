@@ -1,0 +1,4 @@
+..bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-697/test_real_shell_multi_actions_0/shell/shell-f9kqwx1s/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-697/test_real_shell_multi_actions_0/shell/shell-rarzds4u/output — scripts can modify host files
+.{'history_actions': [100, 10000], 'query_vm_instructions': [184, 174]}
+......

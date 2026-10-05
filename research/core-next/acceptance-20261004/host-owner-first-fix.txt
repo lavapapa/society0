@@ -1,0 +1,63 @@
+....................F.............................................F..... [ 97%]
+..                                                                       [100%]
+=================================== FAILURES ===================================
+_________ test_review_cancelled_async_cleanup_still_closes_dependency __________
+.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:569: in runtest
+    super().runtest()
+.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py:905: in inner
+    runner.run(coro, context=context)
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:678: in run_until_complete
+    self.run_forever()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:645: in run_forever
+    self._run_once()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py:1961: in _run_once
+    event_list = self._selector.select(timeout)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/selectors.py:566: in select
+    kev_list = self._selector.control(None, max_ev, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: Timeout (>5.0s) from pytest-timeout.
+---------------------------- Captured log teardown -----------------------------
+ERROR    asyncio:base_events.py:1833 unhandled exception during asyncio.run() shutdown
+task: <Task finished name='plugin-resources' coro=<PluginHost._own_resources() done, defined at /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/plugins.py:191> exception=RuntimeError('plugin resource cleanup was cancelled')>
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/plugins.py", line 206, in _own_resources
+    await asyncio.Future()
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/plugins.py", line 226, in _own_resources
+    await self._stack.aclose()
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 696, in aclose
+    await self.__aexit__(None, None, None)
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 754, in __aexit__
+    raise exc_details[1]
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 737, in __aexit__
+    cb_suppress = await cb(*exc_details)
+                  ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/contextlib.py", line 642, in _exit_wrapper
+    await callback(*args, **kwds)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/plugins.py", line 64, in close
+    await result
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_kernel_plugins_review.py", line 117, in cleanup
+    await asyncio.Future()
+asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/plugins.py", line 228, in _own_resources
+    raise RuntimeError('plugin resource cleanup was cancelled') from error
+RuntimeError: plugin resource cleanup was cancelled
+____ test_review_second_close_cancellation_does_not_abandon_driver_cleanup _____
+tests/primary/test_kernel_schedule_review.py:31: in test_review_second_close_cancellation_does_not_abandon_driver_cleanup
+    await cleaning.wait()
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/locks.py:212: in wait
+    await fut
+E   asyncio.exceptions.CancelledError
+2 failed, 72 passed in 7.68s

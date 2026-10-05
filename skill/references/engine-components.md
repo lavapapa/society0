@@ -1,164 +1,21 @@
-# Society0 Engine Components
+# 引擎与插件
 
-This reference summarizes the current code-driven Society0 core. It uses the uploaded paradigm document as background, but corrects it against the current source: the recommended path is `Society0 + CodeSchedule + step(ctx)`, while the older YAML/Step Flow scheduler is legacy.
+一个运行拥有共享环境、主体身份与逻辑时间。插件实现环境内部机制，Schedule 明确业务时序；插件依赖表达服务安装关系，并影响步骤钩子的登记顺序；阶段顺序和主体活动的独立性由研究计划声明。
 
-## Public Facade
+## 一、装配
 
-`Society0` is the recommended runtime facade. It loads config, initializes a `World`, injects model managers and persistence, runs code steps, writes JSONL outputs, and saves checkpoints.
+`Plugin(name, requires, install, schema=..., initialize=...)` 声明依赖与静态状态。`compose` 先汇集 schema 和初始化，在一个 StageStore 中发布根，再按依赖安装服务。异步外部数据准备使用 `prepare` 上下文管理器返回同步 initializer。恢复从完整点创建新运行，重新安装本次资源服务，保留权威状态。
 
-Use:
+标准工厂包括 actor_plugin、interaction_plugin、thread_plugin、memory_plugin、model_plugin、embedding_plugin、workspace_plugin、results_plugin、dataset_plugin、runtime_plugin。按实际消费者选用，普通规则不需要模型、记忆或 shell。领域机制通过 PluginContext.require 获取显式依赖服务，provide 暴露自身服务，on_close 归还资源，on_step 注册完整步骤钩子。
 
-```python
-from society0 import Society0, LLMModel, EmbedModel
-```
+## 二、交互
 
-Do not use old public examples based on `Experiment` or `simengine`.
+ActorRecord 保存人格、主观状态、配置和角色；ActorStore 按实际主体按需加载。Driver 可以是规则或 LLM，使用绑定身份的 Session。共享 Information 提供目录、分页数据与原文范围；Actions 注册按目标类型发现的模板，执行时重新检查资格。信息读取资格与领域允许的行动由机制定义。
 
-## World
+LLMDriver 保留完整 Thread，提供 data/action 元工具，按需接 shell。Memory 以 SQL 正文与原始向量为权威，Chroma 为可重建检索投影。各激活分别冻结记忆开关与模型选择。
 
-`World` is the unified simulation state container. It owns:
+## 三、运行
 
-- `agents_data`: agent type, archetype, persona, state, properties, model id.
-- `environment_data`: environment type, config, schema, state, globals.
-- event logger and state-change machinery.
-- FoV lookup and caching.
-- `instruct_agent(...)` and `interview_agent(...)` bridges into LLM cognition.
+Runtime 以阶段及完整步骤组织活动；Schedule、RunPlan、run_plan 提供研究计划入口。StepResult 保存指标、原始结构和表；观察服务在独立进程读取当前诊断或固定完整视图。当前权威表、不可变正文、JSON 元数据和私有 workspace 各有明确归属，插件缓存作为可重建运行资源。机制如何对应世界事实、主体视野和行动，见 [双机制设计例](environment-design.md#从双机制例子构建自己的世界)。
 
-`ctx.world` is an escape hatch. Prefer higher-level DSL methods when possible, but direct state access is acceptable for first experiments and rule baselines.
-
-## Agents
-
-Agents are declared through config, not through user-facing Python classes in normal use.
-
-Key fields:
-
-- `id`: unique agent id.
-- `type`: links to an `agent_types` entry.
-- `archetype`: usually `"llm"` or `"rule"`.
-- `persona`: stable natural-language identity for LLM agents.
-- `state`: mutable structured state.
-- `properties`: additional metadata.
-- `model`: optional model id for future routing.
-
-Use LLM agents for language-rich phenomena. Use rule agents for baselines and deterministic mechanisms.
-
-For details on persona, state, properties, model routing, memory, and reasoning stages, read `agent-design.md`.
-
-## Environment
-
-`Environment` is a proxy-backed state and capability layer. It provides:
-
-- environment state through `env.state`.
-- access to other agents through environment methods.
-- environment-provided actions through capability decorators.
-- optional embedding/vector handles injected by the engine.
-- snapshots for persistence.
-- tick lifecycle hooks: `before_tick(ctx)` and `after_tick(ctx)`.
-
-Built-in environments currently include:
-
-- `plain`: minimal environment for teaching, smoke tests, surveys, and custom code steps.
-- `social_network`: social graph, posts, likes, replies, voting, feed/recommendation logic, and FoVs.
-- `round_robin_conversation`: pairing and message state for rotation-style conversations.
-
-For experiment design, treat the environment as the first-class research object. It defines visibility, affordances, records, and constraints. For built-in env details and extension patterns, read `environment-design.md`.
-
-Lifecycle order in the code-driven runtime:
-
-```text
-before_tick
-all registered code steps
-after_tick
-advance_step
-```
-
-Hooks are for environment maintenance such as cache cleanup, index refresh, or delayed counter flushes. They are not a replacement for explicit experiment steps.
-
-## FoV
-
-FoV means Field of View: the part of the world an agent sees for an interaction. FoVs are environment capabilities and can be passed to `instruct` or `interview`.
-
-In the current code, FoV functions are registered in the function registry and resolved by `World.instruct_agent(...)` / `World.interview_agent(...)`. FoV results are formatted into the agent prompt.
-
-Treat FoV as a research object: recommender exposure, social visibility, feed ordering, local context, and institutional constraints can all be encoded as FoV logic.
-
-For `social_network`, recommended-feed FoV uses a runtime recommendation cache derived from `state["posts"]`. That cache is not checkpointed. The checkpoint remains the source for research data: posts, replies, repost references, likes, view counts, events, and metrics. Feed impressions are batched and written in `after_tick`.
-
-## Actions And Capabilities
-
-Environment actions are exposed as tool-like capabilities to LLM agents. The current implementation discovers capability metadata from decorators and routes available actions into agent cognition.
-
-In normal code-driven experiments, users usually call:
-
-```python
-await group.instruct(..., actions=["environment"])
-```
-
-This filters what the agent may do. For early prototypes, `actions=None` exposes available non-memory actions; narrow later with `actions=["environment"]` or exact action names. Use `actions=["memory"]` only when autonomous memory-tool use is part of the study. `interview(...)` does not expose ordinary actions and should be used for measurement.
-
-Environment actions are tagged with `environment` in capability metadata, so `actions=["environment"]` is a stable prototype path across envs. Use exact action names or narrower tags such as `social_read` / `social_write` once the study design is clear.
-
-## Logic: Rule And Behavior
-
-In Society0 skill guidance, "logic" means deterministic Python logic that is not an LLM free-form response:
-
-- `rule`: environment-level or system-level update.
-- `behavior`: agent-level deterministic behavior.
-
-Both can come from two sources:
-
-- env-provided logic: built into an environment as capabilities, such as round-robin pairing rules or environment-specific participant behaviors.
-- experiment-specific logic: written by the user or their coding agent for one study, then registered on the engine.
-
-Use `ctx.capabilities` to discover available FoVs, actions, rules, and behaviors in a code step. Use `summary.json -> capabilities.by_source` to explain whether capabilities came from the selected environment or from experiment-specific registrations. Use `ctx.rule(...)`, `ctx.agents.where(...).behavior(...)`, or `ctx.behavior(...)` to execute deterministic logic from CodeSchedule.
-
-## Memory
-
-LLM agents can have Chroma-backed memory. The memory layer supports:
-
-- episodic and semantic memory entries.
-- per-agent separation in a shared collection.
-- retrieval before LLM calls.
-- explicit thread-memory extraction and durable commit after an interaction.
-- memory actions such as remember/recall when available.
-
-Chroma is a required dependency in the current project direction. Do not present embedding as optional for LLM-agent experiments.
-
-`retrieve_memory=True` reads experience. To save a behavior round, open a thread through `ctx.log.open_agent_thread(...)`, pass `thread_ids_by_agent`, then call `group.extract_thread_memories(...)`. See `step-dsl.md` and `../assets/minimal_experiment.py` for the sequence.
-
-## Model Layer
-
-Users declare providers with:
-
-```python
-LLMModel.openai(...)
-LLMModel.openai_compatible(...)
-LLMModel.azure_openai(...)
-LLMModel.ollama(...)
-EmbedModel.openai(...)
-EmbedModel.openai_compatible(...)
-EmbedModel.ollama(...)
-```
-
-The engine builds internal `LLMManager`, `EmbeddingManager`, and model provider objects. This keeps lifecycle, concurrency, logging, and injection centralized.
-
-## Persistence And Outputs
-
-The runtime writes:
-
-- `steps.jsonl`: step results, tables, notes, observations.
-- `metrics.jsonl`: per-step metrics.
-- `events.jsonl`: compact monitoring events for lifecycle, errors, action traces, recommendation traces, and long-running agent-batch progress.
-- `summary.json`: final run summary.
-- `diagnostics.md`: read-only researcher-facing runtime diagnostic report generated from `summary.json`.
-- `checkpoints/`: initial, periodic, and final world state.
-- `chroma_store/`: memory persistence.
-- `logs/`: structured resource and simulation logs.
-
-For `social_network` posts, checkpoints store full post state plus lightweight embedding metadata such as `embedding_ref`, embedding model, dimensions, and indexing status. The vector itself lives in Chroma. The default `events.jsonl` does not include raw `STATE_CHANGE` rows; use checkpoints rather than events when the full state is needed for analysis. Debug runs can opt in with `Society0(..., log_state_changes=True)`, which writes compact state-change summaries rather than full large values. Embedding calls, including memory retrieval/write embeddings, are traced in `resource_calls.jsonl` with step, interaction, and agent/post identifiers when available. Batched embedding records may use plural fields such as `agent_ids` or `interaction_types`.
-
-The current default code path avoids the old studio-heavy node diff and streaming snapshot workflow.
-
-## Legacy Schedule
-
-The older selector/operator/converter YAML workflow should be treated as legacy/studio source. It can be useful background, but new skill-guided user experiments should not depend on it.
+完整使用例在 `../assets/minimal_experiment.py`。核对源码从 `src/society0/kernel/` 与 `src/society0/plugins/` 开始。

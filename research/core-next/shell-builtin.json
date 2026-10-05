@@ -1,0 +1,1 @@
+{"calls": [["query", "/visible"], ["read", "/visible/allowed"], ["query", "/visible"]], "async_callback_and_restore": true, "mode": "builtin", "python": "3.13.0", "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O", "bashkit": "0.18.2", "peak_rss_native": 40255488}

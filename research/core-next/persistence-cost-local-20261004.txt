@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_persistence_probe.py", line 161, in <module>
+    if __name__=='__main__':main()
+                            ^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_persistence_probe.py", line 155, in main
+    'durability':[durability_probe(root/mode,mode) for mode in ('FULL','NORMAL')],
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_persistence_probe.py", line 48, in durability_probe
+    with StageStore.create(path,THREAD_SCHEMA) as store:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/storage.py", line 226, in create
+    connection = apsw.Connection(str(temporary / 'current.sqlite'))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "src/vfs.c", line 520, in vfs.xFullPathname
+  File "src/vfs.c", line 595, in vfspy.xFullPathname
+apsw.CantOpenError: unable to open database file

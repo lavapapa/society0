@@ -1,0 +1,8 @@
+Resolved 1 package in 16ms
+   Building society0-filesystem @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next/native/society0-filesystem
+      Built society0-filesystem @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next/native/society0-filesystem
+Prepared 1 package in 39.21s
+Uninstalled 1 package in 1ms
+Installed 1 package in 1ms
+ ~ society0-filesystem==0.1.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next/native/society0-filesystem)
+exit_code=0

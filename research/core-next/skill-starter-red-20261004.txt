@@ -1,0 +1,76 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-828/test_starter_preflight_and_two0')
+
+    @pytest.mark.asyncio
+    async def test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory(tmp_path):
+>       starter=load_starter();requests=[]
+                ^^^^^^^^^^^^^^
+
+tests/primary/test_skill_starter.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_skill_starter.py:14: in load_starter
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:999: in exec_module
+    ???
+<frozen importlib._bootstrap>:488: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    """两轮 LLM Agent 起步示例：查看消息、保存经验、测量判断。"""
+    
+    import argparse
+    import asyncio
+    import copy
+    import json
+    import os
+    import shutil
+    from pathlib import Path
+    
+    from pydantic import BaseModel, Field
+>   from society0 import EmbedModel, LLMModel, Society0
+E   ImportError: cannot import name 'EmbedModel' from 'society0' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/__init__.py)
+
+skill/assets/minimal_experiment.py:12: ImportError
+______ test_starter_provider_failure_remains_failed_and_does_not_publish _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-828/test_starter_provider_failure_0')
+
+    @pytest.mark.asyncio
+    async def test_starter_provider_failure_remains_failed_and_does_not_publish(tmp_path):
+>       starter=load_starter()
+                ^^^^^^^^^^^^^^
+
+tests/primary/test_skill_starter.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/primary/test_skill_starter.py:14: in load_starter
+    module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
+                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<frozen importlib._bootstrap_external>:999: in exec_module
+    ???
+<frozen importlib._bootstrap>:488: in _call_with_frames_removed
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    """两轮 LLM Agent 起步示例：查看消息、保存经验、测量判断。"""
+    
+    import argparse
+    import asyncio
+    import copy
+    import json
+    import os
+    import shutil
+    from pathlib import Path
+    
+    from pydantic import BaseModel, Field
+>   from society0 import EmbedModel, LLMModel, Society0
+E   ImportError: cannot import name 'EmbedModel' from 'society0' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/__init__.py)
+
+skill/assets/minimal_experiment.py:12: ImportError
+=========================== short test summary info ============================
+FAILED tests/primary/test_skill_starter.py::test_starter_preflight_and_two_llm_steps_keep_current_information_without_memory
+FAILED tests/primary/test_skill_starter.py::test_starter_provider_failure_remains_failed_and_does_not_publish
+2 failed in 0.15s

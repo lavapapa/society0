@@ -1,0 +1,45 @@
+{
+  "network": "MockTransport; socket denied",
+  "cases": [
+    {
+      "case": "incomplete",
+      "returned": true,
+      "finish_reason": "length",
+      "provider_details": {
+        "finish_reason": "max_output_tokens"
+      },
+      "tool_parts": 1
+    },
+    {
+      "case": "failed",
+      "returned": false,
+      "exception": "ModelAPIError",
+      "message": "server_error: synthetic failed response"
+    },
+    {
+      "case": "error",
+      "returned": false,
+      "exception": "ModelAPIError",
+      "message": "server_error: synthetic stream failure"
+    },
+    {
+      "case": "eof",
+      "returned": true,
+      "finish_reason": null,
+      "provider_details": null,
+      "tool_parts": 1
+    },
+    {
+      "case": "completed",
+      "returned": true,
+      "finish_reason": "stop",
+      "provider_details": {
+        "finish_reason": "completed"
+      },
+      "tool_parts": 1
+    }
+  ],
+  "typed_json_roundtrip_bytes": 1518,
+  "opaque_after_typed_json_and_resend": true,
+  "namespace_and_arguments_after_typed_json_and_resend": true
+}

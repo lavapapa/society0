@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_find_policy_filters_version_cursor_and_empty_policy ___________
+
+    @pytest.mark.asyncio
+    async def test_find_policy_filters_version_cursor_and_empty_policy():
+        import json
+        calls=[]
+        actions=Actions(lambda *args:True,revision=lambda scope:['run',1])
+        for name,tags in [('one',('a',)),('two',('a',)),('three',('b',))]:
+            actions.register(Action(name,('world','item'),name,{'type':'object'},
+                lambda *args:ActionResult('completed'),tags=tags,
+                available=lambda scope,target,n=name:calls.append(n) or True))
+        bound=actions.bound(InteractionScope('alice',Moment(1,'p')))
+        target=Ref('world','item','x')
+>       page=await bound.find(target,names=('one','two','three'),tags=('a',),limit=1)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _BoundActions.find() got an unexpected keyword argument 'names'
+
+tests/primary/test_kernel_interaction.py:496: TypeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_interaction.py::test_find_policy_filters_version_cursor_and_empty_policy
+1 failed, 27 deselected in 0.08s

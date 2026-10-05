@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_dense_native_transport_batches_preserve_every_original_hit ________
+
+    @pytest.mark.asyncio
+    async def test_dense_native_transport_batches_preserve_every_original_hit():
+        from society0.kernel.information_fs import search_reader
+        body=b'needle full original\n'*5000;hits=[]
+        async def read(offset,size):return body[offset:offset+size]
+        async def sink(line,offset,data):hits.append((line,offset,data))
+        result=await search_reader(read,sink,'needle',literal=True)
+        assert result['matches']==5000
+        assert hits==[(i+1,i*len(b'needle full original\n'),b'needle full original\n') for i in range(5000)]
+>       assert result['sink_batches']<20
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'sink_batches'
+
+tests/primary/test_native_stream_search.py:50: KeyError
+=========================== short test summary info ============================
+FAILED tests/primary/test_native_stream_search.py::test_dense_native_transport_batches_preserve_every_original_hit
+1 failed in 0.35s

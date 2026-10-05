@@ -1,0 +1,15 @@
+Traceback (most recent call last):
+  File "/tmp/acceptance_clean_consumers.py", line 66, in <module>
+    asyncio.run(main(sys.argv[1]))
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/tmp/acceptance_clean_consumers.py", line 61, in main
+    from society0.plugins.social_topology import SocialNetwork, SocialLayout
+ImportError: cannot import name 'SocialNetwork' from 'society0.plugins.social_topology' (/tmp/society0-acceptance-clean-20261004/social/lib/python3.12/site-packages/society0/plugins/social_topology.py)

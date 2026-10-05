@@ -1,0 +1,1 @@
+{"source_ordinals": [4, 1438000, 1447999], "records": 10001, "all_values_equal": true, "logical_bytes": 7622656, "import_seconds": 0.9417650103569031, "blocks": 667}

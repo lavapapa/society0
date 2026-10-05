@@ -1,0 +1,30 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+_____________ test_file_delete_rename_restore_and_actor_isolation ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-594/test_file_delete_rename_restor0')
+
+    @pytest.mark.asyncio
+    async def test_file_delete_rename_restore_and_actor_isolation(tmp_path):
+        async with compose(tmp_path/'run',plugins()) as host:
+            first=shell(host,tmp_path)
+            assert (await first.execute('mkdir -p /workspace/d; printf before > /workspace/d/a')).exit_code==0
+            first.save_workspace();await first.aclose();host.service('storage','store').complete(1)
+            next_shell=shell(host,tmp_path,time=2)
+            assert (await next_shell.execute('mv /workspace/d/a /workspace/d/b; rm -r /workspace/d')).exit_code==0
+            next_shell.save_workspace();await next_shell.aclose()
+            bob=shell(host,tmp_path,actor='bob')
+            assert (await bob.execute('cat /workspace/d/a')).exit_code!=0
+            await bob.aclose()
+>           host.service('storage','store').abort()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'StageStore' object has no attribute 'abort'
+
+tests/primary/test_kernel_workspace.py:53: AttributeError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-594/test_file_delete_rename_restor0/output/shell-9r0nv_46/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-594/test_file_delete_rename_restor0/output/shell-2szkhasi/output — scripts can modify host files
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-594/test_file_delete_rename_restor0/output/shell-y1mdiha9/output — scripts can modify host files
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_workspace.py::test_file_delete_rename_restore_and_actor_isolation
+1 failed, 1 passed in 0.19s

@@ -1,0 +1,12 @@
+......F                                                                  [100%]
+=================================== FAILURES ===================================
+____ test_embedding_plugin_declares_shared_schema_and_closes_named_profiles ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-448/test_embedding_plugin_declares0')
+
+    @pytest.mark.asyncio
+    async def test_embedding_plugin_declares_shared_schema_and_closes_named_profiles(tmp_path):
+>       from society0.kernel.models import embedding_plugin
+E       ImportError: cannot import name 'embedding_plugin' from 'society0.kernel.models' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/models.py)
+
+tests/primary/test_kernel_embedding_provider.py:109: ImportError

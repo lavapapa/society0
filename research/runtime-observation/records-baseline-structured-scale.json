@@ -1,0 +1,14 @@
+{
+  "variant": "structured",
+  "record_raw_bytes_total": 138454364,
+  "record_raw_bytes_max": 2925626,
+  "table_bytes": {},
+  "commit": "fc67432",
+  "records": 204882,
+  "publish_seconds": 1.7976474159950158,
+  "rss_before_bytes_macos": 332251136,
+  "rss_peak_bytes_macos": 800030720,
+  "rss_additional_bytes_macos": 467779584,
+  "bytes_written": 35272720,
+  "format_stage": "baseline_whole_gzip"
+}

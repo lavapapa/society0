@@ -1,0 +1,17 @@
+Using CPython 3.12.12 interpreter at: .venv/bin/python
+Creating virtual environment at: /tmp/society0-delivery-20261004-base
+Activate with: source /tmp/society0-delivery-20261004-base/bin/activate
+Using Python 3.12.12 environment at: /tmp/society0-delivery-20261004-base
+Resolved 10 packages in 788ms
+Prepared 1 package in 10ms
+Installed 10 packages in 8ms
+ + apsw==3.53.4.0
+ + attrs==26.1.0
+ + backports-zstd==1.7.0
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + python-rapidjson==1.25
+ + referencing==0.37.0
+ + rpds-py==2026.6.3
+ + society0==6.0.0 (from file:///tmp/society0-delivery-20261004-wheels/society0-6.0.0-py3-none-any.whl)
+ + typing-extensions==4.16.0

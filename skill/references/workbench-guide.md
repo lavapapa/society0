@@ -43,8 +43,10 @@ experiments/study/
       experiment.py
       runs/
         pilot-001/
-          summary.json
-          steps.jsonl
+          runner-status.json
+          runner.json
+          current.sqlite
+          steps/
     v002/
       experiment.py
       runs/
@@ -60,7 +62,7 @@ experiments/study/
 
 复制出的请求例如 `{"type":"society0_config_change_request","baseVersionId":"v001","configSource":"versions/v001/experiment.py","changes":[{"op":"replace","path":"/agents/0/persona","before":"谨慎读者","after":"热心读者"}]}`。研究者可以在粘贴后附上原因或补充要求；agent 仍需以实验文件为准核对，不把浏览器里的草稿当作已生效配置。
 
-同名 Python 配置模块按各自绝对文件路径加载，例如用 `importlib.util.spec_from_file_location(f"config_{version_id}", path)`；先确认导入配置不会启动实验。逐版本核对实际字段，避免模块缓存把后续版本全部读成第一版。初始化检查的零 tick 记录标为“配置检查”，失败记录标明失败及其原因，完成的试运行才提供相应结果。根据 `summary.json` 的 `failed`、`steps_completed` 和 Agent 批次结果判断，目录存在本身不足以判断成功。
+同名 Python 配置模块按各自绝对文件路径加载，例如用 `importlib.util.spec_from_file_location(f"config_{version_id}", path)`；先确认导入配置不会启动实验。逐版本核对实际字段，避免模块缓存把后续版本全部读成第一版。初始化检查的零 tick 记录标为“配置检查”，失败记录标明失败及其原因，完成的试运行才提供相应结果。根据 `runner-status.json` 的 `status`、`complete_step` 与实际阶段结果判断，目录存在本身不足以判断成功。
 
 ## 首次交付给研究者
 
@@ -182,7 +184,7 @@ session = {"id": thread_id, "label": interaction_name, "events": events}
 
 测量表和规则转发记录放入 `tabs` 或 `sideTabs` 的表格组件；`sessions` 用实际 LLM 会话。成功或失败的动作可从 `store.read_events(thread_id, materialize_payloads=True)` 中的工具执行记录补充。存在多个线程时按 `thread_id` 分开，保持原始顺序。取到的消息数量为零时展示缺少会话记录；已存在测量表仍可独立展示。将“仅有结果表”“完整会话”“截取的消息预览”等资料范围如实写在模块说明中。
 
-数据来源按用途读取：`summary.json` 给实验概况和能力目录，`steps.jsonl`、`metrics.jsonl` 给研究者设计的表格与指标，checkpoint 给当前状态，`events.jsonl` 给事件线索，`agent_threads/` 给会话细节。`resource_calls.jsonl` 用于模型调用与用量，不能替代会话。FoV 能力目录是全局登记信息；需要结合实验代码、调用条件和当时状态，判断当前主体能否接触某机制。会话线程中的 `checkpoint_step` 与事件中的 tick 可能采用不同计数位置，映射时核对实际交互顺序与记录，不靠字段名直接相等。
+数据来源通过正式 kernel.workbench.export_payload 的 RunSelection 与 Observation/Results 读取：runner.json 给冻结合同，runner-status.json 给状态，阶段结果给指标、表和激活原文，Thread 给完整模型与工具会话，resource_usage/action_summary 给累计事实。巨记录沿 payload_ref 读取完整原文；原始业务值放在 value 内。共享信息目录不代表某主体已实际接触，须核对当时感知、权限与完整 Thread。业务 Moment.time 与完整步骤号分别保留。
 
 完成后，检查版本、试运行、tick 和主体切换时三栏内容一致；无结果版本仍能展示完整配置；字段与完整 JSON 修改能正确显示差异、复制请求，且刷新前未写入源文件；机制的适用状态有依据；多次会话能逐一查看；非 LLM 实体和缺失数据没有虚构内容。然后在研究者常用的浏览器中直接打开生成的 HTML，检查页面宽度、长配置、长表格、长会话和键盘操作。原始配置或结果有变化时，重新运行转换脚本并刷新页面。
 

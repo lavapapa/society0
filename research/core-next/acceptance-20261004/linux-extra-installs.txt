@@ -1,0 +1,5 @@
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+{"name": "llm", "exit_code": 0, "command": ["/mnt/data/l20/qin/society0-acceptance-20261004/llm/bin/python", "-m", "pip", "install", "/mnt/data/l20/qin/society0-acceptance-20261004/source[llm]", "pytest-timeout"]}
+{"name": "all", "exit_code": "timeout", "command": ["/mnt/data/l20/qin/society0-acceptance-20261004/all/bin/python", "-m", "pip", "install", "/mnt/data/l20/qin/society0-acceptance-20261004/source[dev,anthropic,google,datasets,observe,memory,social]", "pytest-timeout"]}
+exit_code=0

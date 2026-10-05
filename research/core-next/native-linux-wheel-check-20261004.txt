@@ -1,0 +1,30 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/
+Processing /tmp/society0-core-native-build-20261004/wheels/society0_filesystem-0.1.0-cp39-abi3-manylinux_2_34_x86_64.whl
+Processing ./society0-5.0.0-py3-none-any.whl (from society0==5.0.0)
+Collecting apsw>=3.53.4.0 (from society0==5.0.0->society0==5.0.0)
+  Using cached http://mirrors.aliyun.com/pypi/packages/bc/20/c83561b62be054bc0d04216b7d1cb037c4d95078a8250a062a61bd1a6659/apsw-3.53.4.0-cp312-cp312-manylinux_2_28_x86_64.whl (3.6 MB)
+Collecting jsonschema>=4.0.0 (from society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/69/90/f63fb5873511e014207a475e2bb4e8b2e570d655b00ac19a9a0ca0a385ee/jsonschema-4.26.0-py3-none-any.whl (90 kB)
+Collecting bashkit==0.18.2 (from society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/03/58/a948a6a1cd9b523c5b39ace2534af78b2de7e758886f02b3c992ab900d75/bashkit-0.18.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (22 kB)
+Collecting attrs>=22.2.0 (from jsonschema>=4.0.0->society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl (67 kB)
+Collecting jsonschema-specifications>=2023.03.6 (from jsonschema>=4.0.0->society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+Collecting referencing>=0.28.4 (from jsonschema>=4.0.0->society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/2c/58/ca301544e1fa93ed4f80d724bf5b194f6e4b945841c5bfd555878eea9fcb/referencing-0.37.0-py3-none-any.whl (26 kB)
+Collecting rpds-py>=0.25.0 (from jsonschema>=4.0.0->society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/04/8f/d2f3f532616be4d06c316ef119683e832bd3d41e112bf3a88f4151c95b17/rpds_py-2026.6.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (366 kB)
+Collecting typing-extensions>=4.4.0 (from referencing>=0.28.4->jsonschema>=4.0.0->society0==5.0.0->society0==5.0.0)
+  Downloading http://mirrors.aliyun.com/pypi/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+Downloading http://mirrors.aliyun.com/pypi/packages/03/58/a948a6a1cd9b523c5b39ace2534af78b2de7e758886f02b3c992ab900d75/bashkit-0.18.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (14.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 14.8/14.8 MB 242.8 kB/s eta 0:00:00
+Installing collected packages: typing-extensions, society0-filesystem, rpds-py, bashkit, attrs, apsw, referencing, jsonschema-specifications, jsonschema, society0
+Successfully installed apsw-3.53.4.0 attrs-26.1.0 bashkit-0.18.2 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 referencing-0.37.0 rpds-py-2026.6.3 society0-5.0.0 society0-filesystem-0.1.0 typing-extensions-4.16.0
+
+[notice] A new release of pip is available: 24.3.1 -> 26.2.1
+[notice] To update, run: /tmp/society0-core-native-build-20261004/check-env/bin/python3 -m pip install --upgrade pip
+bashkit: warning: writable mount at /tmp/tmp4x2s9p86/out/shell-gknfzw5d/output — scripts can modify host files
+bashkit: warning: writable mount at /tmp/tmp4x2s9p86/out/shell-k1_nmty9/output — scripts can modify host files
+clean shell wheel: private file complete/restore bytes passed; no model/vector/social dependencies
+WHEEL_CHECK_COMPLETE

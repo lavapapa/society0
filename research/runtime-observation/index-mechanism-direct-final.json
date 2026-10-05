@@ -1,0 +1,199 @@
+{
+  "baseline": false,
+  "records": 204882,
+  "initial_index_profiled_seconds": 7.178419166011736,
+  "dbstat": {
+    "checkpoints": 16384,
+    "counts": 2318336,
+    "current_scope_ancestors": 4096,
+    "current_scope_members": 4096,
+    "datasets": 4096,
+    "entries": 5251072,
+    "entries_current": 2748416,
+    "entries_current_ordinal": 2748416,
+    "entries_ordinal": 2748416,
+    "lengths": 4096,
+    "meta": 4096,
+    "parts": 3584000,
+    "paths": 2838528,
+    "prepared_rows": 4096,
+    "scope_ancestors": 4096,
+    "scopes": 3678208,
+    "scopes_current": 2555904,
+    "sources": 4096,
+    "sqlite_autoindex_checkpoints_1": 4096,
+    "sqlite_autoindex_checkpoints_2": 4096,
+    "sqlite_autoindex_datasets_1": 4096,
+    "sqlite_autoindex_entries_1": 2981888,
+    "sqlite_autoindex_lengths_1": 4096,
+    "sqlite_autoindex_meta_1": 4096,
+    "sqlite_autoindex_parts_1": 3928064,
+    "sqlite_autoindex_paths_1": 3211264,
+    "sqlite_autoindex_sources_1": 4096,
+    "sqlite_autoindex_threads_1": 4096,
+    "sqlite_schema": 4096,
+    "threads": 4096
+  },
+  "increments_seconds": [
+    0.0014201250014593825,
+    0.0006139170000096783,
+    0.0004496249894145876,
+    0.000730041996575892,
+    0.00048483299906365573,
+    0.0005031670007156208,
+    0.0004260830028215423,
+    0.0003976660082116723,
+    0.0008710419933777303,
+    0.0006385409942595288,
+    0.00041104199772235006,
+    0.00040329199691768736,
+    0.0004992909962311387,
+    0.0007104160031303763,
+    0.0004195000074105337,
+    0.00045258300087880343,
+    0.0004176660004304722,
+    0.0005086669989395887,
+    0.000558999992790632,
+    0.00040833299863152206
+  ],
+  "queries": {
+    "current": {
+      "seconds": [
+        0.003077000001212582,
+        0.0029692919924855232,
+        0.002808666991768405,
+        0.0028145419928478077,
+        0.002854000005754642,
+        0.0028426250064512715,
+        0.0032241669978247955,
+        0.0028327500040177256,
+        0.002938707999419421,
+        0.0029663339955732226,
+        0.002895707992138341,
+        0.0027413339994382113,
+        0.002904624998336658,
+        0.0028796249971492216,
+        0.003128457989078015,
+        0.0028636249917326495,
+        0.002783958989311941,
+        0.0032768749952083454,
+        0.0030254580051405355,
+        0.0030660420015919954
+      ],
+      "p95_seconds": 0.0032241669978247955
+    },
+    "historical": {
+      "seconds": [
+        0.0030085839971434325,
+        0.002730749998590909,
+        0.003062332994886674,
+        0.0028860829916084185,
+        0.00303054200776387,
+        0.002864415990188718,
+        0.002954958996269852,
+        0.0031819589930819348,
+        0.002722332996199839,
+        0.0030903750011930242,
+        0.002870541997253895,
+        0.002811958998790942,
+        0.0032655830000294372,
+        0.002785791002679616,
+        0.0028756249957950786,
+        0.0029913749895058572,
+        0.0028732909995596856,
+        0.003186542002367787,
+        0.00309858399850782,
+        0.0030129590013530105
+      ],
+      "p95_seconds": 0.003186542002367787
+    }
+  },
+  "files_live": {
+    "observation.sqlite": 38666240,
+    "observation.sqlite-shm": 98304,
+    "observation.sqlite-wal": 39078232
+  },
+  "peak_rss_bytes": 47120384,
+  "files_after_passive": {
+    "observation.sqlite": 38678528,
+    "observation.sqlite-shm": 98304,
+    "observation.sqlite-wal": 39078232
+  },
+  "files_after_close": {
+    "observation.sqlite": 38678528
+  },
+  "files_peak": {
+    "observation.sqlite": 38678528,
+    "observation.sqlite-shm": 98304,
+    "observation.sqlite-wal": 39078232
+  },
+  "profile": "         21918735 function calls (21711439 primitive calls) in 7.177 seconds\n\n   Ordered by: cumulative time\n   List reduced from 203 to 20 due to restriction <20>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n      975    0.296    0.000    7.947    0.008 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:637(wait)\n      974    0.302    0.000    3.604    0.004 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:323(wait)\n412167/204882    0.551    0.000    3.176    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:277(identify)\n      975    0.006    0.000    2.555    0.003 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/benchmarks/observation_mechanism_probe.py:85(sizes)\n  1443805    2.272    0.000    2.317    0.000 {method 'execute' of 'sqlite3.Connection' objects}\n   204883    0.169    0.000    1.072    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/checkpoint_records.py:473(iter_metadata)\n  1024410    0.115    0.000    0.957    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:281(<genexpr>)\n   411912    0.062    0.000    0.897    0.000 {built-in method builtins.next}\n   819529    0.136    0.000    0.842    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:17(_json)\n   204883    0.150    0.000    0.835    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/checkpoint_records.py:105(_iter_metadata_keys)\n   819529    0.372    0.000    0.706    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:183(dumps)\n   204890    0.123    0.000    0.602    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:299(loads)\n   829148    0.409    0.000    0.414    0.000 {method 'fetchone' of 'sqlite3.Cursor' objects}\n  1024410    0.205    0.000    0.392    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:272(count_change)\n   204890    0.131    0.000    0.269    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:333(decode)\n   819529    0.143    0.000    0.256    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/encoder.py:183(encode)\n     3899    0.237    0.000    0.237    0.000 {method 'acquire' of '_thread.lock' objects}\n   207285    0.079    0.000    0.214    0.000 {built-in method builtins.sum}\n3291003/3291000    0.168    0.000    0.168    0.000 {built-in method builtins.len}\n   204882    0.089    0.000    0.156    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:244(detect_encoding)\n\n\n",
+  "temporary_artifacts_removed": true,
+  "history_probe": {
+    "hot_history": [
+      {
+        "history": 10,
+        "delta": {
+          "instructions": 653,
+          "seconds": 0.0007326659979298711,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 199,
+          "seconds": 0.00033045800228137523,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 115,
+          "seconds": 0.00022779199935030192,
+          "error": null,
+          "total": 1
+        }
+      },
+      {
+        "history": 300,
+        "delta": {
+          "instructions": 653,
+          "seconds": 0.00045820800005458295,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 199,
+          "seconds": 0.0002876250073313713,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 115,
+          "seconds": 0.00021908299822825938,
+          "error": null,
+          "total": 1
+        }
+      }
+    ],
+    "deleted_keys": {
+      "plain": {
+        "instructions": 9573,
+        "seconds": 0.0010783750039990991,
+        "error": "{\"code\":\"index_pending\",\"method\":\"prepare_state\",\"checkpoint_id\":\"77be0a6e5dd540b1ae73cef5901ad71f\",\"path\":[\"rows\"]}",
+        "total": null
+      },
+      "prepare": {
+        "instructions": 40173,
+        "seconds": 0.0023053329932736233,
+        "error": null,
+        "total": 1
+      },
+      "prepared_page": {
+        "instructions": 151,
+        "seconds": 0.0005780409992439672,
+        "error": null,
+        "total": 1
+      },
+      "prepared_table_bytes": 4096
+    }
+  }
+}

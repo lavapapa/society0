@@ -1,0 +1,50 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_________________ test_native_push_preserves_values_and_scope __________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-730/test_native_push_preserves_val0')
+
+    def test_native_push_preserves_values_and_scope(tmp_path):
+>       from society0.kernel._json_chunks import write_json
+E       ImportError: cannot import name 'write_json' from 'society0.kernel._json_chunks' (/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/_json_chunks.py)
+
+tests/primary/test_kernel_native_json.py:7: ImportError
+___________ test_emit_failure_and_invalid_value_preserve_transaction ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-730/test_emit_failure_and_invalid_0')
+
+    def test_emit_failure_and_invalid_value_preserve_transaction(tmp_path):
+        with StageStore.create(tmp_path/'run',['CREATE TABLE x(id INTEGER PRIMARY KEY)']) as store:
+            def change(writer):
+                def emit(size,body):
+                    writer.execute('INSERT INTO x VALUES(1)')
+                    raise OSError('sink failed')
+                writer.write_json_chunks({'body':'x'*1000000},emit)
+>           with pytest.raises(OSError,match='sink'):store.transaction(change)
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_native_json.py:27:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/society0/kernel/storage.py:483: in transaction
+    result = _call(callback, scope)
+             ^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:79: in _call
+    result = callback(scope)
+             ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+writer = <society0.kernel.storage.Writer object at 0x10b007e00>
+
+    def change(writer):
+        def emit(size,body):
+            writer.execute('INSERT INTO x VALUES(1)')
+            raise OSError('sink failed')
+>       writer.write_json_chunks({'body':'x'*1000000},emit)
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Writer' object has no attribute 'write_json_chunks'
+
+tests/primary/test_kernel_native_json.py:26: AttributeError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_native_json.py::test_native_push_preserves_values_and_scope
+FAILED tests/primary/test_kernel_native_json.py::test_emit_failure_and_invalid_value_preserve_transaction
+2 failed in 0.08s

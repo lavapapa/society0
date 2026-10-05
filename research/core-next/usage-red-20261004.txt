@@ -1,0 +1,47 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+____________ test_physical_retries_shared_batches_cache_and_restore ____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-622/test_physical_retries_shared_b0')
+
+    def test_physical_retries_shared_batches_cache_and_restore(tmp_path):
+        with StageStore.create(tmp_path/'run', THREAD_SCHEMA+RESOURCE_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',1,'decision')
+            for identifier in ('failed','success'):
+                threads.record_request(tid,provider_options={'model':'chat'},physical_request_id=identifier)
+            threads.event(tid,'provider_error',{'physical_request_id':'failed','payload':{'message':'transport'}})
+            threads.event(tid,'provider_response',{'physical_request_id':'success','payload':{'raw_response':{'usage':{'prompt_tokens':10,'completion_tokens':3,'total_tokens':13}}}})
+            calls=ResourceCalls(store)
+            physical=calls.begin('embedding','endpoint','embed',{'texts':['x','y']})
+            calls.event(physical,'response',{'response':{'usage':{'prompt_tokens':7,'total_tokens':7}}})
+            for actor in ('a','b','a'):
+                calls.begin('embedding_use','','embed',{'metadata':{'actor':actor},'sources':[{'call_id':physical,'item_index':0,'input_index':0}], 'status':'completed'})
+            observer=Observation(store.path)
+>           result=observer.resource_usage()
+                   ^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Observation' object has no attribute 'resource_usage'. Did you mean: 'resource_tail'?
+
+tests/primary/test_kernel_usage.py:21: AttributeError
+_____________ test_usage_projection_rolls_back_with_original_fact ______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-622/test_usage_projection_rolls_ba0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d27f1a0>
+
+    def test_usage_projection_rolls_back_with_original_fact(tmp_path,monkeypatch):
+        import society0.kernel.threads as module
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store);tid=threads.open('a',0,'decision')
+            before=threads.describe(tid)['last_seq']
+            original=module._append
+            def fail(*args,**kwargs):
+                original(*args,**kwargs)
+                raise RuntimeError('write failed')
+            monkeypatch.setattr(module,'_append',fail)
+            import pytest
+            with pytest.raises(RuntimeError):threads.record_request(tid,provider_options={'model':'m'},physical_request_id='p')
+            assert threads.describe(tid)['last_seq']==before
+>           assert Observation(store.path).resource_usage()['totals']['requests']==0
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Observation' object has no attribute 'resource_usage'. Did you mean: 'resource_tail'?
+
+tests/primary/test_kernel_usage.py:50: AttributeError

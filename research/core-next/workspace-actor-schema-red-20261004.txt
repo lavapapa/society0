@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_workspace_requires_actor_schema_at_installation _____________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-848/test_workspace_requires_actor_0')
+
+    @pytest.mark.asyncio
+    async def test_workspace_requires_actor_schema_at_installation(tmp_path):
+        import apsw
+        from society0.kernel.workspace import workspace_plugin
+>       with pytest.raises(apsw.SQLError,match='no such table: actors'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE SQLError
+
+tests/primary/test_kernel_actor_factory.py:43: Failed
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_actor_factory.py::test_workspace_requires_actor_schema_at_installation
+1 failed in 0.09s

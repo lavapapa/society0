@@ -1,0 +1,14 @@
+.............................F                                           [100%]
+=================================== FAILURES ===================================
+_______________ test_schema_preflight_does_not_open_dirty_writer _______________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-329/test_schema_preflight_does_not0')
+
+    def test_schema_preflight_does_not_open_dirty_writer(tmp_path):
+        with make(tmp_path/'run') as store:
+            store.transaction(lambda w:w.execute('UPDATE account SET balance=88'))
+>           assert StageStore.validate_schema(store.path,SCHEMA) is None
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: type object 'StageStore' has no attribute 'validate_schema'
+
+tests/primary/test_kernel_storage.py:384: AttributeError

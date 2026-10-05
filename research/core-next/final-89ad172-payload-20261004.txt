@@ -1,0 +1,4 @@
+CWD: /tmp/society0-final-89ad172-storage-20261004
+COMMAND: ['/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python', '-m', 'society0.kernel.workbench', '--run', '/tmp/society0-final-89ad172-storage-20261004/pilot-run', '--version', 'final-independent', '--steps', '1', '2', '--actors', 'a', 'b', 'c', 'd', '--output', '/tmp/society0-final-89ad172-storage-20261004/pilot-payload.json']
+
+EXIT: 0

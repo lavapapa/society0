@@ -1,0 +1,64 @@
+{
+  "tested_product": {
+    "commit": "ab6469d",
+    "source_files": 50,
+    "snapshot_changed": [],
+    "commit_changed": [],
+    "comparison": "direct bytes"
+  },
+  "results": [
+    {
+      "name": "test_real_vfs_discovery_pagination_original_and_action",
+      "seconds": 59.168,
+      "status": "passed"
+    }
+  ],
+  "passed": 1,
+  "failed": 0,
+  "skipped": 0,
+  "expected_cases": 1,
+  "models": {
+    "llm:Qwen/Qwen3.8-27B": {
+      "requests": 19,
+      "responses": 19,
+      "errors": 0,
+      "input_tokens": 670172,
+      "output_tokens": 5530,
+      "total_tokens": 675702,
+      "input_reports": 19,
+      "output_reports": 19,
+      "total_reports": 19,
+      "cache_read_tokens": 247808,
+      "cache_write_tokens": 0,
+      "cache_read_reports": 19,
+      "cache_write_reports": 0,
+      "cancelled": 0,
+      "decode_errors": 0,
+      "embedding_uses": 0,
+      "duration_s": 58.29595275130123,
+      "queue_s": 0.00014595827087759972,
+      "jitter_s": 0.0,
+      "provider_s": 58.27851745893713,
+      "duration_reports": 19,
+      "queue_reports": 19,
+      "jitter_reports": 19,
+      "provider_reports": 19
+    }
+  },
+  "physical_calls": 19,
+  "tool_receipts": 19,
+  "tool_tokens": null,
+  "tool_tokens_note": "provider reports full request input usage; separate tool-schema/tool-return token counts unavailable",
+  "history_contract": "full Thread history; deterministic request loader and correction-history tests passed",
+  "budget": {
+    "default_max_turns": 8,
+    "vfs_max_turns": 20,
+    "default_max_action_calls": 4,
+    "vfs_max_action_calls": 2,
+    "request_max_tokens": 1024,
+    "raised": false
+  },
+  "embedding_dimensions": 1024,
+  "oracle": "original tests assert complete documents, all pages, actions, memory and recovery; see real.xml",
+  "usage_attribution": "physical IDs deduplicate restored copies; timing sums wall duration of attempts, not elapsed suite time"
+}

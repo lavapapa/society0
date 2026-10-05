@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_review_failed_embedding_keeps_thread_to_physical_attempt_link ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-469/test_review_failed_embedding_k0')
+
+    @pytest.mark.asyncio
+    async def test_review_failed_embedding_keeps_thread_to_physical_attempt_link(tmp_path):
+        from society0.kernel.threads import ThreadStore,THREAD_SCHEMA
+        with StageStore.create(tmp_path/'run',[*RESOURCE_SCHEMA,*THREAD_SCHEMA]) as store:
+            threads=ThreadStore(store);tid=threads.open('actor-a',0,'decision')
+            resource=EmbeddingProvider([{'id':'e','api_key':'unused','base_url':'http://unused.invalid/v1','model':'e',
+                'concurrency':1,'dimensions':2,'trust_env':False}],store,threads,dimensions=2,batch_wait_ms=0,max_attempts=1)
+            async def rejected(**kwargs):
+                raise openai.APIStatusError('rejected',response=httpx.Response(401,request=httpx.Request('POST','http://unused.invalid')),body={})
+            resource.manager.clients['e'].embeddings.create=rejected
+            try:
+                with pytest.raises(openai.APIStatusError):
+                    await resource.embed(['original'],metadata={'actor':'actor-a','thread_id':tid,'job_id':'memory-job'})
+                refs=[item for item in threads.tail(tid)['items'] if item['kind']=='resource_call_ref']
+>               assert refs, 'failed physical attempt has no Thread/resource identity link'
+E               AssertionError: failed physical attempt has no Thread/resource identity link
+E               assert []
+
+tests/primary/test_kernel_models_storage_review.py:126: AssertionError
+------------------------------ Captured log call -------------------------------
+ERROR    society0.resource_managers:resource_managers.py:2303 Embedding request failed on endpoint e after 1 attempts: rejected
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_models_storage_review.py::test_review_failed_embedding_keeps_thread_to_physical_attempt_link
+1 failed in 0.64s

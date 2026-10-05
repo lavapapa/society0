@@ -1,0 +1,10 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple, http://mirrors.aliyun.com/pypi/simple/
+Collecting python-rapidjson==1.25
+  Downloading http://mirrors.aliyun.com/pypi/packages/89/db/259cafa8461482d017c65ddb0a299b39a9c4038d83f18b293e89d101ffc4/python_rapidjson-1.25-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (1.8 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 225.2 kB/s eta 0:00:00
+Installing collected packages: python-rapidjson
+Successfully installed python-rapidjson-1.25
+2026/10/04 07:04:54 tshttpproxy: using proxy "http://127.0.0.1:7890" for URL: "https://controlplane.tailscale.com/"
+bash: cannot set terminal process group (-1): Inappropriate ioctl for device
+bash: no job control in this shell
+WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.

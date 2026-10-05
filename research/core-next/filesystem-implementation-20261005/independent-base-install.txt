@@ -1,0 +1,17 @@
+Using CPython 3.12.12
+Creating virtual environment at: /tmp/society0-f08-base-20261005
+Activate with: source /tmp/society0-f08-base-20261005/bin/activate
+Using Python 3.12.12 environment at: /tmp/society0-f08-base-20261005
+Resolved 10 packages in 1.85s
+Prepared 2 packages in 1.13s
+Installed 10 packages in 9ms
+ + apsw==3.53.4.0
+ + attrs==26.1.0
+ + backports-zstd==1.7.0
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + python-rapidjson==1.25
+ + referencing==0.37.0
+ + rpds-py==2026.9.1
+ + society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next/research/core-next/filesystem-implementation-20261005/wheels/society0-6.0.0-py3-none-any.whl)
+ + typing-extensions==4.16.0

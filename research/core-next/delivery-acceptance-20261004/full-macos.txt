@@ -1,0 +1,2800 @@
+.........FFF.............................FF....F.F...................... [  9%]
+................................F.F..FF................................. [ 18%]
+...........................................................F............ [ 27%]
+........................................................................ [ 37%]
+.........FFFFFFF
+=================================== FAILURES ===================================
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[decision] _
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    |     result=await run_plan(tmp_path/'run',current)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: provider_request_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_official_real_plan_assemb0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b3fb770>
+mode = 'decision'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['decision','interview','memory'])
+    async def test_official_real_plan_assembles_and_completes_with_explicit_stubs(tmp_path,monkeypatch,mode):
+        async def request(self,tid,options):
+            forced=options.get('tool_choice')
+            extraction=isinstance(forced,dict) and forced['function']['name']=='extract_memories'
+            name='extract_memories' if extraction else 'submit_result'
+            args={'memories':[{'content':'独立原文','importance':4}]} if extraction else {'score':8}
+            if extraction or mode=='interview':
+                return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[
+                    {'id':'extract' if extraction else 'answer','type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return {'role':'assistant','content':'主体原文','finish_reason':'stop'}
+        async def embed(self,texts,**kwargs):return [[1.,0.,0.,0.] for _ in texts]
+        monkeypatch.setattr(ModelProvider,'request',request);monkeypatch.setattr(EmbeddingProvider,'embed',embed)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':1}
+        config={'release':'explicit-offline-fixture','llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+        policy=LLMPolicy(mode='interview' if mode=='interview' else 'decision',max_turns=4,
+            result_schema={'type':'object','properties':{'score':{'type':'integer'}},'required':['score'],'additionalProperties':False} if mode=='interview' else None)
+        current,held=plan(config,tmp_path/'run',goals='实际装配结构测试',policy=policy,memory=mode=='memory')
+>       result=await run_plan(tmp_path/'run',current)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_real_structure.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[interview] _
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    |     result=await run_plan(tmp_path/'run',current)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: provider_request_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_official_real_plan_assemb1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b5e2f30>
+mode = 'interview'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['decision','interview','memory'])
+    async def test_official_real_plan_assembles_and_completes_with_explicit_stubs(tmp_path,monkeypatch,mode):
+        async def request(self,tid,options):
+            forced=options.get('tool_choice')
+            extraction=isinstance(forced,dict) and forced['function']['name']=='extract_memories'
+            name='extract_memories' if extraction else 'submit_result'
+            args={'memories':[{'content':'独立原文','importance':4}]} if extraction else {'score':8}
+            if extraction or mode=='interview':
+                return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[
+                    {'id':'extract' if extraction else 'answer','type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return {'role':'assistant','content':'主体原文','finish_reason':'stop'}
+        async def embed(self,texts,**kwargs):return [[1.,0.,0.,0.] for _ in texts]
+        monkeypatch.setattr(ModelProvider,'request',request);monkeypatch.setattr(EmbeddingProvider,'embed',embed)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':1}
+        config={'release':'explicit-offline-fixture','llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+        policy=LLMPolicy(mode='interview' if mode=='interview' else 'decision',max_turns=4,
+            result_schema={'type':'object','properties':{'score':{'type':'integer'}},'required':['score'],'additionalProperties':False} if mode=='interview' else None)
+        current,held=plan(config,tmp_path/'run',goals='实际装配结构测试',policy=policy,memory=mode=='memory')
+>       result=await run_plan(tmp_path/'run',current)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_real_structure.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+_ test_official_real_plan_assembles_and_completes_with_explicit_stubs[memory] __
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    |     result=await run_plan(tmp_path/'run',current)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: provider_request_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_next_real_structure.py", line 30, in test_official_real_plan_assembles_and_completes_with_explicit_stubs
+    result=await run_plan(tmp_path/'run',current)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_official_real_plan_assemb2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bc06690>
+mode = 'memory'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('mode',['decision','interview','memory'])
+    async def test_official_real_plan_assembles_and_completes_with_explicit_stubs(tmp_path,monkeypatch,mode):
+        async def request(self,tid,options):
+            forced=options.get('tool_choice')
+            extraction=isinstance(forced,dict) and forced['function']['name']=='extract_memories'
+            name='extract_memories' if extraction else 'submit_result'
+            args={'memories':[{'content':'独立原文','importance':4}]} if extraction else {'score':8}
+            if extraction or mode=='interview':
+                return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[
+                    {'id':'extract' if extraction else 'answer','type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            return {'role':'assistant','content':'主体原文','finish_reason':'stop'}
+        async def embed(self,texts,**kwargs):return [[1.,0.,0.,0.] for _ in texts]
+        monkeypatch.setattr(ModelProvider,'request',request);monkeypatch.setattr(EmbeddingProvider,'embed',embed)
+        endpoint={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'explicit-stub','model':'stub','concurrency':1}
+        config={'release':'explicit-offline-fixture','llm':{'endpoints':[endpoint],'max_attempts':1},
+            'embed':{'endpoints':[endpoint],'dimensions':4,'max_attempts':1}}
+        policy=LLMPolicy(mode='interview' if mode=='interview' else 'decision',max_turns=4,
+            result_schema={'type':'object','properties':{'score':{'type':'integer'}},'required':['score'],'additionalProperties':False} if mode=='interview' else None)
+        current,held=plan(config,tmp_path/'run',goals='实际装配结构测试',policy=policy,memory=mode=='memory')
+>       result=await run_plan(tmp_path/'run',current)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_next_real_structure.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[confirm] _
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_real_context.py", line 44, in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    |     receipt=await run_plan(tmp_path/'run',current)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: provider_request_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_real_context.py", line 44, in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    receipt=await run_plan(tmp_path/'run',current)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_actual_cognitive_input_ex0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10eca2e40>
+kind = 'confirm'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':json.dumps({'content':'共同讨论产业预期'},ensure_ascii=False)}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        monkeypatch.setattr(ModelProvider,'request',request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            monkeypatch.setattr(ModelProvider,'request',first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+_ test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal[action] _
+  + Exception Group Traceback (most recent call last):
+  |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 306, in run_step
+  |     async with asyncio.TaskGroup() as group:
+  |                ^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 71, in __aexit__
+  |     return await self._aexit(et, exc)
+  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/taskgroups.py", line 164, in _aexit
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 361, in from_call
+    |     result: TResult | None = func()
+    |                              ^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 250, in <lambda>
+    |     lambda: runtest_hook(item=item, **kwds),
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/logging.py", line 865, in pytest_runtest_call
+    |     yield
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/capture.py", line 900, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/skipping.py", line 268, in pytest_runtest_call
+    |     return (yield)
+    |             ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/runner.py", line 184, in pytest_runtest_call
+    |     item.runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 569, in runtest
+    |     super().runtest()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 1707, in runtest
+    |     self.ihook.pytest_pyfunc_call(pyfuncitem=self)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    |     return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    |     return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    |     raise exception
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    |     teardown.throw(exception)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    |     return result.get_result()
+    |            ^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    |     raise exc.with_traceback(tb)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    |     res = yield
+    |           ^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    |     res = hook_impl.function(*args)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/_pytest/python.py", line 167, in pytest_pyfunc_call
+    |     result = testfunction(**testargs)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/lib/python3.12/site-packages/pytest_asyncio/plugin.py", line 905, in inner
+    |     runner.run(coro, context=context)
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py", line 118, in run
+    |     return self._loop.run_until_complete(task)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/base_events.py", line 691, in run_until_complete
+    |     return future.result()
+    |            ^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_real_context.py", line 44, in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    |     receipt=await run_plan(tmp_path/'run',current)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    |     await schedule.run_step(number, moment)
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    |     return await self.runtime.run_step(step,time,self.phases)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    |     raise errors.exceptions[0]
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    |     try:await self._run_phase(time,phase,phase_index)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    |     raise context._failure.result()
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    |     value = await self._invoke_task(pending.task, batch)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    |     return await invoke_maybe_async(task, batch)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    |     return await result
+    |            ^^^^^^^^^^^^
+    |   File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    |     raise IncompleteActivation(result.reason or 'driver incomplete')
+    | society0.kernel.runtime.IncompleteActivation: provider_request_error
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/primary/test_core_real_context.py", line 44, in test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal
+    receipt=await run_plan(tmp_path/'run',current)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runner.py", line 75, in run_plan
+    await schedule.run_step(number, moment)
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/schedule.py", line 79, in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 310, in run_step
+    raise errors.exceptions[0]
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 342, in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 279, in _run_phase
+    raise context._failure.result()
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 389, in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/activation_pool.py", line 422, in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/async_utils.py", line 31, in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+  File "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/src/society0/kernel/runtime.py", line 161, in execute
+    raise IncompleteActivation(result.reason or 'driver incomplete')
+society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_actual_cognitive_input_ex1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10eb97dd0>
+kind = 'action'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('kind',['confirm','action'])
+    async def test_actual_cognitive_input_explains_optional_discovery_without_rewriting_goal(tmp_path,monkeypatch,kind):
+        goal='本次未完成步骤的新观察：尚未发布的报价600元。请确认。' if kind=='confirm' else '向当前配对伙伴发送完整消息“共同讨论产业预期”。'
+        calls=[]
+        async def request(self,tid,options):
+            messages=self.threads.read_messages(tid);calls.append(messages)
+            system=messages[0]['content']
+            assert '按当前目标需要' in system and '从根路径 /' in system
+            assert 'total=0' in system and '无可访问的信息挂载' in system
+            assert '先用 data_list' not in system
+            assert any(goal in m.get('content','') for m in messages)
+            if kind=='confirm':return {'role':'assistant','content':'已确认该观察。','finish_reason':'stop'}
+            target={'namespace':'chat','kind':'participants','key':'a'}
+            tools=[m for m in messages if m['role']=='tool']
+            if not tools:name='action_find';args={'target':target,'query':'','limit':20,'cursor':None}
+            elif len(tools)==1:
+                action=json.loads(tools[-1]['content'])['items'][0]['name']
+                name='action_describe';args={'target':target,'name':action}
+            else:
+                action=json.loads(tools[-1]['content'])['name']
+                name='action_invoke';args={'target':target,'name':action,'arguments':json.dumps({'content':'共同讨论产业预期'},ensure_ascii=False)}
+            return {'role':'assistant','content':None,'finish_reason':'tool_calls','tool_calls':[{'id':str(len(calls)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+        monkeypatch.setattr(ModelProvider,'request',request)
+        ep={'id':'stub','base_url':'http://127.0.0.1:1/v1','api_key':'stub','model':'stub','concurrency':1}
+        cfg={'release':'offline-context-contract','llm':{'endpoints':[ep]},'embed':{'endpoints':[ep],'dimensions':4}}
+        policy=LLMPolicy(max_turns=8,max_action_calls=4,completion_names=('chat.send_message_to_partner',) if kind=='action' else ())
+        current,held=plan(cfg,tmp_path/'run',goals=goal,policy=policy,mechanism='round' if kind=='action' else 'none',actors=('a','b') if kind=='action' else ('a',))
+        if kind=='action':
+            # 仅检查首主体的实际发现→描述→执行；第二主体使用正常自然完成响应。
+            original=request
+            async def first_only(self,tid,options):
+                if self.threads.describe(tid)['actor']=='b':return {'role':'assistant','content':'已收到。','finish_reason':'stop'}
+                return await original(self,tid,options)
+            monkeypatch.setattr(ModelProvider,'request',first_only)
+>       receipt=await run_plan(tmp_path/'run',current)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_core_real_context.py:44: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/runner.py:75: in run_plan
+    await schedule.run_step(number, moment)
+src/society0/kernel/schedule.py:79: in run_step
+    return await self.runtime.run_step(step,time,self.phases)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:310: in run_step
+    raise errors.exceptions[0]
+src/society0/kernel/runtime.py:342: in _run_step
+    try:await self._run_phase(time,phase,phase_index)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/runtime.py:279: in _run_phase
+    raise context._failure.result()
+src/society0/activation_pool.py:389: in _worker
+    value = await self._invoke_task(pending.task, batch)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/activation_pool.py:422: in _invoke_task
+    return await invoke_maybe_async(task, batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/async_utils.py:31: in invoke_maybe_async
+    return await result
+           ^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+batch = ActivationBatch(key='a', round=1, serial_key=('agent', 'a'), signals=(ActivationSignal(payload=None, dedupe_token=None, instruction=None),))
+
+    async def execute(batch):
+        if not self._active or self._failure.done():
+            raise RuntimeError('phase has failed')
+        scope = None
+        started=time_module.perf_counter()
+        self._runtime._active_count+=1
+        self._runtime._observe()
+        try:
+            actor = self._runtime._actors[actor_id]
+            if actor.id != actor_id:
+                raise ValueError('actor mapping key differs from actor identity')
+            def action_failed(error):
+                if not self._failure.done():self._failure.set_result(error)
+            scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+            session = Session(
+                actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
+                self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+            )
+            result = await actor.driver.run(session)
+            scope.check_active()
+            if not isinstance(result, DriverResult):
+                raise TypeError('driver must return DriverResult')
+            if result.status == 'incomplete' and self._incomplete == 'fail_step':
+>               raise IncompleteActivation(result.reason or 'driver incomplete')
+E               society0.kernel.runtime.IncompleteActivation: provider_request_error
+
+src/society0/kernel/runtime.py:161: IncompleteActivation
+________ test_real_shell_multi_actions_and_replayed_receipt_count_once _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_real_shell_multi_actions_0')
+
+    @pytest.mark.asyncio
+    async def test_real_shell_multi_actions_and_replayed_receipt_count_once(tmp_path):
+        import json,shlex
+        from types import SimpleNamespace
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.interaction import Actions,Information,Action,ActionResult,InteractionScope,Moment
+        from society0.kernel.runtime import Session,Actor
+        from society0.kernel.shell import ShellSession
+        actions=Actions(lambda *args:True);information=Information(lambda *args:True);executed=[]
+        def work(*args):executed.append(1);return ActionResult('completed',{'whole':'result'})
+        actions.register(Action('work',('m','job'),'work',{'type':'object'},work,tags=('tag',)))
+        arguments={'name':'work','target':{'namespace':'m','kind':'job','key':'1'},'arguments':{}}
+        command='action invoke '+shlex.quote(json.dumps(arguments))
+        call={'id':'shell-call','type':'function','function':{'name':'bash','arguments':json.dumps({'script':command+'; '+command})}}
+        class Provider:
+            def __init__(self):self.replies=iter([{'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'},{'role':'assistant','content':'finished','finish_reason':'stop'}])
+            async def request(self,*args):return next(self.replies)
+        for label,source in (('run',None),('restored',tmp_path/'run')):
+            context=StageStore.create(tmp_path/label,THREAD_SCHEMA) if source is None else StageStore.restore(source,tmp_path/label)
+            with context as store:
+                threads=ThreadStore(store)
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[],shell_factory=lambda s,ledger:ShellSession(s.scope,information,bound_actions=ledger,result_dir=tmp_path/'shell'))
+                scope=InteractionScope('a',Moment(1,'work'))
+                session=Session(Actor('a',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               assert (await driver.run(session)).status=='completed'
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_action_stats.py:73: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1602: in _make_request
+    request_context, run_context = await self._prepare_request(ctx, streaming=False)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ModelRequestNode(request=ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 6, 829474, tzinfo=datetime.timezone.utc), run_id='01a10643-75ec-726a-9fa4-fedff2ca579c', conversation_id='dbb9758f0e43417bba32c10fe7b623c7'))
+ctx = GraphRunContext(state=GraphAgentState(message_history=[ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4,...t at 0x118e47c50>, name=None, end_strategy='graceful', model_settings=None, output_type=<class 'str'>), model_id=None))
+streaming = False
+
+    async def _prepare_request(
+        self,
+        ctx: GraphRunContext[GraphAgentState, GraphAgentDeps[DepsT, NodeRunEndT]],
+        *,
+        streaming: bool,
+    ) -> tuple[ModelRequestContext, RunContext[DepsT]]:
+        if self._resume_suspended is not None:
+            return await self._prepare_resume_request(ctx, streaming=streaming)
+    
+        self.request.timestamp = now_utc()
+        if not self.is_resuming_without_prompt:
+            fill_run_metadata(self.request, run_id=ctx.state.run_id, conversation_id=ctx.state.conversation_id)
+        ctx.state.message_history.append(self.request)
+    
+        ctx.state.run_step += 1
+    
+        await _select_model(ctx)
+    
+        _refresh_loaded_capability_ids(ctx)
+    
+        _refresh_discovered_tool_names(ctx)
+    
+        run_context = build_run_context(ctx)
+        run_context = replace(
+            run_context,
+            retry=ctx.state.output_retries_used,
+            max_retries=ctx.deps.tool_manager.default_max_retries,
+        )
+    
+        # This will raise errors for any tool name conflicts.
+        # Note: for_run_step may already have been called by UserPromptNode for the
+        # resume-without-prompt path; ToolManager.for_run_step is a no-op for the same step.
+        ctx.deps.tool_manager = await ctx.deps.tool_manager.for_run_step(run_context)
+    
+        _display_first_run_banner(ctx)
+    
+        # Fetch instructions now that dynamic toolsets have been resolved by for_run_step.
+        instruction_parts = await _get_instructions(ctx, run_context)
+        if instruction_parts:
+            instruction_parts = _messages.InstructionPart.sorted(instruction_parts) or None
+        self.request.instructions = _messages.InstructionPart.join(instruction_parts) if instruction_parts else None
+    
+        # Validate after instructions are resolved; self.request was appended above so [:-1] is prior history
+        if not ctx.state.message_history[:-1] and not self.request.parts and not self.request.instructions:
+>           raise exceptions.UserError('No message history, user prompt, or instructions provided')
+E           pydantic_ai.exceptions.UserError: No message history, user prompt, or instructions provided
+
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1721: UserError
+----------------------------- Captured stderr call -----------------------------
+bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_real_shell_multi_actions_0/shell/shell-g2ho36j5/output — scripts can modify host files
+___ test_nested_handler_is_one_explicit_llm_action_and_failure_is_diagnostic ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_nested_handler_is_one_exp0')
+
+    @pytest.mark.asyncio
+    async def test_nested_handler_is_one_explicit_llm_action_and_failure_is_diagnostic(tmp_path):
+        import json
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.interaction import Actions,Information,Action,ActionResult,InteractionScope,Moment,Ref
+        from society0.kernel.runtime import Session,Actor
+        actions=Actions(lambda *a:True);ran=[]
+        def inner(*args):ran.append('inner');return ActionResult('completed')
+        async def outer(scope,target,arguments):
+            ran.append('outer');await actions.invoke(scope,'inner',target,{})
+            raise RuntimeError('domain fault')
+        actions.register(Action('inner',('m','job'),'inner',{},inner))
+        actions.register(Action('outer',('m','job'),'outer',{},outer))
+        class Provider:
+            async def request(self,*args):
+                return {'role':'assistant','content':'','finish_reason':'tool_calls','tool_calls':[{'id':'c','type':'function','function':{'name':'action_invoke','arguments':json.dumps({'name':'outer','target':{'namespace':'m','kind':'job','key':'1'},'arguments':'{}'})}}]}
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            store.complete(1);threads=ThreadStore(store);driver=LLMDriver(Provider(),threads,input_builder=lambda s:[])
+            scope=InteractionScope('a',Moment(2,'work'));session=Session(Actor('a',driver),scope,Information(lambda *a:True).bound(scope),actions.bound(scope),{},None,(),None, step=1)
+>           with pytest.raises(RuntimeError,match='domain fault'):await driver.run(session)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AssertionError: Regex pattern did not match.
+E             Expected regex: 'domain fault'
+E             Actual message: 'No message history, user prompt, or instructions provided'
+
+tests/primary/test_kernel_action_stats.py:125: AssertionError
+_ test_cognition_phase_return_and_restore_only_add_new_fov_and_keep_all_history _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_cognition_phase_return_an0')
+
+    @pytest.mark.asyncio
+    async def test_cognition_phase_return_and_restore_only_add_new_fov_and_keep_all_history(tmp_path):
+        data=['第一条完整信息🙂'*1000]
+        positions=[]
+        async def perception(current,position):
+            positions.append(position)
+            position=position or 0
+            return ([{'role':'user','content':text} for text in data[position:]],len(data))
+        def make(store):
+            threads=ThreadStore(store); provider=Provider(threads)
+            builder=CognitiveInput(threads,perception,environment='完整环境说明',precision={'detail':'full'},reminders=lambda s:'完整提醒')
+            return threads,provider,LLMDriver(provider,threads,input_builder=builder)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads,provider,driver=make(store)
+>           await driver.run(session(driver,'A'))
+
+tests/primary/test_kernel_cognition.py:40: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='主体背景\n{"type": "类型完整背景", "instance": "主体完整背景"}\n环境说明\n完整环境说明\n感知精度\n{"d...fo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 9, 346559, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_________________ test_cognition_cursor_survives_fresh_process _________________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_cognition_cursor_survives0')
+
+    @pytest.mark.asyncio
+    async def test_cognition_cursor_survives_fresh_process(tmp_path):
+        import os,subprocess,sys
+        async def perception(current,position):return ([{'role':'user','content':'original full view'}],7)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store)
+            driver=LLMDriver(Provider(threads),threads,input_builder=CognitiveInput(threads,perception))
+>           await driver.run(session(driver))
+
+tests/primary/test_kernel_cognition.py:79: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='主体背景\n{"type": "类型完整背景", "instance": "主体完整背景"}\n环境说明\n\n感知精度\nnull', ti...fo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 9, 487738, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_changed_persona_environment_precision_are_visible_in_existing_thread _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_changed_persona_en0')
+
+    @pytest.mark.asyncio
+    async def test_review_changed_persona_environment_precision_are_visible_in_existing_thread(tmp_path):
+        settings={'environment':'old environment','precision':'old precision'}
+        async def perception(current,cursor): return ([],cursor)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store); provider=Provider(threads)
+            builder=CognitiveInput(threads,perception,environment=lambda s:settings['environment'],precision=lambda s:settings['precision'])
+            driver=LLMDriver(provider,threads,input_builder=builder)
+>           await driver.run(session(driver))
+
+tests/primary/test_kernel_cognition_review.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='主体背景\n{"type": "类型完整背景", "instance": "主体完整背景"}\n环境说明\nold environment\n...fo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 9, 681423, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+__ test_review_none_perception_cursor_is_valid_after_completed_initial_input ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_none_perception_cu0')
+
+    @pytest.mark.asyncio
+    async def test_review_none_perception_cursor_is_valid_after_completed_initial_input(tmp_path):
+        positions=[]
+        async def perception(current,cursor):
+            positions.append(cursor)
+            return ([{'role':'user','content':'new visible observation'}],None)
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            threads=ThreadStore(store); provider=Provider(threads)
+            builder=CognitiveInput(threads,perception,environment='stable')
+            driver=LLMDriver(provider,threads,input_builder=builder)
+>           await driver.run(session(driver))
+
+tests/primary/test_kernel_cognition_review.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='主体背景\n{"type": "类型完整背景", "instance": "主体完整背景"}\n环境说明\nstable\n感知精度\nnul...fo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 9, 796867, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_________ test_actual_llm_query_then_utf8_reads_preserves_all_content __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_actual_llm_query_then_utf0')
+
+    @pytest.mark.asyncio
+    async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.runtime import Actor,Session
+        from society0.kernel.interaction import Information,Actions
+        original='甲🙂'*3
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA+('CREATE TABLE docs(id INTEGER PRIMARY KEY,body TEXT NOT NULL)',),
+            initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?)',(original,))) as store:
+            threads=ThreadStore(store);seen=[];reference={};text=[]
+            class Provider:
+                async def request(self,tid,options):
+                    replies=[json.loads(m['content']) for m in threads.read_messages(tid) if m['role']=='tool']
+                    if not replies:name,args='data_query',{'path':'/world/rows','query':json.dumps({'max_bytes':1024})}
+                    else:
+                        value=replies[-1];assert 'error' not in value,value
+                        if len(replies)==1:
+                            reference.update(value['items'][0]['body']);offset=0
+                        else:
+                            text.append(value['data']);offset=value['next_offset']
+                            if offset is None:return {'role':'assistant','content':'done','finish_reason':'stop'}
+                        name,args='data_read',{'path':reference['path'],'offset':offset,'size':8,'encoding':'utf-8','expected_revision':reference['expected_revision']}
+                    seen.append(name)
+                    return {'role':'assistant','content':'','finish_reason':'tool_calls','tool_calls':[
+                        {'id':str(len(seen)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            information=Information(lambda *a:True)
+            information.mount('/world',SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body'),documents=(('body','body'),)),
+                'body':DocumentSpec('docs','id','body')}))
+            driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'读取全部原始材料'}])
+            scope=InteractionScope('a',Moment(1,'read'))
+            current=Session(Actor('a',driver),scope,information.bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),
+                            SimpleNamespace(prepare_artifact=store.prepare_artifact),step=1)
+>           result=await driver.run(current)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_information_large.py:140: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='读取全部原始材料', timestamp=datetime.datetime(2026, 10, 4, 9, 34, 15, 52251, tzinfo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 15, 55498, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[None-data_query] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_0')
+tool = 'data_query', changed = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...fo=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 27339, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[None-action_find] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_1')
+tool = 'action_find', changed = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...o=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 209263, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[items-data_query] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_2')
+tool = 'data_query', changed = 'items'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...o=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 328282, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[items-action_find] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_3')
+tool = 'action_find', changed = 'items'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...o=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 445643, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[access-data_query] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_4')
+tool = 'data_query', changed = 'access'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...o=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 565041, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+_ test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages[access-action_find] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_llm_thread_writes_5')
+tool = 'action_find', changed = 'access'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('tool',['data_query','action_find'])
+    @pytest.mark.parametrize('changed',[None,'items','access'])
+    async def test_review_llm_thread_writes_do_not_expire_unchanged_domain_pages(tmp_path,tool,changed):
+        with StageStore.create(tmp_path/'run', [*THREAD_SCHEMA,
+                'CREATE TABLE items(id INTEGER PRIMARY KEY,value TEXT NOT NULL)',
+                'CREATE TABLE access(id INTEGER PRIMARY KEY,n INTEGER NOT NULL)'],
+                initialize=lambda w:(w.executemany('INSERT INTO items VALUES(?,?)',[(1,'one'),(2,'two')]),w.execute('INSERT INTO access VALUES(1,0)'))) as store:
+            threads=ThreadStore(store)
+            received=[]
+            class Provider:
+                async def request(self,tid,options):
+                    messages=threads.read_messages(tid)
+                    tools=[json.loads(message['content']) for message in messages if message['role']=='tool']
+                    threads.record_request(tid,provider_options=options,physical_request_id=str(len(tools)))
+                    if tools:
+                        received.append(tools[-1])
+                    if len(tools)==1 and changed:
+                        store.transaction(lambda w:w.execute("UPDATE items SET value='changed' WHERE id=1" if changed=='items' else 'UPDATE access SET n=n+1 WHERE id=1'))
+                    if len(tools)==2:
+                        response={'role':'assistant','content':'done','tool_calls':[],'finish_reason':'stop'}
+                    else:
+                        cursor=None if not tools else tools[-1]['next_cursor']
+                        arguments=({'path':'/domain/items','query':json.dumps({'limit':1,'cursor':cursor})}
+                            if tool=='data_query' else {'target':{'namespace':'domain','kind':'item','key':'1'},'query':'','limit':1,'cursor':json.dumps(cursor) if cursor is not None else None})
+                        response={'role':'assistant','content':'','tool_calls':[{'id':str(len(tools)), 'type':'function',
+                            'function':{'name':tool,'arguments':json.dumps(arguments)}}],'finish_reason':'tool_calls'}
+                    threads.event(tid,'provider_response',response)
+                    return response
+            async with PluginHost([Plugin('storage',install=lambda c:c.provide('store',store)),interaction_plugin(lambda *a:True,access_dependencies=('access',))]) as host:
+                information=host.service('interaction','information'); actions=host.service('interaction','actions')
+                information.mount('/domain',SQLInformation('domain',store,{'items':DatasetSpec('items','id',('id','value'))}))
+                for name in ('first','second'):
+                    actions.register(Action(name,('domain','item'),name,{'type':'object'},lambda *a:ActionResult('completed')),dependencies=('items',))
+                driver=LLMDriver(Provider(),threads,input_builder=lambda s:[{'role':'system','content':'Read both complete pages.'}])
+                scope=InteractionScope('actor',Moment(1,'read'))
+                session=Session(Actor('actor',driver),scope,information.bound(scope),actions.bound(scope),{},None,(),SimpleNamespace(prepare_artifact=store.prepare_artifact), step=1)
+>               result=await driver.run(session)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_paging_review.py:53: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1661: in _make_request
+    model_response = await model_handler(request_context)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1644: in model_handler
+    response = await self._recover_model_request_error(ctx, run_context, req_ctx, e)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:2025: in _recover_model_request_error
+    raise error
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1630: in model_handler
+    response = await model_request(
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1181: in model_request
+    new_response = await model.request(
+src/society0/kernel/models.py:39: in request
+    return await self._request(messages)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+messages = [ModelRequest(parts=[SystemPromptPart(content='Read both complete pages.', timestamp=datetime.datetime(2026, 10, 4, 9,...o=datetime.timezone.utc))], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 683800, tzinfo=datetime.timezone.utc))]
+
+    async def request_model(messages):
+        nonlocal empty_retry_attempt, incomplete
+        session.scope.check_active()
+        turn_options = dict(options)
+        adjustments = (
+            (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+             'provider_empty_response_retry', 'attempt'),
+            (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+             'provider_repeated_read_diversification', 'streak'),
+        )
+        for count, delta, maximum, event, counter in adjustments:
+            if count and delta is not None:
+                defaults = getattr(provider, 'request_options', {})
+                before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                turn_options['temperature'] = after
+                self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                    'temperature_after': after, 'retry_scope': 'agent_activation'})
+        empty_retry_attempt = 0
+        with _timed(timings, 'model_s'):
+>           response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                                                   ^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'Provider' object has no attribute 'request_model'
+
+src/society0/kernel/llm.py:475: AttributeError
+___ test_review_replayed_terminal_receipt_ends_without_another_model_request ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1006/test_review_replayed_terminal_0')
+
+    @pytest.mark.asyncio
+    async def test_review_replayed_terminal_receipt_ends_without_another_model_request(tmp_path):
+        call={'id':'terminal1','type':'function','function':{'name':'action_invoke','arguments':json.dumps({
+            'name':'finish','target':{'namespace':'m','kind':'job','key':'one'},'arguments':'{}'})}}
+        reply={'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'}
+        actions=Actions(lambda *a:True)
+        executed=[]
+        def finish(*a):
+            executed.append(1)
+            return ActionResult('completed', {'original':'done'})
+        actions.register(Action('finish',('m','job'),'finish',{},finish,terminal=True))
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            first=LLMDriver(Provider([reply]),ThreadStore(store),input_builder=lambda s:[])
+>           assert (await first.run(session(first,actions))).reason=='terminal_action'
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_llm_review.py:41: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/llm.py:587: in run
+    node = await run.next(node)
+           ^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:599: in next
+    return await self._run_node_with_hooks(node, self._stream_and_advance)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:514: in _run_node_with_hooks
+    result = await lifecycle(node)
+             ^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:494: in lifecycle
+    result = await step_fn(lifecycle_node)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:613: in _stream_and_advance
+    return await self._advance_graph(node)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/run.py:409: in _advance_graph
+    task = await self._graph_run.next(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:584: in next
+    return await anext(self)
+           ^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:561: in __anext__
+    raise self._next.error
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:862: in _run_tracked_task
+    result = await self._run_task(t_)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/graph_builder.py:920: in _run_task
+    output = await node.call(step_context)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_graph/step.py:253: in _call_node
+    return await node.run(GraphRunContext(state=ctx.state, deps=ctx.deps))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1345: in run
+    return await self._make_request(ctx)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1602: in _make_request
+    request_context, run_context = await self._prepare_request(ctx, streaming=False)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = ModelRequestNode(request=ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4, 9, 34, 18, 801413, tzinfo=datetime.timezone.utc), run_id='01a10643-a4b0-7486-b5b3-6584850fc77f', conversation_id='6190b6405fe34b9aa1a72f5497be362f'))
+ctx = GraphRunContext(state=GraphAgentState(message_history=[ModelRequest(parts=[], timestamp=datetime.datetime(2026, 10, 4,...t at 0x1173dbb60>, name=None, end_strategy='graceful', model_settings=None, output_type=<class 'str'>), model_id=None))
+streaming = False
+
+    async def _prepare_request(
+        self,
+        ctx: GraphRunContext[GraphAgentState, GraphAgentDeps[DepsT, NodeRunEndT]],
+        *,
+        streaming: bool,
+    ) -> tuple[ModelRequestContext, RunContext[DepsT]]:
+        if self._resume_suspended is not None:
+            return await self._prepare_resume_request(ctx, streaming=streaming)
+    
+        self.request.timestamp = now_utc()
+        if not self.is_resuming_without_prompt:
+            fill_run_metadata(self.request, run_id=ctx.state.run_id, conversation_id=ctx.state.conversation_id)
+        ctx.state.message_history.append(self.request)
+    
+        ctx.state.run_step += 1
+    
+        await _select_model(ctx)
+    
+        _refresh_loaded_capability_ids(ctx)
+    
+        _refresh_discovered_tool_names(ctx)
+    
+        run_context = build_run_context(ctx)
+        run_context = replace(
+            run_context,
+            retry=ctx.state.output_retries_used,
+            max_retries=ctx.deps.tool_manager.default_max_retries,
+        )
+    
+        # This will raise errors for any tool name conflicts.
+        # Note: for_run_step may already have been called by UserPromptNode for the
+        # resume-without-prompt path; ToolManager.for_run_step is a no-op for the same step.
+        ctx.deps.tool_manager = await ctx.deps.tool_manager.for_run_step(run_context)
+    
+        _display_first_run_banner(ctx)
+    
+        # Fetch instructions now that dynamic toolsets have been resolved by for_run_step.
+        instruction_parts = await _get_instructions(ctx, run_context)
+        if instruction_parts:
+            instruction_parts = _messages.InstructionPart.sorted(instruction_parts) or None
+        self.request.instructions = _messages.InstructionPart.join(instruction_parts) if instruction_parts else None
+    
+        # Validate after instructions are resolved; self.request was appended above so [:-1] is prior history
+        if not ctx.state.message_history[:-1] and not self.request.parts and not self.request.instructions:
+>           raise exceptions.UserError('No message history, user prompt, or instructions provided')
+E           pydantic_ai.exceptions.UserError: No message history, user prompt, or instructions provided
+
+.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py:1721: UserError
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/asyncio/runners.py:123: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+19 failed, 285 passed, 15 deselected in 177.85s (0:02:57)

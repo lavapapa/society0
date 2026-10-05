@@ -1,0 +1,26 @@
+{
+  "baseline_commit": "7e98f11dcc4d5e0f5ace6ed73edca509d7e8e17a",
+  "python": "3.12.12",
+  "platform": "Darwin arm64",
+  "focused": {
+    "passed": 65,
+    "files": [
+      "tests/primary/test_state_persistence_api_v4.py",
+      "tests/primary/test_persistence_manager_v4.py",
+      "tests/primary/test_agent_thread_store.py",
+      "tests/primary/test_runtime_checkpoint_v4.py"
+    ]
+  },
+  "full": {
+    "command": "SOCIETY0_RUN_REAL_E2E=0 PYTHONPATH=src python -m pytest -o addopts= -q -m \"not real_e2e\"",
+    "passed": 526,
+    "deselected": 13,
+    "seconds": 26.51,
+    "exit_code": 0
+  },
+  "probe": {
+    "command": "PYTHONPATH=src python benchmarks/runtime_observation_probe.py",
+    "exit_code": 0,
+    "real_provider_calls": 0
+  }
+}

@@ -1,0 +1,194 @@
+[
+  {
+    "profile": "base",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/base/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/base\nResolved 1 package in 0.85ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 896ms\nUninstalled 1 package in 7ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/base/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "base"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"base\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/base/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "llm",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/llm/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/llm\nResolved 1 package in 0.60ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 395ms\nUninstalled 1 package in 8ms\nInstalled 1 package in 1ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/llm/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "llm"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"llm\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/llm/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "anthropic",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/anthropic/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/anthropic\nResolved 1 package in 0.70ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 398ms\nUninstalled 1 package in 7ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/anthropic/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "anthropic"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"anthropic\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/anthropic/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "google",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/google/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/google\nResolved 1 package in 0.68ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 396ms\nUninstalled 1 package in 7ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/google/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "google"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"google\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/google/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "observe",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/observe/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/observe\nResolved 1 package in 0.64ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 384ms\nUninstalled 1 package in 5ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/observe/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "observe"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"observe\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/observe/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "social",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/social/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/social\nResolved 1 package in 0.65ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 384ms\nUninstalled 1 package in 6ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/social/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "social"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"social\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/social/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "memory",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/memory/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/memory\nResolved 1 package in 0.67ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 386ms\nUninstalled 1 package in 7ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/memory/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "memory"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"memory\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/memory/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": ""
+  },
+  {
+    "profile": "shell",
+    "install_command": [
+      "uv",
+      "pip",
+      "install",
+      "--python",
+      "/tmp/society0-acceptance-clean-sqlite-20261004/shell/bin/python",
+      "--reinstall-package",
+      "society0",
+      "--no-deps",
+      "."
+    ],
+    "install_exit_code": 0,
+    "install_output": "Using Python 3.12.12 environment at: /tmp/society0-acceptance-clean-sqlite-20261004/shell\nResolved 1 package in 0.68ms\n   Building society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\n      Built society0 @ file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next\nPrepared 1 package in 422ms\nUninstalled 1 package in 5ms\nInstalled 1 package in 2ms\n ~ society0==6.0.0 (from file:///Users/marvin/Documents/%E5%90%8C%E8%8A%B1%E9%A1%BA%EF%BC%882%EF%BC%89/.codex-worktrees/society0-core-next)\n",
+    "command": [
+      "/tmp/society0-acceptance-clean-sqlite-20261004/shell/bin/python",
+      "/tmp/acceptance_clean_consumers_final.py",
+      "shell"
+    ],
+    "exit_code": 0,
+    "stdout": "{\"profile\": \"shell\", \"public_consumer\": true, \"wheel_import\": \"/tmp/society0-acceptance-clean-sqlite-20261004/shell/lib/python3.12/site-packages/society0/__init__.py\"}\n",
+    "stderr": "bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-clean-consumer-ek83hp77/output/shell-tilobbqe/output — scripts can modify host files\n"
+  }
+]

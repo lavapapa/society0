@@ -1,0 +1,43 @@
+........................F...                                             [100%]
+=================================== FAILURES ===================================
+_______ test_interview_thread_default_policy_does_not_extract_experience _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-405/test_interview_thread_default_0')
+
+    @pytest.mark.asyncio
+    async def test_interview_thread_default_policy_does_not_extract_experience(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.interaction import Moment
+        async def forbidden(*args,**kwargs):raise AssertionError('interview extraction')
+        store,threads,_,memory,embed,client=setup(tmp_path,extract=forbidden)
+        with store:
+            interview=threads.open('a',0,'interview')
+            threads.append_message(interview,{'role':'system','content':'interview'})
+            session=SimpleNamespace(actor=SimpleNamespace(id='a'),moment=Moment(0,'interview'))
+            result=SimpleNamespace(status='completed',value={'memory_input_through':threads.describe(interview)['last_seq']})
+>           await memory.after_activation(session,interview,result)
+
+tests/primary/test_kernel_memory.py:381: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/memory.py:386: in after_activation
+    job=await self.extract_job(session.actor.id,thread_id,through=through,timestamp=session.moment.time)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/memory.py:367: in extract_job
+    try:return await task
+               ^^^^^^^^^^
+src/society0/kernel/memory.py:363: in prepare
+    entries=await self.extract(actor,thread_id,snapshot['messages'],metadata={'through':through,'job_key':key})
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+args = ('a', '813d2e7c2b8a43dab0db13456a14d00d', [{'role': 'system', 'content': 'interview'}])
+kwargs = {'metadata': {'through': 2, 'job_key': 'thread:813d2e7c2b8a43dab0db13456a14d00d:through:2'}}
+
+>   async def forbidden(*args,**kwargs):raise AssertionError('interview extraction')
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   AssertionError: interview extraction
+
+tests/primary/test_kernel_memory.py:374: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_memory.py::test_interview_thread_default_policy_does_not_extract_experience
+1 failed, 27 passed in 1.12s

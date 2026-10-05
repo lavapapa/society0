@@ -1,0 +1,24 @@
+CWD: /tmp/society0-final-40d385d-storage-20261004
+COMMAND: ['npm', 'test', '--prefix', 'tools/workbench-template']
+npm notice run society0-workbench-template@0.0.0 test
+npm notice run node --test --test-concurrency=1 tests/*.test.mjs
+9:51:18 AM [vite] (client) Re-optimizing dependencies because vite config has changed
+✔ 新版正式运行结果实际渲染表格与指标曲线 (117.192ms)
+✔ 空模板没有虚构的主体、机制或记录 (0.339208ms)
+✔ 按运行、tick 和主体精确选择资料 (0.13025ms)
+✔ LLM 主体默认看机制与会话；制度实体只出现有资料的标签 (0.320125ms)
+✔ 配置可按路径修改，并把差异整理为待发送请求 (0.558ms)
+✔ 主体数组增删时按 id 定位，删掉的主体不能错指其他配置 (0.09775ms)
+✔ 虚拟列表只返回视口附近的行，边界不会越界 (0.079334ms)
+✔ 有实验资料时呈现主体机制、会话与对应组件 (235.542584ms)
+✔ 尚无试运行时，工作台仍展示配置字段和待发送变更 (35.059417ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 736.661417
+
+EXIT: 0

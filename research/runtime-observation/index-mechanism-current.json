@@ -1,0 +1,193 @@
+{
+  "baseline": false,
+  "records": 204882,
+  "initial_index_profiled_seconds": 10.652777666997281,
+  "dbstat": {
+    "checkpoints": 16384,
+    "counts": 2318336,
+    "datasets": 4096,
+    "entries": 5251072,
+    "entries_current": 2748416,
+    "entries_ordinal": 2748416,
+    "lengths": 4096,
+    "meta": 4096,
+    "paths": 3792896,
+    "prepared_rows": 4096,
+    "scopes": 18014208,
+    "scopes_current": 12259328,
+    "sources": 4096,
+    "sqlite_autoindex_checkpoints_1": 4096,
+    "sqlite_autoindex_checkpoints_2": 4096,
+    "sqlite_autoindex_datasets_1": 4096,
+    "sqlite_autoindex_entries_1": 2981888,
+    "sqlite_autoindex_lengths_1": 4096,
+    "sqlite_autoindex_meta_1": 4096,
+    "sqlite_autoindex_paths_1": 4149248,
+    "sqlite_autoindex_sources_1": 4096,
+    "sqlite_autoindex_threads_1": 4096,
+    "sqlite_schema": 4096,
+    "threads": 4096
+  },
+  "increments_seconds": [
+    0.0012281249946681783,
+    0.00045620799937751144,
+    0.0004265829920768738,
+    0.000685040999087505,
+    0.0005046669975854456,
+    0.00046604100498370826,
+    0.0004596250073518604,
+    0.00041266699554398656,
+    0.0005731249984819442,
+    0.0005710830009775236,
+    0.0004810000100405887,
+    0.00045012500777374953,
+    0.0005600000004051253,
+    0.00044070799776818603,
+    0.0006010000070091337,
+    0.00044870900455862284,
+    0.0004758750001201406,
+    0.00047216699749697,
+    0.00046395800018217415,
+    0.0003995419974671677
+  ],
+  "queries": {
+    "current": {
+      "seconds": [
+        0.02133375000266824,
+        0.02058904099976644,
+        0.02038683299906552,
+        0.020284458005335182,
+        0.02054991599288769,
+        0.01938858399807941,
+        0.01986400000168942,
+        0.0196055830019759,
+        0.020342000003438443,
+        0.019656082993606105,
+        0.019675124989589676,
+        0.020031542007927783,
+        0.020210083996062167,
+        0.019916457997169346,
+        0.01995070900011342,
+        0.01975520799169317,
+        0.01946320800925605,
+        0.01954183299676515,
+        0.019585417001508176,
+        0.02014737499121111
+      ],
+      "p95_seconds": 0.02058904099976644
+    },
+    "historical": {
+      "seconds": [
+        0.020950083999196067,
+        0.02005129099416081,
+        0.020019916002638638,
+        0.02030308300163597,
+        0.020115791994612664,
+        0.019650125002954155,
+        0.020046500008902512,
+        0.01996429199061822,
+        0.01982829200278502,
+        0.02053837499988731,
+        0.020942749993992038,
+        0.020243124992703088,
+        0.020236750002368353,
+        0.019797000000835396,
+        0.01964041599421762,
+        0.02061445800063666,
+        0.0200774580007419,
+        0.01978158399288077,
+        0.019899457998690195,
+        0.01983895899320487
+      ],
+      "p95_seconds": 0.020942749993992038
+    }
+  },
+  "files_live": {
+    "observation.sqlite": 54325248,
+    "observation.sqlite-shm": 131072,
+    "observation.sqlite-wal": 54783672
+  },
+  "peak_rss_bytes": 46301184,
+  "files_after_passive": {
+    "observation.sqlite": 54337536,
+    "observation.sqlite-shm": 131072,
+    "observation.sqlite-wal": 54783672
+  },
+  "files_after_close": {
+    "observation.sqlite": 54337536
+  },
+  "files_peak": {
+    "observation.sqlite": 54337536,
+    "observation.sqlite-shm": 131072,
+    "observation.sqlite-wal": 54783672
+  },
+  "profile": "         33860870 function calls (33653574 primitive calls) in 10.648 seconds\n\n   Ordered by: cumulative time\n   List reduced from 185 to 20 due to restriction <20>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n     1431    0.067    0.000   10.199    0.007 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:637(wait)\n     1430    0.811    0.001    9.418    0.007 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:323(wait)\n  3078053    3.758    0.000    3.837    0.000 {method 'execute' of 'sqlite3.Connection' objects}\n412167/204882    0.605    0.000    3.200    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:239(identify)\n  2256106    0.365    0.000    2.206    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:15(_json)\n  2256106    0.982    0.000    1.841    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:183(dumps)\n  1847943    0.198    0.000    1.594    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:242(<genexpr>)\n     1431    0.007    0.000    1.162    0.001 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/benchmarks/observation_mechanism_probe.py:85(sizes)\n   204882    0.044    0.000    1.094    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:53(_key)\n   204883    0.280    0.000    1.057    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/checkpoint_records.py:310(iter_metadata)\n   204900    0.099    0.000    1.050    0.000 {method 'join' of 'str' objects}\n  1024410    0.140    0.000    0.950    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:55(<genexpr>)\n   409771    0.143    0.000    0.737    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:299(loads)\n  2256106    0.366    0.000    0.657    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/encoder.py:183(encode)\n   409771    0.248    0.000    0.526    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:333(decode)\n  1024410    0.225    0.000    0.432    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/observation.py:234(count_change)\n     5724    0.019    0.000    0.319    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1081(glob)\n     5723    0.307    0.000    0.307    0.000 {method 'acquire' of '_thread.lock' objects}\n    10027    0.014    0.000    0.237    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:835(stat)\n   207285    0.081    0.000    0.227    0.000 {built-in method builtins.sum}\n\n\n",
+  "temporary_artifacts_removed": true,
+  "history_probe": {
+    "hot_history": [
+      {
+        "history": 10,
+        "delta": {
+          "instructions": 562,
+          "seconds": 0.0004616249934770167,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 162,
+          "seconds": 0.0002656249998835847,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 120,
+          "seconds": 0.00022166701091919094,
+          "error": null,
+          "total": 1
+        }
+      },
+      {
+        "history": 300,
+        "delta": {
+          "instructions": 562,
+          "seconds": 0.00039412500336766243,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 162,
+          "seconds": 0.0002623750042403117,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 120,
+          "seconds": 0.00025283399736508727,
+          "error": null,
+          "total": 1
+        }
+      }
+    ],
+    "deleted_keys": {
+      "plain": {
+        "instructions": 9565,
+        "seconds": 0.0011124580050818622,
+        "error": "{\"code\":\"index_pending\",\"method\":\"prepare_state\",\"checkpoint_id\":\"f413c626e145425aa307ec8a4b827c3e\",\"path\":[\"rows\"]}",
+        "total": null
+      },
+      "prepare": {
+        "instructions": 40132,
+        "seconds": 0.0023417500051436946,
+        "error": null,
+        "total": 1
+      },
+      "prepared_page": {
+        "instructions": 133,
+        "seconds": 0.00059345799672883,
+        "error": null,
+        "total": 1
+      },
+      "prepared_table_bytes": 4096
+    }
+  }
+}

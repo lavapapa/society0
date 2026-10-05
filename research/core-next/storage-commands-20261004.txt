@@ -1,0 +1,35 @@
+工作目录：/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next
+Python：/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python
+
+TDD 每轮命令：
+<上述Python> -m pytest tests/experiments/test_core_next_storage.py -q
+storage-red：模块缺失，collection error。
+storage-red2：6 passed，3 failed（store身份、活动索引维护、commit回执）。
+storage-red3：9 passed，1 failed（transaction_probe尚未实现）。
+storage-red4：10 passed，3 failed（进程退出注入尚未实现）。
+storage-green：13 passed，exit 0；原始输出由仓库pytest配置显示为13个点。
+
+完整测量：
+<上述Python> benchmarks/core_next_storage.py
+输出现默认路径 research/core-next/storage-experiment-results-20261004.json。
+此份结果生成时默认输出仍在docs/core-next，随后原样移动并修正默认路径。
+测量后唯一实验代码变化是新增显式exit_*故障注入分支（正常调用fail_at=None无退出）。
+
+git diff --check：exit 0。
+未运行正式产品全量或真实模型测试；仅本模块实验规格。
+
+Session 追加实验环境：
+uv venv /tmp/core-next-session-venv --python <上述项目Python>
+uv pip install --python /tmp/core-next-session-venv/bin/python apsw pytest
+安装固定结果 apsw==3.53.4.0 pytest==9.1.1；SQLite 3.53.4，ENABLE_SESSION/ENABLE_PREUPDATE_HOOK。
+
+/tmp/core-next-session-venv/bin/python -m pytest tests/experiments/test_core_next_storage.py -q
+storage-session-red：13 passed 3 failed，session_probe缺失。
+storage-session-red2：17 passed 3 failed，session_recovery_probe缺失。
+storage-session-green：20 passed，1配置warning（临时venv没有pytest-asyncio，试验无async测试）。
+
+/tmp/core-next-session-venv/bin/python benchmarks/core_next_storage.py --session --output research/core-next/storage-session-results-20261004.json
+16个布局/尺寸/触达数组合独立进程；3个实际子进程退出恢复场景。
+
+项目原Python重跑：13 passed 7 skipped（仅可选Session，全部已在独立venv通过）。
+git diff --check：exit 0。

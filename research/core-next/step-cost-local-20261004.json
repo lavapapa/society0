@@ -1,0 +1,594 @@
+[
+  {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.12",
+    "mode": "rule",
+    "actors": 8,
+    "steps": [
+      {
+        "step": 1,
+        "phase_s": 0.0033752500312402844,
+        "finalization_s": 0.0007478750194422901,
+        "complete_s": 0.0006622919463552535,
+        "total_s": 0.0041252499795518816,
+        "failed": false,
+        "complete_step": 1,
+        "transactions": 19,
+        "transaction_seconds": 0.00260328984586522,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 2,
+        "phase_s": 0.0027329170261509717,
+        "finalization_s": 0.0008022499969229102,
+        "complete_s": 0.000691416033077985,
+        "total_s": 0.003537416981998831,
+        "failed": false,
+        "complete_step": 2,
+        "transactions": 19,
+        "transaction_seconds": 0.0018300820956937969,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 3,
+        "phase_s": 0.002461583004333079,
+        "finalization_s": 0.0007879580371081829,
+        "complete_s": 0.0007040000054985285,
+        "total_s": 0.0032508750446140766,
+        "failed": false,
+        "complete_step": 3,
+        "transactions": 19,
+        "transaction_seconds": 0.0018672479782253504,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 4,
+        "phase_s": 0.0032289590453729033,
+        "finalization_s": 0.0009589580004103482,
+        "complete_s": 0.0008461249526590109,
+        "total_s": 0.004189583996776491,
+        "failed": false,
+        "complete_step": 4,
+        "transactions": 19,
+        "transaction_seconds": 0.0025099581107497215,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 5,
+        "phase_s": 0.00265129201579839,
+        "finalization_s": 0.0009087499929592013,
+        "complete_s": 0.0008108749752864242,
+        "total_s": 0.003561624966096133,
+        "failed": false,
+        "complete_step": 5,
+        "transactions": 19,
+        "transaction_seconds": 0.002090209920424968,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 6,
+        "phase_s": 0.0024621670017950237,
+        "finalization_s": 0.0007483750232495368,
+        "complete_s": 0.000650834001135081,
+        "total_s": 0.003211792034562677,
+        "failed": false,
+        "complete_step": 6,
+        "transactions": 19,
+        "transaction_seconds": 0.0019697080133482814,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 7,
+        "phase_s": 0.002509542042389512,
+        "finalization_s": 0.0007877079769968987,
+        "complete_s": 0.0007002089987508953,
+        "total_s": 0.0032986250007525086,
+        "failed": false,
+        "complete_step": 7,
+        "transactions": 19,
+        "transaction_seconds": 0.0019574189209379256,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 8,
+        "phase_s": 0.002410207991488278,
+        "finalization_s": 0.0008062080014497042,
+        "complete_s": 0.0007128749857656658,
+        "total_s": 0.003217916004359722,
+        "failed": false,
+        "complete_step": 8,
+        "transactions": 19,
+        "transaction_seconds": 0.0019212908227927983,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 9,
+        "phase_s": 0.002308333001565188,
+        "finalization_s": 0.0007197500090114772,
+        "complete_s": 0.0006297089857980609,
+        "total_s": 0.0030293340096250176,
+        "failed": false,
+        "complete_step": 9,
+        "transactions": 19,
+        "transaction_seconds": 0.001820000063162297,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 10,
+        "phase_s": 0.0024941249866969883,
+        "finalization_s": 0.0007095420151017606,
+        "complete_s": 0.0006220419891178608,
+        "total_s": 0.003205042041372508,
+        "failed": false,
+        "complete_step": 10,
+        "transactions": 19,
+        "transaction_seconds": 0.001972624915651977,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 11,
+        "phase_s": 0.002266000024974346,
+        "finalization_s": 0.0007472919533029199,
+        "complete_s": 0.000656625023111701,
+        "total_s": 0.003014500020071864,
+        "failed": false,
+        "complete_step": 11,
+        "transactions": 19,
+        "transaction_seconds": 0.0018012518994510174,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 12,
+        "phase_s": 0.002238415996544063,
+        "finalization_s": 0.0006789590115658939,
+        "complete_s": 0.0005824159597977996,
+        "total_s": 0.002918875019531697,
+        "failed": false,
+        "complete_step": 12,
+        "transactions": 19,
+        "transaction_seconds": 0.001775622891727835,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 13,
+        "phase_s": 0.0021700409706681967,
+        "finalization_s": 0.0008090409683063626,
+        "complete_s": 0.0007498339982703328,
+        "total_s": 0.002980374963954091,
+        "failed": false,
+        "complete_step": 13,
+        "transactions": 19,
+        "transaction_seconds": 0.0016279119299724698,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 14,
+        "phase_s": 0.0019106249674223363,
+        "finalization_s": 0.0006883750320412219,
+        "complete_s": 0.0006343750283122063,
+        "total_s": 0.002600290987174958,
+        "failed": false,
+        "complete_step": 14,
+        "transactions": 19,
+        "transaction_seconds": 0.0013655810616910458,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 15,
+        "phase_s": 0.0018327910220250487,
+        "finalization_s": 0.0007167080184444785,
+        "complete_s": 0.000658750010188669,
+        "total_s": 0.002550999983213842,
+        "failed": false,
+        "complete_step": 15,
+        "transactions": 19,
+        "transaction_seconds": 0.0013364588958211243,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 16,
+        "phase_s": 0.001907500030938536,
+        "finalization_s": 0.0006629580166190863,
+        "complete_s": 0.0006010830402374268,
+        "total_s": 0.0025717089883983135,
+        "failed": false,
+        "complete_step": 16,
+        "transactions": 19,
+        "transaction_seconds": 0.0013887929962947965,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 17,
+        "phase_s": 0.001796416996512562,
+        "finalization_s": 0.0006229999708011746,
+        "complete_s": 0.0005610829684883356,
+        "total_s": 0.0024205000372603536,
+        "failed": false,
+        "complete_step": 17,
+        "transactions": 19,
+        "transaction_seconds": 0.0012901650043204427,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 18,
+        "phase_s": 0.0017049169982783496,
+        "finalization_s": 0.0005535420496016741,
+        "complete_s": 0.0005058749811723828,
+        "total_s": 0.0022596669732593,
+        "failed": false,
+        "complete_step": 18,
+        "transactions": 19,
+        "transaction_seconds": 0.001216040865983814,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 19,
+        "phase_s": 0.0016149170114658773,
+        "finalization_s": 0.0005655409768223763,
+        "complete_s": 0.0005135419778525829,
+        "total_s": 0.002181458054110408,
+        "failed": false,
+        "complete_step": 19,
+        "transactions": 19,
+        "transaction_seconds": 0.0011588340857997537,
+        "fake_sdk_seconds": 0.0
+      },
+      {
+        "step": 20,
+        "phase_s": 0.0019246249576099217,
+        "finalization_s": 0.0006680829683318734,
+        "complete_s": 0.0006108329980634153,
+        "total_s": 0.0025939170154742897,
+        "failed": false,
+        "complete_step": 20,
+        "transactions": 19,
+        "transaction_seconds": 0.0014206229243427515,
+        "fake_sdk_seconds": 0.0
+      }
+    ],
+    "balances": [
+      [
+        "actor-0",
+        20
+      ],
+      [
+        "actor-1",
+        20
+      ],
+      [
+        "actor-2",
+        20
+      ],
+      [
+        "actor-3",
+        20
+      ],
+      [
+        "actor-4",
+        20
+      ],
+      [
+        "actor-5",
+        20
+      ],
+      [
+        "actor-6",
+        20
+      ],
+      [
+        "actor-7",
+        20
+      ]
+    ],
+    "complete_step": 20,
+    "restored_equal": true,
+    "provider_calls": 0,
+    "peak_rss_bytes": 36257792,
+    "wall_seconds": 0.10559820901835337,
+    "cpu_seconds": 0.08424,
+    "directory_bytes": 674107,
+    "limits": "same small account action; fake SDK no network; transaction time overlaps phase and includes encoding+SQLite FULL commits; Memory/shell absent",
+    "command": [
+      "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python",
+      "benchmarks/core_next_step_cost.py",
+      "--mode",
+      "rule"
+    ]
+  },
+  {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.12",
+    "mode": "llm",
+    "actors": 8,
+    "steps": [
+      {
+        "step": 1,
+        "phase_s": 0.03539475001161918,
+        "finalization_s": 0.001361624978017062,
+        "complete_s": 0.0012840830022469163,
+        "total_s": 0.03675924998242408,
+        "failed": false,
+        "complete_step": 1,
+        "transactions": 99,
+        "transaction_seconds": 0.02133866905933246,
+        "fake_sdk_seconds": 0.0018919570138677955
+      },
+      {
+        "step": 2,
+        "phase_s": 0.02547900000354275,
+        "finalization_s": 0.0012452920200303197,
+        "complete_s": 0.0011851249728351831,
+        "total_s": 0.0267265000147745,
+        "failed": false,
+        "complete_step": 2,
+        "transactions": 99,
+        "transaction_seconds": 0.014644627110101283,
+        "fake_sdk_seconds": 0.00010637514060363173
+      },
+      {
+        "step": 3,
+        "phase_s": 0.027489875035826117,
+        "finalization_s": 0.0013748329947702587,
+        "complete_s": 0.00130883400561288,
+        "total_s": 0.028866500011645257,
+        "failed": false,
+        "complete_step": 3,
+        "transactions": 99,
+        "transaction_seconds": 0.016412456869147718,
+        "fake_sdk_seconds": 0.00013433204730972648
+      },
+      {
+        "step": 4,
+        "phase_s": 0.02707662497414276,
+        "finalization_s": 0.0013310840004123747,
+        "complete_s": 0.001273375004529953,
+        "total_s": 0.028409334016032517,
+        "failed": false,
+        "complete_step": 4,
+        "transactions": 99,
+        "transaction_seconds": 0.016305703727994114,
+        "fake_sdk_seconds": 0.00011987506877630949
+      },
+      {
+        "step": 5,
+        "phase_s": 0.028575042029842734,
+        "finalization_s": 0.0012638330226764083,
+        "complete_s": 0.0012048329808749259,
+        "total_s": 0.029840749979484826,
+        "failed": false,
+        "complete_step": 5,
+        "transactions": 99,
+        "transaction_seconds": 0.01718971593072638,
+        "fake_sdk_seconds": 0.00014379312051460147
+      },
+      {
+        "step": 6,
+        "phase_s": 0.027529124985449016,
+        "finalization_s": 0.001346833014395088,
+        "complete_s": 0.0012925839982926846,
+        "total_s": 0.02887779101729393,
+        "failed": false,
+        "complete_step": 6,
+        "transactions": 99,
+        "transaction_seconds": 0.016550042084418237,
+        "fake_sdk_seconds": 0.00012720702216029167
+      },
+      {
+        "step": 7,
+        "phase_s": 0.027981208986602724,
+        "finalization_s": 0.0013273750082589686,
+        "complete_s": 0.001269750006031245,
+        "total_s": 0.029310291982255876,
+        "failed": false,
+        "complete_step": 7,
+        "transactions": 99,
+        "transaction_seconds": 0.016843540070112795,
+        "fake_sdk_seconds": 0.00012595899170264602
+      },
+      {
+        "step": 8,
+        "phase_s": 0.028512957971543074,
+        "finalization_s": 0.0016865839716047049,
+        "complete_s": 0.001618624955881387,
+        "total_s": 0.030201457964722067,
+        "failed": false,
+        "complete_step": 8,
+        "transactions": 99,
+        "transaction_seconds": 0.017120750853791833,
+        "fake_sdk_seconds": 0.00015279214130714536
+      },
+      {
+        "step": 9,
+        "phase_s": 0.031398208055179566,
+        "finalization_s": 0.0014249999658204615,
+        "complete_s": 0.0013597920187748969,
+        "total_s": 0.03282495797611773,
+        "failed": false,
+        "complete_step": 9,
+        "transactions": 99,
+        "transaction_seconds": 0.01891016197623685,
+        "fake_sdk_seconds": 0.00020183209562674165
+      },
+      {
+        "step": 10,
+        "phase_s": 0.02876629203092307,
+        "finalization_s": 0.0013064160011708736,
+        "complete_s": 0.0012388749746605754,
+        "total_s": 0.030074667010921985,
+        "failed": false,
+        "complete_step": 10,
+        "transactions": 99,
+        "transaction_seconds": 0.01735854265280068,
+        "fake_sdk_seconds": 0.00013925001258030534
+      },
+      {
+        "step": 11,
+        "phase_s": 0.02782766701420769,
+        "finalization_s": 0.0013955000322312117,
+        "complete_s": 0.0013319580466486514,
+        "total_s": 0.029224833007901907,
+        "failed": false,
+        "complete_step": 11,
+        "transactions": 99,
+        "transaction_seconds": 0.01681691803969443,
+        "fake_sdk_seconds": 0.00012212502770125866
+      },
+      {
+        "step": 12,
+        "phase_s": 0.05813499999931082,
+        "finalization_s": 0.001568417006637901,
+        "complete_s": 0.0014841660158708692,
+        "total_s": 0.05970550002530217,
+        "failed": false,
+        "complete_step": 12,
+        "transactions": 99,
+        "transaction_seconds": 0.045783422712702304,
+        "fake_sdk_seconds": 0.00018075091065838933
+      },
+      {
+        "step": 13,
+        "phase_s": 0.027644041983876377,
+        "finalization_s": 0.0012642079964280128,
+        "complete_s": 0.0012011660146526992,
+        "total_s": 0.02891033299965784,
+        "failed": false,
+        "complete_step": 13,
+        "transactions": 99,
+        "transaction_seconds": 0.016440121980849653,
+        "fake_sdk_seconds": 0.0001238731201738119
+      },
+      {
+        "step": 14,
+        "phase_s": 0.028419500042218715,
+        "finalization_s": 0.0012672499869950116,
+        "complete_s": 0.001212791947182268,
+        "total_s": 0.029688167036511004,
+        "failed": false,
+        "complete_step": 14,
+        "transactions": 99,
+        "transaction_seconds": 0.01725054084090516,
+        "fake_sdk_seconds": 0.0001212910283356905
+      },
+      {
+        "step": 15,
+        "phase_s": 0.02849329198943451,
+        "finalization_s": 0.0015128750237636268,
+        "complete_s": 0.0014499580138362944,
+        "total_s": 0.030008208996150643,
+        "failed": false,
+        "complete_step": 15,
+        "transactions": 99,
+        "transaction_seconds": 0.01737387478351593,
+        "fake_sdk_seconds": 0.0001399180619046092
+      },
+      {
+        "step": 16,
+        "phase_s": 0.028913750022184104,
+        "finalization_s": 0.001253084046766162,
+        "complete_s": 0.0011932909837923944,
+        "total_s": 0.03016854199813679,
+        "failed": false,
+        "complete_step": 16,
+        "transactions": 99,
+        "transaction_seconds": 0.017449245788156986,
+        "fake_sdk_seconds": 0.00014887616271153092
+      },
+      {
+        "step": 17,
+        "phase_s": 0.026842250023037195,
+        "finalization_s": 0.0014322909992188215,
+        "complete_s": 0.0013705000164918602,
+        "total_s": 0.028276124969124794,
+        "failed": false,
+        "complete_step": 17,
+        "transactions": 99,
+        "transaction_seconds": 0.016199127479922026,
+        "fake_sdk_seconds": 0.00011008395813405514
+      },
+      {
+        "step": 18,
+        "phase_s": 0.027162083017174155,
+        "finalization_s": 0.0015119999879971147,
+        "complete_s": 0.0014252080000005662,
+        "total_s": 0.028675833018496633,
+        "failed": false,
+        "complete_step": 18,
+        "transactions": 99,
+        "transaction_seconds": 0.01668703998439014,
+        "fake_sdk_seconds": 0.00010766618652269244
+      },
+      {
+        "step": 19,
+        "phase_s": 0.029561834002379328,
+        "finalization_s": 0.0013743750168941915,
+        "complete_s": 0.001316332956776023,
+        "total_s": 0.030937957984860986,
+        "failed": false,
+        "complete_step": 19,
+        "transactions": 99,
+        "transaction_seconds": 0.01806171122007072,
+        "fake_sdk_seconds": 0.00014012691099196672
+      },
+      {
+        "step": 20,
+        "phase_s": 0.02780541602987796,
+        "finalization_s": 0.001451082993298769,
+        "complete_s": 0.0013909999979659915,
+        "total_s": 0.029258000024128705,
+        "failed": false,
+        "complete_step": 20,
+        "transactions": 99,
+        "transaction_seconds": 0.016730506205931306,
+        "fake_sdk_seconds": 0.00011991511564701796
+      }
+    ],
+    "balances": [
+      [
+        "actor-0",
+        20
+      ],
+      [
+        "actor-1",
+        20
+      ],
+      [
+        "actor-2",
+        20
+      ],
+      [
+        "actor-3",
+        20
+      ],
+      [
+        "actor-4",
+        20
+      ],
+      [
+        "actor-5",
+        20
+      ],
+      [
+        "actor-6",
+        20
+      ],
+      [
+        "actor-7",
+        20
+      ]
+    ],
+    "complete_step": 20,
+    "restored_equal": true,
+    "provider_calls": 160,
+    "peak_rss_bytes": 96731136,
+    "wall_seconds": 1.0627267090021633,
+    "cpu_seconds": 0.9958589999999999,
+    "directory_bytes": 2966839,
+    "limits": "same small account action; fake SDK no network; transaction time overlaps phase and includes encoding+SQLite FULL commits; Memory/shell absent",
+    "command": [
+      "/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/.venv/bin/python",
+      "benchmarks/core_next_step_cost.py",
+      "--mode",
+      "llm"
+    ]
+  }
+]

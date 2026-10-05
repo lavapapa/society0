@@ -1,0 +1,40 @@
+✔ 空模板没有虚构的主体、机制或记录 (0.3675ms)
+✔ 按运行、tick 和主体精确选择资料 (0.083167ms)
+✔ LLM 主体默认看机制与会话；制度实体只出现有资料的标签 (0.546958ms)
+✔ 配置可按路径修改，并把差异整理为待发送请求 (0.573792ms)
+✔ 主体数组增删时按 id 定位，删掉的主体不能错指其他配置 (0.101083ms)
+✔ 虚拟列表只返回视口附近的行，边界不会越界 (0.086583ms)
+node:internal/modules/package_json_reader:301
+  throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+        ^
+
+Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'react' imported from /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tools/workbench-template/tests/render.test.mjs
+    at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+    at packageResolve (node:internal/modules/esm/resolve:768:81)
+    at moduleResolve (node:internal/modules/esm/resolve:859:18)
+    at defaultResolve (node:internal/modules/esm/resolve:992:11)
+    at #cachedDefaultResolve (node:internal/modules/esm/loader:691:20)
+    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:708:38)
+    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:740:52)
+    at #resolve (node:internal/modules/esm/loader:673:17)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:593:35)
+    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33) {
+  code: 'ERR_MODULE_NOT_FOUND'
+}
+
+Node.js v24.16.0
+✖ tests/render.test.mjs (32.472041ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 46.051708
+
+✖ failing tests:
+
+test at tests/render.test.mjs:1:1
+✖ tests/render.test.mjs (32.472041ms)
+  'test failed'

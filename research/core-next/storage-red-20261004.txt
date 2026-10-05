@@ -1,0 +1,13 @@
+
+==================================== ERRORS ====================================
+_________ ERROR collecting tests/experiments/test_core_next_storage.py _________
+tests/experiments/test_core_next_storage.py:11: in <module>
+    spec.loader.exec_module(module)
+<frozen importlib._bootstrap_external>:995: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1132: in get_code
+    ???
+<frozen importlib._bootstrap_external>:1190: in get_data
+    ???
+E   FileNotFoundError: [Errno 2] No such file or directory: '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/benchmarks/core_next_storage.py'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

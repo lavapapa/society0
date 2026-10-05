@@ -1,0 +1,26 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_repeated_start_does_not_remove_existing_pair_or_duplicate_history ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-390/test_repeated_start_does_not_r0')
+
+    @pytest.mark.asyncio
+    async def test_repeated_start_does_not_remove_existing_pair_or_duplicate_history(tmp_path):
+        async with compose(tmp_path/'run',plugins(round_robin_plugin('abcd',group_size=4))) as host:
+            env=host.service('conversation','mechanism')
+            env.start_round(1)
+            before=env.pairing('a')
+            assert env.start_round(1)['pairs']==[]
+>           assert env.pairing('a')==before
+E           AssertionError: assert {'agent_id': ...ound': 1, ...} == {'agent_id': ...ound': 1, ...}
+E             
+E             Omitting 6 identical items, use -vv to show
+E             Differing items:
+E             {'current_partner': None} != {'current_partner': 'd'}
+E             {'can_converse': False} != {'can_converse': True}
+E             Use -v to get more diff
+
+tests/primary/test_plugin_round_robin.py:176: AssertionError
+=========================== short test summary info ============================
+FAILED tests/primary/test_plugin_round_robin.py::test_repeated_start_does_not_remove_existing_pair_or_duplicate_history
+1 failed, 11 deselected in 0.11s

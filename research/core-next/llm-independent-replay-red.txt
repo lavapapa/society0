@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_review_replayed_terminal_receipt_ends_without_another_model_request ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-324/test_review_replayed_terminal_0')
+
+    @pytest.mark.asyncio
+    async def test_review_replayed_terminal_receipt_ends_without_another_model_request(tmp_path):
+        call={'id':'terminal1','type':'function','function':{'name':'action_invoke','arguments':json.dumps({
+            'name':'finish','target':{'namespace':'m','kind':'job','key':'one'},'arguments':'{}'})}}
+        reply={'role':'assistant','content':'','tool_calls':[call],'finish_reason':'tool_calls'}
+        actions=Actions(lambda *a:True)
+        executed=[]
+        def finish(*a):
+            executed.append(1)
+            return ActionResult('completed', {'original':'done'})
+        actions.register(Action('finish',('m','job'),'finish',{},finish,terminal=True))
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
+            first=LLMDriver(Provider([reply]),ThreadStore(store),input_builder=lambda s:[])
+            assert (await first.run(session(first,actions))).reason=='terminal_action'
+            store.complete(1)
+        with StageStore.restore(tmp_path/'run',tmp_path/'restored') as restored:
+            provider=Provider([reply,{'role':'assistant','content':'unnecessary closing','finish_reason':'stop'}])
+            second=LLMDriver(provider,ThreadStore(restored),input_builder=lambda s:[])
+            result=await second.run(session(second,actions))
+            assert executed==[1]
+>           assert provider.requests==1
+E           assert 2 == 1
+E            +  where 2 = <tests.primary.test_kernel_llm_review.Provider object at 0x10d2f5730>.requests
+
+tests/primary/test_kernel_llm_review.py:48: AssertionError

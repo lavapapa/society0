@@ -1,0 +1,15 @@
+
+==================================== ERRORS ====================================
+____ ERROR collecting tests/experiments/test_core_next_chroma_residency.py _____
+ImportError while importing test module '/Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-core-next/tests/experiments/test_core_next_chroma_residency.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../../.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/experiments/test_core_next_chroma_residency.py:1: in <module>
+    from benchmarks.core_next_chroma_residency import probe
+benchmarks/core_next_chroma_residency.py:12: in <module>
+    import psutil
+E   ModuleNotFoundError: No module named 'psutil'
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!

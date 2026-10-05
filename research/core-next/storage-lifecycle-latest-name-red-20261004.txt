@@ -1,0 +1,18 @@
+......F                                                                  [100%]
+=================================== FAILURES ===================================
+____ test_latest_descriptor_filename_and_declared_step_must_agree_before_gc ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-553/test_latest_descriptor_filenam0')
+
+    def test_latest_descriptor_filename_and_declared_step_must_agree_before_gc(tmp_path):
+        path=tmp_path/'run'
+        with StageStore.create(path,['CREATE TABLE item(id INTEGER PRIMARY KEY)']) as store:
+            first=store.prepare_artifact([b'first']);store.complete(1,artifacts=[first])
+            second=store.prepare_artifact([b'second']);store.complete(2,artifacts=[second])
+        marker=path/'steps'/'00000000000000000002.json'
+        body=json.loads(marker.read_text());body['step']=1;marker.write_text(json.dumps(body))
+>       with pytest.raises(StorageError,match='identity|step|descriptor'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_storage_lifecycle.py:106: Failed

@@ -1,0 +1,17 @@
+....F.                                                                   [100%]
+=================================== FAILURES ===================================
+___ test_foreign_root_identity_rejects_export_and_gc_without_deleting_files ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-539/test_foreign_root_identity_rej0')
+
+    def test_foreign_root_identity_rejects_export_and_gc_without_deleting_files(tmp_path):
+        schema=['CREATE TABLE item(id INTEGER PRIMARY KEY)']
+        with StageStore.create(tmp_path/'run',schema) as store:
+            orphan=store.prepare_artifact([b'unpublished'])
+        with StageStore.create(tmp_path/'other',schema):pass
+        shutil.copyfile(tmp_path/'other'/'root.sqlite',tmp_path/'run'/'root.sqlite')
+>       with pytest.raises(StorageError,match='root'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE StorageError
+
+tests/primary/test_kernel_storage_lifecycle.py:79: Failed

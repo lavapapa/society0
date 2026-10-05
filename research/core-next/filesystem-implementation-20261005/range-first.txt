@@ -1,0 +1,49 @@
+................F....                                                    [100%]
+=================================== FAILURES ===================================
+_________ test_actual_llm_query_then_utf8_reads_preserves_all_content __________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1058/test_actual_llm_query_then_utf0')
+
+    @pytest.mark.asyncio
+    async def test_actual_llm_query_then_utf8_reads_preserves_all_content(tmp_path):
+        from types import SimpleNamespace
+        from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
+        from society0.kernel.llm import LLMDriver
+        from society0.kernel.runtime import Actor,Session
+        from society0.kernel.interaction import Information,Actions
+        original='甲🙂'*3
+        with StageStore.create(tmp_path/'run',THREAD_SCHEMA+('CREATE TABLE docs(id INTEGER PRIMARY KEY,body TEXT NOT NULL)',),
+            initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?)',(original,))) as store:
+            threads=ThreadStore(store);seen=[];reference={};text=[]
+            class Provider:
+                async def request(self,tid,options):
+                    replies=[json.loads(m['content']) for m in threads.read_messages(tid) if m['role']=='tool']
+                    if not replies:name,args='data_query',{'path':'/world/rows','query':{'max_bytes':1024}}
+                    else:
+                        value=replies[-1];assert 'error' not in value,value
+                        if len(replies)==1:
+                            reference.update(value['items'][0]['body']);offset=0
+                        else:
+                            text.append(value['data']);offset=value['next_offset']
+                            if offset is None:return {'role':'assistant','content':'done','finish_reason':'stop'}
+                        name,args='data_read',{'path':reference['path'],'offset':offset,'size':8,'encoding':'utf-8','expected_revision':reference['expected_revision']}
+                    seen.append(name)
+                    return {'role':'assistant','content':'','finish_reason':'tool_calls','tool_calls':[
+                        {'id':str(len(seen)),'type':'function','function':{'name':name,'arguments':json.dumps(args)}}]}
+            information=Information(lambda *a:True)
+            information.mount('/world',SQLInformation('world',store,{'rows':DatasetSpec('docs','id',('id','body'),documents=(('body','body'),)),
+                'body':DocumentSpec('docs','id','body')}))
+            driver=LLMDriver(TypedScriptProvider(Provider(), threads),threads,input_builder=lambda s:[{'role':'system','content':'读取全部原始材料'}])
+            scope=InteractionScope('a',Moment(1,'read'))
+            current=Session(Actor('a',driver),scope,information.bound(scope),Actions(lambda *a:True).bound(scope),{},None,(),
+                            SimpleNamespace(prepare_artifact=store.prepare_artifact),step=1)
+            result=await driver.run(current)
+>           assert result.status=='completed'
+E           AssertionError: assert 'incomplete' == 'completed'
+E
+E             - completed
+E             ?         -
+E             + incomplete
+E             ? ++
+
+tests/primary/test_kernel_information_large.py:142: AssertionError

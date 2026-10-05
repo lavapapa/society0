@@ -1,0 +1,98 @@
+FF.                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_review_embedding_retry_timings_do_not_recount_previous_attempt[openai] __
+
+provider_type = 'openai'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108bfdd60>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('provider_type', ['openai', 'ollama'])
+    async def test_review_embedding_retry_timings_do_not_recount_previous_attempt(provider_type, monkeypatch):
+        import society0.resource_managers as module
+        manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
+            'base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type}])
+        manager._embedding_timeout_schedule = [10., 10.]
+        clock = [100.]
+        attempts = [0]
+        events = []
+        async def request(**kwargs):
+            attempts[0] += 1
+            clock[0] += 2.
+            if attempts[0] == 1:
+                raise RuntimeError('transient failure')
+            if provider_type == 'ollama':
+                return {'embeddings': [[1., 2.]]}
+            return SimpleNamespace(data=[SimpleNamespace(index=0, embedding=[1., 2.])])
+        async def pause(seconds):
+            clock[0] += seconds
+        original = manager.clients['m']
+        manager.clients['m'] = SimpleNamespace(embeddings=SimpleNamespace(create=request), embed=request)
+        monkeypatch.setattr(module, 'time', SimpleNamespace(time=lambda:clock[0]))
+        monkeypatch.setattr(module.asyncio, 'sleep', pause)
+        monkeypatch.setattr(manager, '_append_agent_thread_event_best_effort',
+            lambda metadata,kind,**kwargs:events.append((kind,kwargs['payload'])))
+        try:
+            await manager._execute_request(manager.endpoints[0], ['whole'], 2)
+            terminal = [body['timing'] for kind,body in events if kind in ('embedding_provider_error','embedding_provider_response')]
+            assert len(terminal) == 2
+            assert [item['provider_s'] for item in terminal] == [2., 2.]
+>           assert sum(item['duration_s'] for item in terminal) == pytest.approx(4.)
+E           assert 6.200000000000003 == 4.0 ± 4.0e-06
+E             
+E             comparison failed
+E             Obtained: 6.200000000000003
+E             Expected: 4.0 ± 4.0e-06
+
+tests/primary/test_kernel_action_timing_review.py:39: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  society0.resource_managers:resource_managers.py:2336 Embedding request retry 1/2 failed on endpoint m: transient failure
+_ test_review_embedding_retry_timings_do_not_recount_previous_attempt[ollama] __
+
+provider_type = 'ollama'
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108bfe090>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('provider_type', ['openai', 'ollama'])
+    async def test_review_embedding_retry_timings_do_not_recount_previous_attempt(provider_type, monkeypatch):
+        import society0.resource_managers as module
+        manager = module.EmbeddingManager([{'id':'m','model':'m','api_key':'unused',
+            'base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type}])
+        manager._embedding_timeout_schedule = [10., 10.]
+        clock = [100.]
+        attempts = [0]
+        events = []
+        async def request(**kwargs):
+            attempts[0] += 1
+            clock[0] += 2.
+            if attempts[0] == 1:
+                raise RuntimeError('transient failure')
+            if provider_type == 'ollama':
+                return {'embeddings': [[1., 2.]]}
+            return SimpleNamespace(data=[SimpleNamespace(index=0, embedding=[1., 2.])])
+        async def pause(seconds):
+            clock[0] += seconds
+        original = manager.clients['m']
+        manager.clients['m'] = SimpleNamespace(embeddings=SimpleNamespace(create=request), embed=request)
+        monkeypatch.setattr(module, 'time', SimpleNamespace(time=lambda:clock[0]))
+        monkeypatch.setattr(module.asyncio, 'sleep', pause)
+        monkeypatch.setattr(manager, '_append_agent_thread_event_best_effort',
+            lambda metadata,kind,**kwargs:events.append((kind,kwargs['payload'])))
+        try:
+            await manager._execute_request(manager.endpoints[0], ['whole'], 2)
+            terminal = [body['timing'] for kind,body in events if kind in ('embedding_provider_error','embedding_provider_response')]
+            assert len(terminal) == 2
+            assert [item['provider_s'] for item in terminal] == [2., 2.]
+>           assert sum(item['duration_s'] for item in terminal) == pytest.approx(4.)
+E           assert 6.200000000000003 == 4.0 ± 4.0e-06
+E             
+E             comparison failed
+E             Obtained: 6.200000000000003
+E             Expected: 4.0 ± 4.0e-06
+
+tests/primary/test_kernel_action_timing_review.py:39: AssertionError
+------------------------------ Captured log call -------------------------------
+WARNING  society0.resource_managers:resource_managers.py:2336 Embedding request retry 1/2 failed on endpoint m: transient failure
+=========================== short test summary info ============================
+FAILED tests/primary/test_kernel_action_timing_review.py::test_review_embedding_retry_timings_do_not_recount_previous_attempt[openai]
+FAILED tests/primary/test_kernel_action_timing_review.py::test_review_embedding_retry_timings_do_not_recount_previous_attempt[ollama]
+2 failed, 1 passed in 0.66s

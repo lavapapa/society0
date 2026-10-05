@@ -1,0 +1,20 @@
+{
+  "deleted_owned_regenerable": [
+    "/tmp/society0-acceptance-20261004/performance-new",
+    "/tmp/society0-acceptance-20261004/performance-new-runtime-restored",
+    "/tmp/society0-acceptance-20261004/performance-old",
+    "/tmp/society0-acceptance-20261004/performance-sqlite",
+    "/tmp/society0-acceptance-20261004/performance-sqlite-final",
+    "/tmp/society0-acceptance-20261004/target",
+    "/tmp/society0-acceptance-20261004/sqlite-zstd-trial.sqlite",
+    "/tmp/society0-acceptance-20261004/shared-sqlite-trial.sqlite"
+  ],
+  "retained": [
+    "performance-shared-final",
+    "performance-shared-runtime-restored",
+    "task source+base/all/final-base venvs",
+    "task Cargo registry cache",
+    "all small raw execution evidence"
+  ],
+  "original_input_unchanged": "/tmp/society0-core-next-20261004/v04-root"
+}

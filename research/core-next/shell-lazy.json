@@ -1,0 +1,1 @@
+{"input_bytes": 8388608, "returned_bytes": 2, "provider_calls": 1, "first_seconds": 0.006216124980710447, "repeat_seconds": 0.0029322910122573376, "rss_before": 32538624, "rss_materialized": 60604416, "rss_after_release": 60702720, "mode": "lazy", "python": "3.13.0", "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O", "bashkit": "0.18.2", "peak_rss_native": 62439424}

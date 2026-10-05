@@ -1,0 +1,181 @@
+{
+  "baseline": true,
+  "records": 204882,
+  "initial_index_profiled_seconds": 15.575006291997852,
+  "dbstat": {
+    "checkpoints": 16384,
+    "datasets": 4096,
+    "entries": 22941696,
+    "entries_current": 11091968,
+    "entries_ordinal": 2748416,
+    "entries_source": 2981888,
+    "lengths": 4096,
+    "meta": 4096,
+    "scope_names": 10244096,
+    "scopes": 17997824,
+    "scopes_current": 17264640,
+    "scopes_current_entries": 12910592,
+    "scopes_history": 17997824,
+    "sources": 4096,
+    "sqlite_autoindex_checkpoints_1": 4096,
+    "sqlite_autoindex_checkpoints_2": 4096,
+    "sqlite_autoindex_datasets_1": 4096,
+    "sqlite_autoindex_entries_1": 11329536,
+    "sqlite_autoindex_lengths_1": 4096,
+    "sqlite_autoindex_meta_1": 4096,
+    "sqlite_autoindex_scope_names_1": 11091968,
+    "sqlite_autoindex_sources_1": 4096,
+    "sqlite_autoindex_threads_1": 4096,
+    "sqlite_schema": 4096,
+    "threads": 4096
+  },
+  "increments_seconds": [
+    0.0020781250059371814,
+    0.0006178750045364723,
+    0.0005730000120820478,
+    0.00045700000191573054,
+    0.00043500000901985914,
+    0.0005630410014418885,
+    0.0004998340009478852,
+    0.0005088750040158629,
+    0.0005108339973958209,
+    0.0004567079886328429,
+    0.00046874998952262104,
+    0.0005060830008005723,
+    0.00046108300739433616,
+    0.0004693329974543303,
+    0.0006284159899223596,
+    0.00046925000788178295,
+    0.00045041700650472194,
+    0.0004344589979154989,
+    0.00042662498890422285,
+    0.00042899999243672937
+  ],
+  "queries": {
+    "current": {
+      "seconds": [
+        0.023880584005382843,
+        0.024029666994465515,
+        0.022960332993534394,
+        0.02304141700733453,
+        0.023187792001408525,
+        0.023411207992467098,
+        0.022886584003572352,
+        0.023259792011231184,
+        0.02289237499644514,
+        0.023119290999602526,
+        0.02304845799517352,
+        0.023050749994581565,
+        0.023176832997705787,
+        0.022729958000127226,
+        0.022999833003268577,
+        0.022886124992510304,
+        0.02336816699244082,
+        0.02298704200075008,
+        0.024857750002411194,
+        0.026675957997213118
+      ],
+      "p95_seconds": 0.024857750002411194
+    },
+    "historical": {
+      "seconds": [
+        0.034530666991486214,
+        0.037555417002295144,
+        0.024660916009452194,
+        0.02465558299445547,
+        0.024158208994776942,
+        0.0242191669967724,
+        0.023674124997342005,
+        0.023650832998100668,
+        0.024696666994714178,
+        0.024402832990745082,
+        0.024122417002217844,
+        0.02582708399859257,
+        0.02489979199890513,
+        0.025426916996366344,
+        0.02602629200555384,
+        0.026443624999956228,
+        0.025253750005504116,
+        0.02458741600275971,
+        0.025200207994203083,
+        0.025030750010046177
+      ],
+      "p95_seconds": 0.034530666991486214
+    }
+  },
+  "files_live": {
+    "observation.sqlite": 138653696,
+    "observation.sqlite-shm": 294912,
+    "observation.sqlite-wal": 139610352
+  },
+  "peak_rss_bytes": 46022656,
+  "files_after_passive": {
+    "observation.sqlite": 138670080,
+    "observation.sqlite-shm": 294912,
+    "observation.sqlite-wal": 139610352
+  },
+  "files_after_close": {
+    "observation.sqlite": 138670080
+  },
+  "files_peak": {
+    "observation.sqlite": 138670080,
+    "observation.sqlite-shm": 294912,
+    "observation.sqlite-wal": 139610352
+  },
+  "profile": "         48055994 function calls (48055983 primitive calls) in 15.568 seconds\n\n   Ordered by: cumulative time\n   List reduced from 175 to 20 due to restriction <20>\n\n   ncalls  tottime  percall  cumtime  percall filename:lineno(function)\n     2109    0.006    0.000   14.965    0.007 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:637(wait)\n     2108    1.347    0.001   14.951    0.007 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/threading.py:323(wait)\n  3284605    5.986    0.000    6.080    0.000 {method 'execute' of 'sqlite3.Connection' objects}\n  1843938    0.345    0.000    5.338    0.000 /var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-index-mechanism-fa2q051n/old_observation.py:39(_key)\n  2048838    0.560    0.000    5.009    0.000 {method 'join' of 'str' objects}\n  5941578    0.619    0.000    4.449    0.000 /var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-index-mechanism-fa2q051n/old_observation.py:41(<genexpr>)\n  4302523    0.672    0.000    4.288    0.000 /var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/society0-index-mechanism-fa2q051n/old_observation.py:15(_json)\n  4302523    1.830    0.000    3.616    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:183(dumps)\n  4302523    0.740    0.000    1.413    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/encoder.py:183(encode)\n   204883    0.285    0.000    1.081    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/src/society0/checkpoint_records.py:310(iter_metadata)\n   409771    0.145    0.000    0.756    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/__init__.py:299(loads)\n     2109    0.011    0.000    0.594    0.000 /Users/marvin/Documents/同花顺（2）/.codex-worktrees/society0-runtime-observation/benchmarks/observation_mechanism_probe.py:85(sizes)\n   409771    0.257    0.000    0.541    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/decoder.py:333(decode)\n     8435    0.513    0.000    0.513    0.000 {method 'acquire' of '_thread.lock' objects}\n  4302523    0.372    0.000    0.372    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/json/encoder.py:105(__init__)\n     8436    0.022    0.000    0.362    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:1081(glob)\n    14773    0.019    0.000    0.288    0.000 /Users/marvin/.local/share/uv/python/cpython-3.12.12-macos-aarch64-none/lib/python3.12/pathlib.py:835(stat)\n  4097640    0.287    0.000    0.287    0.000 {built-in method _json.encode_basestring}\n  1437420    0.284    0.000    0.285    0.000 {method 'fetchone' of 'sqlite3.Cursor' objects}\n  5136954    0.253    0.000    0.253    0.000 {built-in method builtins.isinstance}\n\n\n",
+  "temporary_artifacts_removed": true,
+  "history_probe": {
+    "hot_history": [
+      {
+        "history": 10,
+        "delta": {
+          "instructions": 617,
+          "seconds": 0.0006202920048963279,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 308,
+          "seconds": 0.00030241700005717576,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 256,
+          "seconds": 0.00025387499772477895,
+          "error": null,
+          "total": 1
+        }
+      },
+      {
+        "history": 300,
+        "delta": {
+          "instructions": 617,
+          "seconds": 0.0004193749919068068,
+          "error": null,
+          "total": null
+        },
+        "old_page": {
+          "instructions": 2628,
+          "seconds": 0.00042837500222958624,
+          "error": null,
+          "total": 1
+        },
+        "current_page": {
+          "instructions": 2576,
+          "seconds": 0.0003640829963842407,
+          "error": null,
+          "total": 1
+        }
+      }
+    ],
+    "deleted_keys": {
+      "plain": {
+        "instructions": 80200,
+        "seconds": 0.004896457990980707,
+        "error": null,
+        "total": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+PYTHONPATH=/tmp/society0-core-next-20261004/cold-datasets-native-full-source/src:/tmp/society0-core-next-20261004/deps:/tmp/society0-core-next-20261004/native-json-deps python3 /tmp/society0-core-next-20261004/cold-datasets-native-full-source/benchmarks/core_next_dataset_access.py /tmp/society0-core-next-20261004/cold-datasets-native-full/run
