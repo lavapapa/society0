@@ -125,6 +125,7 @@ async def _run_social_network(tmp_path, mode: StateAccessMode) -> dict[str, Any]
 
     @engine.step(name="social_write")
     async def social_write(ctx):
+        await ctx.env.recommended_feed(ctx.world.get_agent("viewer"), ctx.env)
         await ctx.env.publish_post(
             _action_context(ctx, "author"),
             "a post for the explicit transaction test",

@@ -798,3 +798,20 @@ async def test_society0_failed_explicit_transaction_leaves_live_world_at_root(tm
         "counter": 0,
         "events": [],
     }
+
+
+def test_after_commit_callbacks_follow_transaction_outcome(tmp_path):
+    world = _world(tmp_path)
+    committed = []
+    with world.write_environment_transaction() as tx:
+        tx.state["audit"].append({"event": "commit"})
+        tx.after_commit(lambda: committed.append("commit"))
+    assert committed == ["commit"]
+
+    with pytest.raises(RuntimeError, match="rollback callback"):
+        with world.write_environment_transaction() as tx:
+            tx.state["audit"].append({"event": "rollback"})
+            tx.after_commit(lambda: committed.append("rollback"))
+            raise RuntimeError("rollback callback")
+    assert committed == ["commit"]
+    assert world.environment_data["state"]["audit"][-1] == {"event": "commit"}
