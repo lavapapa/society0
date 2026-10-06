@@ -11,6 +11,11 @@ from typing import List, Dict, Any, TYPE_CHECKING, Optional
 from collections.abc import Mapping, Sequence
 import uuid
 import math
+import heapq
+from array import array
+from collections import deque
+from itertools import islice
+from sortedcontainers import SortedList
 import time
 import random
 import logging
@@ -354,6 +359,8 @@ class SocialNetworkEnv(Environment):
         # Runtime-only recommendation caches. They are derived from state and never checkpointed.
         self._recommendation_cache_key: Optional[tuple] = None
         self._recommendation_cache: Dict[str, Any] = {}
+        self._recommendation_index: Optional[Dict[str, Any]] = None
+        self._recommendation_revision = 0
         self._recommendation_cache_rebuild_count = 0
         self._semantic_score_cache: Dict[tuple, Dict[str, float]] = {}
         self._pending_impressions: Dict[str, int] = {}
@@ -493,8 +500,7 @@ class SocialNetworkEnv(Environment):
             for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
             if key in post
         }
-        state["post_creation_facts"][post_id] = fact
-        state["post_projection"][post_id] = {
+        projection = {
             "view_count": int(post.get("view_count", 0) or 0),
             "embedding_ref": post.get("embedding_ref"),
             "embedding_model": post.get("embedding_model"),
@@ -502,14 +508,26 @@ class SocialNetworkEnv(Environment):
             "embedding_indexed": bool(post.get("embedding_indexed", False)),
             "special_tags": list(post.get("special_tags", []) or []),
         }
+        state["post_creation_facts"][post_id] = fact
+        state["post_projection"][post_id] = projection
         state["author_post_facts"].append(
             {"author_id": str(post.get("author_id") or ""), "post_id": post_id}
+        )
+        self._schedule_recommendation_update(
+            lambda post=dict(fact), projection=dict(projection):
+                self._index_post_created(post, projection)
         )
 
     def _append_post_interaction(self, event: Mapping[str, Any], state=None) -> None:
         self._ensure_social_state(state)
         state = self._state_store() if state is None else state
-        state["post_interaction_facts"].append(self._plain(dict(event)))
+        plain_event = self._plain(dict(event))
+        state["post_interaction_facts"].append(plain_event)
+        event_index = len(state["post_interaction_facts"]) - 1
+        self._schedule_recommendation_update(
+            lambda event=dict(plain_event), event_index=event_index:
+                self._index_post_interaction(event, event_index)
+        )
 
     def _set_post_projection(self, post_id: str, state=None, **updates: Any) -> None:
         self._ensure_social_state(state)
@@ -518,8 +536,21 @@ class SocialNetworkEnv(Environment):
         current = self._plain(projections.get(post_id, {}))
         if not isinstance(current, dict):
             current = {}
-        current.update({key: self._plain(value) for key, value in updates.items()})
+        plain_updates = {key: self._plain(value) for key, value in updates.items()}
+        current.update(plain_updates)
         projections[post_id] = current
+        self._schedule_recommendation_update(
+            lambda post_id=str(post_id), updates=dict(plain_updates):
+                self._index_post_projection(post_id, updates)
+        )
+
+    def _schedule_recommendation_update(self, callback) -> None:
+        transaction_getter = getattr(self._world, "current_state_transaction", None)
+        transaction = transaction_getter(("environment", "state")) if transaction_getter else None
+        if transaction is not None:
+            transaction.after_commit(callback)
+        else:
+            callback()
 
     def _author_post_index(self, state=None) -> Dict[str, List[str]]:
         index: Dict[str, List[str]] = {}
@@ -560,20 +591,17 @@ class SocialNetworkEnv(Environment):
 
     def _apply_after_tick_state(self, ctx: EnvironmentTickContext, *, state) -> None:
         self._ensure_social_state(state)
-        posts = self._posts_view(state)
-        if not isinstance(posts, Mapping):
-            self._pending_impressions.clear()
-            self._pending_recommended_posts.clear()
-            return
+        facts = state.get("post_creation_facts", {})
+        projections = state.get("post_projection", {})
         applied_impressions: Dict[str, int] = {}
         for post_id, delta in list(self._pending_impressions.items()):
-            if delta <= 0 or post_id not in posts:
+            if delta <= 0 or post_id not in facts:
                 continue
-            post_state = posts[post_id]
+            projection = projections.get(post_id, {})
             self._set_post_projection(
                 post_id,
                 state=state,
-                view_count=int(post_state.get("view_count", 0) or 0) + delta,
+                view_count=int(projection.get("view_count", 0) or 0) + delta,
             )
             applied_impressions[post_id] = delta
         recommended_updates = {
@@ -619,7 +647,6 @@ class SocialNetworkEnv(Environment):
                 )
         self._pending_impressions.clear()
         self._pending_recommended_posts.clear()
-        self._invalidate_recommendation_cache()
 
     def _log_recommendation_trace(self, **data: Any) -> None:
         """Record a compact recommendation trace into the main event log."""
@@ -910,7 +937,7 @@ class SocialNetworkEnv(Environment):
         active_epoch = getattr(world, "_active_memory_epoch_id", None)
         active_epoch = str(active_epoch) if active_epoch else None
         committed = getattr(world, "_committed_memory_epoch_ids", None)
-        committed_epochs = None if committed is None else {str(epoch) for epoch in committed}
+        committed_epochs = committed
         source_branch = getattr(world, "_memory_source_branch_id", None)
         if source_branch is None:
             source_branch = lineage[0][0] if lineage else branch_id
@@ -1049,83 +1076,294 @@ class SocialNetworkEnv(Environment):
             return await self._embed_call(texts)
 
     def _invalidate_recommendation_cache(self) -> None:
-        """Invalidate runtime-only recommendation cache."""
+        """Invalidate tick-derived scores while retaining the incremental index."""
         self._recommendation_cache_key = None
-        self._recommendation_cache = {}
         self._semantic_score_cache.clear()
 
     def _recommendation_cache_signature(self) -> tuple:
-        """Build a cache key from post-derived recommendation inputs."""
-        posts = self._posts_view()
-        post_parts = []
-        for post_id, post in posts.items():
-            if not _mapping_like(post):
-                continue
-            post_parts.append(
-                (
-                    post_id,
-                    post.get("post_id", post_id),
-                    post.get("author_id"),
-                    post.get("created_tick", 0),
-                    post.get("reply_to"),
-                    post.get("content", ""),
-                    tuple(post.get("tags", []) or []),
-                    len(post.get("likes", []) or []),
-                    len(post.get("replies", []) or []),
-                    post.get("embedding_ref") or post.get("embedding_indexed") or (post.get("embedding") is not None),
-                )
-            )
+        """Return an O(1) key for current tick and canonical recommendation writes."""
         cfg = self._config.social_media.recommendation
         return (
-            getattr(self._world, "step", 0),
-            tuple(sorted(post_parts)),
+            int(getattr(self._world, "step", 0) or 0),
+            int(getattr(self, "_recommendation_revision", 0)),
             str(cfg.model_dump()),
         )
 
+    def _engagement_rank_key(self, post_id: str, index=None) -> tuple[float, int, str]:
+        index = self._ensure_recommendation_index() if index is None else index
+        likes, replies, reposts = index["counts"].get(post_id, (0, 0, 0))
+        cfg = self._config.social_media.recommendation
+        score = cfg.like_score * likes + cfg.reply_score * replies + cfg.repost_score * reposts
+        fact = self._state_store()["post_creation_facts"].get(post_id, {})
+        return score, int(fact.get("created_tick", 0) or 0), post_id
+
+    def _refresh_top_engagement(self, post_id: str, index, previous_rank=None) -> None:
+        ranking = index["engagement_ranking"]
+        if previous_rank is not None:
+            ranking.remove(previous_rank)
+        ranking.add(self._engagement_rank_key(post_id, index))
+        limit = self._config.social_media.recommendation.top_engagement_keep_count
+        index["top_engagement_ids"] = [row[2] for row in reversed(ranking[-limit:])]
+
+    def _ensure_recommendation_index(self) -> Dict[str, Any]:
+        """Rebuild compact counters and bounded candidate indexes once per env restore."""
+        existing = getattr(self, "_recommendation_index", None)
+        config_key = str(self._config.social_media.recommendation.model_dump())
+        if existing is not None and existing["config_key"] == config_key:
+            return existing
+        self._recommendation_cache = {}
+        state = self._state_store()
+        facts = state.get("post_creation_facts", {})
+        interactions = state.get("post_interaction_facts", []) or []
+        current_tick = int(getattr(self._world, "step", 0) or 0)
+        cfg = self._config.social_media.recommendation
+        counts: Dict[str, list[int]] = {}
+        interaction_indexes: Dict[str, array] = {}
+        seen_likes: Dict[str, set[Any]] = {}
+        young_ids = []
+        repost_targets = []
+        for fallback_id, raw_post in facts.items():
+            post_id = str(raw_post.get("post_id") or fallback_id)
+            counts[post_id] = [0, 0, 0]
+            created_tick = int(raw_post.get("created_tick", 0) or 0)
+            if current_tick - created_tick < cfg.min_lifetime_ticks:
+                young_ids.append(post_id)
+            parent_id = raw_post.get("reply_to")
+            if parent_id:
+                repost_targets.append(str(parent_id))
+        for parent_id in repost_targets:
+            if parent_id in counts:
+                counts[parent_id][2] += 1
+        for event_index, raw_event in enumerate(interactions):
+            event = self._plain(raw_event)
+            if not isinstance(event, Mapping):
+                continue
+            post_id = str(event.get("post_id") or event.get("original_post_id") or "")
+            if post_id not in counts:
+                continue
+            interaction_indexes.setdefault(post_id, array("Q")).append(event_index)
+            kind = event.get("kind")
+            if kind == "like":
+                agent_id = event.get("agent_id")
+                likes = seen_likes.setdefault(post_id, set())
+                if agent_id not in likes:
+                    likes.add(agent_id)
+                    counts[post_id][0] += 1
+            elif kind == "comment":
+                counts[post_id][1] += 1
+        self._recommendation_index = {
+            "counts": counts,
+            "seen_likes": seen_likes,
+            "config_key": config_key,
+            "engagement_ranking": SortedList(
+                self._engagement_rank_key(pid, {"counts": counts}) for pid in counts
+            ),
+            "interaction_indexes": interaction_indexes,
+            "recent_ids": heapq.nlargest(
+                cfg.recent_keep_count,
+                counts,
+                key=lambda pid: (int(facts[pid].get("created_tick", 0) or 0), pid),
+            ),
+            "young_ids": deque(sorted(
+                young_ids,
+                key=lambda pid: (int(facts[pid].get("created_tick", 0) or 0), pid),
+            )),
+            "top_engagement_ids": heapq.nlargest(
+                cfg.top_engagement_keep_count,
+                counts,
+                key=lambda pid: self._engagement_rank_key(pid, {"counts": counts}),
+            ),
+            "post_count": len(counts),
+        }
+        return self._recommendation_index
+
+    def _index_post_created(self, post: Dict[str, Any], projection: Dict[str, Any]) -> None:
+        index = getattr(self, "_recommendation_index", None)
+        if index is None:
+            return
+        post_id = str(post.get("post_id") or "")
+        if not post_id or post_id in index["counts"]:
+            return
+        index["counts"][post_id] = [0, 0, 0]
+        index["post_count"] += 1
+        parent_id = post.get("reply_to")
+        if parent_id and parent_id in index["counts"]:
+            previous_rank = self._engagement_rank_key(str(parent_id), index)
+            index["counts"][str(parent_id)][2] += 1
+            self._refresh_top_engagement(str(parent_id), index, previous_rank)
+        cfg = self._config.social_media.recommendation
+        tick = int(getattr(self._world, "step", 0) or 0)
+        created_tick = int(post.get("created_tick", tick) or 0)
+        recent = index["recent_ids"]
+        recent.append(post_id)
+        facts = self._state_store()["post_creation_facts"]
+        recent.sort(key=lambda pid: (int(facts[pid].get("created_tick", 0) or 0), pid), reverse=True)
+        del recent[cfg.recent_keep_count:]
+        if tick - created_tick < cfg.min_lifetime_ticks:
+            young = list(index["young_ids"])
+            young.append(post_id)
+            young.sort(key=lambda pid: (int(facts[pid].get("created_tick", 0) or 0), pid))
+            index["young_ids"] = deque(young)
+        self._refresh_top_engagement(post_id, index)
+        self._recommendation_revision = int(getattr(self, "_recommendation_revision", 0)) + 1
+        self._invalidate_recommendation_cache()
+
+    def _index_post_interaction(self, event: Dict[str, Any], event_index: int) -> None:
+        index = getattr(self, "_recommendation_index", None)
+        if index is None:
+            return
+        post_id = str(event.get("post_id") or event.get("original_post_id") or "")
+        counts = index["counts"].get(post_id)
+        if counts is None:
+            return
+        previous_rank = self._engagement_rank_key(post_id, index)
+        index["interaction_indexes"].setdefault(post_id, array("Q")).append(event_index)
+        kind = event.get("kind")
+        if kind == "like":
+            seen = index["seen_likes"].setdefault(post_id, set())
+            agent_id = event.get("agent_id")
+            if agent_id not in seen:
+                seen.add(agent_id)
+                counts[0] += 1
+        elif kind == "comment":
+            counts[1] += 1
+        cached_post = getattr(self, "_recommendation_cache", {}).get("posts", {}).get(post_id)
+        if cached_post is not None:
+            if kind == "like":
+                agent_id = event.get("agent_id")
+                if agent_id not in cached_post["likes"]:
+                    cached_post["likes"].append(agent_id)
+                cached_post["like_events"].append({
+                    "agent_id": agent_id,
+                    "created_tick": event.get("created_tick", 0),
+                })
+            elif kind == "comment":
+                cached_post["replies"].append(event.get("reply") or {
+                    key: event.get(key)
+                    for key in ("reply_id", "author_id", "original_post_id", "content", "created_tick")
+                    if key in event
+                })
+            elif kind == "vote":
+                cached_post["votes"].append({
+                    key: event.get(key)
+                    for key in ("vote_id", "voter_id", "original_post_id", "vote", "created_tick")
+                    if key in event
+                })
+        if kind in {"like", "comment"}:
+            self._refresh_top_engagement(post_id, index, previous_rank)
+        self._recommendation_revision = int(getattr(self, "_recommendation_revision", 0)) + 1
+        self._invalidate_recommendation_cache()
+
+    def _index_post_projection(self, post_id: str, updates: Dict[str, Any]) -> None:
+        cache = getattr(self, "_recommendation_cache", {})
+        cached_post = cache.get("posts", {}).get(post_id)
+        if cached_post is not None:
+            cached_post.update(updates)
+            features = cache.get("post_features", {}).get(post_id)
+            if features is not None and "view_count" in updates:
+                features["views"] = int(updates["view_count"] or 0)
+        if set(updates) - {"view_count"}:
+            self._recommendation_revision = int(getattr(self, "_recommendation_revision", 0)) + 1
+            self._invalidate_recommendation_cache()
+
+    def _candidate_post_view(self, post_id: str, index) -> Dict[str, Any]:
+        state = self._state_store()
+        raw = state["post_creation_facts"].get(post_id)
+        if not isinstance(raw, Mapping):
+            return {}
+        post = dict(self._plain(raw))
+        post.setdefault("post_id", post_id)
+        post.setdefault("tags", [])
+        post.setdefault("special_tags", [])
+        post.setdefault("likes", [])
+        post.setdefault("like_events", [])
+        post.setdefault("replies", [])
+        post.setdefault("votes", [])
+        post.setdefault("view_count", 0)
+        post.setdefault("embedding_ref", None)
+        post.setdefault("embedding_model", None)
+        post.setdefault("embedding_dimensions", None)
+        post.setdefault("embedding_indexed", False)
+        projection = state.get("post_projection", {}).get(post_id, {})
+        if isinstance(projection, Mapping):
+            post.update(self._plain(projection))
+        events = state.get("post_interaction_facts", []) or []
+        seen_likes = set()
+        for event_index in index["interaction_indexes"].get(post_id, []):
+            event = self._plain(events[event_index])
+            kind = event.get("kind")
+            if kind == "like":
+                agent_id = event.get("agent_id")
+                if agent_id not in seen_likes:
+                    seen_likes.add(agent_id)
+                    post["likes"].append(agent_id)
+                post["like_events"].append({"agent_id": agent_id, "created_tick": event.get("created_tick", 0)})
+            elif kind == "comment":
+                post["replies"].append(event.get("reply") or {
+                    key: event.get(key)
+                    for key in ("reply_id", "author_id", "original_post_id", "content", "created_tick")
+                    if key in event
+                })
+            elif kind == "vote":
+                post["votes"].append({
+                    key: event.get(key)
+                    for key in ("vote_id", "voter_id", "original_post_id", "vote", "created_tick")
+                    if key in event
+                })
+        return post
+
     def _get_recommendation_cache(self) -> Dict[str, Any]:
-        """Return post features and active pool derived from current state."""
+        """Return tick scores over incrementally maintained bounded candidates."""
         cache_key = self._recommendation_cache_signature()
         if self._recommendation_cache_key == cache_key and self._recommendation_cache:
             return self._recommendation_cache
 
         cfg = self._config.social_media.recommendation
-        current_tick = int(getattr(self._world, "step", 0))
-        state_posts = self._posts_view()
-        posts_by_id: Dict[str, Dict[str, Any]] = {}
-        for fallback_id, post in state_posts.items():
-            if not _mapping_like(post):
-                continue
-            post_copy = dict(post)
-            post_id = str(post_copy.get("post_id") or fallback_id)
-            post_copy["post_id"] = post_id
-            posts_by_id[post_id] = post_copy
-
-        repost_counts = self._build_repost_counts(posts_by_id)
-        decay_constant = cfg.time_decay_hours if cfg.time_decay_hours > 0 else 1.0
+        current_tick = int(getattr(self._world, "step", 0) or 0)
+        index = self._ensure_recommendation_index()
+        facts = self._state_store().get("post_creation_facts", {})
+        young = index["young_ids"]
+        while young and current_tick - int(facts[young[0]].get("created_tick", 0) or 0) >= cfg.min_lifetime_ticks:
+            young.popleft()
+        if index["post_count"] <= cfg.full_scan_until:
+            active_ids = set(index["counts"])
+        else:
+            active_ids = set(index["recent_ids"]) | set(index["top_engagement_ids"]) | set(young)
+        active_pool_ids = sorted(
+            active_ids,
+            key=lambda pid: (
+                int(facts[pid].get("created_tick", 0) or 0),
+                self._engagement_rank_key(pid, index)[0],
+                pid,
+            ),
+            reverse=True,
+        )
+        previous_posts = self._recommendation_cache.get("posts", {})
+        posts_by_id = {
+            pid: previous_posts[pid] if pid in previous_posts else self._candidate_post_view(pid, index)
+            for pid in active_pool_ids
+        }
+        repost_counts = {pid: index["counts"][pid][2] for pid in active_pool_ids}
         post_features: Dict[str, Dict[str, Any]] = {}
-        for post_id, post in posts_by_id.items():
+        decay_constant = cfg.time_decay_hours if cfg.time_decay_hours > 0 else 1.0
+        for post_id in active_pool_ids:
+            post = posts_by_id[post_id]
             created_tick = int(post.get("created_tick", 0) or 0)
             age = max(current_tick - created_tick, 0)
             time_score = math.exp(-age / decay_constant)
-            likes = len(post.get("likes", []) or [])
-            replies = len(post.get("replies", []) or [])
-            reposts = repost_counts.get(post_id, 0)
-            engagement_score = self._post_engagement_score(post, repost_counts)
+            likes, replies, reposts = index["counts"][post_id]
+            engagement_score = self._engagement_rank_key(post_id, index)[0]
+            views = int(post.get("view_count", 0) or 0)
             post_features[post_id] = {
                 "created_tick": created_tick,
                 "likes": likes,
                 "replies": replies,
                 "reposts": reposts,
-                "views": int(post.get("view_count", 0) or 0),
+                "views": views,
                 "time_score": time_score,
                 "engagement_score": engagement_score,
-                "base_score": (
-                    cfg.chronological_weight * time_score
-                    + cfg.engagement_weight * engagement_score
-                ),
+                "base_score": cfg.chronological_weight * time_score + cfg.engagement_weight * engagement_score,
             }
-
-        active_pool_ids = self._build_active_pool_ids(posts_by_id, post_features, current_tick)
         self._recommendation_cache_key = cache_key
         self._recommendation_cache = {
             "posts": posts_by_id,
@@ -1213,9 +1451,9 @@ class SocialNetworkEnv(Environment):
         return text if len(text) <= limit else text[:limit] + "..."
 
     def _count_reposts(self, post_id: str) -> int:
-        """统计被转发次数（通过 reply_to 追踪）"""
-        posts = self._posts_view()
-        return sum(1 for p in posts.values() if p.get("reply_to") == post_id)
+        """统计被转发次数（通过规范推荐索引读取）。"""
+        index = self._ensure_recommendation_index()
+        return int(index["counts"].get(str(post_id), (0, 0, 0))[2])
 
     @staticmethod
     def _strip_nested_repost_content(content: str) -> str:
@@ -2498,7 +2736,7 @@ class SocialNetworkEnv(Environment):
 
     def _record_impression(self, post_id: str) -> None:
         """Record a view for after_tick batch flush."""
-        if post_id and post_id in self._posts_view():
+        if post_id and post_id in self._state_store().get("post_creation_facts", {}):
             self._pending_impressions[post_id] = self._pending_impressions.get(post_id, 0) + 1
 
     def _increment_view_count(self, post_id: str) -> None:
@@ -2604,24 +2842,20 @@ class SocialNetworkEnv(Environment):
         if limit <= 0:
             return []
         cache = self._get_recommendation_cache()
-        posts_by_id = cache.get("posts", {})
-        features_by_id = cache.get("post_features", {})
+        index = self._ensure_recommendation_index()
+        facts = self._state_store()["post_creation_facts"]
+        ranked_ids = list(islice((
+            row[2] for row in reversed(index["engagement_ranking"])
+            if agent is None or facts[row[2]].get("author_id", "") != agent.id
+        ), limit))
         posts = []
-        for post_id, post_data in posts_by_id.items():
-            author_id = post_data.get("author_id", "")
-            if agent and author_id == agent.id:
-                continue
-            posts.append(dict(post_data))
-        ranked = sorted(
-            posts,
-            key=lambda x: (
-                features_by_id.get(x.get("post_id"), {}).get("engagement_score", 0.0),
-                x.get("created_tick", 0),
-                x.get("post_id", ""),
-            ),
-            reverse=True,
-        )
-        return ranked[:limit]
+        for post_id in ranked_ids:
+            post = cache.get("posts", {}).get(post_id)
+            if post is None:
+                post = self._candidate_post_view(post_id, index)
+            if post:
+                posts.append(dict(post))
+        return posts
 
     def _get_other_agents_in_network(self, current_agent: Agent) -> List[str]:
         """

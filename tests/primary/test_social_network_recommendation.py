@@ -71,34 +71,22 @@ def _post(post_id, *, author_id="author_recent", created_tick=0, likes=0, replie
 
 
 def _seed_post(env, post):
-    """通过 v4 canonical 容器写入测试帖子及其初始事实。"""
+    """通过 canonical 写入器写入测试帖子与初始互动。"""
+    env._append_post_creation(post)
     post_id = str(post["post_id"])
-    creation = {
-        key: post[key]
-        for key in ("post_id", "author_id", "content", "tags", "created_tick", "reply_to")
-        if key in post
-    }
-    env.state["post_creation_facts"][post_id] = creation
-    env.state["post_projection"][post_id] = {
-        "view_count": int(post.get("view_count", 0) or 0),
-        "special_tags": list(post.get("special_tags", []) or []),
-    }
-    env.state["author_post_facts"].append(
-        {"author_id": str(post.get("author_id") or ""), "post_id": post_id}
-    )
     for liker_id in post.get("likes", []) or []:
-        env.state["post_interaction_facts"].append(
-            {
-                "kind": "like",
-                "post_id": post_id,
-                "agent_id": liker_id,
-                "created_tick": post.get("created_tick", 0),
-            }
-        )
+        env._append_post_interaction({
+            "kind": "like",
+            "post_id": post_id,
+            "agent_id": liker_id,
+            "created_tick": post.get("created_tick", 0),
+        })
     for reply in post.get("replies", []) or []:
-        env.state["post_interaction_facts"].append(
-            {"kind": "comment", "post_id": post_id, "reply": reply}
-        )
+        env._append_post_interaction({
+            "kind": "comment",
+            "post_id": post_id,
+            "reply": reply,
+        })
 
 
 def _load_many_posts(env, *, count=1000):
@@ -1150,3 +1138,104 @@ async def test_trending_uses_same_engagement_features(tmp_path):
     await engine.run(steps=1)
 
     assert observed["trending"][0] == "repost_target"
+
+
+@pytest.mark.asyncio
+async def test_recommendation_new_tick_does_not_scan_historical_posts(tmp_path):
+    engine = Society0(
+        save_dir=str(tmp_path),
+        base_config=_social_config(recommendation={
+            "full_scan_until": 10,
+            "recent_keep_count": 8,
+            "top_engagement_keep_count": 8,
+            "min_lifetime_ticks": 1,
+        }),
+    )
+    observed = {}
+
+    @engine.step(name="recommendation_index_tick")
+    async def recommendation_index_tick(ctx):
+        for idx in range(100):
+            _seed_post(ctx.env, _post(f"history_{idx:03d}", created_tick=idx))
+        engine_step = ctx.world.step
+        ctx.world.step = 100
+        first = ctx.env._get_recommendation_cache()
+        original_posts_view = ctx.env._posts_view
+        calls = {"count": 0}
+
+        def counted_posts_view(state=None):
+            calls["count"] += 1
+            return original_posts_view(state)
+
+        ctx.env._posts_view = counted_posts_view
+        original_step = ctx.world.step
+        ctx.world.step = original_step + 1
+        try:
+            second = ctx.env._get_recommendation_cache()
+            observed["posts_view_calls"] = calls["count"]
+            observed["active_ids"] = second["active_pool_ids"]
+            observed["active_count"] = len(second["posts"])
+        finally:
+            ctx.world.step = engine_step
+        assert first["active_pool_ids"] == observed["active_ids"]
+        return None
+
+    await engine.run(steps=1)
+
+    assert observed["posts_view_calls"] == 0
+    assert observed["active_count"] == 8
+
+
+@pytest.mark.asyncio
+async def test_negative_interaction_weights_keep_exact_global_top_after_mutation(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config(
+        recommendation={"full_scan_until":1, "recent_keep_count":1,
+                        "top_engagement_keep_count":1, "min_lifetime_ticks":0,
+                        "like_score":-1.0}))
+    observed = {}
+    @engine.step(name="negative_ranking")
+    async def verify(ctx):
+        _seed_post(ctx.env, _post("older", created_tick=1))
+        _seed_post(ctx.env, _post("newer", created_tick=2))
+        ctx.env._get_recommendation_cache()
+        ctx.env._append_post_interaction({"kind":"like","post_id":"newer","agent_id":"viewer"})
+        observed["top"] = ctx.env._ensure_recommendation_index()["top_engagement_ids"]
+    await engine.run(steps=1)
+    assert observed["top"] == ["older"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_transaction_indexes_each_committed_interaction_once(tmp_path):
+    config = _social_config()
+    engine = Society0(save_dir=str(tmp_path), base_config=config,
+                      state_access_mode="explicit_transactions")
+    observed = {}
+    @engine.step(name="multiple_interactions")
+    async def verify(ctx):
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_creation(_post("p"), state=tx.state)
+        ctx.env._get_recommendation_cache()
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_interaction({"kind":"like","post_id":"p","agent_id":"viewer"},state=tx.state)
+            ctx.env._append_post_interaction({"kind":"comment","post_id":"p","reply":{"content":"first"}},state=tx.state)
+            ctx.env._append_post_interaction({"kind":"comment","post_id":"p","reply":{"content":"second"}},state=tx.state)
+        observed["post"] = ctx.env._candidate_post_view("p", ctx.env._ensure_recommendation_index())
+        observed["reference"] = ctx.env._posts_view()["p"]
+    await engine.run(steps=1)
+    assert observed["post"] == observed["reference"]
+
+
+@pytest.mark.asyncio
+async def test_canonical_duplicate_likes_keep_index_equal_to_history_view(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config())
+    observed = {}
+    @engine.step(name="duplicate_like")
+    async def verify(ctx):
+        _seed_post(ctx.env, _post("p"))
+        ctx.env._get_recommendation_cache()
+        for _ in range(2):
+            ctx.env._append_post_interaction({"kind":"like","post_id":"p","agent_id":"viewer"})
+        observed["likes"] = ctx.env._get_recommendation_cache()["post_features"]["p"]["likes"]
+        observed["reference"] = len(ctx.env._posts_view()["p"]["likes"])
+    await engine.run(steps=1)
+    assert observed["likes"] == observed["reference"]

@@ -266,6 +266,7 @@ class StateTransaction:
         self._append_ids: set[tuple[tuple[Any, ...], Any]] = set()
         self._start_version_epoch = 0
         self._start_tick = None
+        self._after_commit_callbacks: list[Any] = []
 
     # ------------------------------------------------------------------
     # lifecycle / public API
@@ -304,6 +305,11 @@ class StateTransaction:
             self._state_view = self._wrap(self.root_path)
         return self._state_view
 
+    def after_commit(self, callback: Any) -> None:
+        """Register a runtime-only update that runs after canonical state commits."""
+        self._ensure_live()
+        self._after_commit_callbacks.append(callback)
+
     def commit(self) -> None:
         self._ensure_live()
         try:
@@ -312,15 +318,20 @@ class StateTransaction:
             self.invalidate("state transaction commit failed")
             raise
         self._finish()
+        callbacks, self._after_commit_callbacks = self._after_commit_callbacks, []
+        for callback in callbacks:
+            callback()
 
     def rollback(self) -> None:
         if not self._active:
             return
+        self._after_commit_callbacks.clear()
         self._finish()
 
     def invalidate(self, reason: str = "state transaction has expired") -> None:
         if not self._active:
             return
+        self._after_commit_callbacks.clear()
         self._active = False
         self._lease.invalidate()
         self.world._unregister_state_transaction(self)
