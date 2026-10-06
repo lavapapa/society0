@@ -1239,3 +1239,144 @@ async def test_canonical_duplicate_likes_keep_index_equal_to_history_view(tmp_pa
         observed["reference"] = len(ctx.env._posts_view()["p"]["likes"])
     await engine.run(steps=1)
     assert observed["likes"] == observed["reference"]
+
+@pytest.mark.asyncio
+async def test_concurrent_explicit_transactions_index_committed_positions(tmp_path):
+    import contextvars
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config(),
+                      state_access_mode="explicit_transactions")
+    observed = {}
+    @engine.step(name="concurrent_interactions")
+    async def verify(ctx):
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_creation(_post("p"), state=tx.state)
+        ctx.env._get_recommendation_cache()
+        transactions = []
+        for content in ("first", "second"):
+            context = contextvars.Context()
+            tx = ctx.env.write_transaction()
+            context.run(tx.__enter__)
+            context.run(ctx.env._append_post_interaction,
+                        {"kind":"comment","post_id":"p","reply":{"content":content}},
+                        tx.state)
+            transactions.append((context, tx))
+        for context, tx in transactions:
+            context.run(tx.commit)
+        observed["post"] = ctx.env._candidate_post_view("p", ctx.env._ensure_recommendation_index())
+        observed["reference"] = ctx.env._posts_view()["p"]
+        observed["positions"] = list(ctx.env._ensure_recommendation_index()["interaction_indexes"]["p"])
+    await engine.run(steps=1)
+    assert observed["post"] == observed["reference"]
+    assert observed["positions"] == [0, 1]
+
+@pytest.mark.asyncio
+async def test_failed_recommendation_update_invalidates_derived_index(tmp_path, monkeypatch):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config(),
+                      state_access_mode="explicit_transactions")
+    observed = {}
+    @engine.step(name="failed_derived_update")
+    async def verify(ctx):
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_creation(_post("p"), state=tx.state)
+        ctx.env._get_recommendation_cache()
+        original = ctx.env._index_post_interaction
+        def broken(*args):
+            raise RuntimeError("derived update failed")
+        monkeypatch.setattr(ctx.env, "_index_post_interaction", broken)
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_interaction(
+                {"kind":"comment","post_id":"p","reply":{"content":"committed"}}, state=tx.state)
+        observed["invalidated"] = ctx.env._recommendation_index is None
+        monkeypatch.setattr(ctx.env, "_index_post_interaction", original)
+        index = ctx.env._ensure_recommendation_index()
+        observed["post"] = ctx.env._candidate_post_view("p", index)
+        observed["reference"] = ctx.env._posts_view()["p"]
+    await engine.run(steps=1)
+    assert observed["invalidated"]
+    assert observed["post"] == observed["reference"]
+
+@pytest.mark.asyncio
+async def test_default_semantic_preference_uses_incremental_indexes(tmp_path, monkeypatch):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config(
+        recommendation={"use_embedding_similarity":True}))
+    observed = {}
+    @engine.step(name="indexed_preference")
+    async def verify(ctx):
+        for i in range(100):
+            _seed_post(ctx.env, _post(str(i), author_id="viewer", created_tick=i))
+        for pid, kind, tick in [("99","comment",4),("0","like",4),("1","comment",3),("99","like",4)]:
+            event = {"post_id":pid,"kind":kind,"agent_id":"viewer","created_tick":tick}
+            if kind == "comment":
+                event["reply"]={"content":pid+" reply","author_id":"viewer","created_tick":tick}
+            ctx.env._append_post_interaction(event)
+        agent=ctx.world.get_agent("viewer")
+        observed["reference"]=ctx.env._build_agent_preference_text(agent)
+        ctx.env._get_recommendation_cache()
+        def scan_forbidden(*args):
+            raise AssertionError("semantic preference scanned complete history")
+        monkeypatch.setattr(ctx.env,"_posts_view",scan_forbidden)
+        monkeypatch.setattr(ctx.env,"_author_post_index",scan_forbidden)
+        observed["actual"]=ctx.env._build_agent_preference_text(agent)
+        observed["interactions"]=ctx.env._collect_recent_interactions_for_agent("viewer",10)
+    await engine.run(steps=1)
+    assert observed["actual"] == observed["reference"]
+    assert [(item["post_id"],item["type"]) for item in observed["interactions"]] == [
+        ("0","like"),("99","like"),("99","comment"),("1","comment")]
+
+@pytest.mark.asyncio
+async def test_changed_recommendation_config_rebuilds_once_before_index_update(tmp_path, caplog):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config())
+    observed = {}
+    @engine.step(name="changed_config")
+    async def verify(ctx):
+        _seed_post(ctx.env,_post("p"))
+        ctx.env._get_recommendation_cache()
+        ctx.env._append_post_interaction({"kind":"like","post_id":"p","agent_id":"a"})
+        ctx.env._config.social_media.recommendation.like_score=2
+        ctx.env._append_post_interaction({"kind":"like","post_id":"p","agent_id":"b"})
+        observed["likes"]=ctx.env._ensure_recommendation_index()["counts"]["p"][0]
+    await engine.run(steps=1)
+    assert observed["likes"] == 2
+    assert "recommendation index update failed" not in caplog.text
+
+@pytest.mark.asyncio
+async def test_selected_post_view_keeps_pending_explicit_interactions(tmp_path):
+    engine = Society0(save_dir=str(tmp_path), base_config=_social_config(),
+                      state_access_mode="explicit_transactions")
+    observed={}
+    @engine.step(name="selected_pending")
+    async def verify(ctx):
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_creation(_post("p"),state=tx.state)
+            ctx.env._append_post_creation(_post("other"),state=tx.state)
+        ctx.env._get_recommendation_cache()
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_interaction(
+                {"kind":"comment","post_id":"p","reply":{"content":"pending"}},state=tx.state)
+            observed["selected"]=ctx.env._posts_view(tx.state, post_ids=["p"])
+            observed["reference"]=ctx.env._posts_view(tx.state)
+    await engine.run(steps=1)
+    assert observed["selected"] == {"p":observed["reference"]["p"]}
+
+@pytest.mark.asyncio
+async def test_changed_config_with_multiple_transaction_events_is_applied_once(tmp_path):
+    engine = Society0(save_dir=str(tmp_path),base_config=_social_config(),
+                      state_access_mode="explicit_transactions")
+    observed={}
+    @engine.step(name="config_multi")
+    async def verify(ctx):
+        with ctx.env.write_transaction() as tx:
+            ctx.env._append_post_creation(_post("p"),state=tx.state)
+        ctx.env._get_recommendation_cache()
+        ctx.env._config.social_media.recommendation.like_score=2
+        with ctx.env.write_transaction() as tx:
+            for text in ("first","second"):
+                ctx.env._append_post_interaction(
+                    {"kind":"comment","post_id":"p","reply":{"content":text}},state=tx.state)
+        index=ctx.env._ensure_recommendation_index()
+        observed["replies"]=index["counts"]["p"][1]
+        observed["post"]=ctx.env._candidate_post_view("p",index)
+        observed["reference"]=ctx.env._posts_view()["p"]
+    await engine.run(steps=1)
+    assert observed["replies"] == 2
+    assert observed["post"] == observed["reference"]

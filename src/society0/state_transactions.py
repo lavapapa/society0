@@ -12,6 +12,7 @@ at commit time.
 from __future__ import annotations
 
 import copy
+import logging
 from collections.abc import Mapping, MutableMapping, MutableSequence, Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -267,6 +268,7 @@ class StateTransaction:
         self._start_version_epoch = 0
         self._start_tick = None
         self._after_commit_callbacks: list[Any] = []
+        self._committed_append_positions: dict[tuple[Any, ...], int] = {}
 
     # ------------------------------------------------------------------
     # lifecycle / public API
@@ -310,6 +312,10 @@ class StateTransaction:
         self._ensure_live()
         self._after_commit_callbacks.append(callback)
 
+    def committed_append_index(self, path: tuple[Any, ...], staged_index: int) -> int:
+        """返回本事务 append 在规范列表中实际提交的位置，供提交后派生索引使用。"""
+        return self._committed_append_positions[tuple(path) + (staged_index,)]
+
     def commit(self) -> None:
         self._ensure_live()
         try:
@@ -320,7 +326,11 @@ class StateTransaction:
         self._finish()
         callbacks, self._after_commit_callbacks = self._after_commit_callbacks, []
         for callback in callbacks:
-            callback()
+            try:
+                callback()
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "runtime update failed after canonical state committed")
 
     def rollback(self) -> None:
         if not self._active:
@@ -1068,6 +1078,8 @@ class StateTransaction:
             target = self.world._persistence_lookup(container)
             if target is None:
                 raise KeyError(container)
+            if operation == "append":
+                self._committed_append_positions[container + (key,)] = len(target)
             self._apply_operation(target, operation, key, value)
             affected = container + (key,) if key is not None else container
             if affected not in touched_set:

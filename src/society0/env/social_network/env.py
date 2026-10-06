@@ -14,7 +14,7 @@ import math
 import heapq
 from array import array
 from collections import deque
-from itertools import islice
+from itertools import islice, chain
 from sortedcontainers import SortedList
 import time
 import random
@@ -429,14 +429,17 @@ class SocialNetworkEnv(Environment):
         active_tick = getattr(journal, "active_step", None) is not None
         return self.state if active_tick else self._world.environment_data.setdefault("state", {})
 
-    def _posts_view(self, state=None) -> Dict[str, Dict[str, Any]]:
+    def _posts_view(self, state=None, *, post_ids=None) -> Dict[str, Dict[str, Any]]:
         """由不可变帖子/互动事实和有界投影构建只读业务视图。"""
         self._ensure_social_state(state)
         state = self._state_store() if state is None else state
         facts = state.get("post_creation_facts", {})
         projections = state.get("post_projection", {})
         result: Dict[str, Dict[str, Any]] = {}
-        for fallback_id, raw_fact in facts.items():
+        selected_ids = None if post_ids is None else tuple(dict.fromkeys(post_ids))
+        fact_rows = facts.items() if selected_ids is None else (
+            (pid, facts[pid]) for pid in selected_ids if pid in facts)
+        for fallback_id, raw_fact in fact_rows:
             fact = self._plain(raw_fact)
             if not isinstance(fact, dict):
                 continue
@@ -458,7 +461,19 @@ class SocialNetworkEnv(Environment):
                 post.update(self._plain(projection))
             result[post_id] = post
 
-        for raw_event in state.get("post_interaction_facts", []) or []:
+        events = state.get("post_interaction_facts", []) or []
+        if selected_ids is None:
+            event_rows = events
+        else:
+            index = self._ensure_recommendation_index()
+            committed_count = len(self._world.environment_data["state"].get("post_interaction_facts", []))
+            positions = (
+                position for pid in selected_ids
+                for position in index["interaction_indexes"].get(pid, []))
+            # 显式事务自己的未提交 append 位于规范列表尾部之后。
+            event_rows = (events[position] for position in
+                chain(positions, range(committed_count, len(events))))
+        for raw_event in event_rows:
             event = self._plain(raw_event)
             if not isinstance(event, Mapping):
                 continue
@@ -524,10 +539,14 @@ class SocialNetworkEnv(Environment):
         plain_event = self._plain(dict(event))
         state["post_interaction_facts"].append(plain_event)
         event_index = len(state["post_interaction_facts"]) - 1
-        self._schedule_recommendation_update(
-            lambda event=dict(plain_event), event_index=event_index:
-                self._index_post_interaction(event, event_index)
-        )
+        transaction_getter = getattr(self._world, "current_state_transaction", None)
+        transaction = transaction_getter(("environment", "state")) if transaction_getter else None
+        def update():
+            position = (transaction.committed_append_index(
+                ("environment", "state", "post_interaction_facts"), event_index)
+                if transaction is not None else event_index)
+            self._index_post_interaction(plain_event, position)
+        self._schedule_recommendation_update(update)
 
     def _set_post_projection(self, post_id: str, state=None, **updates: Any) -> None:
         self._ensure_social_state(state)
@@ -547,10 +566,18 @@ class SocialNetworkEnv(Environment):
     def _schedule_recommendation_update(self, callback) -> None:
         transaction_getter = getattr(self._world, "current_state_transaction", None)
         transaction = transaction_getter(("environment", "state")) if transaction_getter else None
+        def update():
+            try:
+                callback()
+            except Exception:
+                # 规范事实已提交；派生索引失效后由下一次读取从规范事实重建。
+                self._recommendation_index = None
+                self._invalidate_recommendation_cache()
+                logger.exception("recommendation index update failed after state committed")
         if transaction is not None:
-            transaction.after_commit(callback)
+            transaction.after_commit(update)
         else:
-            callback()
+            update()
 
     def _author_post_index(self, state=None) -> Dict[str, List[str]]:
         index: Dict[str, List[str]] = {}
@@ -1112,7 +1139,7 @@ class SocialNetworkEnv(Environment):
         if existing is not None and existing["config_key"] == config_key:
             return existing
         self._recommendation_cache = {}
-        state = self._state_store()
+        state = self._world.environment_data["state"]
         facts = state.get("post_creation_facts", {})
         interactions = state.get("post_interaction_facts", []) or []
         current_tick = int(getattr(self._world, "step", 0) or 0)
@@ -1120,10 +1147,15 @@ class SocialNetworkEnv(Environment):
         counts: Dict[str, list[int]] = {}
         interaction_indexes: Dict[str, array] = {}
         seen_likes: Dict[str, set[Any]] = {}
+        author_posts: Dict[str, list[str]] = {}
+        post_ordinals = {}
+        agent_interactions = {}
+        preference_index = {"post_ordinals":post_ordinals,"agent_interactions":agent_interactions}
         young_ids = []
         repost_targets = []
         for fallback_id, raw_post in facts.items():
             post_id = str(raw_post.get("post_id") or fallback_id)
+            post_ordinals[post_id] = len(counts)
             counts[post_id] = [0, 0, 0]
             created_tick = int(raw_post.get("created_tick", 0) or 0)
             if current_tick - created_tick < cfg.min_lifetime_ticks:
@@ -1131,6 +1163,8 @@ class SocialNetworkEnv(Environment):
             parent_id = raw_post.get("reply_to")
             if parent_id:
                 repost_targets.append(str(parent_id))
+        for fact in state.get("author_post_facts", []) or []:
+            author_posts.setdefault(str(fact.get("author_id") or ""), []).append(str(fact.get("post_id")))
         for parent_id in repost_targets:
             if parent_id in counts:
                 counts[parent_id][2] += 1
@@ -1142,6 +1176,7 @@ class SocialNetworkEnv(Environment):
             if post_id not in counts:
                 continue
             interaction_indexes.setdefault(post_id, array("Q")).append(event_index)
+            self._index_preference_interaction(event, event_index, preference_index)
             kind = event.get("kind")
             if kind == "like":
                 agent_id = event.get("agent_id")
@@ -1153,6 +1188,9 @@ class SocialNetworkEnv(Environment):
                 counts[post_id][1] += 1
         self._recommendation_index = {
             "counts": counts,
+            "author_posts": author_posts,
+            "post_ordinals": post_ordinals,
+            "agent_interactions": agent_interactions,
             "seen_likes": seen_likes,
             "config_key": config_key,
             "engagement_ranking": SortedList(
@@ -1181,9 +1219,14 @@ class SocialNetworkEnv(Environment):
         index = getattr(self, "_recommendation_index", None)
         if index is None:
             return
+        if index["config_key"] != str(self._config.social_media.recommendation.model_dump()):
+            self._ensure_recommendation_index()
+            return
         post_id = str(post.get("post_id") or "")
         if not post_id or post_id in index["counts"]:
             return
+        index["post_ordinals"][post_id] = index["post_count"]
+        index["author_posts"].setdefault(str(post.get("author_id") or ""), []).append(post_id)
         index["counts"][post_id] = [0, 0, 0]
         index["post_count"] += 1
         parent_id = post.get("reply_to")
@@ -1212,12 +1255,19 @@ class SocialNetworkEnv(Environment):
         index = getattr(self, "_recommendation_index", None)
         if index is None:
             return
+        if index["config_key"] != str(self._config.social_media.recommendation.model_dump()):
+            self._ensure_recommendation_index()
+            return
         post_id = str(event.get("post_id") or event.get("original_post_id") or "")
         counts = index["counts"].get(post_id)
         if counts is None:
             return
+        positions = index["interaction_indexes"].setdefault(post_id, array("Q"))
+        if positions and event_index <= positions[-1]:
+            return
         previous_rank = self._engagement_rank_key(post_id, index)
-        index["interaction_indexes"].setdefault(post_id, array("Q")).append(event_index)
+        positions.append(event_index)
+        self._index_preference_interaction(event, event_index, index)
         kind = event.get("kind")
         if kind == "like":
             seen = index["seen_likes"].setdefault(post_id, set())
@@ -1468,27 +1518,22 @@ class SocialNetworkEnv(Environment):
 
     def _get_agent_recent_posts(self, agent_id: str, limit: int = 5) -> List[Dict[str, Any]]:
         """获取指定用户最近的帖子（按时间倒序）"""
-        author_posts = self._author_post_index().get(agent_id, [])
-        posts = self._posts_view()
+        author_posts = self._ensure_recommendation_index()["author_posts"].get(agent_id, [])
+        facts = self._state_store()["post_creation_facts"]
         recent = []
         for pid in author_posts[-limit:]:
-            if pid in posts:
-                recent.append(posts[pid])
+            if pid in facts:
+                recent.append(dict(self._plain(facts[pid])))
         recent.sort(key=lambda x: x.get("created_tick", 0), reverse=True)
         return recent[:limit]
 
     def _post_needs_embedding(self, post_id: str) -> bool:
-        """Return whether a post still needs vector indexing."""
-        try:
-            existing = self._posts_view().get(post_id, {})
-            if not _mapping_like(existing):
-                return False
-            return not (
-                existing.get("embedding_indexed")
-                or existing.get("embedding_ref")
-            )
-        except Exception:
-            return True
+        """从当前投影判断指定帖子的向量是否已写入。"""
+        state = self._state_store()
+        if post_id not in state.get("post_creation_facts", {}):
+            return False
+        existing = state.get("post_projection", {}).get(post_id, {})
+        return not (existing.get("embedding_indexed") or existing.get("embedding_ref"))
 
     def _queue_post_embedding(
         self,
@@ -1598,7 +1643,7 @@ class SocialNetworkEnv(Environment):
                 },
             )
             for entry, embedding in zip(entries, embeddings)
-            if str(entry["post_id"]) in self._posts_view()
+            if str(entry["post_id"]) in self._state_store()["post_creation_facts"]
         ]
         try:
             if self._explicit_transactions_enabled():
@@ -1791,52 +1836,60 @@ class SocialNetworkEnv(Environment):
             )
         return traces
 
+    def _index_preference_interaction(self, event, event_index, index) -> None:
+        post_id = str(event.get("post_id") or event.get("original_post_id") or "")
+        kind = event.get("kind")
+        if kind == "like":
+            agent_id = event.get("agent_id")
+            tick = event.get("created_tick", 0)
+            kind_order = 0
+        elif kind == "comment":
+            reply = event.get("reply") or event
+            agent_id = reply.get("author_id")
+            tick = reply.get("created_tick", 0)
+            kind_order = 1
+        else:
+            return
+        # 同 tick 保持规范帖子顺序、先点赞后评论以及原始事件顺序。
+        index["agent_interactions"].setdefault(agent_id, SortedList()).add(
+            (-tick, index["post_ordinals"][post_id], kind_order, event_index))
+
     def _collect_recent_posts_for_agent(self, agent: Agent, limit: int) -> List[Dict[str, Any]]:
-        """获取Agent最近发布的帖子"""
+        """取得语义召回所用的最近帖子定义，沿作者发布顺序读取。"""
         if limit <= 0:
             return []
-        author_index = self._author_post_index()
-        post_ids = author_index.get(agent.id, [])
-        posts = self._posts_view()
-
-        recent_posts: List[Dict[str, Any]] = []
-        for pid in reversed(post_ids):
-            if pid in posts:
-                recent_posts.append(dict(posts[pid]))
+        index = self._ensure_recommendation_index()
+        facts = self._state_store()["post_creation_facts"]
+        recent_posts = []
+        for pid in reversed(index["author_posts"].get(agent.id, [])):
+            if pid in facts:
+                recent_posts.append(dict(self._plain(facts[pid])))
             if len(recent_posts) >= limit:
                 break
         return recent_posts
 
     def _collect_recent_interactions_for_agent(self, agent_id: str, limit: int) -> List[Dict[str, Any]]:
-        """收集Agent最近的点赞和评论"""
+        """按规范排序读取语义召回所用的最近点赞和评论。"""
         if limit <= 0:
             return []
-        posts = self._posts_view()
-        interactions: List[Dict[str, Any]] = []
-        for post in posts.values():
-            for like_event in post.get("like_events", []):
-                if like_event.get("agent_id") == agent_id:
-                    interactions.append(
-                        {
-                            "type": "like",
-                            "post_id": post.get("post_id"),
-                            "content": post.get("content", ""),
-                            "created_tick": like_event.get("created_tick", 0),
-                        }
-                    )
-            for reply in post.get("replies", []):
-                if reply.get("author_id") == agent_id:
-                    interactions.append(
-                        {
-                            "type": "comment",
-                            "post_id": post.get("post_id"),
-                            "content": reply.get("content", ""),
-                            "created_tick": reply.get("created_tick", 0),
-                        }
-                    )
-
-        interactions.sort(key=lambda item: item.get("created_tick", 0), reverse=True)
-        return interactions[:limit]
+        index = self._ensure_recommendation_index()
+        state = self._state_store()
+        events = state["post_interaction_facts"]
+        facts = state["post_creation_facts"]
+        interactions = []
+        for _, _, kind_order, position in index["agent_interactions"].get(agent_id, [])[:limit]:
+            event = events[position]
+            post_id = str(event.get("post_id") or event.get("original_post_id") or "")
+            if kind_order == 0:
+                content = facts[post_id].get("content", "")
+                tick = event.get("created_tick", 0)
+            else:
+                reply = event.get("reply") or event
+                content = reply.get("content", "")
+                tick = reply.get("created_tick", 0)
+            interactions.append({"type":"like" if kind_order == 0 else "comment",
+                "post_id":post_id,"content":content,"created_tick":tick})
+        return interactions
 
     def _build_agent_preference_text(self, agent: Agent) -> str:
         """构建用于召回的偏好文本"""
@@ -1940,7 +1993,7 @@ class SocialNetworkEnv(Environment):
                 if follower_id:
                     followers.append(follower_id)
 
-        posts = self._posts_view(state)
+        posts = self._posts_view(state, post_ids=chain(like_groups, comment_groups, repost_groups))
 
         def _post_preview(pid: str) -> str:
             post = posts.get(pid, {})
@@ -2042,7 +2095,7 @@ class SocialNetworkEnv(Environment):
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
 
-        posts = self._posts_view(state)
+        posts = self._posts_view(state, post_ids=[post_id])
         post = posts.get(post_id)
 
         if not post:
@@ -2154,7 +2207,7 @@ class SocialNetworkEnv(Environment):
 
         agent: Agent = context.caller
         log_ctx = context.log_context or context.world.get_log_context()
-        posts = self._posts_view(state)
+        posts = self._posts_view(state, post_ids=[post_id])
         post = posts.get(post_id)
 
         if not post:
@@ -2237,7 +2290,7 @@ class SocialNetworkEnv(Environment):
         state,
     ) -> str:
         """转发帖子Action"""
-        posts = self._posts_view(state)
+        posts = self._posts_view(state, post_ids=[post_id])
         original = posts.get(post_id)
         if not original:
             logger.warning(f"Agent {context.caller.id} 尝试转发不存在的帖子 {post_id}")
@@ -2944,7 +2997,7 @@ class SocialNetworkEnv(Environment):
     )
     async def get_post_details(self, agent, post_id: str) -> str:
         """返回帖子的完整详情（无权限限制，聚合显示）"""
-        posts = self._posts_view()
+        posts = self._posts_view(post_ids=[post_id])
         post = posts.get(post_id)
         if not post:
             return f"❌ 帖子 {post_id} 不存在"
@@ -3051,7 +3104,8 @@ class SocialNetworkEnv(Environment):
             following_count = len(list(self.graph.successors(agent_id)))
 
         # 如果有帖子数据，计算真实的帖子数量
-        author_posts = self._author_post_index().get(agent_id, [])
+        profile_index = self._ensure_recommendation_index()
+        author_posts = profile_index["author_posts"].get(agent_id, [])
         posts_count = len(author_posts)
 
         profile_sections.extend([
@@ -3067,9 +3121,7 @@ class SocialNetworkEnv(Environment):
         if recent_posts:
             profile_sections.extend(["", "📝 **最近帖子**"])
             for i, post in enumerate(recent_posts, 1):
-                likes_count = len(post.get("likes", []))
-                replies_count = len(post.get("replies", []))
-                repost_count = self._count_reposts(post.get("post_id"))
+                likes_count, replies_count, repost_count = profile_index["counts"][post["post_id"]]
                 created_tick = post.get("created_tick", 0)
                 content_preview = self._short_content(post.get("content", ""), 80)
                 profile_sections.append(
@@ -3412,7 +3464,7 @@ class SocialNetworkEnv(Environment):
         logger.debug("Simple rule executed with message: %s", message)
 
         # 获取当前状态信息
-        posts_count = len(self._posts_view())
+        posts_count = len(self._state_store()["post_creation_facts"])
         agents_count = len(self._world.agents_data)
 
         result = {
