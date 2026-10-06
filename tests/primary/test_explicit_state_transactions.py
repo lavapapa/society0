@@ -815,3 +815,16 @@ def test_after_commit_callbacks_follow_transaction_outcome(tmp_path):
             raise RuntimeError("rollback callback")
     assert committed == ["commit"]
     assert world.environment_data["state"]["audit"][-1] == {"event": "commit"}
+
+def test_runtime_callback_failure_preserves_commit_and_other_callbacks(tmp_path, caplog):
+    world = _world(tmp_path)
+    called = []
+    def broken():
+        raise RuntimeError("derived callback failed")
+    with world.write_environment_transaction() as tx:
+        tx.state["audit"].append({"event":"committed"})
+        tx.after_commit(broken)
+        tx.after_commit(lambda: called.append("next"))
+    assert world.environment_data["state"]["audit"][-1] == {"event":"committed"}
+    assert called == ["next"]
+    assert "derived callback failed" in caplog.text
