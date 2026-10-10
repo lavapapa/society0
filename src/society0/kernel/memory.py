@@ -14,6 +14,7 @@ import struct
 import uuid
 
 from ._json_chunks import decode_chunks
+from .vectors import validate_vectors
 
 MEMORY_SCHEMA = (
     'CREATE TABLE memory_visibility(actor TEXT PRIMARY KEY NOT NULL,step INTEGER NOT NULL)',
@@ -113,19 +114,6 @@ def _entry(value):
     if type(importance) not in (int,float) or not math.isfinite(importance) or not 0<=importance<=5:
         raise ValueError('memory importance must be finite and between 0 and 5')
     return {'content':content,'type':kind,'importance':float(importance),'metadata':value.get('metadata',{})}
-
-
-def _vectors(values, count, dimension=None):
-    if len(values)!=count:
-        raise ValueError('embedding result count differs from input')
-    expected=dimension
-    for vector in values:
-        if not vector or any(type(value) not in (int,float) or not math.isfinite(value) for value in vector):
-            raise ValueError('invalid embedding vector')
-        expected=len(vector) if expected is None else expected
-        if len(vector)!=expected:
-            raise ValueError('embedding dimension differs')
-    return expected
 
 
 @contextmanager
@@ -255,7 +243,7 @@ class Memory:
                 timestamp=record['timestamp']
                 if type(timestamp) is not int:raise ValueError('memory timestamp must be an integer')
                 vector=record['embedding']
-                dimension=_vectors([vector],1,dimension)
+                dimension=validate_vectors([vector],1,dimension)
                 identifier=record.get('id') or uuid.uuid4().hex
                 if count==0:_visible(writer,actor,visible_step)
                 revision=_next_revision(writer)
@@ -342,7 +330,7 @@ class Memory:
                                                     'job_id':job_id,'memory_ids':job['memory_ids'],'purpose':'memory_write'}) if texts else []
             self._check()
             rows=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))
-            dimension=_vectors(vectors,len(texts),rows[0][0] if rows else None)
+            dimension=validate_vectors(vectors,len(texts),rows[0][0] if rows else None)
             def write(writer):
                 _visible(writer,job['actor'],job['visible_step'])
                 for identifier,vector in zip(job['memory_ids'],vectors):
@@ -372,7 +360,7 @@ class Memory:
         vectors=await self.embed([content],metadata={'actor':actor,'memory_ids':[memory_id],'purpose':'memory_update'})
         self._check()
         dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
-        _vectors(vectors,1,dimension)
+        validate_vectors(vectors,1,dimension)
         def write(writer):
             row=writer.query('SELECT revision,state FROM memory_rows WHERE id=?',(memory_id,))[0]
             if row!=(revision,'ready'):raise RuntimeError('memory changed during embedding')
@@ -461,7 +449,7 @@ class Memory:
             return []
         vectors=await self.embed([query],metadata={'actor':actor,'thread_id':thread_id,'purpose':'memory_recall'})
         dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
-        _vectors(vectors,1,dimension)
+        validate_vectors(vectors,1,dimension)
         watermark=self.store.read(lambda view:view.query('SELECT step FROM memory_visibility WHERE actor=?',(actor,)))
         if current_step is not None and watermark and current_step<watermark[0][0]:
             return await self._recall_history(actor,query,top_k,current_step,thread_id,query_vectors=vectors)
@@ -486,7 +474,7 @@ class Memory:
             query_vectors=await self.embed([query],metadata={'actor':actor,'thread_id':thread_id,'purpose':'memory_recall'})
         self._check()
         dimension=self.store.read(lambda view:view.query('SELECT dimension FROM memory_state WHERE id=1'))[0][0]
-        _vectors(query_vectors,1,dimension)
+        validate_vectors(query_vectors,1,dimension)
         name='society-history-'+uuid.uuid4().hex
         collection=self.client.get_or_create_collection(name=name,metadata={'hnsw:space':'l2'},embedding_function=None)
         try:

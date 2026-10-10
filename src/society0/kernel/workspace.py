@@ -139,6 +139,6 @@ class WorkspaceLease:
         await asyncio.gather(*tuple(self._tasks),return_exceptions=True)
 
 
-def workspace_plugin(*,name='workspace',storage='storage'):
+def workspace_plugin(*,name='workspace',storage='storage',actors='actors.data'):
     def install(ctx):ctx.provide('workspace',WorkspaceStore(ctx.require(storage,'store')))
-    return Plugin(name,(storage,),install,schema=WORKSPACE_SCHEMA)
+    return Plugin(name,(storage,),install,schema=WORKSPACE_SCHEMA,schema_requires=(actors,))

@@ -28,7 +28,7 @@ Plugin 声明本机制 schema、同步 initialize 或可选异步 prepare、安�
 
 Information 定义主体可读的文档与数据集，Actions 注册按对象类型发现的模板；发现、读取、调用权限独立，执行重新校验当前条件。一次领域写入有明确事务边界，跨介质部分失败使整个步骤失效。信息文档保原文、授权与版本，巨大列通过正文引用范围读取。
 
-plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 提供网络、帖子、推荐、互动及曝光。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。Schedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
+plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 组合独立领域、推荐和呈现叶服务。Information 预览保持只读，实际模型呈现通过 social_cognition_plugin 的 input_builder 接线；排序替换、语义开关与呈现效果见 [社交合同](../../docs/core-next/social-contract.md)。[推荐观测例子](../../examples/core_next/recommendation_observer.py) 展示旁路消费者复用推荐输入和多个策略并保存自己的结果。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。Schedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
 
 ### 从双机制例子构建自己的世界
 
@@ -36,7 +36,7 @@ plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息
 
 改造成自己的世界时，先把领域事实放入所属机制的表和规范写入器，再把允许主体读取的内容注册到 Information，把能够改变事实的行为注册到 Actions。插件作者通过共享 SQL 事务维护事实和投影，跨机制变更通过约定的服务或事务内写入函数组合；服务名称空间表示接口归属，领域维护责任由机制实现承担。主体私有资料、共享事实和研究者测量分别保留在各自接口中。
 
-`requires` 保证服务安装与资源退出的顺序，初始化在统一 schema 建立后进行。步骤 before/after 钩子也按依赖安装顺序登记，因此依赖调整可能改变钩子顺序。配对后才能发送、交付后才能计税等研究因果次序，应像例子的 `pair → talk` 一样写成显式 Phase。钩子和资源关系见 [插件合同](../../docs/core-next/plugin-contract.md)。
+`includes` 静态展开子插件，`requires` 保证服务安装与资源退出的顺序；初始化在统一 schema 建立后按 `schema_requires` 的数据图顺序进行。步骤 before/after 钩子也按依赖安装顺序登记，因此依赖调整可能改变钩子顺序。配对后才能发送、交付后才能计税等研究因果次序，应像例子的 `pair → talk` 一样写成显式 Phase。钩子和资源关系见 [插件合同](../../docs/core-next/plugin-contract.md)。
 
 同一 Moment 表示同一个业务时点，各次读取仍可取得最新 live 状态：串行阶段中 Bob 可以看到 Alice 刚刚产生的事实。若研究要求全部主体依据同一份开场材料决定，可在 `Phase.prepare` 取得一次不可变材料，并让主体使用 `session.prepared`；其他 Information 查询仍遵守其自身版本合同。将机制标为 independent 是作者对行动顺序无关性的声明，服务安装完成本身不作这种判断。
 

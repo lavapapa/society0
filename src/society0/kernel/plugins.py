@@ -22,10 +22,14 @@ class Plugin:
     schema: tuple[str, ...] = ()
     initialize: Callable[[Any], Any] | None = None
     prepare: Callable[[], Any] | None = None
+    includes: tuple['Plugin', ...] = ()
+    schema_requires: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "requires", tuple(self.requires))
         object.__setattr__(self, "schema", tuple(self.schema))
+        object.__setattr__(self, "includes", tuple(self.includes))
+        object.__setattr__(self, "schema_requires", tuple(self.schema_requires))
 
 
 class PluginContext:
@@ -107,7 +111,15 @@ class PluginHost:
     """单次、串行安装的异步资源作用域；服务按插件名分区。"""
 
     def __init__(self, plugins: Iterable[Plugin]):
-        self._plugins = tuple(plugins)
+        expanded = {}
+        pending = list(reversed(tuple(plugins)))
+        while pending:
+            plugin = pending.pop()
+            if plugin.name in expanded:
+                raise ValueError(f"duplicate plugin: {plugin.name}")
+            expanded[plugin.name] = plugin
+            pending.extend(reversed(plugin.includes))
+        self._plugins = tuple(expanded.values())
         self._services: dict[str, dict[str, Any]] = {}
         self._stack = AsyncExitStack()
         self._quiesce = AsyncExitStack()
@@ -117,25 +129,22 @@ class PluginHost:
         self._exit_exception = (None, None, None)
         self._install_error = None
 
-    def _order(self) -> tuple[str, ...]:
-        graph = {}
-        for plugin in self._plugins:
-            if plugin.name in graph:
-                raise ValueError(f"duplicate plugin: {plugin.name}")
-            graph[plugin.name] = plugin.requires
+    def _order(self, dependency='requires') -> tuple[str, ...]:
+        graph = {plugin.name: getattr(plugin, dependency) for plugin in self._plugins}
         for name, dependencies in graph.items():
-            for dependency in dependencies:
-                if dependency not in graph:
-                    raise ValueError(f"missing plugin dependency: {name} requires {dependency}")
+            for target in dependencies:
+                if target not in graph:
+                    raise ValueError(f"missing plugin dependency: {name} {dependency} {target}")
         try:
             return tuple(TopologicalSorter(graph).static_order())
         except CycleError as error:
-            raise ValueError(f"plugin dependency cycle: {error.args[1]}") from error
+            raise ValueError(f"plugin {dependency} dependency cycle: {error.args[1]}") from error
 
     async def __aenter__(self) -> "PluginHost":
         if self._state != "new":
             raise RuntimeError("PluginHost can only be entered once")
         order = self._order()
+        self._order('schema_requires')
         self._state = "installing"
         self._ready = asyncio.Event()
         self._stopped = asyncio.Event()

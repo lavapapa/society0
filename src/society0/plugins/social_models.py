@@ -78,7 +78,7 @@ class RecommendationConfig(BaseModel):
     engagement_weight: float = Field(0.3, description="帖子互动（点赞、回复）的权重。", ge=0, le=1)
     similarity_weight: float = Field(0.2, description="内容相似度（标签、嵌入向量）的权重。", ge=0, le=1)
     network_weight: float = Field(0.2, description="社交网络邻近度的权重。", ge=0, le=1)
-    use_embedding_similarity: bool = Field(True, description="是否使用嵌入向量进行相似度计算。")
+    use_embedding_similarity: bool = Field(False, description="显式启用语义索引；启用时必须绑定嵌入与向量资源。")
     like_score: float = Field(1.0, description="单次点赞的分值。")
     reply_score: float = Field(1.5, description="单次回复的分值。")
     repost_score: float = Field(2.0, description="单次转发的分值。")

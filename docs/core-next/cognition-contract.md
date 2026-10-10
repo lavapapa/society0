@@ -10,7 +10,9 @@ CognitiveInput 把主体背景、环境说明、感知精度、当前主观状�
 
 ## 二、保存
 
-`InputBatch(messages, consumer, cursor, context=None)` 是显式输入结果。LLMDriver 调用 ThreadStore.append_input，在同一短事务内追加所有消息并推进该 Thread、consumer 的游标；任一消息编码失败会回滚两者。游标正文使用与 Thread 相同的分块正文存储，索引保留对应事件序号及最近上下文消息的引用，不在每轮 cursor 复制完整背景。普通返回消息列表的 input_builder 仍可作为没有持久增量位置的轻量构建方式。
+`InputBatch(messages, consumer, cursor, context=None, *, effects=())` 是显式输入结果。LLMDriver 调用 ThreadStore.append_input，在同一短事务内追加所有消息并推进该 Thread、consumer 的游标；任一消息编码失败会回滚两者。游标正文使用与 Thread 相同的分块正文存储，索引保留对应事件序号及最近上下文消息的引用，不在每轮 cursor 复制完整背景。普通返回消息列表的 input_builder 仍可作为没有持久增量位置的轻量构建方式。
+
+`effects` 是随批次携带的同步或异步回调，接收 ActivationContext。构建输入时不执行；LLMDriver 对最终选中的批次成功执行 `append_input` 后，将这些回调追加到既有 preparations，并由 `ActivationContext.prepare` 执行。被丢弃的批次与追加失败的批次不产生呈现效果。效果失败使激活失败，完整步骤继续遵守 Runtime 的失败边界；Thread 追加与领域效果各自遵守其事务边界。
 
 同一主体、同一 Moment、同 mode 使用持久 Thread 定位，因此阶段 A→B→A 与独立进程恢复都能读回原消费位置。Runtime 的临时 cursors 字典仅负责当前激活引用，不承担感知位置恢复。CognitiveInput 的位置封套区分尚未初始化与提供方合法返回 None，避免把空位置误当作首次会话。
 

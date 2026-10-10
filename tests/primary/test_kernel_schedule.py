@@ -145,7 +145,7 @@ async def test_composed_social_instances_automatically_flush_before_complete(tmp
         for name in ('left','right'):
             social=host.service(name,'mechanism')
             ids[name]=social.execute('publish_post','a','a',{'content':name},0).value['post_id']
-            social.trending(0,record_impressions=True)
+            social.trending(0,record_impressions=True,actor='a')
     plugins=[actor_plugin({'rule':lambda r:None},records=[ActorRecord('a','rule')]),
         interaction_plugin(lambda *a:True),Plugin('vectors',install=resources),results_plugin(),
         runtime_plugin(information=('interaction','information'),actions=('interaction','actions'),store=('storage','store'),results=('results','results')),

@@ -99,8 +99,9 @@ async def _compose(path, plugins, *, source=None, step=None):
         context.provide('store', store)
 
     host = PluginHost((Plugin('storage', install=install_storage), *plugins))
-    order = host._order()
-    declared = {plugin.name: plugin for plugin in plugins}
+    host._order()
+    order = host._order('schema_requires')
+    declared = {plugin.name: plugin for plugin in host._plugins}
     ordered = [declared[name] for name in order if name != 'storage']
     schema = tuple(ddl for plugin in ordered for ddl in plugin.schema)
 

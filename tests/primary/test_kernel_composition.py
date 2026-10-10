@@ -21,7 +21,7 @@ async def test_plugin_schemas_initialize_in_dependency_order_and_share_store(tmp
         assert ctx.require('a','store') is ctx.require('storage','store')
         ctx.on_close(lambda:calls.append('close b'))
     a=Plugin('a',('storage',),install_a,schema=('CREATE TABLE a(id INTEGER PRIMARY KEY,value INTEGER)',),initialize=initialize_a)
-    b=Plugin('b',('storage','a'),install_b,schema=('CREATE TABLE b(id INTEGER PRIMARY KEY,value INTEGER)',),initialize=initialize_b)
+    b=Plugin('b',('storage','a'),install_b,schema=('CREATE TABLE b(id INTEGER PRIMARY KEY,value INTEGER)',),initialize=initialize_b,schema_requires=('a',))
     async with compose(tmp_path/'run',[b,a]) as host:
         store=host.service('storage','store')
         assert store.read(lambda r:r.query('SELECT * FROM b'))==[(1,8)]

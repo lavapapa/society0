@@ -14,7 +14,7 @@ async def test_review_initializer_failure_publishes_no_partial_run(tmp_path):
     with pytest.raises(ValueError,match='second initializer'):
         async with compose(tmp_path/'run',[
             Plugin('first',schema=('CREATE TABLE facts(id INTEGER PRIMARY KEY)',),initialize=first),
-            Plugin('second',requires=('first',),initialize=second)]):pass
+            Plugin('second',schema_requires=('first',),initialize=second)]):pass
     assert not (tmp_path/'run').exists()
 
 

@@ -18,13 +18,13 @@ Codex subscription access is configured through the [subscription guide](docs/co
 
 ## Compose an environment
 
-`Plugin` declares services, explicit dependencies, schema and initialization. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_plugin` builds drivers only when needed. `rule_driver_plugin` and `llm_driver_plugin` expose factories through ordinary plugin services. Activation extensions share cognition and memory between drivers; restored actor records resolve their stored driver names against those services.
+`Plugin` declares services, static child plugins, schema and initialization, with separate service and data-prerequisite graphs. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_data_plugin` owns the persistent directory and `actor_plugin` binds it to drivers built only when needed. `rule_driver_plugin` and `llm_driver_plugin` expose factories through ordinary plugin services. Activation extensions share cognition and memory between drivers; restored actor records resolve their stored driver names against those services.
 
 `Information` provides discoverable documents and datasets with authorized totals, continuation cursors and complete original-content reads. `Actions` exposes templates against resource references and rechecks eligibility when invoked. `LLMDriver` offers these through meta tools and an optional Bashkit shell, preserving the full Thread. `RuleDriver` accesses the same structured interfaces.
 
 `Schedule` supplies the next simulation time and ordered `Phase` sequence; `Runtime` executes and publishes that complete step. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.
 
-The [two-mechanism conversation plan](examples/core_next/conversation_pilot.py), [external graph initialization](examples/core_next/graph_environment.py), [typed records](examples/core_next/typed_records.py) and [immutable catalog](examples/core_next/immutable_catalog.py) demonstrate reusable mechanisms. Detailed contracts are in [docs/core-next](docs/core-next).
+The [two-mechanism conversation plan](examples/core_next/conversation_pilot.py), [external graph initialization](examples/core_next/graph_environment.py), [typed records](examples/core_next/typed_records.py) and [immutable catalog](examples/core_next/immutable_catalog.py) demonstrate reusable mechanisms. The [independent recommendation observer](examples/core_next/recommendation_observer.py) consumes reusable ranking inputs and strategies; the [social contract](docs/core-next/social-contract.md) explains leaf composition and explicit cognition effects. Detailed contracts are in [docs/core-next](docs/core-next).
 
 ## Run and inspect
 

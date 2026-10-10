@@ -24,6 +24,8 @@ page = await tools.query('/market/orders', Query(
     fields=('id', 'price'), filters=(('price', 'le', 100),), limit=100))
 ```
 
+`mount(prefix, provider)` 借用提供者，创建资源的机制插件用 `ctx.on_close(provider.close)` 登记关闭，先于它所借用的资源释放。独立 Information 可以使用 `owned=True` 托管提供者；同一对象挂载多处仍登记一次关闭。`Information.close()` 逆序释放全部托管资源并清空路由，单个关闭异常仍继续释放其余资源。借用与托管应由装配方选择单一归属。
+
 提供者实现 `ref(path)`、`list(scope,path,*,limit,cursor)`、`read(scope,path,*,offset,size)` 和 `query(scope,path,query)`；按其资源类型实现实际需要的操作。list 返回 `Page(items,total,next_cursor,revision)`。read 返回 `DocumentChunk(data,total_bytes,next_offset,revision,source)`，data 是 bytes，按字节读取可重新拼接全部 UTF-8 原文。
 
 `Query(fields,filters,order,limit,cursor,sample_seed)` 是请求载体，查询能力和运算定义由提供者确定。Core 将请求原样传递，不执行通用过滤、扫描或查询语言。提供者负责授权行和字段、授权后的 total、继续读取、固定版本与游标绑定。未知查询操作须由提供者明确拒绝。Core 对目录本身的授权不代表目录下每个对象都可见。SQLInformation 的 list_authorized 入口使用同一 allows 对各静态子路由执行 discover 判断，list 与 list_files 返回可见路由的精确 total。游标绑定主体、时点、运行身份、声明权限依赖版本和可见路由集合；授权判断期间版本改变会拒绝本次页面。行级授权继续由 SQL predicate 下推，不通过全表 Python 过滤完成。
@@ -54,7 +56,7 @@ Action 支持不可变 tags、strict 与 read_only 元数据，describe 返回�
 
 注册时采用现有 jsonschema 检查 schema，隔离注册参数及描述返回值的可变引用。strict=True 复用已有严格工具 schema 校验，要求显式闭合对象与必需字段；执行前保留旧 ActionSet 的 nullable 字符串归一化，再按原 schema 验证。显式枚举中的字符串 null 保持原值，参数不被原地修改，也不为注册自动放宽 schema。执行参数不符合 schema 时返回 rejected/invalid_arguments，handler 不执行。未知动作、类型不匹配和不可调用均返回 rejected/unavailable。动作函数返回 `ActionResult(status,value=None,process=None,terminal=False)`；status 为 completed、accepted 或 rejected。accepted 可携带后续过程 Ref。只有注册为 terminal 且完成的动作具有 terminal=True，handler 自行设置的 terminal 不会改变该合同。
 
-正式共享环境使用 `interaction_plugin(allows, access_dependencies=())`，统一声明访问规则读取的表。业务插件 `Actions.register(action, dependencies=())` 按目标类型合并资格相关表；表版本由写入器维护。发现页与游标绑定运行身份和这些依赖版本，Thread 留证保持旧页有效，相关业务或权限变化明确过期。异步候选检查前后都核对版本。注册时应列全跨插件资格依赖，例如 Actor 角色选择表；缺省依赖为空，仍逐次核对实际可用候选序列。Information.mount 将统一访问依赖传给支持该声明的 SQLInformation。
+正式共享环境使用 `interaction_plugin(allows, access_dependencies=())`，统一声明访问规则读取的表。业务插件 `Actions.register(action, dependencies=())` 按目标类型合并资格相关表；表版本由写入器维护。发现页与游标绑定运行身份和这些依赖版本，Thread 留证保持旧页有效，相关业务或权限变化明确过期。异步候选检查前后都核对版本。注册时应列全跨插件资格依赖，例如 Actor 角色选择表；缺省依赖为空，仍逐次核对实际可用候选序列。Information 在每次请求中建立非拥有 scope 视图，合并原 scope 与路由的 `access_dependencies`；SQLInformation 再合并自身声明参与版本核验。共享 provider 的依赖声明保持不变，因此不同路由的权限依赖互相隔离；有效性检查和关闭继续委托原激活 scope。
 
 独立非 SQL Actions 可注入 `revision(scope)`，或采用 scope.revision 与候选序列校验。发现游标同时绑定主体、时点、target、搜索串、注册代次和当前可用模板序列，支持 JSON 往返。执行始终重新判断当前资格。SQL Page/DocumentChunk.revision 描述相关数据版本；显式 scope.revision 继续约束全局数据库 live_revision，两者用途不同。
 

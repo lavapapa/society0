@@ -91,9 +91,7 @@ def _selection(writer, actor, ordinal, active, roles):
         writer.execute('INSERT INTO actor_counts VALUES(?,?,?,1) ON CONFLICT(kind,role,active) DO UPDATE SET total=total+1',(kind,role,int(active)))
 
 
-def _insert(writer, record, drivers):
-    if record.driver not in drivers:
-        raise KeyError(record.driver)
+def _insert(writer, record):
     writer.execute('INSERT INTO actors(id,driver,active) VALUES(?,?,?)',(record.id,record.driver,int(record.active)))
     ordinal=writer.query('SELECT ordinal FROM actors WHERE id=?',(record.id,))[0][0]
     writer.execute('INSERT INTO actor_personas VALUES(?,?)',(record.id,_json(record.persona)))
@@ -102,10 +100,10 @@ def _insert(writer, record, drivers):
     _selection(writer,record.id,ordinal,record.active,record.roles)
 
 
-class ActorStore(Mapping):
-    def __init__(self, store, drivers):
+class ActorDirectory:
+    """主体数据服务；driver 字段保存标签，不取得驱动资源。"""
+    def __init__(self, store):
         self.store=store
-        self.drivers=dict(drivers)
 
     def get_record(self, actor):
         def read(view):
@@ -128,10 +126,6 @@ class ActorStore(Mapping):
             return ActorRecordView(actor,driver,bool(active),roles,revision,self.store)
         return self.store.read(read)
 
-    def __getitem__(self, actor):
-        record=self.view(actor)
-        return Actor(actor,self.drivers[record.driver](record),Ref('actors','state',actor),record)
-
     def __len__(self):
         return self.store.read(lambda r:r.query("SELECT coalesce(sum(total),0) FROM actor_counts WHERE kind=0 AND role=''")[0][0])
 
@@ -143,12 +137,11 @@ class ActorStore(Mapping):
             for ordinal,actor in rows: yield actor
 
     def add(self, record):
-        return self.store.transaction(lambda w:_insert(w,record,self.drivers))
+        return self.store.transaction(lambda w:_insert(w,record))
 
     def update(self, actor, **changes):
         allowed={'driver','persona','state','config','active','roles'}
         if not changes.keys() <= allowed: raise TypeError('unknown actor field')
-        if 'driver' in changes and changes['driver'] not in self.drivers: raise KeyError(changes['driver'])
         if 'active' in changes and type(changes['active']) is not bool: raise TypeError('active must be boolean')
         def write(w):
             rows=w.query('SELECT ordinal,active FROM actors WHERE id=?',(actor,))
@@ -205,18 +198,49 @@ class ActorStore(Mapping):
         return self.store.read(read)
 
 
-def actor_plugin(drivers, *, records=(), name='actors', storage='storage', requires=(), driver_factory=None):
-    """规则直接提供映射；资源型声明名称，在安装期从显式依赖构造映射。"""
+class ActorStore(ActorDirectory, Mapping):
+    """运行映射绑定目录与驱动；数据服务可独立于此映射安装。"""
+    def __init__(self, directory, drivers):
+        super().__init__(directory.store)
+        self.drivers=dict(drivers)
+        unresolved=self.store.read(lambda view:[name for (name,) in view.iter_query('SELECT DISTINCT driver FROM actors') if name not in self.drivers])
+        if unresolved: raise ValueError('unresolved actor drivers: '+', '.join(unresolved))
+
+    def __getitem__(self, actor):
+        record=self.view(actor)
+        return Actor(actor,self.drivers[record.driver](record),Ref('actors','state',actor),record)
+
+    def add(self, record):
+        if record.driver not in self.drivers: raise KeyError(record.driver)
+        return super().add(record)
+
+    def update(self, actor, **changes):
+        if 'driver' in changes and changes['driver'] not in self.drivers: raise KeyError(changes['driver'])
+        return super().update(actor,**changes)
+
+
+def actor_data_plugin(*, records=(), name='actors.data', storage='storage'):
+    """独立主体目录；保持原有权威表与字段。"""
+    def initialize(writer):
+        for record in records: _insert(writer,record)
+    def install(ctx):
+        ctx.provide('directory',ActorDirectory(ctx.require(storage,'store')))
+    return Plugin(name,(storage,),install,schema=ACTOR_SCHEMA,initialize=initialize)
+
+
+def actor_plugin(drivers, *, records=(), name='actors', storage='storage', requires=(), driver_factory=None, data=None):
+    """默认包含数据目录；显式 data 引用允许复用已安装的目录。"""
+    includes=()
+    if data is None:
+        data=(name+'.data','directory')
+        includes=(actor_data_plugin(records=records,name=data[0],storage=storage),)
+    elif records:
+        raise ValueError('records belong to actor_data_plugin when data is explicit')
     declared=dict(drivers) if driver_factory is None else dict.fromkeys(drivers)
     references=tuple(value for value in declared.values() if isinstance(value,tuple))
-    def initialize(writer):
-        for record in records: _insert(writer,record,declared)
     def install(ctx):
         configured={name:ctx.require(*factory) if isinstance(factory,tuple) else factory for name,factory in declared.items()} if driver_factory is None else dict(driver_factory(ctx))
         if configured.keys()!=declared.keys():
             raise ValueError('driver names must match the declared names')
-        store=ctx.require(storage,'store')
-        unresolved=store.read(lambda view:[name for (name,) in view.iter_query('SELECT DISTINCT driver FROM actors') if name not in configured])
-        if unresolved: raise ValueError('unresolved actor drivers: '+', '.join(unresolved))
-        ctx.provide('actors',ActorStore(store,configured))
-    return Plugin(name,tuple(dict.fromkeys((storage,*requires,*(item[0] for item in references)))),install,schema=ACTOR_SCHEMA,initialize=initialize)
+        ctx.provide('actors',ActorStore(ctx.require(*data),configured))
+    return Plugin(name,tuple(dict.fromkeys((data[0],*requires,*(item[0] for item in references)))),install,includes=includes)

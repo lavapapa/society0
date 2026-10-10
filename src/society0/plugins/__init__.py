@@ -6,7 +6,21 @@ _MODULES = {
     'plain_plugin': 'society0.plugins.plain',
     'round_robin_plugin': 'society0.plugins.round_robin',
     'social_plugin': 'society0.plugins.social',
+    'social_data_plugin': 'society0.plugins.social',
+    'social_notifications_plugin': 'society0.plugins.social',
+    'social_relations_plugin': 'society0.plugins.social',
+    'social_engagement_plugin': 'society0.plugins.social',
+    'social_content_plugin': 'society0.plugins.social',
+    'social_candidates_plugin': 'society0.plugins.social',
+    'social_exposure_plugin': 'society0.plugins.social',
+    'social_semantic_plugin': 'society0.plugins.social',
+    'social_presentation_plugin': 'society0.plugins.social',
+    'social_recommendation_plugin': 'society0.plugins.social_recommendation',
+    'social_cognition_plugin': 'society0.plugins.social_cognition',
     'actor_plugin': 'society0.kernel.actors',
+    'actor_data_plugin': 'society0.kernel.actors',
+    'weighted_ranking_plugin': 'society0.plugins.social_ranking',
+    'chronological_ranking_plugin': 'society0.plugins.social_ranking',
     'rule_driver_plugin': 'society0.kernel.drivers',
     'llm_driver_plugin': 'society0.kernel.drivers',
     'interaction_plugin': 'society0.kernel.interaction',
@@ -40,8 +54,16 @@ def __dir__():
 if TYPE_CHECKING:
     from .plain import plain_plugin
     from .round_robin import round_robin_plugin
-    from .social import social_plugin
-    from ..kernel.actors import actor_plugin
+    from .social import (
+        social_plugin, social_data_plugin, social_notifications_plugin,
+        social_relations_plugin, social_engagement_plugin, social_content_plugin,
+        social_candidates_plugin, social_exposure_plugin, social_semantic_plugin,
+        social_presentation_plugin,
+    )
+    from .social_recommendation import social_recommendation_plugin
+    from .social_cognition import social_cognition_plugin
+    from ..kernel.actors import actor_plugin, actor_data_plugin
+    from .social_ranking import weighted_ranking_plugin, chronological_ranking_plugin
     from ..kernel.drivers import rule_driver_plugin, llm_driver_plugin
     from ..kernel.interaction import interaction_plugin
     from ..kernel.runtime import runtime_plugin

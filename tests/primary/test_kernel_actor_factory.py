@@ -37,8 +37,8 @@ async def test_actor_factory_requires_exact_declared_names(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_workspace_requires_actor_schema_at_installation(tmp_path):
-    import apsw
+async def test_workspace_requires_actor_schema_before_creating_run(tmp_path):
     from society0.kernel.workspace import workspace_plugin
-    with pytest.raises(apsw.SQLError,match='no such table: actors'):
+    with pytest.raises(ValueError,match='actors.data'):
         async with compose(tmp_path/'missing',[workspace_plugin()]):pass
+    assert not (tmp_path/'missing').exists()

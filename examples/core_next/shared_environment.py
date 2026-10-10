@@ -86,6 +86,7 @@ async def demonstrate(output: Path, *, history=2000):
             'message_content': DocumentSpec('messages','id','body',authorize=recipient),
             'documents': DocumentSpec('documents','id','body'),
         })
+        ctx.on_close(provider.close)
         ctx.require('interaction','information').mount('/world',provider)
 
     class RuleDriver:

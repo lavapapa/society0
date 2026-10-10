@@ -1,12 +1,16 @@
 # 持久主体目录
 
-主体身份及其主观资料由 ActorStore 保存，运行时按实际激活读取该主体并取得 Driver。角色和配置用于主体选择与驱动配置；领域对象、资产和法律资格由相应机制表达。主体目录属于同一共享运行，私有工作区按主体归属跨仿真时点保留。
+主体身份及其主观资料由 ActorDirectory 管理，ActorStore 将目录绑定到驱动工厂，运行时按实际激活取得 Driver。角色和配置用于主体选择与驱动配置；领域对象、资产和法律资格由相应机制表达。主体目录属于同一共享运行，私有工作区按主体归属跨仿真时点保留。
 
 ## 一、数据
 
 `ActorRecord(id, driver, persona='', state={}, config={}, roles=(), active=True)` 保存驱动名称、原始 persona、主观 state、配置与角色集合。persona 和 config 各自独立存储，主体短 head 保存驱动名与 active。主观 state 为字符串键映射，按一级键存为独立记录并保持插入顺序；`set_state(actor,key,value)` 更新一项，`update(state=...)` 明确替换整个主观映射。巨大的单个 state 值仍承担该值自身的 JSON 编码成本。JSON 值保持原文内容；读取返回独立的 Python 值，修改通过 ActorStore.update 或 set_state 明确写入。角色读取采用稳定名称顺序。运行时临时提醒通过 Session.signals 或输入构建器提供，目录没有隐式提醒累积字段。
 
-`actor_plugin(drivers, records=(), name='actors')` 提供 actors 服务并声明自身 schema 与初始化。drivers 是驱动名到工厂的注册表，工厂接收一个按需读取的 ActorRecordView。初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按该主体配置构建轻量门面。
+`actor_data_plugin(records=(), name='actors.data')` 声明主体 schema、初始化和 `directory` 服务，独立于驱动资源。环境借用该目录读取 persona、更新 state 和选择主体。纯数据组合可以独立安装该工厂，无须提供驱动工厂；持久驱动标签在绑定运行映射时核验。
+
+`actor_plugin(drivers, records=(), name='actors')` 提供 `actors` 运行映射，并默认包含具名 `actors.data` 子插件。显式传入 `data=('directory_plugin','directory')` 时复用外部目录，初始记录交由该目录插件声明。drivers 是驱动名到工厂的注册表，工厂接收按需读取的 ActorRecordView；安装和恢复时核对持久驱动标签。环境依赖数据目录，驱动可以依赖环境输入构建器，运行映射随后绑定二者。
+
+初始化不会构建 Driver。数据库、模型连接池等昂贵共享资源由已有插件生命周期持有，工厂可以复用已安装 Driver，或按主体配置构建轻量门面。
 
 正式组合使用 `rule_driver_plugin` 或 `llm_driver_plugin` 发布 `factory` 服务，Actor 插件消费服务引用。第三方驱动通过普通 Plugin 发布相同工厂，每次实际激活接收 ActorRecordView。共享模型、Thread 和扩展在插件安装时装配，主体目录保存驱动名称与配置。
 

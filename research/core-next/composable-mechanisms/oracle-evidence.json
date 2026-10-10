@@ -1,0 +1,87 @@
+{
+  "legacy_commit": "4ff2df74668931aef12b1a4951fab1d97d6a0981",
+  "next_base_commit": "7320b13a7d8d58cbe116f9bbc407224fec05de3c",
+  "next_identity": "working-tree changes, not release",
+  "python": "3.12.12 (main, Jan 14 2026, 23:36:32) [Clang 21.1.4 ]",
+  "dependencies": {
+    "pydantic": "2.13.4",
+    "networkx": "3.6.1",
+    "sortedcontainers": "2.4.0",
+    "jsonschema": "4.26.0",
+    "json-repair": "0.62.0",
+    "chromadb": "1.5.9",
+    "ollama": null,
+    "openai": "3.24.0",
+    "PyYAML": "6.0.3",
+    "jmespath": null,
+    "tenacity": "9.1.4"
+  },
+  "run_root": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/basic-env-oracle-results-review-02wd7y9c",
+  "comparison": "exact common semantic protocol passed",
+  "pytest": "23 oracle tests + 7 independent review tests: 30 passed in 6.92s",
+  "plain_ticks": 3,
+  "rr_rounds": 3,
+  "rr_messages": 21,
+  "rr_pairs": 6,
+  "social_actions": 18,
+  "social_posts": 5,
+  "social_notifications": 10,
+  "social_final_views": {
+    "post_1": 6,
+    "post_2": 3,
+    "post_3": 0,
+    "post_4": 1,
+    "post_5": 1
+  },
+  "social_ranking": [
+    [
+      "post_1"
+    ],
+    [
+      "post_1",
+      "post_4"
+    ],
+    [
+      "post_1",
+      "post_5"
+    ]
+  ],
+  "social_trending": [
+    [
+      "post_1",
+      "post_2"
+    ],
+    [
+      "post_1",
+      "post_2"
+    ],
+    [
+      "post_1",
+      "post_2"
+    ]
+  ],
+  "old_restore_defect": {
+    "first_difference": "$.actions[13].state.edges",
+    "continuous_edges": 4,
+    "restored_edges": 0,
+    "restored_unfollow_result": "Not following a"
+  },
+  "normalization": [
+    "RR wall-clock timestamps",
+    "legacy random reply UUID aliases for repeatability",
+    "storage-specific reply/notification ids",
+    "Next additional notification reply_id/repost_id links",
+    "candidate membership sorted (legacy set), final ranking order unchanged"
+  ],
+  "out_of_scope": [
+    "embedding/vector comparison",
+    "LLMDriver scripted provider",
+    "topology families beyond fixed directed action-built graph",
+    "notification consumption",
+    "full benchmark",
+    "full offline regression"
+  ],
+  "rr_future_plan": "old group FoV parsed plans equal Next Information /conversation/plan",
+  "action_results": "status, target, changed, post id, comment reply identity, trending returned content/author/counts/order compared",
+  "rr_actor_records": "nonempty persona/opinion/confidence survive old and Next process restore; actor-record scope only"
+}

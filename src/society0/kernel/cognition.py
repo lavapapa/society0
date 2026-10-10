@@ -1,5 +1,5 @@
 """完整认知材料与按 Thread 持久定位的增量感知输入。"""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 
 from ..async_utils import invoke_maybe_async
@@ -11,6 +11,7 @@ class InputBatch:
     consumer: str
     cursor: object
     context: dict | None = None
+    effects: tuple = field(default=(), kw_only=True, repr=False, compare=False)
 
 
 def _text(value):

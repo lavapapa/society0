@@ -4,13 +4,13 @@
 
 ## 一、装配
 
-`Plugin(name, requires, install, schema=..., initialize=...)` 声明依赖与静态状态。`compose` 先汇集 schema 和初始化，在一个 StageStore 中发布根，再按依赖安装服务。异步外部数据准备使用 `prepare` 上下文管理器返回同步 initializer。恢复从完整点创建新运行，重新安装本次资源服务，保留权威状态。
+`Plugin(name, requires, install, schema=..., initialize=..., includes=..., schema_requires=...)` 声明服务依赖、静态子插件与数据先决；两个依赖图独立预检。`compose` 先汇集 schema 和初始化，在一个 StageStore 中发布根，再按依赖安装服务。异步外部数据准备使用 `prepare` 上下文管理器返回同步 initializer。恢复从完整点创建新运行，重新安装本次资源服务，保留权威状态。
 
-标准工厂包括 actor_plugin、interaction_plugin、thread_plugin、memory_plugin、model_plugin、embedding_plugin、workspace_plugin、results_plugin、dataset_plugin、runtime_plugin。按实际消费者选用，普通规则不需要模型、记忆或 shell。领域机制通过 PluginContext.require 获取显式依赖服务，provide 暴露自身服务，on_close 归还资源，on_step 注册完整步骤钩子。
+标准工厂包括 actor_data_plugin、actor_plugin、interaction_plugin、thread_plugin、memory_plugin、model_plugin、embedding_plugin、workspace_plugin、results_plugin、dataset_plugin、runtime_plugin。按实际消费者选用，普通规则不需要模型、记忆或 shell。领域机制通过 PluginContext.require 获取显式依赖服务，provide 暴露自身服务，on_close 归还资源，on_step 注册完整步骤钩子。
 
 ## 二、交互
 
-ActorRecord 保存人格、主观状态、配置和角色；ActorStore 按实际主体按需加载。Driver 可以是规则或 LLM，使用绑定身份的 Session。共享 Information 提供目录、分页数据与原文范围；Actions 注册按目标类型发现的模板，执行时重新检查资格。信息读取资格与领域允许的行动由机制定义。
+ActorRecord 保存人格、主观状态、配置和角色；actor_data_plugin 提供独立 directory，actor_plugin 将目录与驱动工厂绑定为 ActorStore，并按实际主体按需加载。机制依赖目录，驱动可再依赖机制输入。Driver 可以是规则或 LLM，使用绑定身份的 Session。共享 Information 提供目录、分页数据与原文范围；Actions 注册按目标类型发现的模板，执行时重新检查资格。信息读取资格与领域允许的行动由机制定义。
 
 LLMDriver 保留完整 Thread，提供 data/action 元工具，按需接 shell。Memory 以 SQL 正文与原始向量为权威，Chroma 为可重建检索投影。各激活分别冻结记忆开关与模型选择。
 

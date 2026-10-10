@@ -380,7 +380,7 @@ async def test_social_vector_watermark_failure_reuses_persisted_original_vectors
     embed=Embed();client=FailingClient()
     def install(ctx):
         ctx.provide('embeddings',{'default':SimpleNamespace(embed=embed)});ctx.provide('client',client)
-    plugins=plan(Plugin('vectors',install=install),social_plugin('abc',edges=[],embedding=('vectors','default'),vector_client=('vectors','client')))
+    plugins=plan(Plugin('vectors',install=install),social_plugin('abc',edges=[],config={'social_media':{'recommendation':{'use_embedding_similarity':True}}},embedding=('vectors','default'),vector_client=('vectors','client')))
     async with compose(tmp_path/'run',plugins) as host:
         social=host.service('social','mechanism')
         social.execute('publish_post','b','b',{'content':'original complete body'},1)
@@ -388,8 +388,9 @@ async def test_social_vector_watermark_failure_reuses_persisted_original_vectors
         assert embed.calls==[['original complete body']]
         await social.after_tick()
         assert embed.calls==[['original complete body']]
-        assert list(social._collection.rows)==['post_1']
-        assert social._collection.metadata['through']==1
+        semantic=host.service('social.semantic','semantic')
+        assert list(semantic._collection.rows)==['post_1']
+        assert semantic._collection.metadata['through']==1
         host.service('storage','store').complete(1)
 
 @pytest.mark.asyncio
@@ -400,7 +401,7 @@ async def test_social_consecutive_feed_pages_reuse_same_semantic_query(tmp_path)
     embed=Embed();client=Client()
     def install(ctx):
         ctx.provide('embeddings',{'default':SimpleNamespace(embed=embed)});ctx.provide('client',client)
-    plugins=plan(Plugin('vectors',install=install),social_plugin('abc',edges=[],embedding=('vectors','default'),vector_client=('vectors','client')))
+    plugins=plan(Plugin('vectors',install=install),social_plugin('abc',edges=[],config={'social_media':{'recommendation':{'use_embedding_similarity':True}}},embedding=('vectors','default'),vector_client=('vectors','client')))
     async with compose(tmp_path/'run',plugins) as host:
         social=host.service('social','mechanism');info=host.service('interaction','information')
         for text in ('one','two','three'):social.execute('publish_post','b','b',{'content':text},1)

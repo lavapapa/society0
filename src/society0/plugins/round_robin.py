@@ -80,19 +80,24 @@ class RoundRobin:
         return self.store.read(read)
 
     def initialize_round_messages(self, round_number):
+        """重置当前轮收件箱可见起点；每次调用生效，原文历史保持不变。"""
         if type(round_number) is not int or round_number<1: raise ValueError('round must be positive')
         def write(w):
+            current=w.query(f'SELECT current_round FROM {self.table("head")} WHERE id=1')[0][0]
+            if round_number!=current: raise ValueError('only current round messages can be initialized')
             w.execute(f'UPDATE {self.table("head")} SET inbox_after=(SELECT coalesce(max(id),0) FROM {self.table("messages")}) WHERE id=1')
             w.execute(f'UPDATE {self.table("counts")} SET total=0 WHERE round>0')
             return {'status':'initialized','round':round_number}
         return self.store.transaction(write)
 
     def start_round(self,round_number):
+        """允许跳到未来轮；同轮重入保持配对，拒绝回退以保护已发生的事实。"""
         def write(w):
             total=w.query(f'SELECT total_rounds FROM {self.table("head")} WHERE id=1')[0][0]
             if type(round_number) is not int or not 1<=round_number<=total:
                 raise ValueError('round is outside the schedule')
             current=w.query(f'SELECT current_round FROM {self.table("head")} WHERE id=1')[0][0]
+            if round_number<current: raise ValueError('round cannot move backwards')
             if current==round_number and w.query(f'SELECT 1 FROM {self.table("members")} WHERE active=1 LIMIT 1'):
                 return {'round':round_number,'pairs':[],'successful_pairs':0}
             w.execute(f'UPDATE {self.table("head")} SET current_round=? WHERE id=1',(round_number,))
@@ -156,7 +161,9 @@ class RoundRobin:
             return ActionResult('completed',{'marker':args['marker'],**self.pairing(scope.actor)})
         actions.register(Action(self.name+'.mark_conversation_participant',(self.name,'participants'),'保存本主体的对话参与标记。',
             {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own),dependencies=dependencies)
-        information.mount('/'+self.name,round_robin_information(self.store,self.name))
+        provider=round_robin_information(self.store,self.name)
+        information.mount('/'+self.name,provider)
+        return provider
 
 
 def round_robin_information(reader,name='conversation'):
@@ -168,7 +175,20 @@ def round_robin_information(reader,name='conversation'):
     def counter(round_expression):
         return lambda scope:(f'SELECT coalesce(sum(total),0) FROM {table("counts")} WHERE receiver=? AND round='+round_expression,(scope.actor,))
     columns=('id','sender','receiver','round','timestamp')
+    member_group=f'(SELECT group_no FROM {table("members")} WHERE id=?)'
+    def member(scope): return (f'EXISTS(SELECT 1 FROM {table("members")} WHERE id=?)',(scope.actor,))
+    def group(scope): return ('group_no='+member_group,(scope.actor,))
+    def partners(scope): return ('actor=?',(scope.actor,))
+    def plan(scope): return ('group_no='+member_group+' AND (first=? OR second=?) AND round>='+current,(scope.actor,scope.actor,scope.actor))
     return SQLInformation(name,reader,{
+        'group':DatasetSpec(name+'_head','id',('id','current_round','total_rounds','duration'),authorize=member,dependencies=(name+'_members',),
+            field_descriptions={'total_rounds':'计划总轮数；本人当前配对见 participants，伙伴历史见 partners。','duration':'每轮建议对话分钟数；小组成员见 members，本人当前及未来伙伴见 plan。'}),
+        'members':DatasetSpec(name+'_members','id',('id','group_no','ordinal'),authorize=group,order_fields=('ordinal',),
+            field_descriptions={'id':'本小组成员身份；其他小组不可见。'}),
+        'partners':DatasetSpec(name+'_partners','id',('id','actor','partner','round'),authorize=partners,order_fields=('round',),
+            field_descriptions={'partner':'本人已启动配对的伙伴，完整历史按轮次分页读取。'}),
+        'plan':DatasetSpec(name+'_schedule','id',('id','round','group_no','first','second'),authorize=plan,order_fields=('round',),dependencies=(name+'_members',name+'_head'),
+            field_descriptions={'first':'配对一方；first/second 中另一方是本人伙伴。'},time_description='本人当前轮与未来轮的配对计划；已启动配对历史见 partners。'),
         'participants':DatasetSpec(name+'_members','id',('id','group_no','partner','round','active'),authorize=lambda scope:('id=?',(scope.actor,))),
         'messages':DatasetSpec(name+'_messages','id',columns,authorize=inbox,base_count=counter(current),dependencies=(name+'_head',name+'_counts')),
         'history':DatasetSpec(name+'_messages','id',columns,authorize=history,base_count=counter('0'),dependencies=(name+'_counts',)),
@@ -177,7 +197,7 @@ def round_robin_information(reader,name='conversation'):
 
 
 def round_robin_plugin(members, *, group_size, name='conversation', session_duration_minutes=10,
-                       clock=time.time, storage='storage', actors='actors', interaction='interaction'):
+                       clock=time.time, storage='storage', actors='actors.data', interaction='interaction'):
     members=tuple(members)
     if type(group_size) is not int or group_size<2 or group_size>20 or group_size%2 or len(members)%group_size or len(set(members))!=len(members):
         raise ValueError('members require distinct identities in complete even groups of 2 to 20')
@@ -193,7 +213,8 @@ def round_robin_plugin(members, *, group_size, name='conversation', session_dura
             for number,pairs in enumerate(_schedule(members[start:start+group_size]),1):
                 for a,b in pairs: w.execute(f'INSERT INTO {t("schedule")}(round,group_no,first,second) VALUES(?,?,?,?)',(number,group_no,a,b))
     def install(ctx):
-        mechanism=RoundRobin(name,ctx.require(storage,'store'),ctx.require(actors,'actors'),session_duration_minutes,clock)
-        mechanism.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'))
+        mechanism=RoundRobin(name,ctx.require(storage,'store'),ctx.require(actors,'directory'),session_duration_minutes,clock)
+        provider=mechanism.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'))
+        ctx.on_close(provider.close)
         ctx.provide('mechanism',mechanism)
-    return Plugin(name,(storage,actors,interaction),install,schema=_schema(name),initialize=initialize)
+    return Plugin(name,(storage,actors,interaction),install,schema=_schema(name),initialize=initialize,schema_requires=(actors,))

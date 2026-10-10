@@ -405,6 +405,7 @@ class LLMDriver:
                 context.inputs=inputs
                 if isinstance(inputs, InputBatch):
                     self.threads.append_input(thread_id, inputs.messages, inputs.consumer, inputs.cursor, context=inputs.context)
+                    context.preparations.extend(inputs.effects)
                 else:
                     for message in inputs:
                         self.threads.append_message(thread_id, message)
