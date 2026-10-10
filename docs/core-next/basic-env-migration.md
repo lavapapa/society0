@@ -2,6 +2,8 @@
 
 本文定义基础环境的行为对照与成本验收。Core 组合边界、公共接口及子插件设计的本轮工作见 [可组合性实施规格](../../.scratch/next-composition/PRD.md)。环境迁移用于持续发现并检验公共底座的问题。产业链环境及旧稳定源码不在修改范围；Next 的路线定义见 [PROJECT](../../PROJECT.md#版本路线)。
 
+本轮 Core 组合检验的结果权威入口为[架构结果](<../../research/core-next/composable-mechanisms/architecture-result.md>)，其中关联实际消费者、逐笔 oracle、冻结验收与成本边界；本文保留迁移验收规格，以下实施项的实际收口状态见[任务清单](<../../.scratch/next-composition/TODO.md>)。
+
 ## 一、基线
 
 旧基线固定为 `v4.1.14` / `4ff2df74668931aef12b1a4951fab1d97d6a0981`。Next 从 `6ba4a62` 的已交付实现接续。已有 `tests/reference` 固定于 `96b1f3b`，可复用算法消费者；完整环境验收须同时调用固定旧基线与 Next，比较共同语义输出。
