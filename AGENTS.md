@@ -2,6 +2,10 @@
 
 This repository contains the standalone `society0` simulation library. Keep research mechanisms domain independent and preserve the information, actions and recorded facts needed for each study.
 
+## Version lines
+
+This working tree belongs to Next (猎龙), the independent redesign intended for Society0 V2. Its integration branch is `next`. Keep the official `stable/4.1` architecture, releases and industry consumers unchanged during Next work; do not merge Next into the stable line or rewrite `main` history. Branch roles are defined in PROJECT.md. Legacy transparent-proxy requirements apply to the stable architecture; Next uses the native SQL contract below. Basic-environment migration covers plain, round-robin and social-network; industry migration is a separate task.
+
 ## Public runtime
 
 Use Plugin, compose, Actor/Driver, Information/Actions and Schedule through RunPlan/run_plan. All actors share an environment; mechanism plugins are internal components of that environment. Schema initialization precedes service installation. Declare actual service dependencies and resource ownership explicitly; data schema prerequisites and service installation order have distinct meanings.
