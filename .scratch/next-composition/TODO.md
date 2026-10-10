@@ -44,5 +44,7 @@
 - [x] 更新正式合同和实际结果；[真实旧引擎 oracle](<../../research/core-next/composable-mechanisms/oracle-report.md>)已完成比较复验，旧恢复丢边、标准化范围与剩余覆盖单列。
   - 正式 plugin/composition/actor/interaction/cognition/social 合同、README 和 skill references 已同步；公共 API 类型导出已复验。架构结果记录 Core 修复、既有能力复用、领域职责与下一轮问题。
 - [x] 最终性能独立审查完成，身份阻断已撤销；12进程、六组语义及恢复、78行1248数字与全部回退披露复核通过，小测3绿；原始工件完整归档，限定离线假向量/单次插桩/热恢复，见[复审核验与归档入口](<../../research/core-next/composable-mechanisms/cost-formal-report.md#31-独立复审核验>)。
-- [ ] 合入并推送 next，核实 stable/main/tag 未变。
-- [ ] 核实最终工作树 clean，移除已合并临时工作树及完成基准工作树收尾。
+- [x] 合入并推送 next，核实 stable/main/tag 未变；默认分支仍为 stable/4.1，Latest 仍为 v4.1.14。
+- [x] 核实收尾前权威工作树 clean；逐树复核绝对路径、登记状态、HEAD 为 next 祖先及 clean 后，非强制移除 society0-next-composition 与 detached society0-cost-after-521bda2-formal-01，随后以 branch -d 删除已合并 codex/next-composable-mechanisms；历史三工作树保持原样。
+
+最终源码提交为 `521bda2ad28a9855ef18e76090c353bda907b4f2`，整合提交为 `086cbc76b2414a1e251f7ce7bc1600f86a887031`；[整合 CI](https://github.com/lavapapa/society0/actions/runs/38043687627) 成功（Python 1048、Node 9）。本次收尾仅同步此任务记录。探索与正式原始工件分别保留在 workspace outputs/society0-next-composition/cost-exploratory（324文件）及 cost-formal-521bda2（210文件）；正式归档与原输出逐文件字节一致，PRD/TODO 已由 Git 追踪。正式报告中的临时源码树路径作为运行时身份留证，源码可由上述提交恢复；真实向量后端、无仪表重复测量及独立进程冷恢复继续保持待验证边界。
