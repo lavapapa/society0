@@ -23,7 +23,7 @@ async def test_original_is_file_bashkit_whole_read_and_document_range(tmp_path):
 async def test_dataset_original_spool_once_and_registration_metadata(tmp_path):
     with StageStore.create(tmp_path/'run',('CREATE TABLE docs(id INTEGER PRIMARY KEY,body TEXT,day INTEGER NOT NULL)',),initialize=lambda w:w.execute('INSERT INTO docs VALUES(1,?,3)',('甲'*30000,))) as store:
         source=SQLInformation('docs',store,{'rows':DatasetSpec('docs','id',('id','body','day'),order_fields=('day',))})
-        info=Information(lambda *a:True);info.mount('/docs',source);scope=InteractionScope('a',Moment(1,'read'));bound=info.bound(scope)
+        info=Information(lambda *a:True);info.mount('/docs',source,owned=True);scope=InteractionScope('a',Moment(1,'read'));bound=info.bound(scope)
         metadata=await bound.metadata('/docs/rows')
         assert metadata['fields']==['id','body','day'] and metadata['order_fields']==['day','id']
         first=await bound.read('/docs/rows/1',size=1024);stream=source._record_source[1]

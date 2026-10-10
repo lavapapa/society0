@@ -17,7 +17,7 @@ def plugins(embed, *, closing=None):
         if closing is not None:ctx.on_close(closing)
     return [actor_plugin({'rule':lambda record:None},records=[ActorRecord(i,'rule',persona='old') for i in 'ab']),
             interaction_plugin(lambda *args:True),Plugin('vectors',install=install),
-            social_plugin('ab',edges=[],embedding=('vectors','default'),vector_client=('vectors','client'))]
+            social_plugin('ab',edges=[],config={'social_media':{'recommendation':{'use_embedding_similarity':True}}},embedding=('vectors','default'),vector_client=('vectors','client'))]
 
 
 @pytest.mark.asyncio

@@ -48,8 +48,8 @@ class SamplePage(Page):
 
 
 class SQLInformation:
-    def bind_access_dependencies(self,tables):
-        self.access_dependencies=tuple(dict.fromkeys((*self.access_dependencies,*tables)))
+    def _access_dependencies(self,scope):
+        return (*self.access_dependencies,*scope.access_dependencies)
 
     def __init__(self, namespace, reader, routes, *, max_page_size=1000, access_dependencies=()):
         self.max_page_size = max_page_size
@@ -173,7 +173,7 @@ class SQLInformation:
         if type(limit) is not int or not 1<=limit<=self.max_page_size:
             raise ValueError('invalid directory page limit')
         def version(view):
-            return [view.run_id,view.revision_for(self.access_dependencies)]
+            return [view.run_id,view.revision_for(self._access_dependencies(scope))]
         before=self.reader.read(version,expected_revision=scope.revision)
         items=[]
         for route in self._routes:
@@ -213,7 +213,7 @@ class SQLInformation:
         where,values=self._where(scope,spec,())
         identity=json.dumps([scope.actor,asdict(scope.moment),path,where,values],sort_keys=True)
         def read(view):
-            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
             if cursor is not None and (cursor['identity']!=identity or cursor['run_id']!=view.run_id or cursor['revision']!=revision):
                 raise ValueError('file cursor or revision changed')
             if cursor is None:
@@ -257,7 +257,7 @@ class SQLInformation:
         scope.check_active()
         route,key=self._route(path)
         specs=self._routes.values() if route is None else (self._routes[route],)
-        tables=tuple(dict.fromkeys(table for spec in specs for table in (spec.table,*spec.dependencies,*self.access_dependencies)))
+        tables=tuple(dict.fromkeys(table for spec in specs for table in (spec.table,*spec.dependencies,*self._access_dependencies(scope))))
         return self.reader.read(lambda view:(view.run_id,view.revision_for(tables)),expected_revision=scope.revision)
 
     async def metadata(self,scope,path):
@@ -268,7 +268,7 @@ class SQLInformation:
         if not isinstance(spec,DatasetSpec):raise Unavailable('dataset metadata unavailable')
         where,values=self._where(scope,spec,())
         def read(view):
-            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
             return {'path':path,'logical_path':'/world'+path,'kind':'dataset','fields':list(spec.columns),
                 'field_metadata':{name:{'type':self._field_types[route][name],
                     'description':spec.field_descriptions.get(name)} for name in spec.columns},
@@ -298,7 +298,7 @@ class SQLInformation:
             rows=view.query('SELECT '+expression+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
             if not rows:raise Unavailable('resource unavailable')
             total=view.read_blob(spec.table,spec.body,rows[0][0],size=0)[1] if isinstance(spec,DocumentSpec) else None
-            return ResourceStat('file',total,view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies)),self.ref(path))
+            return ResourceStat('file',total,view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope))),self.ref(path))
         return self.reader.read(read,expected_revision=scope.revision)
 
     async def read(self, scope, path, *, offset=0, size=65536):
@@ -312,7 +312,7 @@ class SQLInformation:
         if isinstance(spec,DatasetSpec):
             where,values=self._where(scope,spec,())
             def read_record(view):
-                revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+                revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
                 # 每次范围读取仍重新授权；缓存身份包含授权依赖水位。
                 exists=view.query('SELECT '+_quote(spec.key)+' FROM '+_quote(spec.table)+' WHERE '+where+' AND '+_quote(spec.key)+'=?',(*values,key),max_rows=1)
                 if not exists:raise Unavailable('resource unavailable')
@@ -333,7 +333,7 @@ class SQLInformation:
             if not rows: raise Unavailable('resource unavailable')
             data, total = view.read_blob(spec.table, spec.body, rows[0][0], offset=offset, size=size)
             end = offset + len(data)
-            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
             return DocumentChunk(data, total, end if end < total else None, revision, self.ref(path))
         return self.reader.read(read, expected_revision=scope.revision)
 
@@ -364,7 +364,7 @@ class SQLInformation:
         ordering = ','.join(_quote(field) + ' ' + direction for field, direction in order)
 
         def read(view):
-            revision=view.revision_for((spec.table,*spec.dependencies,*self.access_dependencies))
+            revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
             if query.cursor is not None:
                 if query.cursor['identity'] != shape or query.cursor['revision'] != revision or query.cursor['run_id'] != view.run_id:
                     raise ValueError('query cursor or revision changed')

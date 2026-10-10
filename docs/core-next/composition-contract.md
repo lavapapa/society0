@@ -4,7 +4,7 @@
 
 ## 一、声明
 
-`Plugin(name, requires=(), install=..., schema=(), initialize=None)` 的 schema 是 SQL DDL 字符串序列，initialize 是同步 Writer 回调。表名与索引名由插件工厂按实例明确命名，同类机制多实例可以声明不同前缀。重复表结构由 SQLite 报错；构建器没有改写插件 SQL。requires 同时确定初始化与服务安装顺序；步骤钩子按安装顺序登记。有因果关系的业务处理放入显式 Phase，见 [双机制设计例](../../skill/references/environment-design.md#从双机制例子构建自己的世界)。
+[Plugin](../../src/society0/kernel/plugins.py) 的 `schema` 是 SQL DDL 字符串序列，`initialize` 是同步 Writer 回调，`includes` 静态包含子插件。表名与索引名由插件工厂按实例明确命名，同类机制多实例可以声明不同前缀；构建器直接执行其 SQL。`schema_requires` 声明数据准备与初始化先决，`requires` 声明服务依赖，二者分别排序。步骤钩子按服务安装顺序登记。有因果关系的业务处理放入显式 Phase，见 [双机制设计例](../../skill/references/environment-design.md#从双机制例子构建自己的世界)。
 
 ```python
 plugin = Plugin(
@@ -21,9 +21,9 @@ storage 是构建器提供的保留插件实例名，其 store 服务是同一�
 
 ## 二、构建
 
-`compose(path, plugins, source=None, step=None)` 是异步上下文管理器，返回已安装的 PluginHost。先检查重复实例、缺失依赖和依赖环，再汇集 DDL。所有 initialize 在同一个初始事务中按依赖顺序运行；异常或异步初始化使构建失败，目标目录尚未发布。初始状态完成后才安装运行服务。
+`compose(path, plugins, source=None, step=None)` 是异步上下文管理器，返回已安装的 PluginHost。先展开子插件并检查重复实例、缺失依赖以及数据图和服务图各自的环，再汇集 DDL。所有 initialize 在同一个初始事务中按数据先决顺序运行；异常或异步初始化使构建失败，目标目录尚未发布。初始状态完成后才安装运行服务。
 
-恢复使用 `compose(new_path, plugins, source=old_path, step=1)`。声明 schema 通过内存 SQLite 编译后与源运行的规范定义比较；不匹配时尚未复制源数据。恢复保留完整检查点的状态，并跳过 initialize。安装服务时可以重建缓存和连接，业务初始数据继续来自恢复状态。
+恢复使用 `compose(new_path, plugins, source=old_path, step=1)`。声明 schema 通过内存 SQLite 编译后与源运行的规范定义比较；不匹配时尚未复制源数据。恢复保留完整检查点的状态，并跳过 `prepare` 与 `initialize`。安装服务时可以重建缓存和连接，业务初始数据继续来自恢复状态。
 
 服务退出采用主机的反向依赖清理，随后关闭 StageStore。安装失败仍会清理已安装资源；此时已经建立的完整初始检查点保留在目标目录，供诊断或明确恢复。退出组合上下文不会自动发布运行中的步骤，完整步骤由 Runtime 完成。
 

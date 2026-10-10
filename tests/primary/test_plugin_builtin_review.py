@@ -16,7 +16,10 @@ async def test_review_inbox_count_matches_rows_after_clear_and_round_revisit(tmp
         mechanism.advance_round()
         mechanism.start_round(2)
         mechanism.initialize_round_messages(2)
-        mechanism.start_round(1)
+        before=mechanism.pairing('d')
+        with pytest.raises(ValueError,match='backwards'):
+            mechanism.start_round(1)
+        assert mechanism.pairing('d')==before
         info=host.service('interaction','information')
         page=await info.query(InteractionScope('d',Moment(1,'talk')),'/conversation/messages',Query())
         assert page.total==len(page.items)==len(mechanism.conversation_view('d')['messages'])

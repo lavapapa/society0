@@ -1,0 +1,4971 @@
+{
+  "plain": [
+    {
+      "tick": 0,
+      "state": {},
+      "actors": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    },
+    {
+      "tick": 1,
+      "state": {},
+      "actors": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    },
+    {
+      "tick": 2,
+      "state": {},
+      "actors": [
+        "a",
+        "b",
+        "c",
+        "d"
+      ]
+    }
+  ],
+  "rr": [
+    {
+      "round": 1,
+      "action_results": [
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "d",
+            "message_id": 1
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "c",
+            "message_id": 2
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "b",
+            "message_id": 3
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "a",
+            "message_id": 4
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "round": 1,
+            "delivered": [
+              {
+                "receiver": "b",
+                "message_id": 5
+              },
+              {
+                "receiver": "c",
+                "message_id": 6
+              },
+              {
+                "receiver": "d",
+                "message_id": 7
+              }
+            ]
+          }
+        }
+      ],
+      "pairs": [
+        [
+          "a",
+          "d"
+        ],
+        [
+          "b",
+          "c"
+        ]
+      ],
+      "messages": [
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:a:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "b",
+          "receiver": "c",
+          "content": "r1:b:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "c",
+          "receiver": "b",
+          "content": "r1:c:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "d",
+          "receiver": "a",
+          "content": "r1:d:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:广播全文",
+          "round": 1
+        }
+      ],
+      "inbox": {
+        "a": [
+          {
+            "sender": "d",
+            "receiver": "a",
+            "content": "r1:d:私信全文",
+            "round": 1
+          }
+        ],
+        "b": [
+          {
+            "sender": "c",
+            "receiver": "b",
+            "content": "r1:c:私信全文",
+            "round": 1
+          },
+          {
+            "sender": "a",
+            "receiver": "b",
+            "content": "r1:广播全文",
+            "round": 1
+          }
+        ],
+        "c": [
+          {
+            "sender": "b",
+            "receiver": "c",
+            "content": "r1:b:私信全文",
+            "round": 1
+          },
+          {
+            "sender": "a",
+            "receiver": "c",
+            "content": "r1:广播全文",
+            "round": 1
+          }
+        ],
+        "d": [
+          {
+            "sender": "a",
+            "receiver": "d",
+            "content": "r1:a:私信全文",
+            "round": 1
+          },
+          {
+            "sender": "a",
+            "receiver": "d",
+            "content": "r1:广播全文",
+            "round": 1
+          }
+        ]
+      },
+      "actors": {
+        "a": {
+          "partner": "d",
+          "history": [
+            "d"
+          ],
+          "upcoming": [
+            {
+              "round": 1,
+              "partner": "d"
+            },
+            {
+              "round": 2,
+              "partner": "c"
+            },
+            {
+              "round": 3,
+              "partner": "b"
+            }
+          ],
+          "can_converse": true,
+          "round": 1,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-1",
+          "actor_record": {
+            "persona": "a：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "a的独立判断",
+              "confidence": 1,
+              "conversation_marker": "ready-1"
+            }
+          }
+        },
+        "b": {
+          "partner": "c",
+          "history": [
+            "c"
+          ],
+          "upcoming": [
+            {
+              "round": 1,
+              "partner": "c"
+            },
+            {
+              "round": 2,
+              "partner": "d"
+            },
+            {
+              "round": 3,
+              "partner": "a"
+            }
+          ],
+          "can_converse": true,
+          "round": 1,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-1",
+          "actor_record": {
+            "persona": "b：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "b的独立判断",
+              "confidence": 2,
+              "conversation_marker": "ready-1"
+            }
+          }
+        },
+        "c": {
+          "partner": "b",
+          "history": [
+            "b"
+          ],
+          "upcoming": [
+            {
+              "round": 1,
+              "partner": "b"
+            },
+            {
+              "round": 2,
+              "partner": "a"
+            },
+            {
+              "round": 3,
+              "partner": "d"
+            }
+          ],
+          "can_converse": true,
+          "round": 1,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-1",
+          "actor_record": {
+            "persona": "c：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "c的独立判断",
+              "confidence": 3,
+              "conversation_marker": "ready-1"
+            }
+          }
+        },
+        "d": {
+          "partner": "a",
+          "history": [
+            "a"
+          ],
+          "upcoming": [
+            {
+              "round": 1,
+              "partner": "a"
+            },
+            {
+              "round": 2,
+              "partner": "b"
+            },
+            {
+              "round": 3,
+              "partner": "c"
+            }
+          ],
+          "can_converse": true,
+          "round": 1,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-1",
+          "actor_record": {
+            "persona": "d：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "d的独立判断",
+              "confidence": 4,
+              "conversation_marker": "ready-1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "round": 2,
+      "action_results": [
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "c",
+            "message_id": 8
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "d",
+            "message_id": 9
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "a",
+            "message_id": 10
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "b",
+            "message_id": 11
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "round": 2,
+            "delivered": [
+              {
+                "receiver": "b",
+                "message_id": 12
+              },
+              {
+                "receiver": "c",
+                "message_id": 13
+              },
+              {
+                "receiver": "d",
+                "message_id": 14
+              }
+            ]
+          }
+        }
+      ],
+      "pairs": [
+        [
+          "a",
+          "c"
+        ],
+        [
+          "d",
+          "b"
+        ]
+      ],
+      "messages": [
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:a:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "b",
+          "receiver": "c",
+          "content": "r1:b:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "c",
+          "receiver": "b",
+          "content": "r1:c:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "d",
+          "receiver": "a",
+          "content": "r1:d:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r2:a:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "b",
+          "receiver": "d",
+          "content": "r2:b:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "c",
+          "receiver": "a",
+          "content": "r2:c:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "d",
+          "receiver": "b",
+          "content": "r2:d:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r2:广播全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r2:广播全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r2:广播全文",
+          "round": 2
+        }
+      ],
+      "inbox": {
+        "a": [
+          {
+            "sender": "c",
+            "receiver": "a",
+            "content": "r2:c:私信全文",
+            "round": 2
+          }
+        ],
+        "b": [
+          {
+            "sender": "d",
+            "receiver": "b",
+            "content": "r2:d:私信全文",
+            "round": 2
+          },
+          {
+            "sender": "a",
+            "receiver": "b",
+            "content": "r2:广播全文",
+            "round": 2
+          }
+        ],
+        "c": [
+          {
+            "sender": "a",
+            "receiver": "c",
+            "content": "r2:a:私信全文",
+            "round": 2
+          },
+          {
+            "sender": "a",
+            "receiver": "c",
+            "content": "r2:广播全文",
+            "round": 2
+          }
+        ],
+        "d": [
+          {
+            "sender": "b",
+            "receiver": "d",
+            "content": "r2:b:私信全文",
+            "round": 2
+          },
+          {
+            "sender": "a",
+            "receiver": "d",
+            "content": "r2:广播全文",
+            "round": 2
+          }
+        ]
+      },
+      "actors": {
+        "a": {
+          "partner": "c",
+          "history": [
+            "d",
+            "c"
+          ],
+          "upcoming": [
+            {
+              "round": 2,
+              "partner": "c"
+            },
+            {
+              "round": 3,
+              "partner": "b"
+            }
+          ],
+          "can_converse": true,
+          "round": 2,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-2",
+          "actor_record": {
+            "persona": "a：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "a的独立判断",
+              "confidence": 1,
+              "conversation_marker": "ready-2"
+            }
+          }
+        },
+        "b": {
+          "partner": "d",
+          "history": [
+            "c",
+            "d"
+          ],
+          "upcoming": [
+            {
+              "round": 2,
+              "partner": "d"
+            },
+            {
+              "round": 3,
+              "partner": "a"
+            }
+          ],
+          "can_converse": true,
+          "round": 2,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-2",
+          "actor_record": {
+            "persona": "b：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "b的独立判断",
+              "confidence": 2,
+              "conversation_marker": "ready-2"
+            }
+          }
+        },
+        "c": {
+          "partner": "a",
+          "history": [
+            "b",
+            "a"
+          ],
+          "upcoming": [
+            {
+              "round": 2,
+              "partner": "a"
+            },
+            {
+              "round": 3,
+              "partner": "d"
+            }
+          ],
+          "can_converse": true,
+          "round": 2,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-2",
+          "actor_record": {
+            "persona": "c：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "c的独立判断",
+              "confidence": 3,
+              "conversation_marker": "ready-2"
+            }
+          }
+        },
+        "d": {
+          "partner": "b",
+          "history": [
+            "a",
+            "b"
+          ],
+          "upcoming": [
+            {
+              "round": 2,
+              "partner": "b"
+            },
+            {
+              "round": 3,
+              "partner": "c"
+            }
+          ],
+          "can_converse": true,
+          "round": 2,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-2",
+          "actor_record": {
+            "persona": "d：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "d的独立判断",
+              "confidence": 4,
+              "conversation_marker": "ready-2"
+            }
+          }
+        }
+      }
+    },
+    {
+      "round": 3,
+      "action_results": [
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "b",
+            "message_id": 15
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "a",
+            "message_id": 16
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "d",
+            "message_id": 17
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "sent_to": "c",
+            "message_id": 18
+          }
+        },
+        {
+          "status": "completed",
+          "value": {
+            "round": 3,
+            "delivered": [
+              {
+                "receiver": "b",
+                "message_id": 19
+              },
+              {
+                "receiver": "c",
+                "message_id": 20
+              },
+              {
+                "receiver": "d",
+                "message_id": 21
+              }
+            ]
+          }
+        }
+      ],
+      "pairs": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "c",
+          "d"
+        ]
+      ],
+      "messages": [
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:a:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "b",
+          "receiver": "c",
+          "content": "r1:b:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "c",
+          "receiver": "b",
+          "content": "r1:c:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "d",
+          "receiver": "a",
+          "content": "r1:d:私信全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r1:广播全文",
+          "round": 1
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r2:a:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "b",
+          "receiver": "d",
+          "content": "r2:b:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "c",
+          "receiver": "a",
+          "content": "r2:c:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "d",
+          "receiver": "b",
+          "content": "r2:d:私信全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r2:广播全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r2:广播全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r2:广播全文",
+          "round": 2
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r3:a:私信全文",
+          "round": 3
+        },
+        {
+          "sender": "b",
+          "receiver": "a",
+          "content": "r3:b:私信全文",
+          "round": 3
+        },
+        {
+          "sender": "c",
+          "receiver": "d",
+          "content": "r3:c:私信全文",
+          "round": 3
+        },
+        {
+          "sender": "d",
+          "receiver": "c",
+          "content": "r3:d:私信全文",
+          "round": 3
+        },
+        {
+          "sender": "a",
+          "receiver": "b",
+          "content": "r3:广播全文",
+          "round": 3
+        },
+        {
+          "sender": "a",
+          "receiver": "c",
+          "content": "r3:广播全文",
+          "round": 3
+        },
+        {
+          "sender": "a",
+          "receiver": "d",
+          "content": "r3:广播全文",
+          "round": 3
+        }
+      ],
+      "inbox": {
+        "a": [
+          {
+            "sender": "b",
+            "receiver": "a",
+            "content": "r3:b:私信全文",
+            "round": 3
+          }
+        ],
+        "b": [
+          {
+            "sender": "a",
+            "receiver": "b",
+            "content": "r3:a:私信全文",
+            "round": 3
+          },
+          {
+            "sender": "a",
+            "receiver": "b",
+            "content": "r3:广播全文",
+            "round": 3
+          }
+        ],
+        "c": [
+          {
+            "sender": "d",
+            "receiver": "c",
+            "content": "r3:d:私信全文",
+            "round": 3
+          },
+          {
+            "sender": "a",
+            "receiver": "c",
+            "content": "r3:广播全文",
+            "round": 3
+          }
+        ],
+        "d": [
+          {
+            "sender": "c",
+            "receiver": "d",
+            "content": "r3:c:私信全文",
+            "round": 3
+          },
+          {
+            "sender": "a",
+            "receiver": "d",
+            "content": "r3:广播全文",
+            "round": 3
+          }
+        ]
+      },
+      "actors": {
+        "a": {
+          "partner": "b",
+          "history": [
+            "d",
+            "c",
+            "b"
+          ],
+          "upcoming": [
+            {
+              "round": 3,
+              "partner": "b"
+            }
+          ],
+          "can_converse": true,
+          "round": 3,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-3",
+          "actor_record": {
+            "persona": "a：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "a的独立判断",
+              "confidence": 1,
+              "conversation_marker": "ready-3"
+            }
+          }
+        },
+        "b": {
+          "partner": "a",
+          "history": [
+            "c",
+            "d",
+            "a"
+          ],
+          "upcoming": [
+            {
+              "round": 3,
+              "partner": "a"
+            }
+          ],
+          "can_converse": true,
+          "round": 3,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-3",
+          "actor_record": {
+            "persona": "b：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "b的独立判断",
+              "confidence": 2,
+              "conversation_marker": "ready-3"
+            }
+          }
+        },
+        "c": {
+          "partner": "d",
+          "history": [
+            "b",
+            "a",
+            "d"
+          ],
+          "upcoming": [
+            {
+              "round": 3,
+              "partner": "d"
+            }
+          ],
+          "can_converse": true,
+          "round": 3,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-3",
+          "actor_record": {
+            "persona": "c：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "c的独立判断",
+              "confidence": 3,
+              "conversation_marker": "ready-3"
+            }
+          }
+        },
+        "d": {
+          "partner": "c",
+          "history": [
+            "a",
+            "b",
+            "c"
+          ],
+          "upcoming": [
+            {
+              "round": 3,
+              "partner": "c"
+            }
+          ],
+          "can_converse": true,
+          "round": 3,
+          "members": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "total_rounds": 3,
+          "duration": 10,
+          "marker": "ready-3",
+          "actor_record": {
+            "persona": "d：谨慎的讨论参与者，保留完整个人设定。",
+            "state": {
+              "opinion": "d的独立判断",
+              "confidence": 4,
+              "conversation_marker": "ready-3"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "social": {
+    "steps": [
+      {
+        "tick": 0,
+        "posts": {
+          "post_1": {
+            "post_id": "post_1",
+            "author_id": "a",
+            "content": "旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "like_events": [
+              {
+                "agent_id": "b",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "d",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [],
+            "view_count": 0,
+            "replies": [
+              {
+                "author_id": "b",
+                "content": "评论全文",
+                "created_tick": 0
+              }
+            ],
+            "like_count": 3,
+            "reply_count": 1,
+            "repost_count": 1
+          },
+          "post_2": {
+            "post_id": "post_2",
+            "author_id": "b",
+            "content": "次热帖 原文",
+            "tags": [],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "c"
+            ],
+            "like_events": [
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 1,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_3": {
+            "post_id": "post_3",
+            "author_id": "d",
+            "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": "post_1",
+            "likes": [],
+            "like_events": [],
+            "special_tags": [],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          }
+        },
+        "edges": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "c"
+          ],
+          [
+            "c",
+            "a"
+          ],
+          [
+            "d",
+            "a"
+          ]
+        ],
+        "notifications": [
+          {
+            "ordinal": 1,
+            "actor": "b",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "a"
+            }
+          },
+          {
+            "ordinal": 2,
+            "actor": "c",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "b"
+            }
+          },
+          {
+            "ordinal": 3,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "c"
+            }
+          },
+          {
+            "ordinal": 4,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "d"
+            }
+          },
+          {
+            "ordinal": 5,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 6,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 7,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "d"
+            }
+          },
+          {
+            "ordinal": 8,
+            "actor": "b",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_2",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 9,
+            "actor": "a",
+            "type": "post_comment",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "comment_preview": "评论全文",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 10,
+            "actor": "a",
+            "type": "post_repost",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "commentary_preview": "转发全文",
+              "interactor_id": "d"
+            }
+          }
+        ],
+        "ranking": [
+          {
+            "post_id": "post_1",
+            "_recommendation_score": {
+              "time_score": 1.0,
+              "time_contribution": 0.05,
+              "engagement_score": 6.5,
+              "engagement_contribution": 6.5,
+              "network_score": 0.2,
+              "network_contribution": 0.0,
+              "semantic_score": 0.0,
+              "semantic_contribution": 0.0,
+              "total_score": 6.55
+            }
+          }
+        ],
+        "active_pool_members": [
+          "post_1",
+          "post_3"
+        ],
+        "trending_ids": [
+          "post_1",
+          "post_2"
+        ],
+        "pending_exposures": {
+          "post_1": 2,
+          "post_2": 1
+        }
+      },
+      {
+        "tick": 1,
+        "posts": {
+          "post_1": {
+            "post_id": "post_1",
+            "author_id": "a",
+            "content": "旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "like_events": [
+              {
+                "agent_id": "b",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "d",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [
+              "flagged"
+            ],
+            "view_count": 2,
+            "replies": [
+              {
+                "author_id": "b",
+                "content": "评论全文",
+                "created_tick": 0
+              }
+            ],
+            "like_count": 3,
+            "reply_count": 1,
+            "repost_count": 1
+          },
+          "post_2": {
+            "post_id": "post_2",
+            "author_id": "b",
+            "content": "次热帖 原文",
+            "tags": [],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "c"
+            ],
+            "like_events": [
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [],
+            "view_count": 1,
+            "replies": [],
+            "like_count": 1,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_3": {
+            "post_id": "post_3",
+            "author_id": "d",
+            "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": "post_1",
+            "likes": [],
+            "like_events": [],
+            "special_tags": [
+              "flagged"
+            ],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_4": {
+            "post_id": "post_4",
+            "author_id": "c",
+            "content": "新冷帖 原文",
+            "tags": [],
+            "created_tick": 1,
+            "reply_to": null,
+            "likes": [],
+            "like_events": [],
+            "special_tags": [],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          }
+        },
+        "edges": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "c"
+          ],
+          [
+            "c",
+            "a"
+          ]
+        ],
+        "notifications": [
+          {
+            "ordinal": 1,
+            "actor": "b",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "a"
+            }
+          },
+          {
+            "ordinal": 2,
+            "actor": "c",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "b"
+            }
+          },
+          {
+            "ordinal": 3,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "c"
+            }
+          },
+          {
+            "ordinal": 4,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "d"
+            }
+          },
+          {
+            "ordinal": 5,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 6,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 7,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "d"
+            }
+          },
+          {
+            "ordinal": 8,
+            "actor": "b",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_2",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 9,
+            "actor": "a",
+            "type": "post_comment",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "comment_preview": "评论全文",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 10,
+            "actor": "a",
+            "type": "post_repost",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "commentary_preview": "转发全文",
+              "interactor_id": "d"
+            }
+          }
+        ],
+        "ranking": [
+          {
+            "post_id": "post_1",
+            "_recommendation_score": {
+              "time_score": 0.920044,
+              "time_contribution": 0.046002,
+              "engagement_score": 6.5,
+              "engagement_contribution": 6.5,
+              "network_score": 0.0,
+              "network_contribution": 0.0,
+              "semantic_score": 0.0,
+              "semantic_contribution": 0.0,
+              "total_score": 6.546002
+            }
+          },
+          {
+            "post_id": "post_4",
+            "_recommendation_score": {
+              "time_score": 1.0,
+              "time_contribution": 0.05,
+              "engagement_score": 0.0,
+              "engagement_contribution": 0.0,
+              "network_score": 0.0,
+              "network_contribution": 0.0,
+              "semantic_score": 0.0,
+              "semantic_contribution": 0.0,
+              "total_score": 0.05
+            }
+          }
+        ],
+        "active_pool_members": [
+          "post_1",
+          "post_4"
+        ],
+        "trending_ids": [
+          "post_1",
+          "post_2"
+        ],
+        "pending_exposures": {
+          "post_1": 2,
+          "post_4": 1,
+          "post_2": 1
+        }
+      },
+      {
+        "tick": 2,
+        "posts": {
+          "post_1": {
+            "post_id": "post_1",
+            "author_id": "a",
+            "content": "旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "b",
+              "c",
+              "d"
+            ],
+            "like_events": [
+              {
+                "agent_id": "b",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              },
+              {
+                "agent_id": "d",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [
+              "flagged"
+            ],
+            "view_count": 4,
+            "replies": [
+              {
+                "author_id": "b",
+                "content": "评论全文",
+                "created_tick": 0
+              }
+            ],
+            "like_count": 3,
+            "reply_count": 1,
+            "repost_count": 1
+          },
+          "post_2": {
+            "post_id": "post_2",
+            "author_id": "b",
+            "content": "次热帖 原文",
+            "tags": [],
+            "created_tick": 0,
+            "reply_to": null,
+            "likes": [
+              "c"
+            ],
+            "like_events": [
+              {
+                "agent_id": "c",
+                "created_tick": 0
+              }
+            ],
+            "special_tags": [],
+            "view_count": 2,
+            "replies": [],
+            "like_count": 1,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_3": {
+            "post_id": "post_3",
+            "author_id": "d",
+            "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+            "tags": [
+              "topic"
+            ],
+            "created_tick": 0,
+            "reply_to": "post_1",
+            "likes": [],
+            "like_events": [],
+            "special_tags": [
+              "flagged"
+            ],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_4": {
+            "post_id": "post_4",
+            "author_id": "c",
+            "content": "新冷帖 原文",
+            "tags": [],
+            "created_tick": 1,
+            "reply_to": null,
+            "likes": [],
+            "like_events": [],
+            "special_tags": [],
+            "view_count": 1,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          },
+          "post_5": {
+            "post_id": "post_5",
+            "author_id": "b",
+            "content": "最新冷帖 原文",
+            "tags": [],
+            "created_tick": 2,
+            "reply_to": null,
+            "likes": [],
+            "like_events": [],
+            "special_tags": [],
+            "view_count": 0,
+            "replies": [],
+            "like_count": 0,
+            "reply_count": 0,
+            "repost_count": 0
+          }
+        },
+        "edges": [
+          [
+            "a",
+            "b"
+          ],
+          [
+            "b",
+            "c"
+          ],
+          [
+            "c",
+            "a"
+          ]
+        ],
+        "notifications": [
+          {
+            "ordinal": 1,
+            "actor": "b",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "a"
+            }
+          },
+          {
+            "ordinal": 2,
+            "actor": "c",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "b"
+            }
+          },
+          {
+            "ordinal": 3,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "c"
+            }
+          },
+          {
+            "ordinal": 4,
+            "actor": "a",
+            "type": "new_follower",
+            "tick": 0,
+            "data": {
+              "follower_id": "d"
+            }
+          },
+          {
+            "ordinal": 5,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 6,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 7,
+            "actor": "a",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "interactor_id": "d"
+            }
+          },
+          {
+            "ordinal": 8,
+            "actor": "b",
+            "type": "post_like",
+            "tick": 0,
+            "data": {
+              "post_id": "post_2",
+              "interactor_id": "c"
+            }
+          },
+          {
+            "ordinal": 9,
+            "actor": "a",
+            "type": "post_comment",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "comment_preview": "评论全文",
+              "interactor_id": "b"
+            }
+          },
+          {
+            "ordinal": 10,
+            "actor": "a",
+            "type": "post_repost",
+            "tick": 0,
+            "data": {
+              "post_id": "post_1",
+              "commentary_preview": "转发全文",
+              "interactor_id": "d"
+            }
+          }
+        ],
+        "ranking": [
+          {
+            "post_id": "post_1",
+            "_recommendation_score": {
+              "time_score": 0.846482,
+              "time_contribution": 0.042324,
+              "engagement_score": 6.5,
+              "engagement_contribution": 6.5,
+              "network_score": 0.0,
+              "network_contribution": 0.0,
+              "semantic_score": 0.0,
+              "semantic_contribution": 0.0,
+              "total_score": 6.542324
+            }
+          },
+          {
+            "post_id": "post_5",
+            "_recommendation_score": {
+              "time_score": 1.0,
+              "time_contribution": 0.05,
+              "engagement_score": 0.0,
+              "engagement_contribution": 0.0,
+              "network_score": 0.0,
+              "network_contribution": 0.0,
+              "semantic_score": 0.0,
+              "semantic_contribution": 0.0,
+              "total_score": 0.05
+            }
+          }
+        ],
+        "active_pool_members": [
+          "post_1",
+          "post_5"
+        ],
+        "trending_ids": [
+          "post_1",
+          "post_2"
+        ],
+        "pending_exposures": {
+          "post_1": 2,
+          "post_5": 1,
+          "post_2": 1
+        }
+      }
+    ],
+    "final": {
+      "posts": {
+        "post_1": {
+          "post_id": "post_1",
+          "author_id": "a",
+          "content": "旧热帖 #topic 原文",
+          "tags": [
+            "topic"
+          ],
+          "created_tick": 0,
+          "reply_to": null,
+          "likes": [
+            "b",
+            "c",
+            "d"
+          ],
+          "like_events": [
+            {
+              "agent_id": "b",
+              "created_tick": 0
+            },
+            {
+              "agent_id": "c",
+              "created_tick": 0
+            },
+            {
+              "agent_id": "d",
+              "created_tick": 0
+            }
+          ],
+          "special_tags": [
+            "flagged"
+          ],
+          "view_count": 6,
+          "replies": [
+            {
+              "author_id": "b",
+              "content": "评论全文",
+              "created_tick": 0
+            }
+          ],
+          "like_count": 3,
+          "reply_count": 1,
+          "repost_count": 1
+        },
+        "post_2": {
+          "post_id": "post_2",
+          "author_id": "b",
+          "content": "次热帖 原文",
+          "tags": [],
+          "created_tick": 0,
+          "reply_to": null,
+          "likes": [
+            "c"
+          ],
+          "like_events": [
+            {
+              "agent_id": "c",
+              "created_tick": 0
+            }
+          ],
+          "special_tags": [],
+          "view_count": 3,
+          "replies": [],
+          "like_count": 1,
+          "reply_count": 0,
+          "repost_count": 0
+        },
+        "post_3": {
+          "post_id": "post_3",
+          "author_id": "d",
+          "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+          "tags": [
+            "topic"
+          ],
+          "created_tick": 0,
+          "reply_to": "post_1",
+          "likes": [],
+          "like_events": [],
+          "special_tags": [
+            "flagged"
+          ],
+          "view_count": 0,
+          "replies": [],
+          "like_count": 0,
+          "reply_count": 0,
+          "repost_count": 0
+        },
+        "post_4": {
+          "post_id": "post_4",
+          "author_id": "c",
+          "content": "新冷帖 原文",
+          "tags": [],
+          "created_tick": 1,
+          "reply_to": null,
+          "likes": [],
+          "like_events": [],
+          "special_tags": [],
+          "view_count": 1,
+          "replies": [],
+          "like_count": 0,
+          "reply_count": 0,
+          "repost_count": 0
+        },
+        "post_5": {
+          "post_id": "post_5",
+          "author_id": "b",
+          "content": "最新冷帖 原文",
+          "tags": [],
+          "created_tick": 2,
+          "reply_to": null,
+          "likes": [],
+          "like_events": [],
+          "special_tags": [],
+          "view_count": 1,
+          "replies": [],
+          "like_count": 0,
+          "reply_count": 0,
+          "repost_count": 0
+        }
+      },
+      "edges": [
+        [
+          "a",
+          "b"
+        ],
+        [
+          "b",
+          "c"
+        ],
+        [
+          "c",
+          "a"
+        ]
+      ],
+      "notifications": [
+        {
+          "ordinal": 1,
+          "actor": "b",
+          "type": "new_follower",
+          "tick": 0,
+          "data": {
+            "follower_id": "a"
+          }
+        },
+        {
+          "ordinal": 2,
+          "actor": "c",
+          "type": "new_follower",
+          "tick": 0,
+          "data": {
+            "follower_id": "b"
+          }
+        },
+        {
+          "ordinal": 3,
+          "actor": "a",
+          "type": "new_follower",
+          "tick": 0,
+          "data": {
+            "follower_id": "c"
+          }
+        },
+        {
+          "ordinal": 4,
+          "actor": "a",
+          "type": "new_follower",
+          "tick": 0,
+          "data": {
+            "follower_id": "d"
+          }
+        },
+        {
+          "ordinal": 5,
+          "actor": "a",
+          "type": "post_like",
+          "tick": 0,
+          "data": {
+            "post_id": "post_1",
+            "interactor_id": "b"
+          }
+        },
+        {
+          "ordinal": 6,
+          "actor": "a",
+          "type": "post_like",
+          "tick": 0,
+          "data": {
+            "post_id": "post_1",
+            "interactor_id": "c"
+          }
+        },
+        {
+          "ordinal": 7,
+          "actor": "a",
+          "type": "post_like",
+          "tick": 0,
+          "data": {
+            "post_id": "post_1",
+            "interactor_id": "d"
+          }
+        },
+        {
+          "ordinal": 8,
+          "actor": "b",
+          "type": "post_like",
+          "tick": 0,
+          "data": {
+            "post_id": "post_2",
+            "interactor_id": "c"
+          }
+        },
+        {
+          "ordinal": 9,
+          "actor": "a",
+          "type": "post_comment",
+          "tick": 0,
+          "data": {
+            "post_id": "post_1",
+            "comment_preview": "评论全文",
+            "interactor_id": "b"
+          }
+        },
+        {
+          "ordinal": 10,
+          "actor": "a",
+          "type": "post_repost",
+          "tick": 0,
+          "data": {
+            "post_id": "post_1",
+            "commentary_preview": "转发全文",
+            "interactor_id": "d"
+          }
+        }
+      ]
+    },
+    "recommended": {
+      "d": [
+        "post_1",
+        "post_5"
+      ]
+    },
+    "intervention": {
+      "rule_type": "intervention",
+      "target_hashtag": "#topic",
+      "intervention_rate": 1.0,
+      "tag_applied": "flagged",
+      "total_posts": 4,
+      "posts_flagged": 2,
+      "flagged_post_ids": [
+        "post_1",
+        "post_3"
+      ],
+      "timestamp": 1
+    },
+    "actions": [
+      {
+        "tick": 0,
+        "actor": "a",
+        "name": "follow",
+        "arguments": {
+          "target_agent_id": "b"
+        },
+        "result": {
+          "status": "completed",
+          "changed": true,
+          "target": "b"
+        },
+        "state": {
+          "posts": {},
+          "edges": [
+            [
+              "a",
+              "b"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "b",
+        "name": "follow",
+        "arguments": {
+          "target_agent_id": "c"
+        },
+        "result": {
+          "status": "completed",
+          "changed": true,
+          "target": "c"
+        },
+        "state": {
+          "posts": {},
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "c",
+        "name": "follow",
+        "arguments": {
+          "target_agent_id": "a"
+        },
+        "result": {
+          "status": "completed",
+          "changed": true,
+          "target": "a"
+        },
+        "state": {
+          "posts": {},
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "d",
+        "name": "follow",
+        "arguments": {
+          "target_agent_id": "a"
+        },
+        "result": {
+          "status": "completed",
+          "changed": true,
+          "target": "a"
+        },
+        "state": {
+          "posts": {},
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "a",
+        "name": "publish_post",
+        "arguments": {
+          "content": "旧热帖 #topic 原文",
+          "tags": [
+            "topic"
+          ]
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_1"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "b",
+        "name": "publish_post",
+        "arguments": {
+          "content": "次热帖 原文",
+          "tags": []
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_2"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "b",
+        "name": "like_post",
+        "arguments": {
+          "post_id": "post_1"
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_1",
+          "changed": true
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "c",
+        "name": "like_post",
+        "arguments": {
+          "post_id": "post_1"
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_1",
+          "changed": true
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 2,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "d",
+        "name": "like_post",
+        "arguments": {
+          "post_id": "post_1"
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_1",
+          "changed": true
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 3,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "c",
+        "name": "like_post",
+        "arguments": {
+          "post_id": "post_2"
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_2",
+          "changed": true
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 3,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "b",
+        "name": "comment",
+        "arguments": {
+          "post_id": "post_1",
+          "content": "评论全文"
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_1"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 0
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "d",
+        "name": "repost",
+        "arguments": {
+          "post_id": "post_1",
+          "commentary": "转发全文"
+        },
+        "result": {
+          "status": "completed",
+          "target": "post_1",
+          "post_id": "post_3"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 0,
+        "actor": "d",
+        "name": "get_trending_posts",
+        "arguments": {},
+        "result": {
+          "status": "completed",
+          "posts": [
+            {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "like_count": 3,
+              "reply_count": 1,
+              "view_count": 0
+            },
+            {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "like_count": 1,
+              "reply_count": 0,
+              "view_count": 0
+            }
+          ]
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 1,
+        "actor": "c",
+        "name": "publish_post",
+        "arguments": {
+          "content": "新冷帖 原文",
+          "tags": []
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_4"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 2,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 1,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_4": {
+              "post_id": "post_4",
+              "author_id": "c",
+              "content": "新冷帖 原文",
+              "tags": [],
+              "created_tick": 1,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ],
+            [
+              "d",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 1,
+        "actor": "d",
+        "name": "unfollow",
+        "arguments": {
+          "target_agent_id": "a"
+        },
+        "result": {
+          "status": "completed",
+          "changed": true,
+          "target": "a"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 2,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 1,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_4": {
+              "post_id": "post_4",
+              "author_id": "c",
+              "content": "新冷帖 原文",
+              "tags": [],
+              "created_tick": 1,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 1,
+        "actor": "d",
+        "name": "get_trending_posts",
+        "arguments": {},
+        "result": {
+          "status": "completed",
+          "posts": [
+            {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文 [系统标记: flagged]",
+              "like_count": 3,
+              "reply_count": 1,
+              "view_count": 2
+            },
+            {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "like_count": 1,
+              "reply_count": 0,
+              "view_count": 1
+            }
+          ]
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 2,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 1,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_4": {
+              "post_id": "post_4",
+              "author_id": "c",
+              "content": "新冷帖 原文",
+              "tags": [],
+              "created_tick": 1,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 2,
+        "actor": "b",
+        "name": "publish_post",
+        "arguments": {
+          "content": "最新冷帖 原文",
+          "tags": []
+        },
+        "result": {
+          "status": "completed",
+          "post_id": "post_5"
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 4,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 2,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_4": {
+              "post_id": "post_4",
+              "author_id": "c",
+              "content": "新冷帖 原文",
+              "tags": [],
+              "created_tick": 1,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 1,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_5": {
+              "post_id": "post_5",
+              "author_id": "b",
+              "content": "最新冷帖 原文",
+              "tags": [],
+              "created_tick": 2,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "tick": 2,
+        "actor": "d",
+        "name": "get_trending_posts",
+        "arguments": {},
+        "result": {
+          "status": "completed",
+          "posts": [
+            {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文 [系统标记: flagged]",
+              "like_count": 3,
+              "reply_count": 1,
+              "view_count": 4
+            },
+            {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "like_count": 1,
+              "reply_count": 0,
+              "view_count": 2
+            }
+          ]
+        },
+        "state": {
+          "posts": {
+            "post_1": {
+              "post_id": "post_1",
+              "author_id": "a",
+              "content": "旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "b",
+                "c",
+                "d"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "b",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                },
+                {
+                  "agent_id": "d",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 4,
+              "replies": [
+                {
+                  "author_id": "b",
+                  "content": "评论全文",
+                  "created_tick": 0
+                }
+              ],
+              "like_count": 3,
+              "reply_count": 1,
+              "repost_count": 1
+            },
+            "post_2": {
+              "post_id": "post_2",
+              "author_id": "b",
+              "content": "次热帖 原文",
+              "tags": [],
+              "created_tick": 0,
+              "reply_to": null,
+              "likes": [
+                "c"
+              ],
+              "like_events": [
+                {
+                  "agent_id": "c",
+                  "created_tick": 0
+                }
+              ],
+              "special_tags": [],
+              "view_count": 2,
+              "replies": [],
+              "like_count": 1,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_3": {
+              "post_id": "post_3",
+              "author_id": "d",
+              "content": "转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文",
+              "tags": [
+                "topic"
+              ],
+              "created_tick": 0,
+              "reply_to": "post_1",
+              "likes": [],
+              "like_events": [],
+              "special_tags": [
+                "flagged"
+              ],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_4": {
+              "post_id": "post_4",
+              "author_id": "c",
+              "content": "新冷帖 原文",
+              "tags": [],
+              "created_tick": 1,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 1,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            },
+            "post_5": {
+              "post_id": "post_5",
+              "author_id": "b",
+              "content": "最新冷帖 原文",
+              "tags": [],
+              "created_tick": 2,
+              "reply_to": null,
+              "likes": [],
+              "like_events": [],
+              "special_tags": [],
+              "view_count": 0,
+              "replies": [],
+              "like_count": 0,
+              "reply_count": 0,
+              "repost_count": 0
+            }
+          },
+          "edges": [
+            [
+              "a",
+              "b"
+            ],
+            [
+              "b",
+              "c"
+            ],
+            [
+              "c",
+              "a"
+            ]
+          ],
+          "notifications": [
+            {
+              "ordinal": 1,
+              "actor": "b",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "a"
+              }
+            },
+            {
+              "ordinal": 2,
+              "actor": "c",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "b"
+              }
+            },
+            {
+              "ordinal": 3,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "c"
+              }
+            },
+            {
+              "ordinal": 4,
+              "actor": "a",
+              "type": "new_follower",
+              "tick": 0,
+              "data": {
+                "follower_id": "d"
+              }
+            },
+            {
+              "ordinal": 5,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 6,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 7,
+              "actor": "a",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "interactor_id": "d"
+              }
+            },
+            {
+              "ordinal": 8,
+              "actor": "b",
+              "type": "post_like",
+              "tick": 0,
+              "data": {
+                "post_id": "post_2",
+                "interactor_id": "c"
+              }
+            },
+            {
+              "ordinal": 9,
+              "actor": "a",
+              "type": "post_comment",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "comment_preview": "评论全文",
+                "interactor_id": "b"
+              }
+            },
+            {
+              "ordinal": 10,
+              "actor": "a",
+              "type": "post_repost",
+              "tick": 0,
+              "data": {
+                "post_id": "post_1",
+                "commentary_preview": "转发全文",
+                "interactor_id": "d"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

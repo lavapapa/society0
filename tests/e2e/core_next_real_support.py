@@ -112,7 +112,7 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
         from society0.kernel.workspace import workspace_plugin
         plugins.append(workspace_plugin())
     plugins.extend(extra_plugins)
-    dependencies=('threads','models','embeddings','interaction')+(('memory',) if memory else ())+(('workspace',) if workspace else ())
+    dependencies=('storage','threads','models','embeddings','interaction')+(('memory',) if memory else ())+(('workspace',) if workspace else ())
     plugins.append(actor_plugin(('llm',),requires=dependencies,driver_factory=drivers,records=[
         ActorRecord(actor,'llm',persona='你是主体 '+actor+'。认真遵照本轮任务，保留事实原文。') for actor in actors]))
     if mechanism=='round':
@@ -121,6 +121,7 @@ def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),a
     if mechanism=='social':
         from society0.plugins.social import social_plugin
         plugins.append(social_plugin(actors,name='social',content_length_limit=-1,edges=[],
+            config={'social_media':{'recommendation':{'use_embedding_similarity':True}}},
             embedding=('embeddings','main'),vector_client=('vectors','client')))
     plugins.append(runtime_plugin(actor_service=('actors','actors'),information=('interaction','information'),
         actions=('interaction','actions'),store=('storage','store'),results=('results','results'),capacity=capacity))

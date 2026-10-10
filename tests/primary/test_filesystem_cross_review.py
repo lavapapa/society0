@@ -49,7 +49,7 @@ async def test_sql_spool_rechecks_access_and_closes_on_interleaved_identity(tmp_
     allowed={'a':True,'b':True}
     with StageStore.create(tmp_path/'run',('CREATE TABLE docs(id TEXT PRIMARY KEY NOT NULL,value TEXT)',),initialize=lambda w:w.execute('INSERT INTO docs VALUES(?,?)',('a/b%中文','完整🙂'*30000))) as store:
         source=SQLInformation('docs',store,{'rows':DatasetSpec('docs','id',('id','value'))})
-        info=Information(lambda scope,operation,target:allowed[scope.actor]);info.mount('/docs',source)
+        info=Information(lambda scope,operation,target:allowed[scope.actor]);info.mount('/docs',source,owned=True)
         scope_a=InteractionScope('a',Moment(1,'review'));scope_b=InteractionScope('b',Moment(1,'review'))
         from urllib.parse import quote
         path='/docs/rows/'+quote('a/b%中文',safe='')

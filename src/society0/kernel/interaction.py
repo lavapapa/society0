@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from contextlib import AsyncExitStack
 from dataclasses import asdict, dataclass, field, replace
 from inspect import isawaitable
 from typing import Any, Callable
@@ -38,6 +39,7 @@ class InteractionScope:
     actor: str
     moment: Moment
     revision: Any = None
+    access_dependencies: tuple[str, ...] = field(default=(), kw_only=True)
     on_fault: Callable | None = field(default=None, repr=False, compare=False, kw_only=True)
     _faults: list = field(default_factory=list,repr=False,compare=False,kw_only=True)
     _active: bool = field(default=True, init=False, repr=False, compare=False)
@@ -116,19 +118,43 @@ def _cursor_offset(cursor):
     return offset
 
 
+@dataclass(frozen=True)
+class _InformationScope:
+    """路由调用的非拥有视图，失败与关闭始终委托原激活作用域。"""
+    _scope: InteractionScope
+    access_dependencies: tuple[str, ...]
+
+    def __getattr__(self, name):
+        return getattr(self._scope, name)
+
+
 class Information:
     def __init__(self, allows: Callable, *, access_dependencies=()):
         self._allows = allows
         self._mounts = {}
+        self._owned = {}
+        self._resources = AsyncExitStack()
+        self._closed = False
         self.access_dependencies=tuple(access_dependencies)
 
-    def mount(self, prefix, provider):
+    def mount(self, prefix, provider, *, owned=False):
+        """默认借用；独立路由可显式托管，同一对象仅登记一次关闭。"""
+        if self._closed:
+            raise ScopeClosed('information is closed')
         prefix = _path(prefix)
         if prefix in self._mounts:
             raise ValueError('resource prefix is already mounted')
-        bind=getattr(provider,'bind_access_dependencies',None)
-        if bind is not None:bind(self.access_dependencies)
         self._mounts[prefix] = provider
+        if owned and id(provider) not in self._owned:
+            self._owned[id(provider)] = provider
+            close = getattr(provider,'close',None)
+            if close is not None:
+                async def release():
+                    await _resolve(close())
+                self._resources.push_async_callback(release)
+
+    def _scope(self, scope):
+        return _InformationScope(scope,tuple(dict.fromkeys((*scope.access_dependencies,*self.access_dependencies))))
 
     async def _provider(self, scope, path, operation):
         scope.check_active()
@@ -146,6 +172,7 @@ class Information:
         raise Unavailable('resource unavailable')
 
     async def list(self, scope, path, *, limit=100, cursor=None):
+        scope=self._scope(scope)
         if limit < 1:
             raise ValueError('limit must be positive')
         if _path(path) == '/' and '/' not in self._mounts:
@@ -174,6 +201,7 @@ class Information:
         return result
 
     async def list_files(self,scope,path,*,limit=100,cursor=None):
+        scope=self._scope(scope)
         if _path(path)=='/' and '/' not in self._mounts:
             page=await self.list(scope,path,limit=limit,cursor=cursor)
             return Page([dict(item,kind='directory') for item in page.items],page.total,page.next_cursor,page.revision)
@@ -184,6 +212,7 @@ class Information:
         scope.check_active();return result
 
     async def stat(self, scope, path):
+        scope=self._scope(scope)
         if _path(path)=='/' and '/' not in self._mounts:
             scope.check_active()
             return ResourceStat('directory',None,scope.revision,Ref('','directory',''))
@@ -195,6 +224,7 @@ class Information:
         return result
 
     async def metadata(self,scope,path):
+        scope=self._scope(scope)
         provider,path=await self._provider(scope,path,'discover')
         method=getattr(provider,'metadata',None)
         if method is None: raise Unavailable('dataset metadata unavailable')
@@ -203,6 +233,7 @@ class Information:
         return result
 
     async def search_revision(self,scope,path):
+        scope=self._scope(scope)
         path=_path(path)
         scope.check_active()
         selected=[]
@@ -219,6 +250,7 @@ class Information:
         return selected
 
     async def read(self, scope, path, *, offset=0, size=65536, expected_revision=None):
+        scope=self._scope(scope)
         if offset < 0 or size < 1:
             raise ValueError('offset must be nonnegative and size positive')
         provider, path = await self._provider(scope, path, 'read')
@@ -229,6 +261,7 @@ class Information:
         return result
 
     async def query(self, scope, path, query: Query):
+        scope=self._scope(scope)
         if query.limit < 1:
             raise ValueError('limit must be positive')
         provider, path = await self._provider(scope, path, 'read')
@@ -237,9 +270,12 @@ class Information:
         return result
 
     async def close(self):
-        for provider in self._mounts.values():
-            close=getattr(provider,'close',None)
-            if close is not None:await _resolve(close())
+        self._closed = True
+        try:
+            await self._resources.aclose()
+        finally:
+            self._owned.clear()
+            self._mounts.clear()
 
     def bound(self, scope):
         return _BoundInformation(self, scope)

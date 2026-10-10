@@ -39,7 +39,9 @@ asyncio.run(main())
 
 ## 二、依赖
 
-`Plugin(name, requires=(), install=...)` 的 `requires` 是插件名称元组。安装前一次性检查重复插件、缺失依赖和依赖环；其中任一错误都在首个安装函数运行前抛出 `ValueError`。依赖排序使用标准库 `TopologicalSorter`，安装过程串行进行。互相独立插件的业务行为应独立于彼此安装次序。
+`Plugin` 的 `requires` 是服务依赖插件名称元组。`includes` 接受静态子插件集合，主机递归展开到同一个实例空间；包含关系负责装配，父插件借用子服务仍须明确声明 `requires`。同类插件多实例使用工厂参数生成显式名称与表前缀。共享子插件在配方中声明一次，其他插件通过具名依赖借用它。
+
+`schema_requires` 声明数据准备与初始化的先决插件，独立于服务图。安装前检查展开后的重复插件、缺失依赖和两个图的环；其中任一错误都在首个安装函数运行前抛出 `ValueError`，`compose` 在创建运行目录前执行同样检查。依赖排序使用标准库 `TopologicalSorter`，安装过程串行进行。互相独立插件的业务行为应独立于彼此安装次序。省略 `install` 的插件可以声明纯数据；初始化与恢复见 [组合合同](composition-contract.md)。
 
 `ctx.provide(service, value)` 将服务放入本插件名称空间。同插件重复提供同名服务会抛出 `ValueError`；不同插件可以提供同一个局部服务名。`ctx.require(plugin, service)` 限于当前插件显式声明的直接依赖，未声明依赖抛出 `ValueError`，未提供的服务抛出 `KeyError`。传递依赖需要明确加入 `requires` 后再借用，避免隐藏生命周期关系。
 
@@ -69,7 +71,7 @@ asyncio.run(main())
 
 ## 外部初始化
 
-`compose` 汇集插件的静态 `schema`，并在根事务内依依赖顺序调用 `initialize(writer)`。普通初始化保持同步。需要异步下载或外部资源的插件可以提供 `prepare()`，返回同步或异步上下文管理器，产出一个同步初始化函数。准备阶段先取得数据，根事务统一写入，随后关闭准备资源，再安装运行服务。
+`compose` 汇集插件的静态 `schema`，并在根事务内按 `schema_requires` 的数据先决顺序调用 `initialize(writer)`。普通初始化保持同步。需要异步下载或外部资源的插件可以提供 `prepare()`，返回同步或异步上下文管理器，产出一个同步初始化函数。准备阶段先取得数据，根事务统一写入，随后关闭准备资源，再安装运行服务。
 
 ```python
 from contextlib import asynccontextmanager
@@ -86,7 +88,7 @@ async def prepare():
 plugin = Plugin("facts", schema=SCHEMA, prepare=prepare, install=install)
 ```
 
-同一插件同时提供两个入口时，先执行普通 `initialize`，再执行准备所得函数。准备函数按插件依赖顺序进入，其资源按逆序释放。后续准备失败、取消或根写入失败都会退出已取得的准备资源；根创建成功后写者立即交给外层资源栈，因此准备资源关闭时抛错也会关闭写者。此时已经发布的根仍是有效初始点，调用方收到清理异常。
+同一插件同时提供两个入口时，先执行普通 `initialize`，再执行准备所得函数。准备函数按数据先决顺序进入，其资源按逆序释放。后续准备失败、取消或根写入失败都会退出已取得的准备资源；根创建成功后写者立即交给外层资源栈，因此准备资源关闭时抛错也会关闭写者。此时已经发布的根仍是有效初始点，调用方收到清理异常。
 
 准备所得闭包在进入正式运行前释放，外部数据无需随整个运行驻留。恢复依据完整状态重建服务，跳过 `prepare` 与 `initialize`。`examples/core_next/graph_environment.py` 展示异步读取外部图、将节点与边保存到共享 SQL，再用 NetworkX 和标准库数值数组生成派生视图；恢复时原始外部文件可以已经移除。派生视图的全图算法成本由所请求节点与边的规模决定。
 
