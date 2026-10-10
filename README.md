@@ -1,8 +1,10 @@
-# Society0
+# Society0 Next · 猎龙
+
+This is the independent, fully redesigned **Next** line, codenamed **猎龙**, intended for **Society0 V2**. Development lives on [`next`](https://github.com/lavapapa/society0/tree/next). The existing architecture remains the official stable line on [`stable/4.1`](https://github.com/lavapapa/society0/tree/stable/4.1), including industry-chain consumers. Install Next from an explicit branch or commit; the repository default selects the stable line.
 
 Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
 
-The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; release readiness and outstanding validation are tracked in [the implementation checklist](docs/core-next/TODO.md). Existing artifacts must be read using their producing version.
+The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; the completed redesign is tracked in [the implementation checklist](docs/core-next/TODO.md), and the next validation phase in [basic-environment migration](docs/core-next/basic-env-migration.md). Existing artifacts must be read using their producing version. The V2 product name defines an independent line; source installation must select Next explicitly, rather than relying on package-version ordering against the stable line.
 
 ## Start a study
 

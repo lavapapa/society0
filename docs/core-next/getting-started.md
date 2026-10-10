@@ -7,7 +7,7 @@
 在 macOS 或 Linux 上准备 Git、[uv](https://docs.astral.sh/uv/getting-started/installation/) 和 Python 3.12 及以上。已有源码工作树时直接进入它；首次取得源码时，选择本次要使用的分支或标签：
 
 ```sh
-git clone https://github.com/lavapapa/society0.git
+git clone --branch next https://github.com/lavapapa/society0.git
 cd society0
 git switch --detach YOUR_SOURCE_REF
 uv sync

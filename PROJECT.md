@@ -1,4 +1,10 @@
-# Society0
+# Society0 Next · 猎龙
+
+## 版本路线
+
+本目录维护独立重构路线 Next，内部名“猎龙”，未来正式产品名称为 Society0 V2。Next 的权威开发分支为 `next`；既有架构沿 `stable/4.1` 维护，继续作为 GitHub 正式版支持产业链环境。两条线分别验证、发布和部署；Next 的修改不合入旧稳定线。包的开发版本由 pyproject.toml 定义，历史验收保留当时的版本身份。
+
+基础环境迁移先覆盖 plain、round-robin conversation 与 social network，以完整功能、主体信息可达性、逐笔事实及恢复对照评估扩展性，再比较实际资源成本。产业链环境不在这一轮迁移范围。
 
 ## 项目定位
 
