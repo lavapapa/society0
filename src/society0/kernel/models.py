@@ -178,11 +178,11 @@ class _Endpoint:
         elif self.kind == 'anthropic':
             from pydantic_ai.models.anthropic import AnthropicModelSettings
             self.settings_type = AnthropicModelSettings
-        elif self.kind in ('openai', 'openai-responses', 'azure', 'ollama', 'siwc'):
+        elif self.kind in ('openai', 'openai-responses', 'azure', 'ollama', 'siwc', 'openai-codex'):
             from pydantic_ai.models.openai import OpenAIChatModelSettings, OpenAIResponsesModelSettings
-            self.settings_type = OpenAIResponsesModelSettings if self.kind in ('siwc', 'openai-responses') else OpenAIChatModelSettings
+            self.settings_type = OpenAIResponsesModelSettings if self.kind in ('siwc', 'openai-responses', 'openai-codex') else OpenAIChatModelSettings
         else: raise ValueError('unsupported provider_type: ' + self.kind)
-        if embedding and self.kind in ('anthropic', 'siwc'):
+        if embedding and self.kind in ('anthropic', 'siwc', 'openai-codex'):
             raise ValueError('selected provider does not provide embeddings')
 
     async def start(self):
@@ -201,7 +201,14 @@ class _Endpoint:
             self.http = httpx2.AsyncClient(timeout=self.timeout, trust_env=config.get('trust_env', True),
                 limits=httpx2.Limits(max_connections=connections or config.get('concurrency', 1),
                                     max_keepalive_connections=connections or config.get('concurrency', 1)))
-            if self.kind == 'anthropic':
+            if self.kind == 'openai-codex':
+                from pydantic_ai.providers.openai_codex import OpenAICodexProvider
+                from pydantic_ai.models.openai_codex import OpenAICodexModel
+                provider = OpenAICodexProvider(http_client=self.http)
+                self.client = provider.client
+                self.client.max_retries = 0
+                self.model = OpenAICodexModel(self.model_name, provider=provider)
+            elif self.kind == 'anthropic':
                 if embedding: raise ValueError('Anthropic does not provide this embedding contract')
                 from anthropic import AsyncAnthropic
                 from pydantic_ai.providers.anthropic import AnthropicProvider
@@ -336,8 +343,8 @@ class ModelProvider(_Provider):
             global_concurrency=global_concurrency, http_connections=http_connections,
             request_jitter=request_jitter, request_limit=request_limit)
         if session_transport not in (None, 'metadata'): raise ValueError('unsupported session transport')
-        if session_transport and any(endpoint.kind == 'siwc' for endpoint in self.endpoints):
-            raise ValueError('SIWC does not accept session metadata')
+        if session_transport and any(endpoint.kind in ('siwc', 'openai-codex') for endpoint in self.endpoints):
+            raise ValueError('subscription provider does not accept session metadata')
         self.threads, self.request_options, self.session_transport = threads, dict(request_options or {}), session_transport
         for endpoint in self.endpoints: _parameters(endpoint, self.request_options)
 

@@ -1,0 +1,72 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_native_codex_provider_owns_dedicated_http_and_preserves_adapter _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109eefe60>
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1273/test_native_codex_provider_own0')
+
+    @pytest.mark.asyncio
+    async def test_native_codex_provider_owns_dedicated_http_and_preserves_adapter(monkeypatch,tmp_path):
+        from pydantic_ai.providers import openai_codex
+        from pydantic_ai.models.openai_codex import OpenAICodexModel
+        credentials=openai_codex.OpenAICodexCredentials(access_token='test-only-access',refresh_token='test-only-refresh',account_id='test-only-account')
+        monkeypatch.setattr(openai_codex,'_read_codex_cli_credentials',lambda:credentials)
+        store=StageStore.create(tmp_path/'run',THREAD_SCHEMA)
+>       provider=ModelProvider([{'id':'codex','provider_type':'openai-codex','model':'gpt-5.4','trust_env':False}],ThreadStore(store))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_kernel_codex_provider.py:15: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/models.py:335: in __init__
+    super().__init__(endpoints, max_attempts=max_attempts, retry_delay=retry_delay,
+src/society0/kernel/models.py:103: in __init__
+    self.endpoints = [_Endpoint(item, request_limit, http_connections, request_jitter, embedding) for item in endpoints]
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.models._Endpoint object at 0x109f77e90>
+config = {'id': 'codex', 'provider_type': 'openai-codex', 'model': 'gpt-5.4', 'trust_env': False}
+shared = None, connections = None, jitter = 0, embedding = False
+
+    def __init__(self, config, shared, connections, jitter, embedding):
+        self.id, self.model_name = config['id'], config['model']
+        self.kind = config.get('provider_type', 'openai')
+        self.weight = config.get('weight', 1)
+        if self.weight <= 0: raise ValueError('endpoint weight must be positive')
+        self.timeout = config.get('timeout', 30)
+        self.tool_choice_policy = config.get('tool_choice_policy', 'native')
+        if self.tool_choice_policy not in ('native', 'auto_restrict'): raise ValueError('unknown tool choice policy')
+        self.send_dimensions = config.get('send_dimensions', True)
+        self.capacity = config.get('concurrency', 1)
+        self.resources = RequestResources(self.capacity, shared=shared,
+                                          rpm=config.get('rpm'), jitter=jitter)
+        self.secret = config.get('api_key')
+        self.http = None
+        self.client = None
+        self.auth = None
+        self.config, self.connections, self.embedding = dict(config), connections, embedding
+        if self.kind == 'google':
+            from pydantic_ai.models.google import GoogleModelSettings
+            self.settings_type = GoogleModelSettings
+        elif self.kind == 'anthropic':
+            from pydantic_ai.models.anthropic import AnthropicModelSettings
+            self.settings_type = AnthropicModelSettings
+        elif self.kind in ('openai', 'openai-responses', 'azure', 'ollama', 'siwc'):
+            from pydantic_ai.models.openai import OpenAIChatModelSettings, OpenAIResponsesModelSettings
+            self.settings_type = OpenAIResponsesModelSettings if self.kind in ('siwc', 'openai-responses') else OpenAIChatModelSettings
+>       else: raise ValueError('unsupported provider_type: ' + self.kind)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: unsupported provider_type: openai-codex
+
+src/society0/kernel/models.py:184: ValueError
+_________ test_codex_subscription_does_not_install_embedding_transport _________
+
+    def test_codex_subscription_does_not_install_embedding_transport():
+>       with pytest.raises(ValueError,match='does not provide embeddings'):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'does not provide embeddings'
+E         Actual message: 'unsupported provider_type: openai-codex'
+
+tests/primary/test_kernel_codex_provider.py:30: AssertionError
+2 failed in 0.80s

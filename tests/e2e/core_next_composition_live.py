@@ -14,4 +14,5 @@ def build(config):
           '再使用实际行动发布，正文保留你认为重要的完整事实，完成后自然结束本轮决定。')
     plan=build_with_profile({**config,'task':task},actual['llm'],offline=False)
     return replace(plan,contract=replace(plan.contract,
-        configuration={**plan.contract.configuration,'provider':'real'},credential_env=('SOCIETY0_REAL_LLM_KEY',)))
+        configuration={**plan.contract.configuration,'provider':'real'},
+        credential_env=('CODEX_HOME',) if actual['llm']['endpoints'][0]['provider_type']=='openai-codex' else ('SOCIETY0_REAL_LLM_KEY',)))

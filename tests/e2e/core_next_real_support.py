@@ -13,8 +13,10 @@ class RealConfiguration(dict):
 
 
 def configuration(*, embedding=True):
-    required=('SOCIETY0_REAL_RELEASE','SOCIETY0_REAL_OUTPUT','SOCIETY0_REAL_LLM_URL',
-              'SOCIETY0_REAL_LLM_MODEL','SOCIETY0_REAL_LLM_KEY')
+    provider=os.environ.get('SOCIETY0_REAL_LLM_PROVIDER','openai')
+    required=('SOCIETY0_REAL_RELEASE','SOCIETY0_REAL_OUTPUT','SOCIETY0_REAL_LLM_MODEL')
+    if provider!='openai-codex':
+        required+=('SOCIETY0_REAL_LLM_URL','SOCIETY0_REAL_LLM_KEY')
     if embedding:
         required+=('SOCIETY0_REAL_EMBED_URL','SOCIETY0_REAL_EMBED_MODEL','SOCIETY0_REAL_EMBED_KEY')
     missing=[name for name in required if not os.environ.get(name)]
@@ -22,8 +24,9 @@ def configuration(*, embedding=True):
     actual=RealConfiguration({
         'release':os.environ['SOCIETY0_REAL_RELEASE'],
         'output':Path(os.environ['SOCIETY0_REAL_OUTPUT']),
-        'llm':{'endpoints':[{'id':'real','base_url':os.environ['SOCIETY0_REAL_LLM_URL'],
-            'model':os.environ['SOCIETY0_REAL_LLM_MODEL'],'api_key':os.environ['SOCIETY0_REAL_LLM_KEY'],
+        'llm':{'endpoints':[{'id':'real','provider_type':provider,
+            **({'base_url':os.environ['SOCIETY0_REAL_LLM_URL'],'api_key':os.environ['SOCIETY0_REAL_LLM_KEY']} if provider!='openai-codex' else {}),
+            'model':os.environ['SOCIETY0_REAL_LLM_MODEL'],
             'concurrency':int(os.environ.get('SOCIETY0_REAL_MODEL_CAPACITY','2')),'timeout':60,'trust_env':os.environ.get('SOCIETY0_REAL_LLM_TRUST_ENV','0')=='1'}],
             'max_attempts':1,'request_jitter':0,'session_transport':None,
             'request_options':json.loads(os.environ.get('SOCIETY0_REAL_REQUEST_OPTIONS',
