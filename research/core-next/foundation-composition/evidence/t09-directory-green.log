@@ -1,0 +1,12 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree
+configfile: pytest.ini
+plugins: hypothesis-6.168.3, asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 4 items
+
+tests/e2e/test_core_next_composed_directory_artifacts.py ....            [100%]
+
+------ generated xml file: /tmp/society0-directory-artifacts-delivery.xml ------
+============================== 4 passed in 2.52s ===============================

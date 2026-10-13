@@ -1,0 +1,73 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0 -- /Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree
+configfile: pytest.ini
+plugins: hypothesis-6.168.3, asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 7 items / 6 deselected / 1 selected
+
+tests/e2e/test_core_next_composed_recommendation.py::test_public_recommendation_cli[external-selection] FAILED [100%]
+
+=================================== FAILURES ===================================
+______________ test_public_recommendation_cli[external-selection] ______________
+
+tmp_path = PosixPath('/private/tmp/society0-t09-recommendation.8OZ1TU/red-selection-artifacts/test_public_recommendation_cli0')
+variant = 'external-selection'
+
+    @pytest.mark.e2e
+    @pytest.mark.parametrize('variant', VARIANTS)
+    def test_public_recommendation_cli(tmp_path, variant):
+        path = launch(tmp_path, variant)
+        status = json.loads((path / 'runner-status.json').read_text())
+        assert (status['status'], status['complete_step'], status['diagnostic_errors']) == ('completed', 1, 0)
+        manifest = json.loads((path / 'runner.json').read_text())
+        assert manifest['contract']['configuration']['models'] == {}
+        assert manifest['contract']['configuration']['variant'] == variant
+        assert 'recommendation.external' in [p['name'] for p in manifest['plugins']]
+        rows, events, posts = artifacts(path)
+        assert rows
+        for row in rows:
+>           assert_snapshot(row)
+
+tests/e2e/test_core_next_composed_recommendation.py:92: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+row = {'label': 'selection-two', 'step': 1, 'actor': 'a', 'tick': 2, ...}
+
+    def assert_snapshot(row):
+        direct = row['direct']
+        assert row['source_revision'] == direct['revision']
+        for key in ('following', 'similarities', 'candidates', 'ranked', 'total'):
+>           assert row[key] == direct[key], (row['label'], key, row[key], direct[key])
+E           AssertionError: ('selection-two', 'similarities', {'post_1': 1.0}, {'post_1': 1.0, 'post_2': 0.0})
+E           assert {'post_1': 1.0} == {'post_1': 1.0, 'post_2': 0.0}
+E             
+E             Common items:
+E             {'post_1': 1.0}
+E             Right contains 1 more item:
+E             {'post_2': 0.0}
+E             
+E             Full diff:
+E               {
+E                   'post_1': 1.0,
+E             -     'post_2': 0.0,
+E               }
+
+tests/e2e/test_core_next_composed_recommendation.py:49: AssertionError
+=========================== short test summary info ============================
+FAILED tests/e2e/test_core_next_composed_recommendation.py::test_public_recommendation_cli[external-selection] - AssertionError: ('selection-two', 'similarities', {'post_1': 1.0}, {'post_1': 1.0, 'post_2': 0.0})
+assert {'post_1': 1.0} == {'post_1': 1.0, 'post_2': 0.0}
+  
+  Common items:
+  {'post_1': 1.0}
+  Right contains 1 more item:
+  {'post_2': 0.0}
+  
+  Full diff:
+    {
+        'post_1': 1.0,
+  -     'post_2': 0.0,
+    }
+======================= 1 failed, 6 deselected in 0.82s ========================

@@ -123,6 +123,12 @@ def _configuration(config):
 
 
 def build(config):
+    if config.get('case') in ('actor-directory', 'artifact-read'):
+        from .composed_directory_artifacts import build as directory_artifacts
+        return directory_artifacts(config)
+    if config.get('case') == 'recommendation':
+        from .composed_recommendation import build as recommendation
+        return recommendation(config)
     config = _configuration(config)
     def provider(ctx):
         actual = ScriptedProvider(ctx.require('storage', 'store'), ctx.require('threads', 'threads'), config)
