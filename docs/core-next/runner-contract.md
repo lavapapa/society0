@@ -6,7 +6,9 @@
 
 RunPlan 包含 plugins、RunContract、schedule 与 runtime 服务引用。RunContract 的 release、dependencies、configuration、time、budgets 描述明确发布版本、固定依赖、插件及主体模型参数、时间范围和预算；credential_env 保存所需环境变量名称，凭据值由提供方插件在进程内取得。研究者在工厂中把这些公开值实际用于插件构造。runner 不推断源码版本，正式运行须提供已发布版本并从相应部署执行。
 
-runner.json 在首个模拟步骤前创建并同步落盘，失败会终止启动。文件绑定实际 run_id、插件名称及依赖、实际 Runtime 容量和激活预算，以及恢复来源完整步骤。配置文件描述期望值，effective_runtime 保存实际执行容量。SequenceSchedule 的 times 始终描述完整时间序列；恢复从已完成步骤对应的下一位置读取，避免重复或跳过业务时点。自定义 Schedule 可根据已完成事实产生下一计划，权威状态变更留在 Runtime 的阶段内。
+runner.json 在首个模拟步骤前创建并同步落盘，失败会终止启动。运行清单 format 为 2，StageStore 的存储格式保持原合同。plugin_roots 保留 RunPlan.plugins 原声明顺序；plugins 保存 Host 实际展开后的全部实例，包括 compose 注入的 storage、递归 includes、requires 和 schema_requires。每项是 name/requires/schema_requires/includes 四个公开关系字段，includes 为直接子插件名。图描述通过 host.describe_plugins() 的不可变 PluginDescription 取得，不序列化安装闭包或资源对象。
+
+文件还绑定实际 run_id、Runtime 容量和激活预算，以及恢复来源完整步骤。配置文件描述期望值，effective_runtime 保存实际执行容量。SequenceSchedule 的 times 始终描述完整时间序列；恢复从已完成步骤对应的下一位置读取，避免重复或跳过业务时点。自定义 Schedule 可根据已完成事实产生下一计划，权威状态变更留在 Runtime 的阶段内。
 
 ## 二、执行
 

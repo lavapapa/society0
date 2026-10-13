@@ -45,6 +45,8 @@ asyncio.run(main())
 
 `ctx.provide(service, value)` 将服务放入本插件名称空间。同插件重复提供同名服务会抛出 `ValueError`；不同插件可以提供同一个局部服务名。`ctx.require(plugin, service)` 限于当前插件显式声明的直接依赖，未声明依赖抛出 `ValueError`，未提供的服务抛出 `KeyError`。传递依赖需要明确加入 `requires` 后再借用，避免隐藏生命周期关系。
 
+`host.describe_plugins()` 返回 `tuple[PluginDescription, ...]`，每项不可变，含 name、requires、schema_requires、includes。includes 为直接子项名称，所有递归子项在同一元组中各有一项，按既有先根后子、声明先后的展开顺序排列。描述只包含静态图关系，构造后或关闭后均可读取；依赖预检继续由 Host 安装与 compose 执行。
+
 `host.service(plugin, service)` 供应用在主机就绪期间取得服务。启动前或关闭后访问会抛出 `RuntimeError`。服务对象本身的类型、调用并发和返回值由提供方定义；Python 对象引用一旦交付，持有者须遵守资源生命周期。
 
 ## 三、关闭

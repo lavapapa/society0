@@ -1,0 +1,41 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_man_01_02_03_04_expanded_manifest_keeps_roots_and_records_direct_edges __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1232/test_man_01_02_03_04_expanded_0')
+
+    @pytest.mark.asyncio
+    async def test_man_01_02_03_04_expanded_manifest_keeps_roots_and_records_direct_edges(tmp_path):
+        from society0.kernel.plugins import Plugin
+    
+        manifests = []
+        for version in ('one', 'two'):
+            selected = Plugin('ranker.' + version, install=lambda ctx: ctx.provide('strategy', object()))
+            nested = Plugin('nested', includes=(selected,))
+            recipe = Plugin('recipe', includes=(nested,), requires=(selected.name,), schema_requires=('interaction',))
+            planned = plan([])
+            planned.plugins = (*planned.plugins, recipe)
+            result = await run_plan(tmp_path/version, planned)
+            manifest = json.loads((tmp_path/version/'runner.json').read_text())
+            assert result['complete_step'] == 2
+>           assert manifest['format'] == 2
+E           assert 1 == 2
+
+tests/primary/test_kernel_runner.py:54: AssertionError
+___ test_man_01_host_descriptions_are_frozen_values_without_runtime_objects ____
+
+    @pytest.mark.asyncio
+    async def test_man_01_host_descriptions_are_frozen_values_without_runtime_objects():
+        from dataclasses import FrozenInstanceError
+        from society0.kernel.plugins import Plugin, PluginHost
+    
+        leaf = Plugin('leaf', install=lambda ctx: ctx.provide('private', {'credential': 'not-public'}))
+        root = Plugin('root', includes=(leaf,), requires=('leaf',))
+        host = PluginHost([root])
+        async with host:
+>           descriptions = host.describe_plugins()
+                           ^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'PluginHost' object has no attribute 'describe_plugins'
+
+tests/primary/test_kernel_runner.py:79: AttributeError
+2 failed, 5 deselected in 0.24s
