@@ -409,7 +409,7 @@ def runtime_plugin(actors=(), *, information, actions, store, name='runtime',
                           results=context.require(*results) if results else None,
                           progress=context.require(*progress) if progress else None,
                           step_hooks=context.step_hooks)
-        context.on_quiesce(runtime.close)
+        context.on_quiesce(runtime.close, stage='runtime')
         context.provide('runtime', runtime)
 
     return Plugin(name, tuple(dict.fromkeys(item[0] for item in dependencies)), install)

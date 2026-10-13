@@ -26,6 +26,12 @@
 
 验证同根但子树不同、递归 includes、注入 storage、服务与 schema 两类直接边、不可变值、关闭后静态可读、无资源序列化和工作台导出。原双图 I/O 前失败用例继续通过。首次相关命令误用不存在的 kernel_workbench 文件名，pytest 退出 4 且未执行测试；[t03-focused.log](evidence/t03-focused.log)记录该命令错误，随后改用实际 core_next_workbench 文件执行，以上 79 项为有效结果。真实内置/外部 ranker 配方差异将在 T05/T09 另行覆盖。
 
-## 五、范围
+## 五、T04
+
+真实 Runtime/Semantic 在 activation 内请求与 after-step flush 两个边界使用 Event 暂停。旧全局 LIFO 在 Runtime 早安装的合法图中先 worker.stop 再 runtime.idle，两个顺序用例失败；Runtime 晚安装的两个用例通过。另有 stage/错误清理用例失败，共 6 failed、2 passed。见[t04-red.log](evidence/t04-red.log)。本次观察证明旧次序不满足新增 Runtime-first 规范；这组旧路径的资源和 SQL 最后访问仍成功，未复现关闭后访问或持久事实损坏。
+
+实现固定 runtime/worker 两阶段后，runtime_shutdown_order/plugins/plugins_review/runtime/runtime_review/composition/social_composition/plugin_social 共 102 passed，退出 0。见[t04-green.log](evidence/t04-green.log)、[t04-green.xml](evidence/t04-green.xml)。四组真实等待均在请求 settled、driver cleanup 和 runtime idle 后停止 worker，再关闭 provider，最后关闭 SQL store；runtime、worker、resource 各阶段抛错时继续余下清理。没有 sleep 竞争或外部请求。
+
+## 六、范围
 
 T01 结果证明当前共享登记和安装所有权行为。两阶段停止、完整公开配方、组合多来源认知以及独立跨进程 E2E 尚未实施，不计入当前通过。历史 SQL 来源缓存观察仍是前轮证据，推荐修复将在 T05 重新取得失败和通过结果。

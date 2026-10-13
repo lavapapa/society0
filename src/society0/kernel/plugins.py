@@ -7,7 +7,7 @@ from graphlib import CycleError, TopologicalSorter
 from inspect import isawaitable
 import sys
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
 
 def _noop(context: "PluginContext") -> None:
@@ -88,12 +88,15 @@ class PluginContext:
             raise RuntimeError("step hooks require a ready PluginHost")
         return tuple(self._host._before_step),tuple(self._host._after_step)
 
-    def on_quiesce(self, callback: Callable, *args: Any, **kwargs: Any) -> None:
+    def on_quiesce(self, callback: Callable, *args: Any,
+                   stage: Literal['runtime', 'worker'] = 'worker', **kwargs: Any) -> None:
         self._check_installing()
+        if stage not in self._host._quiesce:
+            raise ValueError("quiesce stage must be 'runtime' or 'worker'")
         async def stop():
             result=callback(*args,**kwargs)
             if isawaitable(result):await result
-        self._host._quiesce.push_async_callback(stop)
+        self._host._quiesce[stage].push_async_callback(stop)
 
     async def enter_context(self, manager: Any) -> Any:
         self._check_installing()
@@ -130,7 +133,7 @@ class PluginHost:
         self._plugins = tuple(expanded.values())
         self._services: dict[str, dict[str, Any]] = {}
         self._stack = AsyncExitStack()
-        self._quiesce = AsyncExitStack()
+        self._quiesce = {stage: AsyncExitStack() for stage in ('runtime', 'worker')}
         self._before_step = []
         self._after_step = []
         self._state = "new"
@@ -243,9 +246,12 @@ class PluginHost:
             self._state = "closing"
             try:
                 try:
-                    await self._quiesce.aclose()
+                    await self._quiesce['runtime'].aclose()
                 finally:
-                    await self._stack.aclose()
+                    try:
+                        await self._quiesce['worker'].aclose()
+                    finally:
+                        await self._stack.aclose()
             except asyncio.CancelledError as error:
                 raise RuntimeError('plugin resource cleanup was cancelled') from error
             finally:

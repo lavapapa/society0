@@ -69,7 +69,9 @@ asyncio.run(main())
 
 机制在安装时调用 `context.on_step(before=..., after=...)` 声明零参数同步或异步步骤回调。回调按依赖安装顺序登记；`context.step_hooks()` 在 Host 就绪后返回 before、after 两个元组，每项为 `(plugin_name, callback)`。Runtime 在实际运行步骤时取得完整集合，因此 Runtime 先于其他机制安装也能看到后续登记。安装结束后声明冻结，Host 退出不执行领域步骤回调。
 
-需要先停止运行任务的服务使用 `context.on_quiesce(callback)`。Host 先按逆序收束这些任务，再按原资源栈逆序关闭机制、共享模型和存储。某个收束回调失败仍会继续其余收束与资源释放，异常向外传播。步骤回调与关闭回调具有不同用途：前者参与完整步骤，后者释放本次运行拥有的资源。
+停止任务使用 `context.on_quiesce(callback, *args, stage='worker', **kwargs)`。stage 接受 runtime 或 worker；无效值在安装时抛 ValueError。Host 先收束全部 runtime 回调，再收束 worker，最后按原资源栈关闭机制、共享模型和存储。两阶段内各自保持登记逆序；前阶段失败仍执行后续阶段与资源释放，错误沿主机清理路径传播。
+
+官方 Runtime 注册 `stage='runtime'`，取消正在运行的步骤并等待 idle 后结束；semantic 注册 `stage='worker'`，收束领域异步请求。自定义 Runtime 同样显式选择 runtime 阶段。这让退出顺序独立于两个服务的相对安装次序，安装中途失败也执行已登记阶段。步骤回调参与完整步骤；停止阶段等待任务结束；普通关闭回调释放本次运行拥有的资源。
 
 ## 外部初始化
 
