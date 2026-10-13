@@ -31,6 +31,7 @@ def read_run(path):
         result = reader.read(data)
         result.update(path=str(path), manifest=manifest, config=config, thread_id=tid,
             messages=[] if tid is None else threads.read_messages(tid),
+            raw_messages=[] if tid is None else threads.snapshot_messages(tid, raw=True)['messages'],
             cursor=None if tid is None else threads.input_cursor(tid, 'operating_context'))
         for row in result['requests']:
             request = threads.read_request(row[2], row[3])
@@ -69,6 +70,12 @@ def stable_messages(typed):
         # SDK 构造时刻不属于业务内容；只移除消息及 part 的 timestamp 字段。
         item = {key: value for key, value in message.items() if key != 'timestamp'}
         item['parts'] = [{key: value for key, value in part.items() if key != 'timestamp'} for part in item['parts']]
+        if item.get('provider_response_id') is not None:
+            import uuid
+            identifier = uuid.UUID(item['provider_response_id'])
+            if identifier.version != 4 or identifier.hex != item['provider_response_id']:
+                raise ValueError('offline fixture response ID must be a generated UUID4')
+            item['provider_response_id'] = 'response-'+str(sum(message['kind'] == 'response' for message in result)+1)
         result.append(item)
     return result
 
@@ -114,6 +121,13 @@ def validate(path, *, case, compare=None, failed=None):
     if config['variant'] == 'interview':
         check('structured-measurement', [{'measurement': '完整测量🙂'}]*(config['end']*2),
               [row[2]['value']['result'] for row in run['outcomes']], 'composition_outcomes/result/value/result')
+    if config.get('transport') == 'sdk-offline':
+        responses = [message['model_message']['provider_response_id'] for message in run['raw_messages']
+                     if message.get('model_message', {}).get('kind') == 'response']
+        references = [message['provider_response_id'] for row in requests for message in row[5] if message['kind'] == 'response']
+        check('generated-response-identities', config['end']*2, len(set(responses)), 'thread_messages/model_message/provider_response_id')
+        check('generated-response-references', True, all(identifier in responses for identifier in references),
+              'composition_requests/typed/provider_response_id -> thread_messages/model_message/provider_response_id')
     originals = []
     if config['case'] == 'multi-source':
         if SOCIAL_ID in comparable_positions:

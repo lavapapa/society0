@@ -88,7 +88,11 @@ BASE-04：替代 Runtime/自定义 Schedule 真实被调用，run_plan 服务引
 
 初始接线失败依次定位为 social_plugin 的 positional members 参数误用、保存后观察器在写事务中重入读取、社交默认长度拒绝长正文、JSON 来源正文需要解码验收。修正后五个基础用例通过；扩展故障用例后 12 passed，见[t09-faults-initial.log](evidence/t09-faults-initial.log)。变体首轮 2 passed/1 failed：interview 未声明结构化测量 schema，验收正确拒绝无工具选项，见[t09-variants-red.log](evidence/t09-variants-red.log)。补入明确 schema 与真实 submit_result ToolCallPart、实际 DriverResult 捕获后，重排、丢弃输入与 interview 共 15 passed，见[t09-outcomes-initial.log](evidence/t09-outcomes-initial.log)、[t09-outcomes-initial.xml](evidence/t09-outcomes-initial.xml)。背景每个 Thread 一次；主观状态每次激活增加一次，历史全部保留。最后公共入口、foundation_presets、social_cognition、cognition_composition 共 87 passed，见[t09-partial-green.log](evidence/t09-partial-green.log)、[t09-partial-green.xml](evidence/t09-partial-green.xml)。
 
-T09 尚需完成其余公开场景、来源轮换／并发、空值位置、实际 SDK 发送边界、成本观测模式与公开说明，再执行 T10–T14。当前 JSON 报告包含代码身份、Run 身份、具名检查、事实位置与首项差异；独立比较仅对 SDK message/part timestamp 做明确归一化，并在比较投影中保留请求序号、水位、所有入参及原始正文。
+新增[SDK 组合夹具](../../../tests/e2e/core_next_composition_sdk.py)：消费同一公开 RunPlan，替换 capture Plugin 并加入原生 model_plugin，保持 LLMDriver 完整循环。实际 endpoint.start 后包裹 chat.completions.create，在发送点读取原 Thread request 序号、水位与 physical_request_id。离线传输复用成熟 SSE 夹具，由真实 SDK 编码并读取流；同时捕获 create 入参与 HTTP JSON，对完整消息、全部函数 schema、tool_choice=auto、parallel_tool_calls=false、stream=true、temperature 与 extra_body 做核对。SDK 初次三例红为入口缺失，见[t09-sdk-red.log](evidence/t09-sdk-red.log)。接通后两例通过、一例恢复比较发现 provider_response_id 的独立 UUID4 差异，见[t09-sdk-initial.log](evidence/t09-sdk-initial.log)。归一化限于可验证 UUID4 的顺序身份，额外证明 typed 历史里的 ID 引用能对应实际保存的响应；请求序号、水位、载荷与工具选项继续逐项比较。最终 18 passed，见[t09-sdk-green.log](evidence/t09-sdk-green.log)。
+
+真实验证的无嵌入消费者新增显式 configuration(embedding=False)，保留现有默认嵌入要求；公开 profile 对实际装配的能力生成，所用 key 保持去除。该缺口先 TypeError 再绿，见[t09-live-config-red.log](evidence/t09-live-config-red.log)。冻结 task 首先被两个 SDK 案例发现未进入输入，见[t09-goal-red.log](evidence/t09-goal-red.log)；将完整 task 原文交给标准环境输入后通过。公开入口、SDK 与 LLM 独立配置共 19 passed，真实案例两项按标记排除，见[t09-sdk-live-config-green.log](evidence/t09-sdk-live-config-green.log)、[t09-sdk-live-config-green.xml](evidence/t09-sdk-live-config-green.xml)。真实模式的[runner 工厂](../../../tests/e2e/core_next_composition_live.py)和[验收](../../../tests/e2e/test_core_next_composition_live.py)已接好，下一步在冻结部署副本里实际执行结构化工具、领域动作和完整点恢复。
+
+T09 尚需完成其余公开场景、来源轮换／并发、空值位置、成本观测模式与公开说明，再执行 T10–T14。当前 JSON 报告包含代码身份、Run 身份、具名检查、事实位置与首项差异；比较保留请求序号、水位、所有入参及原始正文，明确列出时间戳、离线 UUID4 响应身份和 Thread ID 投影的归一化。
 
 ## 十一、范围
 
