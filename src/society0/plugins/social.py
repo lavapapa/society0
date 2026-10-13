@@ -51,6 +51,7 @@ class Social:
     def __init__(self,data,content,relations,notifications,exposure,candidates,recommendation,semantic=None):
         self.data=data
         self.name,self.store,self.config=data.name,data.store,data.config
+        self._recommendation_config=data.config.social_media.recommendation
         self.content,self.relations,self.notices=content,relations,notifications
         self.exposure,self.candidates,self.recommendations,self.semantic=exposure,candidates,recommendation,semantic
 
@@ -74,15 +75,8 @@ class Social:
     def recommended_ids(self,actor):return self.exposure.recommended_ids(actor)
     def set_recommended(self,actor,ids):self.exposure.set_recommended(actor,ids)
 
-    def ranking_input(self,actor,tick,**kwargs):return self.recommendations.ranking_input(actor,tick,**kwargs)
-    def ranking_dependencies(self):return self.recommendations.ranking_dependencies()
-
     async def recommendation_input(self,actor,tick,*,query=None):
         return await self.recommendations.recommendation_input(actor,tick,query=query)
-
-    def rank(self,actor,tick,*,similarity_scores=None,pool=None):
-        source=self.ranking_input(actor,tick,similarity_scores=similarity_scores,pool=pool)
-        return self._rank_metadata(source,self.recommendations.rank(source).items)
 
     @staticmethod
     def _rank_metadata(source,items):
@@ -94,7 +88,7 @@ class Social:
 
     async def recommended_feed(self,actor,tick,*,record_impressions=True,query=None):
         source,result=await self.recommendation(actor,tick,query=query)
-        ranked=self._rank_metadata(source,result.items[:self.config.social_media.recommendation.post_count])
+        ranked=self._rank_metadata(source,result.items[:self._recommendation_config.post_count])
         output=[dict(self.post_details(item['post_id']),_recommendation_score=item['_recommendation_score']) for item in ranked]
         if record_impressions:self.present(actor,[item['post_id'] for item in output])
         return output
@@ -231,6 +225,23 @@ class SocialInformation(_SocialSQLInformation):
         self.social=social
         super().__init__(social.name,social.store,routes)
 
+    def _feed_version_in(self,view,scope):
+        scope.check_active()
+        return (view.run_id,self.social.recommendations.revision_in(view,scope.actor),
+                view.revision_for(self._access_dependencies(scope)))
+
+    def search_revision(self,scope,path):
+        scope.check_active()
+        route,key=self._route(path)
+        if route not in (None,'feed'):return super().search_revision(scope,path)
+        def read(view):
+            feed=self._feed_version_in(view,scope)
+            if route=='feed':return feed
+            tables=tuple(dict.fromkeys(table for name,spec in self._routes.items() if name!='feed'
+                for table in (spec.table,*spec.dependencies,*self._access_dependencies(scope))))
+            return (view.run_id,view.revision_for(tables),feed)
+        return self.reader.read(read,expected_revision=scope.revision)
+
     async def query(self,scope,path,query):
         route,key=self._route(path)
         if route!='feed':return await super().query(scope,path,query)
@@ -239,11 +250,8 @@ class SocialInformation(_SocialSQLInformation):
             raise ValueError('ranked feed supports limit and cursor; use posts for structured queries')
         if type(query.limit) is not int or query.limit<1:raise ValueError('limit must be positive')
         social=self.social
-        deps=social.ranking_dependencies()+self._access_dependencies(scope)
-        def version(r):
-            if not social._member(r,scope.actor):raise Unavailable('resource unavailable')
-            return [r.run_id,r.revision_for(deps)]
-        def identity(version):return json.dumps([scope.actor,asdict(scope.moment),path,version],sort_keys=True)
+        def version(view):return self._feed_version_in(view,scope)
+        def identity(version):return json.dumps([version[0],scope.actor,asdict(scope.moment),path,*version[1:]],sort_keys=True)
         before=social.store.read(version,expected_revision=scope.revision)
         offset=0
         if query.cursor is not None:
@@ -253,6 +261,9 @@ class SocialInformation(_SocialSQLInformation):
         source,ranked=await social.recommendation(scope.actor,scope.moment.time)
         scope.check_active()
         after=social.store.read(version,expected_revision=scope.revision)
+        if source.revision!=ranked.revision or source.revision!=after[1]:
+            raise ValueError('feed ranking revision changed')
+        if before[0]!=after[0] or before[2]!=after[2]:raise ValueError('feed access revision changed')
         if query.cursor is not None and before!=after:raise ValueError('feed cursor revision changed')
         selected=[]
         for item in social._rank_metadata(source,ranked.items[offset:offset+query.limit]):
@@ -260,7 +271,7 @@ class SocialInformation(_SocialSQLInformation):
                                  content_path='/'+social.name+'/content/'+item['post_id']))
         end=offset+len(selected)
         cursor={'identity':identity(after),'offset':end} if end<ranked.total else None
-        return Page(selected,ranked.total,cursor,after[1])
+        return Page(selected,ranked.total,cursor,list(after[1:]))
 
 
 
@@ -341,19 +352,19 @@ def social_candidates_plugin(*,name='social.candidates',data='social.data'):
     return Plugin(name,requires=(data,),install=lambda ctx:ctx.provide('candidates',ActivePool(ctx.require(data,'data'))))
 
 
-def social_semantic_plugin(*,name='social.semantic',domain='social',data='social.data',candidates='social.candidates',embedding=None,vector_client=None,cache_capacity=128):
+def social_semantic_plugin(*,name='social.semantic',domain='social',data='social.data',embedding=None,vector_client=None,cache_capacity=128):
     if embedding is None or vector_client is None:raise ValueError('semantic recommendations require embedding and vector resources')
     def install(ctx):
         from .social_semantic import Semantic
         embed=ctx.require(embedding[0],'embeddings')[embedding[1]].embed if embedding else None
         client=ctx.require(*vector_client) if vector_client else None
-        semantic=Semantic(ctx.require(data,'data'),ctx.require(candidates,'candidates'),embed,client,cache_capacity=cache_capacity)
+        semantic=Semantic(ctx.require(data,'data'),embed,client,cache_capacity=cache_capacity)
         ctx.provide('semantic',semantic)
         ctx.on_quiesce(semantic.close, stage='worker')
         ctx.on_step(after=semantic.flush_embeddings)
     t=lambda suffix:_quote(domain+'_'+suffix)
     schema=tuple(sql for sql in _schema(domain) if any(t(suffix) in sql for suffix in ('vectors','embedding_pending')))
-    requires=tuple(dict.fromkeys((data,candidates)+((embedding[0],) if embedding else ())+((vector_client[0],) if vector_client else ())))
+    requires=tuple(dict.fromkeys((data,)+((embedding[0],) if embedding else ())+((vector_client[0],) if vector_client else ())))
     return Plugin(name,requires=requires,schema_requires=(data,),schema=schema,install=install)
 
 
@@ -388,7 +399,7 @@ def social_plugin(members,*,name='social',edges=None,config=None,seed=0,content_
               social_engagement_plugin(name=engagement,data=data),
               social_candidates_plugin(name=candidates,data=data),
               social_exposure_plugin(name=exposure,data=data)]
-    if semantic:includes.append(social_semantic_plugin(name=semantic,domain=name,data=data,candidates=candidates,embedding=embedding,vector_client=vector_client,cache_capacity=cache_capacity))
+    if semantic:includes.append(social_semantic_plugin(name=semantic,domain=name,data=data,embedding=embedding,vector_client=vector_client,cache_capacity=cache_capacity))
     if ranking is None:
         ranking=(name+'.weighted','rank')
         includes.append(weighted_ranking_plugin(name=ranking[0],data=data))

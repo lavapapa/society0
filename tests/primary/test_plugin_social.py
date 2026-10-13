@@ -137,7 +137,8 @@ async def test_social_active_pool_and_scores_match_old_semantics_without_body_sc
         for key,feature in features.items():feature['time_score']=math.exp(-max(0,12-feature['created_tick'])/config.social_media.recommendation.time_decay_hours)
         proxy=SimpleNamespace(_config=config,graph=graph,_get_recommendation_cache=lambda:{'post_features':features})
         original=SocialNetworkEnv._score_posts(proxy,SimpleNamespace(id='a'),[posts[k] for k in expected],{})
-        ranked=social.rank('a',12)
+        source,output=await social.recommendation('a',12)
+        ranked=social._rank_metadata(source,output.items)
         assert [(p['post_id'],p['_recommendation_score']) for p in ranked]==[(p['post_id'],p['_recommendation_score']) for p in original]
         assert all('content' not in p for p in pool)
 
@@ -285,7 +286,8 @@ async def test_social_feed_pages_expose_every_candidate_and_bind_business_versio
         while cursor:
             page=await info.query(scope,'/social/feed',Query(limit=1,cursor=cursor))
             seen.extend(item['post_id'] for item in page.items);cursor=page.next_cursor
-        assert seen==[item['post_id'] for item in social.rank('a',3)]
+        source,output=await social.recommendation('a',3)
+        assert seen==[item.post_id for item in output.items]
         first=await info.query(scope,'/social/feed',Query(limit=1))
         social.execute('like_post','c',seen[0],{},3)
         with pytest.raises(ValueError,match='cursor'):

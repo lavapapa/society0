@@ -1,7 +1,7 @@
 """社交机制的领域配置，独立于旧 World 与环境生命周期。"""
 from __future__ import annotations
 from typing import List, Dict, Any, Union, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 # --- 网络拓扑配置 ---
@@ -73,7 +73,8 @@ AnyDistribution = Union[
 # --- 社交媒体功能配置 ---
 
 class RecommendationConfig(BaseModel):
-    """内容推荐系统的配置。"""
+    """单次运行内固定的推荐行为配置。"""
+    model_config = ConfigDict(frozen=True)
     chronological_weight: float = Field(0.3, description="按时间排序的权重。", ge=0, le=1)
     engagement_weight: float = Field(0.3, description="帖子互动（点赞、回复）的权重。", ge=0, le=1)
     similarity_weight: float = Field(0.2, description="内容相似度（标签、嵌入向量）的权重。", ge=0, le=1)
