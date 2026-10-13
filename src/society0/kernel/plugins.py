@@ -32,6 +32,14 @@ class Plugin:
         object.__setattr__(self, "schema_requires", tuple(self.schema_requires))
 
 
+@dataclass(frozen=True)
+class PluginDescription:
+    name: str
+    requires: tuple[str, ...]
+    schema_requires: tuple[str, ...]
+    includes: tuple[str, ...]
+
+
 class PluginContext:
     """安装时注册资源；声明的依赖在本插件关闭期间仍可访问。"""
 
@@ -128,6 +136,11 @@ class PluginHost:
         self._state = "new"
         self._exit_exception = (None, None, None)
         self._install_error = None
+
+    def describe_plugins(self) -> tuple[PluginDescription, ...]:
+        """按静态展开顺序返回关系值，不包含运行资源。"""
+        return tuple(PluginDescription(plugin.name, plugin.requires, plugin.schema_requires,
+                     tuple(child.name for child in plugin.includes)) for plugin in self._plugins)
 
     def _order(self, dependency='requires') -> tuple[str, ...]:
         graph = {plugin.name: getattr(plugin, dependency) for plugin in self._plugins}

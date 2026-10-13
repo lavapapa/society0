@@ -54,8 +54,9 @@ async def run_plan(path, plan, *, source=None, step=None):
             runtime = host.service(*plan.runtime)
             run_id = store.read(lambda view: view.run_id)
             _write_manifest(path/'runner.json', {
-                'format': 1, 'run_id': run_id, 'contract': contract,
-                'plugins': [{'name': item.name, 'requires': list(item.requires)} for item in plugins],
+                'format': 2, 'run_id': run_id, 'contract': contract,
+                'plugin_roots': [item.name for item in plugins],
+                'plugins': [asdict(item) for item in host.describe_plugins()],
                 'schedule': list(plan.schedule), 'runtime': list(plan.runtime),
                 'effective_runtime': {'capacity': runtime.capacity,
                     'max_activations': runtime.max_activations},

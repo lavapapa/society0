@@ -20,6 +20,12 @@
 
 实施后，相关回归包括 actor_directory_delegation、kernel_actors、kernel_actors_review、kernel_actor_fields、kernel_actor_fields_review、kernel_actor_files、kernel_actor_files_stateful、kernel_composable、kernel_selection 和 kernel_llm，共 111 passed，退出 0。见[t02-focused.log](evidence/t02-focused.log)与[t02-focused.xml](evidence/t02-focused.xml)。覆盖真实 SQL 无 store 门面、完整委托、驱动创建与标签拒绝、persona 独立门面、当前/固定只读分页、按键惰性字段、中文长结果跨 buffer、空结果、跨主体拒绝、scope 失效和完整点恢复。既有成本测试的插桩从显式 storage 服务取得，原断言保持。
 
-## 四、范围
+## 四、T03
+
+新清单用例最初 2 failed：format 仍为 1，Host 缺少公开描述。见[t03-red.log](evidence/t03-red.log)。实现 PluginDescription 与 Host 描述、runner format2 后，runner/plugins/plugins_review/composition/composable/core_next_workbench/core_next_workbench_review 共 79 passed，退出 0。见[t03-green.log](evidence/t03-green.log)、[t03-green.xml](evidence/t03-green.xml)。
+
+验证同根但子树不同、递归 includes、注入 storage、服务与 schema 两类直接边、不可变值、关闭后静态可读、无资源序列化和工作台导出。原双图 I/O 前失败用例继续通过。首次相关命令误用不存在的 kernel_workbench 文件名，pytest 退出 4 且未执行测试；[t03-focused.log](evidence/t03-focused.log)记录该命令错误，随后改用实际 core_next_workbench 文件执行，以上 79 项为有效结果。真实内置/外部 ranker 配方差异将在 T05/T09 另行覆盖。
+
+## 五、范围
 
 T01 结果证明当前共享登记和安装所有权行为。两阶段停止、完整公开配方、组合多来源认知以及独立跨进程 E2E 尚未实施，不计入当前通过。历史 SQL 来源缓存观察仍是前轮证据，推荐修复将在 T05 重新取得失败和通过结果。

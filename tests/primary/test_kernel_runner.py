@@ -30,11 +30,61 @@ async def test_runner_freezes_manifest_and_timings_and_restores(tmp_path):
     assert manifest['contract']['release']=={'commit':'explicit-test-release'}
     assert manifest['effective_runtime']['capacity']==1
     assert manifest['schedule']==['schedule','schedule']
-    assert [p['name'] for p in manifest['plugins']]==['interaction','results','runtime','schedule']
+    assert manifest['plugin_roots']==['interaction','results','runtime','schedule']
+    assert [p['name'] for p in manifest['plugins']]==['storage','interaction','results','runtime','schedule']
     timings=[json.loads(line) for line in (tmp_path/'run'/'timings.jsonl').read_text().splitlines()]
     assert [row['step'] for row in timings]==[1,2] and all(row['complete_step']==row['step'] for row in timings)
     resumed=await run_plan(tmp_path/'resumed',plan([]),source=tmp_path/'run',step=1)
     assert resumed['run_id']!=result['run_id'] and resumed['complete_step']==2
+
+
+@pytest.mark.asyncio
+async def test_man_01_02_03_04_expanded_manifest_keeps_roots_and_records_direct_edges(tmp_path):
+    from society0.kernel.plugins import Plugin
+
+    manifests = []
+    for version in ('one', 'two'):
+        selected = Plugin('ranker.' + version, install=lambda ctx: ctx.provide('strategy', object()))
+        nested = Plugin('nested', includes=(selected,))
+        recipe = Plugin('recipe', includes=(nested,), requires=(selected.name,), schema_requires=('interaction',))
+        planned = plan([])
+        planned.plugins = (*planned.plugins, recipe)
+        result = await run_plan(tmp_path/version, planned)
+        manifest = json.loads((tmp_path/version/'runner.json').read_text())
+        assert result['complete_step'] == 2
+        assert manifest['format'] == 2
+        assert manifest['plugin_roots'] == ['interaction', 'results', 'runtime', 'schedule', 'recipe']
+        assert [item['name'] for item in manifest['plugins']] == [
+            'storage', 'interaction', 'results', 'runtime', 'schedule', 'recipe', 'nested', selected.name]
+        descriptions = {item['name']: item for item in manifest['plugins']}
+        assert descriptions['recipe'] == dict(name='recipe', requires=[selected.name],
+                                             schema_requires=['interaction'], includes=['nested'])
+        assert descriptions['nested']['includes'] == [selected.name]
+        assert descriptions[selected.name] == dict(name=selected.name, requires=[], schema_requires=[], includes=[])
+        assert all(set(item) == {'name', 'requires', 'schema_requires', 'includes'} for item in manifest['plugins'])
+        assert 'object at' not in json.dumps(manifest)
+        manifests.append(manifest)
+    assert manifests[0]['plugin_roots'] == manifests[1]['plugin_roots']
+    assert manifests[0]['plugins'] != manifests[1]['plugins']
+
+
+@pytest.mark.asyncio
+async def test_man_01_host_descriptions_are_frozen_values_without_runtime_objects():
+    from dataclasses import FrozenInstanceError
+    from society0.kernel.plugins import Plugin, PluginHost
+
+    leaf = Plugin('leaf', install=lambda ctx: ctx.provide('private', {'credential': 'not-public'}))
+    root = Plugin('root', includes=(leaf,), requires=('leaf',))
+    host = PluginHost([root])
+    async with host:
+        descriptions = host.describe_plugins()
+        assert [value.name for value in descriptions] == ['root', 'leaf']
+        assert descriptions[0].includes == ('leaf',) and descriptions[0].requires == ('leaf',)
+        assert descriptions[0].schema_requires == ()
+        assert 'not-public' not in repr(descriptions)
+        with pytest.raises(FrozenInstanceError):
+            descriptions[0].name = 'changed'
+    assert host.describe_plugins() == descriptions
 
 
 @pytest.mark.asyncio
