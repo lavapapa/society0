@@ -68,6 +68,18 @@ COG-10：实际 Runtime 中扩展消息编码失败、provider 异常与发布�
 
 最终 social_cognition/cognition_oracle_review/cognition_composition/recommendation_sources/plugin_social/social_composition/social_composition_ranking/social_independent_review/kernel_cognition/kernel_cognition_review/kernel_memory/kernel_llm 共 218 passed，退出 0，见[t07-green.log](evidence/t07-green.log)、[t07-green.xml](evidence/t07-green.xml)。较早 11 passed 的阶段结果保留在[t07-initial.log](evidence/t07-initial.log)。生产代码、示例、skill 和现役测试已无 social_cognition_plugin/旧 consumer 调用；公开合同及 skill 的工厂接线同步更新。历史 oracle 与参考源保持原身份。
 
-## 九、范围
+## 九、T08
 
-T01–T07 当前通过。官方配方、组合 CLI 和独立公开跨进程 E2E 仍待后续任务。记录的 typed provider 材料来自 LLMDriver 实际 request_model 入参，确定性 provider 无网络；正式 SDK 发送边界、真实端点与模型质量另行授权验收。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
+公开 presets 模块缺失时 collection 退出 2，见[t08-red.log](evidence/t08-red.log)。新增 rule_preset/llm_preset，返回普通 Plugin 元组；显式 records/data 互斥，records 生成器延迟至初始化，固定单驱动名字与持久标签，原样接入 policy/extensions/shell_factory/provider_selector。Runtime 使用已有默认参数或显式替代根，Schedule 为调用方真实插件。
+
+BASE-01：官方 conversation_pilot 改用 rule_preset，仍执行 work/commons 双机制、全部四主体行动与原消息；在可选模型/记忆/社交 imports 被拦截的独立进程中公开 run_plan 完成，sys.modules 同样确认无隐式可选导入。BASE-02/03：官方 LLM preset 真实进入 LLMDriver 与完整 Thread，typed provider 实际接收双源全文，无 memory 配方不安装资源；显式 memory_plugin + MemoryExtension 分别覆盖 write-only、recall-only、active-only、三项同时启用和 interview。召回全文、工具可见性、实际提取和 SQL 写入数量独立符合策略，interview 保持无自动写入。
+
+BASE-04：替代 Runtime/自定义 Schedule 真实被调用，run_plan 服务引用明确，默认 runtime 缺席，manifest.effective_runtime 为实际 capacity=3/max_activations=7，退出经过 runtime 阶段。BASE-05/07：完整点恢复继续持久 rule 标签和完整时间线，目录一次安装，初始化生成器在恢复时没有重复消费；包含空 records 的双配置立即拒绝，重复基础名字沿 Host 失败。BASE-06：缺插件、扩展与真实环在 prepare/目录 I/O 前失败；三类已存在插件的缺服务在安装时 KeyError，已安装拥有者各关闭一次，无 provider 请求与 runner manifest；显式 None provider/builder 在配方构造时报错。
+
+第一次较小回归 12 passed、3 failed：测试 Phase 返回了 activate handle，违反 results 的 StepResult/None 规范。将测试阶段改成返回 None，恢复配方同时按 SequenceSchedule 的完整时间线定位下一步骤；产品规范保持。见[t08-initial.log](evidence/t08-initial.log)。接着 15 passed，见[t08-focused.log](evidence/t08-focused.log)。补入独立记忆和缺服务用例后最终 foundation_presets/core_next_pilot/kernel_runner/kernel_plugins/kernel_cognition/kernel_memory 共 78 passed，退出 0；其中新 preset 22 用例，见[t08-final-green.log](evidence/t08-final-green.log)、[t08-final-green.xml](evidence/t08-final-green.xml)。中间 75 结果保留在[t08-green.log](evidence/t08-green.log)。
+
+公开用法归入[builtin-composition](../../../docs/core-next/builtin-composition.md)，[README](../../../README.md) 已链接；参数、默认值、单驱动边界、外部目录、完整时间线、可选资源和实际替换责任与代码一致。
+
+## 十、范围
+
+T01–T08 当前通过。组合 CLI、只读验收器、全面调用方核对与独立公开跨进程 E2E 在 T09 以后推进。typed provider 材料来自 LLMDriver 实际 request_model 入参，确定性 provider 无网络；正式 SDK 发送边界在后续离线捕获中验证，真实端点与模型质量需要相应授权。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
