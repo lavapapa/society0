@@ -58,8 +58,8 @@ def build_plan(*,release,resource_plugins=None,model=None,embedding=None,moments
             if target.key!='current':return ActionResult('rejected',{'reason':'message_unavailable'})
             store.transaction(lambda w:w.execute('INSERT INTO news_views(actor) VALUES(?)',(scope.actor,)))
             return ActionResult('completed',{'message':MESSAGE,'source':'本地账号，未见官方证实'})
-        ctx.require('interaction','actions').register(Action('news.view_details',('news','message'),
-            '查看完整消息及来源，并记录查看事实。',{'type':'object','properties':{},'additionalProperties':False},detail))
+        ctx.on_close(ctx.require('interaction','actions').register(Action('news.view_details',('news','message'),
+            '查看完整消息及来源，并记录查看事实。',{'type':'object','properties':{},'additionalProperties':False},detail)))
     def cognition(ctx):
         threads=ctx.require('threads','threads')
         async def perceive(session,cursor):

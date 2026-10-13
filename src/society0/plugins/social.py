@@ -121,7 +121,9 @@ class Social:
             self.present(actor,ids,recommended=False)
         return output
 
-    def register(self,information,actions):
+    def register(self,information,actions,*,on_close):
+        provider=SocialInformation(self,_social_routes(self.name))
+        on_close(provider.close)
         def member(scope,target):return self.store.read(lambda r:self._member(r,scope.actor))
         descriptions={
             'publish_post':'以当前主体身份发布原文帖子，可指定标签和引用帖子。',
@@ -147,9 +149,9 @@ class Social:
                 if operation=='publish_post':return target.key==scope.actor
                 if kind=='participants':return target.key!=scope.actor and self.store.read(lambda r:self._member(r,target.key))
                 return self.store.read(lambda r:bool(r.query(f'SELECT 1 FROM {self.table("posts")} WHERE id=?',(target.key,))))
-            actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],schema,
+            on_close(actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],schema,
                 lambda scope,target,args,operation=operation:self.execute(operation,scope.actor,target.key,args,scope.moment.time),tags=tags,available=available),
-                dependencies=(self.name+'_members',self.name+'_posts',self.name+'_edges'))
+                dependencies=(self.name+'_members',self.name+'_posts',self.name+'_edges')))
         def notices(scope,target,args):return ActionResult('completed',{'notifications':self.notifications(scope.actor,consume=True)})
         def trending(scope,target,args):return ActionResult('completed',{'posts':self.trending(scope.moment.time,record_impressions=True,actor=scope.actor)})
         for operation,kind,handler,read_only in (('get_trending_posts','participants',trending,False),('get_notifications','participants',notices,False)):
@@ -158,10 +160,9 @@ class Social:
                 if operation in ('get_trending_posts','get_notifications'):return target.key==scope.actor
                 table=self.table('posts' if kind=='posts' else 'members')
                 return self.store.read(lambda r:bool(r.query(f'SELECT 1 FROM {table} WHERE id=?',(target.key,))))
-            actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],empty,handler,available=available,
-                tags=('social_read','lookup'),read_only=read_only),dependencies=(self.name+'_members',self.name+'_posts'))
-        provider=SocialInformation(self,_social_routes(self.name))
-        information.mount('/'+self.name,provider)
+            on_close(actions.register(Action(self.name+'.'+operation,(self.name,kind),descriptions[operation],empty,handler,available=available,
+                tags=('social_read','lookup'),read_only=read_only),dependencies=(self.name+'_members',self.name+'_posts')))
+        on_close(information.mount('/'+self.name,provider))
         return provider
 
 
@@ -359,8 +360,7 @@ def social_semantic_plugin(*,name='social.semantic',domain='social',data='social
 def social_presentation_plugin(*,name='social.presentation',data='social.data',content='social.content',relations='social.relations',notifications='social.notifications',exposure='social.exposure',candidates='social.candidates',recommendation='social.recommendation',semantic=None,interaction='interaction'):
     def install(ctx):
         presentation=Social(ctx.require(data,'data'),ctx.require(content,'content'),ctx.require(relations,'relations'),ctx.require(notifications,'notifications'),ctx.require(exposure,'exposure'),ctx.require(candidates,'candidates'),ctx.require(recommendation,'recommendation'),ctx.require(semantic,'semantic') if semantic else None)
-        provider=presentation.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'))
-        ctx.on_close(provider.close)
+        provider=presentation.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'),on_close=ctx.on_close)
         ctx.provide('presentation',presentation)
         ctx.provide('information',provider)
     requires=tuple(dict.fromkeys((data,content,relations,notifications,exposure,candidates,recommendation,interaction)+((semantic,) if semantic else ())))
