@@ -1,0 +1,25 @@
+{
+  "scope": "入口合同验证；固定双源大历史成本采样尚未执行",
+  "source_head_at_validation": "50d16fd",
+  "benchmark_status": "working-tree implementation",
+  "modes": ["rr", "social", "social_embedding"],
+  "history": 4,
+  "checks": [
+    "unsupported --measurement timing reproduced with exit 2",
+    "three timing probes and three independent interpreter cold resume probes exit 0",
+    "three instrumented probes exit 0",
+    "each mode complete original business semantic equals timing, instrumented and cold resumed results",
+    "each mode snapshot_step2 equals timing, instrumented and cold resumed results",
+    "timing and cold results leave sql_vm_steps, body_materialized_bytes and python_peak_bytes null",
+    "instrumented phases contain actual SQL VM and Python allocation counters",
+    "cold resume verifies same imported Git head and source step 2, publishes step 3",
+    "social hot rank=2; social_embedding hot rank=2/embed=2 already baseline constraints"
+  ],
+  "known_measurement_limits": [
+    "RSS peak is whole interpreter lifetime",
+    "OS file cache retained",
+    "body_materialized_bytes covers named SQL body/content cells plus blob reads; full original range reading is separately asserted and timed",
+    "encoding phase covers output semantic JSON; kernel encoding remains within canonical writer and complete phases",
+    "fake provider/vector resources; real inference waiting is recorded by separate real E2E Thread phase timings"
+  ]
+}
