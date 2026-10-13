@@ -12,13 +12,14 @@ class RealConfiguration(dict):
     def __repr__(self):return "<real endpoint configuration; credentials omitted>"
 
 
-def configuration():
+def configuration(*, embedding=True):
     required=('SOCIETY0_REAL_RELEASE','SOCIETY0_REAL_OUTPUT','SOCIETY0_REAL_LLM_URL',
-              'SOCIETY0_REAL_LLM_MODEL','SOCIETY0_REAL_LLM_KEY','SOCIETY0_REAL_EMBED_URL',
-              'SOCIETY0_REAL_EMBED_MODEL','SOCIETY0_REAL_EMBED_KEY')
+              'SOCIETY0_REAL_LLM_MODEL','SOCIETY0_REAL_LLM_KEY')
+    if embedding:
+        required+=('SOCIETY0_REAL_EMBED_URL','SOCIETY0_REAL_EMBED_MODEL','SOCIETY0_REAL_EMBED_KEY')
     missing=[name for name in required if not os.environ.get(name)]
     if missing:raise ValueError('missing real test configuration: '+', '.join(missing))
-    return RealConfiguration({
+    actual=RealConfiguration({
         'release':os.environ['SOCIETY0_REAL_RELEASE'],
         'output':Path(os.environ['SOCIETY0_REAL_OUTPUT']),
         'llm':{'endpoints':[{'id':'real','base_url':os.environ['SOCIETY0_REAL_LLM_URL'],
@@ -27,16 +28,18 @@ def configuration():
             'max_attempts':1,'request_jitter':0,'session_transport':None,
             'request_options':json.loads(os.environ.get('SOCIETY0_REAL_REQUEST_OPTIONS',
                 '{"max_tokens":1024,"temperature":0,"parallel_tool_calls":false,"openai_reasoning_effort":"minimal"}'))},
-        'embed':{'endpoints':[{'id':'real-embedding','base_url':os.environ['SOCIETY0_REAL_EMBED_URL'],
+    })
+    if embedding:
+        actual['embed']={'endpoints':[{'id':'real-embedding','base_url':os.environ['SOCIETY0_REAL_EMBED_URL'],
             'model':os.environ['SOCIETY0_REAL_EMBED_MODEL'],'api_key':os.environ['SOCIETY0_REAL_EMBED_KEY'],
             'concurrency':2,'timeout':60,'trust_env':False,'send_dimensions':False}],
-            'dimensions':int(os.environ.get('SOCIETY0_REAL_EMBED_DIMENSIONS','1024')),'max_attempts':1},
-    })
+            'dimensions':int(os.environ.get('SOCIETY0_REAL_EMBED_DIMENSIONS','1024')),'max_attempts':1}
+    return actual
 
 
 def public_profile(config):
     return {kind:{**options,'endpoints':[{key:value for key,value in endpoint.items() if key!='api_key'}
-            for endpoint in options['endpoints']]} for kind,options in ((name,config[name]) for name in ('llm','embed'))}
+            for endpoint in options['endpoints']]} for kind,options in ((name,config[name]) for name in ('llm','embed') if name in config)}
 
 
 def plan(config,path,*,goals,policy,mechanism='none',memory=False,moments=(1,),actors=('a',),

@@ -148,7 +148,7 @@ def build(config):
             ctx.provide(identifier, read)
     roots.append(Plugin('controlled.sources', tuple(dict.fromkeys(('storage', *(ref[0] for ref in bindings.values())))), controlled))
     roots.append(cognition_plugin(sources=tuple(SourceSpec(identifier, ('controlled.sources', identifier)) for identifier in config['sources']),
-                                  environment='同一共享环境；保留全部已呈现原文与正常行动能力。'))
+                                  environment='同一共享环境；保留全部已呈现原文与正常行动能力。'+('\n本轮任务：'+config['task'] if config.get('task') else '')))
     def observed(ctx):
         original_builder = ctx.require('cognition', 'input_builder')
         store, threads = ctx.require('storage', 'store'), ctx.require('threads', 'threads')

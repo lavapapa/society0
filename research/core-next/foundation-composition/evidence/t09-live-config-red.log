@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_llm_only_configuration_does_not_require_or_install_embedding _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108de0410>
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1269/test_llm_only_configuration_do0')
+
+    def test_llm_only_configuration_does_not_require_or_install_embedding(monkeypatch,tmp_path):
+        for suffix in ('URL','MODEL','KEY'):
+            monkeypatch.delenv('SOCIETY0_REAL_EMBED_'+suffix,raising=False)
+        for suffix,value in {'RELEASE':'fixed-test-source','OUTPUT':str(tmp_path),'LLM_URL':'http://unused.invalid/v1',
+                              'LLM_MODEL':'fixture','LLM_KEY':'test-only-key'}.items():
+            monkeypatch.setenv('SOCIETY0_REAL_'+suffix,value)
+>       actual=configuration(embedding=False)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: configuration() got an unexpected keyword argument 'embedding'
+
+tests/primary/test_core_real_llm_configuration.py:12: TypeError
+1 failed in 0.12s

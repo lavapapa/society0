@@ -1,0 +1,48 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_actual_sdk_and_http_payload_preserve_typed_sources_and_schema[default] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo0')
+variant = 'default'
+
+    @pytest.mark.parametrize('variant',['default','interview'])
+    def test_actual_sdk_and_http_payload_preserve_typed_sources_and_schema(tmp_path,variant):
+        root,result=execute(tmp_path,'run',config(variant=variant))
+>       assert result.returncode==0,result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ModuleNotFoundError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo0/run"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo0/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_sdk.py:29: AssertionError
+_ test_actual_sdk_and_http_payload_preserve_typed_sources_and_schema[interview] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo1')
+variant = 'interview'
+
+    @pytest.mark.parametrize('variant',['default','interview'])
+    def test_actual_sdk_and_http_payload_preserve_typed_sources_and_schema(tmp_path,variant):
+        root,result=execute(tmp_path,'run',config(variant=variant))
+>       assert result.returncode==0,result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ModuleNotFoundError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo1/run"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_and_http_paylo1/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_sdk.py:29: AssertionError
+___ test_actual_sdk_requests_match_after_new_process_complete_point_restore ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_requests_match0')
+
+    def test_actual_sdk_requests_match_after_new_process_complete_point_restore(tmp_path):
+        continuous,first=execute(tmp_path,'continuous',config())
+>       assert first.returncode==0,first.stdout+first.stderr
+E       AssertionError: {"error": {"code": "ModuleNotFoundError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_requests_match0/continuous"}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...nvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1266/test_actual_sdk_requests_match0/continuous"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_sdk.py:53: AssertionError
+3 failed in 0.45s
