@@ -44,6 +44,18 @@
 
 一次相关回归有 103 passed、1 failed，原因是成本 fixture 的 ordinal 从 2 开始与原有第二帖冲突；将附加历史从 ordinal3 开始后复核通过。见[t05-focused.log](evidence/t05-focused.log)。该失败未进入产品判断。首次实现后的较小相关集合 49 passed，见[t05-initial.log](evidence/t05-initial.log)。
 
-## 七、范围
+## 七、T06
 
-T01–T05 证明当前基础边界、图清单、关闭顺序与推荐版本行为。通用多来源认知、官方公开配方、组合 CLI 例子与独立跨进程 E2E 尚待后续任务，不计入当前通过。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
+原源码缺少通用组合模块，新增测试 collection 因 ModuleNotFoundError 退出 2；见[t06-red.log](evidence/t06-red.log)。新增 SourcePosition、SourceBatch、SourceSpec、CompositePerception、ComposedInput 与 cognition_plugin，复用原 CognitiveInput 和 InputBatch/LLMDriver 保存路径，未更改内核协议。首先 21 passed，见[t06-initial.log](evidence/t06-initial.log)。
+
+再用持久通知 data/source、完整点恢复、真实 Memory 对象和两个普通扩展拓展验证。COG-03/05/06/07/08/09/12：空位置与未初始化可区分，保留 inactive 键，坏 ID/ref 与 missing service/nonmapping 明确失败，来源错误/取消不提前确认，context/首末消息/cursor 编码错误保留此前原文与位置，丢弃批次无 provider 材料或效果，保存后效果能看到全部位置且 provider 尚未调用，两个主体交错不会混合材料/位置/回调。
+
+COG-02/04/13：真实双通知 data/source 在同 actor/Moment/mode 三次激活分别推进水位；A→B→A 保留同 Thread；三个独立 Run 固定 time=1、phase=A、step=1/2/3，省去来源时保留 schema/旧键，重新加入以原水位取积累正文；交换顺序在新 Run 实际入参中可见。另将只读来源改成新位置格式并使用新 ID，旧键与 Thread 前缀保持完整。COG-10：首/次效果写回执前后分别 error/cancel，失败后 complete_step 保持 1，新 Run 恢复 point1 时两份位置、全文和回执全等。这里验证 callback 故障恢复，Runtime/provider/扩展序列化和受控进程中断组合在 T07/T09 补充。
+
+COG-11：两个普通扩展与正式 memory_plugin/MemoryExtension 验证 enter→prepare→source effects→逆序 exit，召回 preparation 能读双来源完整 InputBatch，实际 typed provider 入参含全部原文、扩展和长记忆。本用例明确 auto_recall=True、auto_write=False、active_tools=False，其余既有记忆与 interview 用例保留并继续通过。COG-16：可选模型/记忆/社交 imports 被拦截时，导入认知类型后仍可完成官方 rule_run/run_plan；通知/Thread 历史 100/10000，固定一条完整新增消息的构建 SQL VM 为 115/115，构建器未调用全 Thread read_messages，无预先回执。
+
+通知原型有两项额外失败：tuple 数据引用未接线、重复回执被忽略，见[t06-notice-red.log](evidence/t06-notice-red.log)；修引用后继续重现默认不同实例同表，见[t06-notice-schema-red.log](evidence/t06-notice-schema-red.log)。改成显式 tuple 服务引用、插件实例名限定表、重复确认抛主键错误并回滚整个回执事务，符合交接规格。最后新组合 40 用例和 kernel_cognition/kernel_cognition_review/kernel_memory/kernel_llm 共 115 passed，退出 0；见[t06-final-green.log](evidence/t06-final-green.log)、[t06-final-green.xml](evidence/t06-final-green.xml)。中间 103/113 结果作为过程记录保留，没有替代最终源码验收。
+
+## 八、范围
+
+T01–T06 当前通过。正式 social 来源迁移、官方配方、组合 CLI 和独立跨进程 E2E 仍待后续任务。记录的 provider 材料来自 LLMDriver 实际传入 request_model 的 SDK typed messages，确定性 provider 无网络；正式 SDK 发送边界、真实端点与模型质量均待相应授权验收。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
