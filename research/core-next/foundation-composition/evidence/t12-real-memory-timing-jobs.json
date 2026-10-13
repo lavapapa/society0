@@ -1,0 +1,204 @@
+{
+  "real-memory-failed-v3": {
+    "complete_step": 1,
+    "memory_jobs": [
+      [
+        "a",
+        "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "e6afbfc1880040e0bc9367184314ab59",
+        "complete"
+      ],
+      [
+        "a",
+        "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "thread:15e44933fe9b4a9fa1bcdeca4e0c936d:through:67",
+        "complete"
+      ],
+      [
+        "b",
+        "57a529ee731447af85be66952c1eea88",
+        "e8e78decba144ad78b8daeffe6e64f21",
+        "complete"
+      ],
+      [
+        "b",
+        "57a529ee731447af85be66952c1eea88",
+        "thread:57a529ee731447af85be66952c1eea88:through:94",
+        "complete"
+      ]
+    ],
+    "threads": [
+      {
+        "actor": "a",
+        "id": "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "status": "completed",
+        "model_requests": 12,
+        "timings": [
+          {
+            "prompt_s": 0.0011492909397929907,
+            "memory_recall_s": 1.5625031664967537e-05,
+            "setup_s": 0.0004746669437736273,
+            "model_s": 48.80191533383913,
+            "tools_s": 0.2715100012719631,
+            "memory_write_s": 9.09308575000614,
+            "cleanup_s": 9.124865755438805e-06,
+            "other_s": 0.09375258209183812
+          }
+        ]
+      },
+      {
+        "actor": "b",
+        "id": "57a529ee731447af85be66952c1eea88",
+        "status": "completed",
+        "model_requests": 17,
+        "timings": [
+          {
+            "prompt_s": 0.00367216719314456,
+            "memory_recall_s": 5.095801316201687e-05,
+            "setup_s": 0.0001527089625597,
+            "model_s": 98.85074028954841,
+            "tools_s": 0.21824112557806075,
+            "memory_write_s": 6.376250125002116,
+            "cleanup_s": 9.750016033649445e-06,
+            "other_s": 0.10678237560205162
+          }
+        ]
+      },
+      {
+        "actor": "a",
+        "id": "8488c00ecc024c788b5053d22cf5a27b",
+        "status": "completed",
+        "model_requests": 16,
+        "timings": [
+          {
+            "prompt_s": 0.0023787079844623804,
+            "memory_recall_s": 0.14435416692867875,
+            "setup_s": 0.00021600001491606236,
+            "model_s": 64.4772891222965,
+            "tools_s": 0.178925666725263,
+            "cleanup_s": 3.6670826375484467e-06,
+            "other_s": 0.1103598359040916
+          }
+        ]
+      },
+      {
+        "actor": "b",
+        "id": "76a6837cb87a4db2b12b7aee3df9a76d",
+        "status": "completed",
+        "model_requests": 17,
+        "timings": [
+          {
+            "prompt_s": 0.0035176249220967293,
+            "memory_recall_s": 0.006828875048086047,
+            "setup_s": 0.00022149994038045406,
+            "model_s": 74.98599316575564,
+            "tools_s": 0.2060398340690881,
+            "cleanup_s": 4.9578957259655e-06,
+            "other_s": 0.11861775140278041
+          }
+        ]
+      }
+    ]
+  },
+  "real-memory-recovered-v3": {
+    "complete_step": 2,
+    "memory_jobs": [
+      [
+        "a",
+        "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "e6afbfc1880040e0bc9367184314ab59",
+        "complete"
+      ],
+      [
+        "a",
+        "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "thread:15e44933fe9b4a9fa1bcdeca4e0c936d:through:67",
+        "complete"
+      ],
+      [
+        "b",
+        "57a529ee731447af85be66952c1eea88",
+        "e8e78decba144ad78b8daeffe6e64f21",
+        "complete"
+      ],
+      [
+        "b",
+        "57a529ee731447af85be66952c1eea88",
+        "thread:57a529ee731447af85be66952c1eea88:through:94",
+        "complete"
+      ]
+    ],
+    "threads": [
+      {
+        "actor": "a",
+        "id": "15e44933fe9b4a9fa1bcdeca4e0c936d",
+        "status": "completed",
+        "model_requests": 12,
+        "timings": [
+          {
+            "prompt_s": 0.0011492909397929907,
+            "memory_recall_s": 1.5625031664967537e-05,
+            "setup_s": 0.0004746669437736273,
+            "model_s": 48.80191533383913,
+            "tools_s": 0.2715100012719631,
+            "memory_write_s": 9.09308575000614,
+            "cleanup_s": 9.124865755438805e-06,
+            "other_s": 0.09375258209183812
+          }
+        ]
+      },
+      {
+        "actor": "b",
+        "id": "57a529ee731447af85be66952c1eea88",
+        "status": "completed",
+        "model_requests": 17,
+        "timings": [
+          {
+            "prompt_s": 0.00367216719314456,
+            "memory_recall_s": 5.095801316201687e-05,
+            "setup_s": 0.0001527089625597,
+            "model_s": 98.85074028954841,
+            "tools_s": 0.21824112557806075,
+            "memory_write_s": 6.376250125002116,
+            "cleanup_s": 9.750016033649445e-06,
+            "other_s": 0.10678237560205162
+          }
+        ]
+      },
+      {
+        "actor": "a",
+        "id": "bbdce6f723c94724af2b8b22a568e9aa",
+        "status": "completed",
+        "model_requests": 17,
+        "timings": [
+          {
+            "prompt_s": 0.0011420841328799725,
+            "memory_recall_s": 0.2643985841423273,
+            "setup_s": 0.0007446669042110443,
+            "model_s": 95.11246620723978,
+            "tools_s": 0.1908053755760193,
+            "cleanup_s": 9.375158697366714e-06,
+            "other_s": 0.11143612395972013
+          }
+        ]
+      },
+      {
+        "actor": "b",
+        "id": "dc945db4c1ed4e3fa7f92b4bf3ced5b3",
+        "status": "completed",
+        "model_requests": 18,
+        "timings": [
+          {
+            "prompt_s": 0.003474291879683733,
+            "memory_recall_s": 0.006524625001475215,
+            "setup_s": 0.00018625007942318916,
+            "model_s": 75.56700816331431,
+            "tools_s": 0.1961052888073027,
+            "cleanup_s": 6.292015314102173e-06,
+            "other_s": 0.12521658884361386
+          }
+        ]
+      }
+    ]
+  }
+}
