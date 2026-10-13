@@ -38,7 +38,19 @@ plugins = [
 
 上述片段加入已有主体目录与 interaction 的组合。外部策略提供 `rank(RankingInput) -> RankingOutput`。输入包含主体、时点、候选元数据、关注集合、可选语义分数及 revision；不携带帖子全文或服务定位器。候选与输出序列不可变，similarities、by_id 和评分 components 为只读映射。输出保留全部合格候选身份、精确 total 与输入 revision，推荐服务核验这些条件。策略切换保留点赞、回复、转发等事实；加权计分与 chronological 的稳定排序规则见 [公开值对象及策略](../../src/society0/plugins/social_ranking.py)。
 
-[独立推荐观测插件](../../examples/core_next/recommendation_observer.py) 通过 `source=('social.recommendation','recommendation')` 消费输入，将多个具名 rank 服务的结果写入自己的纯数据表。该消费者无须安装 presentation、content 或 exposure，也不会登记曝光。
+[独立推荐观测插件](../../examples/core_next/recommendation_observer.py) 通过 `source=('social.recommendation','recommendation')` 消费 `await recommendation_input(actor, tick, query=None)`，对同一个完整输入比较多个具名纯值 rank 服务，并写入自己的数据表。`await recommendation(...)` 返回 `(RankingInput, RankingOutput)`，复用按主体的完整排名缓存；两个入口都不登记曝光。
+
+### 2.1 SQL 来源
+
+推荐叶的 `candidates` 与 `relations` 通过具名插件服务引用绑定。[SQLCandidates / SQLRelations](../../src/society0/plugins/social_recommendation.py) 定义同一 StageStore 的结构接口：两者均有只读 `dependencies: tuple[str, ...]` 属性与 `store`；前者提供同步 `active_pool_in(view, tick) -> tuple[Candidate, ...]`，后者提供 `following_in(view, actor) -> frozenset[str]`。来源声明全部实际读取的表，包括外部选择/关系表、联结元数据和筛选条件；在传入短 ReadView 内物化结果。安装时核对同一 store、接口和表存在，拒绝错误声明。候选输出须为完整、唯一身份的元组。
+
+原生 ActivePool 声明 head/posts，Relations 声明 edges，成员资格声明 members。语义启用时再合并人格门面、近期原帖与正文、互动与回复、原生关注、vectors/embedding_pending。默认偏好文本中的关注仍取原生 edges；外部 relations 改变排名的 following。需要改变偏好语义的插件同步提供相应文本入口与依赖。
+
+推荐首先做声明依赖的轻量版本与成员检查；未命中时先完成正文向量准备，再在一个 ReadView 内读取成员、版本、候选、关系和完整偏好。向量查询使用该不可变输入，SQL 视图在网络等待前释放，等待返回后核对完整依赖版本与派生集合水位。来源变化抛 ValueError，调用者显式请求下一次读取。ranker 同步消费纯值输入，成功结果保留完整候选、评分和原始正文入口。
+
+### 2.2 静态配置
+
+一次 Run 的来源、依赖与策略绑定保持固定。weighted 在构造时复制有效 RecommendationConfig，公开配置字段只读；Recommendations.ranker 是只读绑定。调用者修改原配置副本不影响当前服务。切换策略或配置通过新 Run/compose 装配，可从可信完整点恢复，缓存从空开始。输入与参数的来源身份记录在 RunContract.configuration，源码身份与依赖由运行合同声明。
 
 ## 三、信息与呈现
 
@@ -46,7 +58,9 @@ plugins = [
 
 `/social/posts`、`participants`、`replies` 支持结构化查询；posts 元数据携带 `content_path`。`content/<id>`、`reply_content/<id>` 提供完整原文字节范围，`notifications` 提供未读条目，`notification_data/<id>` 核验收件人并保留消费后的原始内容。热门查询使用全局热门索引，与活动推荐候选池分别取数。
 
-`/social/feed` 是只读推荐预览，按排名分页返回候选元数据、分数、Ref、正文路径及精确总数。游标绑定运行、主体、Moment、相关领域和权限版本；Thread 诊断写入不使其过期。页面查询不登记曝光。`recommended_feed` 是显式程序呈现入口，按配置 post_count 取得完整帖子并默认登记曝光。
+`/social/feed` 是只读推荐预览，按排名分页返回候选元数据、完整分数、Ref、正文路径及精确总数。游标以 JSON 明文绑定运行、主体、Moment、路径、实际排名版本与权限版本。Page.revision 为 `[ranking_revision, access_revision]`；每一页核对 source/output/页面排名版本一致，并核对请求前后权限版本。首屏允许正文向量准备产生的新排名版本，已有续页遇相关变化明确过期。无关 Thread 诊断与 observer 写入保持旧页有效。feed 和平台根目录的 search_revision 同样反映实际外部来源版本。
+
+页面查询不登记曝光。`recommended_feed` 按配置 post_count 取得完整帖子并默认登记曝光；预览调用可显式关闭这一效果。传输页大小、预览字符配置均不改变可继续取得的完整集合、原文字节与九项 weighted 评分。
 
 `social_cognition_plugin` 提供 `input_builder`，包装 CognitiveInput，供 LLM 驱动显式绑定。Thread 中的感知位置保存 `seen`、`visible` 和 `recommended`：新帖提供完整详情，已见帖提供变化的元数据，推荐顺序变化保留新 id 序列。同 Moment 重激活与完整点恢复延续该位置，既有原文继续保留在完整 Thread。曝光及推荐 id 更新通过批次 `effects` 延后到实际追加成功之后，见 [认知合同](cognition-contract.md)。直接调用其 `perception` 服务生成材料保持无呈现效果。
 
@@ -54,7 +68,9 @@ plugins = [
 
 exposure 叶在 after-step 提交曝光计数和最后推荐 id；semantic 叶在 after-step 完成待写嵌入并推进派生索引。Runtime 收束已登记回调后发布完整步骤。直接使用底层服务的消费者须显式执行等价收束。单次内容行动在共享事务内维护事实、计数与通知；步骤失败从此前可信完整点恢复。
 
-原始向量保存在 SQL，恢复重建派生集合。semantic 拥有异步任务，通过 on_quiesce 取消并等待自有调用，然后由依赖插件关闭外部资源。嵌入等待期间偏好或候选版本改变会拒绝过期结果。presentation 拥有并关闭其信息 provider，Information 挂载借用该资源。
+原始向量保存在 SQL，恢复重建派生集合。semantic 借用推荐已物化的输入，提供 `dependencies`、`query_text_in` 和 `similarities(source, text=..., dependencies=...)`，不独立枚举候选。派生集合的 through 与 SQL 最大向量 ordinal 对应，查询前后核对来源与向量版本；原始向量追加是正式生产路径。
+
+Host 先等待 Runtime idle，再执行 semantic 的 worker 阶段停止，最后关闭依赖资源。presentation 在创建 provider 后立即托管关闭，并逐项托管 Actions/Information 返回的注销函数；安装中途失败时撤回已成功的贡献。Information 挂载借用该资源。
 
 ## 五、工作量与证据
 

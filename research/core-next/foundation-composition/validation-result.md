@@ -32,6 +32,18 @@
 
 实现固定 runtime/worker 两阶段后，runtime_shutdown_order/plugins/plugins_review/runtime/runtime_review/composition/social_composition/plugin_social 共 102 passed，退出 0。见[t04-green.log](evidence/t04-green.log)、[t04-green.xml](evidence/t04-green.xml)。四组真实等待均在请求 settled、driver cleanup 和 runtime idle 后停止 worker，再关闭 provider，最后关闭 SQL store；runtime、worker、resource 各阶段抛错时继续余下清理。没有 sleep 竞争或外部请求。
 
-## 六、范围
+## 六、T05
 
-T01 结果证明当前共享登记和安装所有权行为。两阶段停止、完整公开配方、组合多来源认知以及独立跨进程 E2E 尚未实施，不计入当前通过。历史 SQL 来源缓存观察仍是前轮证据，推荐修复将在 T05 重新取得失败和通过结果。
+实际重现外部 SQL 选择反例：缓存入口仍为 1、直接输入为 2，首次/修改后/直接输入为 1/1/2。新来源测试初次 9 failed、1 passed，覆盖关系版本、多个 ReadView、安装接口与表/store 校验、配置固定和 search_revision 缺口。见[t05-source-red.log](evidence/t05-source-red.log)。另行暂停 query embedding，得到 7 failed、4 passed；旧实现漏检外部选择/关系、回复正文及向量变化，首屏没有独立版本对照，权限变化未拒绝首屏。已识别的人格/帖子/正常评论/成员变化用例仍通过，见[t05-semantic-red.log](evidence/t05-semantic-red.log)。
+
+实施后新来源文件与 social_composition/social_composition_ranking/social_independent_review/plugin_social/plugin_social_review/social_cognition/social_content_discovery/runtime_shutdown_order/actor_directory_delegation 共 109 passed，退出 0；见[t05-green.log](evidence/t05-green.log)、[t05-green.xml](evidence/t05-green.xml)。选择写入后得到 1/2/2，rank 调用从 1 增至 2，再次相同输入保持 2；删除选择行得到 1/1。外部关注单独改变全部网络分数。默认 query 的成员/候选/关系/偏好/persona 使用同一视图，退出后不可查询。八种来源变化和显式 query 的外部选择变化在 await 后均拒绝，无排名或语义结果发布与曝光；首屏独立核对权限。准备后的排名/Page 同版、只读配置、新 Run 策略重绑与旧 cursor、完整 Unicode 长正文和精确呈现曝光均有断言。
+
+现有加权九项完整指标与基线参考函数对照继续通过；策略正例、ScoreOnly、输出身份/total/revision 负例、原生大池索引、A/C/A/C 排名与语义 LRU、容量 1 的淘汰回归继续通过。删除同步 ranking_input/ranking_dependencies/Social.rank 后，将两个现役测试迁到实际异步输入/输出；生产代码和示例检索无旧入口调用。semantic 不再持有候选服务，静态服务图随真实借用关系调整。
+
+固定外部选择 2 条、页长 1，历史 100/10000 时，冷输入 SQL VM 为 328/328，热页为 249/249。页长 1 实际物化 1 条，limit10 返回全部 2 条，热页未重新读池或排名；长正文分块拼接大于 100000 bytes 且逐字节相等。见[t05-source-cost.log](evidence/t05-source-cost.log)。这项为当前源码的工作量回归，固定源码前后完整成本比较留待 T13。
+
+一次相关回归有 103 passed、1 failed，原因是成本 fixture 的 ordinal 从 2 开始与原有第二帖冲突；将附加历史从 ordinal3 开始后复核通过。见[t05-focused.log](evidence/t05-focused.log)。该失败未进入产品判断。首次实现后的较小相关集合 49 passed，见[t05-initial.log](evidence/t05-initial.log)。
+
+## 七、范围
+
+T01–T05 证明当前基础边界、图清单、关闭顺序与推荐版本行为。通用多来源认知、官方公开配方、组合 CLI 例子与独立跨进程 E2E 尚待后续任务，不计入当前通过。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。

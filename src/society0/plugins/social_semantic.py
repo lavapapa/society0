@@ -22,10 +22,9 @@ def _operation(method):
     return run
 
 class Semantic(DomainService):
-    def __init__(self,data,candidates,embed,client,*,cache_capacity=128):
+    def __init__(self,data,embed,client,*,cache_capacity=128):
         super().__init__(data)
         self.actors=data.actors
-        self.candidates=candidates
         self.embed,self.client=embed,client
         vector_id=self.store.read(lambda r:r.query(f'SELECT vector_id FROM {self.table("config")} WHERE id=1')[0][0])
         self._collection_name='society-posts-'+self.store.run_id+'-'+vector_id
@@ -50,7 +49,7 @@ class Semantic(DomainService):
 
     @_operation
     async def flush_embeddings(self):
-        if not self.config.social_media.recommendation.use_embedding_similarity:return
+        if not self._recommendation_config.use_embedding_similarity:return
         if self.embed is None or self.client is None:raise ValueError('semantic recommendations require embedding and vector resources')
         async with self._embedding_lock:
             while True:
@@ -83,36 +82,48 @@ class Semantic(DomainService):
             after=rows[-1][1]
             self._collection.modify(metadata={'through':after})
 
+    @property
+    def dependencies(self):
+        return tuple(dict.fromkeys((*self.data.preference_dependencies,
+            self.name+'_vectors',self.name+'_embedding_pending')))
+
+    def _collection_ready_in(self,view):
+        through=view.query(f'SELECT coalesce(max(ordinal),0) FROM {self.table("vectors")}')[0][0]
+        if self._collection is None or (self._collection.metadata or {}).get('through',0)!=through:
+            raise ValueError('semantic vector collection is not prepared for the SQL version')
+
+    def query_text_in(self,view,actor,*,query=None):
+        if self._recommendation_config.use_embedding_similarity:self._collection_ready_in(view)
+        return self.data.preference_text_in(view,actor) if query is None else query
+
+    def _snapshot_in(self,view,source,dependencies):
+        if view.revision_for(dependencies)!=source.revision:
+            raise ValueError('recommendation inputs changed during embedding; request again')
+        self._collection_ready_in(view)
+        rows=view.query(f'SELECT dimension FROM {self.table("vectors")} LIMIT 1')
+        return rows[0][0] if rows else None
+
     @_operation
-    async def similarities(self,actor,tick,*,query=None):
-        cfg=self.config.social_media.recommendation
-        scores={}
-        if cfg.use_embedding_similarity:
-            await self.flush_embeddings()
-            pool=[item for item in self.candidates.active_pool(tick) if item['author_id']!=actor]
-            dependencies=tuple(self.name+'_'+suffix for suffix in ('posts','bodies','edges','recent_interactions','members'))+('actor_personas',)
-            source_version=self.store.read(lambda r:r.revision_for(dependencies))
-            key=(query,source_version,tuple(item['post_id'] for item in pool),(self._collection.metadata or {}).get('through',0))
-            previous=self._semantic_cache.get(actor)
-            if previous is not None and previous[0]==key:
-                scores=previous[1]
-                self._semantic_cache.move_to_end(actor)
-            elif pool:
-                text=self.data.preference_text(actor) if query is None else query
-                vectors=await self.embed([text],metadata={'purpose':'social_recommendation','actor':actor,'mechanism':self.name,'step':tick})
-                # 网络等待期间可能新增帖子；补齐向量后再固定当前候选。
-                await self.flush_embeddings()
-                if self.store.read(lambda r:r.revision_for(dependencies))!=source_version:
-                    raise ValueError('social preference or candidate revision changed during embedding')
-                pool=[item for item in self.candidates.active_pool(tick) if item['author_id']!=actor]
-                dimension=self.store.read(lambda r:r.query(f'SELECT dimension FROM {self.table("vectors")} LIMIT 1'))
-                if dimension:validate_vectors(vectors,1,dimension[0][0])
-                count=max(len(pool),cfg.post_count) if len(pool)<=cfg.full_scan_until else max(int(cfg.candidate_count*cfg.recall_multiplier),cfg.post_count)
-                result=self._collection.query(query_embeddings=vectors,n_results=count,include=['distances'],where={'mechanism':{'$eq':self.name}})
-                active={item['post_id'] for item in pool}
-                scores={identifier:max(1-float(distance),0.0) for identifier,distance in zip(result['ids'][0],result['distances'][0]) if identifier in active}
-                self._semantic_cache[actor]=(key,scores)
-                self._semantic_cache.move_to_end(actor)
-                if len(self._semantic_cache)>self.cache_capacity:self._semantic_cache.popitem(last=False)
-        else:pool=self.candidates.active_pool(tick)
+    async def similarities(self,source,*,text,dependencies):
+        cfg=self._recommendation_config
+        if not cfg.use_embedding_similarity:return {}
+        self.store.read(lambda view:self._snapshot_in(view,source,dependencies))
+        pool=tuple(item for item in source.candidates if item.author_id!=source.actor)
+        key=(source.tick,text,source.revision,dependencies,tuple(item.post_id for item in pool))
+        previous=self._semantic_cache.get(source.actor)
+        if previous is not None and previous[0]==key:
+            self._semantic_cache.move_to_end(source.actor)
+            return previous[1]
+        if not pool:return {}
+        vectors=await self.embed([text],metadata={'purpose':'social_recommendation','actor':source.actor,'mechanism':self.name,'step':source.tick})
+        dimension=self.store.read(lambda view:self._snapshot_in(view,source,dependencies))
+        if dimension is not None:validate_vectors(vectors,1,dimension)
+        count=max(len(pool),cfg.post_count) if len(pool)<=cfg.full_scan_until else max(int(cfg.candidate_count*cfg.recall_multiplier),cfg.post_count)
+        result=self._collection.query(query_embeddings=vectors,n_results=count,include=['distances'],where={'mechanism':{'$eq':self.name}})
+        active={item.post_id for item in pool}
+        scores={identifier:max(1-float(distance),0.0) for identifier,distance in zip(result['ids'][0],result['distances'][0]) if identifier in active}
+        self.store.read(lambda view:self._snapshot_in(view,source,dependencies))
+        self._semantic_cache[source.actor]=(key,scores)
+        self._semantic_cache.move_to_end(source.actor)
+        if len(self._semantic_cache)>self.cache_capacity:self._semantic_cache.popitem(last=False)
         return scores

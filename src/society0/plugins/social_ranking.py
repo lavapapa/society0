@@ -61,7 +61,11 @@ class RankingOutput:
 
 class WeightedRanker:
     def __init__(self, config=None):
-        self.config=RecommendationConfig.model_validate(config or {})
+        self._config=RecommendationConfig.model_validate(config or {}).model_copy()
+
+    @property
+    def config(self):
+        return self._config
 
     def rank(self, source: RankingInput) -> RankingOutput:
         cfg=self.config; ranked=[]

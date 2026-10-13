@@ -1,34 +1,83 @@
-"""候选与策略装配；消费者无需安装内容行动或认知呈现。"""
+"""声明 SQL 来源依赖，在短视图内取得同版输入并绑定纯值排名策略。"""
 from collections import OrderedDict
+from dataclasses import replace
+from typing import Protocol
+
 from ..kernel.plugins import Plugin
 from ..kernel.interaction import Unavailable
+from ..kernel.storage import ReadView, StageStore
 from .social_ranking import Candidate, RankingInput
+
+
+class SQLCandidates(Protocol):
+    @property
+    def store(self) -> StageStore: ...
+    @property
+    def dependencies(self) -> tuple[str, ...]: ...
+    def active_pool_in(self, view: ReadView, tick: int) -> tuple[Candidate, ...]: ...
+
+
+class SQLRelations(Protocol):
+    @property
+    def store(self) -> StageStore: ...
+    @property
+    def dependencies(self) -> tuple[str, ...]: ...
+    def following_in(self, view: ReadView, actor: str) -> frozenset[str]: ...
 
 
 class Recommendations:
     def __init__(self,data,candidates,relations,ranker,semantic=None,*,cache_capacity=128):
         self.data,self.candidates,self.relations=data,candidates,relations
-        self.ranker,self.semantic=ranker,semantic
+        self._ranker,self.semantic=ranker,semantic
+        self.store=data.store
         if type(cache_capacity) is not int or cache_capacity<1:raise ValueError('cache_capacity must be a positive integer')
         self.cache_capacity=cache_capacity
         self._snapshots=OrderedDict()
+        sources=[('candidates',candidates,('active_pool_in',)),('relations',relations,('following_in',))]
+        if semantic is not None:sources.append(('semantic',semantic,('query_text_in','flush_embeddings','similarities')))
+        dependencies=list(data.member_dependencies)
+        for label,service,methods in sources:
+            for attribute in ('store','dependencies',*methods):
+                if not hasattr(service,attribute):raise ValueError(f'{label} source requires {attribute}')
+            if service.store is not self.store:raise ValueError(f'{label} source must use the same StageStore')
+            for method in methods:
+                if not callable(getattr(service,method)):raise ValueError(f'{label} source requires callable {method}')
+            declared=tuple(dict.fromkeys(service.dependencies))
+            try:self.store.read(lambda view:view.revision_for(declared))
+            except ValueError as error:raise ValueError(f'{label} source declares an unknown dependency table') from error
+            dependencies.extend(declared)
+        self._dependencies=tuple(dict.fromkeys(dependencies))
+        self.store.read(lambda view:view.revision_for(self._dependencies))
 
-    def ranking_dependencies(self):
-        suffixes=('posts','bodies','edges','recent_interactions','members')
-        if self.semantic is not None:suffixes+=('vectors',)
-        return tuple(self.data.name+'_'+key for key in suffixes)+('actor_personas',)
+    @property
+    def ranker(self):
+        return self._ranker
 
-    def ranking_input(self,actor,tick,*,similarity_scores=None,pool=None):
-        def read(r):
-            if not self.data.member_in(r,actor):raise Unavailable('resource unavailable')
-            return r.revision_for(self.ranking_dependencies())
-        revision=self.data.store.read(read)
-        candidates=self.candidates.active_pool(tick) if pool is None else pool
-        return RankingInput(actor,tick,tuple(Candidate(**item) for item in candidates),self.relations.following(actor),dict(similarity_scores or {}),revision)
+    def revision_in(self,view,actor):
+        if not self.data.member_in(view,actor):raise Unavailable('resource unavailable')
+        return view.revision_for(self._dependencies)
+
+    async def _input(self,actor,tick,query):
+        if self.semantic is not None:await self.semantic.flush_embeddings()
+        def read(view):
+            revision=self.revision_in(view,actor)
+            candidates=self.candidates.active_pool_in(view,tick)
+            if not isinstance(candidates,tuple):raise TypeError('candidates source must return a tuple of Candidate values')
+            identities=[item.post_id for item in candidates]
+            if len(set(identities))!=len(identities):raise ValueError('candidates source must return unique post identities')
+            source=RankingInput(actor,tick,candidates,self.relations.following_in(view,actor),{},revision)
+            text=self.semantic.query_text_in(view,actor,query=query) if self.semantic is not None else None
+            return source,text
+        source,text=self.store.read(read)
+        if self.semantic is not None:
+            scores=await self.semantic.similarities(source,text=text,dependencies=self._dependencies)
+            source=replace(source,similarities=scores)
+        if self.store.read(lambda view:self.revision_in(view,actor))!=source.revision:
+            raise ValueError('recommendation inputs changed; request again')
+        return source
 
     async def recommendation_input(self,actor,tick,*,query=None):
-        scores=await self.semantic.similarities(actor,tick,query=query) if self.semantic is not None else {}
-        return self.ranking_input(actor,tick,similarity_scores=scores)
+        return await self._input(actor,tick,query)
 
     def rank(self,source):
         result=self.ranker.rank(source)
@@ -39,12 +88,12 @@ class Recommendations:
         return result
 
     async def recommendation(self,actor,tick,*,query=None):
-        revision=self.data.store.read(lambda r:r.revision_for(self.ranking_dependencies()))
+        revision=self.store.read(lambda view:self.revision_in(view,actor))
         previous=self._snapshots.get(actor)
         if previous is not None and previous[:3]==(tick,query,revision):
             self._snapshots.move_to_end(actor)
             return previous[3],previous[4]
-        source=await self.recommendation_input(actor,tick,query=query)
+        source=await self._input(actor,tick,query)
         output=self.rank(source)
         self._snapshots[actor]=(tick,query,source.revision,source,output)
         self._snapshots.move_to_end(actor)

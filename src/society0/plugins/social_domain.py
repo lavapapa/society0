@@ -1,6 +1,8 @@
 """领域服务分别拥有写入职责，通过事务内写入器原子协作。"""
 import json
 import codecs
+from dataclasses import asdict
+from .social_ranking import Candidate
 from ..kernel.interaction import ActionResult
 from ..kernel.information_sql import _quote
 from .social_models import SocialNetworkConfig
@@ -42,6 +44,7 @@ class SocialData:
         self.name,self.store,self.actors=name,store,actors
         self.content_limit=store.read(lambda r:r.query(f'SELECT content_limit FROM {self.table("head")} WHERE id=1')[0][0])
         self.config=SocialNetworkConfig.model_validate_json(store.read(lambda r:r.query(f'SELECT body FROM {self.table("config")} WHERE id=1')[0][0]))
+        self._recommendation_config=self.config.social_media.recommendation
 
     def table(self,suffix):return _quote(self.name+'_'+suffix)
 
@@ -52,30 +55,38 @@ class SocialData:
         w.execute(f'INSERT INTO {self.table("events")}(actor,kind,target,tick) VALUES(?,?,?,?)',(actor,kind,target,tick))
 
 
+    @property
+    def member_dependencies(self):
+        return (self.name+'_members',)
+
+    @property
+    def preference_dependencies(self):
+        return tuple(dict.fromkeys((*self.actors.persona_dependencies,
+            *(self.name+'_'+suffix for suffix in ('posts','bodies','recent_interactions','replies','edges')))))
+
     def preference_text(self,actor):
-        cfg=self.config.social_media.recommendation
-        record=self.actors.view(actor);sections=[]
-        persona=record.persona
+        return self.store.read(lambda view:self.preference_text_in(view,actor))
+
+    def preference_text_in(self,view,actor):
+        cfg=self._recommendation_config;sections=[]
+        persona=self.actors.persona_in(view,actor)
         if persona:sections.append('Persona:\n'+str(persona))
         if cfg.include_recent_posts_in_query and cfg.recent_post_limit:
-            rows=self.store.read(lambda r:r.query(f'SELECT p.id,b.body,b.tags FROM {self.table("posts")} p JOIN {self.table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT ?',(actor,cfg.recent_post_limit)))
+            rows=view.query(f'SELECT p.id,b.body,b.tags FROM {self.table("posts")} p JOIN {self.table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT ?',(actor,cfg.recent_post_limit))
             lines=[]
             for identifier,body,tags in rows:
                 lines.append('['+identifier+'] '+body.decode()+'\nTags: '+(', '.join(json.loads(tags)) or '无标签'))
             if lines:sections.append('Recent posts:\n'+'\n---\n'.join(lines))
         if cfg.include_recent_posts_in_query and cfg.interaction_limit:
-            def read(r):
-                rows=r.query(f'SELECT kind_order,source_id,post FROM {self.table("recent_interactions")} WHERE actor=? ORDER BY tick DESC,post_ordinal,kind_order,source_id LIMIT ?',(actor,cfg.interaction_limit))
-                result=[]
-                for kind,source,post in rows:
-                    table,key=(self.table('bodies'),post) if kind==0 else (self.table('replies'),source)
-                    body=r.query(f'SELECT body FROM {table} WHERE id=?',(key,))[0][0].decode()
-                    result.append(('Like' if kind==0 else 'Comment')+' '+post+': '+body)
-                return result
-            interactions=self.store.read(read)
+            rows=view.query(f'SELECT kind_order,source_id,post FROM {self.table("recent_interactions")} WHERE actor=? ORDER BY tick DESC,post_ordinal,kind_order,source_id LIMIT ?',(actor,cfg.interaction_limit))
+            interactions=[]
+            for kind,source,post in rows:
+                table,key=(self.table('bodies'),post) if kind==0 else (self.table('replies'),source)
+                body=view.query(f'SELECT body FROM {table} WHERE id=?',(key,))[0][0].decode()
+                interactions.append(('Like' if kind==0 else 'Comment')+' '+post+': '+body)
             if interactions:sections.append('Recent interactions:\n'+'\n'.join(interactions))
         if cfg.include_following_in_query:
-            follows=self.store.read(lambda r:r.query(f'SELECT followee FROM {self.table("edges")} WHERE follower=? ORDER BY id LIMIT ?',(actor,cfg.recent_post_limit or 3)))
+            follows=view.query(f'SELECT followee FROM {self.table("edges")} WHERE follower=? ORDER BY id LIMIT ?',(actor,cfg.recent_post_limit or 3))
             if follows:sections.append('Following:\n'+', '.join(row[0] for row in follows))
         return '\n\n'.join(sections) if sections else 'Social feed preference'
 
@@ -85,6 +96,7 @@ class DomainService:
     def __init__(self,data):
         self.data=data
         self.name,self.store,self.config=data.name,data.store,data.config
+        self._recommendation_config=data.config.social_media.recommendation
     def table(self,suffix):return self.data.table(suffix)
 
 
@@ -110,8 +122,15 @@ class Relations(DomainService):
     def __init__(self,data,notifications):
         super().__init__(data);self.notices=notifications
 
+    @property
+    def dependencies(self):
+        return (self.name+'_edges',)
+
+    def following_in(self,view,actor):
+        return frozenset(row[0] for row in view.iter_query(f'SELECT followee FROM {self.table("edges")} WHERE follower=?',(actor,)))
+
     def following(self,actor):
-        return self.store.read(lambda r:frozenset(row[0] for row in r.iter_query(f'SELECT followee FROM {self.table("edges")} WHERE follower=?',(actor,))))
+        return self.store.read(lambda view:self.following_in(view,actor))
 
     def execute_in(self,w,operation,actor,target,tick):
         if target==actor or not self.data.member_in(w,target):return ActionResult('rejected',{'reason':'participant_unavailable'})
@@ -130,7 +149,7 @@ class Relations(DomainService):
 class Engagement(DomainService):
     """事实计数的配置化派生投影；替换排名策略不修改互动事实。"""
     def update_in(self,w,identifier):
-        cfg=self.config.social_media.recommendation
+        cfg=self._recommendation_config
         w.execute(f'UPDATE {self.table("posts")} SET engagement=?*like_count+?*reply_count+?*repost_count WHERE id=?',
                   (cfg.like_score,cfg.reply_score,cfg.repost_score,identifier))
 
@@ -267,22 +286,27 @@ class Exposure(DomainService):
         return json.loads(rows[0][0]) if rows else []
 
 class ActivePool(DomainService):
+    @property
+    def dependencies(self):
+        return (self.name+'_head',self.name+'_posts')
+
     def active_pool(self,tick):
-        cfg=self.config.social_media.recommendation
-        def read(r):
-            total=r.query(f'SELECT post_count FROM {self.table("head")} WHERE id=1')[0][0]
-            source=self.table('posts');bindings=()
-            prefix='';joined=source+' p'
-            if total>cfg.full_scan_until:
-                prefix=f'''WITH candidates(id) AS MATERIALIZED (
-                    SELECT id FROM (SELECT id FROM {source} ORDER BY created_tick DESC,id DESC LIMIT ?)
-                    UNION SELECT id FROM (SELECT id FROM {source} ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT ?)
-                    UNION SELECT id FROM {source} INDEXED BY {self.table("pool_recent")} WHERE created_tick>?) '''
-                joined=f'candidates c CROSS JOIN {source} p ON p.id=c.id'
-                bindings=(cfg.recent_keep_count,cfg.top_engagement_keep_count,tick-cfg.min_lifetime_ticks)
-            rows=r.iter_query(prefix+f'SELECT p.id,p.author,p.created_tick,p.like_count,p.reply_count,p.repost_count,p.view_count,p.engagement FROM {joined} ORDER BY p.created_tick DESC,p.engagement DESC,p.id DESC',bindings)
-            return [dict(zip(('post_id','author_id','created_tick','like_count','reply_count','repost_count','view_count','engagement_score'),row)) for row in rows]
-        return self.store.read(read)
+        return self.store.read(lambda view:[asdict(item) for item in self.active_pool_in(view,tick)])
+
+    def active_pool_in(self,view,tick):
+        cfg=self._recommendation_config
+        total=view.query(f'SELECT post_count FROM {self.table("head")} WHERE id=1')[0][0]
+        source=self.table('posts');bindings=()
+        prefix='';joined=source+' p'
+        if total>cfg.full_scan_until:
+            prefix=f'''WITH candidates(id) AS MATERIALIZED (
+                SELECT id FROM (SELECT id FROM {source} ORDER BY created_tick DESC,id DESC LIMIT ?)
+                UNION SELECT id FROM (SELECT id FROM {source} ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT ?)
+                UNION SELECT id FROM {source} INDEXED BY {self.table("pool_recent")} WHERE created_tick>?) '''
+            joined=f'candidates c CROSS JOIN {source} p ON p.id=c.id'
+            bindings=(cfg.recent_keep_count,cfg.top_engagement_keep_count,tick-cfg.min_lifetime_ticks)
+        rows=view.iter_query(prefix+f'SELECT p.id,p.author,p.created_tick,p.like_count,p.reply_count,p.repost_count,p.view_count,p.engagement FROM {joined} ORDER BY p.created_tick DESC,p.engagement DESC,p.id DESC',bindings)
+        return tuple(Candidate(*row) for row in rows)
 
     def trending_ids(self,limit=2):
         return self.store.read(lambda r:[row[0] for row in r.query(f'SELECT id FROM {self.table("posts")} ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT ?',(limit,))])

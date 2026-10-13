@@ -1,0 +1,266 @@
+FF...FF.FFF                                                              [100%]
+=================================== FAILURES ===================================
+_ test_rec_05_14_semantic_await_rejects_every_declared_source_change[selected] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_05_14_semantic_await_0')
+change = 'selected'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change', ['selected', 'following', 'persona', 'posts', 'comment', 'reply_body', 'vectors', 'member', 'explicit_selected'])
+    async def test_rec_05_14_semantic_await_rejects_every_declared_source_change(tmp_path, change):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            social, store = seed(host, both=True)
+            if change == 'reply_body':
+                social.execute('comment', 'a', 'post_1', {'content': '旧完整回复🙂'}, 2)
+            semantic = host.service('social.semantic', 'semantic')
+            await semantic.flush_embeddings()
+            recs = host.service('social.recommendation', 'recommendation')
+            embed.pause = True
+            task = asyncio.create_task(recs.recommendation('a', 2, query='明确完整偏好🙂' if change == 'explicit_selected' else None))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                if change in ('selected', 'explicit_selected'):
+                    store.transaction(lambda w: w.execute("DELETE FROM external_selected_post_ids WHERE id='post_2'"))
+                elif change == 'following':
+                    store.transaction(lambda w: w.execute("INSERT INTO external_follows VALUES('a','b')"))
+                elif change == 'persona':
+                    host.service('actors.data', 'directory').update('a', persona='改变后完整人格🙂')
+                elif change == 'posts':
+                    store.transaction(lambda w: w.execute("UPDATE social_posts SET like_count=like_count+1 WHERE id='post_1'"))
+                elif change == 'comment':
+                    social.execute('comment', 'a', 'post_1', {'content': '新完整评论🙂'}, 2)
+                elif change == 'reply_body':
+                    store.transaction(lambda w: w.execute('UPDATE social_replies SET body=?', ('改变后的完整回复🙂'.encode(),)))
+                elif change == 'vectors':
+                    store.transaction(lambda w: w.execute("UPDATE social_vectors SET vector=? WHERE id='post_1'", (struct.pack('<2d', 9.0, 1.0),)))
+                elif change == 'member':
+                    store.transaction(lambda w: w.execute("DELETE FROM social_members WHERE id='a'"))
+                embed.release.set()
+>               with pytest.raises((ValueError, Unavailable)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE any of (ValueError, Unavailable)
+
+tests/primary/test_recommendation_sources.py:294: Failed
+_ test_rec_05_14_semantic_await_rejects_every_declared_source_change[following] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_05_14_semantic_await_1')
+change = 'following'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change', ['selected', 'following', 'persona', 'posts', 'comment', 'reply_body', 'vectors', 'member', 'explicit_selected'])
+    async def test_rec_05_14_semantic_await_rejects_every_declared_source_change(tmp_path, change):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            social, store = seed(host, both=True)
+            if change == 'reply_body':
+                social.execute('comment', 'a', 'post_1', {'content': '旧完整回复🙂'}, 2)
+            semantic = host.service('social.semantic', 'semantic')
+            await semantic.flush_embeddings()
+            recs = host.service('social.recommendation', 'recommendation')
+            embed.pause = True
+            task = asyncio.create_task(recs.recommendation('a', 2, query='明确完整偏好🙂' if change == 'explicit_selected' else None))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                if change in ('selected', 'explicit_selected'):
+                    store.transaction(lambda w: w.execute("DELETE FROM external_selected_post_ids WHERE id='post_2'"))
+                elif change == 'following':
+                    store.transaction(lambda w: w.execute("INSERT INTO external_follows VALUES('a','b')"))
+                elif change == 'persona':
+                    host.service('actors.data', 'directory').update('a', persona='改变后完整人格🙂')
+                elif change == 'posts':
+                    store.transaction(lambda w: w.execute("UPDATE social_posts SET like_count=like_count+1 WHERE id='post_1'"))
+                elif change == 'comment':
+                    social.execute('comment', 'a', 'post_1', {'content': '新完整评论🙂'}, 2)
+                elif change == 'reply_body':
+                    store.transaction(lambda w: w.execute('UPDATE social_replies SET body=?', ('改变后的完整回复🙂'.encode(),)))
+                elif change == 'vectors':
+                    store.transaction(lambda w: w.execute("UPDATE social_vectors SET vector=? WHERE id='post_1'", (struct.pack('<2d', 9.0, 1.0),)))
+                elif change == 'member':
+                    store.transaction(lambda w: w.execute("DELETE FROM social_members WHERE id='a'"))
+                embed.release.set()
+>               with pytest.raises((ValueError, Unavailable)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE any of (ValueError, Unavailable)
+
+tests/primary/test_recommendation_sources.py:294: Failed
+_ test_rec_05_14_semantic_await_rejects_every_declared_source_change[reply_body] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_05_14_semantic_await_5')
+change = 'reply_body'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change', ['selected', 'following', 'persona', 'posts', 'comment', 'reply_body', 'vectors', 'member', 'explicit_selected'])
+    async def test_rec_05_14_semantic_await_rejects_every_declared_source_change(tmp_path, change):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            social, store = seed(host, both=True)
+            if change == 'reply_body':
+                social.execute('comment', 'a', 'post_1', {'content': '旧完整回复🙂'}, 2)
+            semantic = host.service('social.semantic', 'semantic')
+            await semantic.flush_embeddings()
+            recs = host.service('social.recommendation', 'recommendation')
+            embed.pause = True
+            task = asyncio.create_task(recs.recommendation('a', 2, query='明确完整偏好🙂' if change == 'explicit_selected' else None))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                if change in ('selected', 'explicit_selected'):
+                    store.transaction(lambda w: w.execute("DELETE FROM external_selected_post_ids WHERE id='post_2'"))
+                elif change == 'following':
+                    store.transaction(lambda w: w.execute("INSERT INTO external_follows VALUES('a','b')"))
+                elif change == 'persona':
+                    host.service('actors.data', 'directory').update('a', persona='改变后完整人格🙂')
+                elif change == 'posts':
+                    store.transaction(lambda w: w.execute("UPDATE social_posts SET like_count=like_count+1 WHERE id='post_1'"))
+                elif change == 'comment':
+                    social.execute('comment', 'a', 'post_1', {'content': '新完整评论🙂'}, 2)
+                elif change == 'reply_body':
+                    store.transaction(lambda w: w.execute('UPDATE social_replies SET body=?', ('改变后的完整回复🙂'.encode(),)))
+                elif change == 'vectors':
+                    store.transaction(lambda w: w.execute("UPDATE social_vectors SET vector=? WHERE id='post_1'", (struct.pack('<2d', 9.0, 1.0),)))
+                elif change == 'member':
+                    store.transaction(lambda w: w.execute("DELETE FROM social_members WHERE id='a'"))
+                embed.release.set()
+>               with pytest.raises((ValueError, Unavailable)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE any of (ValueError, Unavailable)
+
+tests/primary/test_recommendation_sources.py:294: Failed
+_ test_rec_05_14_semantic_await_rejects_every_declared_source_change[vectors] __
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_05_14_semantic_await_6')
+change = 'vectors'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change', ['selected', 'following', 'persona', 'posts', 'comment', 'reply_body', 'vectors', 'member', 'explicit_selected'])
+    async def test_rec_05_14_semantic_await_rejects_every_declared_source_change(tmp_path, change):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            social, store = seed(host, both=True)
+            if change == 'reply_body':
+                social.execute('comment', 'a', 'post_1', {'content': '旧完整回复🙂'}, 2)
+            semantic = host.service('social.semantic', 'semantic')
+            await semantic.flush_embeddings()
+            recs = host.service('social.recommendation', 'recommendation')
+            embed.pause = True
+            task = asyncio.create_task(recs.recommendation('a', 2, query='明确完整偏好🙂' if change == 'explicit_selected' else None))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                if change in ('selected', 'explicit_selected'):
+                    store.transaction(lambda w: w.execute("DELETE FROM external_selected_post_ids WHERE id='post_2'"))
+                elif change == 'following':
+                    store.transaction(lambda w: w.execute("INSERT INTO external_follows VALUES('a','b')"))
+                elif change == 'persona':
+                    host.service('actors.data', 'directory').update('a', persona='改变后完整人格🙂')
+                elif change == 'posts':
+                    store.transaction(lambda w: w.execute("UPDATE social_posts SET like_count=like_count+1 WHERE id='post_1'"))
+                elif change == 'comment':
+                    social.execute('comment', 'a', 'post_1', {'content': '新完整评论🙂'}, 2)
+                elif change == 'reply_body':
+                    store.transaction(lambda w: w.execute('UPDATE social_replies SET body=?', ('改变后的完整回复🙂'.encode(),)))
+                elif change == 'vectors':
+                    store.transaction(lambda w: w.execute("UPDATE social_vectors SET vector=? WHERE id='post_1'", (struct.pack('<2d', 9.0, 1.0),)))
+                elif change == 'member':
+                    store.transaction(lambda w: w.execute("DELETE FROM social_members WHERE id='a'"))
+                embed.release.set()
+>               with pytest.raises((ValueError, Unavailable)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE any of (ValueError, Unavailable)
+
+tests/primary/test_recommendation_sources.py:294: Failed
+_ test_rec_05_14_semantic_await_rejects_every_declared_source_change[explicit_selected] _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_05_14_semantic_await_8')
+change = 'explicit_selected'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('change', ['selected', 'following', 'persona', 'posts', 'comment', 'reply_body', 'vectors', 'member', 'explicit_selected'])
+    async def test_rec_05_14_semantic_await_rejects_every_declared_source_change(tmp_path, change):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            social, store = seed(host, both=True)
+            if change == 'reply_body':
+                social.execute('comment', 'a', 'post_1', {'content': '旧完整回复🙂'}, 2)
+            semantic = host.service('social.semantic', 'semantic')
+            await semantic.flush_embeddings()
+            recs = host.service('social.recommendation', 'recommendation')
+            embed.pause = True
+            task = asyncio.create_task(recs.recommendation('a', 2, query='明确完整偏好🙂' if change == 'explicit_selected' else None))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                if change in ('selected', 'explicit_selected'):
+                    store.transaction(lambda w: w.execute("DELETE FROM external_selected_post_ids WHERE id='post_2'"))
+                elif change == 'following':
+                    store.transaction(lambda w: w.execute("INSERT INTO external_follows VALUES('a','b')"))
+                elif change == 'persona':
+                    host.service('actors.data', 'directory').update('a', persona='改变后完整人格🙂')
+                elif change == 'posts':
+                    store.transaction(lambda w: w.execute("UPDATE social_posts SET like_count=like_count+1 WHERE id='post_1'"))
+                elif change == 'comment':
+                    social.execute('comment', 'a', 'post_1', {'content': '新完整评论🙂'}, 2)
+                elif change == 'reply_body':
+                    store.transaction(lambda w: w.execute('UPDATE social_replies SET body=?', ('改变后的完整回复🙂'.encode(),)))
+                elif change == 'vectors':
+                    store.transaction(lambda w: w.execute("UPDATE social_vectors SET vector=? WHERE id='post_1'", (struct.pack('<2d', 9.0, 1.0),)))
+                elif change == 'member':
+                    store.transaction(lambda w: w.execute("DELETE FROM social_members WHERE id='a'"))
+                embed.release.set()
+>               with pytest.raises((ValueError, Unavailable)):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE any of (ValueError, Unavailable)
+
+tests/primary/test_recommendation_sources.py:294: Failed
+__ test_rec_06_07_first_page_uses_prepared_version_and_interleaved_hot_pages ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_06_07_first_page_uses0')
+
+    @pytest.mark.asyncio
+    async def test_rec_06_07_first_page_uses_prepared_version_and_interleaved_hot_pages(tmp_path):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        ranker = CountingRanker()
+        async with compose(tmp_path/'run', assembly(ranker=ranker, semantic=True, resources=resources)) as host:
+            _, store = seed(host, both=True)
+            info = host.service('interaction', 'information')
+            scopes = [InteractionScope(actor, Moment(2, 'read')) for actor in 'ac']
+            first = await info.query(scopes[0], '/social/feed', Query(limit=1))
+            source, output = await host.service('social.recommendation', 'recommendation').recommendation('a', 2)
+>           assert first.revision[0] == source.revision == output.revision
+                   ^^^^^^^^^^^^^^^^^
+E           TypeError: 'int' object is not subscriptable
+
+tests/primary/test_recommendation_sources.py:318: TypeError
+____ test_rec_13_permission_change_during_semantic_wait_rejects_first_page _____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1237/test_rec_13_permission_change_0')
+
+    @pytest.mark.asyncio
+    async def test_rec_13_permission_change_during_semantic_wait_rejects_first_page(tmp_path):
+        embed = ControlledEmbed()
+        resources, client = semantic_resources(embed)
+        async with compose(tmp_path/'run', assembly(semantic=True, resources=resources, access_dependencies=('access_rules',))) as host:
+            social, store = seed(host, both=True)
+            await host.service('social.semantic', 'semantic').flush_embeddings()
+            embed.pause = True
+            task = asyncio.create_task(host.service('interaction', 'information').query(
+                InteractionScope('a', Moment(2, 'read')), '/social/feed', Query(limit=1)))
+            try:
+                await asyncio.wait_for(embed.entered.wait(), timeout=10)
+                store.transaction(lambda w: w.execute('UPDATE access_rules SET allowed=0'))
+                embed.release.set()
+>               with pytest.raises(ValueError, match='revision|changed'):
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E               Failed: DID NOT RAISE ValueError
+
+tests/primary/test_recommendation_sources.py:345: Failed
+7 failed, 4 passed, 10 deselected in 0.90s
