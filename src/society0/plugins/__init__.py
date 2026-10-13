@@ -16,7 +16,7 @@ _MODULES = {
     'social_semantic_plugin': 'society0.plugins.social',
     'social_presentation_plugin': 'society0.plugins.social',
     'social_recommendation_plugin': 'society0.plugins.social_recommendation',
-    'social_cognition_plugin': 'society0.plugins.social_cognition',
+    'social_source_plugin': 'society0.plugins.social_cognition',
     'cognition_plugin': 'society0.plugins.cognition',
     'actor_plugin': 'society0.kernel.actors',
     'actor_data_plugin': 'society0.kernel.actors',
@@ -62,7 +62,7 @@ if TYPE_CHECKING:
         social_presentation_plugin,
     )
     from .social_recommendation import social_recommendation_plugin
-    from .social_cognition import social_cognition_plugin
+    from .social_cognition import social_source_plugin
     from .cognition import cognition_plugin
     from ..kernel.actors import actor_plugin, actor_data_plugin
     from .social_ranking import weighted_ranking_plugin, chronological_ranking_plugin

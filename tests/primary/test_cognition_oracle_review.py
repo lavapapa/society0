@@ -11,7 +11,7 @@ import pytest
 from society0 import Phase, Plugin, compose
 from society0.kernel.cognition import InputBatch
 from society0.kernel.interaction import Moment
-from tests.primary.test_social_cognition import plugins
+from tests.primary.test_social_cognition import plugins, SOCIAL_SOURCE_ID, NOTICE_SOURCE_ID
 from tests.reference.basic_env_oracle_protocol import ROOT, assert_equal, clean_env, run_legacy, social_semantics
 
 
@@ -21,7 +21,7 @@ async def test_discarded_cognitive_batch_does_not_expose_unpresented_posts(tmp_p
     configured = plugins(providers)
 
     def install(ctx):
-        social_input = ctx.require('social.cognition', 'input_builder')
+        social_input = ctx.require('cognition', 'input_builder')
 
         async def select_input(session):
             # 多机制选择器先构建候选认知，当前激活最终选择别的机制。
@@ -31,7 +31,7 @@ async def test_discarded_cognitive_batch_does_not_expose_unpresented_posts(tmp_p
 
         ctx.provide('builder', select_input)
 
-    configured.append(Plugin('selector', ('social.cognition',), install))
+    configured.append(Plugin('selector', ('cognition',), install))
     driver_index = next(i for i, p in enumerate(configured) if p.name == 'driver')
     from society0.plugins import llm_driver_plugin
     configured[driver_index] = llm_driver_plugin(
@@ -39,11 +39,16 @@ async def test_discarded_cognitive_batch_does_not_expose_unpresented_posts(tmp_p
     async with compose(tmp_path / 'selected', configured) as host:
         social = host.service('social', 'mechanism')
         post = social.execute('publish_post', 'b', 'b', {'content': '未选中的秘密正文'}, 0).value['post_id']
+        notices = host.service('notice.data', 'notifications')
+        notices.publish('a', '未选中的通知正文')
         await host.service('runtime', 'runtime').run_step(1, 1, [Phase('read', lambda ctx: ctx.activate('a'))])
         messages = providers[0].requests[0][2]
-        assert all('未选中的秘密正文' not in str(m) for m in messages)
+        assert all('未选中的秘密正文' not in str(m) and '未选中的通知正文' not in str(m) for m in messages)
         assert social.post_details(post)['view_count'] == 0
         assert social.recommended_ids('a') == []
+        assert notices.receipts('a') == []
+        threads = host.service('threads', 'threads')
+        assert threads.input_cursor(threads.find('a', Moment(1, 'read')), 'operating_context') is None
 
 
 @pytest.mark.asyncio
@@ -71,12 +76,12 @@ async def test_same_moment_metadata_order_and_full_history_persist(tmp_path):
         assert payloads[1]['recommended_ids'] == [first, second]
         assert payloads[1]['new_posts'] == []
         assert any(p['post_id'] == first and p['like_count'] == 1 for p in payloads[1]['updated_posts'])
-        cursor = threads.input_cursor(tid, 'social.cognition')
-        assert cursor['position']['recommended'] == [first, second]
+        cursor = threads.input_cursor(tid, 'operating_context')
+        assert cursor['position'][SOCIAL_SOURCE_ID]['recommended'] == [first, second]
         assert len(providers[0].requests[1][2]) > len(providers[0].requests[0][2])
     async with compose(tmp_path / 'restore', plugins(providers), source=tmp_path / 'run') as host:
         threads = host.service('threads', 'threads')
-        assert threads.input_cursor(tid, 'social.cognition') == cursor
+        assert threads.input_cursor(tid, 'operating_context') == cursor
         assert threads.read_messages(tid) == history
         await host.service('runtime', 'runtime').run_step(2, 1, [Phase('read', lambda ctx: ctx.activate('a'))])
         after = threads.read_messages(tid)
@@ -90,20 +95,27 @@ async def _cognitive_process(directory, source=None):
     async with compose(Path(directory), plugins(providers), source=Path(source) if source else None) as host:
         social = host.service('social', 'mechanism')
         threads = host.service('threads', 'threads')
+        notices = host.service('notice.data', 'notifications')
         if source:
             tid = threads.find('a', Moment(1, 'read'))
             history = threads.read_messages(tid)
             assert social.post_details('post_1')['view_count'] == 1
         new = social.execute('publish_post', 'b', 'b',
                              {'content': '进程二新增全文' if source else '进程一旧帖全文'}, 1).value['post_id']
+        notices.publish('a', '进程二新增通知全文' if source else '进程一旧通知全文')
         await host.service('runtime', 'runtime').run_step(2 if source else 1, 1,
             [Phase('read', lambda ctx: ctx.activate('a'))])
         assert social.post_details(new)['view_count'] == 1
+        current_tid = threads.find('a', Moment(1, 'read'))
+        assert threads.input_cursor(current_tid, 'operating_context')['position'][NOTICE_SOURCE_ID] == (2 if source else 1)
+        assert notices.receipts('a') == [(current_tid, identifier) for identifier in range(1, 3 if source else 2)]
         if source:
             after = threads.read_messages(tid)
             assert after[:len(history)] == history
             assert sum('进程一旧帖全文' in str(m) for m in after) == 1
             assert sum('进程二新增全文' in str(m) for m in after) == 1
+            assert sum('进程一旧通知全文' in str(m) for m in after) == 1
+            assert sum('进程二新增通知全文' in str(m) for m in after) == 1
             assert social.post_details('post_1')['view_count'] == 1
             assert set(social.recommended_ids('a')) == {'post_1', 'post_2'}
 
@@ -129,33 +141,33 @@ async def test_composed_receipt_effect_and_complete_boundary(tmp_path, failure):
         result = plugins(providers)
 
         def install(ctx):
-            social_input = ctx.require('social.cognition', 'input_builder')
-            store = ctx.require('storage', 'store')
+            social_input = ctx.require('cognition', 'input_builder')
+            notices = ctx.require('notice.data', 'notifications')
             threads = ctx.require('threads', 'threads')
 
             async def build(session):
                 batch = await social_input(session)
-                messages = [*batch.messages, {'role': 'user', 'content': '独立通知原文'}]
+                messages = list(batch.messages)
                 if failure == 'serialization':
                     messages.append({'role': 'user', 'content': object()})
 
                 async def acknowledge(context):
                     context.session.scope.check_active()
                     assert threads.input_cursor(context.thread_id, batch.consumer) == batch.cursor
-                    assert any(m.get('content') == '独立通知原文' for m in threads.read_messages(context.thread_id))
+                    assert any(m.get('content', '').endswith('\n独立通知原文') for m in threads.read_messages(context.thread_id))
                     assert providers[-1].requests == []
-                    store.transaction(lambda w: w.execute('INSERT INTO review_receipts VALUES(?)', (session.actor.id,)))
+                    assert notices.receipts(session.actor.id) == [(context.thread_id, 1)]
+                    assert batch.cursor['position'][NOTICE_SOURCE_ID] == 1
                     observed.append('receipt')
                     if failure == 'effect':
                         raise RuntimeError('回执落盘后故障')
 
-                # replace保留社交批次的材料与曝光效果；追加另一个持久回执消费者。
+                # 双来源正式效果先写入；末尾检查器观察完整输入、曝光与通知回执。
                 return replace(batch, messages=messages, effects=(*batch.effects, acknowledge))
 
             ctx.provide('builder', build)
 
-        result.append(Plugin('receipts', ('social.cognition', 'storage', 'threads'), install,
-            schema=('CREATE TABLE review_receipts(actor TEXT PRIMARY KEY NOT NULL)',)))
+        result.append(Plugin('receipts', ('cognition', 'notice.data', 'threads'), install))
         from society0.plugins import llm_driver_plugin
         index = next(i for i, p in enumerate(result) if p.name == 'driver')
         result[index] = llm_driver_plugin(provider=('provider', 'provider'),
@@ -166,6 +178,7 @@ async def test_composed_receipt_effect_and_complete_boundary(tmp_path, failure):
         store = host.service('storage', 'store')
         social = host.service('social', 'mechanism')
         post = social.execute('publish_post', 'b', 'b', {'content': '联合输入帖子'}, 0).value['post_id']
+        host.service('notice.data', 'notifications').publish('a', '独立通知原文')
         runtime = host.service('runtime', 'runtime')
         await runtime.run_step(1, 0, [])
         if failure:
@@ -179,14 +192,17 @@ async def test_composed_receipt_effect_and_complete_boundary(tmp_path, failure):
             assert len(providers[-1].requests) == 1
         assert observed == ([] if failure == 'serialization' else ['receipt'])
     async with compose(tmp_path / 'restore', configured(), source=tmp_path / 'run') as host:
-        receipts = host.service('storage', 'store').read(lambda r: r.query('SELECT actor FROM review_receipts'))
-        assert receipts == ([] if failure else [('a',)])
+        receipts = host.service('notice.data', 'notifications').receipts('a')
+        assert len(receipts) == (0 if failure else 1)
         social = host.service('social', 'mechanism')
         assert social.post_details(post)['view_count'] == (0 if failure else 1)
         assert social.recommended_ids('a') == ([] if failure else [post])
         threads = host.service('threads', 'threads')
         tid = threads.find('a', Moment(1, 'read'))
         assert (tid is None) == bool(failure)
+        if not failure:
+            assert receipts == [(tid, 1)]
+            assert threads.input_cursor(tid, 'operating_context')['position'][NOTICE_SOURCE_ID] == 1
 
 
 def test_common_social_protocol_detects_changed_action_outcome(tmp_path):

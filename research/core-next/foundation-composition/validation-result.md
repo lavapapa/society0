@@ -56,6 +56,18 @@ COG-11：两个普通扩展与正式 memory_plugin/MemoryExtension 验证 enter�
 
 通知原型有两项额外失败：tuple 数据引用未接线、重复回执被忽略，见[t06-notice-red.log](evidence/t06-notice-red.log)；修引用后继续重现默认不同实例同表，见[t06-notice-schema-red.log](evidence/t06-notice-schema-red.log)。改成显式 tuple 服务引用、插件实例名限定表、重复确认抛主键错误并回滚整个回执事务，符合交接规格。最后新组合 40 用例和 kernel_cognition/kernel_cognition_review/kernel_memory/kernel_llm 共 115 passed，退出 0；见[t06-final-green.log](evidence/t06-final-green.log)、[t06-final-green.xml](evidence/t06-final-green.xml)。中间 103/113 结果作为过程记录保留，没有替代最终源码验收。
 
-## 八、范围
+## 八、T07
 
-T01–T06 当前通过。正式 social 来源迁移、官方配方、组合 CLI 和独立跨进程 E2E 仍待后续任务。记录的 provider 材料来自 LLMDriver 实际传入 request_model 的 SDK typed messages，确定性 provider 无网络；正式 SDK 发送边界、真实端点与模型质量均待相应授权验收。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
+新规范初次 4 failed：social_source_plugin 未提供，SocialPerception 仍返回旧 tuple，见[t07-source-red.log](evidence/t07-source-red.log)。将工厂改为独立 source，保留唯一 SocialPerception 实现，同次调用计算 messages/position/fresh/ids/effects，移去 Thread、环境文案和完整 builder 的依赖与出口；删除旧工厂导出。两个现役消费者改为显式 social_source + cognition + notification_data/source，默认 consumer 为 operating_context，旧单来源 CognitiveInput 调用方继续保留。
+
+原有增量排序、元数据变化、曝光、恢复及公共 oracle 场景继续通过。旧手工附加通知/单 actor 回执用例已改用真正持久通知及独立水位；丢弃输入同时断言没有两份原文、两个来源效果或 operating_context 游标。现役两进程测试也追加和恢复双来源正文、Thread 与通知回执。
+
+COG-01/02：social→notice 与 notice→social 在不同 Run 真实完成 3 次同 Moment 激活，分别只增加社交和通知，两水位独立；SDK typed 入参完整背景/环境一份，全部新增正文按配置顺序进入，旧原文各一次。A→B→A 使用真实 Runtime，原 Thread 前缀保留，通知回执按各自 Thread 保存，曝光准确区分新 Thread 的再次呈现。COG-12：通过 Event 交错两个主体，各自实际请求保留共享帖子及仅自己的通知，a 的通知位置为 3、b 为 2，回执分别绑定自己的 Thread 和真实通知 id。
+
+COG-10：实际 Runtime 中扩展消息编码失败、provider 异常与发布前中断，保存后观察器确认双水位与通知回执已存在；错误后 complete_step 保持 1，失败 StageStore 禁止继续读取。新目录恢复 point1 时两个来源呈现效果、失败 Thread 与未发布消息全部隔离。第一次相关回归 53 passed、4 failed 来自测试用法：并发 Phase 未显式 independent，以及在已失效 StageStore 上读取；改成正式独立阶段，并在保存后/失效前采样再核对恢复，保持产品失败规范。见[t07-focused.log](evidence/t07-focused.log)。
+
+最终 social_cognition/cognition_oracle_review/cognition_composition/recommendation_sources/plugin_social/social_composition/social_composition_ranking/social_independent_review/kernel_cognition/kernel_cognition_review/kernel_memory/kernel_llm 共 218 passed，退出 0，见[t07-green.log](evidence/t07-green.log)、[t07-green.xml](evidence/t07-green.xml)。较早 11 passed 的阶段结果保留在[t07-initial.log](evidence/t07-initial.log)。生产代码、示例、skill 和现役测试已无 social_cognition_plugin/旧 consumer 调用；公开合同及 skill 的工厂接线同步更新。历史 oracle 与参考源保持原身份。
+
+## 九、范围
+
+T01–T07 当前通过。官方配方、组合 CLI 和独立公开跨进程 E2E 仍待后续任务。记录的 typed provider 材料来自 LLMDriver 实际 request_model 入参，确定性 provider 无网络；正式 SDK 发送边界、真实端点与模型质量另行授权验收。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。

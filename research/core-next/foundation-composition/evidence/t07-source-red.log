@@ -1,0 +1,87 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+_________ test_actual_input_exposure_reactivation_and_complete_restore _________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1248/test_actual_input_exposure_rea0')
+
+    @pytest.mark.asyncio
+    async def test_actual_input_exposure_reactivation_and_complete_restore(tmp_path):
+        providers=[]
+>       async with compose(tmp_path/'run',plugins(providers)) as host:
+                                          ^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:55: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+providers = [], malformed = False, notices = True
+
+    def plugins(providers, *, malformed=False, notices=True):
+        from society0.plugins.cognition import SourceSpec, cognition_plugin
+>       from society0.plugins.social_cognition import social_source_plugin
+E       ImportError: cannot import name 'social_source_plugin' from 'society0.plugins.social_cognition' (/Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree/src/society0/plugins/social_cognition.py)
+
+tests/primary/test_social_cognition.py:18: ImportError
+______ test_input_serialization_failure_has_no_exposure_or_complete_point ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1248/test_input_serialization_failu0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10debf320>
+
+    @pytest.mark.asyncio
+    async def test_input_serialization_failure_has_no_exposure_or_complete_point(tmp_path,monkeypatch):
+        providers=[]
+>       async with compose(tmp_path/'bad',plugins(providers,malformed=True)) as host:
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:89: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+providers = [], malformed = True, notices = True
+
+    def plugins(providers, *, malformed=False, notices=True):
+        from society0.plugins.cognition import SourceSpec, cognition_plugin
+>       from society0.plugins.social_cognition import social_source_plugin
+E       ImportError: cannot import name 'social_source_plugin' from 'society0.plugins.social_cognition' (/Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree/src/society0/plugins/social_cognition.py)
+
+tests/primary/test_social_cognition.py:18: ImportError
+____ test_social_perception_returns_source_batch_without_confirming_preview ____
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1248/test_social_perception_returns0')
+
+    @pytest.mark.asyncio
+    async def test_social_perception_returns_source_batch_without_confirming_preview(tmp_path):
+        from society0.plugins.cognition import SourceBatch, SourcePosition
+        from society0.plugins.social_cognition import SocialPerception
+        from tests.primary.test_plugin_social import plan
+        from tests.primary.test_cognition_composition import session
+        async with compose(tmp_path/'preview', plan(social_plugin('abc', edges=(), content_length_limit=-1))) as host:
+            social = host.service('social', 'mechanism')
+            post = social.execute('publish_post', 'b', 'b', {'content': '来源完整正文🙂'*1000}, 0).value['post_id']
+            source = SocialPerception(host.service('social.recommendation', 'recommendation'),
+                host.service('social.content', 'content'), host.service('social.exposure', 'exposure'), post_count=1, domain='social')
+            first = await source(session(None), None)
+>           assert isinstance(first, SourceBatch)
+E           assert False
+E            +  where False = isinstance(([{'role': 'user', 'content': '推荐动态\n{"recommended_ids": ["post_1"], "new_posts": [{"post_id": "post_1", "author_id": ...post_1': {'post_id': 'post_1', 'author_id': 'b', 'created_tick': 0, 'like_count': 0, ...}}, 'recommended': ['post_1']}), <class 'society0.plugins.cognition.SourceBatch'>)
+
+tests/primary/test_social_cognition.py:118: AssertionError
+______ test_social_source_exports_only_source_and_does_not_borrow_threads ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1248/test_social_source_exports_onl0')
+
+    @pytest.mark.asyncio
+    async def test_social_source_exports_only_source_and_does_not_borrow_threads(tmp_path):
+>       configured = plugins([], notices=False)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:129: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+providers = [], malformed = False, notices = False
+
+    def plugins(providers, *, malformed=False, notices=True):
+        from society0.plugins.cognition import SourceSpec, cognition_plugin
+>       from society0.plugins.social_cognition import social_source_plugin
+E       ImportError: cannot import name 'social_source_plugin' from 'society0.plugins.social_cognition' (/Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree/src/society0/plugins/social_cognition.py)
+
+tests/primary/test_social_cognition.py:18: ImportError
+4 failed in 1.05s
