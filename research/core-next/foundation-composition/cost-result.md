@@ -4,9 +4,9 @@
 
 ## 一、测量
 
-[入口](../../../benchmarks/core_composition_cost.py) 同时提供 instrumented、timing 和 resume_probe，运行脚本见 [本次固定采样](</Users/marvin/Documents/同花顺（2）/outputs/society0-next-composition/cost-b4487cd.py>)。共 12 个仪表运行、60 个无仪表样本、60 个独立进程冷恢复；没有增加样本。源码在测量前后均为对应固定 HEAD 且工作树干净。
+[入口](../../../benchmarks/core_composition_cost.py) 同时提供 instrumented、timing 和 resume_probe，运行脚本见 [本次固定采样](</Users/marvin/Documents/同花顺（2）/outputs/society0-next-composition/cost-b4487cd.py>)。共 12 个仪表运行、60 个无仪表样本、60 个独立进程冷恢复；没有增加样本。源码在测量前后均为对应固定 HEAD 且工作树干净。重现实验时，从对应两个提交建立干净的 detached 工作树，按实际位置设置脚本 SOURCES；每侧 PYTHONPATH 指向该侧 src 与根目录，两侧共用 after 的固定基准脚本，每个样本使用全新输出目录。
 
-[样本索引](</Users/marvin/Documents/同花顺（2）/outputs/society0-next-composition/cost-b4487cd/sample-index.json>) 保留所有原始 JSON 与日志路径；[完整统计](</Users/marvin/Documents/同花顺（2）/outputs/society0-next-composition/cost-b4487cd/summary.json>) 保留每阶段 wall/CPU、RSS、文件逻辑／分配增量的五次原值、median、p95、范围与标准差。p95 使用 nearest-rank，五样本时为最大值。OS 文件缓存保留；RSS 峰值为整个解释器生命周期，含 Python 与 native 分配，无法单独归因于某阶段。纯计时没有 SQL progress handler、row trace、blob patch 或 tracemalloc；未采集字段为 null。
+[样本索引](</Users/marvin/Documents/同花顺（2）/outputs/society0-next-composition/cost-b4487cd/sample-index.json>) 保留所有原始 JSON 与日志路径；[已提交完整统计](evidence/t13-cost-summary.json) 保留每阶段 wall/CPU、RSS、文件逻辑／分配增量的五次原值、median、p95、范围与标准差。p95 使用 nearest-rank，五样本时为最大值。OS 文件缓存保留；RSS 峰值为整个解释器生命周期，含 Python 与 native 分配，无法单独归因于某阶段。纯计时没有 SQL progress handler、row trace、blob patch 或 tracemalloc；未采集字段为 null。
 
 编码阶段测量业务结果 JSON 编码；规范写入器与完整点内部编码仍计入对应阶段。SQL 正文字节计数覆盖命名 body/content 单元格和 blob 读取，不涵盖所有规范帧解码；完整原文范围读取另外逐字节断言、计时并报告实际 311296 字节。无原文裁剪或替换。
 
