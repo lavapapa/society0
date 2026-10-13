@@ -9,7 +9,10 @@ from .test_core_next_composition_entrypoint import config,cli,ROOT
 
 @pytest.mark.parametrize(('case','variant'), [('actor-directory','default'),('actor-directory','readonly'),
     ('actor-directory','persona'),('artifact-read','default'),
-    *(('recommendation',variant) for variant in ('default','external-selection','external-relations','native','semantic-change','paging'))])
+    *(('recommendation',variant) for variant in ('default','external-selection','external-relations','native','semantic-change','paging')),
+    *(('registration',variant) for variant in ('default','re-register','owned')),
+    *(('manifest',variant) for variant in ('default','alternate-tree')),
+    *(('extensions',variant) for variant in ('default','memory-write','memory-recall','memory-tools','memory-all','runtime-replacement'))])
 def test_public_composition_dispatch_and_handoff_verifier_cli(tmp_path,case,variant):
     run,result=cli(tmp_path,'run',config(case=case,variant=variant))
     assert result.returncode==0,result.stdout+result.stderr
@@ -27,3 +30,17 @@ def test_public_composition_dispatch_and_handoff_verifier_cli(tmp_path,case,vari
         '--case',case,'--run',str(restored),'--continuous',str(run)],cwd=ROOT,env=os.environ,text=True,capture_output=True)
     assert compared.returncode==0,compared.stdout+compared.stderr
     assert json.loads(compared.stdout)['first_difference'] is None
+
+
+@pytest.mark.parametrize(('case','variant'), [('registration','install-failure'),('manifest','write-failure'),
+    *(('shutdown',variant) for variant in ('runtime-first','worker-first','runtime-error','worker-error'))])
+def test_public_composition_dispatch_proves_precise_failure(tmp_path,case,variant):
+    run,result=cli(tmp_path,'failed',config(case=case,variant=variant))
+    assert result.returncode==1,result.stdout+result.stderr
+    if case in ('registration','manifest'):
+        (run/'cli-result.json').write_text(json.dumps({'returncode':result.returncode,'stdout':result.stdout,'stderr':result.stderr}),encoding='utf-8')
+    verdict=subprocess.run([sys.executable,'-m','tests.e2e.core_next_composition_assertions',
+        '--case',case,'--run',str(run)],cwd=ROOT,env=os.environ,text=True,capture_output=True)
+    assert verdict.returncode==0,verdict.stdout+verdict.stderr
+    report=json.loads(verdict.stdout)
+    assert report['variant']==variant and report['checks'] and report['first_difference'] is None

@@ -55,8 +55,9 @@ class ScriptedProvider:
         token = self.current.set(context.session)
         try:
             yield
-            self.store.transaction(lambda writer: writer.execute('INSERT INTO composition_outcomes(step,actor,result) VALUES(?,?,?)',
-                (context.session.step, context.session.actor.id, encoded(asdict(context.result)))))
+            if self.config.get('capture',True):
+                self.store.transaction(lambda writer: writer.execute('INSERT INTO composition_outcomes(step,actor,result) VALUES(?,?,?)',
+                    (context.session.step, context.session.actor.id, encoded(asdict(context.result)))))
         finally:
             self.current.reset(token)
 
@@ -64,12 +65,13 @@ class ScriptedProvider:
         from pydantic_ai.messages import ModelMessagesTypeAdapter, ModelResponse, TextPart
         current = self.current.get()
         actual = model_messages() if callable(model_messages) else model_messages
-        typed = ModelMessagesTypeAdapter.dump_python(actual, mode='json')
+        typed = ModelMessagesTypeAdapter.dump_python(actual, mode='json') if self.config.get('capture',True) else None
         through = self.threads.describe(thread_id)['last_seq']
         request = self.threads.record_request(thread_id, provider_options=options,
             physical_request_id=uuid.uuid4().hex, through=through)
-        self.store.transaction(lambda writer: writer.execute('INSERT INTO composition_requests(step,actor,thread_id,request_seq,through,typed,options) VALUES(?,?,?,?,?,?,?)',
-            (current.step, current.actor.id, thread_id, request, through, encoded(typed), encoded(options))))
+        if self.config.get('capture',True):
+            self.store.transaction(lambda writer: writer.execute('INSERT INTO composition_requests(step,actor,thread_id,request_seq,through,typed,options) VALUES(?,?,?,?,?,?,?)',
+                (current.step, current.actor.id, thread_id, request, through, encoded(typed), encoded(options))))
         if should_fail(self.config, current) and self.config['fault'] == 'provider-error':
             diagnose(self.store, current, 'provider-error')
             raise CompositionFault('provider-error')
@@ -117,12 +119,27 @@ def _configuration(config):
     fault, fault_step = config.get('fault', 'none'), config.get('fault_step')
     if fault not in FAULTS or (fault != 'none' and (type(fault_step) is not int or fault_step < 2)):
         raise ValueError('fault requires a supported name and fault_step>=2')
-    return {**config, 'case': case, 'variant': variant, 'sources': list(sources), 'start': 1, 'end': end,
+    capture=config.get('capture',True)
+    if type(capture) is not bool or (not capture and fault!='none'):
+        raise ValueError('capture must be boolean; fault validation requires capture=true')
+    return {**config, 'capture':capture, 'case': case, 'variant': variant, 'sources': list(sources), 'start': 1, 'end': end,
         'moment': config.get('moment', {'time': 1, 'phase': 'read'}), 'activations_per_step': 2,
         'fault': fault, 'fault_step': fault_step}
 
 
 def build(config):
+    if config.get('case','multi-source')=='multi-source' and config.get('variant') in ('empty-values','concurrent','moment-switch'):
+        from .composed_source_edges import build as source_edges
+        return source_edges(config)
+    if config.get('case') in ('registration','manifest'):
+        from .composed_registration_manifest import build as registration_manifest
+        return registration_manifest(config)
+    if config.get('case') in ('shutdown','extensions'):
+        from .composed_shutdown_extensions import build as shutdown_extensions
+        return shutdown_extensions(config)
+    if config.get('case') == 'configuration':
+        from .composed_configuration import build as configuration
+        return configuration(config)
     if config.get('case') in ('actor-directory', 'artifact-read'):
         from .composed_directory_artifacts import build as directory_artifacts
         return directory_artifacts(config)
@@ -171,6 +188,7 @@ def build(config):
             if config['variant'] == 'discarded':
                 return InputBatch([{'role': 'user', 'content': '独立选中材料'}], consumer='selected', cursor={'position': 1})
             def after_saved(context):
+                if not config.get('capture',True): return
                 receipts = {note.domain: note.receipts(current.actor.id) for note in notes}
                 cursor = threads.input_cursor(context.thread_id, batch.consumer)
                 store.transaction(lambda writer: writer.execute('INSERT INTO composition_observations(step,actor,thread_id,consumer,cursor,receipts) VALUES(?,?,?,?,?,?)',
@@ -179,7 +197,7 @@ def build(config):
                     diagnose(store, current, 'after-callback-partial-write', thread_id=context.thread_id)
                     raise CompositionFault('after-callback-partial-write')
             def sentinel(context):
-                diagnose(store, current, 'sentinel', thread_id=context.thread_id)
+                if config.get('capture',True): diagnose(store, current, 'sentinel', thread_id=context.thread_id)
             return replace(batch, effects=(*batch.effects, after_saved, sentinel))
         ctx.provide('input_builder', builder)
         def after_flush():

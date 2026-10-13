@@ -1,0 +1,30 @@
+[
+  {
+    "id": "extensions.provider-original.1.1.B",
+    "passed": false,
+    "expected": true,
+    "actual": false,
+    "location": "composition_requests/typed"
+  },
+  {
+    "id": "extensions.provider-original.1.2.B",
+    "passed": false,
+    "expected": true,
+    "actual": false,
+    "location": "composition_requests/typed"
+  },
+  {
+    "id": "extensions.provider-original.2.1.B",
+    "passed": false,
+    "expected": true,
+    "actual": false,
+    "location": "composition_requests/typed"
+  },
+  {
+    "id": "extensions.provider-original.2.2.B",
+    "passed": false,
+    "expected": true,
+    "actual": false,
+    "location": "composition_requests/typed"
+  }
+]
