@@ -1,6 +1,6 @@
 # Core 实施结果
 
-Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。逐项验收、真实服务、主体效果及发行状态统一记录在 [TODO](TODO.md)，本轮文件接口与主体插件的实际执行范围见 [实施记录](../../research/core-next/filesystem-implementation-20261005/status.md)，此前验收保留在 [历史记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
+Society0 的公开入口以一个共享环境组织主体、机制与运行。本文汇总现行架构、能力证据和使用边界，供研究者选择具体合同继续阅读。基础组合的当前开发与收尾证据见 [本次实施记录](../../research/core-next/foundation-composition/implementation-plan.md) 和 [验证记录](../../research/core-next/foundation-composition/validation-result.md)，公开使用见 [组合运行说明](../../examples/core_next/README.md)。此前逐项验收、真实服务、主体效果及发行状态保留在 [TODO](TODO.md)，本轮文件接口与主体插件的实际执行范围见 [实施记录](../../research/core-next/filesystem-implementation-20261005/status.md)，此前验收保留在 [历史记录](../../research/core-next/acceptance-20261004/status.md)。各项旧语义与新版消费者见 [能力对照](capability-parity.md)，规模测量按 [计数记录](../../research/core-next/acceptance-20261004/code-scale.md) 的源码身份解释。
 
 ## 一、结构
 

@@ -328,3 +328,16 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 两轮研究 starter 的召回提供方故障会使当前步骤失败并保留此前完整点；旧 starter 静默继续测量的行为已撤销。成功返回空记忆仍继续，当前消息原文仍在输入中；无召回实验应显式关闭 auto_recall。这项语义调整区分了服务故障与合法的空记忆条件。
 
 终审补充：目录可发现性与处理器异常的步骤失败边界由 `test_core_final_review.py` 两个非作者反例及 `test_kernel_final_boundaries.py` 覆盖。前者约束信息名称和 total，后者保证已写部分事实的 handler 异常即使被 Driver 捕获也不能发布完整点；本组最终审查与全量结果单独记录。
+
+基础组合的新增接口继续沿上述语义验收，当前消费者索引如下。开发验证、真实服务及最终交付状态分别见 [本次验证](../../research/core-next/foundation-composition/validation-result.md) 与 [当前清单](../../research/core-next/foundation-composition/implementation-plan.md)。
+
+| 关联能力 | 当前完整消费者证据 | 覆盖的风险 |
+|---|---|---|
+| A01/A02/N05 | [目录、工件](../../tests/e2e/test_core_next_composed_directory_artifacts.py)、[配方](../../tests/primary/test_foundation_presets.py) | 无底层 store 门面的显式委托、persona 同视图来源、具名驱动与轻量规则装配 |
+| A04/A05/M01/N03 | [多来源与故障](../../tests/e2e/test_core_next_composition_entrypoint.py)、[来源边界](../../tests/e2e/test_core_next_composed_source_edges.py) | 完整实际模型正文、独立位置、None/0/空映射、并发主体隔离、Moment 往返与新进程恢复 |
+| N01/N05/S05 | [注册与清单](../../tests/e2e/test_core_next_composed_registration_manifest.py)、[关闭](../../tests/e2e/test_core_next_composed_shutdown_extensions.py) | 真正撤销/重注册、owned/borrowed、部分安装失败、双图展开、取消后的任务排空与关闭异常 |
+| B03/B04/B05 | [推荐](../../tests/e2e/test_core_next_composed_recommendation.py) | 外部选择和关系、相关版本失效、无关变化缓存、语义 await 期间变更拒绝、全部正文与原向量恢复 |
+| M03/M06/M10/S06 | [扩展与替代运行时](../../tests/e2e/test_core_next_composed_shutdown_extensions.py) | 确定性完整 LLMDriver、原文记忆、独立写入/召回/工具及访谈边界、替代 Runtime/Schedule；真实 memory/embedding 待专项完成 |
+| R01/R03/R05/P08 | [离线 SDK](../../tests/e2e/test_core_next_composition_sdk.py)、[真实提供方](../../tests/e2e/test_core_next_composition_live.py) | 实际 SDK 参数与 HTTP 正文、原生 Codex OAuth、工具行动与可信 step 1 的新进程恢复；实时结果绑定各自产生源码 |
+
+公开配置和只读报告的可复制入口见 [组合运行说明](../../examples/core_next/README.md)。

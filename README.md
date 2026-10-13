@@ -22,6 +22,8 @@ Codex subscription access is configured through the [subscription guide](docs/co
 
 [Rule and LLM presets](docs/core-next/builtin-composition.md) return ordinary plugin tuples with explicit schedules, resources and input-builder bindings. `cognition_plugin` composes ordered `SourceSpec` services under one consumer, retaining each source’s independent position and complete input history.
 
+The [public composition runbook](examples/core_next/README.md) provides executable configurations for multi-source cognition, independent positions, recommendation changes, external actor directories, registration, cleanup and process recovery. Its read-only verifier reports actual artifact differences as JSON.
+
 `Information` provides discoverable documents and datasets with authorized totals, continuation cursors and complete original-content reads. `Actions` exposes templates against resource references and rechecks eligibility when invoked. `LLMDriver` offers these through meta tools and an optional Bashkit shell, preserving the full Thread. `RuleDriver` accesses the same structured interfaces.
 
 `Schedule` supplies the next simulation time and ordered `Phase` sequence; `Runtime` executes and publishes that complete step. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.

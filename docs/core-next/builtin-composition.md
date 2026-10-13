@@ -57,4 +57,6 @@ runtime 默认连接 actors、interaction、storage、results，使用原 Runtim
 
 Runner 的 Runtime 消费接口为 `async run_step(number, time, phases)`、capacity、max_activations、last_timing；拥有者通过 runtime 阶段 on_quiesce 收束。Schedule 实现 `async next_step(completed_step)`。运行清单保存实际服务引用、展开图和有效容量／预算，参见 [运行合同](runner-contract.md)。
 
+[公共组合运行说明](../../examples/core_next/README.md) 提供完整配置、标准 runner、独立进程恢复与只读 JSON 验收；其中 runtime-replacement 场景实际替换 Runtime 和 Schedule，external-directory 场景复用明确 data 引用。
+
 附加 plugins 保持原声明顺序，基础名字重复由 Host 拒绝。RunContract.configuration 冻结主体、来源、模型和策略；credentials 通过显式环境引用提供，运行身份与验证工件共同记录研究依据。

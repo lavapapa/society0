@@ -1,0 +1,39 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_source_edge_batches_preserve_full_requests_and_restore[empty-values] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1293/test_source_edge_batches_prese0')
+variant = 'empty-values'
+
+    @pytest.mark.parametrize('variant',('empty-values','concurrent'))
+    def test_source_edge_batches_preserve_full_requests_and_restore(tmp_path,variant):
+        continuous,result=cli(tmp_path,'continuous',config(variant=variant,sources=['position.a.v1','position.b.v1']))
+        assert result.returncode==0,result.stdout+result.stderr
+        assert verify(continuous)['first_difference'] is None
+        restored,resumed=cli(tmp_path,'restored',config(variant=variant),source=continuous,step=1)
+        assert resumed.returncode==0,resumed.stdout+resumed.stderr
+        assert verify(restored,compare=continuous)['first_difference'] is None
+        program="""import importlib.abc,json,sys
+    class NoTests(importlib.abc.MetaPathFinder):
+        def find_spec(self,fullname,path=None,target=None):
+            if fullname.split('.')[0]=='tests': raise ImportError('example requires optional test package: '+fullname)
+    sys.meta_path.insert(0,NoTests())
+    from examples.core_next.composed_source_edges import compare
+    checks=compare(sys.argv[1],sys.argv[2])
+    assert all(item['passed'] for item in checks),checks
+    print(json.dumps({'checks':len(checks)}))
+    """
+        result=subprocess.run([sys.executable,'-c',program,str(continuous),str(restored)],cwd=ROOT,env=os.environ,text=True,capture_output=True)
+>       assert result.returncode==0,result.stdout+result.stderr
+E       AssertionError: Traceback (most recent call last):
+E           File "<string>", line 7, in <module>
+E           File "/Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree/examples/core_next/composed_source_edges.py", line 175, in compare
+E             from tests.e2e.core_next_composition_assertions import stable_messages
+E           File "<string>", line 4, in find_spec
+E         ImportError: example requires optional test package: tests
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-c', "impo...table_messages\n  File "<string>", line 4, in find_spec\nImportError: example requires optional test package: tests\n').returncode
+
+tests/e2e/test_core_next_composed_source_edges.py:29: AssertionError
+1 failed, 2 deselected in 2.67s
