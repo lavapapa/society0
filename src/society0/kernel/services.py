@@ -42,7 +42,7 @@ def memory_plugin(*, client, embedding, extraction=None, extraction_options=None
         if policy.active_tools or policy_selector is not None:
             registry = context.require(*actions)
             for action in memory.actions():
-                registry.register(action)
+                context.on_close(registry.register(action))
         context.provide('memory', memory)
         context.provide('extension', MemoryExtension(memory))
 

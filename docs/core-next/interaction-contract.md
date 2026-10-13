@@ -24,7 +24,9 @@ page = await tools.query('/market/orders', Query(
     fields=('id', 'price'), filters=(('price', 'le', 100),), limit=100))
 ```
 
-`mount(prefix, provider)` 借用提供者，创建资源的机制插件用 `ctx.on_close(provider.close)` 登记关闭，先于它所借用的资源释放。独立 Information 可以使用 `owned=True` 托管提供者；同一对象挂载多处仍登记一次关闭。`Information.close()` 逆序释放全部托管资源并清空路由，单个关闭异常仍继续释放其余资源。借用与托管应由装配方选择单一归属。
+`mount(prefix, provider)` 返回同步幂等注销函数，移除本次登记的路由。创建资源的机制插件先用 `ctx.on_close(provider.close)` 登记关闭，再用 `ctx.on_close(information.mount(prefix, provider))` 托管路由注销，退出时先撤销路由再关闭资源。默认挂载为借用，注销和路由器关闭均不关闭借用提供者。独立 Information 可使用 `owned=True` 托管提供者；同一对象挂载多处最终关闭一次，路由注销后仍由 Information 持有至整体关闭。`Information.close()` 逆序释放托管资源并清空路由，单个关闭异常仍继续释放其余资源。
+
+注销限定在安装回滚、整体退出的静止期或明确暂停消费的边界；旧注销函数不会移除随后同名重登记，即使使用同一个 provider。已保存的领域事实与 Thread 保留原持久化职责。路由器关闭后调用注销函数视为已经完成。
 
 提供者实现 `ref(path)`、`list(scope,path,*,limit,cursor)`、`read(scope,path,*,offset,size)` 和 `query(scope,path,query)`；按其资源类型实现实际需要的操作。list 返回 `Page(items,total,next_cursor,revision)`。read 返回 `DocumentChunk(data,total_bytes,next_offset,revision,source)`，data 是 bytes，按字节读取可重新拼接全部 UTF-8 原文。
 
@@ -34,7 +36,7 @@ page = await tools.query('/market/orders', Query(
 
 ## 三、动作
 
-注册表按 `(namespace,kind)` 保存动作模板。发现作用于传入的具体 target；注册量随能力类型增加，不生成所有对象和动作的笛卡尔积。
+注册表按 `(namespace,kind)` 保存动作模板。发现作用于传入的具体 target；注册量随能力类型增加，不生成所有对象和动作的笛卡尔积。`register(action, dependencies=())` 返回同步幂等注销函数，插件安装者通过 `ctx.on_close(actions.register(...))` 托管。有效注销在同一索引事务中删除 FTS、标签和模板，再释放动作及其依赖引用并推进登记代次；另一动作共用的表依赖继续保留。旧发现游标过期，describe 抛 Unavailable，invoke 返回 rejected/unavailable。同名重登记拥有新的身份与顺序，旧注销函数对其无效。Actions.close 释放索引和全部登记，随后注销视为完成。
 
 ```python
 actions.register(Action(

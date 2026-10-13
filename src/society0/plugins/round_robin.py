@@ -146,7 +146,9 @@ class RoundRobin:
             return ActionResult('completed',value)
         return self.store.transaction(write)
 
-    def register(self,information,actions):
+    def register(self,information,actions,*,on_close):
+        provider=round_robin_information(self.store,self.name)
+        on_close(provider.close)
         dependencies=(self.name+'_members',self.name+'_head')
         def own(scope,target):
             return target.key==scope.actor and self.store.read(lambda r:bool(r.query(f'SELECT 1 FROM {self.table("members")} WHERE id=?',(scope.actor,))))
@@ -154,15 +156,14 @@ class RoundRobin:
             return own(scope,target) and self.pairing(scope.actor)['can_converse']
         content={'type':'object','properties':{'content':{'type':'string'}},'required':['content'],'additionalProperties':False}
         for operation,broadcast in (('send_message_to_partner',False),('broadcast_to_group',True)):
-            actions.register(Action(self.name+'.'+operation,(self.name,'participants'),'发送完整消息给当前伙伴。' if not broadcast else '向当前小组其他成员广播完整消息。',content,
-                lambda scope,target,args,broadcast=broadcast:self._send(scope.actor,args['content'],broadcast),available=available),dependencies=dependencies)
+            on_close(actions.register(Action(self.name+'.'+operation,(self.name,'participants'),'发送完整消息给当前伙伴。' if not broadcast else '向当前小组其他成员广播完整消息。',content,
+                lambda scope,target,args,broadcast=broadcast:self._send(scope.actor,args['content'],broadcast),available=available),dependencies=dependencies))
         def mark(scope,target,args):
             self.actors.set_state(scope.actor,'conversation_marker',args['marker'])
             return ActionResult('completed',{'marker':args['marker'],**self.pairing(scope.actor)})
-        actions.register(Action(self.name+'.mark_conversation_participant',(self.name,'participants'),'保存本主体的对话参与标记。',
-            {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own),dependencies=dependencies)
-        provider=round_robin_information(self.store,self.name)
-        information.mount('/'+self.name,provider)
+        on_close(actions.register(Action(self.name+'.mark_conversation_participant',(self.name,'participants'),'保存本主体的对话参与标记。',
+            {'type':'object','properties':{'marker':{'type':'string'}},'required':['marker'],'additionalProperties':False},mark,available=own),dependencies=dependencies))
+        on_close(information.mount('/'+self.name,provider))
         return provider
 
 
@@ -214,7 +215,6 @@ def round_robin_plugin(members, *, group_size, name='conversation', session_dura
                 for a,b in pairs: w.execute(f'INSERT INTO {t("schedule")}(round,group_no,first,second) VALUES(?,?,?,?)',(number,group_no,a,b))
     def install(ctx):
         mechanism=RoundRobin(name,ctx.require(storage,'store'),ctx.require(actors,'directory'),session_duration_minutes,clock)
-        provider=mechanism.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'))
-        ctx.on_close(provider.close)
+        mechanism.register(ctx.require(interaction,'information'),ctx.require(interaction,'actions'),on_close=ctx.on_close)
         ctx.provide('mechanism',mechanism)
     return Plugin(name,(storage,actors,interaction),install,schema=_schema(name),initialize=initialize,schema_requires=(actors,))

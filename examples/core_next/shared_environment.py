@@ -70,9 +70,9 @@ async def demonstrate(output: Path, *, history=2000):
             return store.transaction(write)
         def available(scope, target):
             return bool(store.read(lambda r: r.query('SELECT 1 FROM orders WHERE id=? AND owner=? AND active=1', (int(target.key),scope.actor))))
-        actions.register(Action('market.buy', ('world', 'orders'), '购买可用订单',
+        ctx.on_close(actions.register(Action('market.buy', ('world', 'orders'), '购买可用订单',
                                 {'type':'object','properties':{},'required':[],'additionalProperties':False},
-                                buy, available=available, terminal=True, strict=True, tags=('trade',)),dependencies=('orders',))
+                                buy, available=available, terminal=True, strict=True, tags=('trade',)),dependencies=('orders',)))
 
     def messaging(ctx):
         store = ctx.require('storage', 'store')
@@ -87,7 +87,7 @@ async def demonstrate(output: Path, *, history=2000):
             'documents': DocumentSpec('documents','id','body'),
         })
         ctx.on_close(provider.close)
-        ctx.require('interaction','information').mount('/world',provider)
+        ctx.on_close(ctx.require('interaction','information').mount('/world',provider))
 
     class RuleDriver:
         async def run(self, session):

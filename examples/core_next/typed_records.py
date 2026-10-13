@@ -73,7 +73,7 @@ def record_plugin(*,owner):
             if not records.owns(scope,target):return ActionResult('rejected')
             records.project(args['key'],args['value']);return ActionResult('completed')
         for name,handler in (('append',append),('project',project)):
-            actions.register(Action('records.'+name,('records','ledger'),name,schema,handler,
-                available=records.owns),dependencies=('record_settings','record_facts','record_projection'))
+            context.on_close(actions.register(Action('records.'+name,('records','ledger'),name,schema,handler,
+                available=records.owns),dependencies=('record_settings','record_facts','record_projection')))
         context.provide('records',records)
     return Plugin('records',('storage','interaction'),install,schema=SCHEMA,initialize=initialize)

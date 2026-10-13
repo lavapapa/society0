@@ -39,9 +39,9 @@ def build(config):
             store.transaction(lambda writer: writer.execute(
                 'INSERT INTO proposals(actor,proposal) VALUES(?,?)', (scope.actor, arguments['proposal'])))
             return ActionResult('completed', {'published': True, 'proposal': arguments['proposal']})
-        actions.register(Action('proposals.publish', ('proposals', 'actor'), '发布自己对公共议题的完整建议。',
+        context.on_close(actions.register(Action('proposals.publish', ('proposals', 'actor'), '发布自己对公共议题的完整建议。',
             {'type': 'object', 'properties': {'proposal': {'type': 'string'}}, 'required': ['proposal'],
-             'additionalProperties': False}, publish), dependencies=('proposals',))
+             'additionalProperties': False}, publish), dependencies=('proposals',)))
         context.provide('store', store)
 
     def cognition(context):

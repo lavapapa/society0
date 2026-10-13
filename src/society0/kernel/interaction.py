@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from copy import deepcopy
 from contextlib import AsyncExitStack
 from dataclasses import asdict, dataclass, field, replace
@@ -132,19 +133,22 @@ class Information:
     def __init__(self, allows: Callable, *, access_dependencies=()):
         self._allows = allows
         self._mounts = {}
+        self._mount_tokens = {}
         self._owned = {}
         self._resources = AsyncExitStack()
         self._closed = False
         self.access_dependencies=tuple(access_dependencies)
 
-    def mount(self, prefix, provider, *, owned=False):
-        """默认借用；独立路由可显式托管，同一对象仅登记一次关闭。"""
+    def mount(self, prefix, provider, *, owned=False) -> Callable[[], None]:
+        """返回本次路由的幂等注销函数；托管资源保留至路由器关闭。"""
         if self._closed:
             raise ScopeClosed('information is closed')
         prefix = _path(prefix)
         if prefix in self._mounts:
             raise ValueError('resource prefix is already mounted')
+        token = object()
         self._mounts[prefix] = provider
+        self._mount_tokens[prefix] = token
         if owned and id(provider) not in self._owned:
             self._owned[id(provider)] = provider
             close = getattr(provider,'close',None)
@@ -152,6 +156,12 @@ class Information:
                 async def release():
                     await _resolve(close())
                 self._resources.push_async_callback(release)
+
+        def dispose():
+            if not self._closed and self._mount_tokens.get(prefix) is token:
+                del self._mounts[prefix]
+                del self._mount_tokens[prefix]
+        return dispose
 
     def _scope(self, scope):
         return _InformationScope(scope,tuple(dict.fromkeys((*scope.access_dependencies,*self.access_dependencies))))
@@ -276,6 +286,7 @@ class Information:
         finally:
             self._owned.clear()
             self._mounts.clear()
+            self._mount_tokens.clear()
 
     def bound(self, scope):
         return _BoundInformation(self, scope)
@@ -400,6 +411,7 @@ class Actions:
         self._dependency_revision=dependency_revision
         self._access_dependencies=tuple(access_dependencies)
         self._dependencies={}
+        self._registrations={}
 
     def __len__(self):
         return len(self._actions)
@@ -412,6 +424,9 @@ class Actions:
         if not self._closed:
             self._index.close()
             self._closed = True
+            self._actions.clear()
+            self._registrations.clear()
+            self._dependencies.clear()
 
     def __enter__(self):
         self._check()
@@ -420,7 +435,8 @@ class Actions:
     def __exit__(self, *exc):
         self.close()
 
-    def register(self, action: Action, *, dependencies=()):
+    def register(self, action: Action, *, dependencies=()) -> Callable[[], None]:
+        """返回本次动作登记的注销函数，同步维护查找索引与依赖。"""
         self._check()
         if action.name in self._actions:
             raise ValueError('action name is already registered')
@@ -430,6 +446,8 @@ class Actions:
         if action.strict:
             validate_strict_function_parameters(parameters)
         action = replace(action, parameters=parameters, target_kind=tuple(action.target_kind))
+        dependencies = tuple(dict.fromkeys(dependencies))
+        validator = validator_type(parameters)
         ordinal = self._generation + 1
         text = (action.name + ' ' + action.description).casefold()
         with self._index:
@@ -438,9 +456,35 @@ class Actions:
             self._index.execute('INSERT INTO action_search(rowid,text) VALUES(?,?)', (ordinal,text))
             self._index.executemany('INSERT INTO action_tags VALUES(?,?)',
                                     ((action.name, tag) for tag in dict.fromkeys(action.tags)))
-        self._actions[action.name] = (action, validator_type(parameters))
-        self._dependencies.setdefault(action.target_kind,set()).update(dependencies)
+        name, kind = action.name, action.target_kind
+        self._actions[name] = (action, validator)
+        self._registrations[name] = (ordinal, text, kind, dependencies)
+        if dependencies:
+            self._dependencies.setdefault(kind, Counter()).update(dependencies)
         self._generation += 1
+
+        def dispose():
+            current = self._registrations.get(name)
+            if self._closed or current is None or current[0] != ordinal:
+                return
+            _, stored_text, target_kind, tables = current
+            with self._index:
+                self._index.execute('INSERT INTO action_search(action_search,rowid,text) VALUES(\'delete\',?,?)',
+                                    (ordinal, stored_text))
+                self._index.execute('DELETE FROM action_tags WHERE name=?', (name,))
+                self._index.execute('DELETE FROM action_templates WHERE name=?', (name,))
+            del self._actions[name]
+            del self._registrations[name]
+            if tables:
+                counts = self._dependencies[target_kind]
+                for table in tables:
+                    counts[table] -= 1
+                    if not counts[table]:
+                        del counts[table]
+                if not counts:
+                    del self._dependencies[target_kind]
+            self._generation += 1
+        return dispose
 
     async def _eligible(self, scope, action, target):
         self._check()
