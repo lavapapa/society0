@@ -24,7 +24,7 @@ serial 容量为 1；independent 的显式 Phase.capacity 覆盖 Runtime.capacit
 
 LLMPolicy(mode='decision') 执行行动循环，mode='interview' 使用 result_schema 和 submit_result 测量。required_names/tags 表达完成所需行动，completion_names/tags 与 Action.terminal 表达真实结束语义。硬预算耗尽或输出截断保留未完成状态，完整 Thread 不裁剪。
 
-CognitiveInput 注入完整人格、主观状态、环境说明与研究指定精度；感知回调返回新增消息与持久游标。重要信息始终可通过 Information 取得。记忆三开关独立，memory_plugin 的 policy_selector 可以按激活选择。研究定义的提取策略通过 memory_plugin(extract=...) 接入，MemoryExtension 在 Thread 关闭前收束成功经历；原 Thread 留证、完整输入水位和记忆作业身份同时保留。
+CognitiveInput 注入完整人格、主观状态、环境说明与研究指定精度；单来源感知回调返回新增消息与持久游标。多来源用 cognition_plugin 按 SourceSpec 顺序组成 operating_context，SourceBatch.effects 在最终输入与全部来源位置保存后执行。来源确认与整步发布分别留证，例子见 [公共组合运行说明](../../examples/core_next/README.md)。重要信息始终可通过 Information 取得。记忆三开关独立，memory_plugin 的 policy_selector 可以按激活选择。研究定义的提取策略通过 memory_plugin(extract=...) 接入，MemoryExtension 在 Thread 关闭前收束成功经历；原 Thread 留证、完整输入水位和记忆作业身份同时保留。
 
 ## 三、结果
 

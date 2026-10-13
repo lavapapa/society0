@@ -1,10 +1,30 @@
 # Codex 订阅接入
 
-Society0 通过 Sign in with ChatGPT 授权使用账户允许的计划额度，以 `provider_type='siwc'` 安装模型服务。普通 API 与订阅使用独立配置。外部调用等待完整 Responses 结果，底层消费端点要求的流并确认成功终态后，驱动才执行工具。账户资格、模型可用性和用量以提供方实际返回为准。
+Society0 支持两种明确的订阅配置：现有 Codex CLI OAuth 使用 `provider_type='openai-codex'`，应用独立 Sign in with ChatGPT 授权使用 `provider_type='siwc'`。普通 API 与订阅各自配置。外部调用等待完整 Responses 结果，确认成功终态后驱动执行工具；账户资格、模型可用性和用量以提供方实际返回为准。
 
-## 一、授权
+## 一、CLI OAuth
 
-安装 `llm` 依赖后，在自己的终端完成授权：
+已有 Codex CLI 授权时，安装 llm 依赖并通过具名模型服务复用成熟原生适配器。模型 ID 从账户实际可用的模型中选择；下面的环境变量由本次运行明确提供。
+
+```python
+import os
+from society0.kernel.models import model_plugin
+
+models = model_plugin({'codex': {
+    'endpoints': [{'id':'codex-oauth','provider_type':'openai-codex',
+                   'model':os.environ['SOCIETY0_CODEX_MODEL'],
+                   'concurrency':1,'timeout':120,'trust_env':True}],
+    'max_attempts':1,
+}})
+```
+
+该 profile 依赖既有 threads 服务，由驱动取得 `context.require('models','models')['codex']`。Pydantic AI 的 OpenAICodexProvider 从标准 CLI 凭据来源只读加载；CODEX_HOME 可指定已授权的 CLI 目录，访问凭据与刷新结果留在进程内。配置不要求 API key 或自建 base_url，登录与持久凭据管理由账户持有人的 Codex CLI 负责。Society0 保留完整 Thread、工具和正常行动预算。
+
+原生 Codex 通过独立 HTTP 客户端使用实际 trust_env/proxy 配置，SDK max_retries=0，传输重试由 profile 明确选择。session_transport 保持 None；该提供方没有嵌入能力。记忆与语义向量使用另行获授权的 embedding 服务，订阅故障不切换至付费 API。
+
+## 二、应用授权
+
+需要独立应用账户配置时，在自己的终端完成 SIWC 授权：
 
 ```sh
 uv sync --extra llm
@@ -21,7 +41,7 @@ uv run python -m society0.kernel.auth refresh --account default
 
 授权流程、账户元数据与刷新由 [auth.py](../../src/society0/kernel/auth.py) 的公开入口管理。运行配置保存 account 名称，不保存 token；共享账户的凭据刷新通过认证设施串行协调。额度或资格错误返回明确失败，没有收费端点回退。
 
-## 二、配置
+### 2.1 模型配置
 
 具名提供方通过通常的模型插件接入。模型 ID 必须选取该账户实际可用的模型，不根据 API 目录推断订阅资格。
 

@@ -172,7 +172,11 @@ def validate(path):
 
 
 def compare(continuous,restored):
-    from tests.e2e.core_next_composition_assertions import stable_messages
+    # 本夹具用确定性提供方；仅移除 typed 消息与 part 的生成时间。
+    def stable_messages(typed):
+        return [{**{key:value for key,value in message.items() if key!='timestamp'},
+            'parts':[{key:value for key,value in part.items() if key!='timestamp'} for part in message['parts']]}
+            for message in typed]
     left,a=facts(continuous);right,b=facts(restored)
     def projection(data):
         # Thread id 用已经另验的一主体一身份关联，不将其他字段宽泛忽略。

@@ -8,7 +8,7 @@
 
 端点参数复用 id、api_key、base_url、model、concurrency、timeout、provider_type、api_version、deployment_name、trust_env 和 tool_choice_policy。凭据由调用方从环境或授权来源注入。端点按正数 weight 加权随机选择，默认权重为 1；同一 profile 要求使用同一模型。请求默认值与每次调用选项合并，后者覆盖同名顶层字段；extra_body 等嵌套选项按完整对象替换。
 
-Codex/ChatGPT 订阅使用 `provider_type="siwc"` 与应用独立 account 凭据，接入步骤见 [订阅指南](subscription-guide.md)。外部返回完整 Responses 结果，内部消费流并确认明确成功终态；SDK 正常返回但终态缺失仍为未完成。普通提供方可通过相应可选依赖接入，Agent.iter 的主体工具推进见 [模型决定合同](llm-contract.md)。
+Codex CLI OAuth 使用 `provider_type="openai-codex"`，直接复用安装版 Pydantic AI 的 OpenAICodexProvider/OpenAICodexModel；标准 CLI 凭据由成熟适配器只读取得，CODEX_HOME 可指定目录，刷新保存在内存。Society0 应用独立授权使用 `provider_type="siwc"` 与具名 account，两种入口的凭据来源分别配置，见 [订阅指南](subscription-guide.md)。订阅配置使用 Responses 通路和独立 HTTP 客户端，SDK 重试为零；没有付费 API 端点回退。原生 Codex 不提供 embedding，session_transport 保持 None。内部消费完整流并确认明确成功终态；SDK 返回但终态缺失仍为未完成。普通提供方可通过相应可选依赖接入，Agent.iter 的主体工具推进见 [模型决定合同](llm-contract.md)。
 
 ### 1.1 SiliconFlow 配置
 

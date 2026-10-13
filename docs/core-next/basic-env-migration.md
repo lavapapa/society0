@@ -40,4 +40,6 @@
 
 复用既有巨消息范围读取、冷正文点赞、历史增长 VM 计数、向量缓存与恢复测试。特别测量多主体交错推荐分页与同版本缓存，以及主体现实信息入口是否新增全表读取。完整 Thread、全文读取和整图初始化仍按实际数据量计成本。不得以资料变少、动作减少或曝光被省略解释为性能改善。
 
-本轮先形成可运行的最小反例和双侧对照，随后依据证据决定 Next 底层是否需要修改；长期社会效果与真实模型成本另行授权验收。
+基础组合后续改造保留本页旧稳定基线与既有 oracle 身份。当前 Next 的目录委托、登记、推荐来源、完整多来源认知及关闭路径已有 [公共消费者](../../examples/core_next/README.md) 和 [开发验证记录](../../research/core-next/foundation-composition/validation-result.md)；原逐值 oracle 的共同语义字段保留。确定性原向量、缓存与恢复证据和真实提供方证据分别记录，本次实时 OAuth 工具／恢复通过，真实 memory/embedding 与最终集成交付继续按 [当前清单](../../research/core-next/foundation-composition/implementation-plan.md) 执行。
+
+长期社会效果与真实模型成本按各研究协议另行判断。

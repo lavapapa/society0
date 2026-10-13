@@ -1,6 +1,10 @@
 """来源空值、交错主体与 Moment 轮换经实际公开进程验证。"""
+import json
+import os
+import subprocess
+import sys
 import pytest
-from .test_core_next_composition_entrypoint import config,cli,verify
+from .test_core_next_composition_entrypoint import config,cli,verify,ROOT
 
 
 @pytest.mark.parametrize('variant',('empty-values','concurrent'))
@@ -11,6 +15,18 @@ def test_source_edge_batches_preserve_full_requests_and_restore(tmp_path,variant
     restored,resumed=cli(tmp_path,'restored',config(variant=variant),source=continuous,step=1)
     assert resumed.returncode==0,resumed.stdout+resumed.stderr
     assert verify(restored,compare=continuous)['first_difference'] is None
+    program="""import importlib.abc,json,sys
+class NoTests(importlib.abc.MetaPathFinder):
+    def find_spec(self,fullname,path=None,target=None):
+        if fullname.split('.')[0]=='tests': raise ImportError('example requires optional test package: '+fullname)
+sys.meta_path.insert(0,NoTests())
+from examples.core_next.composed_source_edges import compare
+checks=compare(sys.argv[1],sys.argv[2])
+assert all(item['passed'] for item in checks),checks
+print(json.dumps({'checks':len(checks)}))
+"""
+    result=subprocess.run([sys.executable,'-c',program,str(continuous),str(restored)],cwd=ROOT,env=os.environ,text=True,capture_output=True)
+    assert result.returncode==0,result.stdout+result.stderr
 
 
 def test_moment_switch_reuses_original_identity_after_intermediate_moment(tmp_path):
