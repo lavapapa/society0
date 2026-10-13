@@ -31,11 +31,15 @@ plugins = [
 
 ## 二、访问
 
-ActorStore 实现 Mapping[str, Actor]。按 id 获取时读取主体短头并调用对应驱动工厂；返回 Actor.config 为 ActorRecordView，persona、state 与 config 在访问对应属性时读取，state_ref 为该主体状态引用。显式迭代按首次登记顺序返回 id，分批读取数据库，不构建 Driver。Runtime 可以保留该 Mapping，在实际执行激活时取所需 Actor。
+ActorStore 实现 Mapping[str, Actor]，持有原 `directory` 并显式委托其公开读写、选择和迭代方法，不暴露底层 store。按 id 获取使用目录的 view，并把同一视图交给驱动工厂和 Actor.config。原生 ActorRecordView 的 persona、state 与 config 按需读取；state_ref 保持主体状态引用。显式迭代按首次登记顺序返回 id，不构建 Driver。Runtime 保留该 Mapping，在实际激活时取所需 Actor。
+
+目录 `driver_names()` 返回持久标签的稳定元组，原生实现仅在安装/恢复时查询一次 DISTINCT，包括 inactive 主体。ActorStore 绑定工厂时检查标签；add/update 在转发前核对新增驱动名称。目录直接修改驱动为未知标签后，实际激活和后续重新绑定都明确失败。
+
+`persona_in(view, actor)` 在传入 ReadView 内读取人格，不重开数据库读取；不存在抛 KeyError。`persona_dependencies` 是只读属性，原生值为 `('actor_personas',)`。推荐通过这个窄入口取得与数据版本相同快照的背景，自定义目录改变该来源时同步覆盖两项；激活的 view 覆盖行为独立。ActorStore 同样委托这两个入口。
 
 `select(role=None, active=True, limit=100, cursor=None)` 返回主体 id 的 Page，包含精确 total、revision 与继续游标。筛选直接使用角色、active 与登记序号的复合索引，并读取同一规范写入事务维护的计数；角色选择无需遍历其他角色的活跃主体。active=None 显式选择所有主体，允许获取全部人口。调用者可以按业务语义直接选择其他主体；active 是调度查询属性，不代表领域行动的授权。
 
-游标绑定运行身份、角色、活跃选择和 actor_selection/actor_counts 的依赖 revision。角色或活跃选择投影更新后旧游标明确失效，调用者可以重新查询当前范围。主体激活的 Thread 留证与无关状态写入保持选择页有效。此合同尚未提供跨相关更新的长期快照。数量与分页读取分别使用计数投影和定位索引；单页正文工作量随请求页大小增长。主体增删角色或切换 active 时同步维护该主体的角色投影及计数，写入成本随该主体角色数增长。
+游标绑定运行身份、角色、活跃选择和 actor_selection/actor_counts 的依赖 revision。运行身份从同一次 ReadView 的 run_id 取得，ActorDirectory(StageReader) 支持当前只读观察和固定完整点的选择、字段读取与分页。角色或活跃选择投影更新后旧游标明确失效，调用者可以重新查询当前范围。主体激活的 Thread 留证与无关状态写入保持选择页有效。此合同尚未提供跨相关更新的长期快照。数量与分页读取分别使用计数投影和定位索引；单页正文工作量随请求页大小增长。主体增删角色或切换 active 时同步维护该主体的角色投影及计数，写入成本随该主体角色数增长。
 
 ## 三、工作区
 

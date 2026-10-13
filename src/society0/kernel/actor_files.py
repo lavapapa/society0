@@ -264,9 +264,9 @@ class ActorFiles:
                 revision=await self.revision(path)
         if _json(await self.revision(path))!=_json(revision):raise ValueError('selected files changed during find')
         # JSONL 行是结果记录，正文独立留在原文件。
-        artifact=self.threads.lookup_actor_artifact(unquote(result_path[9:]),actor=self.session.actor.id)
-        store=self.threads.store
-        _,length=store.read_artifact(artifact,size=1)
+        reference=unquote(result_path[9:])
+        threads,actor=self.threads,self.session.actor.id
+        length=threads.read_actor_artifact(reference,actor=actor,size=1)['total_bytes']
         scope=self.session.scope
         class ArtifactReader(io.RawIOBase):
             def __init__(self):self.offset=offset
@@ -274,7 +274,7 @@ class ActorFiles:
             def tell(self):return self.offset
             def readinto(self,buffer):
                 scope.check_active()
-                data,_=store.read_artifact(artifact,offset=self.offset,size=len(buffer))
+                data=threads.read_actor_artifact(reference,actor=actor,offset=self.offset,size=len(buffer))['data']
                 buffer[:len(data)]=data;self.offset+=len(data)
                 return len(data)
         items=[]

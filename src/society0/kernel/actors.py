@@ -105,6 +105,18 @@ class ActorDirectory:
     def __init__(self, store):
         self.store=store
 
+    def driver_names(self):
+        return self.store.read(lambda view: tuple(name for (name,) in view.iter_query('SELECT DISTINCT driver FROM actors ORDER BY driver')))
+
+    @property
+    def persona_dependencies(self):
+        return ('actor_personas',)
+
+    def persona_in(self, view, actor):
+        rows=view.query('SELECT body FROM actor_personas WHERE actor=?',(actor,))
+        if not rows:raise KeyError(actor)
+        return json.loads(rows[0][0])
+
     def get_record(self, actor):
         def read(view):
             rows=view.query('SELECT driver,active FROM actors WHERE id=?',(actor,))
@@ -178,8 +190,8 @@ class ActorDirectory:
     def select(self, *, role=None, active=True, limit=100, cursor=None):
         if type(limit) is not int or limit<1: raise ValueError('limit must be positive')
         if active is not None and type(active) is not bool: raise TypeError('active must be boolean or None')
-        identity=[self.store.run_id,role,active]
         def read(r):
+            identity=[r.run_id,role,active]
             revision=r.revision_for(('actor_selection','actor_counts'))
             after=0
             if cursor is not None:
@@ -198,25 +210,56 @@ class ActorDirectory:
         return self.store.read(read)
 
 
-class ActorStore(ActorDirectory, Mapping):
-    """运行映射绑定目录与驱动；数据服务可独立于此映射安装。"""
+class ActorStore(Mapping):
+    """运行映射委托主体目录，按实际激活创建所选驱动。"""
     def __init__(self, directory, drivers):
-        super().__init__(directory.store)
+        self.directory=directory
         self.drivers=dict(drivers)
-        unresolved=self.store.read(lambda view:[name for (name,) in view.iter_query('SELECT DISTINCT driver FROM actors') if name not in self.drivers])
+        unresolved=[name for name in directory.driver_names() if name not in self.drivers]
         if unresolved: raise ValueError('unresolved actor drivers: '+', '.join(unresolved))
 
     def __getitem__(self, actor):
         record=self.view(actor)
         return Actor(actor,self.drivers[record.driver](record),Ref('actors','state',actor),record)
 
+    def driver_names(self):
+        return self.directory.driver_names()
+
+    @property
+    def persona_dependencies(self):
+        return self.directory.persona_dependencies
+
+    def persona_in(self, view, actor):
+        return self.directory.persona_in(view, actor)
+
+    def view(self, actor):
+        return self.directory.view(actor)
+
+    def get_record(self, actor):
+        return self.directory.get_record(actor)
+
+    def __len__(self):
+        return len(self.directory)
+
+    def __iter__(self):
+        return iter(self.directory)
+
+    def select(self, *, role=None, active=True, limit=100, cursor=None):
+        return self.directory.select(role=role, active=active, limit=limit, cursor=cursor)
+
     def add(self, record):
         if record.driver not in self.drivers: raise KeyError(record.driver)
-        return super().add(record)
+        return self.directory.add(record)
 
     def update(self, actor, **changes):
         if 'driver' in changes and changes['driver'] not in self.drivers: raise KeyError(changes['driver'])
-        return super().update(actor,**changes)
+        return self.directory.update(actor,**changes)
+
+    def set_state(self, actor, key, value):
+        return self.directory.set_state(actor,key,value)
+
+    def deactivate(self, actor):
+        return self.directory.deactivate(actor)
 
 
 def actor_data_plugin(*, records=(), name='actors.data', storage='storage'):
