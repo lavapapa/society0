@@ -349,7 +349,7 @@ def social_semantic_plugin(*,name='social.semantic',domain='social',data='social
         client=ctx.require(*vector_client) if vector_client else None
         semantic=Semantic(ctx.require(data,'data'),ctx.require(candidates,'candidates'),embed,client,cache_capacity=cache_capacity)
         ctx.provide('semantic',semantic)
-        ctx.on_quiesce(semantic.close)
+        ctx.on_quiesce(semantic.close, stage='worker')
         ctx.on_step(after=semantic.flush_embeddings)
     t=lambda suffix:_quote(domain+'_'+suffix)
     schema=tuple(sql for sql in _schema(domain) if any(t(suffix) in sql for suffix in ('vectors','embedding_pending')))
