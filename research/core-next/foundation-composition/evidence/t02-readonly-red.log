@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_act_08_native_readonly_selection_uses_readview_run_identity _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1229/test_act_08_native_readonly_se0')
+
+    @pytest.mark.asyncio
+    async def test_act_08_native_readonly_selection_uses_readview_run_identity(tmp_path):
+        async with compose(tmp_path/'run', [actor_data_plugin(records=[ActorRecord('a', 'rule'), ActorRecord('b', 'rule')])]) as host:
+            host.service('storage', 'store').complete(1)
+        with StageReader(tmp_path/'run') as reader:
+            directory = ActorDirectory(reader)
+>           first = directory.select(limit=1)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_actor_directory_delegation.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <society0.kernel.actors.ActorDirectory object at 0x106f3c560>
+role = None, active = True, limit = 1, cursor = None
+
+    def select(self, *, role=None, active=True, limit=100, cursor=None):
+        if type(limit) is not int or limit<1: raise ValueError('limit must be positive')
+        if active is not None and type(active) is not bool: raise TypeError('active must be boolean or None')
+>       identity=[self.store.run_id,role,active]
+                  ^^^^^^^^^^^^^^^^^
+E       AttributeError: 'StageReader' object has no attribute 'run_id'
+
+src/society0/kernel/actors.py:181: AttributeError
+1 failed, 3 deselected in 0.20s

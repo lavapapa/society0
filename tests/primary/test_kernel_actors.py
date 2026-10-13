@@ -101,14 +101,15 @@ async def test_active_actor_selector_work_does_not_scan_inactive_population(tmp_
         records.extend(ActorRecord('inactive'+str(i),'rule',roles=('buyer',),active=False) for i in range(history))
         async with compose(tmp_path/str(history),[actor_plugin({'rule':lambda r:None},records=records)]) as host:
             actors=host.service('actors','actors')
-            original=actors.store.read
+            store=host.service('storage','store')
+            original=store.read
             count=[0]
             def read(callback,**kwargs):
                 def instrument(view):
                     view._connection.set_progress_handler(lambda:count.__setitem__(0,count[0]+1) or False,1)
                     return callback(view)
                 return original(instrument,**kwargs)
-            actors.store.read=read
+            store.read=read
             page=actors.select(role='buyer',limit=2)
             assert page.total==3 and len(page.items)==2
             measured.append(count[0])
@@ -136,14 +137,15 @@ async def test_fixed_role_selection_seeks_without_scanning_unrelated_active_acto
         records.extend(ActorRecord('buyer'+str(i),'rule',roles=('buyer',)) for i in range(3))
         async with compose(tmp_path/str(count),[actor_plugin({'rule':lambda r:None},records=records)]) as host:
             actors=host.service('actors','actors')
-            original=actors.store.read
+            store=host.service('storage','store')
+            original=store.read
             vm=[0]
             def read(callback,**kwargs):
                 def instrument(view):
                     view._connection.set_progress_handler(lambda:vm.__setitem__(0,vm[0]+1) or False,1)
                     return callback(view)
                 return original(instrument,**kwargs)
-            actors.store.read=read
+            store.read=read
             page=actors.select(role='buyer',limit=2)
             assert page.total==3 and len(page.items)==2
             measured.append(vm[0])

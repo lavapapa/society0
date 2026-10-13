@@ -17,6 +17,77 @@ def session(store, actor='a', time=0):
     return value
 
 
+class ThreadFacade:
+    """仅公开工件服务，无底层 store 穿透。"""
+    def __init__(self, threads):
+        self._threads = threads
+        self.reads = []
+
+    def register_artifact(self, thread_id, reference, artifact, *, actor):
+        return self._threads.register_artifact(thread_id, reference, artifact, actor=actor)
+
+    def list_artifacts(self, *, actor, limit=100, cursor=None):
+        return self._threads.list_artifacts(actor=actor, limit=limit, cursor=cursor)
+
+    def read_actor_artifact(self, reference, *, actor, offset=0, size=65536):
+        self.reads.append((actor, offset, size))
+        return self._threads.read_actor_artifact(reference, actor=actor, offset=offset, size=size)
+
+
+@pytest.mark.asyncio
+async def test_file_01_02_03_find_uses_public_artifact_ranges_and_restores(tmp_path):
+    from society0.kernel.interaction import DocumentChunk, ScopeClosed
+
+    paths = ['/第一.txt', '/' + '中文🙂' * 15000 + '.txt', '/末尾.txt']
+    class Notes:
+        def revision(self):
+            return 'unchanged'
+        def list(self, path, *, limit=100, cursor=None):
+            return Page([{'path': name, 'kind': 'file'} for name in paths], 3, None, self.revision())
+        def read(self, path, *, offset=0, size=65536, expected_revision=None):
+            if path == '/':
+                raise IsADirectoryError(path)
+            body = ('完整正文🙂' * 100).encode()
+            return DocumentChunk(body[offset:offset + size], len(body), None, self.revision(), 'original')
+
+    def files_for(store, threads, actor='a'):
+        current = session(store, actor=actor)
+        current.cursors['activation'].mounts = {'notes': Notes()}
+        return current, ActorFiles(current, threads)
+
+    with StageStore.create(tmp_path/'run', THREAD_SCHEMA) as store:
+        native = ThreadStore(store)
+        facade = ThreadFacade(native)
+        current, files = files_for(store, facade)
+        current.cursors['thread_id'] = native.open('a', current.moment, 'decision')
+        first = await files.find('*.txt', '/context/notes', limit=1)
+        assert first.total == 3 and first.next_cursor
+        pages = [first]
+        cursor = first.next_cursor
+        while cursor is not None:
+            page = await files.find('*.txt', '/context/notes', limit=1, cursor=cursor)
+            pages.append(page)
+            cursor = page.next_cursor
+        assert [item['path'] for page in pages for item in page.items] == ['/context/notes' + path for path in paths]
+        assert all(page.total == 3 for page in pages)
+        assert any(offset > 65536 for _, offset, _ in facade.reads)
+        assert all(actor == 'a' for actor, _, _ in facade.reads)
+        assert (await files.find('*.missing', '/context/notes')).items == []
+        _, other = files_for(store, facade, actor='b')
+        with pytest.raises(KeyError):
+            await other.read(first.next_cursor['result_path'])
+        store.complete(1)
+        current.scope.close()
+        with pytest.raises(ScopeClosed):
+            await files.find('*.txt', '/context/notes', cursor=first.next_cursor)
+    with StageStore.restore(tmp_path/'run', tmp_path/'restored', step=1) as store:
+        facade = ThreadFacade(ThreadStore(store))
+        _, files = files_for(store, facade)
+        page = await files.find('*.txt', '/context/notes', limit=1, cursor=first.next_cursor)
+        assert page.items[0]['path'] == '/context/notes' + paths[1]
+        assert page.next_cursor and page.total == 3
+
+
 @pytest.mark.asyncio
 async def test_root_and_context_original_reads(tmp_path):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:

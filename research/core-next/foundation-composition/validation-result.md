@@ -14,6 +14,12 @@
 
 相关回归：registration_ownership、kernel_interaction、kernel_interaction_review、kernel_composable、plugin_round_robin、plugin_social、social_composition、kernel_domain_revisions、kernel_record_plugin、skill_starter、kernel_memory、core_next_pilot，共 159 passed，退出 0。见[t01-focused.log](evidence/t01-focused.log)及[t01-focused.xml](evidence/t01-focused.xml)。完整命令可由上述文件列表组成 `python -m pytest ... -m 'not real_e2e'`，PYTHONPATH 取任务 src 和根目录。
 
-## 三、范围
+## 三、T02
+
+初次委托/工件测试 4 failed，另有两个原有测试通过；缺口准确落在 ActorStore 取 directory.store 和 find 调用 Thread 私有路径。另行直接运行原生只读 select，复现 StageReader 没有 run_id，1 failed。见[t02-red.log](evidence/t02-red.log)、[t02-readonly-red.log](evidence/t02-readonly-red.log)。
+
+实施后，相关回归包括 actor_directory_delegation、kernel_actors、kernel_actors_review、kernel_actor_fields、kernel_actor_fields_review、kernel_actor_files、kernel_actor_files_stateful、kernel_composable、kernel_selection 和 kernel_llm，共 111 passed，退出 0。见[t02-focused.log](evidence/t02-focused.log)与[t02-focused.xml](evidence/t02-focused.xml)。覆盖真实 SQL 无 store 门面、完整委托、驱动创建与标签拒绝、persona 独立门面、当前/固定只读分页、按键惰性字段、中文长结果跨 buffer、空结果、跨主体拒绝、scope 失效和完整点恢复。既有成本测试的插桩从显式 storage 服务取得，原断言保持。
+
+## 四、范围
 
 T01 结果证明当前共享登记和安装所有权行为。两阶段停止、完整公开配方、组合多来源认知以及独立跨进程 E2E 尚未实施，不计入当前通过。历史 SQL 来源缓存观察仍是前轮证据，推荐修复将在 T05 重新取得失败和通过结果。
