@@ -116,7 +116,7 @@ T09 已补齐 [注册与清单](../../../examples/core_next/composed_registratio
 
 用户额外授权一个部署子智能体处理 GPU 备用嵌入；其仅完成资源核实，四张 H200 利用率 88%—100%，拟选 CPU 小模型避免竞争。专属复用 SSH 路线持续出现 timeout/reset，缓存与空闲端口未核实，备用服务尚未部署。无依赖安装、新增显存、远端文件或共享服务变更；子智能体未写本仓库或文档，全部任务连接已退出。SiliconFlow 是本次实际可用的真实嵌入端点，备用部署需稳定的管理路线。
 
-T13 无仪表计时与独立进程冷恢复入口已实现，三模式的 timing／instrumented／cold 同业务内容与 step 2 快照逐字段相等。未采集字段为 null，源码身份相同才接受 cold resume，social hot rank=2、embedding hot embed=2 固定为已有基线。见 [入口合同](evidence/t13-entry-contract.json)。尚需固定双源、大历史五样本正式采样及 Next 合入推送。
+T13 无仪表计时与独立进程冷恢复入口已实现，三模式的 timing／instrumented／cold 同业务内容与 step 2 快照逐字段相等。未采集字段为 null，源码身份相同才接受 cold resume，social hot rank=2、embedding hot embed=2 固定为已有基线。见 [入口合同](evidence/t13-entry-contract.json)。固定双源正式采样已完成：12 个工作量运行、60 个无仪表样本、60 个独立解释器冷恢复，全部业务语义与恢复快照相等；详情、回退和测量边界见 [成本结果](cost-result.md)。剩余为 Next 合入推送与任务工作树清理。
 
 ## 十二、范围
 
