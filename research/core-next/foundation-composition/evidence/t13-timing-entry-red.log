@@ -1,0 +1,4 @@
+usage: core_composition_cost.py [-h] [--mode {rr,social,social_embedding}]
+                                [--history HISTORY] [--root ROOT] --output
+                                OUTPUT [--compare COMPARE COMPARE]
+core_composition_cost.py: error: unrecognized arguments: --measurement timing

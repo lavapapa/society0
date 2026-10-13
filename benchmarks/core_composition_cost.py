@@ -1,7 +1,7 @@
-"""7320b13 与组合改造后的同语义机制成本；仅离线确定性资源。"""
+"""固定双源的同语义机制成本；仪表、无仪表计时与独立进程恢复分别测量。"""
 import argparse
 import asyncio
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict, is_dataclass
 import json
 import os
@@ -28,10 +28,12 @@ def rss():
 
 class Meter:
     """复用既有 progress_handler、tracemalloc、ps/rusage 和目录字节口径。"""
-    def __init__(self, path):
+    def __init__(self, path, measurement='instrumented'):
         self.path, self.phases, self.active = path, {}, None
+        self.instrumented = measurement == 'instrumented'
 
     def connection(self, connection):
+        if not self.instrumented:return
         def progress():
             if self.active is not None:self.active['sql_vm_steps'] += 1
             return False
@@ -48,21 +50,24 @@ class Meter:
     def phase(self, name):
         from society0.kernel.storage import ReadView
         original = ReadView.read_blob
-        row = {'sql_vm_steps': 0, 'body_materialized_bytes': 0}
+        row = {'sql_vm_steps': 0 if self.instrumented else None,
+               'body_materialized_bytes': 0 if self.instrumented else None}
         def blob(view, *args, **kwargs):
             value = original(view, *args, **kwargs)
             row['body_materialized_bytes'] += len(value[0])
             return value
         before = disk(self.path); start_rss = rss()
-        tracemalloc.start(); tracemalloc.reset_peak()
+        if self.instrumented:
+            tracemalloc.start(); tracemalloc.reset_peak()
         wall, cpu = time.perf_counter(), time.process_time()
         self.active = row
         try:
-            with patch.object(ReadView, 'read_blob', blob):yield row
+            with patch.object(ReadView, 'read_blob', blob) if self.instrumented else nullcontext():yield row
         finally:
             row.update(wall_seconds=time.perf_counter()-wall, cpu_seconds=time.process_time()-cpu,
-                       python_peak_bytes=tracemalloc.get_traced_memory()[1])
-            self.active = None; tracemalloc.stop()
+                       python_peak_bytes=tracemalloc.get_traced_memory()[1] if self.instrumented else None)
+            self.active = None
+            if self.instrumented:tracemalloc.stop()
             after = disk(self.path)
             row.update(rss_before_bytes=start_rss, rss_after_bytes=rss(),
                        process_peak_rss_bytes=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * (1 if sys.platform == 'darwin' else 1024),
@@ -77,7 +82,25 @@ def plain(value):
     return value
 
 
-async def probe(path, *, mode, history):
+def snapshot(environment, mode, details=()):
+    if mode == 'rr':
+        value=environment.conversation_view('c')
+        value.pop('revision')
+        return value
+    return {'details':{str(key):environment.post_details(key) for key in details},
+            'notices':environment.notifications('b',include_consumed=True),
+            'recommended':{actor:environment.recommended_ids(actor) for actor in ('a','c')}}
+
+
+def source_identity():
+    import society0
+    source=Path(society0.__file__).resolve().parents[2]
+    return {'cwd':str(Path.cwd()),'source_root':str(source),'pythonpath':os.environ.get('PYTHONPATH'),
+            'head':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip(),
+            'status':subprocess.check_output(['git','-C',str(source),'status','--short'],text=True)}
+
+
+async def probe(path, *, mode, history, measurement='instrumented', resume_source=None, resume_step=None, source_result=None):
     from society0.kernel.actors import ActorRecord, actor_plugin
     from society0.kernel.composition import compose
     from society0.kernel.interaction import interaction_plugin, InteractionScope, Moment, Ref, Query
@@ -88,7 +111,7 @@ async def probe(path, *, mode, history):
     from tests.primary.test_kernel_memory import Embed, Client
     from types import SimpleNamespace
 
-    path = Path(path); meter = Meter(path); embed = Embed()
+    path = Path(path); meter = Meter(path,measurement); embed = Embed()
     body = '完整冷原文🙂' * 16384
     semantic = {}; counts = {'rank': 0}; embedding = mode == 'social_embedding'
     def resources(ctx):
@@ -104,6 +127,41 @@ async def probe(path, *, mode, history):
         return base + [Plugin('vectors', install=resources), social_plugin('abcd', edges=[('a','b')], config=config,
             content_length_limit=-1, **({'embedding': ('vectors','fixed'), 'vector_client': ('vectors','vector_client')} if embedding else {}))]
     scope = lambda actor: InteractionScope(actor, Moment(history+10, 'cost'))
+    async def continue_run(host, identifier):
+        environment=host.service('conversation' if mode == 'rr' else 'social','mechanism')
+        with meter.phase('continue'):
+            if mode == 'rr':semantic['continuation']=plain(environment.advance_round())
+            else:
+                semantic['continuation']=plain(environment.execute('comment','c',identifier,{'content':'恢复后完整评论'},history+11))
+                await environment.after_tick()
+                semantic['continued_detail']=environment.post_details(identifier)
+        with meter.phase('continued_complete'):host.service('storage','store').complete(3)
+    if resume_source is not None:
+        source_result=json.loads(source_result.read_text())
+        assert source_result['source']['head']==source_identity()['head'], 'cold resume must import the same source version'
+        assert (source_result['mode'],source_result['history'])==(mode,history)
+        assert resume_step==2
+        semantic=source_result['semantic'].copy()
+        apsw.connection_hooks.append(meter.connection)
+        try:
+            manager=compose(path/'run',plugins(),source=resume_source,step=resume_step)
+            with meter.phase('restore'):host=await manager.__aenter__()
+            try:
+                environment=host.service('conversation' if mode == 'rr' else 'social','mechanism')
+                with meter.phase('snapshot'):
+                    restored=snapshot(environment,mode,semantic.get('details',()))
+                assert restored==source_result['snapshot_step2']
+                await continue_run(host,source_result['business_id'])
+                assert semantic==source_result['semantic']
+            finally:
+                with meter.phase('restored_close'):await manager.__aexit__(None,None,None)
+        finally:apsw.connection_hooks.remove(meter.connection)
+        with meter.phase('encoding'):
+            encoded_bytes=len(json.dumps(plain(semantic),ensure_ascii=False).encode())
+        return {'mode':mode,'history':history,'measurement':measurement,'resume_probe':True,'semantic_encoded_bytes':encoded_bytes,'phases':meter.phases,
+                'restored_equal':True,'semantic':plain(semantic),'snapshot_step2':restored,
+                'business_id':source_result['business_id'],'source_run':str(resume_source),'resume_step':resume_step,
+                'limits':'Independent interpreter process; OS file cache retained. RSS peak is process lifetime. No real model/network.'}
     apsw.connection_hooks.append(meter.connection)
     try:
         manager = compose(path/'run', plugins())
@@ -145,7 +203,7 @@ async def probe(path, *, mode, history):
                 assert b''.join(parts)==body.encode()
                 semantic['original']=b''.join(parts).decode()
             if mode != 'rr':
-                owner = env.recommendations if hasattr(env,'recommendations') else env
+                owner = env.recommendations
                 original_rank = owner.rank
                 def rank(*args,**kwargs):
                     counts['rank']+=1
@@ -164,7 +222,10 @@ async def probe(path, *, mode, history):
                         cursors[actor]=page.next_cursor
                         pages.append({'actor':actor,'items':plain(page.items),'total':page.total})
                     semantic['pages']=pages
-            meter.phases['hot'].update(rank_calls=counts['rank'],embedding_calls=len(embed.calls)-calls_before)
+            hot_embeddings=len(embed.calls)-calls_before
+            assert counts['rank']==(0 if mode=='rr' else 2)
+            assert hot_embeddings==(2 if embedding else 0)
+            meter.phases['hot'].update(rank_calls=counts['rank'],embedding_calls=hot_embeddings)
             with meter.phase('presentation'):
                 if mode != 'rr':
                     semantic['shown']={actor:await env.recommended_feed(actor,history+10) for actor in ('a','c')}
@@ -173,37 +234,28 @@ async def probe(path, *, mode, history):
                     semantic['details']={key:env.post_details(key) for key in set(sum(semantic['exposure'].values(),[]))}
                 else:semantic['continued_message']=await send('完整续写消息')
             with meter.phase('complete'):store.complete(2)
-            def snapshot(environment):
-                if mode == 'rr':
-                    value=environment.conversation_view('c')
-                    value.pop('revision')  # 恢复产生新存储修订，业务内容保持逐项对照。
-                    return value
-                return {'details':{key:environment.post_details(key) for key in semantic['details']},
-                        'notices':environment.notifications('b',include_consumed=True),
-                        'recommended':{actor:environment.recommended_ids(actor) for actor in ('a','c')}}
-            expected=snapshot(env)
+            with meter.phase('snapshot'):
+                expected=snapshot(env,mode,semantic.get('details',()))
         finally:
             with meter.phase('close'):await manager.__aexit__(None,None,None)
         manager=compose(path/'restored',plugins(),source=path/'run')
         with meter.phase('restore'):host=await manager.__aenter__()
         try:
             env=host.service('conversation' if mode == 'rr' else 'social','mechanism')
-            restored_equal=snapshot(env)==expected
+            restored_equal=snapshot(env,mode,semantic.get('details',()))==expected
             assert restored_equal
-            with meter.phase('continue'):
-                if mode == 'rr':semantic['continuation']=env.advance_round()
-                else:
-                    semantic['continuation']=plain(env.execute('comment','c',identifier,{'content':'恢复后完整评论'},history+11))
-                    await env.after_tick()
-                    semantic['continued_detail']=env.post_details(identifier)
-            with meter.phase('continued_complete'):host.service('storage','store').complete(3)
+            await continue_run(host,identifier)
         finally:
             with meter.phase('restored_close'):await manager.__aexit__(None,None,None)
     finally:apsw.connection_hooks.remove(meter.connection)
-    return {'mode':mode,'history':history,'body_bytes':len(body.encode()),'phases':meter.phases,
+    with meter.phase('encoding'):
+        semantic=plain(semantic)
+        encoded_bytes=len(json.dumps(semantic,ensure_ascii=False).encode())
+    return {'mode':mode,'history':history,'measurement':measurement,'resume_probe':False,'semantic_encoded_bytes':encoded_bytes,'body_bytes':len(body.encode()),'phases':meter.phases,
+            'snapshot_step2':expected,'business_id':identifier,
             'restored_equal':restored_equal,'semantic':plain(semantic),'embedding_calls_total':len(embed.calls),
             'platform':platform.platform(),'python':platform.python_version(),
-            'limits':'Instrumented CPU/wall include per-VM Python callback and tracemalloc. RSS peak is process lifetime, not phase peak. Body bytes count SQL body/content cells plus blob reads, not disk IO. Restore uses new connections in same process; OS cache retained. Setup history uses canonical writers. No real model/network. Per-version semantic roots; cross-schema restore intentionally unsupported.'}
+            'limits':'Instrumented mode CPU/wall include per-VM callback and tracemalloc; timing mode installs no VM handler, row trace, blob patch or tracemalloc, unmeasured fields are null. RSS peak is process lifetime, not phase peak. Instrumented body bytes count SQL body/content cells plus blob reads, not disk IO. Hot restore uses new connections in same process; OS cache retained. Setup history uses canonical writers. No real model/network. Per-version semantic roots; cross-schema restore intentionally unsupported.'}
 
 
 def compare(before, after):
@@ -220,17 +272,24 @@ def main():
     parser.add_argument('--root',type=Path)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--compare',nargs=2,type=Path)
+    parser.add_argument('--measurement',choices=['instrumented','timing'],default='instrumented')
+    parser.add_argument('--resume-source',type=Path)
+    parser.add_argument('--resume-step',type=int)
+    parser.add_argument('--source-result',type=Path)
     args=parser.parse_args()
+    resume=(args.resume_source,args.resume_step,args.source_result)
+    if any(item is not None for item in resume) and not all(item is not None for item in resume):
+        parser.error('--resume-source, --resume-step and --source-result required together')
     if args.compare:
         result=compare(*(json.loads(p.read_text()) for p in args.compare))
     else:
         if not args.mode or not args.root:parser.error('--mode and --root required for a probe')
-        result=asyncio.run(probe(args.root,mode=args.mode,history=args.history))
-        import society0
-        source=Path(society0.__file__).resolve().parents[2]
-        result['source']={'cwd':str(Path.cwd()),'source_root':str(source),'pythonpath':os.environ.get('PYTHONPATH'),
-                          'head':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip(),
-                          'status':subprocess.check_output(['git','-C',str(source),'status','--short'],text=True)}
+        result=asyncio.run(probe(args.root,mode=args.mode,history=args.history,measurement=args.measurement,
+            resume_source=args.resume_source,resume_step=args.resume_step,source_result=args.source_result))
+        result['source']=source_identity()
+        if args.measurement=='timing':
+            assert all(phase['sql_vm_steps'] is None and phase['body_materialized_bytes'] is None and phase['python_peak_bytes'] is None
+                       for phase in result['phases'].values())
     args.output.parent.mkdir(parents=True,exist_ok=True)
     with args.output.open('x') as stream:json.dump(result,stream,ensure_ascii=False,indent=2)
     print(json.dumps({'output':str(args.output),'semantic_equal':result.get('semantic_equal'),'mode':result['mode'],'history':result['history']}))
