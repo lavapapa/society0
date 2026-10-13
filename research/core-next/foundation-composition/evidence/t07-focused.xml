@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="4" skipped="0" tests="57" time="5.665" timestamp="2026-10-13T14:48:00.327607+08:00" hostname="Marvin-MacBook-Pro.local"><testcase classname="tests.primary.test_social_cognition" name="test_actual_input_exposure_reactivation_and_complete_restore" time="0.163" /><testcase classname="tests.primary.test_social_cognition" name="test_input_serialization_failure_has_no_exposure_or_complete_point" time="0.082" /><testcase classname="tests.primary.test_social_cognition" name="test_social_perception_returns_source_batch_without_confirming_preview" time="0.037" /><testcase classname="tests.primary.test_social_cognition" name="test_social_source_exports_only_source_and_does_not_borrow_threads" time="0.044" /><testcase classname="tests.primary.test_social_cognition" name="test_cog_01_02_dual_sources_keep_independent_watermarks_full_sdk_input_and_phase_identity[order0]" time="0.099" /><testcase classname="tests.primary.test_social_cognition" name="test_cog_01_02_dual_sources_keep_independent_watermarks_full_sdk_input_and_phase_identity[order1]" time="0.086" /><testcase classname="tests.primary.test_social_cognition" name="test_cog_12_interleaved_dual_sources_acknowledge_each_actors_actual_thread_and_ids" time="0.055"><failure message="ValueError: serial phase capacity must be one">tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1250/test_cog_12_interleaved_dual_s0')
+
+    @pytest.mark.asyncio
+    async def test_cog_12_interleaved_dual_sources_acknowledge_each_actors_actual_thread_and_ids(tmp_path):
+        import asyncio
+        from society0.kernel.interaction import Moment
+        from society0.plugins.cognition import SourceSpec, cognition_plugin
+        from tests.primary.test_cognition_composition import request_texts
+        providers = []
+        entered = {actor: asyncio.Event() for actor in 'ab'}
+        release = asyncio.Event()
+        def install(ctx):
+            source = ctx.require('notice.source', 'source')
+            async def read(current, previous):
+                batch = source(current, previous)
+                entered[current.actor.id].set()
+                await release.wait()
+                return batch
+            ctx.provide('source', read)
+        configured = plugins(providers, capture_typed=True)
+        index = next(index for index, plugin in enumerate(configured) if plugin.name == 'cognition')
+        configured[index] = cognition_plugin(sources=(SourceSpec(SOCIAL_SOURCE_ID, ('social.source', 'source')), SourceSpec(NOTICE_SOURCE_ID, ('blocked_notice', 'source'))))
+        configured.append(Plugin('blocked_notice', ('notice.source',), install))
+        async with compose(tmp_path/'run', configured) as host:
+            social = host.service('social', 'mechanism')
+            post = social.execute('publish_post', 'c', 'c', {'content': '两主体共享完整社交正文'}, 0).value['post_id']
+            notes = host.service('notice.data', 'notifications')
+            notes.publish('a', '仅a的第一通知')
+            notes.publish('b', '仅b的第一通知')
+            notes.publish('a', '仅a的第二通知')
+            async def concurrent(context):
+                try:
+                    context.activate('a'); context.activate('b')
+                    await asyncio.wait_for(asyncio.gather(*(event.wait() for event in entered.values())), 10)
+                    release.set()
+                    await context.drain()
+                finally:
+                    release.set()
+&gt;           await host.service('runtime', 'runtime').run_step(1, 1, [Phase('read', concurrent, capacity=2)])
+                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:251: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+&lt;string&gt;:9: in __init__
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = Phase(name='read', run=&lt;function test_cog_12_interleaved_dual_sources_acknowledge_each_actors_actual_thread_and_ids.&lt;locals&gt;.concurrent at 0x10bd88860&gt;, prepare=None, execution='serial', incomplete='fail_step', capacity=2)
+
+    def __post_init__(self):
+        if self.execution not in ('serial', 'independent'):
+            raise ValueError('phase execution must be serial or independent')
+        if self.incomplete not in ('fail_step', 'collect'):
+            raise ValueError('incomplete policy must be fail_step or collect')
+        if self.capacity is not None:
+            if type(self.capacity) is not int or self.capacity &lt; 1:
+                raise ValueError('phase capacity must be a positive integer')
+            if self.execution == 'serial' and self.capacity != 1:
+&gt;               raise ValueError('serial phase capacity must be one')
+E               ValueError: serial phase capacity must be one
+
+src/society0/kernel/runtime.py:65: ValueError</failure></testcase><testcase classname="tests.primary.test_social_cognition" name="test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore[extension]" time="0.065"><failure message="society0.kernel.storage.StorageError: store unavailable; restore required">tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1250/test_cog_10_runtime_discards_u0')
+failure = 'extension'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure', ['extension', 'provider', 'before_publish'])
+    async def test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore(tmp_path, failure):
+        from contextlib import asynccontextmanager
+        from society0.kernel.interaction import Moment
+        providers = []
+        configured = plugins(providers, capture_typed=True)
+        if failure == 'extension':
+            @asynccontextmanager
+            async def bad_extension(context):
+                context.messages.append({'role': 'user', 'content': object()})
+                yield
+            def install(ctx):
+                ctx.provide('extension', bad_extension)
+            configured.append(Plugin('bad_extension', install=install))
+            index = next(index for index, plugin in enumerate(configured) if plugin.name == 'driver')
+            configured[index] = llm_driver_plugin(provider=('provider', 'provider'), input_builder=('cognition', 'input_builder'),
+                extensions=(('bad_extension', 'extension'),), name='driver')
+        async with compose(tmp_path/'run', configured) as host:
+            social = host.service('social', 'mechanism')
+            post = social.execute('publish_post', 'b', 'b', {'content': '完整点中的社交正文'}, 0).value['post_id']
+            notes = host.service('notice.data', 'notifications')
+            notes.publish('a', '完整点中的通知正文')
+            runtime = host.service('runtime', 'runtime')
+            await runtime.run_step(1, 0, [])
+            if failure == 'provider':
+                async def unavailable(*args, **kwargs):
+                    raise RuntimeError('provider failed')
+                providers[0].request_model = unavailable
+            async def read(context):
+                context.activate('a'); await context.drain()
+                if failure == 'before_publish':
+                    raise RuntimeError('stopped before publish')
+            with pytest.raises(TypeError if failure == 'extension' else RuntimeError):
+                await runtime.run_step(2, 1, [Phase('read', read)])
+            assert host.service('storage', 'store').complete_step == 1
+            threads = host.service('threads', 'threads')
+&gt;           tid = threads.find('a', Moment(1, 'read'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:102: in find
+    rows = self.store.read(lambda view:view.query('SELECT id FROM thread_heads WHERE actor=? AND moment=? AND kind=? ORDER BY ordinal DESC LIMIT 1', (actor,key,kind)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:487: in read
+    self._check()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;society0.kernel.storage.StageStore object at 0x10c070e60&gt;
+allow_failed = False
+
+    def _check(self, *, allow_failed=False):
+        if self._closed or (self._failed and not allow_failed):
+&gt;           raise StorageError('store unavailable; restore required')
+E           society0.kernel.storage.StorageError: store unavailable; restore required
+
+src/society0/kernel/storage.py:448: StorageError</failure></testcase><testcase classname="tests.primary.test_social_cognition" name="test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore[provider]" time="0.061"><failure message="society0.kernel.storage.StorageError: store unavailable; restore required">tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1250/test_cog_10_runtime_discards_u1')
+failure = 'provider'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure', ['extension', 'provider', 'before_publish'])
+    async def test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore(tmp_path, failure):
+        from contextlib import asynccontextmanager
+        from society0.kernel.interaction import Moment
+        providers = []
+        configured = plugins(providers, capture_typed=True)
+        if failure == 'extension':
+            @asynccontextmanager
+            async def bad_extension(context):
+                context.messages.append({'role': 'user', 'content': object()})
+                yield
+            def install(ctx):
+                ctx.provide('extension', bad_extension)
+            configured.append(Plugin('bad_extension', install=install))
+            index = next(index for index, plugin in enumerate(configured) if plugin.name == 'driver')
+            configured[index] = llm_driver_plugin(provider=('provider', 'provider'), input_builder=('cognition', 'input_builder'),
+                extensions=(('bad_extension', 'extension'),), name='driver')
+        async with compose(tmp_path/'run', configured) as host:
+            social = host.service('social', 'mechanism')
+            post = social.execute('publish_post', 'b', 'b', {'content': '完整点中的社交正文'}, 0).value['post_id']
+            notes = host.service('notice.data', 'notifications')
+            notes.publish('a', '完整点中的通知正文')
+            runtime = host.service('runtime', 'runtime')
+            await runtime.run_step(1, 0, [])
+            if failure == 'provider':
+                async def unavailable(*args, **kwargs):
+                    raise RuntimeError('provider failed')
+                providers[0].request_model = unavailable
+            async def read(context):
+                context.activate('a'); await context.drain()
+                if failure == 'before_publish':
+                    raise RuntimeError('stopped before publish')
+            with pytest.raises(TypeError if failure == 'extension' else RuntimeError):
+                await runtime.run_step(2, 1, [Phase('read', read)])
+            assert host.service('storage', 'store').complete_step == 1
+            threads = host.service('threads', 'threads')
+&gt;           tid = threads.find('a', Moment(1, 'read'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:102: in find
+    rows = self.store.read(lambda view:view.query('SELECT id FROM thread_heads WHERE actor=? AND moment=? AND kind=? ORDER BY ordinal DESC LIMIT 1', (actor,key,kind)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:487: in read
+    self._check()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;society0.kernel.storage.StageStore object at 0x10c029d00&gt;
+allow_failed = False
+
+    def _check(self, *, allow_failed=False):
+        if self._closed or (self._failed and not allow_failed):
+&gt;           raise StorageError('store unavailable; restore required')
+E           society0.kernel.storage.StorageError: store unavailable; restore required
+
+src/society0/kernel/storage.py:448: StorageError</failure></testcase><testcase classname="tests.primary.test_social_cognition" name="test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore[before_publish]" time="0.060"><failure message="society0.kernel.storage.StorageError: store unavailable; restore required">tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1250/test_cog_10_runtime_discards_u2')
+failure = 'before_publish'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('failure', ['extension', 'provider', 'before_publish'])
+    async def test_cog_10_runtime_discards_unpublished_dual_source_input_and_effects_on_restore(tmp_path, failure):
+        from contextlib import asynccontextmanager
+        from society0.kernel.interaction import Moment
+        providers = []
+        configured = plugins(providers, capture_typed=True)
+        if failure == 'extension':
+            @asynccontextmanager
+            async def bad_extension(context):
+                context.messages.append({'role': 'user', 'content': object()})
+                yield
+            def install(ctx):
+                ctx.provide('extension', bad_extension)
+            configured.append(Plugin('bad_extension', install=install))
+            index = next(index for index, plugin in enumerate(configured) if plugin.name == 'driver')
+            configured[index] = llm_driver_plugin(provider=('provider', 'provider'), input_builder=('cognition', 'input_builder'),
+                extensions=(('bad_extension', 'extension'),), name='driver')
+        async with compose(tmp_path/'run', configured) as host:
+            social = host.service('social', 'mechanism')
+            post = social.execute('publish_post', 'b', 'b', {'content': '完整点中的社交正文'}, 0).value['post_id']
+            notes = host.service('notice.data', 'notifications')
+            notes.publish('a', '完整点中的通知正文')
+            runtime = host.service('runtime', 'runtime')
+            await runtime.run_step(1, 0, [])
+            if failure == 'provider':
+                async def unavailable(*args, **kwargs):
+                    raise RuntimeError('provider failed')
+                providers[0].request_model = unavailable
+            async def read(context):
+                context.activate('a'); await context.drain()
+                if failure == 'before_publish':
+                    raise RuntimeError('stopped before publish')
+            with pytest.raises(TypeError if failure == 'extension' else RuntimeError):
+                await runtime.run_step(2, 1, [Phase('read', read)])
+            assert host.service('storage', 'store').complete_step == 1
+            threads = host.service('threads', 'threads')
+&gt;           tid = threads.find('a', Moment(1, 'read'))
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/primary/test_social_cognition.py:307: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/society0/kernel/threads.py:102: in find
+    rows = self.store.read(lambda view:view.query('SELECT id FROM thread_heads WHERE actor=? AND moment=? AND kind=? ORDER BY ordinal DESC LIMIT 1', (actor,key,kind)))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/society0/kernel/storage.py:487: in read
+    self._check()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;society0.kernel.storage.StageStore object at 0x10bccd940&gt;
+allow_failed = False
+
+    def _check(self, *, allow_failed=False):
+        if self._closed or (self._failed and not allow_failed):
+&gt;           raise StorageError('store unavailable; restore required')
+E           society0.kernel.storage.StorageError: store unavailable; restore required
+
+src/society0/kernel/storage.py:448: StorageError</failure></testcase><testcase classname="tests.primary.test_cognition_oracle_review" name="test_discarded_cognitive_batch_does_not_expose_unpresented_posts" time="0.057" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_same_moment_metadata_order_and_full_history_persist" time="0.095" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_cognitive_thread_and_exposure_restore_in_new_process" time="1.455" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_composed_receipt_effect_and_complete_boundary[None]" time="0.096" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_composed_receipt_effect_and_complete_boundary[serialization]" time="0.084" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_composed_receipt_effect_and_complete_boundary[effect]" time="0.078" /><testcase classname="tests.primary.test_cognition_oracle_review" name="test_common_social_protocol_detects_changed_action_outcome" time="0.607" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_03_uninitialized_and_saved_empty_positions_are_distinct[None]" time="0.001" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_03_uninitialized_and_saved_empty_positions_are_distinct[0]" time="0.001" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_03_uninitialized_and_saved_empty_positions_are_distinct[position2]" time="0.001" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_direct_composition_rejects_bad_ids[sources0]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_direct_composition_rejects_bad_ids[sources1]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_direct_composition_rejects_bad_ids[sources2]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_bad_source_references_fail_before_install[reference0]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_bad_source_references_fail_before_install[reference1]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_bad_source_references_fail_before_install[reference2]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_bad_source_references_fail_before_install[reference3]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_bad_source_references_fail_before_install[reference4]" time="0.000" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_05_duplicate_missing_service_and_nonmapping_cursor_fail" time="0.027" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_06_second_source_failure_never_commits_or_confirms[error]" time="0.026" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_06_second_source_failure_never_commits_or_confirms[cancel]" time="0.027" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[False-first_message]" time="0.026" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[False-last_message]" time="0.026" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[False-cursor]" time="0.026" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[False-context]" time="0.024" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[True-first_message]" time="0.028" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[True-last_message]" time="0.027" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[True-cursor]" time="0.028" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_07_input_serialization_is_atomic_and_has_no_effects[True-context]" time="0.028" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_08_discarded_batch_has_no_effects_and_no_saved_position" time="0.032" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_01_09_effects_see_saved_context_messages_and_positions_before_provider" time="0.033" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_04_notification_instances_default_to_distinct_schema_and_explicit_service_refs" time="0.035" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_09_duplicate_receipt_is_an_error_and_failed_acknowledgement_rolls_back" time="0.034" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_02_04_13_independent_positions_survive_phase_return_omission_and_reintroduction" time="0.091" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_13_new_position_semantics_use_new_id_and_keep_old_key_and_history" time="0.095" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[error-first_before]" time="0.050" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[error-first_after]" time="0.055" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[error-second_before]" time="0.054" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[error-second_after]" time="0.053" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[cancel-first_before]" time="0.053" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[cancel-first_after]" time="0.051" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[cancel-second_before]" time="0.047" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_10_callback_failure_recovers_both_positions_and_receipts_from_complete[cancel-second_after]" time="0.050" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_11_ordered_extensions_and_actual_memory_see_full_composed_input" time="0.045" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_16_cognition_import_keeps_rule_public_path_free_of_optional_dependencies" time="0.115" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_16_notice_increment_and_composer_do_not_scan_saved_thread_history" time="0.275" /><testcase classname="tests.primary.test_cognition_composition" name="test_cog_12_shared_builder_keeps_interleaved_actors_effects_and_positions_local" time="0.034" /></testsuite></testsuites>

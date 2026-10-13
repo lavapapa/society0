@@ -62,7 +62,21 @@ plugins = [
 
 页面查询不登记曝光。`recommended_feed` 按配置 post_count 取得完整帖子并默认登记曝光；预览调用可显式关闭这一效果。传输页大小、预览字符配置均不改变可继续取得的完整集合、原文字节与九项 weighted 评分。
 
-`social_cognition_plugin` 提供 `input_builder`，包装 CognitiveInput，供 LLM 驱动显式绑定。Thread 中的感知位置保存 `seen`、`visible` 和 `recommended`：新帖提供完整详情，已见帖提供变化的元数据，推荐顺序变化保留新 id 序列。同 Moment 重激活与完整点恢复延续该位置，既有原文继续保留在完整 Thread。曝光及推荐 id 更新通过批次 `effects` 延后到实际追加成功之后，见 [认知合同](cognition-contract.md)。直接调用其 `perception` 服务生成材料保持无呈现效果。
+`social_source_plugin` 导出 `source` 服务，借用 recommendation/content/exposure/data；Thread 和环境文案由 cognition_plugin 统一装配。来源接收 SourcePosition，返回 SourceBatch；其原始位置保留 `seen`、`visible`、`recommended`：新帖给出完整详情，已见帖给出改变的元数据，次序变化保留新 id 序列。曝光与推荐 id 的 effects 使用同一次读取计算的 fresh/ids，保存成功后确认。单纯构建 SourceBatch 保持只读。
+
+```python
+from society0.plugins import cognition_plugin, social_source_plugin
+from society0.plugins.cognition import SourceSpec
+
+plugins += [
+    social_source_plugin(),
+    cognition_plugin(sources=(SourceSpec('social.main.v1', ('social.source', 'source')),),
+                     environment='共享社交环境'),
+]
+# LLM 驱动绑定 input_builder=('cognition', 'input_builder')。
+```
+
+组合 consumer 默认为 operating_context，游标形状为 `{'position': {'social.main.v1': {'seen': ..., 'visible': ..., 'recommended': ...}}}`；新增通知等来源分别增加自己的键。同 Moment 重激活、阶段往返和可信完整点恢复保持原 Thread 及各来源水位，全部旧原文保留。启用、次序与位置语义变更使用新 Run 配方，见 [认知合同](cognition-contract.md)。
 
 ## 四、完整步骤与资源
 
