@@ -81,6 +81,23 @@ def stable_messages(typed):
 
 
 def validate(path, *, case, compare=None, failed=None):
+    if case in ('actor-directory', 'artifact-read', 'recommendation'):
+        manifest = json.loads((Path(path)/'runner.json').read_text(encoding='utf-8'))
+        config = manifest['contract']['configuration']
+        if case == 'recommendation':
+            from examples.core_next.composed_recommendation import validate as domain_validate, compare as domain_compare
+            checks = domain_validate(path)
+            if compare is not None: checks.extend(domain_compare(compare, path))
+        else:
+            from examples.core_next.composed_directory_artifacts import validate as domain_validate, compare as domain_compare
+            checks = domain_validate(path)
+            if compare is not None: checks.extend(domain_compare(compare, path))
+        checks.insert(0, {'id': 'case', 'passed': case == config['case'], 'expected': case, 'actual': config['case'],
+                          'location': 'runner.json/contract/configuration/case'})
+        with StageReader(path) as reader:
+            run_id = reader.read(lambda view: view.run_id)
+        return {'format': 1, 'case': case, 'variant': config['variant'], 'source_commit': manifest['contract']['release']['commit'],
+                'run_id': run_id, 'checks': checks, 'first_difference': next((check for check in checks if not check['passed']), None)}
     run = read_run(path)
     config = run['config']
     checks = []
@@ -182,18 +199,22 @@ def main():
     parser = argparse.ArgumentParser(description='只读核对公共组合运行的请求、来源位置与恢复事实')
     parser.add_argument('--case', required=True)
     parser.add_argument('--run', required=True, type=Path)
-    parser.add_argument('--compare', type=Path)
+    parser.add_argument('--continuous', type=Path)
+    parser.add_argument('--output', type=Path)
     parser.add_argument('--failed-run', type=Path)
     args = parser.parse_args()
     try:
-        result = validate(args.run, case=args.case, compare=args.compare, failed=args.failed_run)
+        result = validate(args.run, case=args.case, compare=args.continuous, failed=args.failed_run)
+        status = 0 if result['first_difference'] is None else 1
     except (FileNotFoundError, KeyError, ValueError) as error:
-        print(json.dumps({'format': 1, 'case': args.case, 'variant': None, 'source_commit': None, 'run_id': None,
+        result = {'format': 1, 'case': args.case, 'variant': None, 'source_commit': None, 'run_id': None,
             'checks': [], 'first_difference': {'id': 'input', 'passed': False, 'expected': 'complete public artifacts',
-                'actual': type(error).__name__, 'location': str(args.run)}}, ensure_ascii=False))
-        return 2
-    print(json.dumps(result, ensure_ascii=False))
-    return 0 if result['first_difference'] is None else 1
+                'actual': type(error).__name__, 'location': str(args.run)}}
+        status = 2
+    payload = json.dumps(result, ensure_ascii=False)
+    if args.output is not None: args.output.write_text(payload+'\n', encoding='utf-8')
+    print(payload)
+    return status
 
 
 if __name__ == '__main__':

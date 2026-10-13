@@ -31,7 +31,7 @@ def config(**extra):
 
 def verify(run, *, case='multi-source', compare=None, failed=None):
     args = [sys.executable, '-m', 'tests.e2e.core_next_composition_assertions', '--case', case, '--run', str(run)]
-    if compare is not None: args += ['--compare', str(compare)]
+    if compare is not None: args += ['--continuous', str(compare)]
     if failed is not None: args += ['--failed-run', str(failed)]
     result = subprocess.run(args, cwd=ROOT, env=os.environ.copy(), text=True, capture_output=True)
     assert result.returncode == 0, result.stdout+'\n'+result.stderr
