@@ -42,6 +42,38 @@ def verify(run, *, case='multi-source', compare=None, failed=None):
     return report
 
 
+def test_cost_capture_disabled_keeps_full_thread_and_business_facts(tmp_path):
+    from society0.kernel.storage import StageReader
+    from society0.kernel.threads import ThreadStore
+    from .core_next_composition_assertions import stable_messages
+    full,first=cli(tmp_path,'full',config())
+    cost,second=cli(tmp_path,'cost',config(capture=False))
+    assert first.returncode==second.returncode==0,first.stdout+second.stdout
+    projected=[]
+    business=[]
+    for path in (full,cost):
+        with StageReader(path) as reader:
+            threads=ThreadStore(reader)
+            head=threads.list_threads(limit=1)['items'][0]
+            messages=threads.snapshot_messages(head['id'],raw=True)['messages']
+            # 单独验证原 Thread 全消息，逐字段除去已知生成时间和各运行Thread identity。
+            from society0.kernel.model_messages import history
+            typed=history(messages)
+            from pydantic_ai.messages import ModelMessagesTypeAdapter
+            projected.append(stable_messages(ModelMessagesTypeAdapter.dump_python(typed,mode='json')))
+            receipts=reader.read(lambda view:view.query('SELECT actor,thread_id,notice_id FROM "notice.data_receipts" ORDER BY actor,notice_id'))
+            assert all(row[1]==head['id'] for row in receipts)
+            business.append((reader.read(lambda view:view.complete_step),threads.input_cursor(head['id'],'operating_context'),
+                reader.read(lambda view:view.query('SELECT * FROM social_posts ORDER BY id')),
+                [(actor,notice) for actor,thread,notice in receipts]))
+            if path==cost:
+                assert reader.read(lambda view:view.query('SELECT count(*) FROM composition_requests')[0][0])==0
+                assert reader.read(lambda view:view.query('SELECT count(*) FROM composition_observations')[0][0])==0
+                assert reader.read(lambda view:view.query('SELECT count(*) FROM composition_outcomes')[0][0])==0
+    assert projected[0]==projected[1]
+    assert business[0]==business[1]
+
+
 def test_e2e_02_06_two_real_processes_preserve_dual_source_requests_and_exclude_partial_write(tmp_path):
     continuous, first = cli(tmp_path, 'continuous', config())
     assert first.returncode == 0, first.stdout+'\n'+first.stderr

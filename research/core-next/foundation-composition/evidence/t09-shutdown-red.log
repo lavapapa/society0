@@ -1,0 +1,28 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.12, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/marvin/Documents/同花顺（2）/research/simulation/society0-foundation-worktree
+configfile: pytest.ini
+plugins: hypothesis-6.168.3, asyncio-1.4.0, anyio-4.14.2
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 12 items / 11 deselected / 1 selected
+
+tests/e2e/test_core_next_composed_shutdown_extensions.py F               [100%]
+
+=================================== FAILURES ===================================
+_ test_shutdown_public_cli_cancels_pending_step_then_closes_all[runtime-first] _
+
+tmp_path = PosixPath('/private/tmp/society0-t09-red/test_shutdown_public_cli_cance0')
+variant = 'runtime-first'
+
+    @pytest.mark.parametrize('variant', ['runtime-first', 'worker-first', 'runtime-error', 'worker-error'])
+    def test_shutdown_public_cli_cancels_pending_step_then_closes_all(tmp_path, variant):
+        output, result = launch(tmp_path, 'shutdown', variant)
+>       assert result.returncode != 0, result.stdout
+E       AssertionError: {"run_id": "7bfb3fd616e74fb2886ba124555bbaee", "status": "completed", "complete_step": 2, "diagnostic_errors": 0}
+E         
+E       assert 0 != 0
+E        +  where 0 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...: "7bfb3fd616e74fb2886ba124555bbaee", "status": "completed", "complete_step": 2, "diagnostic_errors": 0}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composed_shutdown_extensions.py:40: AssertionError
+---------------- generated xml file: /tmp/society0-t09-red.xml -----------------
+======================= 1 failed, 11 deselected in 0.43s =======================

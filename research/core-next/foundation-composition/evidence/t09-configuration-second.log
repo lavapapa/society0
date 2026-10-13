@@ -1,0 +1,48 @@
+..........FFF                                                            [100%]
+=================================== FAILURES ===================================
+_______ test_configuration_public_legal_plan_restores[legal-two-graphs] ________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega0')
+variant = 'legal-two-graphs'
+
+    @pytest.mark.parametrize('variant',('legal-two-graphs','external-directory','base-only'))
+    def test_configuration_public_legal_plan_restores(tmp_path,variant):
+        run,result=cli(tmp_path,'run',config(case='configuration',variant=variant))
+>       assert result.returncode==0,result.stdout+result.stderr
+E       AssertionError: {"error": {"code": "AttributeError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega0/run"}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega0/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composed_configuration.py:33: AssertionError
+______ test_configuration_public_legal_plan_restores[external-directory] _______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega1')
+variant = 'external-directory'
+
+    @pytest.mark.parametrize('variant',('legal-two-graphs','external-directory','base-only'))
+    def test_configuration_public_legal_plan_restores(tmp_path,variant):
+        run,result=cli(tmp_path,'run',config(case='configuration',variant=variant))
+>       assert result.returncode==0,result.stdout+result.stderr
+E       AssertionError: {"error": {"code": "AttributeError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega1/run"}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega1/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composed_configuration.py:33: AssertionError
+___________ test_configuration_public_legal_plan_restores[base-only] ___________
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega2')
+variant = 'base-only'
+
+    @pytest.mark.parametrize('variant',('legal-two-graphs','external-directory','base-only'))
+    def test_configuration_public_legal_plan_restores(tmp_path,variant):
+        run,result=cli(tmp_path,'run',config(case='configuration',variant=variant))
+>       assert result.returncode==0,result.stdout+result.stderr
+E       AssertionError: {"error": {"code": "AttributeError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega2/run"}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1281/test_configuration_public_lega2/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composed_configuration.py:33: AssertionError
+3 failed, 10 passed in 4.68s

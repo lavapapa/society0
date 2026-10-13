@@ -81,10 +81,37 @@ def stable_messages(typed):
 
 
 def validate(path, *, case, compare=None, failed=None):
-    if case in ('actor-directory', 'artifact-read', 'recommendation'):
+    if case in ('registration','manifest','shutdown','extensions'):
+        if case in ('registration','manifest'):
+            from examples.core_next.composed_registration_manifest import validate as domain_validate, compare as domain_compare
+            evidence=[json.loads(line) for line in (Path(path)/'composition-evidence.jsonl').read_text(encoding='utf-8').splitlines()]
+            config=evidence[0]['config']
+        else:
+            from examples.core_next.composed_shutdown_extensions import validate as domain_validate, compare as domain_compare
+            config=json.loads((Path(path)/'runner.json').read_text(encoding='utf-8'))['contract']['configuration']
+        checks=domain_validate(path)
+        if compare is not None: checks.extend(domain_compare(compare,path))
+        with StageReader(path) as reader: run_id=reader.read(lambda view:view.run_id)
+        checks.insert(0,{'id':'case','passed':case==config['case'],'expected':case,'actual':config['case'],'location':'configuration/case'})
+        return {'format':1,'case':case,'variant':config['variant'],'source_commit':config['release']['commit'],
+            'run_id':run_id,'checks':checks,'first_difference':next((check for check in checks if not check['passed']),None)}
+    manifest=json.loads((Path(path)/'runner.json').read_text(encoding='utf-8'))
+    config=manifest['contract']['configuration']
+    if case=='multi-source' and config['variant'] in ('empty-values','concurrent','moment-switch'):
+        from examples.core_next.composed_source_edges import validate as edge_validate,compare as edge_compare
+        checks=edge_validate(path)
+        if compare is not None:checks.extend(edge_compare(compare,path))
+        with StageReader(path) as reader: run_id=reader.read(lambda view:view.run_id)
+        return {'format':1,'case':case,'variant':config['variant'],'source_commit':manifest['contract']['release']['commit'],
+            'run_id':run_id,'checks':checks,'first_difference':next((check for check in checks if not check['passed']),None)}
+    if case in ('actor-directory', 'artifact-read', 'recommendation', 'configuration'):
         manifest = json.loads((Path(path)/'runner.json').read_text(encoding='utf-8'))
         config = manifest['contract']['configuration']
-        if case == 'recommendation':
+        if case == 'configuration':
+            from examples.core_next.composed_configuration import validate as domain_validate, compare as domain_compare
+            checks = domain_validate(path)
+            if compare is not None: checks.extend(domain_compare(compare, path))
+        elif case == 'recommendation':
             from examples.core_next.composed_recommendation import validate as domain_validate, compare as domain_compare
             checks = domain_validate(path)
             if compare is not None: checks.extend(domain_compare(compare, path))
@@ -198,13 +225,23 @@ def validate(path, *, case, compare=None, failed=None):
 def main():
     parser = argparse.ArgumentParser(description='只读核对公共组合运行的请求、来源位置与恢复事实')
     parser.add_argument('--case', required=True)
-    parser.add_argument('--run', required=True, type=Path)
+    parser.add_argument('--run', type=Path)
+    parser.add_argument('--config', type=Path)
+    parser.add_argument('--log', type=Path)
+    parser.add_argument('--exit-code', type=int)
     parser.add_argument('--continuous', type=Path)
     parser.add_argument('--output', type=Path)
     parser.add_argument('--failed-run', type=Path)
     args = parser.parse_args()
     try:
-        result = validate(args.run, case=args.case, compare=args.continuous, failed=args.failed_run)
+        if args.config is not None or args.log is not None or args.exit_code is not None:
+            if args.case!='configuration' or args.config is None or args.log is None or args.exit_code is None:
+                raise ValueError('startup validation requires configuration case, config, log and exit-code')
+            from examples.core_next.composed_configuration import validate_negative
+            result = validate_negative(args.config,args.log,args.exit_code,args.run)
+        else:
+            if args.run is None: raise ValueError('run artifact directory is required')
+            result = validate(args.run, case=args.case, compare=args.continuous, failed=args.failed_run)
         status = 0 if result['first_difference'] is None else 1
     except (FileNotFoundError, KeyError, ValueError) as error:
         result = {'format': 1, 'case': args.case, 'variant': None, 'source_commit': None, 'run_id': None,

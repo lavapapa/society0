@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_source_edge_batches_preserve_full_requests_and_restore[empty-values] ___
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1291/test_source_edge_batches_prese0')
+variant = 'empty-values'
+
+    @pytest.mark.parametrize('variant',('empty-values','concurrent'))
+    def test_source_edge_batches_preserve_full_requests_and_restore(tmp_path,variant):
+        continuous,result=cli(tmp_path,'continuous',config(variant=variant,sources=['position.a.v1','position.b.v1']))
+>       assert result.returncode==0,result.stdout+result.stderr
+E       AssertionError: {"error": {"code": "ValueError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1291/test_source_edge_batches_prese0/continuous"}
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...nvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1291/test_source_edge_batches_prese0/continuous"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composed_source_edges.py:9: AssertionError
+1 failed, 2 deselected in 0.32s
