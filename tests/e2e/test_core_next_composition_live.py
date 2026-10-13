@@ -48,15 +48,18 @@ def assert_live(run,end,variant):
         bodies=[original('social',1,1),original('social',1,2),*(original('social',number,2) for number in range(2,end+1)),
                 *(original('notice',number) for number in range(1,end+1))]
         assert all(sum(contains_original(body,text) for text in last)==1 for body in bodies)
-        for row in sdk:
+        manifest=json.loads((run/'runner.json').read_text(encoding='utf-8'))
+        provider=manifest['contract']['configuration']['provider_profile']['endpoints'][0]['provider_type']
+        schemas=[[tool if provider in ('openai-codex','openai-responses','siwc') else tool['function'] for tool in row['tools']] for row in sdk]
+        for row,tools in zip(sdk,schemas):
             assert row['tool_choice']=='auto' and row['parallel_tool_calls'] is False
             assert row['stream'] is True
-            assert row['tools'] and all(tool['function']['parameters'] for tool in row['tools'])
+            assert tools and all(tool['parameters'] for tool in tools)
         if variant=='interview':
             assert all(isinstance(row['value']['result']['measurement'],str) and row['value']['result']['measurement'] for row in outcomes)
         else:
             assert all(row['value']['action_counts'].get('social.publish_post',0)>=1 for row in outcomes)
-            assert all([tool['function']['name'] for tool in row['tools']]==['action_find','action_describe','action_invoke','ls','read','find','grep'] for row in sdk)
+            assert all([tool['name'] for tool in tools]==['action_find','action_describe','action_invoke','ls','read','find','grep'] for tools in schemas)
         return tid
 
 
@@ -66,6 +69,7 @@ def test_live_composed_interview_and_new_process_restore():
     root.mkdir(parents=True,exist_ok=False)
     failed,result=launch(root,'failed','interview',end=2,fault='after-callback-partial-write')
     assert result.returncode==1,result.stdout+result.stderr
+    assert json.loads((failed/'runner-status.json').read_text(encoding='utf-8'))['error']=='CompositionFault'
     with StageReader(failed) as reader:
         assert reader.read(lambda view:view.complete_step)==1
         failure_tid=reader.read(lambda view:view.query('SELECT thread_id FROM composition_requests LIMIT 1'))[0][0]

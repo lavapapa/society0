@@ -16,3 +16,15 @@ def test_llm_only_configuration_does_not_require_or_install_embedding(monkeypatc
     assert 'api_key' not in public_profile(actual)['llm']['endpoints'][0]
     with pytest.raises(ValueError,match='SOCIETY0_REAL_EMBED_URL'):
         configuration()
+
+
+def test_codex_subscription_configuration_uses_oauth_contract(monkeypatch,tmp_path):
+    monkeypatch.setenv('SOCIETY0_REAL_RELEASE','fixed-test-source')
+    monkeypatch.setenv('SOCIETY0_REAL_OUTPUT',str(tmp_path))
+    monkeypatch.setenv('SOCIETY0_REAL_LLM_MODEL','gpt-6.1-sol')
+    monkeypatch.setenv('SOCIETY0_REAL_LLM_PROVIDER','openai-codex')
+    for suffix in ('URL','KEY'):
+        monkeypatch.delenv('SOCIETY0_REAL_LLM_'+suffix,raising=False)
+    endpoint=configuration(embedding=False)['llm']['endpoints'][0]
+    assert endpoint['provider_type']=='openai-codex'
+    assert 'api_key' not in endpoint and 'base_url' not in endpoint

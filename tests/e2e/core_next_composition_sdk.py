@@ -55,11 +55,12 @@ def build_with_profile(config,profile,*,offline):
             original_start=endpoint.start
             async def start(endpoint=endpoint,original_start=original_start):
                 await original_start()
-                original_create=endpoint.client.chat.completions.create
+                api=endpoint.client.responses if endpoint.kind in ('openai-responses','siwc','openai-codex') else endpoint.client.chat.completions
+                original_create=api.create
                 async def create(**kwargs):
                     provider.record(kwargs)
                     return await original_create(**kwargs)
-                endpoint.client.chat.completions.create=create
+                api.create=create
                 if offline:
                     import httpx2
                     async def respond(request):

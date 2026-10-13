@@ -1,0 +1,27 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_native_codex_provider_owns_dedicated_http_and_preserves_adapter _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bd1fd70>
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1272/test_native_codex_provider_own0')
+
+    @pytest.mark.asyncio
+    async def test_native_codex_provider_owns_dedicated_http_and_preserves_adapter(monkeypatch,tmp_path):
+        from pydantic_ai.providers import openai_codex
+        from pydantic_ai.models.openai_codex import OpenAICodexModel
+        credentials=openai_codex.OpenAICodexCredentials(access_token='test-only-access',refresh_token='test-only-refresh',account_id='test-only-account')
+        monkeypatch.setattr(openai_codex,'_read_codex_cli_credentials',lambda:credentials)
+>       store=StageStore(tmp_path/'run')
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: StageStore() takes no arguments
+
+tests/primary/test_kernel_codex_provider.py:14: TypeError
+_________ test_codex_subscription_does_not_install_embedding_transport _________
+
+    def test_codex_subscription_does_not_install_embedding_transport():
+        with pytest.raises(ValueError,match='does not provide embeddings'):
+>           EmbeddingProvider([{'id':'codex','provider_type':'openai-codex','model':'gpt-5.4'}],dimensions=4)
+E           TypeError: EmbeddingProvider.__init__() missing 1 required positional argument: 'store'
+
+tests/primary/test_kernel_codex_provider.py:31: TypeError
+2 failed in 0.78s
