@@ -80,6 +80,16 @@ BASE-04：替代 Runtime/自定义 Schedule 真实被调用，run_plan 服务引
 
 公开用法归入[builtin-composition](../../../docs/core-next/builtin-composition.md)，[README](../../../README.md) 已链接；参数、默认值、单驱动边界、外部目录、完整时间线、可选资源和实际替换责任与代码一致。
 
-## 十、范围
+## 十、T09 进行中
 
-T01–T08 当前通过。组合 CLI、只读验收器、全面调用方核对与独立公开跨进程 E2E 在 T09 以后推进。typed provider 材料来自 LLMDriver 实际 request_model 入参，确定性 provider 无网络；正式 SDK 发送边界在后续离线捕获中验证，真实端点与模型质量需要相应授权。全部当前测试为离线确定性测试；未调用真实模型或付费 embedding。
+公开工厂缺失时 CLI 五个案例失败，见[t09-entry-red.log](evidence/t09-entry-red.log)。新增[组合入口](../../../examples/core_next/composed_cognition.py)与[只读验收器](../../../tests/e2e/core_next_composition_assertions.py)，消费 RunPlan/run_plan、llm_preset、标准 Schedule/Runtime、社交来源和原生通知来源。两个案例共用请求、保存后观察、诊断和激活完成工件；请求载荷取自实际 request_model typed 参数及 options，并核对 Thread 请求事件的 through。正文含完整中文、emoji 与首尾标识；社交显式允许长正文。
+
+目前五个基础用例完成：连续运行与受控失败后新进程恢复逐项比较实际请求与选项；显式空来源、通知单来源、通知优先顺序；两实例来源在恢复中省略并重新加入，保留非活动水位并呈现积累原文。随后覆盖 source-read、三类非法 append 数据、保存后部分回调写入、provider-error、after-step-flush、before-complete 八类故障。每类均核对 runner 首异常、失败完成水位和新目录从上一完整点恢复。部分回调失败额外证明 live 原生回执已落入部分写入，而 provider 与后续 sentinel 均未调用。
+
+初始接线失败依次定位为 social_plugin 的 positional members 参数误用、保存后观察器在写事务中重入读取、社交默认长度拒绝长正文、JSON 来源正文需要解码验收。修正后五个基础用例通过；扩展故障用例后 12 passed，见[t09-faults-initial.log](evidence/t09-faults-initial.log)。变体首轮 2 passed/1 failed：interview 未声明结构化测量 schema，验收正确拒绝无工具选项，见[t09-variants-red.log](evidence/t09-variants-red.log)。补入明确 schema 与真实 submit_result ToolCallPart、实际 DriverResult 捕获后，重排、丢弃输入与 interview 共 15 passed，见[t09-outcomes-initial.log](evidence/t09-outcomes-initial.log)、[t09-outcomes-initial.xml](evidence/t09-outcomes-initial.xml)。背景每个 Thread 一次；主观状态每次激活增加一次，历史全部保留。最后公共入口、foundation_presets、social_cognition、cognition_composition 共 87 passed，见[t09-partial-green.log](evidence/t09-partial-green.log)、[t09-partial-green.xml](evidence/t09-partial-green.xml)。
+
+T09 尚需完成其余公开场景、来源轮换／并发、空值位置、实际 SDK 发送边界、成本观测模式与公开说明，再执行 T10–T14。当前 JSON 报告包含代码身份、Run 身份、具名检查、事实位置与首项差异；独立比较仅对 SDK message/part timestamp 做明确归一化，并在比较投影中保留请求序号、水位、所有入参及原始正文。
+
+## 十一、范围
+
+T01–T08 当前通过，T09 部分公开 CLI 验证通过。typed provider 材料来自 LLMDriver 实际 request_model 入参，确定性 provider 无网络。用户已授权使用 simcat 可达 GPU/LiteLLM 服务及所需临时密钥，并授权在部署不可用时使用已有 Codex OAuth 模型；已验证 Pod 内网 SSH 与真实模型清单访问。正式 SDK 发送、真实响应、工具、记忆和恢复验证仍待执行。模型服务地址与凭据保持在显式运行环境和本任务私有运行记录；当前尚未发出真实推理请求。

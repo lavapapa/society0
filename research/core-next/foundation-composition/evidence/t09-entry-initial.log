@@ -1,0 +1,79 @@
+FFFFF                                                                    [100%]
+=================================== FAILURES ===================================
+_ test_e2e_02_06_two_real_processes_preserve_dual_source_requests_and_exclude_partial_write _
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_06_two_real_proces0')
+
+    def test_e2e_02_06_two_real_processes_preserve_dual_source_requests_and_exclude_partial_write(tmp_path):
+        continuous, first = cli(tmp_path, 'continuous', config())
+>       assert first.returncode == 0, first.stdout+'\n'+first.stderr
+E       AssertionError: {"error": {"code": "ConstraintError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_06_two_real_proces0/continuous"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...nvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_06_two_real_proces0/continuous"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_entrypoint.py:47: AssertionError
+_____ test_e2e_02_17_explicit_empty_omitted_and_ordered_sources[sources0] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_0')
+sources = []
+
+    @pytest.mark.parametrize('sources', [[], ['notice.main.v1'], ['notice.main.v1', 'social.main.feed.v1']])
+    def test_e2e_02_17_explicit_empty_omitted_and_ordered_sources(tmp_path, sources):
+        run, result = cli(tmp_path, 'run', config(sources=sources))
+>       assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ConstraintError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_0/run"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_0/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_entrypoint.py:60: AssertionError
+_____ test_e2e_02_17_explicit_empty_omitted_and_ordered_sources[sources1] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_1')
+sources = ['notice.main.v1']
+
+    @pytest.mark.parametrize('sources', [[], ['notice.main.v1'], ['notice.main.v1', 'social.main.feed.v1']])
+    def test_e2e_02_17_explicit_empty_omitted_and_ordered_sources(tmp_path, sources):
+        run, result = cli(tmp_path, 'run', config(sources=sources))
+>       assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ConstraintError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_1/run"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_1/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_entrypoint.py:60: AssertionError
+_____ test_e2e_02_17_explicit_empty_omitted_and_ordered_sources[sources2] ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_2')
+sources = ['notice.main.v1', 'social.main.feed.v1']
+
+    @pytest.mark.parametrize('sources', [[], ['notice.main.v1'], ['notice.main.v1', 'social.main.feed.v1']])
+    def test_e2e_02_17_explicit_empty_omitted_and_ordered_sources(tmp_path, sources):
+        run, result = cli(tmp_path, 'run', config(sources=sources))
+>       assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ConstraintError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_2/run"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_02_17_explicit_empty_2/run"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_entrypoint.py:60: AssertionError
+_____ test_e2e_17_omission_and_reintroduction_preserve_inactive_watermark ______
+
+tmp_path = PosixPath('/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_17_omission_and_reint0')
+
+    def test_e2e_17_omission_and_reintroduction_preserve_inactive_watermark(tmp_path):
+        one, result = cli(tmp_path, 'one', config(case='source-lifecycle', end=1))
+>       assert result.returncode == 0, result.stdout+'\n'+result.stderr
+E       AssertionError: {"error": {"code": "ConstraintError"}, "run_path": "/private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_17_omission_and_reint0/one"}
+E         
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python', '-m', 'soci...s/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1257/test_e2e_17_omission_and_reint0/one"}\n', stderr='').returncode
+
+tests/e2e/test_core_next_composition_entrypoint.py:66: AssertionError
+5 failed in 4.63s
