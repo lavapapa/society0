@@ -39,3 +39,19 @@ def test_completed_sql_operations_release_cursor_objects(operation):
         tracemalloc.stop()
         view._finish()
         connection.close()
+
+
+def test_pending_write_returning_releases_before_transaction_commit(tmp_path):
+    from society0.kernel.storage import StageStore
+    with StageStore.create(tmp_path / 'run', ['CREATE TABLE sample(id INTEGER PRIMARY KEY NOT NULL, value INTEGER NOT NULL)']) as store:
+        store.transaction(lambda writer: writer.executemany('INSERT INTO sample VALUES(?,0)', [(1,), (2,)]))
+        def update(writer):
+            iterator = writer.iter_query('UPDATE sample SET value=10 RETURNING id')
+            assert next(iterator) in ((1,), (2,))
+            return iterator
+        iterator = store.transaction(update)
+        with pytest.raises(StorageError):
+            next(iterator)
+        assert store.read(lambda view: view.query('SELECT id,value FROM sample ORDER BY id')) == [(1,10), (2,10)]
+        store.transaction(lambda writer: writer.execute('UPDATE sample SET value=11 WHERE id=1'))
+        assert store.read(lambda view: view.query('SELECT value FROM sample WHERE id=1')) == [(11,)]

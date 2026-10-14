@@ -468,6 +468,7 @@ class StageStore:
             self._connection.execute('BEGIN IMMEDIATE')
             self._connection.set_authorizer(authorize)
             result = _call(callback, scope)
+            scope._finish()
             self._connection.set_authorizer(None)
             self._connection.execute('UPDATE _stage_runtime SET revision=revision+1')
             self._connection.executemany('UPDATE _stage_table_revisions SET revision=(SELECT revision FROM _stage_runtime) WHERE name=?', ((name,) for name in touched))
