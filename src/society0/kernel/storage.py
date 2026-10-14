@@ -92,6 +92,7 @@ class ReadView:
         self._connection = connection
         self._active = True
         self._owner_thread = threading.get_ident()
+        # 游标最后引用交给 APSW 析构释放；显式 close 会保留原生对象。
         self._cursors = set()
         self.run_id = run_id
         self.live_revision = revision
@@ -104,7 +105,8 @@ class ReadView:
     def _finish(self):
         self._active = False
         for cursor in tuple(self._cursors):
-            cursor.close()
+            # 重置尚在迭代的语句；游标由原生析构释放，保留作用域过期检查。
+            cursor.execute('SELECT NULL WHERE 0')
         self._cursors.clear()
 
     def revision_for(self, tables):
@@ -140,8 +142,8 @@ class ReadView:
                     return
                 yield row
         finally:
-            cursor.close()
             self._cursors.discard(cursor)
+            del cursor
 
     def query(self, sql, bindings=(), *, max_rows=1000):
         self._check()
@@ -157,7 +159,7 @@ class ReadView:
                 rows.append(row)
             return rows
         finally:
-            cursor.close()
+            del cursor
 
 
 class Writer(ReadView):
@@ -178,7 +180,7 @@ class Writer(ReadView):
             if next(cursor, None) is not None:
                 raise StorageError('use query for returning rows')
         finally:
-            cursor.close()
+            del cursor
 
     def executemany(self, sql, bindings):
         self._check()
@@ -187,7 +189,7 @@ class Writer(ReadView):
             if next(cursor, None) is not None:
                 raise StorageError('use query for returning rows')
         finally:
-            cursor.close()
+            del cursor
 
 
 _ALLOWED = {apsw.SQLITE_SELECT, apsw.SQLITE_READ, apsw.SQLITE_FUNCTION, apsw.SQLITE_RECURSIVE,
