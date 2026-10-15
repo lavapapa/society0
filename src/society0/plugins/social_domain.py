@@ -21,11 +21,16 @@ def _post_details(r,name,identifier):
     item['replies']=[{'reply_id':i,'author_id':a,'created_tick':tick,'content':body.decode()} for i,a,tick,body in r.iter_query(f'SELECT id,author,tick,body FROM {table("replies")} WHERE post=? ORDER BY id',(identifier,))]
     return item
 
-def _profile(r,name,actor):
+def _profile_dependencies(name,actors):
+    return tuple(dict.fromkeys((*actors.config_dependencies,*actors.state_dependencies,
+        *(name+'_'+suffix for suffix in ('members','posts','bodies','edges')))))
+
+
+def _profile(r,name,actor,actors):
     table=lambda suffix:_quote(name+'_'+suffix)
     if not bool(r.query('SELECT 1 FROM '+table("members")+' WHERE id=?',(actor,))):raise KeyError(actor)
-    config=json.loads(r.query('SELECT body FROM actor_configs WHERE actor=?',(actor,))[0][0])
-    state={key:json.loads(value) for key,value in r.query("SELECT key,value FROM actor_state WHERE actor=? AND key IN ('interests','mood')",(actor,))}
+    config=actors.config_in(r,actor)
+    state=actors.state_values_in(r,actor,('interests','mood'))
     recent=[]
     for identifier,tick,likes,replies,reposts,rowid in r.query(f'SELECT p.id,p.created_tick,p.like_count,p.reply_count,p.repost_count,b.rowid FROM {table("posts")} p JOIN {table("bodies")} b ON b.id=p.id WHERE p.author=? ORDER BY p.ordinal DESC LIMIT 5',(actor,)):
         data,total=r.read_blob(name+'_bodies','body',rowid,size=324)
@@ -54,6 +59,13 @@ class SocialData:
     def event_in(self,w,actor,kind,target,tick):
         w.execute(f'INSERT INTO {self.table("events")}(actor,kind,target,tick) VALUES(?,?,?,?)',(actor,kind,target,tick))
 
+
+    def profile_in(self,view,actor):
+        return _profile(view,self.name,actor,self.actors)
+
+    @property
+    def profile_dependencies(self):
+        return _profile_dependencies(self.name,self.actors)
 
     @property
     def member_dependencies(self):

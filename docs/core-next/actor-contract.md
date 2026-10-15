@@ -35,7 +35,9 @@ ActorStore 实现 Mapping[str, Actor]，持有原 `directory` 并显式委托其
 
 目录 `driver_names()` 返回持久标签的稳定元组，原生实现仅在安装/恢复时查询一次 DISTINCT，包括 inactive 主体。ActorStore 绑定工厂时检查标签；add/update 在转发前核对新增驱动名称。目录直接修改驱动为未知标签后，实际激活和后续重新绑定都明确失败。
 
-`persona_in(view, actor)` 在传入 ReadView 内读取人格，不重开数据库读取；不存在抛 KeyError。`persona_dependencies` 是只读属性，原生值为 `('actor_personas',)`。推荐通过这个窄入口取得与数据版本相同快照的背景，自定义目录改变该来源时同步覆盖两项；激活的 view 覆盖行为独立。ActorStore 同样委托这两个入口。
+`persona_in(view, actor)`、`config_in(view, actor)`、`state_values_in(view, actor, keys=None)` 使用调用者传入的同一个 ReadView，读取原始人格、配置和指定主观状态值。`keys=None` 取得全部状态，空键集合返回空字典；不存在的状态键忽略，persona/config 主体不存在时抛 KeyError。对应的只读依赖属性为 `persona_dependencies`、`config_dependencies`、`state_dependencies`，原生实现分别声明 `actor_personas`、`actor_configs`、`actor_state`。ActorStore 显式委托这六项；`get_record` 复用同视图方法，原生惰性视图仍核对主体 revision。
+
+外部目录负责使激活视图与这三个同快照入口的数据来源一致，并声明实际读取表。推荐使用 persona 入口；直接社交 profile 与 Information 资料使用 config/state 入口，资料版本及缓存由声明的依赖决定。独立只读 `social_information(reader, name='social', actors=directory)` 显式传入该目录；省略 actors 时在此入口建立原生 ActorDirectory。目录与 reader 应属于同一个共享存储。
 
 `select(role=None, active=True, limit=100, cursor=None)` 返回主体 id 的 Page，包含精确 total、revision 与继续游标。筛选直接使用角色、active 与登记序号的复合索引，并读取同一规范写入事务维护的计数；角色选择无需遍历其他角色的活跃主体。active=None 显式选择所有主体，允许获取全部人口。调用者可以按业务语义直接选择其他主体；active 是调度查询属性，不代表领域行动的授权。
 

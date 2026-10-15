@@ -7,7 +7,7 @@ from ..kernel.interaction import Action, ActionResult, Page, Ref, Unavailable
 from dataclasses import asdict
 from ..kernel.information_sql import SQLInformation, DatasetSpec, DocumentSpec, _quote
 from .social_models import SocialNetworkConfig
-from .social_domain import _post_details, _profile
+from .social_domain import _post_details, _profile, _profile_dependencies
 
 
 def _schema(name):
@@ -66,7 +66,7 @@ class Social:
         return self.store.transaction(write)
 
     def post_details(self,identifier):return self.content.post_details(identifier)
-    def profile(self,actor):return self.store.read(lambda r:_profile(r,self.name,actor))
+    def profile(self,actor):return self.store.read(lambda r:self.data.profile_in(r,actor))
     def notifications(self,actor,**kwargs):return self.notices.notifications(actor,**kwargs)
     def active_pool(self,tick):return self.candidates.active_pool(tick)
     def intervene(self,tick,**kwargs):return self.content.intervene(tick,**kwargs)
@@ -116,7 +116,7 @@ class Social:
         return output
 
     def register(self,information,actions,*,on_close):
-        provider=SocialInformation(self,_social_routes(self.name))
+        provider=SocialInformation(self,_social_routes(self.name,self.data.actors))
         on_close(provider.close)
         def member(scope,target):return self.store.read(lambda r:self._member(r,scope.actor))
         descriptions={
@@ -162,12 +162,12 @@ class Social:
 
 
 
-def _social_routes(name):
+def _social_routes(name,actors):
     table=lambda suffix:_quote(name+'_'+suffix)
     public=lambda scope:('EXISTS(SELECT 1 FROM '+table('members')+' WHERE id=?)',(scope.actor,))
     return {
         'post_details':DatasetSpec(name+'_posts','id',('id',),authorize=public,dependencies=tuple(name+'_'+suffix for suffix in ('members','bodies','likes','special_tags','replies'))),
-        'profiles':DatasetSpec(name+'_members','id',('id',),authorize=public,dependencies=(name+'_posts',name+'_bodies',name+'_edges','actor_configs','actor_state')),
+        'profiles':DatasetSpec(name+'_members','id',('id',),authorize=public,dependencies=_profile_dependencies(name,actors)),
         'feed':DatasetSpec(name+'_posts','id',('id',),authorize=public),
         'participants':DatasetSpec(name+'_members','id',('id','post_count','followers','following'),authorize=public),
         'posts':DatasetSpec(name+'_posts','id',('id','author','created_tick','reply_to','like_count','reply_count','repost_count','view_count'),authorize=public,order_fields=('ordinal','created_tick'),
@@ -185,6 +185,10 @@ def _social_routes(name):
 
 class _SocialSQLInformation(SQLInformation):
     """帖子资料沿同一页面物化路径提供正文入口。"""
+    def __init__(self,namespace,reader,routes,*,actors):
+        self.actors=actors
+        super().__init__(namespace,reader,routes)
+
     async def read(self,scope,path,*,offset=0,size=65536):
         route,key=self._route(path)
         if route not in ('post_details','profiles') or key is None:
@@ -198,7 +202,7 @@ class _SocialSQLInformation(SQLInformation):
             revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
             identity=(scope.actor,path,revision)
             if self._record_source is None or self._record_source[0]!=identity:
-                record=(_post_details if route=='post_details' else _profile)(view,self.namespace,key)
+                record=_post_details(view,self.namespace,key) if route=='post_details' else _profile(view,self.namespace,key,self.actors)
                 self._materialize_record(identity,record)
             return self._record_range(offset,size,revision,self.ref(path))
         return self.reader.read(read,expected_revision=scope.revision)
@@ -212,18 +216,21 @@ class _SocialSQLInformation(SQLInformation):
         return items
 
 
-def social_information(reader,name='social'):
-    """只读 SQL 资料；推荐 feed 仍由活动机制的显式调用提供。"""
-    routes=_social_routes(name)
+def social_information(reader,name='social',*,actors=None):
+    """只读 SQL 资料；目录缺省时使用该 reader 的原生主体目录。"""
+    if actors is None:
+        from ..kernel.actors import ActorDirectory
+        actors=ActorDirectory(reader)
+    routes=_social_routes(name,actors)
     routes.pop('feed')
-    return _SocialSQLInformation(name,reader,routes)
+    return _SocialSQLInformation(name,reader,routes,actors=actors)
 
 
 class SocialInformation(_SocialSQLInformation):
     """推荐次序由机制定义；页面传元数据，正文保留独立范围入口。"""
     def __init__(self,social,routes):
         self.social=social
-        super().__init__(social.name,social.store,routes)
+        super().__init__(social.name,social.store,routes,actors=social.data.actors)
 
     def _feed_version_in(self,view,scope):
         scope.check_active()

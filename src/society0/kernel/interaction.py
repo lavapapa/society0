@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from uuid import uuid4
 from collections import Counter
 from copy import deepcopy
 from contextlib import AsyncExitStack
@@ -134,6 +135,8 @@ class Information:
         self._allows = allows
         self._mounts = {}
         self._mount_tokens = {}
+        self._instance = uuid4().hex
+        self._registration = 0
         self._owned = {}
         self._resources = AsyncExitStack()
         self._closed = False
@@ -146,7 +149,8 @@ class Information:
         prefix = _path(prefix)
         if prefix in self._mounts:
             raise ValueError('resource prefix is already mounted')
-        token = object()
+        self._registration += 1
+        token = self._registration
         self._mounts[prefix] = provider
         self._mount_tokens[prefix] = token
         if owned and id(provider) not in self._owned:
@@ -158,7 +162,7 @@ class Information:
                 self._resources.push_async_callback(release)
 
         def dispose():
-            if not self._closed and self._mount_tokens.get(prefix) is token:
+            if not self._closed and self._mount_tokens.get(prefix) == token:
                 del self._mounts[prefix]
                 del self._mount_tokens[prefix]
         return dispose
@@ -188,13 +192,14 @@ class Information:
         if _path(path) == '/' and '/' not in self._mounts:
             scope.check_active()
             items = []
-            for prefix, provider in self._mounts.items():
+            for prefix, provider in sorted(self._mounts.items()):
                 ref = provider.ref(prefix)
                 if await _resolve(self._allows(scope, 'discover', ref)):
                     items.append({'path': prefix, 'ref': ref, 'kind': 'directory'})
                 scope.check_active()
-            identity = json.dumps([scope.actor, asdict(scope.moment), scope.revision,
-                                   [item['path'] for item in items]], sort_keys=True)
+            identity = json.dumps([self._instance, scope.actor, asdict(scope.moment), scope.revision,
+                                   [[item['path'], self._mount_tokens[item['path']], asdict(item['ref'])]
+                                    for item in items]], sort_keys=True)
             offset = 0
             if cursor is not None:
                 if cursor['identity'] != identity:

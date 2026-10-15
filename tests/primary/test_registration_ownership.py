@@ -69,6 +69,49 @@ async def test_own_01_02_information_handles_are_independent_and_registration_sp
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('same_provider', [False, True])
+async def test_root_cursor_rejects_same_path_and_ref_reregistration(same_provider):
+    import json
+    info = Information(lambda *args: True)
+    provider = Provider()
+    try:
+        info.mount('/a', Provider())
+        remove = info.mount('/b', provider)
+        first = await info.list(scope(), '/', limit=1)
+        assert [item['path'] for item in first.items] == ['/a']
+        remove()
+        info.mount('/b', provider if same_provider else Provider())
+        remove()
+        with pytest.raises(ValueError, match='mount cursor mismatch'):
+            await info.list(scope(), '/', limit=1, cursor=json.loads(json.dumps(first.next_cursor)))
+        fresh = await info.list(scope(), '/', limit=1)
+        assert fresh.total == 2 and fresh.items[0]['path'] == '/a'
+        assert (await info.list(scope(), '/', limit=1, cursor=fresh.next_cursor)).items[0]['path'] == '/b'
+    finally:
+        await info.close()
+
+
+@pytest.mark.asyncio
+async def test_root_cursor_is_instance_local_and_ignores_invisible_mount_changes():
+    first = Information(lambda scope, op, ref: ref.key != '/hidden')
+    second = Information(lambda *args: True)
+    try:
+        for info in (first, second):
+            info.mount('/a', Provider())
+            info.mount('/b', Provider())
+        page = await first.list(scope(), '/', limit=1)
+        remove = first.mount('/hidden', Provider())
+        assert (await first.list(scope(), '/', limit=1, cursor=page.next_cursor)).items[0]['path'] == '/b'
+        remove()
+        assert (await first.list_files(scope(), '/', limit=1, cursor=page.next_cursor)).total == 2
+        with pytest.raises(ValueError, match='mount cursor mismatch'):
+            await second.list(scope(), '/', limit=1, cursor=page.next_cursor)
+    finally:
+        await first.close()
+        await second.close()
+
+
+@pytest.mark.asyncio
 async def test_own_03_owned_provider_remains_owned_until_router_close():
     provider = Provider()
     info = Information(lambda *args: True)
