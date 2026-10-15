@@ -28,6 +28,8 @@ page = await tools.query('/market/orders', Query(
 
 注销限定在安装回滚、整体退出的静止期或明确暂停消费的边界；旧注销函数不会移除随后同名重登记，即使使用同一个 provider。已保存的领域事实与 Thread 保留原持久化职责。路由器关闭后调用注销函数视为已经完成。
 
+虚拟根目录按路径排序，游标绑定 Information 实例 UUID、主体、Moment、scope revision，以及可见条目的路径、单调登记序号和 Ref。相同路径、相同 Ref 或同一 provider 重新挂载均取得新序号，旧游标报 `mount cursor mismatch`，调用者从第一页重新读取。新 Information 实例同样拒绝旧游标；同实例可见条目未变时可继续，隐藏路径的登记变化不影响它。UUID 与登记序号为运行期身份，随实例创建；分页工作量由当前挂载数决定，与业务历史无关。
+
 提供者实现 `ref(path)`、`list(scope,path,*,limit,cursor)`、`read(scope,path,*,offset,size)` 和 `query(scope,path,query)`；按其资源类型实现实际需要的操作。list 返回 `Page(items,total,next_cursor,revision)`。read 返回 `DocumentChunk(data,total_bytes,next_offset,revision,source)`，data 是 bytes，按字节读取可重新拼接全部 UTF-8 原文。
 
 `Query(fields,filters,order,limit,cursor,sample_seed)` 是请求载体，查询能力和运算定义由提供者确定。Core 将请求原样传递，不执行通用过滤、扫描或查询语言。提供者负责授权行和字段、授权后的 total、继续读取、固定版本与游标绑定。未知查询操作须由提供者明确拒绝。Core 对目录本身的授权不代表目录下每个对象都可见。SQLInformation 的 list_authorized 入口使用同一 allows 对各静态子路由执行 discover 判断，list 与 list_files 返回可见路由的精确 total。游标绑定主体、时点、运行身份、声明权限依赖版本和可见路由集合；授权判断期间版本改变会拒绝本次页面。行级授权继续由 SQL predicate 下推，不通过全表 Python 过滤完成。

@@ -48,6 +48,23 @@ class Directory:
             raise KeyError(actor)
         return rows[0][0]
 
+    @property
+    def config_dependencies(self):
+        return ('directory_overrides',)
+
+    @property
+    def state_dependencies(self):
+        return self.native.state_dependencies
+
+    def config_in(self, view, actor):
+        rows = view.query('SELECT config FROM directory_overrides WHERE actor=?', (actor,))
+        if not rows:
+            raise KeyError(actor)
+        return json.loads(rows[0][0])
+
+    def state_values_in(self, view, actor, keys=None):
+        return self.native.state_values_in(view, actor, keys)
+
     def view(self, actor):
         original = self.native.get_record(actor)
         driver, persona, config = self.reader.read(lambda r: r.query(

@@ -339,7 +339,7 @@ def validate(path):
             'before_paths_total': 3 if variant == 'owned' else 2, 'before_actions_total': 3 if variant == 'owned' else 2,
             'path_cursor': 'ValueError', 'action_cursor': 'ValueError', 'removed_read': 'Unavailable', 'removed_schema': 'Unavailable',
             'removed_invoke': asdict(ActionResult('rejected', {'reason': 'unavailable'})), 'removed_fts': 0, 'removed_tags': 0,
-            'paths': ['/B', '/A'] if variant == 're-register' else (['/B', '/borrowed'] if variant == 'owned' else ['/B']),
+            'paths': ['/A', '/B'] if variant == 're-register' else (['/B', '/borrowed'] if variant == 'owned' else ['/B']),
             'B_text': ('owned' if variant == 'owned' else 'B') + '\n' + BODY, 'B_find': ['composition.B'],
             'B_schema': asdict(Action('composition.B', ('composition', 'item'), 'needle B', PARAMETERS, None, tags=('B', 'shared'))),
             'B_result': asdict(ActionResult('completed', {'name': 'B', 'text': 'needle B', 'step': step})), 'provider_closed': 0}

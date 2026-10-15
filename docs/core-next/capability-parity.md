@@ -244,7 +244,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 
 | ID | 新版实际测试入口 | 当前范围与缺口 |
 |---|---|---|
-| A01 | [test_kernel_actors.py::test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields](../../tests/primary/test_kernel_actors.py#L27) | ActorRecord 持久身份/配置/逐键状态、角色与停用保历史；CognitiveInput.reminders 与 Session.signals 为本次激活材料。ActorFields 独立验证无关冷字段不读、同主体版本变化拒绝混版。 |
+| A01 | [test_kernel_actors.py::test_actor_catalog_builds_only_requested_driver_and_preserves_subjective_fields](../../tests/primary/test_kernel_actors.py#L27)、[test_actor_directory_delegation.py::test_external_profile_uses_directory_snapshot_and_declared_versions](../../tests/primary/test_actor_directory_delegation.py) | ActorRecord 持久身份/配置/逐键状态、角色与停用保历史；外部目录的驱动视图、推荐背景、直接及 Information profile、正文续读与依赖刷新有同来源消费者。CognitiveInput.reminders 与 Session.signals 为本次激活材料。ActorFields 独立验证无关冷字段不读、同主体版本变化拒绝混版。 |
 | A02 | [test_kernel_schedule.py::test_schedule_lazy_selector_sync_rule_and_real_interview_driver](../../tests/primary/test_kernel_schedule.py#L164) | 同一 Runtime 实际运行同步 RuleDriver 与 LLMDriver interview；干净 base 子进程不载模型/图/向量模块。 |
 | A03 | [test_kernel_cognition.py::test_default_cognition_and_actual_memory_keep_system_first_and_measurement_read_only](../../tests/primary/test_kernel_cognition.py#L108) | 实际 CognitiveInput+Memory 验 system 在首、完整背景/视图/记忆原文；独立例验证既有Thread中的persona/precision/state更新与合法None游标。 |
 | A04 | [test_kernel_llm.py::test_reactivation_same_thread_complete_history_and_provider_session](../../tests/primary/test_kernel_llm.py#L196) | 同Moment复用Thread和内部provider_session_id，全历史前缀相同；提供方外发session为显式session_transport，实际SDK默认及opt-in已独审。 |

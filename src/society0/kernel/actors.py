@@ -69,14 +69,16 @@ class ActorRecordView:
         return self.state_values()
 
     def state_values(self,keys=None):
-        keys=None if keys is None else tuple(dict.fromkeys(keys))
-        def read(r):
-            where='actor=?';bindings=(self.id,)
-            if keys is not None:
-                if not keys:return {}
-                where+=' AND key IN ('+','.join('?' for _ in keys)+')';bindings+=keys
-            return {key:json.loads(value) for key,value in r.iter_query('SELECT key,value FROM actor_state WHERE '+where+' ORDER BY ordinal',bindings)}
-        return self._read(read)
+        return self._read(lambda view:_state_values_in(view,self.id,keys))
+
+
+def _state_values_in(view,actor,keys=None):
+    keys=None if keys is None else tuple(dict.fromkeys(keys))
+    where='actor=?';bindings=(actor,)
+    if keys is not None:
+        if not keys:return {}
+        where+=' AND key IN ('+','.join('?' for _ in keys)+')';bindings+=keys
+    return {key:json.loads(value) for key,value in view.iter_query('SELECT key,value FROM actor_state WHERE '+where+' ORDER BY ordinal',bindings)}
 
 
 def _state_rows(actor, state):
@@ -117,14 +119,30 @@ class ActorDirectory:
         if not rows:raise KeyError(actor)
         return json.loads(rows[0][0])
 
+    @property
+    def config_dependencies(self):
+        return ('actor_configs',)
+
+    @property
+    def state_dependencies(self):
+        return ('actor_state',)
+
+    def config_in(self, view, actor):
+        rows=view.query('SELECT body FROM actor_configs WHERE actor=?',(actor,))
+        if not rows:raise KeyError(actor)
+        return json.loads(rows[0][0])
+
+    def state_values_in(self, view, actor, keys=None):
+        return _state_values_in(view,actor,keys)
+
     def get_record(self, actor):
         def read(view):
             rows=view.query('SELECT driver,active FROM actors WHERE id=?',(actor,))
             if not rows: raise KeyError(actor)
             driver,active=rows[0]
-            persona=json.loads(view.query('SELECT body FROM actor_personas WHERE actor=?',(actor,))[0][0])
-            config=json.loads(view.query('SELECT body FROM actor_configs WHERE actor=?',(actor,))[0][0])
-            state={key:json.loads(value) for key,value in view.iter_query('SELECT key,value FROM actor_state WHERE actor=? ORDER BY ordinal',(actor,))}
+            persona=self.persona_in(view,actor)
+            config=self.config_in(view,actor)
+            state=self.state_values_in(view,actor)
             roles=tuple(row[0] for row in view.iter_query('SELECT role FROM actor_selection WHERE actor=? AND kind=1 ORDER BY role',(actor,)))
             return ActorRecord(actor,driver,persona,state,config,roles,bool(active))
         return self.store.read(read)
@@ -231,6 +249,20 @@ class ActorStore(Mapping):
 
     def persona_in(self, view, actor):
         return self.directory.persona_in(view, actor)
+
+    @property
+    def config_dependencies(self):
+        return self.directory.config_dependencies
+
+    @property
+    def state_dependencies(self):
+        return self.directory.state_dependencies
+
+    def config_in(self, view, actor):
+        return self.directory.config_in(view, actor)
+
+    def state_values_in(self, view, actor, keys=None):
+        return self.directory.state_values_in(view, actor, keys)
 
     def view(self, actor):
         return self.directory.view(actor)

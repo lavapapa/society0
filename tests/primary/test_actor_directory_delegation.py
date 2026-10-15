@@ -26,6 +26,20 @@ class DirectoryFacade:
         self.calls.append('persona_in')
         return 'sql:' + self._directory.persona_in(view, actor)
 
+    @property
+    def config_dependencies(self):
+        return self._directory.config_dependencies
+
+    @property
+    def state_dependencies(self):
+        return self._directory.state_dependencies
+
+    def config_in(self, view, actor):
+        return self._directory.config_in(view, actor)
+
+    def state_values_in(self, view, actor, keys=None):
+        return self._directory.state_values_in(view, actor, keys)
+
     def view(self, actor):
         self.calls.append('view')
         original = self._directory.view(actor)
@@ -171,9 +185,112 @@ async def test_act_06_07_08_readonly_selection_persona_and_small_fields(tmp_path
             assert view.state_values(('selected',)) == {'selected': True}
             assert list(select_ids(actors, role='buyer', predicate=lambda record: record.state_values(('selected',))['selected'])) == ['0']
             assert reader.read(lambda view: directory.persona_in(view, '0')) == '完整背景'
+            assert directory.config_dependencies == ('actor_configs',)
+            assert directory.state_dependencies == ('actor_state',)
+            assert reader.read(lambda view: directory.config_in(view, '0')) == {'temperature': 0}
+            assert reader.read(lambda view: directory.state_values_in(view, '0', ('selected', 'selected', 'missing'))) == {'selected': True}
+            assert reader.read(lambda view: directory.state_values_in(view, '0', ())) == {}
+            assert reader.read(lambda view: directory.state_values_in(view, '0')) == {'selected': True}
+            with pytest.raises(KeyError):
+                reader.read(lambda view: directory.config_in(view, 'missing'))
             with pytest.raises(KeyError):
                 reader.read(lambda view: directory.persona_in(view, 'missing'))
             with pytest.raises(AttributeError):
                 actors.set_state('0', 'selected', False)
         with pytest.raises(RuntimeError):
             view.config
+
+
+@pytest.mark.asyncio
+async def test_external_profile_uses_directory_snapshot_and_declared_versions(tmp_path):
+    import json
+    from dataclasses import replace
+    from society0.kernel.interaction import Information, InteractionScope, Moment, Query, Unavailable, interaction_plugin
+    from society0.plugins.social import social_information, social_plugin
+
+    class External(DirectoryFacade):
+        persona_dependencies = config_dependencies = state_dependencies = ('external_profiles',)
+
+        def __init__(self, directory):
+            super().__init__(directory)
+            self.read_views = []
+
+        def persona_in(self, view, actor):
+            return view.query('SELECT persona FROM external_profiles WHERE actor=?', (actor,))[0][0]
+
+        def config_in(self, view, actor):
+            self.read_views.append(view)
+            return json.loads(view.query('SELECT config FROM external_profiles WHERE actor=?', (actor,))[0][0])
+
+        def state_values_in(self, view, actor, keys=None):
+            self.read_views.append(view)
+            state = json.loads(view.query('SELECT state FROM external_profiles WHERE actor=?', (actor,))[0][0])
+            return state if keys is None else {key: state[key] for key in keys if key in state}
+
+        def view(self, actor):
+            return self._directory.store.read(lambda view: replace(
+                self._directory.get_record(actor), persona=self.persona_in(view, actor),
+                config=self.config_in(view, actor), state=self.state_values_in(view, actor)))
+
+    def initialize(w):
+        for actor in ('a', 'b'):
+            w.execute('INSERT INTO external_profiles VALUES(?,?,?,?)',
+                      (actor, 'external persona', json.dumps({'type': 'external', 'archetype': 'external-role'}),
+                       json.dumps({'interests': ['external'], 'mood': 'external mood'})))
+
+    plugins = [actor_data_plugin(records=[ActorRecord(actor, 'rule', persona='native',
+                config={'type': 'native'}, state={'interests': ['native'], 'mood': 'native'}) for actor in ('a', 'b')]),
+               Plugin('external', requires=('actors.data',), schema_requires=('actors.data',),
+                      schema=('CREATE TABLE external_profiles(actor TEXT PRIMARY KEY NOT NULL,persona TEXT,config TEXT,state TEXT)',),
+                      initialize=initialize, install=lambda ctx: ctx.provide('directory', External(ctx.require('actors.data', 'directory')))),
+               actor_plugin({'rule': lambda record: record}, data=('external', 'directory')),
+               interaction_plugin(lambda *args: True), social_plugin('ab', actors='external', edges=[])]
+    async with compose(tmp_path / 'run', plugins) as host:
+        social = host.service('social', 'mechanism')
+        directory = host.service('external', 'directory')
+        actors = host.service('actors', 'actors')
+        store = host.service('storage', 'store')
+        info = host.service('interaction', 'information')
+        scope = InteractionScope('a', Moment(1, 'read'))
+        expected = social.profile('a')
+        assert len(directory.read_views) == 2 and directory.read_views[-2] is directory.read_views[-1]
+        assert expected['type'] == actors['a'].config.config['type'] == 'external'
+        assert expected['interests'] == ['external'] and expected['mood'] == 'external mood'
+        assert 'external persona' in social.preference_text('a')
+        assert store.read(lambda view: actors.config_in(view, 'a')) == {'type': 'external', 'archetype': 'external-role'}
+        assert store.read(lambda view: actors.state_values_in(view, 'a', ('mood',))) == {'mood': 'external mood'}
+        assert actors.config_dependencies == actors.state_dependencies == ('external_profiles',)
+        first = await info.read(scope, '/social/profiles/a', size=19)
+        assert directory.read_views[-2] is directory.read_views[-1]
+        rest = await info.read(scope, '/social/profiles/a', offset=first.next_offset, expected_revision=first.revision)
+        assert json.loads(first.data + rest.data) == expected
+        page = await info.query(scope, '/social/profiles', Query(limit=1))
+        assert page.total == 2 and page.next_cursor
+        assert (await info.query(scope, '/social/profiles', Query(limit=1, cursor=page.next_cursor))).items[0]['ref'].key == 'b'
+        # 原生资料变化不在外部 profile 的依赖中，旧正文版本继续可读。
+        host.service('actors.data', 'directory').update('a', config={'type': 'native changed'})
+        await info.read(scope, '/social/profiles/a', expected_revision=first.revision)
+        store.transaction(lambda w: w.execute('UPDATE external_profiles SET state=? WHERE actor=?',
+                          (json.dumps({'interests': ['updated'], 'mood': 'updated mood'}), 'a')))
+        assert social.profile('a')['mood'] == 'updated mood'
+        with pytest.raises(ValueError, match='document revision changed'):
+            await info.read(scope, '/social/profiles/a', offset=first.next_offset, expected_revision=first.revision)
+        with pytest.raises(ValueError):
+            await info.query(scope, '/social/profiles', Query(limit=1, cursor=page.next_cursor))
+        updated = await info.read(scope, '/social/profiles/a')
+        assert json.loads(updated.data)['interests'] == ['updated']
+        store.transaction(lambda w: w.execute('UPDATE external_profiles SET config=? WHERE actor=?',
+                          (json.dumps({'type': 'external changed'}), 'a')))
+        assert social.profile('a')['type'] == 'external changed'
+        assert json.loads((await info.read(scope, '/social/profiles/a')).data)['type'] == 'external changed'
+        with pytest.raises(ValueError, match='document revision changed'):
+            await info.read(scope, '/social/profiles/a', expected_revision=updated.revision)
+        standalone = Information(lambda *args: True)
+        provider = social_information(store, actors=directory)
+        standalone.mount('/social', provider, owned=True)
+        try:
+            assert json.loads((await standalone.read(scope, '/social/profiles/a')).data) == social.profile('a')
+            with pytest.raises(Unavailable):
+                await standalone.read(InteractionScope('outsider', scope.moment), '/social/profiles/a')
+        finally:
+            await standalone.close()
