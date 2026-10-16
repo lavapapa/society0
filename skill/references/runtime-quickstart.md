@@ -1,6 +1,6 @@
 # 首次实验的技术起步
 
-首次接触运行目录、结果与恢复时，先完成 [无模型起步](../../docs/core-next/getting-started.md)。复制 `../assets/minimal_experiment.py` 到本次实验版本目录。示例使用正式插件装配、持久主体、LLMDriver 和代码调度，依次完成查看详情、在原 Thread 关闭前显式提取经验、下一轮结构化访谈。空记忆不移除当前消息；提供方失败保留未完成诊断并阻止步骤发布。
+首次接触运行目录、结果与恢复时，先完成 [无模型起步](../../docs/core-next/getting-started.md)。复制 `../assets/minimal_experiment.py` 到本次实验版本目录。示例使用正式插件装配、持久主体、LLMDriver 和代码调度，依次完成查看详情、由记忆扩展在原 Thread 关闭前自动提取成功浏览的经验、下一轮结构化访谈。空记忆不移除当前消息；提供方失败保留未完成诊断并阻止步骤发布。
 
 ## 一、配置
 
@@ -19,6 +19,6 @@ python versions/v001/experiment.py --run-dir versions/v001/runs/pilot-001
 
 ## 三、检查
 
-使用 Observation 读取 Thread 原文、行动结果、资源用量、阶段表与完整步骤。模型访问的信息、目录上的条件标签与研究者分析标签分别核对。访谈只作测量；实际业务状态改变由 action 实现，成功受理与业务完成分开判断。记忆的自动写入、自动召回和主动工具分别配置；本例关闭自动写入，通过研究自定义的完成钩子显式提取浏览经历。服务异常继续传播，研究者可按可信完整点另建恢复运行。此 starter 的 `build_plan(moments=...)` 接受完整业务时间序列，恢复时从已完成步骤之后继续；恢复通过 `run_plan(new_dir, plan, source=old_dir, step=...)` 明确指定来源，调用合同见 [运行入口](../../docs/core-next/runner-contract.md)。
+使用 Observation 读取 Thread 原文、行动结果、资源用量、阶段表与完整步骤。模型访问的信息、目录上的条件标签与研究者分析标签分别核对。访谈只作测量；实际业务状态改变由 action 实现，成功受理与业务完成分开判断。记忆的自动写入、自动召回和主动工具分别配置；本例通过 MemoryPolicy 同时启用三个开关，记忆扩展在成功浏览后自动提取经历；访谈模式默认跳过自动写入。服务异常继续传播，研究者可按可信完整点另建恢复运行。此 starter 的 `build_plan(moments=...)` 接受完整业务时间序列，恢复时从已完成步骤之后继续；恢复通过 `run_plan(new_dir, plan, source=old_dir, step=...)` 明确指定来源，调用合同见 [运行入口](../../docs/core-next/runner-contract.md)。
 
 方法分析见 `run-monitor-analyze.md`，调度与结果输入见 `step-dsl.md`。低成本试验通过减少主体或重复次数保持研究对照完整，完整上下文和仍可执行的动作继续可达。

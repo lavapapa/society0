@@ -1,0 +1,153 @@
+site_name: Society0 Next · 技术文档
+site_description: 构建共享环境，组织主体决定，保存可追溯、可恢复的研究运行。
+repo_url: https://github.com/lavapapa/society0/tree/next
+repo_name: Society0 / next
+edit_uri: ''
+use_directory_urls: false
+nav:
+  - 首页: index.md
+  - 开始使用:
+      - 阅读路线: start/index.md
+      - 安装: start/installation.md
+      - 第一次运行: start/quickstart.md
+      - 核心概念地图: start/concepts.md
+      - 版本与来源: start/version.md
+  - 教程:
+      - 选择学习路线: tutorial/index.md
+      - 自己的运行计划: tutorial/first-plan.md
+      - 配置主体: tutorial/actors.md
+      - 两个对话机制: tutorial/conversation.md
+      - 接入 LLM: tutorial/llm.md
+      - 主体记忆: tutorial/memory.md
+      - 探索文件与数据: tutorial/files.md
+      - 发现与执行行动: tutorial/actions.md
+      - 记录与读取结果: tutorial/results.md
+      - 恢复与分叉: tutorial/recovery.md
+      - 实时观察: tutorial/observation.md
+  - 核心概念:
+      - 概念索引: concepts/index.md
+      - 共享环境与插件: concepts/environment.md
+      - 主体与激活: concepts/activation.md
+      - 完整 Thread 与增量认知: concepts/cognition.md
+      - 信息、权限与分页: concepts/information.md
+      - 完整步骤与恢复: concepts/complete-steps.md
+      - 记忆权威与索引: concepts/memory.md
+      - 三类并发: concepts/concurrency.md
+      - 研究与证据: concepts/research.md
+  - 任务指南:
+      - 按任务查找: guide/index.md
+      - 组合与扩展:
+          - 编写插件: guide/plugins.md
+          - 预设配方与服务替换: guide/composition.md
+          - 接入主体目录: guide/actor-directory.md
+          - 组合认知来源: guide/cognition.md
+          - 提供资料与数据: guide/information.md
+          - 安排时间与阶段: guide/schedule.md
+      - 内置机制:
+          - 选择环境机制: guide/builtin.md
+          - 社交与推荐: guide/social.md
+      - 模型与资源:
+          - 模型与嵌入: guide/models.md
+          - 使用订阅认证: guide/subscription.md
+          - 私有文件与 Shell: guide/workspace.md
+          - 不可变数据集: guide/datasets.md
+          - 并发与进程计算: guide/parallel.md
+      - 运行与分析:
+          - 存储与恢复管理: guide/storage.md
+          - 导出研究工作台: guide/workbench.md
+          - 排查问题: guide/troubleshooting.md
+  - 接口参考:
+      - 查找接口: reference/index.md
+      - 组合与运行:
+          - 安装与可选依赖: reference/installation.md
+          - Plugin 与服务依赖: reference/plugin.md
+          - compose 与预设: reference/composition.md
+          - Actor 与主体目录: reference/actor.md
+          - Runtime 与调度: reference/runtime.md
+          - RunPlan 与命令行: reference/runner.md
+      - 认知与决定:
+          - 认知输入与扩展: reference/cognition.md
+          - LLMDriver 与策略: reference/llm.md
+          - Agent 工具参数: reference/tools.md
+          - 模型与嵌入: reference/models.md
+          - Memory 与策略: reference/memory.md
+          - Thread 与 Memory 服务: reference/services.md
+          - Thread 记录: reference/thread.md
+      - 信息与文件:
+          - Information 与 Actions: reference/interaction.md
+          - SQLInformation: reference/information.md
+          - 文件命名空间: reference/filesystem.md
+          - Bashkit 与命令: reference/shell.md
+          - 私有 Workspace: reference/workspace.md
+      - 状态与资源:
+          - StageStore 与读写视图: reference/storage.md
+          - 恢复、分析与清理: reference/storage-lifecycle.md
+          - 不可变数据集: reference/cold-datasets.md
+          - 原生 JSON 编码: reference/native-json.md
+          - 共享请求许可: reference/request-limit.md
+          - 进程计算: reference/compute.md
+      - 机制与结果:
+          - 轮次对话: reference/round-robin.md
+          - 社交机制: reference/social.md
+          - StepResult 与分页: reference/results.md
+          - Observation 与 HTTP: reference/observation.md
+          - 行动与用量诊断: reference/diagnostics.md
+          - 工作台导出: reference/workbench.md
+  - 示例与研究:
+      - 示例索引: guide/examples.md
+      - 研究 Skill: resources/research-skill.md
+      - 贡献与维护: resources/contributing.md
+
+theme:
+  name: material
+  language: zh
+  font: false
+  logo: assets/mark.svg
+  favicon: assets/mark.svg
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+  palette:
+    - scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: 切换深色模式
+    - scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: 切换浅色模式
+plugins:
+  - search:
+      lang: en
+  - offline
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+extra_css:
+  - assets/site.css
+extra:
+  polyfills:
+    - assets/iframe-worker.js
+copyright: Society0 Next · 中文技术文档

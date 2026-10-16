@@ -8,9 +8,11 @@ The package version is defined in [pyproject.toml](pyproject.toml). This branch 
 
 ## Start a study
 
+The [Chinese technical handbook](docs/site/content/index.md) organizes tutorials, concepts, task guides and API references around the current implementation. Its [build instructions](docs/site/README.md) produce a searchable static site and an offline HTML package from this source revision.
+
 Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) to install from a chosen source revision, run two rule actors, read actual results and continue the remaining time in a new directory. It uses the base package and needs no model account. Python 3.12 or later and macOS or Linux are supported by the storage implementation.
 
-For assistant-guided research, install the complete [Society0 skill](skill/SKILL.md) folder in your coding assistant's skill directory, preserving its references and assets. The skill guides research design; the Python package executes experiments. A two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py). It includes persistent identity, perception, a domain action, explicit experience extraction and structured measurement. Its [quickstart](skill/references/runtime-quickstart.md) explains provider setup.
+For assistant-guided research, install the complete [Society0 skill](skill/SKILL.md) folder in your coding assistant's skill directory, preserving its references and assets. The skill guides research design; the Python package executes experiments. A two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py). It includes persistent identity, perception, a domain action, successful browsing memory extraction through the memory extension, and structured interview measurement. Its [quickstart](skill/references/runtime-quickstart.md) explains provider setup.
 
 Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The LLM file tools use the native filesystem package, with its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
 
