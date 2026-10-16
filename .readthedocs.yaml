@@ -6,14 +6,15 @@ build:
     python: "3.12"
   jobs:
     install:
+      # 平台每条命令使用独立shell，始终通过解释器调用uv，避免PATH差异。
       - python -m pip install uv
       # 工具声明导出使用锁定的Python依赖，不执行原生文件工具。
-      - uv export --frozen --extra llm --no-dev --no-emit-package society0-filesystem --no-emit-project --no-hashes --output-file /tmp/society0-docs-runtime.txt
-      - uv venv .venv
-      - uv pip install --python .venv/bin/python -r /tmp/society0-docs-runtime.txt
+      - python -m uv export --frozen --extra llm --no-dev --no-emit-package society0-filesystem --no-emit-project --no-hashes --output-file /tmp/society0-docs-runtime.txt
+      - python -m uv venv .venv
+      - python -m uv pip install --python .venv/bin/python -r /tmp/society0-docs-runtime.txt
       # 渲染工具与产品依赖分开，保持两份已有依赖固定独立。
-      - uv venv docs/site/.venv
-      - uv pip install --python docs/site/.venv/bin/python -r docs/site/requirements-docs.txt
+      - python -m uv venv docs/site/.venv
+      - python -m uv pip install --python docs/site/.venv/bin/python -r docs/site/requirements-docs.txt
     build:
       html:
         - docs/site/.venv/bin/python docs/site/check_build.py
