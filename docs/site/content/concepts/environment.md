@@ -2,7 +2,15 @@
 
 一次 Society0 运行把主体放在同一个共享环境里。机制插件负责环境内部的规则与事实，主体通过信息和行动接口参与。把这些职责分开，才能解释一个主体的选择怎样改变另一个主体随后面对的世界。
 
-## 一、同一组主体可以参加多个机制
+## 一、时空可组合性的启发
+
+**Society0 Next 从 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的时空可组合性理念获得灵感与参考，并将其落实到共享环境、显式依赖和资源生命周期的设计与实现中。** DSH 的 everything-is-a-plugin 架构由 [Cordis](https://github.com/cordiverse/cordis) 支撑。相关论文 [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512)（Yifan Shi、Wei Zhang、Tianyi Cui，2026）讨论了这套设计，其[官方论文仓库](https://github.com/cordiverse/paper)提供摘要与材料。
+
+这里的“空间”指组件之间的依赖与组合关系，“时间”指组件从安装到移除的生命周期；仿真的业务时间由 Schedule 表达，地理空间由领域机制建模。论文以可撤销副作用（revertible effects）描述移除组件时完整撤销其副作用，以 reactive coeffects 描述依赖的声明与响应式管理，并将这些机制用于 Cordis 的配置协调与热重载。
+
+Next 将这一启发落实为：插件通过声明依赖共享服务，通过可注销的注册和显式资源所有权管理生命周期，在统一环境中组合不同机制。其实现范围是静态 `includes` 展开、schema 与服务两张依赖 DAG 及作用域清理；Cordis 的动态重配与任意热替换、论文的形式化定理保证以及已记录交易事实的可逆性均不属于 Next 的实现承诺。
+
+## 二、同一组主体可以参加多个机制
 
 在[对话教程](../tutorial/conversation.md)中，四位主体同时参加 `work` 和 `commons`。两个机制分别保存配对和消息，借用同一份 ActorDirectory，共用同一个 StageStore。`work` 的发信行为影响其收件箱，`commons` 保持自己的当前轮与历史。
 
@@ -10,7 +18,7 @@
 
 领域机制拥有业务事实及合法写入方式。Driver 可以决定申请什么操作，处理器负责在真实写入边界核验资格，并同步更新事实、当前投影和必要索引。这样规则驱动与模型驱动可以共享同一套约束。
 
-## 二、为什么有两类依赖图
+## 三、为什么有两类依赖图
 
 考虑“先登记参与者，再建立对话成员，同时让主体驱动读取对话材料”的情况。初始化数据的先后与服务借用的先后分别由两张图表达：
 
@@ -24,7 +32,7 @@
 
 业务执行顺序由 Schedule 与 Phase 给出。例如“先配对、后发信”写在阶段列表中。服务安装早晚仅决定资源可用性，研究者仍需明确每步先做什么。
 
-## 三、资源由谁关闭
+## 四、资源由谁关闭
 
 创建资源的插件登记关闭动作，借用资源的消费者声明依赖。Information 挂载和 Action 注册返回注销函数，可与资源关闭一起托管；退出时先撤回入口，再释放资源。
 

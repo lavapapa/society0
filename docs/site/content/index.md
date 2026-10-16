@@ -8,6 +8,8 @@ search:
 
 Society0 是 Python 多主体仿真引擎。你定义研究中的主体、可得信息、行动与时间顺序，使用规则或大模型驱动决定；引擎组织执行，保存会话、事实、测量结果与完整步骤。内置对话、社交、记忆和文件能力可以组合进同一个环境。
 
+**设计启发与致谢：Society0 Next 从 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness) 的时空可组合性理念获得灵感与参考，并据此设计和实现共享环境中的插件组合与生命周期管理。** DSH 以 Cordis 支撑 everything-is-a-plugin 架构；相关设计论文 [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512)（Yifan Shi、Wei Zhang、Tianyi Cui，2026）为这一路线提供了重要参考。具体落地见[共享环境与机制](concepts/environment.md)。
+
 [开始第一场仿真](start/quickstart.md){ .md-button .md-button--primary }
 [安装 Next](start/installation.md){ .md-button }
 [查看公开接口](reference/index.md){ .md-button }
