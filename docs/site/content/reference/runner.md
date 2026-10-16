@@ -1,6 +1,6 @@
 # RunPlan 与运行入口
 
-`from society0.kernel.runner import RunContract, RunPlan, run_plan` 把一个公开的研究配置、一组插件和调度服务绑定到独立的运行目录上，然后逐步执行。调用者要给出目标目录（恢复时还要给出源运行与完整点）、凭据所在环境变量的名称，以及一个能返回 RunPlan 的工厂。运行目录、整个组合和后台任务的关闭都由 `run_plan` 这一层负责。
+`from society0.kernel.runner import RunContract, RunPlan, run_plan` 把一个公开的研究配置、一组插件和调度服务绑定到独立的运行目录上，然后逐步执行。调用者要给出目标目录（恢复时还要给出源运行与完整步骤）、凭据所在环境变量的名称，以及一个能返回 RunPlan 的工厂。运行目录、整个组合和后台任务的关闭都由 `run_plan` 这一层负责。
 
 ## 运行计划里记什么
 

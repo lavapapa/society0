@@ -34,7 +34,7 @@ Society0 是一个用 Python 写的多主体仿真引擎，给需要研究社会
 
 - **接入模型主体**
 
-    配置模型服务、认知输入、行动完成条件和记忆策略。
+    配置模型服务、完整认知输入、行动完成条件和独立的记忆策略。
 
     [接入 LLM](tutorial/llm.md) → [主体记忆](tutorial/memory.md) → [模型与嵌入](guide/models.md)
 

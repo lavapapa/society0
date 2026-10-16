@@ -1,6 +1,6 @@
 # 恢复、只读分析与清理
 
-`from society0.kernel.storage import StageStore, StageReader` 从已有的完整点生成新目录，用于继续运行、只读分析或导出。需要可写运行还是固定完整点的分析副本，决定选哪个入口；返回的对象由调用者持有并负责关闭，准备过程留下的孤儿文件由 collect_orphans 清理。
+`from society0.kernel.storage import StageStore, StageReader` 从已有的完整步骤生成新目录，用于继续运行、只读分析或导出。需要可写运行还是固定完整步骤的分析副本，决定选哪个入口；返回的对象由调用者持有并负责关闭，准备过程留下的孤儿文件由 collect_orphans 清理。
 
 ## 可写恢复：restore
 
@@ -15,7 +15,7 @@ with StageStore.restore(source, destination, step=10) as store:
 
 source 是完整运行，destination 必须尚不存在；省略 step 时选最新完整身份。返回的 StageStore 由调用者拥有写者资源并负责关闭，fork 是 restore 的同一入口别名。显式 run_id 必须与源不同；默认建立新身份，清单保存来源 run_id 与 step。
 
-恢复从 root 应用选中完整链，不读取 dirty current 的业务数据。源 root、schema、描述符身份、变化文件及工件缺失或不一致时失败；目标在完整构建前位于临时目录，失败不发布 destination。完整点选择须同时满足研究状态可信，能读取的完整点仍需按业务口径判断。
+恢复从 root 应用选中完整链，不读取 dirty current 的业务数据。源 root、schema、描述符身份、变化文件及工件缺失或不一致时失败；目标在完整构建前位于临时目录，失败不发布 destination。完整步骤选择须同时满足研究状态可信，能读取的完整步骤仍需按业务口径判断。
 
 新 root 起于所选步骤，之后可以继续运行、分叉和再次恢复。SQL 中已有 Thread、记忆和业务历史保留；此前逐步恢复身份被压实。源删除后目标可独立使用。工件同文件系统用硬链接建立独立目录入口，跨设备 EXDEV 才复制，其他错误传播；任何封存文件均不得原地修改。
 
@@ -23,7 +23,7 @@ source 是完整运行，destination 必须尚不存在；省略 step 时选最�
 
 ## 只读准备：prepare_readonly
 
-固定完整点分析用 prepare_readonly，可省去新的可写 root。
+固定完整步骤分析用 prepare_readonly，可省去新的可写 root。
 
 <!-- api: society0.kernel.storage.StageStore.prepare_readonly -->
 
@@ -34,7 +34,7 @@ with StageStore.prepare_readonly(source, analysis_dir, step=10) as reader:
 
 返回 StageReader。新目录有新的读取身份并保存 source 身份及所选 step；关闭 reader 后目录和已登记工件继续存在，可由 StageReader 再次打开。分析目录可脱离源运行读取结果、Thread、权威记忆及冷数据集。
 
-**只读准备目录不能作为 writer 打开，也不能作为 restore 或再次 prepare_readonly 的源。** 继续仿真应从原完整运行选择 restore。准备期间源后来产生的未完成事实不进入视图。准备成本仍随选中完整点的状态与工件增长，之后读取沿对应分页与范围接口进行。
+**只读准备目录不能作为 writer 打开，也不能作为 restore 或再次 prepare_readonly 的源。** 继续仿真应从原完整运行选择 restore。准备期间源后来产生的未完成事实不进入视图。准备成本仍随选中完整步骤的状态与工件增长，之后读取沿对应分页与范围接口进行。
 
 ## 离线清理：collect_orphans
 

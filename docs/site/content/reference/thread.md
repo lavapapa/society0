@@ -4,8 +4,6 @@
 
 ## 会话的开启、结束与消息
 
-会话身份、消息和终态都记在共享存储里。
-
 <!-- api: society0.kernel.threads.ThreadStore -->
 <!-- api: society0.kernel.threads.ThreadStore.open -->
 <!-- api: society0.kernel.threads.ThreadStore.append_message -->
@@ -39,7 +37,7 @@ append_input 把整批消息、consumer 游标和可选的 context 放在同一�
 <!-- api: society0.kernel.threads.ThreadStore.tail -->
 <!-- api: society0.kernel.threads.ThreadStore.read_payload -->
 
-tail 返回 items、next_seq 和 total，正文较大时给出 payload_ref；read_payload 按原始 JSON 字节定位到压缩块。重建完整模型历史和原请求时，内存占用仍随所选取的全部内容增长。Thread 没有独立检查点，完整步骤覆盖共享事务；未完成步骤里已经落盘的消息只保留作诊断，恢复只包含选定的完整点。
+tail 返回 items、next_seq 和 total，正文较大时给出 payload_ref；read_payload 按原始 JSON 字节定位到压缩块。重建完整模型历史和原请求时，内存占用仍随所选取的全部内容增长。Thread 没有独立检查点，完整步骤覆盖共享事务；未完成步骤里已经落盘的消息只保留作诊断，恢复只包含选定的完整步骤。
 
 ```python
 # threads 是已装配的 ThreadStore，thread_id 来自目录或驱动结果。

@@ -11,7 +11,7 @@
 | 编写第一份实验 | [运行计划](first-plan.md) → [主体](actors.md) → [轮次对话](conversation.md) | 安排主体、机制、阶段与测量 |
 | 让主体取得资料并行动 | [信息读取](files.md) → [行动](actions.md) | 完整读取授权资料，检查行动结果 |
 | 认识模型主体 | [模型驱动](llm.md) → [记忆](memory.md) | 理解完整输入、工具循环与三项记忆策略 |
-| 读懂和继续运行 | [结果](results.md) → [恢复](recovery.md) → [观察](observation.md) | 读取实际工件，从完整点创建新运行 |
+| 读懂和继续运行 | [结果](results.md) → [恢复](recovery.md) → [观察](observation.md) | 读取实际工件，从完整步骤创建新运行 |
 
 ## 命令在哪执行，代码块怎么用
 

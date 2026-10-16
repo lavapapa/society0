@@ -11,7 +11,7 @@
 
 export_payload 返回含 study 和 versions 的字典。steps 必须非空且为非负整数，重复步骤或主体被拒绝。相同展示 version 下的配置和实体选择须一致；不同运行可合入同一版本，差异配置使用不同名称。空 selections 返回真实空态。
 
-每个运行物化一次所选最大完整点，再读取已保存 Results 和对应事件前缀。Thread 按主体、Moment 与 publish_step 定位，因此同一时点后来追加的消息不会进入较早步骤。运行与 runner 身份不符、完整链缺失、选择结果不可读时导出失败。
+每个运行物化一次所选最大完整步骤，再读取已保存 Results 和对应事件前缀。Thread 按主体、Moment 与 publish_step 定位，因此同一时点后来追加的消息不会进入较早步骤。运行与 runner 身份不符、完整链缺失、选择结果不可读时导出失败。
 
 ## 展示范围
 

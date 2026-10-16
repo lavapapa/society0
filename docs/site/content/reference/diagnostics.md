@@ -32,7 +32,7 @@ duration_s、queue_s、jitter_s、provider_s 是各物理尝试的墙钟累计�
 
 LLM 关闭事件按 prompt、memory_recall、setup、model、tools、memory_write、cleanup、other 保存阶段时长；行动耗时包含在 tools 内，提取与嵌入等待包含在相应记忆阶段。父子阶段不能相加作为总耗时。
 
-Runtime.last_timing 保存最近尝试的阶段、收尾、发布和总耗时，progress 可携带这份诊断。complete_s 测量完整点发布调用，其他业务阶段同样发生存储 I/O。live 摘要包含未完成事实；prepared complete view 读取所选完整点，恢复沿同一事实边界。
+Runtime.last_timing 保存最近尝试的阶段、收尾、发布和总耗时，progress 可携带这份诊断。complete_s 测量完整步骤发布调用，其他业务阶段同样发生存储 I/O。live 摘要包含未完成事实；prepared complete view 读取所选完整步骤，恢复沿同一事实边界。
 
 ```python
 from society0.kernel.observation import Observation

@@ -32,7 +32,7 @@ ThreadMemoryExtractor 在原 Thread 上追加提示，并要求结构化输出�
 
 ## 导出、导入与关闭
 
-当前有效的记忆可以导出成种子资料；要恢复或分叉完整历史，用存储里的完整点。
+当前有效的记忆可以导出成种子资料；要恢复或分叉完整历史，用存储里的完整步骤。
 
 <!-- api: society0.kernel.memory.Memory.seed -->
 <!-- api: society0.kernel.memory.Memory.export -->

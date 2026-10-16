@@ -31,7 +31,7 @@ initialize_round_messages 仅接受当前正整数轮，把收件箱的可见位
 
 ## 使用与成本
 
-配对计划初始化随成员和轮数增长；发送成本取决于接收人数与完整正文大小。分页资料使用对应索引，直接 pairing、group_view、conversation_view 会物化所请求的完整历史或当前视图。服务注册在主机退出时撤销，状态恢复沿共享完整点进行。
+配对计划初始化随成员和轮数增长；发送成本取决于接收人数与完整正文大小。分页资料使用对应索引，直接 pairing、group_view、conversation_view 会物化所请求的完整历史或当前视图。服务注册在主机退出时撤销，状态恢复沿共享完整步骤进行。
 
 ```python
 from society0.plugins import round_robin_plugin
