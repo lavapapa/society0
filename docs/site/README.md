@@ -44,4 +44,6 @@ docs/site/.venv/bin/python docs/site/check_site.py /absolute/path/to/society0-do
 
 云端沿用同一个构建器，先生成真实接口与工具声明，再严格渲染和检查全站引用。声明导出环境从现有锁文件提取Python依赖，省去没有执行消费者的原生文件工具；Markdown渲染环境安装文档的独立固定依赖。这两个环境分别保留自己的版本约束，无需修改产品锁文件。
 
-构建将HTML放入平台的 `html` 输出，将完整离线包放入 `htmlzip` 输出，并在站点根目录提供 `society0-docs-html.zip` 下载。平台的默认版本、GitHub连接及公开站点URL在项目后台管理；构建成功后检查首页、版本页与中文搜索，再确认发布完成。
+构建将HTML放入平台的 `html` 输出，将完整离线包放入 `htmlzip` 输出，并在站点根目录提供 `society0-docs-html.zip` 下载。平台项目为 [society0-next](https://app.readthedocs.org/projects/society0-next/)，站点地址 <https://society0-next.readthedocs.io/zh-cn/latest/>，默认分支为 `next`，默认版本 `latest`。向 `next` 推送后GitHub集成自动触发重建；只有该版本对外提供，稳定线版本保持停用。
+
+平台每条构建命令在独立shell中执行，配置通过 `python -m uv` 调用工具，避免安装脚本与PATH不一致。发布后核对首页、版本页提交号、中文与英文符号搜索、离线包下载及站内链接。
