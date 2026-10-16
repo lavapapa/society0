@@ -4,6 +4,8 @@ This is the independent, fully redesigned **Next** line, codenamed **猎龙**, i
 
 Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
 
+**Design inspiration.** Society0 Next draws inspiration and design reference from [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) and its approach to spatiotemporal composability. DSH's everything-is-a-plugin architecture is powered by Cordis; the accompanying paper, [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512) (Yifan Shi, Wei Zhang and Tianyi Cui, 2026), informs Next's explicit plugin dependencies and resource lifecycles within a shared simulation environment. We gratefully acknowledge this foundation; [shared environment and composition](docs/site/content/concepts/environment.md) explains how Next applies it.
+
 The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; the completed redesign is tracked in [the implementation checklist](docs/core-next/TODO.md), and the next validation phase in [basic-environment migration](docs/core-next/basic-env-migration.md). Existing artifacts must be read using their producing version. The V2 product name defines an independent line; source installation must select Next explicitly, rather than relying on package-version ordering against the stable line.
 
 ## Start a study
