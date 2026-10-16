@@ -1,8 +1,8 @@
-# ProcessCompute
+# ProcessCompute 与进程计算池
 
-`from society0.kernel.compute import ProcessCompute` 提供单运行共享的进程计算池；组合时使用 `from society0.plugins import compute_plugin`，机制显式依赖该服务。
+`from society0.kernel.compute import ProcessCompute` 提供单运行共享的进程计算池；组合时使用 `from society0.plugins import compute_plugin`，机制在安装函数里显式依赖该服务。池归 compute_plugin 所有，直接构造 ProcessCompute 的调用者要自己关闭它。
 
-## 一、配置与提交
+## 配置与提交
 
 进程池用于可序列化的独立 CPU 任务，规范状态写入留在拥有者进程。
 
@@ -17,13 +17,13 @@ plugin = compute_plugin(max_workers=2, max_pending=4)
 # derived = await compute.run(top_level_function, compact_input)
 ```
 
-max_workers 与 max_pending 均要求正整数，bool 或非正值抛 `ValueError`。前者限制工作进程数，后者限制已经提交且实际未完成的任务数；两者表达不同资源。服务使用 spawn，函数应在可导入模块顶层定义，参数与返回值须可被进程序列化。
+max_workers 与 max_pending 均要求正整数，bool 或非正值抛 `ValueError`。前者限制工作进程数，后者限制已提交且实际未完成的任务数；两者表达不同资源。服务使用 spawn，函数应在可导入模块顶层定义，参数与返回值须可被进程序列化。
 
 一次 run 提交一个函数任务，返回该函数的结果或传播执行异常。单个整图任务使用一个 worker；多个独立调用才能并行占用多个 worker。业务拆分、结果排序与冲突判断由机制负责。数据库连接、Runtime、Writer、ReadView 与可写共享状态不得传入进程任务。
 
 建议先在短读回调中取得紧凑输入及依赖版本，退出读作用域后 await run；返回后重新核对版本，再按领域顺序用规范事务安装结果。版本不一致时采用领域明确的重算或拒绝策略，避免覆盖期间已发生的事实。
 
-## 二、生命周期
+## 生命周期
 
 资源由 compute_plugin 拥有，直接构造时由调用者显式关闭。
 
@@ -31,9 +31,9 @@ max_workers 与 max_pending 均要求正整数，bool 或非正值抛 `ValueErro
 
 首次 run 绑定当前事件循环，之后跨循环使用抛 `RuntimeError`。关闭后的服务拒绝提交；close 幂等，执行标准进程池 shutdown，取消尚未开始的任务并等待运行任务真正结束。
 
-取消等待者不保证终止已运行的进程函数，其额度在原生 future 实际结束后归还。关闭可能等待长计算并阻塞当前调用线程，应将任务时长纳入退出预算。持有服务的插件应让调用任务先收束，再释放其依赖；进程函数的外部副作用由函数自身合同负责。
+取消等待者不保证终止已运行的进程函数，其额度在原生 future 实际结束后归还。关闭可能等待长计算并阻塞当前调用线程，应将任务时长纳入退出预算。持有服务的插件应让调用任务先收束，再释放其依赖；进程函数的外部副作用由函数自身负责。
 
-## 三、成本
+## 成本
 
 容量限制控制任务数，输入字节与派生输出需另外计量。
 

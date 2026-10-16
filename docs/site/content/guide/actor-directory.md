@@ -1,10 +1,10 @@
 # 让驱动复用独立主体目录
 
-同一组参与者可能同时加入对话与社交机制，也可能在不同阶段选择不同驱动。先保存一份持久主体目录，再把驱动工厂绑定到目录中的标签。先了解[主体教程](../tutorial/actors.md)和[插件依赖](plugins.md)。
+同一位参与者要同时出现在对话和社交机制里，或者不同阶段要换不同驱动时，把身份和主观资料存成一份持久目录，再让驱动按目录里的标签建立实例。先了解[主体教程](../tutorial/actors.md)和[插件依赖](plugins.md)。
 
-## 一、创建目录并绑定驱动
+## 建目录、绑驱动，跑一次装配检查
 
-以下是可直接运行的完整装配检查，保存为 `directory_check.py`。它检查人口资料与驱动解析，无需模型服务。
+下面这段完整程序可以直接运行，保存为 `directory_check.py`。它检查人口资料和驱动解析，不需要模型服务。
 
 ```python title="directory_check.py"
 import asyncio
@@ -45,13 +45,13 @@ if __name__ == "__main__":
 uv run python directory_check.py runs/directory-check
 ```
 
-应看到两位参与者和 `rule` 标签。实际激活放入 RunPlan 的阶段；取得目录资料本身不触发模型请求。
+应该看到两位参与者和 `rule` 标签。真正的激活放进 RunPlan 的阶段；单单取出目录资料不会触发模型请求。
 
-## 二、给机制使用同一目录
+## 让机制共用这份目录
 
-`actor_data_plugin` 拥有身份、persona、config、state 和选择索引；`actor_plugin` 发布运行映射并按取用的主体建立驱动。例子中的目录名是 `population`，所以接入轮次对话或社交配方时传 `actors="population"`。默认目录名为 `actors.data`。
+`actor_data_plugin` 保存身份、persona、config、state 和选择索引；`actor_plugin` 发布运行映射，并在主体被取用时建立对应驱动。例子里的目录名是 `population`，所以接轮次对话或社交配方时要传 `actors="population"`。目录名不指定时默认为 `actors.data`。
 
-下面是添加到上述插件序列的接线片段，另需同一主机中的 interaction：
+下面这段装配片段加到上面的插件序列里，另外需要同一主机中的 interaction：
 
 ```python
 from society0.plugins import round_robin_plugin
@@ -61,12 +61,12 @@ conversation = round_robin_plugin(
 )
 ```
 
-机制在初始化时要求成员已经存在，因此它声明对人口数据的 `schema_requires`；驱动可再依赖机制提供的认知服务。这样主体数据初始化与运行驱动接线各有明确顺序。
+机制在初始化时要求成员已经存在，所以它声明了对人口数据的 `schema_requires`；驱动还可以依赖机制提供的认知服务。主体数据初始化和运行驱动接线因此各有一条明确的先后。
 
-## 三、更新与恢复检查
+## 改状态、做恢复检查
 
-使用 `directory.set_state("alice", "关注事项", "发布日期")` 更新一个主观状态，或用 `update` 集中替换有关字段。在变更后重新取得短视图。客观世界的交易、帖子和消息由各领域机制保存；persona 用于稳定背景，state 表达主体的主观状态。
+要改某位主体的主观状态，用 `directory.set_state("alice", "关注事项", "发布日期")`；要一次替换多个字段，用 `update`。改完再取一次短视图确认。客观世界里的交易、帖子和消息由各领域机制保存，persona 是稳定背景，state 记录主体的主观状态。
 
-恢复时传入相同数据声明和可解析的驱动映射。来源运行中的 `driver` 标签继续存在，新工厂必须覆盖它们；漏掉标签会在装配时报告 unresolved actor drivers。更改模型配置或研究条件时使用新运行目录，并把有效配置记录到 RunContract。
+恢复时传入同样的数据声明和一份能解析的驱动映射。来源运行里的 `driver` 标签还在，新工厂必须把它们全部覆盖；漏掉某个标签，装配时会报 unresolved actor drivers。改了模型配置或研究条件就换新运行目录，并把实际配置记进 RunContract。
 
-验证恢复后的人口总数、角色选择、persona/state 和驱动标签，再对同一主体做一次短激活。`select` 的结果带总数和续页游标，人口较多时读完全部页。外部目录协议及公开方法见[主体参考](../reference/actor.md)与 [ActorDirectory / ActorStore 源码](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/actors.py#L102-L320)。
+恢复后先核对人口总数、按角色的选择结果、persona/state 和驱动标签，再对同一位主体做一次短激活。`select` 的结果带总数和续页游标，人多的时候要把所有页读完。外部目录协议与公开方法见[主体参考](../reference/actor.md)和 [ActorDirectory / ActorStore 源码](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/actors.py#L102-L320)。

@@ -1,8 +1,8 @@
 # StepResult 与结果读取
 
-`from society0.kernel.results import StepResult, Results, TableValue, DatasetTable` 定义阶段结果及读取入口。组合时登记 results_plugin，并将服务引用交给 Runtime；独立分析可用 `Results(StageReader(path))`。
+`from society0.kernel.results import StepResult, Results, TableValue, DatasetTable` 定义阶段结果及读取入口。组合时登记 results_plugin，并将服务引用交给 Runtime；独立分析可用 `Results(StageReader(path))`。Results 借用你传入的存储，关闭由存储的所有者负责。
 
-## 一、写入形状
+## 阶段返回什么
 
 阶段返回 StepResult，Runtime 负责将它与实际激活结果一同保存。
 
@@ -24,7 +24,7 @@ DatasetTable(reference) 复用本运行已封存登记的数据集，其行数�
 
 metrics、artifacts、observations 与 notes 保留完整值。artifacts 字段是结果元数据，实际文件仍须通过存储或 Session 的工件入口封存登记。写入失败使完整步骤失败；分批已写结果留作原运行诊断，恢复以完整描述符为准。
 
-## 二、查询与分页
+## 读取表、指标与记录
 
 结果表引用与业务 JSON 分层，调用者按信封读取。
 
@@ -52,12 +52,12 @@ page 返回精确 total 与 next_cursor。普通结果集首次读取固定 thro
 
 phase 的身份是 `(step, phase_index)`，同一步可含重复名称阶段。metric 按阶段名读取最新投影，下一次同名阶段返回时替换指标键集合；缺项抛 `KeyError`。phase 与 metric 会明确物化所选完整值，大字段宜使用表与范围引用。
 
-## 三、状态与成本
+## 状态与成本
 
 结果事实、运行完整身份与进度需分别解释。
 
 summary 读取规范写入时维护的计数，不重放历史。step 返回该次尝试保存的时间、阶段数、激活数与执行参数；其正式完成仍由存储描述符确认。成功返回的激活保留 actor、round、status、reason、value，显式 collect 的 incomplete 保持原状态。异常或取消的阶段沿 Thread、失败标记与进度追溯。
 
-分页成本随所读行和正文块增长；大行范围读取按偏移定位块，全文读取承担整条值成本。Results 借用传入存储，不拥有其关闭职责。
+分页成本随所读行和正文块增长；大行范围读取按偏移定位块，全文读取承担整条值成本。
 
 见[结果教程](<../tutorial/results.md>)；源码见 [Results.page](<https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/results.py#L167>)。
