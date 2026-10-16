@@ -1,10 +1,10 @@
 # 创建一个机制插件
 
-本页将一个实验计数器接入共享存储，验证声明、初始化、服务取得和退出流程。先完成[基础安装](../start/installation.md)。该机制不调用模型；要让主体通过行动修改它，可继续阅读[行动教程](../tutorial/actions.md)。
+要给研究加一张自己的表和一个领域服务时，从这个计数器插件开始：它把计数写进共享存储，走完声明、初始化、取得服务和退出这几步。先完成[基础安装](../start/installation.md)。计数器不调用模型；要让主体通过行动改动它，接着看[行动教程](../tutorial/actions.md)。
 
-## 一、定义并检查服务
+## 写一个计数器插件并跑起来
 
-将下面完整程序保存为仓库根目录的 `counter_study.py`。每次执行选择新的输出路径。
+把下面的完整程序保存为仓库根目录的 `counter_study.py`，每次执行挑一个新的输出路径。
 
 ```python title="counter_study.py"
 import asyncio
@@ -59,13 +59,13 @@ if __name__ == "__main__":
 uv run python counter_study.py runs/counter-check
 ```
 
-预期打印 `{'value': 3}`。这是服务装配与 SQL 写入检查；要发布可恢复的业务步骤，将插件放入[运行计划](../tutorial/first-plan.md)，由阶段调用它，交给 Runtime 收束并完成步骤。
+预期打印 `{'value': 3}`。这次运行只验证服务装配和 SQL 写入本身；要让计数器进入可恢复的业务步骤，把插件放进[运行计划](../tutorial/first-plan.md)，由阶段调用它，再交给 Runtime 发布完整步骤。
 
-## 二、分清两类依赖
+## 数据先决与服务依赖各管什么
 
-`requires` 允许安装函数通过 `context.require` 借用直接依赖的服务。`schema_requires` 控制表和初始数据的先决顺序。例如新插件初始化时写入引用主体的外键，应声明主体数据插件为数据先决；安装时借用其目录，则同时声明服务依赖。
+`requires` 决定安装函数能用 `context.require` 借用哪些服务，`schema_requires` 决定建表和写初始数据的先后。举例来说，新插件在初始化时要写一条引用主体的外键，就把主体数据插件声明为数据先决；安装阶段还要借它的目录，就同时声明服务依赖。
 
-以下为已有插件声明的接线片段，`install`、`schema`、`initialize` 由该机制定义：
+下面是已有插件声明的装配片段，`install`、`schema`、`initialize` 由该机制自己定义：
 
 ```python
 plugin = Plugin(
@@ -75,11 +75,11 @@ plugin = Plugin(
 )
 ```
 
-`compose` 先按数据图创建共享 schema、在初始事务中执行同步初始化，再按服务图安装资源。恢复时使用来源完整点的数据，跳过初始化。外部文件需要异步预读时，可用 `prepare` 返回上下文管理器及同步初始化函数；准备资源在服务安装前关闭。完整用法见[数据集](datasets.md)。
+`compose` 先按数据图创建共享 schema，在初始事务里跑同步初始化，再按服务图安装资源。恢复时沿用来源那份完整步骤里的数据，跳过初始化。外部文件需要异步预读时，用 `prepare` 返回上下文管理器和同步初始化函数；准备资源在服务安装前关闭。完整用法见[数据集](datasets.md)。
 
-## 三、登记并释放资源
+## 创建资源时一并登记清理
 
-创建资源后立即把清理交给当前插件上下文。下面是安装函数中的接线片段，`provider` 与 `action` 由机制创建：
+资源一创建出来，就把清理登记到当前插件上下文。下面是安装函数里的装配片段，`provider` 与 `action` 由该机制创建：
 
 ```python
 context.on_close(provider.close)
@@ -89,12 +89,12 @@ context.on_close(information.mount("/reports", provider))
 context.on_close(actions.register(action, dependencies=("study_reports",)))
 ```
 
-`mount` 和 `register` 返回本次贡献的注销函数。默认挂载借用 provider，关闭由创建它的插件负责；选择 `owned=True` 时由 Information 托管至路由器关闭，避免重复安排所有者。`on_close` 按后登记先执行的次序清理，上例先撤回行动与路由，再关闭 provider。
+`mount` 和 `register` 会返回注销函数，用来撤销这次注册。默认挂载时 provider 仍归创建它的插件所有，关闭也由该插件负责；传 `owned=True` 则由 Information 托管到路由器关闭，两边不要重复安排所有者。`on_close` 按后登记先执行的次序清理，所以上例先撤回行动和路由，再关闭 provider。
 
-运行中持有任务的服务需要先停止任务，再释放其依赖。`on_quiesce(..., stage="runtime")` 用于 Runtime 收束，worker 阶段用于后台工作，最后执行资源关闭。研究插件按实际所有权登记，普通纯值服务无须添加空清理函数。
+服务在运行中持有任务时，先停任务，再释放它依赖的资源。`on_quiesce(..., stage="runtime")` 交给 Runtime 收束阶段执行，worker 阶段用于后台工作，资源关闭排在最后。研究插件按实际所有权登记清理，普通纯值服务不必补一个空函数。
 
-## 四、接入研究计划
+## 换成自己的机制再检查装配
 
-先用短规则运行检查初始事实、服务引用及一项领域操作，再增加模型主体。检查运行清单中的插件名、直接依赖与展开关系；若安装报缺少依赖，修改实际消费者的声明。名字重复时，给独立实例分配不同名字，并更新对应服务引用。
+先用一小段规则运行检查初始事实、服务引用和一项领域操作，确认无误再加模型主体。运行清单里能看到插件名、直接依赖和展开关系；安装时报缺少依赖，就改实际消费者的声明。名字重复时给独立实例换成不同的名字，并同步改掉引用它的地方。
 
-业务上的“先配对、后发送”由 [Schedule](schedule.md) 明确安排。插件需要步骤收尾时，在安装期间登记 `context.on_step(before=..., after=...)`，正式 Runtime 会收集这些回调。参阅[插件参考](../reference/plugin.md)及 [Plugin 与 PluginContext 源码](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/plugins.py#L16-L100)查阅完整参数与生命周期。
+“先配对、后发送”这类业务顺序由 [Schedule](schedule.md) 安排。插件需要在步骤边界做事时，在安装期间登记 `context.on_step(before=..., after=...)`，正式 Runtime 会收集这些回调。完整参数与生命周期见[插件参考](../reference/plugin.md)和 [Plugin 与 PluginContext 源码](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/plugins.py#L16-L100)。

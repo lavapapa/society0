@@ -1,10 +1,10 @@
 # 记录与读取结果
 
-阶段结果让研究者回答“发生了几次决定”“每位主体返回了什么”。这一课沿用[第一次运行](../start/quickstart.md)的 `runs/hello/run`，完整读取第 2 步的决定表，并学会处理分页与较大的原文记录。
+阶段结果回答的是“发生了几次决定”“每位主体返回了什么”这类问题。这一课回到[第一次运行](../start/quickstart.md)留下的 `runs/hello/run`，把第 2 步的决定表完整读一遍，顺势看清分页怎么走、一行记录太大时原文放在哪里。
 
-## 一、选择要记录的测量
+## 阶段里决定记录哪些测量
 
-在[自己的运行计划](first-plan.md)中，阶段已经返回 `StepResult`。下面是可替换该 `decide` 函数的片段：
+在[自己的运行计划](first-plan.md)里，阶段函数已经返回 `StepResult`。下面这段可以替换其中的 `decide` 函数：
 
 ```python title="替换 decide"
 async def decide(context):
@@ -16,13 +16,13 @@ async def decide(context):
     )
 ```
 
-`metrics` 记录指标，`tables` 按行保存记录；运行时另保存激活的主体、状态和原因。这里的表接收生成器，逐行取值。一次需要保存整个 JSON 值时用 `TableValue`；已有不可变数据集时用 `DatasetTable` 引用，详见[结果参考](../reference/results.md)。
+`metrics` 放指标，`tables` 逐行保存记录，运行时另外保存激活了哪些主体、状态和原因。这里的表可以直接收生成器，取一行写一行。要整块保存一个 JSON 值时用 `TableValue`；手上已经有不可变数据集时用 `DatasetTable` 引用，详见[结果参考](../reference/results.md)。
 
-指标应对应研究问题，例如“成功发送消息的主体数”。明确命名统计口径，能避免把激活次数、行动次数和发送消息数混为一项。
+指标要对着研究问题来定，比如“成功发送消息的主体数”。名字里写清楚统计的是什么，激活次数、行动次数和发送消息数才不会混成一项。
 
-## 二、完整读取一张表
+## 完整程序：把 decisions 表读完
 
-保存下面完整程序为 `read_results.py`。程序先准备第 2 步的只读视图，再定位阶段头部及其 `decisions` 表。为便于观察分页，每页取一条。
+把下面这份完整程序保存为 `read_results.py`。它先准备第 2 步的只读视图，再找到阶段头部和其中的 `decisions` 表；每页只取一条，方便看清分页。
 
 ```python title="read_results.py"
 import base64
@@ -74,19 +74,19 @@ with TemporaryDirectory() as temporary:
 uv run python read_results.py
 ```
 
-预期决定数为 2，Alice 和 Bob 的时间都是 2。将自己的运行路径传入同样流程，就能读取修改后的字段。具有很多阶段的研究还需分页读取 `result_phases`；本例每步只有一个阶段。
+预期决定数是 2，Alice 和 Bob 的时间都是 2。把自己的运行路径传进同一段流程，就能读到改过的字段。阶段很多的研究还要给 `result_phases` 分页，这一例每步只有一个阶段。
 
-## 三、读懂结果页信封
+## 一页结果里都有什么字段
 
-每个页项有 `ordinal` 与 `raw_bytes`，实际业务值放在 `value` 中。超出本页字节预算的行提供 `payload_ref`，供 `read_result_record` 分段取得完整 JSON 原文字节。Observation 把 bytes 编码成 base64，因此上面的程序先还原 bytes，再解码 JSON。
+每个页项带着 `ordinal` 和 `raw_bytes`，真正的业务值放在 `value` 里。一行超过这一页的字节预算时，页项给出 `payload_ref`，交给 `read_result_record` 分段取回完整的 JSON 原文字节。Observation 把 bytes 编成 base64，所以上面的程序先把 bytes 还原回来，再解码 JSON。
 
-业务记录中也可以有名为 `payload_ref` 的字段：它位于 `value` 内，与分页信封中的原文引用各自独立。续页使用返回的 `next_cursor`，总数来自 `total`。
+业务记录本身也可能有一个叫 `payload_ref` 的字段，它在 `value` 里面，和分页给出的原文引用互不相干。翻下一页用返回的 `next_cursor`，总数从 `total` 取。
 
-完整读回一个巨大的 JSON 值仍要容纳该值。分页控制每次传输范围；批量导出时逐条消费迭代器，避免像教学代码一样把整表转换成 list。
+把一个很大的 JSON 值完整读回来，内存里终究要放下它。分页控制的是每次传输多少；批量导出时逐条消费迭代器，别像教学代码这样把整张表转成 list。
 
-## 四、进入可视化检查
+## 导出给工作台查看
 
-完成[对话教程](conversation.md)后，可以把它的两个完整步骤导出给工作台：
+做完[对话教程](conversation.md)之后，可以把它那两个完整步骤导出给工作台：
 
 ```bash
 uv run python -m society0.kernel.workbench \
@@ -98,6 +98,6 @@ uv run python skill/scripts/render_workbench.py \
   --output runs/conversation/workbench.html
 ```
 
-在浏览器打开生成的 HTML，检查阶段指标、消息回执和来源位置。导出保留选定完整步骤的记录，运行中的实时诊断继续通过 Observation 读取。多版本选择与完整导出成本见[工作台指南](../guide/workbench.md)。
+用浏览器打开生成的 HTML，里面能看到阶段指标、消息回执和来源位置。导出只保留选中的那几个完整步骤的记录；运行中的实时诊断仍然通过 Observation 读。多版本怎么选、完整导出要花多少，见[工作台指南](../guide/workbench.md)。
 
-结果读取已经与运行分开。下一课学习[恢复与继续](recovery.md)，从相同完整点建立另一份可执行运行。
+结果读取已经和运行分开。下一课学习[恢复与继续](recovery.md)，从相同的完整点建立另一份可执行的运行。

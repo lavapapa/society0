@@ -1,10 +1,10 @@
 # 记忆的三个开关
 
-主体保存经验、激活时自动想起经验、主动检索经验，是三种可独立配置的行为。这一课用同一份确定性小例子观察它们，模型响应与嵌入都在本地生成，向量检索使用实际 Chroma。
+上一课的模型主体拿到的都是本地固定响应。这一课给它加上记忆：把经验存下来、激活时自动想起、由主体主动检索，这三件事各有开关，可以分别打开或关上。模型响应和嵌入都在本地生成，向量检索用的是真实的 Chroma。工厂仍用上一课的 `examples.core_next.composed_cognition:build`，产物放在 `runs/memory/write`，参与运行的主体是 `a`。
 
-## 一、运行一次自动写入
+## 只开自动写入，跑一步
 
-先完成[模型驱动教程](llm.md)，并安装记忆依赖：
+先完成[模型驱动教程](llm.md)，再装上记忆相关的依赖：
 
 ```bash
 uv sync --frozen --extra llm --extra social --extra memory
@@ -30,11 +30,11 @@ uv run python -m society0.kernel.runner \
   --output runs/memory/write
 ```
 
-这个[完整例子](https://github.com/lavapapa/society0/blob/@COMMIT@/examples/core_next/composed_shutdown_extensions.py#L267)在第 1 步先加入种子经验，再让主体完成两次激活。脚本提供方实际调用资料工具和 `probe.record` 行动；自动提取器从每次完整经历产生独立记忆。最终应发布第 1 步。
+这个[完整例子](https://github.com/lavapapa/society0/blob/@COMMIT@/examples/core_next/composed_shutdown_extensions.py#L267)在第 1 步先放入一条种子经验，再让主体激活两次。脚本提供方会真的调用资料工具和 `probe.record` 行动，自动提取器每次从一段完整经历产生一条独立记忆。最后应该发布第 1 步。
 
-## 二、核对策略与保存事实
+## 完整程序：查记忆表和作业表
 
-保存以下完整程序为 `inspect_memory.py`。短 SQL 查询读取示例所用的记忆状态表；表结构属于当前[记忆实现](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/memory.py#L19)，用于此处核对，业务操作仍通过 Memory 服务执行。
+把下面这份完整程序保存为 `inspect_memory.py`。它用两条短 SQL 查询读示例用到的记忆状态表；表结构属于当前的[记忆实现](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/memory.py#L19)，这里只是拿来核对，日常业务操作仍走 Memory 服务。
 
 ```python title="inspect_memory.py"
 from society0.kernel.storage import StageReader
@@ -54,11 +54,11 @@ with StageReader("runs/memory/write") as reader:
 uv run python inspect_memory.py
 ```
 
-应看到主体 `a` 的已就绪记忆与已完成作业。此场景有一条初始种子和两次自动提取产生的经验。完整正文与提取输入可通过[Thread 观察](observation.md)继续核对；数量检查回答有没有保存，内容核对回答保存了什么。
+应该看到主体 `a` 的就绪记忆和已完成作业。这个场景里有一条初始种子，加上两次自动提取产生的经验。正文和提取时用的输入可以按[Thread 观察](observation.md)继续核对：数量回答有没有存下来，内容回答存了什么。
 
-## 三、只改变一种策略
+## 每次只改一个开关，对照结果
 
-复制配置为新文件，修改 `variant`，并为各次运行选择不同输出目录。对应关系如下：
+把配置复制成新文件，改掉 `variant`，每次运行换一个输出目录。各 variant 的差别如下：
 
 | variant | auto_write | auto_recall | active_tools | 应观察的变化 |
 | --- | --- | --- | --- | --- |
@@ -67,7 +67,7 @@ uv run python inspect_memory.py
 | `memory-tools` | 关 | 关 | 开 | 脚本主动调用 `memory.recall` 与 `memory.remember` |
 | `memory-all` | 开 | 开 | 开 | 自动行为与主动工具同时存在 |
 
-例如新建 `runs/memory/recall.json`，把 variant 改为 `memory-recall`，运行：
+例如新建 `runs/memory/recall.json`，把 variant 改成 `memory-recall`，再运行：
 
 ```bash
 uv run python -m society0.kernel.runner \
@@ -76,11 +76,11 @@ uv run python -m society0.kernel.runner \
   --output runs/memory/recall
 ```
 
-把读取程序指向新运行，便能比较写入结果。自动召回关闭后，主动工具仍可以检索；主动工具关闭后，自动写入仍可以保存经验。每个开关都对应一种研究条件，应分别记录。
+把读取程序指向新运行，就能比较两次写入的差别。自动召回关掉之后，主体仍能用主动工具检索；主动工具关掉之后，自动写入仍会把经验存下来。每个开关对应一种研究条件，记录时要分开写。
 
-## 四、接入自己的驱动
+## 装配片段：把记忆接到自己的驱动上
 
-以下是已有模型计划中的**装配片段**，沿用[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L70)自定义的 `cognition.input` 服务，依赖具名模型、嵌入和向量客户端资源。使用[多来源 cognition_plugin](../guide/cognition.md)时，输入服务引用应写为 `("cognition", "input_builder")`：
+下面这段是放进已有模型计划里的**装配片段**。它沿用[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L70)自定义的 `cognition.input` 服务，依赖具名模型、嵌入和向量客户端资源。如果你用的是[多来源 cognition_plugin](../guide/cognition.md)，输入服务的引用要写成 `("cognition", "input_builder")`：
 
 ```python title="记忆与驱动连接片段"
 from society0.kernel.memory import MemoryPolicy
@@ -100,8 +100,8 @@ driver = llm_driver_plugin(
 )
 ```
 
-将 `memory` 与 `driver` 加入已有插件集合，再把主体的驱动标签绑定到该工厂。完整资源连接可参考[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L81)：当前程序在成功浏览后启用自动提取，访谈沿用默认的跳过自动写入边界，自动召回保持独立。
+把 `memory` 和 `driver` 加进已有的插件集合，再把主体的驱动标签指到这份工厂。资源怎么接，可以参考[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L81)：它在浏览成功之后才启用自动提取，访谈沿用默认的跳过自动写入边界，自动召回独立于前两者。
 
-自动写入处理 `completed` 和 `waiting`，未完成激活保留诊断。记忆正文、原始向量与作业回执保存在 SQL，检索索引从这些事实重建；默认可见版本与衰减使用 `Session.step`。这些边界的原因见[记忆概念](../concepts/memory.md)。
+自动写入会处理 `completed` 和 `waiting`，未完成的激活保留诊断。记忆正文、原始向量和作业回执都存在 SQL 里，检索索引由这些事实重建；默认可见版本和衰减用的是 `Session.step`。这些边界的理由见[记忆概念](../concepts/memory.md)。
 
 完成这组对照后，进入[结果教程](results.md)，把主体决定和测量组织成可分页读取的研究输出。

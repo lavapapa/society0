@@ -1,8 +1,8 @@
 # 认识模型驱动
 
-规则函数由研究者决定下一步；模型驱动把当前认知、完整会话与可调用工具交给提供方，再执行返回的工具请求。这一课先使用本地确定性响应，观察完整输入和 Thread 如何保存，再找到接入真实模型的位置。
+前面几课的决定都由规则函数给出。这一课换成模型驱动：当前认知、完整会话和可调用工具一起交给提供方，驱动再执行它返回的工具请求。提供方先用本地的固定响应，方便你看清完整输入怎么进到 Thread 里、消费位置指向哪里。产物放在 `runs/cognition/run`，运行里的主体是 `a`。
 
-## 一、准备离线组合示例
+## 装好可选依赖，跑一次离线组合
 
 在仓库根目录安装例子需要的可选依赖。`llm` 的原生组件构建要求见[安装](../start/installation.md)。
 
@@ -30,11 +30,11 @@ uv run python -m society0.kernel.runner \
   --output runs/cognition/run
 ```
 
-这个[完整工厂](https://github.com/lavapapa/society0/blob/@COMMIT@/examples/core_next/composed_cognition.py)使用真正的 LLMDriver 和 typed 模型消息，由 `ScriptedProvider` 返回固定文本；社交语义嵌入关闭，无需外部模型或嵌入服务。两步中各激活主体 `a` 两次，沿用相同 Moment。
+这个[完整工厂](https://github.com/lavapapa/society0/blob/@COMMIT@/examples/core_next/composed_cognition.py)用的是真正的 LLMDriver 和 typed 模型消息，文本由 `ScriptedProvider` 给出；社交语义嵌入关闭，所以不需要外部模型或嵌入服务。两步里主体 `a` 各被激活两次，两次都落在同一个 Moment。
 
-## 二、查看实际 Thread 与来源位置
+## 完整程序：读 Thread 和消费位置
 
-保存下面完整程序为 `inspect_cognition.py`：
+把下面这份完整程序保存为 `inspect_cognition.py`：
 
 ```python title="inspect_cognition.py"
 from society0.kernel.interaction import Moment
@@ -56,13 +56,13 @@ with StageReader("runs/cognition/run") as reader:
 uv run python inspect_cognition.py
 ```
 
-预期找到一个持久 Thread，消费位置中含社交来源和通知来源各自的键。消息里既有完整背景与中文原文，也有固定提供方响应。第二次激活追加新材料，之前已输入的原文继续保留。来源位置决定追加什么，Thread 决定完整上下文中已经有什么。
+预期找到一个持久 Thread，消费位置里带着社交来源和通知来源各自的键。消息中有完整背景和中文原文，也有固定提供方的响应。第二次激活只追加新材料，之前输入过的原文继续留在 Thread 里。追加什么由来源位置决定，上下文里已经有什么由 Thread 决定。
 
-这一例的固定响应直接结束决定。工具仍由驱动提供，后面的真实研究 starter 才要求主体实际完成指定领域动作。
+这一例的固定响应直接结束决定，工具仍然由驱动提供；要看到主体真正完成某个领域动作，得用后面的真实研究 starter。
 
-## 三、试一次结构化访谈
+## 换成 interview，提交结构化结果
 
-从配置复制出另一份，把 `variant` 改为 `interview`，保留其他字段，写到 `runs/cognition/interview.json`：
+把配置复制一份，只把 `variant` 改成 `interview`，其他字段保留，写到 `runs/cognition/interview.json`：
 
 ```bash
 uv run python - <<'PY'
@@ -80,12 +80,12 @@ uv run python -m society0.kernel.runner \
   --output runs/cognition/interview
 ```
 
-将读取脚本路径改成新运行，并将 `threads.find` 的最后一个参数改为 `"interview"`。Thread 会记录 `submit_result` 的结构化提交，其中包含示例测量字段。decision 用于主体选择领域行动，interview 用于按 schema 提交测量；两种 mode 有各自的 Thread 身份。
+把读取脚本里的路径换成新运行，`threads.find` 的最后一个参数改成 `"interview"`。这一次 Thread 记录的是 `submit_result` 的结构化提交，里面有示例的测量字段。decision 让主体挑选领域行动，interview 让主体按 schema 提交测量，两种 mode 各有自己的 Thread 身份。
 
-## 四、转向真实研究
+## 接到真实提供方和记忆服务
 
-[完整研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py)把过程分为浏览与访谈：先要求 `news.view_details` 成功，再在下一步提交可信度评分与理由。它装配模型、嵌入与记忆服务，适合在理解当前链条后复制修改。
+[完整研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py)把过程分成浏览和访谈两段：先要求 `news.view_details` 成功，下一步再提交可信度评分和理由。它同时装配模型、嵌入和记忆服务，适合在看清当前这条链之后复制出去改。
 
-接入真实服务时，按[提供方指南](../guide/models.md)选择 profile、配置凭据与请求参数。用 `llm_driver_plugin` 绑定 provider 和 input_builder；`LLMPolicy` 决定允许、必需、完成行动与预算。已有硬上限耗尽或输出截断会记录为 `incomplete`，完整步骤如何处理它由阶段策略决定。
+接入真实服务时，按[提供方指南](../guide/models.md)选择 profile、配置凭据与请求参数。用 `llm_driver_plugin` 绑定 provider 和 input_builder，`LLMPolicy` 决定哪些行动允许、哪些必需、哪些算完成，以及预算多少。已有的硬上限被耗尽，或者输出被截断，这次激活记成 `incomplete`；这样的步骤怎么处理，由阶段策略决定。
 
-本地固定响应用于学习输入、位置和结果的保存关系；模型是否理解任务、选择合适行动，需要针对实际提供方和研究条件另行验证。下一课学习[记忆的三个开关](memory.md)，把经验写入与下一次召回连接起来。
+本地固定响应用来学清楚输入、位置和结果之间的保存关系。模型能不能理解任务、会不会挑对行动，要针对实际提供方和研究条件单独验证。下一课是[记忆的三个开关](memory.md)，看经验写入与下一次召回如何分别开关。

@@ -1,8 +1,8 @@
 # 观察运行
 
-观察服务读取已经保存的进度、会话与结果。你可以在仿真运行时从另一个进程查看，也可以对已完成的教学运行执行同样命令。读取不会激活主体或连接模型服务。
+前面几课的读取都靠自己写脚本，一次打开一个运行目录。这一课用观察服务，它能读到已经保存的进度、会话和结果：仿真还在跑的时候可以另开一个进程看，对已经跑完的教学运行也能下同样的命令，整个过程不会激活主体，也不会连模型服务。练习先用快速开始留下的 `runs/hello/run`，读到模型 Thread 时换回[模型教程](llm.md)的 `runs/cognition/run`。
 
-## 一、先看完整步骤
+## 先看已经发布到哪一步
 
 对[首次运行](../start/quickstart.md)执行：
 
@@ -10,7 +10,7 @@
 uv run python -m society0.kernel.observation runs/hello/run
 ```
 
-预期 `complete.step` 为 2。几个字段回答不同问题：
+预期 `complete.step` 是 2。下面几个字段各自回答不同的问题：
 
 | 字段 | 如何使用 |
 | --- | --- |
@@ -20,11 +20,11 @@ uv run python -m society0.kernel.observation runs/hello/run
 | `progress` | 判断最近尝试的阶段与工作进展 |
 | `failed` | 查看当前状态是否已被标为需要恢复 |
 
-网络等待期间，业务时间可以保持不变；同步计算期间，进度快照也可能暂时不刷新。沿实际请求与事件追踪进展，比单看更新时间更有信息。
+等网络返回的时候，业务时间可以一直不动；同步计算的时候，进度快照也可能暂时不刷新。想知道进展，顺着实际请求和事件看，比只看更新时间有信息。
 
-## 二、读取模型 Thread
+## 完整程序：接着上一次的位置读 Thread
 
-完成[模型教程](llm.md)后，保存以下完整程序为 `observe_thread.py`。它分页读完主体 `a` 当前已有的事件，并保留末尾游标。
+做完[模型教程](llm.md)之后，把下面这份完整程序保存为 `observe_thread.py`。它一页页读完主体 `a` 当前已经有的事件，并留下末尾的游标。
 
 ```python title="observe_thread.py"
 from society0.kernel.observation import Observation
@@ -47,13 +47,13 @@ with Observation("runs/cognition/run") as reader:
 uv run python observe_thread.py
 ```
 
-本例只激活一个主体、一个 Moment，因此第一个目录项就是要看的 Thread。较大运行需要继续分页选择目录。事件打印中可能出现 `payload_ref`，它指向完整正文；`read_thread_payload` 返回 base64 字节，按 `next_offset` 拼接即可取得原 JSON。
+这一例只激活了一个主体、一个 Moment，所以目录里的第一项就是要看的 Thread；运行更大时要继续翻页挑。打印出来的事件里可能出现 `payload_ref`，它指向完整正文；`read_thread_payload` 返回的是 base64 字节，按 `next_offset` 拼起来就能拿到原来的 JSON。
 
-Thread tail 到达末尾仍保留 `cursor`，用于下一次轮询发现新事件。有限结果页的 `next_cursor=None` 则表示该页集结束。返回的 `complete_through` 标出已受完整步骤覆盖的事件范围。
+Thread tail 读到末尾仍会留下 `cursor`，下一次轮询接着用它发现新事件；分页结果里的 `next_cursor=None` 表示这一批已经读完。返回的 `complete_through` 标出哪些事件已经被完整步骤覆盖。
 
-## 三、从另一终端读取 HTTP
+## 另开一个终端，用 HTTP 查
 
-需要 HTTP 时安装 `observe`，同时保留自己的其他 extra，然后启动服务：
+要用 HTTP 就装上 `observe`，同时保留自己原来那些 extra，然后启动服务：
 
 ```bash
 uv sync --frozen --extra observe
@@ -69,19 +69,19 @@ curl -s http://127.0.0.1:8711/ \
   -d '{"method":"status","params":{}}'
 ```
 
-应得到与 CLI 相同语义的状态 JSON。按 `Ctrl+C` 结束服务。端口若已占用，选择空闲端口，并同步修改查询地址。
+得到的 JSON 和 CLI 的状态语义一致。按 `Ctrl+C` 结束服务。端口被占用就换一个空闲的，查询地址跟着一起改。
 
-`resource_usage` 查询提供方报告的物理调用与 token，`action_summary` 查询实际 LLM 工具行动与终止诊断。首次规则运行没有模型请求；固定脚本提供方也不产生真实收费服务用量。实际字段和缺失计量的口径见[诊断参考](../reference/diagnostics.md)。
+`resource_usage` 查提供方报告的物理调用次数和 token，`action_summary` 查 LLM 实际发起的工具行动和终止诊断。首次规则运行没有模型请求，固定脚本提供方也不产生真正收费的服务用量。实际字段和计量缺失时怎么算，见[诊断参考](../reference/diagnostics.md)。
 
-## 四、固定历史读取边界
+## 把读取固定在某一个完整点
 
-对某个完整点执行一次状态读取：
+只对某一个完整点读一次状态：
 
 ```bash
 uv run python -m society0.kernel.observation runs/hello/run \
   --complete-step 1 --request '{"method":"status","params":{}}'
 ```
 
-CLI 准备所选完整点，执行读取后清理临时视图。要连续读取很多页，使用 [ObservationService](../reference/observation.md)复用同一个准备视图，或沿[结果教程](results.md)使用只读分析目录，避免每个请求重新物化。
+CLI 会准备选中的完整点，读完把临时视图清掉。要连着读很多页，就用 [ObservationService](../reference/observation.md) 复用同一份准备好的视图，或者按[结果教程](results.md)开一个只读分析目录，省得每个请求都重新准备一遍。
 
-到这里，你已经能运行、读取、恢复并观察一个小实验。下一步可按[操作指南](../guide/index.md)扩展机制，或用[研究 skill](../resources/research-skill.md)将研究问题组织为有对照和测量的实验。
+走到这里，你手上已经有一个能运行、能读结果、能从完整点恢复、还能实时观察的小实验。接下来可以按[操作指南](../guide/index.md)扩展机制，或者用[研究 skill](../resources/research-skill.md)把研究问题组织成带对照和测量的实验。

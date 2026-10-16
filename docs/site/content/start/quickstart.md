@@ -1,10 +1,10 @@
 # 第一次运行
 
-这个例子让 Alice 和 Bob 在两个业务时点各作一次规则决定，并把主体名与时间保存成表。你会完成从启动仿真到读取结果的整条路径，全程无需模型服务。
+这一课在装好的环境里跑起第一场仿真：让 Alice 和 Bob 在两个业务时点各作一次规则决定，把主体名与时间存成一张表，再把表读出来。全程不需要模型服务。照做一遍，你会得到一份带完整步骤的运行目录，也看清一次运行从头到尾经过哪些环节。
 
-## 一、写入运行配置
+## 写一份运行配置
 
-在[安装](installation.md)完成的源码仓库根目录执行以下命令。配置保存本次源码身份和业务时间范围；这里的 `start` 与 `end` 两端都包含。
+在[安装](installation.md)完成的源码仓库根目录执行下面的命令。配置里放的是本次运行的源码身份和业务时间范围，这里的 `start` 与 `end` 两端都包含在内。
 
 ```bash
 mkdir -p runs/hello
@@ -24,11 +24,11 @@ Path("runs/hello/config.json").write_text(
 PYCODE
 ```
 
-运行目录保存实际结果，配置文件保存运行所需的公开参数。每次重新尝试时，给 `--output` 选择一个新的目录名。
+配置文件只放运行所需的公开参数，实际结果写进运行目录。每次重新尝试，都给 `--output` 换一个新的目录名。
 
-## 二、启动两个主体
+## 启动这次运行
 
-仓库已经提供了完整的规则运行工厂。CLI 加载工厂，让它把配置转换成 `RunPlan`，再执行这份计划。
+仓库里已经有一个可以直接使用的规则运行工厂。CLI 加载这个工厂，由它把配置转换成 `RunPlan`，然后执行这份计划。
 
 ```bash
 uv run python -m society0.kernel.runner \
@@ -49,11 +49,11 @@ uv run python -m society0.kernel.runner \
 uv run python -m society0.kernel.observation runs/hello/run
 ```
 
-观察输出中的 `complete.step`。它表示已发布的完整步骤，后续分析与恢复都可以使用这个边界。
+在输出里找到 `complete.step`，它表示已经发布的完整步骤，后续的分析与恢复都从这个位置出发。
 
-## 三、读取实际结果
+## 把结果读出来
 
-下面的完整脚本准备第 2 步的只读视图，读取规则决定表。可以保存为仓库根目录的 `inspect_hello.py`，再执行 `uv run python inspect_hello.py`。
+下面这段完整程序为第 2 步准备一份只读视图，读出规则决定表。可以保存成仓库根目录下的 `inspect_hello.py`，再执行 `uv run python inspect_hello.py`。
 
 ```python title="inspect_hello.py"
 from pathlib import Path
@@ -80,12 +80,12 @@ with TemporaryDirectory() as temporary:
 {'actor': 'bob', 'time': 2}
 ```
 
-这里读取的是第 2 步，第一步的记录仍保存在运行中。这个小表可以在一页内读完；大结果的完整分页和正文读取见[记录与读取结果](../tutorial/results.md)。
+这里读的是第 2 步，第 1 步的记录仍然保存在运行目录里。这张表小到可以一页读完；结果很大时怎样分页、怎样读正文，见[记录与读取结果](../tutorial/results.md)。
 
-如果启动时提示输出位置已经存在，请为新尝试更换 `--output`，并相应更新读取脚本中的路径。若运行没有发布第 2 步，先读[运行观察](../tutorial/observation.md)定位失败；保留原目录以便检查。
+如果启动时提示输出位置已经存在，就为新尝试换一个 `--output`，同时把读取脚本里的路径改成新目录。运行没能发布第 2 步时，先读[运行观察](../tutorial/observation.md)定位失败原因，原目录留着不要删。
 
-## 四、理解发生了什么
+## 刚才这些环节各自做了什么
 
-运行工厂创建了两个 Actor，用规则 Driver 返回决定值。阶段函数激活主体，把决定组织成 `StepResult`；Schedule 提供两个业务时点，Runtime 执行并发布完整步骤。结果读取使用已保存的工件，无需再次激活主体。
+运行工厂创建了两位 Actor，规则 Driver 负责返回决定值。阶段函数在这里激活主体，把两个决定收进 `StepResult`；Schedule 给出两个业务时点，Runtime 一步步执行，最后发布完整步骤。上面那次读取只用已经保存的工件，不会再激活主体。
 
-现在你可以阅读[核心概念](concepts.md)，然后通过[创建自己的运行计划](../tutorial/first-plan.md)修改主体和规则。想先尝试继续运行，可以直接进入[恢复与分叉](../tutorial/recovery.md)。
+现在你可以阅读[核心概念](concepts.md)，然后通过[创建自己的运行计划](../tutorial/first-plan.md)修改主体和规则。想先试试继续运行，可以直接进入[恢复与分叉](../tutorial/recovery.md)。

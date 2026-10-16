@@ -1,8 +1,8 @@
 # Observation：运行观察
 
-`from society0.kernel.observation import Observation, ObservationService`。观察器直接读取既有运行目录，提供 Python、CLI 和 HTTP 入口；读取过程不装配机制、不连接模型，也不推进步骤。
+`from society0.kernel.observation import Observation, ObservationService`。观察器直接读取既有运行目录，提供 Python、CLI 和 HTTP 入口；读取过程不装配机制、不连接模型，也不推进步骤。调用者提供运行目录路径，用完自己关闭观察对象；观察过程只做读取，不会改动那份运行。
 
-## 一、状态与追加读取
+## 运行状态与追加读取
 
 Observation 在上下文管理器中复用同线程只读连接，每次请求使用独立短事务。
 
@@ -18,7 +18,7 @@ list_threads 和 thread_tail 保留追加 cursor，当前尾部空页后仍可�
 
 max_bytes 约束最终 JSON 响应，包含身份、游标及 base64 膨胀。预算容纳不了必要身份时明确报错。分页、短投影和范围读取按请求量工作；完整正文的读取仍承担实际内容成本。
 
-## 二、live 与 complete
+## live 与 complete
 
 默认读取 live，包含未完成步骤的诊断事实；固定历史分析使用服务准备的 complete 视图。
 
@@ -32,7 +32,7 @@ prepare_complete 启动独立进程物化完整点，状态为 preparing、ready
 
 准备需要完整链重建与临时数据库空间，峰值可同时包含源、旧 ready 和新 building。同文件系统不可变工件可硬链接，跨文件系统需复制。只读视图使用稳定的源运行及完整步骤身份；换步骤或运行后拒绝旧游标。业务恢复分支使用新运行身份。
 
-## 三、使用与 HTTP
+## Python、CLI 与 HTTP
 
 以下示例对实际运行目录执行只读状态和目录查询：
 

@@ -1,32 +1,32 @@
 # LLMPolicy 与 LLMDriver
 
-`from society0.kernel.llm import LLMPolicy, LLMDriver`。策略定义一次激活的决定方式；驱动在绑定主体的 Session 中推进模型、文件读取与领域行动，返回 `DriverResult`。正式运行通过[驱动装配](actor.md)提供工厂。
+`from society0.kernel.llm import LLMPolicy, LLMDriver`。策略决定一次激活用什么方式作决定；驱动在绑定主体的 Session 里推进模型、文件读取和领域行动，最后返回 `DriverResult`。调用者要自己提供模型提供方、Thread 服务和 `input_builder`，并在正式运行时通过[驱动装配](actor.md)把工厂交给主体目录；提供方、Thread 和扩展服务都由你在装配时提供并持有。
 
-## 一、接口
+## 装配驱动时要给什么
 
-将已安装的模型与 Thread 服务交给驱动，`input_builder(session)` 可同步或异步，负责本次新增输入。
+把已经装好的模型服务和 Thread 服务交给驱动，`input_builder(session)` 负责给出本次新增的输入。
 
 <!-- api: society0.kernel.llm.LLMPolicy -->
 <!-- api: society0.kernel.llm.LLMDriver -->
 <!-- api: society0.kernel.llm.LLMDriver.run -->
 
-`provider_selector(session)` 在激活开始选择一次提供方。`extensions` 按顺序建立认知作用域；InputBatch 的消息与消费位置先保存，随后执行 effects。提供方、Thread 和扩展服务由装配者持有。
+`input_builder(session)` 可以同步也可以异步。`provider_selector(session)` 在激活开始时选一次提供方。`extensions` 按顺序建立认知作用域；InputBatch 的消息和消费位置先保存，之后才执行 effects。
 
-## 二、决定与状态
+## 一次决定里的行动、状态与上限
 
-`decision` 使用行动发现、描述、执行和文件工具。`action_find` 对名称及描述做忽略大小写的字面子串匹配，空字符串用于分页枚举。名称与标签许可共同限制动作；required 条件按成功完成核对。`accepted` 保留已受理语义，`completed` 才计入成功条件；成功终止动作触发结束。
+`decision` 模式下，驱动使用行动发现、行动描述、行动执行和文件这几类工具。`action_find` 对名称和描述做忽略大小写的字面子串匹配，传空字符串则分页枚举。名称许可和标签许可一起限制哪些动作可用；required 条件按成功完成来核对。`accepted` 保留已受理的含义，只有 `completed` 才计入成功条件；成功终止动作会触发结束。
 
-轮次、行动总次数和逐动作次数分别计量，失败尝试消耗行动预算。达到硬上限、上下文超限或提供方输出 `length` 时返回 `incomplete`；截断响应中的工具调用不执行。领域处理器异常、取消和必需留证失败向 Runtime 传播。同一 call_id 的已保存回执被复用，相同 ID 搭配不同调用会被拒绝。
+轮次、行动总次数和每个动作的次数分别计量，失败的尝试同样消耗行动预算。达到硬上限、上下文超出限制，或者提供方返回的结束原因是 `length` 时，驱动返回 `incomplete`；被截断的响应里的工具调用不会执行。领域处理器抛异常、任务被取消、必需的留证失败，都会向 Runtime 传播。同一个 call_id 已经保存过的回执会直接复用，同一个 ID 配上不同调用会被拒绝。
 
-`strict_tools=False` 使用原生动态 JSON 对象；严格模式将动态参数声明为 JSON 文本，在分派边界解码，领域 schema 与权限始终校验。空响应与重复读取的调温是显式可选策略，受原轮次预算约束。reasoning_stages 提供文字指导及原文分段位置，阶段之间没有强制请求。
+`strict_tools=False` 时动态参数用原生 JSON 对象；严格模式把动态参数声明为 JSON 文本，在分派边界解码，领域 schema 和权限始终校验。空响应和重复读取的调温是显式开启的可选策略，仍受原来的轮次预算约束。reasoning_stages 提供文字指导和原文分段位置，阶段之间没有强制请求。
 
-`interview` 为结构化测量提供 `submit_result`；声明 result_schema 后校验输出，direct_json 显式启用提供方 JSON schema 响应模式。决定动作不自动加入访谈工具集。
+`interview` 模式为结构化测量提供 `submit_result`；声明 result_schema 后会校验输出，direct_json 显式启用提供方的 JSON schema 响应模式。决定类的动作不会自动加进访谈工具集。
 
-## 三、历史与成本
+## 历史、保存与开销
 
-同一主体、Moment 和 mode 复用 Thread 与 provider_session_id；completed、waiting 可继续，未完成 Thread 要求显式恢复。此前完整消息持续进入请求，历史分页不用于上下文裁剪。每次激活的 typed 历史在模型和工具等待期间驻留，成本随完整上下文增长。
+同一主体在同一个 Moment、同一个 mode 下复用 Thread 和 provider_session_id；completed 与 waiting 可以继续，未完成的 Thread 需要显式恢复。此前保存的完整消息会继续进入请求，历史分页不用于裁剪上下文。每次激活的 typed 历史在等待模型和工具期间一直驻留，开销随完整上下文增长。
 
-返回值的 value 包含 thread_id、结构化结果及行动计数，reason 解释终止。成功或 waiting 退出时保存工作区并收束扩展；保存失败会使激活未完成并阻止步骤发布。记忆提取在 Thread 最终关闭前执行。
+返回值的 value 里有 thread_id、结构化结果和行动计数，reason 说明为什么结束。以成功或 waiting 退出时会保存工作区并收束扩展；保存失败会让这次激活变成未完成，并阻止步骤发布。记忆提取在 Thread 最终关闭之前执行。
 
 以下为已有服务上的装配片段，输入由研究任务明确提供：
 

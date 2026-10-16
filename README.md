@@ -4,13 +4,15 @@ This is the independent, fully redesigned **Next** line, codenamed **猎龙**, i
 
 Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
 
+**Documentation** — the Chinese handbook at **[society0-next.readthedocs.io](https://society0-next.readthedocs.io/zh-cn/latest/)** covers this line end to end: installation, a step-by-step tutorial, the concepts behind the runtime, task guides and the API reference. Tutorials start from two rule actors and need no model account; reference pages carry signatures and tool schemas generated from the current source. Read the Docs rebuilds the site on every push to `next`, and the same pages are downloadable as an offline package from the site root.
+
+The handbook source lives in [docs/site](docs/site/README.md), together with the build and local-preview instructions. Editorial rules for the pages are in the [writing guide](docs/site/WRITING.md).
+
 **Design inspiration.** Society0 Next draws inspiration and design reference from [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) and its approach to spatiotemporal composability. DSH's everything-is-a-plugin architecture is powered by Cordis; the accompanying paper, [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512) (Yifan Shi, Wei Zhang and Tianyi Cui, 2026), informs Next's explicit plugin dependencies and resource lifecycles within a shared simulation environment. We gratefully acknowledge this foundation; [shared environment and composition](docs/site/content/concepts/environment.md) explains how Next applies it.
 
 The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; the completed redesign is tracked in [the implementation checklist](docs/core-next/TODO.md), and the next validation phase in [basic-environment migration](docs/core-next/basic-env-migration.md). Existing artifacts must be read using their producing version. The V2 product name defines an independent line; source installation must select Next explicitly, rather than relying on package-version ordering against the stable line.
 
 ## Start a study
-
-The [Chinese technical handbook](docs/site/content/index.md) organizes tutorials, concepts, task guides and API references around the current implementation. Its [build instructions](docs/site/README.md) produce a searchable static site and an offline HTML package from this source revision.
 
 Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) to install from a chosen source revision, run two rule actors, read actual results and continue the remaining time in a new directory. It uses the base package and needs no model account. Python 3.12 or later and macOS or Linux are supported by the storage implementation.
 

@@ -1,16 +1,16 @@
 # 给主体保存笔记与 Shell 工作区
 
-主体可以在自己的工作区保存调查笔记、计算中间值与待核对问题。先安装 shell 依赖，并在同一运行中装配主体数据、interaction、workspace 和模型驱动。共享环境资料的准备见[信息入口](information.md)。
+要让主体把调查笔记、中间值和待核对的问题留到下一次激活，就把工作区和 Shell 接进运行：先装 shell 依赖，再在同一次运行里装配主体数据、interaction、workspace 和模型驱动。共享环境里的资料怎么准备，见[信息入口](information.md)。
 
-## 一、接入持久工作区
+## 把工作区接进计划
 
 ```bash
 uv sync --frozen --extra llm --extra shell
 ```
 
-将 `workspace_plugin()` 加入计划。该服务依赖同库的主体 schema；即使驱动需要先取得工作区服务，compose 也会先建好所有数据结构。
+把 `workspace_plugin()` 加进计划。该服务依赖同一个数据库里的主体 schema；驱动就算在装配时就要求工作区服务，compose 也会先把所有数据结构建好。
 
-以下是完整的驱动插件工厂定义，供已有计划调用。它借用名为 models 的 research profile、cognition 的 input_builder，以及 threads、interaction、workspace、storage 服务。
+下面是一个完整的驱动插件工厂，供已有计划调用。它借用名为 models 的 research profile、cognition 的 input_builder，以及 threads、interaction、workspace、storage 这几个服务。
 
 ```python
 from society0.kernel.plugins import Plugin
@@ -43,11 +43,11 @@ def notebook_driver_plugin():
     ), install=install)
 ```
 
-在 actor_plugin 中将持久驱动标签映射为 `("notebook_driver", "factory")`。这个工厂展示资源取得方式；正式研究可以选择标准 llm_driver_plugin，保留已有策略、扩展和模型选择器，再传入按同样关系构造的 shell_factory。
+在 actor_plugin 里把持久驱动标签映射到 `("notebook_driver", "factory")`。这个工厂展示的是怎么取资源；正式研究可以改用标准的 llm_driver_plugin，保住已有的策略、扩展和模型选择器，再把按同样关系构造的 shell_factory 传进去。
 
-## 二、使用文件与数据命令
+## 在 Shell 里用文件和数据命令
 
-以下命令在主体的 Bashkit 工具内执行，终端宿主的文件系统与该逻辑空间各自独立。
+下面这些命令在主体的 Bashkit 工具里执行；终端宿主自己的文件系统和这个逻辑空间互不相干。
 
 ```bash
 mkdir -p /workspace/notes
@@ -56,21 +56,21 @@ cat /workspace/notes/questions.txt
 data list /world
 ```
 
-`/world` 提供授权的共享资料，`/context` 保留本次实际认知，`/workspace` 是当前主体的私有持久目录，`/results` 保存已登记输出。普通相对路径默认从工作区解析；临时解释器目录在新激活时重新建立。写入笔记后若要通知另一位主体，调用环境中的消息行动。
+`/world` 放的是授权给主体的共享资料，`/context` 保留本次实际收到的认知，`/workspace` 是当前主体的私有持久目录，`/results` 保存已经登记的输出。普通的相对路径默认从工作区解析；临时解释器目录每次新激活都会重建。写完笔记要通知另一位主体，就调用环境里的消息行动。
 
-大型资料优先用范围读取或 SQL 查询。假设已经安装[报告插件](information.md)，可以在 Shell 内执行：
+资料很大时优先用范围读取或 SQL 查询。假设已经装好[报告插件](information.md)，就可以在 Shell 里执行：
 
 ```bash
 data query /world/reports/items '{"fields":["id","title"],"limit":1}'
 data read /world/reports/text/1 '{"offset":0,"size":4096}'
 ```
 
-按返回的 next_cursor 或 next_offset 继续，并保留版本约束。Bashkit 的某些文件命令可能整读所选文件；`head` 的短输出不意味着只读取很少字节。
+按返回的 `next_cursor` 或 `next_offset` 接着读，并且带上版本约束。Bashkit 的某些文件命令会把选中的文件整个读出来；`head` 输出短，不代表底层只读了很少的字节。
 
-## 三、验证跨激活保存
+## 验证笔记能跨激活保留
 
-让 Alice 在第一步写入一条已知笔记，第二步读取同一路径；再从第一步完整点恢复到新目录，检查笔记原文相同。Bob 的工作区应保持自己的内容。LLMDriver 在 completed 或 waiting 结束时收束变更，完整步骤由 Runtime 发布。
+让 Alice 在第一步写一条已知笔记，第二步读同一个路径；再从第 1 步的完整步骤恢复到新目录，确认笔记原文一致。Bob 的工作区里应该只有自己的内容。LLMDriver 在 completed 或 waiting 结束时收束变更，完整步骤由 Runtime 发布。
 
-工作区以文件为增量单位，未改正文复用既有工件；修改超大文件可能复制整个文件。命令预览被截断时，沿 stdout/stderr 返回的原文引用继续读取，并分别检查 exit_code、业务行动回执与输出完整性。动作已执行而输出保存失败时保留失败步骤，避免重发已产生事实的动作。
+工作区按文件记增量，正文没改就复用已有工件；改一个超大文件，可能要把整个文件复制一遍。命令预览被截断时，沿着 stdout/stderr 返回的原文引用继续读，并分别检查 exit_code、业务行动回执和输出是否完整。动作已经执行、输出却没保存成功时，把这一步留作失败步骤，不要重发一个已经产生事实的动作。
 
-完整参数和生命周期见[工作区参考](../reference/workspace.md)、[Shell 参考](../reference/shell.md)。共享资料仍逐次经过授权，私有笔记随[完整步骤恢复](storage.md)继续提供。
+完整参数和生命周期见[工作区参考](../reference/workspace.md)、[Shell 参考](../reference/shell.md)。共享资料每次访问都要重新过授权，私有笔记跟着[完整步骤恢复](storage.md)继续提供。
