@@ -49,7 +49,7 @@ mount 返回同步的注销函数，重复调用不会重复生效。注销不�
 
 先对具体 `Ref` 执行 find，按需 describe 取得完整参数 schema，再 invoke。available 是轻量候选条件，库存、资格这类最终条件由 handler 在业务事务中再判断。注册的 dependencies 与共享 access_dependencies 必须覆盖实际资格和权限表；相关版本变化使发现游标过期。
 
-register 返回同步且幂等的注销函数，插件可用 `ctx.on_close(actions.register(action))` 托管。注销移除模板和索引、释放依赖引用并推进登记代次；旧发现游标过期，describe 抛 `Unavailable`，invoke 返回 rejected/unavailable。Actions 的索引可以重建，独立使用时由调用者 close。
+register 返回同步且幂等的注销函数，插件可用 `ctx.on_close(actions.register(action))` 托管。注销移除模板和索引、释放依赖引用并推进登记代次；旧发现游标过期，describe 抛 `Unavailable`，invoke 返回 rejected/unavailable。
 
 `strict=True` 要求工具 schema 采用严格形式，执行前按 schema 归一化 nullable 字符串再验证参数；read_only 是领域声明，实际只读由执行机制保障。参数 schema 在注册时校验；执行参数不合法返回 rejected/invalid_arguments，未知或不可调用返回 rejected/unavailable。预期业务拒绝用 rejected；accepted 表示已受理，可返回后续 process Ref；completed 表示行动完成。terminal=True 只在模板登记为 terminal 且结果 completed 时出现，handler 自行设置绕不过判断。
 
