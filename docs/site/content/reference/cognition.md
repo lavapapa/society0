@@ -1,6 +1,6 @@
 # 认知输入与来源组合
 
-`CognitiveInput`、`InputBatch` 位于 `society0.kernel.cognition`，多来源的值类型位于 `society0.plugins.cognition`，工厂可以从 `society0.plugins` 导入。这组接口负责拼出一次激活实际交给模型的输入，并记住每个消费方读到了哪里。构建器由你提供：感知函数接收 `(session, position)`，返回 `(messages, next_position)`，位置必须能编码成 JSON；运行时会提供 Session.cursors 里的 thread_id，以及带 persona、state 的 Actor.config。
+`CognitiveInput`、`InputBatch` 位于 `society0.kernel.cognition`，多来源的值类型位于 `society0.plugins.cognition`，工厂可以从 `society0.plugins` 导入。这组接口负责拼出一次激活实际交给模型的输入，并记住每个消费方读到了哪里。构建器由你提供，它按消费位置读取来源；消费位置会随输入一起保存，因此必须能编码成 JSON。
 
 ## 单来源输入与增量位置
 

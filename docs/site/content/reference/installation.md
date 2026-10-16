@@ -36,7 +36,7 @@ Python 版本要求和依赖约束由项目元数据定义，需要 Python 3.12 
 
 模型的文件工具和 shell 依赖独立的 society0-filesystem 包。
 
-工作树的 uv sources 指向仓库内的原生包。从源码构建需要该工具链指定的 Rust 与 maturin；安装已经构建好并且和平台匹配的 wheel 不需要 Rust。用 `pip install society0` 装到的是发布版本，走这条源码路线时要另外确定原生包的取法和核心源码的提交。wheel 必须匹配目标平台和 Python 环境，工具链版本与构建步骤见[安装指南](<../start/installation.md>)。
+工作树的 uv sources 指向仓库内的原生包。从源码构建需要该工具链指定的 Rust 与 maturin；安装已经构建好并且和平台匹配的 wheel 不需要 Rust。`pip install society0` 取到的构建与这条源码路线不是一回事，走源码路线时要另外确定原生包的取法和核心源码的提交。wheel 必须匹配目标平台和 Python 环境，工具链版本与构建步骤见[安装指南](<../start/installation.md>)。
 
 运行中的 SQLite 数据库和 WAL 放在本地文件系统。网络挂载适合传输数据、长期存放完整的产物文件；把在线 WAL 跑在 FUSE、CephFS 这类文件系统上，运行时不给保证。恢复和只读分析都使用新目录，复制带来的费用与状态边界见[存储生命周期](<storage-lifecycle.md>)。
 

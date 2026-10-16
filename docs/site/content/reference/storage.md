@@ -13,7 +13,7 @@
 <!-- api: society0.kernel.storage.StageReader -->
 <!-- api: society0.kernel.storage.StageReader.read -->
 
-create 在新目录执行调用者给定的建表语句并同步运行 initialize，建立初始 root，返回拥有规范写者锁的 StageStore。权威表要求显式非空主键，单列 INTEGER PRIMARY KEY 可沿用原生规则；外键启用。open 要求 current 与最新完整身份一致，发现未完成事务或 abort 标记时要求 restore。
+create 在新目录执行调用者给定的建表语句并同步运行 initialize，建立初始 root。权威表要求显式非空主键，单列 INTEGER PRIMARY KEY 可沿用原生规则；外键启用。open 要求 current 与最新完整身份一致，发现未完成事务或 abort 标记时要求 restore。
 
 transaction(callback) 与 read(callback) 返回回调结果。写入回调异常使整个短事务回滚；回调返回 awaitable 抛 `TypeError`。写者只在自己所属线程使用，禁止嵌套写回调和跨线程转移。规范写入禁止 DDL、ATTACH、修改 PRAGMA 与自行控制事务。
 

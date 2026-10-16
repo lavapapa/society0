@@ -25,8 +25,6 @@ max_workers 与 max_pending 均要求正整数，bool 或非正值抛 `ValueErro
 
 ## 生命周期
 
-资源由 compute_plugin 拥有，直接构造时由调用者显式关闭。
-
 <!-- api: society0.kernel.compute.ProcessCompute.close -->
 
 首次 run 绑定当前事件循环，之后跨循环使用抛 `RuntimeError`。关闭后的服务拒绝提交；close 幂等，执行标准进程池 shutdown，取消尚未开始的任务并等待运行任务真正结束。

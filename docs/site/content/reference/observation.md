@@ -1,6 +1,6 @@
 # Observation：运行观察
 
-`from society0.kernel.observation import Observation, ObservationService`。观察器直接读取既有运行目录，提供 Python、CLI 和 HTTP 入口；读取过程不装配机制、不连接模型，也不推进步骤。调用者提供运行目录路径，用完自己关闭观察对象；观察过程只做读取，不会改动那份运行。
+`from society0.kernel.observation import Observation, ObservationService`。观察器直接读取既有运行目录，提供 Python、CLI 和 HTTP 入口；读取过程不装配机制、不连接模型，也不推进步骤，因此不会改动那份运行。调用者提供运行目录路径，用完自己关闭观察对象。
 
 ## 运行状态与追加读取
 
@@ -28,7 +28,7 @@ max_bytes 约束最终 JSON 响应，包含身份、游标及 base64 膨胀。�
 <!-- api: society0.kernel.observation.ObservationService.call -->
 <!-- api: society0.kernel.observation.ObservationService.clear_prepared -->
 
-prepare_complete 启动独立进程物化完整点，状态为 preparing、ready 或 failed。call 的 params 传入 view 选择已准备视图，省略时读取源运行 live。每个服务同时持有一个准备任务和一个 ready；新视图成功前保留旧 ready，忙时返回 preparation_busy。clear_prepared 或关闭服务会取消并等待进程、删除自己拥有的临时视图，旧 view 随之失效。
+prepare_complete 启动独立进程物化完整步骤，状态为 preparing、ready 或 failed。call 的 params 传入 view 选择已准备视图，省略时读取源运行 live。每个服务同时持有一个准备任务和一个 ready；新视图成功前保留旧 ready，忙时返回 preparation_busy。clear_prepared 或关闭服务会取消并等待进程、删除自己拥有的临时视图，旧 view 随之失效。
 
 准备需要完整链重建与临时数据库空间，峰值可同时包含源、旧 ready 和新 building。同文件系统不可变工件可硬链接，跨文件系统需复制。只读视图使用稳定的源运行及完整步骤身份；换步骤或运行后拒绝旧游标。业务恢复分支使用新运行身份。
 

@@ -1,6 +1,6 @@
 # JSON 编码与分块写入
 
-插件正文写入使用 `society0.kernel.storage.Writer.write_json_chunks`，Thread、Memory、Results 与冷数据集共享这套原生 JSON/zstd 编码。应用层通常提交 JSON 值，由相应服务保存；只有自定义正文格式才直接调用这个入口，记录的块顺序与长度由调用者自己保存和还原。编码在规范写者线程同步完成，输入对象在编码期间要保持稳定。
+插件正文写入使用 `society0.kernel.storage.Writer.write_json_chunks`，Thread、Memory、Results 与冷数据集共享这套原生 JSON/zstd 编码。应用层通常提交 JSON 值，由相应服务保存；只有自定义正文格式才直接调用这个入口，输入对象在编码期间要保持稳定。
 
 ## 调用入口
 

@@ -67,7 +67,7 @@ uv run python read_messages.py
 
 正文每 7 字节读一次，这个大小同样是故意挑的。一个中文字可能横跨两段，所以先把 bytes 拼起来再统一解码。示例读的是已经停止的运行，正文固定不动；遇到还在变化的资料，就要沿着返回的版本或 `expected_revision` 走，数据或权限一变就重新定位。版本与定位的完整说明见[信息与版本](../concepts/information.md)。
 
-`Moment(2, "read")` 给出这次访问的业务语境。要读历史快照，得先准备[完整点只读视图](../concepts/complete-steps.md)；只把 Moment 设成过去的时间，数据库不会跟着倒回去。
+`Moment(2, "read")` 给出这次访问的业务语境。要读历史快照，得先准备[完整步骤只读视图](../concepts/complete-steps.md)；只把 Moment 设成过去的时间，数据库不会跟着倒回去。
 
 ## 模型眼里的文件空间
 

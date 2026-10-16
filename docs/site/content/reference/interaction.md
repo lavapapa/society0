@@ -1,6 +1,6 @@
 # 资源、信息与行动
 
-`from society0.kernel.interaction import Ref, Query, Information, Actions` 是主体访问共享环境与执行行动的边界：`Ref` 指出资源和业务时点，`Query` 描述读取条件，`Information` 按路径把请求交给提供者并判断可见性，`Actions` 保存动作模板并负责发现和调用。Driver 通常使用 Session 已绑定主体的门面，模型不能自己指定以谁的名义行动。资源归谁由登记方式决定：`mount` 默认借用 provider，`owned=True` 时 Information 才拥有它并负责释放；Actions 的索引可以重建，脱离运行单独使用时由调用者 close。
+`from society0.kernel.interaction import Ref, Query, Information, Actions` 是主体访问共享环境与执行行动的边界：`Ref` 指出资源，`Query` 描述读取条件，`Information` 按路径把请求交给提供者并判断可见性，`Actions` 保存动作模板并负责发现和调用；业务时点由 `Moment` 单独给出，和 `Ref` 一起传进读取或调用入口。Driver 通常使用 Session 已绑定主体的门面，模型不能自己指定以谁的名义行动。资源归谁由登记方式决定：`mount` 默认借用 provider，`owned=True` 时 Information 才拥有它并负责释放；Actions 的索引可以重建，脱离运行单独使用时由调用者 close。
 
 ## 值类型与作用域
 
@@ -55,6 +55,6 @@ register 返回同步且幂等的注销函数，插件可用 `ctx.on_close(actio
 
 names、tags 传 None 不限制该维度，传空集合表示无候选。发现返回完整授权总数，候选仍逐项检查当前权限和 available；开销随相关模板候选数增长，不按全部业务对象展开。
 
-handler 异常、取消或非法返回向上传播，这一步的交互失效，Runtime 终止阶段。即使 Driver 捕获异常，完整点仍无法发布。关闭 scope 不撤销已发生的外部副作用；所有权与提交边界由 handler 实现承担。
+handler 异常、取消或非法返回向上传播，这一步的交互失效，Runtime 终止阶段。即使 Driver 捕获异常，完整步骤仍无法发布。关闭 scope 不撤销已发生的外部副作用；所有权与提交边界由 handler 实现承担。
 
 调用路线见[行动教程](<../tutorial/actions.md>)；源码见 [Information](<https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/interaction.py#L133>)。

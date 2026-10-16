@@ -1,6 +1,6 @@
 # compose 与预设配方
 
-`from society0.kernel.composition import compose` 创建或恢复共享存储，然后把机制插件装进去；`from society0.presets import rule_preset, llm_preset` 提供两种常用的单驱动组合。调用者要给出新的运行目录和插件序列，从已有运行恢复时再指明源运行与完整点。进入 `compose` 之后得到就绪的 PluginHost，退出时的关闭动作由它统一执行。
+`from society0.kernel.composition import compose` 创建或恢复共享存储，然后把机制插件装进去；`from society0.presets import rule_preset, llm_preset` 提供两种常用的单驱动组合。调用者要给出新的运行目录和插件序列，从已有运行恢复时再指明源运行与完整步骤。进入 `compose` 之后得到就绪的 PluginHost，退出时的关闭动作由它统一执行。
 
 ## 装配、恢复与退出
 
@@ -13,7 +13,7 @@ async with compose(new_run, plugins, source=old_run, step=10) as host:
     runtime = host.service('runtime', 'runtime')
 ```
 
-`new_run` 必须是新的目标目录。省略 source 时创建一个新的根；给出 source 就从该运行的完整点恢复，`step` 省略时取源里最新的完整点。只给 step 而没有 source 会抛 `ValueError`。`storage` 是 compose 自己注入的保留实例名，指向同一个 StageStore。
+`new_run` 必须是新的目标目录。省略 source 时创建一个新的根；给出 source 就从该运行的完整步骤恢复，`step` 省略时取源里最新的完整步骤。只给 step 而没有 source 会抛 `ValueError`。`storage` 是 compose 自己注入的保留实例名，指向同一个 StageStore。
 
 装配先展开 includes、检查服务与数据两张依赖图，再按数据图汇集 DDL，进入 prepare 资源，并在同一个根事务里运行初始化。一个插件同时提供 initialize 和 prepare 时，先运行普通的初始化，再运行 prepare 产出的同步函数。初始化返回 awaitable 会抛 `TypeError`。准备阶段进入的资源在安装服务之前按逆序释放，随后按服务图安装服务。
 

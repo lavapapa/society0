@@ -1,6 +1,6 @@
 # 主体目录与 ActorStore
 
-`from society0.kernel.actors import ActorRecord, ActorDirectory, ActorStore` 用来读取主体的持久身份与主观资料，组合工厂也可以从 `society0.plugins` 导入。主体目录保存身份与主观资料，与具体驱动分开；`ActorStore` 在真正访问某位主体时才按记录里的驱动名称建立实例，因此同一份目录可以配规则主体，也可以配模型主体。驱动工厂由装配时的插件提供，工厂用到的连接池等资源也由那个插件持有。领域资产和行动资格留给环境机制维护。
+`from society0.kernel.actors import ActorRecord, ActorDirectory, ActorStore` 用来读取主体的持久身份与主观资料，组合工厂也可以从 `society0.plugins` 导入。主体目录保存身份与主观资料，与具体驱动分开；`ActorStore` 在真正访问某位主体时才按记录里的驱动名称建立实例，因此同一份目录可以配规则主体，也可以配模型主体。驱动工厂由驱动插件提供，工厂通过服务引用复用别的插件已经建好的连接池等资源，这些资源仍由创建它们的插件负责释放。领域资产和行动资格留给环境机制维护。
 
 ## 目录、驱动与绑定关系
 
