@@ -8,7 +8,7 @@
 
 progress 是独立的允许落后快照，包括运行状态、阶段、活动数、已结束激活数和更新时间。网络等待期间阶段可能保持不变；同步业务计算也不会自动刷新该时间。Thread 中实际 provider request/response 原文可进一步解释进展，进度年龄不等于模拟时间。failed 是权威 current 的失败标记，当前未完成事实可供诊断，恢复仍选择完整步骤。
 
-`with Observation(path) as reader` 在同一线程复用只读连接，每次请求独立开始和结束短读事务。回调、游标及 SQLite 快照不跨网络等待。当前 HTTP 以有界线程处理每次请求，并在该请求内使用独立 reader，未复用跨请求连接。不同 schema 规模下的实际 HTTP 连接数、延迟与长期 Python reader 对照见 `research/core-next/observation-validation-20261004.md`。
+`with Observation(path) as reader` 在同一线程复用只读连接，每次请求独立开始和结束短读事务。回调、游标及 SQLite 快照不跨网络等待。短暂锁竞争沿用 StageReader 的[原生有界等待合同](storage-contract.md#一接口)。当前 HTTP 以有界线程处理每次请求，并在该请求内使用独立 reader，未复用跨请求连接。不同 schema 规模下的实际 HTTP 连接数、延迟与长期 Python reader 对照见 `research/core-next/observation-validation-20261004.md`。
 
 ## 二、读取
 

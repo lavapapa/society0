@@ -207,7 +207,10 @@ def _authorizer(action, first, second, database, trigger):
 
 class StageReader:
     """独立只读观察者；完成水位是写入器已确认的下界。"""
-    def __init__(self, path):
+    def __init__(self, path, *, busy_timeout_ms=1000):
+        if type(busy_timeout_ms) is not int or not 0 <= busy_timeout_ms <= 2**31 - 1:
+            raise ValueError('busy_timeout_ms must be a nonnegative 32-bit integer')
+        self.busy_timeout_ms = busy_timeout_ms
         self.path = Path(path).resolve()
         self._connection = None
         self._retain = False
@@ -258,6 +261,8 @@ class StageReader:
         connection = self._connection if shared else None
         if connection is None:
             connection = apsw.Connection(str(self.path / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+            # 完成运行的并发冷读也可能竞争 WAL 恢复/清理锁；在首条读取前配置原生等待。
+            connection.set_busy_timeout(self.busy_timeout_ms)
             if shared:
                 self._connection = connection
         self._reading += 1

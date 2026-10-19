@@ -10,6 +10,8 @@ StageStore 使用 APSW 暴露的 SQLite Session 捕获当前步骤的净行变�
 
 `read(fn, expected_revision=None)` 使用独立只读连接和短读事务。StageStore 保留一个由当前线程拥有的空闲读连接，每次请求重新建立快照，结束时回滚读事务并关闭未消费完的流式游标。嵌套 read 临时打开另一连接，因此外层旧快照、期间规范写入和内层新快照可以同时成立。ReadView 提供有行数上限的 query、`live_revision` 和 `complete_step`。`StageReader(path).read(...)` 提供单次观察能力，可在生产者当前步骤未完成时使用，请求结束关闭连接；外部观察 worker 可用 `with StageReader(path) as reader` 显式拥有并复用该线程的连接。上下文退出或 close 关闭连接，关闭后读取和跨线程复用会报错。调用方不得把读事务跨越异步等待。revision 不符会明确失败，跨页稳定性和继续读取合同由信息提供者实现。原生 WAL 快照允许回调中存在更晚的写入，长回调仍会阻止 WAL 回收。
 
+`StageReader(path, busy_timeout_ms=1000)` 在每个新建只读连接上配置 SQLite 原生 busy timeout，覆盖首条水位读取及其后的 SQL。单位为毫秒，允许非负 32 位整数；0 表示遇锁立即失败。完成运行的多个冷读进程也可能短暂竞争 WAL 恢复或清理锁，默认有界等待后由 SQLite 继续读取；持续占锁时仍抛出 APSW BusyError。此参数限制原生锁等待，完整查询或回调的执行时间另行管理。Observation 与 StageStore 内部 reader 沿用默认值，HTTP 传输 timeout 与此参数各自生效。
+
 `complete(step, artifacts=())` 接受紧邻上个完整步骤的整数。Session changeset 先流式写入临时文件、同步文件、改名并同步目录，然后原子写入小型步骤描述符。描述符保存 run 身份、父步骤、live revision、changeset 路径及本次文件引用。空步骤也生成完成身份。相同最后步骤、相同引用且没有后续事务时重试返回原回执；不同输入或已有新事务会拒绝。callback 即使没有 SQL 修改也推进 revision，避免把一次新执行与丢失回执混淆。
 
 `abort_step()` 将当前实例及数据库标为需要恢复，后续写入和完成发布拒绝。它保留已短事务提交的诊断事实。`close()` 关闭捕获和连接；上下文管理器执行 close。规范写入器通过进程文件锁排他，计算线程和其他插件通过同一个规范连接提交操作。平台范围为支持 flock 的 POSIX 系统。
