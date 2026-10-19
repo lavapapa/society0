@@ -18,6 +18,8 @@ Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) 
 
 For assistant-guided research, install the complete [Society0 skill](skill/SKILL.md) folder in your coding assistant's skill directory, preserving its references and assets. The skill guides research design; the Python package executes experiments. A two-round LLM study is [minimal_experiment.py](skill/assets/minimal_experiment.py). It includes persistent identity, perception, a domain action, successful browsing memory extraction through the memory extension, and structured interview measurement. Its [quickstart](skill/references/runtime-quickstart.md) explains provider setup.
 
+中文图文教程：[用 WorkBuddy 开展 SNS 社区实验](docs/workbuddy-next-walkthrough.md)，从安装技能、检查配置，到运行、浏览真实帖子与会话、分析结果；附带可离线打开的[真实实验工作台](docs/examples/sns-workbench.html)和[示例配置](examples/core_next/sns_community/README.md)。
+
 Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The LLM file tools use the native filesystem package, with its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
 
 Codex subscription access is configured through the [subscription guide](docs/core-next/subscription-guide.md). The `llm` extra provides the Pydantic AI integration; simulation actions and complete Thread history remain owned by Society0. The [model and driver contracts](docs/core-next/llm-contract.md) describe the integration boundary.

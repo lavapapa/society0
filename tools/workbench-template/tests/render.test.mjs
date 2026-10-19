@@ -81,6 +81,9 @@ test("尚无试运行时，工作台仍展示配置字段和待发送变更", as
     }
     assert.ok(!html.includes("Agent 会话"));
     assert.ok(!html.includes("可接触的信息"));
+    assert.ok(html.includes('实验设置'));
+    assert.ok(html.includes('title="插件配置"'));
+    assert.ok(!/role="tab"[^>]*>[^<]*插件配置/.test(html));
     const { ConfigPanel } = await server.ssrLoadModule("/src/ConfigPanel.jsx");
     const version = {...fixture.versions[0], configFields: {
       '/agents/*/persona': {label:'人设说明',description:'主体的背景与行为倾向。',effect:'改变后续角色设定。'},
@@ -94,6 +97,16 @@ test("尚无试运行时，工作台仍展示配置字段和待发送变更", as
     const environment = renderConfig(version.entities[1]);
     assert.ok(environment.includes('决定可用的交互机制。'));
     assert.ok(!environment.includes('persona'));
+    const {PluginPanel} = await server.ssrLoadModule('/src/PluginPanel.jsx');
+    const pluginHtml=renderToStaticMarkup(React.createElement(PluginPanel,{version:{...version,
+      plugins:[{name:'memory'}],pluginViews:{memory:{category:'builtin',title:'长期记忆',summary:'保存并检索经历。',description:'详细运行机制',configPath:'/environment/type'}}},
+      config:version.config,onChange:()=>{},onOpenSettings:()=>{}}));
+    assert.ok(pluginHtml.includes('保存并检索经历。'));
+    assert.ok(pluginHtml.includes('<code>memory</code>'));
+    assert.ok(pluginHtml.includes('长期记忆详细信息'));
+    assert.ok(pluginHtml.includes('打开环境'));
+    assert.ok(!pluginHtml.includes('config-field'));
+    assert.ok(!pluginHtml.includes('放大'));
   } finally {
     await server.close();
     delete globalThis.document;

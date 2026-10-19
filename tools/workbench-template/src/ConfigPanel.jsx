@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { getAtPath, pathPart, resolveConfigPath } from "./model";
 
-function Field({ label, path, value, onChange, fields }) {
+export function Field({ label, path, value, onChange, fields }) {
   const info = fields[path] || fields[path.replace(/\/\d+(?=\/|$)/g, '/*')] || {};
   const title = info.label || label;
   if (value && typeof value === "object") {
@@ -27,6 +27,8 @@ function Field({ label, path, value, onChange, fields }) {
 export function ConfigPanel({ version, entity, config, onChange }) {
   const path = resolveConfigPath(version.config, config, entity?.configPath ?? "");
   const value = path === null ? undefined : getAtPath(config, path);
+  const visibleValue = entity?.configExclude && value && typeof value === 'object'
+    ? Object.fromEntries(Object.entries(value).filter(([key])=>!entity.configExclude.includes(key))) : value;
   const [jsonText, setJsonText] = useState("");
   const [jsonDirty, setJsonDirty] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +41,7 @@ export function ConfigPanel({ version, entity, config, onChange }) {
       <p>编辑后，点击顶部“复制变更”发给 agent，核对并创建新版本。</p>
       {version?.configSource && <details><summary>配置来源 · {version?.name || version?.id}</summary><small>{version.configSource}</small></details>}
     </div>
-    <div className="config-fields"><Field label={entity?.name || "完整配置"} path={path} value={value} onChange={onChange} fields={version.configFields || {}} /></div>
+    <div className="config-fields"><Field label={entity?.name || "完整配置"} path={path} value={visibleValue} onChange={onChange} fields={version.configFields || {}} /></div>
     <details className="json-editor">
       <summary>编辑当前视角 JSON（可增删字段或调整结构）</summary>
       <textarea aria-label="完整配置 JSON" value={jsonText} onChange={(event) => { setJsonText(event.target.value); setJsonDirty(true); }} rows={16} spellCheck={false} />

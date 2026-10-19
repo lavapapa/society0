@@ -8,6 +8,8 @@
 
 示例从运行环境读取 SOCIETY0_RELEASE、SOCIETY0_LLM_MODEL、SOCIETY0_LLM_BASE_URL、SOCIETY0_LLM_API_KEY、SOCIETY0_EMBED_MODEL、SOCIETY0_EMBED_BASE_URL、SOCIETY0_EMBED_API_KEY、SOCIETY0_EMBED_DIMENSIONS；可选 SOCIETY0_LLM_OPTIONS 是提供方已验证请求选项的 JSON。凭据留在进程环境。根据实际模型设置推理、工具选择与输出预算，保留原研究合同，截断明确记为未完成。
 
+SNS 起步可参考仓库的 [六位昵称用户示例](../../examples/core_next/sns_community/README.md)。首次社交试验应让每位用户取得真实对象引用与动作格式，包括推荐为空的用户。示例使用独立的入口来源提供这些材料，保持动作选择由模型决定；该入口清单与推荐流分别记录。实际试验发现，缺少入口时模型可能反复猜测错误的 namespace/kind 并耗尽回合。遇到这种失败，查看 Thread 中的工具参数与返回值，修正信息提供方式，再建新版本试运行。
+
 ## 二、运行
 
 ```sh

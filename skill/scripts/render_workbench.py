@@ -47,7 +47,7 @@ def main() -> None:
     parser.add_argument("--data", required=True, type=Path, help="实验转换脚本生成的 JSON 文件")
     parser.add_argument("--output", required=True, type=Path, help="输出的 HTML 文件")
     parser.add_argument("--template", type=Path, default=DEFAULT_TEMPLATE, help="可选的自定义 HTML 模板")
-    parser.add_argument("--view", choices=("inspect", "network", "posts"), help="打开时的默认页面：实验检查、关系网络或帖子浏览")
+    parser.add_argument("--view", choices=("inspect", "network", "posts"), help="打开时的默认页面：实验设置、关系网络或帖子浏览")
     args = parser.parse_args()
     try:
         payload = json.loads(args.data.read_text(encoding="utf-8"))

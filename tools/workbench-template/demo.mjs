@@ -12,7 +12,14 @@ const social=tick=>({
 });
 const agents=nodes.filter(n=>n.kind==='agent');
 const entities=[{id:'environment',name:'实验整体',kind:'overview',configPath:'/environment'},...agents.map((n,i)=>({id:n.id,name:n.label,kind:'llm-agent',group:n.group,configPath:`/agents/${i}`}))];
-const config={environment:{type:'social-network',recommendations:3},agents:agents.map(n=>({id:n.id,name:n.label,persona:n.description,active:true}))};
+const config={environment:{type:'social-network',recommendations:3},plugins:{social:true},observer:{enabled:true},agents:agents.map(n=>({id:n.id,name:n.label,persona:n.description,active:true}))};
+// 这里的装配与开关用于合成界面验收；真实实验由转换脚本按配方提取。
+const plugins=[{name:'storage',requires:[],schema_requires:[],includes:[]},{name:'social',requires:['storage'],schema_requires:[],includes:[]},{name:'recommendation.observer',requires:['storage','social'],schema_requires:[],includes:[]}];
+const pluginViews={
+ storage:{category:'builtin',title:'共享存储',description:'保存主体状态、社交记录与插件产生的数据。',parameterNote:'本演示未开放存储参数。'},
+ social:{category:'social',title:'社交机制',description:'提供帖子、关系与信息流。推荐数量影响主体可接触的信息范围。',configPath:'/environment',enabledPath:'/plugins/social'},
+ 'recommendation.observer':{category:'social',title:'推荐观测',description:'比较推荐策略的候选帖子、得分与排序，帮助研究者追溯信息流差异。',enabledPath:'/observer/enabled',parameterNote:'本合成演示提供启停交互；真实实验需由配方将此字段绑定到插件装配。',source:'examples/core_next/recommendation_observer.py'}
+};
 const configFields={
  '/environment':{label:'环境设置',description:'设定社交环境与信息推荐。各主体的人设和参与状态可从左栏逐一检查。'},
  '/environment/type':{label:'环境类型',description:'本演示使用 social-network 表示社交网络环境，提供发帖、回复与关系记录。',effect:'更换环境类型需要同步检查实验代码与可用行为。'},
@@ -39,6 +46,7 @@ const makeRun=id=>({id,name:id==='pilot-001'?'试运行 1':'试运行 2',ticks:[
 const data={study:{title:'夜间公共交通讨论 · 合成演示',question:'不同群体如何交换公共交通信息？',defaultView:'network'},versions:[
  {id:'v001',name:'v001',config,configFields,entities,runs:[makeRun('pilot-001'),makeRun('pilot-002')],social:social(0),configSource:'versions/v001/config.json'},
  {id:'v002',name:'v002 · 待试运行',configFields,config:{...config,environment:{type:'social-network',recommendations:5}},entities,runs:[],social:social(0),configSource:'versions/v002/config.json'}]};
+for(const version of data.versions){version.plugins=plugins;version.pluginViews=pluginViews;}
 for(const frame of data.versions[0].runs[1].socialSnapshots){
  frame.source='试运行 2 · 独立合成资料';
  frame.posts=frame.posts.map(p=>({...p,content:`【试运行 2 的合成记录】${p.content}`}));

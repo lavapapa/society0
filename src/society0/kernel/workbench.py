@@ -135,7 +135,14 @@ def _export(selection):
                         'tabs':[{'id':'results','title':'激活结果','modules':per_actor[actor]}]})
                     if sessions[actor]:next(entity for entity in entities if entity['id']=='actor:'+actor)['kind']='llm-agent'
             return {'id':selection.version,'name':selection.version,'config':manifest['contract'],
+                    'plugins':manifest['plugins'],
                     'configSource':str(path/'runner.json'),'entities':entities,'runs':[run]}
+
+
+def _plugin_relations(plugins):
+    # 依赖边没有先后含义；保留插件展开与 includes 顺序。
+    return [{**plugin,'requires':sorted(plugin['requires']),
+             'schema_requires':sorted(plugin['schema_requires'])} for plugin in plugins]
 
 
 def export_payload(selections,*,title='Society0 工作台',question=''):
@@ -145,7 +152,8 @@ def export_payload(selections,*,title='Society0 工作台',question=''):
         version=_export(selection)
         if version['id'] in versions:
             previous=versions[version['id']]
-            if previous['config']!=version['config'] or previous['entities']!=version['entities']:
+            if (previous['config']!=version['config'] or previous['entities']!=version['entities']
+                    or _plugin_relations(previous['plugins'])!=_plugin_relations(version['plugins'])):
                 raise ValueError('configuration differs within one version')
             previous['runs'].extend(version['runs'])
         else:
