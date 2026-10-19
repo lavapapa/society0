@@ -2,17 +2,31 @@
 
 正式运行保存代码/依赖身份、研究配置、模型请求参数与公开 RunContract。runner.json 是运行合同，runner-status.json 是轻进度，timings.jsonl 记录稳定阶段数字。密钥来自环境，使用独立新目录保存每次尝试。
 
+长会话在项目现有进度文档中维护一小段当前状态：项目路径、当前配置版本与运行目录、模型名称、已授权配置文件的位置（省略密钥值）、最近失败的证据位置和下一步。附件成功读取后记录其实际位置；继续任务时先读这段记录，直接恢复具体文件与动作。
+
 ## 读取运行
 
 Observation 提供 status、list_threads、thread_tail、原文范围、result_phases/result_page、resource_usage、action_summary。实时诊断与已完成步骤分别读取。固定历史视图通过 prepare_complete 准备；巨大原文使用引用完整续读，保留总数与继续位置。Memory/Thread/业务 SQL 与工作区引用在同一个完整点恢复。
 
 工作台由 kernel.workbench 从实际运行与结果引用生成静态数据；它不执行研究计划，也不把浏览器草稿直接作为已应用配置。研究配置变更生成新版本并经明确运行请求产生新工件。原始 Thread 的信息暴露与测量结果分别解释。
 
+## 失败诊断
+
+`IncompleteActivation` 是运行层摘要。先用 `Observation(run_dir).action_summary()` 找到失败主体与终止原因，再用 `list_threads`、`thread_tail` 读取该主体最后一次 provider response、前面的 request 和工具回执。大记录沿 `payload_ref` 完整读取；诊断使用 live 数据，保留 `complete_through` 与未完成事件的区别。先记录具体 `finish_reason`、错误内容和事件位置，再决定检查哪段源码。
+
+例如上游返回 `content_filter` 时，报告实际过滤状态及记录位置；空白文本探针成功无法验证该次完整请求。工具返回空动作目录时，先核对主体收到的实际目标引用，避免让模型反复猜测目标或路径。未完成步骤里的动作属于诊断事实，完成步骤与正式结果另行确认。
+
+动作分布单一、无人转发、关系未变化等可能就是本次观察结果。展示这些真实分布，并检查是否符合原研究设定。为了增加动作种类而加入“优先评论”“不要重复发帖”等提示，会改变行为条件；向研究者说明这种改动并确认后，再建立新版本。界面缺少某类事件时显示空态即可。
+
 ## 解释成本
 
 区分模型端等待、记忆检索、领域计算、权威存储与展示导出；资源用量的未知值不推算为零。Activation、工具和物理调用计时有包含关系，避免重复累加。范围读取和按需字段保留完整内容的继续访问路径；显式全人口分析与全图构建仍按请求规模计成本。
 
 ## Quantitative Analysis
+
+统计前分清初始投放、主体动作尝试、成功调用和实际新增事实。种子帖计入帖子总量，单列于主体发帖；同一主体重复点赞可能返回成功而不新增点赞关系，报告时把调用次数与形成的点赞关系分开写。核对分类合计与总数，正文引用脚本的同一份汇总结果。模型物理请求、重试与主体激活分别计数；记忆存量与累计召回条次分别报告。
+
+跨轮统计同样要分清三类内容：长期记忆（每轮提炼的短句，注入上限为 `recall_top_k`）、当轮重新感知的帖子状态（平台在该轮激活时重新读出的正文与赞/评论数），以及上一轮会话原文（不进入本轮输入）。主体在后一轮提到前一轮的细节，不能直接当作“记得对话原文”，需先核对当轮召回条目与当轮帖子正文。
 
 Anchor each explanation to the comparison actually made. Report group sizes, observed values and uncertainty before proposing a mechanism. Agent reasons are self-reported explanations that suggest hypotheses; repeated mentions of one cue do not establish that it caused the outcome or suppressed another cue. A small or absent difference also leaves multiple explanations open.
 

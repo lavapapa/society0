@@ -30,6 +30,21 @@ Information 定义主体可读的文档与数据集，Actions 注册按对象类
 
 plain_plugin 提供空白基准；round_robin_plugin 管理配对、轮次消息与完整历史；social_plugin 组合独立领域、推荐和呈现叶服务。Information 预览保持只读，实际模型呈现通过 social_source_plugin 导出的 source 与 cognition_plugin 的 input_builder 接线；SourceSpec 为每个来源配置独立持久 ID，默认 operating_context 消费完整组合材料；排序替换、语义开关与呈现效果见 [社交合同](../../docs/core-next/social-contract.md)。[推荐观测例子](../../examples/core_next/recommendation_observer.py) 展示旁路消费者复用推荐输入和多个策略并保存自己的结果。多个同类插件使用不同名字，在同一环境显式绑定，主体身份共享。Schedule 安排领域时序，插件 on_step 完整步骤钩子自动收束。
 
+社交实验先核对候选池、排序和实际呈现三层规则。内置 WeightedRanker 给已关注作者加权，候选池包括其他作者的帖子；关注边本身并未限定唯一曝光路径。研究说明、主体提示和工作台 FoV 应表达实际机制。研究者若要求仅沿关注链传播，需要先明确该设计并实现对应的候选与读取规则；在试运行中用真实推荐与 Thread 核对曝光路径。初始化阶段的预设帖子标为计划投放，实际发布时点取自领域记录。
+
+### 让主体知道如何行动
+
+Actions 按目标对象发现。装配插件后，在主体实际收到的环境说明中给出命名空间、对象类型和自身标识；以当前可见帖子中的真实 id 构造帖子引用。内置默认社交域的写法如下，自定义域需替换 `social`：
+
+```json
+{"namespace":"social","kind":"participants","key":"<当前主体 id>"}
+{"namespace":"social","kind":"posts","key":"<可见帖子 id>"}
+```
+
+成员目标提供 `social.publish_post`（content）、`social.follow`、`social.unfollow`；帖子目标提供 `social.like_post`、`social.comment`（content）、`social.repost`（可选 commentary）。先用 `action_describe(name, target)` 查看参数，再用 `action_invoke(name, target, arguments)` 执行。使用 `action_find` 列表发现时应填写完整参数：`target`、`query: ""`、`limit: 20`、`cursor: null`。
+
+把这些入口说明与原有 cognition 环境输入接在一起即可。按研究设定提供可见对象，避免为了列出入口额外注入全局帖子或成员清单。提供具体引用和参数格式时，保留主体自主选择动作、对象与内容的空间；“照抄这次点赞或关注”会把教学示例变成实验干预。试运行时检查真实 Thread：主体能找到动作、参数通过校验、领域记录实际改变。该检查同时验证所选提供方对工具调用的支持。
+
 ### 从双机制例子构建自己的世界
 
 [conversation_pilot.py](../../examples/core_next/conversation_pilot.py) 中，`a/b/c/d` 是共享的主体，`work` 与 `commons` 是同一环境的两个机制实例。两者各自维护配对与消息，Actor 身份在两个机制间一致。研究者的 `schedule` 先通过 `pair` 阶段调用两个机制的 `start_round`，再通过 `talk` 阶段激活主体；主体的 `talk(session)` 调用各机制的发送行动，StepResult 保存实际配对与消息。

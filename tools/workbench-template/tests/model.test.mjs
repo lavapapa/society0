@@ -61,6 +61,7 @@ test("配置可按路径修改，并把差异整理为待发送请求", () => {
   assert.deepEqual(changes, [{ op: "replace", path: "/agents/0/temperature", before: 0.4, after: 0.7 }]);
   assert.equal(changeRequest(study.versions[0], changes).baseVersionId, "v1");
   assert.equal(changeRequest(study.versions[0], changes).changes.length, 1);
+  assert.match(changeRequest(study.versions[0], changes).instruction, /暂时不运行/);
   assert.deepEqual(changesBetween({ a: 1 }, { b: 2 }), [
     { op: "remove", path: "/a", before: 1 },
     { op: "add", path: "/b", after: 2 },

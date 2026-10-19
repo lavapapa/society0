@@ -87,7 +87,7 @@ export function changeRequest(version, changes) {
     baseVersionId: version.id,
     baseVersionName: version.name || version.id,
     configSource: version.configSource || "",
-    instruction: "请核对这些拟议修改，在实验文件中创建新的配置版本并更新工作台；页面本身未修改实验文件，也未启动试运行。",
+    instruction: "请核对原值与这些拟议修改，按这份变更新建配置版本，更新工作台，暂时不运行。",
     changes,
   };
 }

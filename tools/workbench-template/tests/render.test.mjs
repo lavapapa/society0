@@ -76,11 +76,24 @@ test("尚无试运行时，工作台仍展示配置字段和待发送变更", as
   try {
     const { App } = await server.ssrLoadModule("/src/App.jsx");
     const html = renderToStaticMarkup(React.createElement(App));
-    for (const expected of ["配置研究", "初稿", "谨慎读者", "环境", "配置检查", "待发送变更", "本版本尚无试运行", "复制变更"]) {
+    for (const expected of ["配置研究", "初稿", "谨慎读者", "环境", "配置检查", "待发送变更", "配置视图", "复制变更"]) {
       assert.ok(html.includes(expected), expected);
     }
     assert.ok(!html.includes("Agent 会话"));
     assert.ok(!html.includes("可接触的信息"));
+    const { ConfigPanel } = await server.ssrLoadModule("/src/ConfigPanel.jsx");
+    const version = {...fixture.versions[0], configFields: {
+      '/agents/*/persona': {label:'人设说明',description:'主体的背景与行为倾向。',effect:'改变后续角色设定。'},
+      '/environment/type': {label:'环境类型',description:'决定可用的交互机制。'},
+    }};
+    const renderConfig = entity => renderToStaticMarkup(React.createElement(ConfigPanel,{version,entity,config:version.config,onChange:()=>{}}));
+    const actor = renderConfig(version.entities[0]);
+    assert.ok(actor.includes('人设说明'));
+    assert.ok(actor.includes('主体的背景与行为倾向。'));
+    assert.ok(actor.includes('改变后续角色设定。'));
+    const environment = renderConfig(version.entities[1]);
+    assert.ok(environment.includes('决定可用的交互机制。'));
+    assert.ok(!environment.includes('persona'));
   } finally {
     await server.close();
     delete globalThis.document;
