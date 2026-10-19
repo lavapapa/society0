@@ -12,6 +12,10 @@
 
 本教程使用 [Society0 next 分支的 skill](https://github.com/lavapapa/society0/tree/next/skill)。请保留安装请求中的 `next`，让 AI 安装与教程对应的版本。安装完成后，在同一个会话里接着说就可以。
 
+访问 GitHub 不方便时，也可以使用 [Gitee 镜像](https://gitee.com/marvinfore/society0/tree/next)，发送：
+
+> 请从 https://gitee.com/marvinfore/society0 的 next 分支安装 skill 目录中的 Society0 技能，然后带我入门。
+
 你可以按自己的习惯开始：
 
 - 想先了解原理：“先带我理解 Society0，每次讲一个概念，再给我至少三个可以继续了解的问题。”
