@@ -311,6 +311,9 @@ class StageStore:
         try:
             connection = apsw.Connection(str(temporary / 'current.sqlite'))
             connection.execute('PRAGMA foreign_keys=ON')
+            connection.execute('PRAGMA synchronous=FULL')
+            # 新目录尚未发布；schema、初态和修订元数据共用一次完整同步提交。
+            connection.execute('BEGIN IMMEDIATE')
             for ddl in schema:
                 connection.execute(ddl)
             _tables(connection)
@@ -318,14 +321,12 @@ class StageStore:
             if initialize:
                 scope = Writer(connection)
                 scope.publish_step = 0
-                connection.execute('BEGIN')
                 connection.set_authorizer(_authorizer)
                 try:
                     _call(initialize, scope)
                 finally:
                     scope._finish()
                     connection.set_authorizer(None)
-                connection.execute('COMMIT')
             identity = run_id or uuid.uuid4().hex
             connection.execute('CREATE TABLE _stage_runtime(id INTEGER PRIMARY KEY,run_id TEXT,revision INTEGER,failed INTEGER,complete_step INTEGER)')
             connection.execute('INSERT INTO _stage_runtime VALUES(1,?,0,0,0)', (identity,))
@@ -333,6 +334,7 @@ class StageStore:
             connection.executemany('INSERT INTO _stage_table_revisions VALUES(?,0)', ((name,) for name in _tables(connection)))
             connection.execute('CREATE TABLE _stage_artifacts(path TEXT PRIMARY KEY NOT NULL,size INTEGER NOT NULL,revision INTEGER NOT NULL)')
             connection.execute('CREATE INDEX _stage_artifact_revision ON _stage_artifacts(revision)')
+            connection.execute('COMMIT')
             manifest = {'format': 3, 'body_codec': 'zstd-frames-64k', 'changeset_codec': 'zstd-stream',
                         'run_id': identity, 'schema': definitions, 'root_step': 0, 'source': None}
             cls._finish_initial(temporary, connection, manifest, [])
@@ -343,6 +345,12 @@ class StageStore:
             os.rename(temporary, path)
             _sync(path.parent)
             return cls.open(path)
+        except BaseException:
+            if connection:
+                connection.set_authorizer(None)
+                if not connection.get_autocommit():
+                    connection.execute('ROLLBACK')
+            raise
         finally:
             if connection:
                 connection.close()
