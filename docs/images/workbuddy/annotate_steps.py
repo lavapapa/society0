@@ -1,5 +1,6 @@
 """在真实截图上叠加教程标注，保留原始截图与原始像素尺寸。"""
 from pathlib import Path
+import sys
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).parent / "2026-10-19"
@@ -25,6 +26,8 @@ STEPS = [
 ]
 
 for stem, title, legend, boxes in STEPS:
+    if len(sys.argv) > 1 and stem not in sys.argv[1:]:
+        continue
     original = Image.open(ROOT / f"{stem}.png").convert("RGB")
     w, h = original.size
     scale = w / 2048

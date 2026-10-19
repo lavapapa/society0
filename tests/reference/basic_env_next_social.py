@@ -65,7 +65,10 @@ async def record_social(directory, source=None, start=0, stop=3):
             await env.recommended_feed("d", tick, record_impressions=False)
             env.trending(tick)
             assert before == env.exposure._impressions
-            ranked = env.rank("d", tick)
+            _, ranking_output = await env.recommendation("d", tick)
+            ranked = [{"post_id": item.post_id, "_recommendation_score": {
+                "total_score": round(float(item.score), 6), **dict(item.components)}}
+                for item in ranking_output.items]
             await env.recommended_feed("d", tick)
             await action("d", "get_trending_posts")
             result["steps"].append({"tick": tick, **snapshot(),

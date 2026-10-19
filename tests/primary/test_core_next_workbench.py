@@ -15,6 +15,9 @@ async def test_real_pilot_export_and_existing_single_file_renderer(tmp_path):
     payload=export_payload([RunSelection(tmp_path/'run','v1',(1,2),('a','b'))],title='实际对话')
     version=payload['versions'][0];run=version['runs'][0]
     assert version['config']['release']['commit']=='explicit-test-release'
+    manifest=json.loads((tmp_path/'run'/'runner.json').read_text())
+    assert version['plugins']==manifest['plugins']
+    assert version['plugins'] and all('schema_requires' in p for p in version['plugins'])
     assert [tick['id'] for tick in run['ticks']]==['1','2']
     snapshots=run['snapshots']
     assert {(s['tickId'],s['entityId']) for s in snapshots}=={(str(t),a) for t in (1,2) for a in ('environment','actor:a','actor:b')}
@@ -32,6 +35,32 @@ async def test_real_pilot_export_and_existing_single_file_renderer(tmp_path):
 
 def test_empty_export_has_real_empty_state():
     assert export_payload([],title='空研究')=={'study':{'title':'空研究','question':''},'versions':[]}
+
+
+@pytest.mark.asyncio
+async def test_same_version_rejects_different_plugin_composition(tmp_path):
+    for name in ('one','two'):
+        await run_plan(tmp_path/name,build({'release':{'commit':'test'},'start':1,'end':1}))
+    path=tmp_path/'two'/'runner.json'
+    manifest=json.loads(path.read_text())
+    manifest['plugins'][0]['includes']=['different-composition']
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError,match='configuration'):
+        export_payload([RunSelection(tmp_path/name,'same',(1,),('a',)) for name in ('one','two')])
+
+
+@pytest.mark.asyncio
+async def test_same_version_accepts_dependency_declaration_order(tmp_path):
+    for name in ('one','two'):
+        await run_plan(tmp_path/name,build({'release':{'commit':'test'},'start':1,'end':1}))
+    path=tmp_path/'two'/'runner.json'
+    manifest=json.loads(path.read_text())
+    for plugin in manifest['plugins']:
+        plugin['requires'].reverse()
+        plugin['schema_requires'].reverse()
+    path.write_text(json.dumps(manifest))
+    payload=export_payload([RunSelection(tmp_path/name,'same',(1,),('a',)) for name in ('one','two')])
+    assert len(payload['versions'][0]['runs'])==2
 
 
 @pytest.mark.asyncio

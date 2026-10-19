@@ -60,7 +60,7 @@ export function SocialPanel({frame,mode,onMode,onInspect,selected,onSelect}) {
   ]});
   cyRef.current=cy;cy.on('tap','node,edge',e=>choose(e.target.id()));cy.on('tap',e=>{if(e.target===cy)onSelect(null);});
   const readable=()=>{const z=cy.zoom();cy.nodes().style({width:24/z,height:24/z,'font-size':12/z,'text-margin-y':7/z});};cy.on('zoom',readable);
-  const resize=new ResizeObserver(()=>{cy.resize();});resize.observe(host.current);
+  const resize=new ResizeObserver(()=>{cy.resize();cy.fit(cy.elements(':visible'),30);});resize.observe(host.current);
   return()=>{resize.disconnect();cy.destroy();cyRef.current=null;};
  },[frame,mode]);
  useEffect(()=>{const cy=cyRef.current;if(!cy)return;const ids=new Set([...graph.nodes,...graph.edges].map(n=>n.id));cy.batch(()=>cy.elements().forEach(e=>e.toggleClass('hidden',!ids.has(e.id()))));cy.elements().removeClass('dim selected');if(selected&&ids.has(selected)){cy.elements().difference(near(cy,selected)).addClass('dim');cy.getElementById(selected).addClass('selected');}},[graph,selected,mode]);

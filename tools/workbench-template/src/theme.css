@@ -1,5 +1,6 @@
 /* 参考锂电工作台：浅灰蓝底色、细边框、低对比选中态。 */
 .sidebar{padding:0}.actors>div{margin-bottom:4px}.module-heading{margin-bottom:3px}.module-heading>div{gap:2px}.module-views{margin-top:6px}.access{margin-bottom:2px}.module-source summary{cursor:pointer}.agent-transcript{padding-top:8px}
+.sidebar nav.actors>button{min-height:27px;padding:4px 6px;margin:1px 0}
 :root{--canvas:#f4f7f9;--surface:#fff;--surface-muted:#f8f9fa;--text:#1a1a1a;--muted:#596b78;--accent:#4a8fc2;--accent-deep:#365b8f;--line:rgb(74 143 194 / 14%);--line-soft:rgb(74 143 194 / 7%);--selected-bg:#eaf1f6;--blue:#365b8f;--ink:#1a1a1a}
 body{color:var(--text);background:var(--canvas);font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;font-size:12px}
 button,input,select,textarea{font:inherit}button{gap:5px;border-color:var(--line);border-radius:6px}button:hover{background:#edf3f7}button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}button svg{flex-shrink:0;stroke-width:1.65}small{color:var(--muted)}
@@ -55,3 +56,4 @@ button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visi
 .reading-expanded.insight,.reading-expanded.social-details{top:46px}
 @media(max-width:1280px){.brand .experiment{display:none}.global-controls label{font-size:0}.global-controls select{font-size:10px}.topbar .global-controls{gap:3px}}
 @media(max-width:800px){.topbar{grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"brand versions controls" "pages pages pages";height:auto;gap:4px}.topbar .workbench-pages{justify-self:center}.reading-expanded.insight,.reading-expanded.social-details{top:76px}}
+@media(max-width:480px){.topbar{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand brand" "versions controls" "pages pages";padding:5px 6px}.topbar .version-controls select{max-width:95px;min-width:58px}.topbar .workbench-pages{max-width:100%;overflow-x:auto;justify-self:stretch;justify-content:flex-start}.topbar .workbench-pages>button{padding:0 6px;font-size:10px;flex-shrink:0}.topbar .global-controls{gap:0}.topbar .tick-controls{gap:0}.topbar .tick-controls select{max-width:70px}.topbar .copy-changes{font-size:10px;padding:3px}.reading-expanded.insight,.reading-expanded.social-details{top:108px}}

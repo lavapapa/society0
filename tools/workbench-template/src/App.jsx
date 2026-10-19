@@ -18,11 +18,13 @@ import {
   IconCopy,
   IconInfoCircle,
   IconEye,
+  IconPlug,
 } from "@tabler/icons-react";
 import { blankStudy, changeRequest, changesBetween, mainTabsFor, rightTabsFor, setAtPath, snapshotFor } from "./model";
 import { ViewTabs } from "./views";
 import { ConfigPanel } from "./ConfigPanel";
 import { SocialPanel } from "./SocialPanel";
+import { PluginPanel } from "./PluginPanel";
 import { socialFor } from "./social";
 
 function readStudy() {
@@ -46,7 +48,7 @@ const labelForKind = {
   "llm-agent": "LLM Agent",
   "rule-agent": "规则主体",
   institution: "制度实体",
-  overview: "实验视角",
+  overview: "实验配置",
 };
 
 function Empty({ title, children }) {
@@ -150,7 +152,7 @@ function Workspace({ snapshot, entity, context, tabs, version, config, onConfigC
       <div className="workspace-heading">
         <div className="scope-title">
           <h1>{entity?.name || "选择观察对象"}</h1>
-          <p>{entity ? labelForKind[entity.kind] || entity.kind || "观察对象" : "从左侧选择一个主体或实验视角"}</p>
+          <p>{entity ? labelForKind[entity.kind] || entity.kind || "观察对象" : "从左侧选择主体或实验配置"}</p>
         </div>
         {focus && <button className="focus-exit" onClick={() => setFocus(null)}>返回全部模块</button>}
       </div>
@@ -266,7 +268,8 @@ export function App() {
   const snapshot = snapshotFor(data, versionId, runId, tickId, entityId);
   const social = socialFor(version,run,tickId);
   const hasSocial = Boolean(version?.social || runs.some(r=>r.socialSnapshots?.length));
-  const pageMode = hasSocial ? mode : 'inspect';
+  const pageMode = mode === 'plugins' || hasSocial ? mode : 'inspect';
+  const topMode = pageMode === 'plugins' ? 'inspect' : pageMode;
   const mainTabs = mainTabsFor(snapshot, entity, Boolean(version));
   const rightTabs = rightTabsFor(snapshot, entity, Boolean(version));
   const context = { version, run, tick, entity, snapshot };
@@ -274,7 +277,7 @@ export function App() {
   const groups = entities.filter((item) =>
     item.name?.toLowerCase().includes(query.toLowerCase())
   ).reduce((result, item) => {
-    const group = item.group || labelForKind[item.kind] || "其他主体";
+    const group = hasSocial && item.kind === 'llm-agent' ? '用户' : item.group || labelForKind[item.kind] || "其他主体";
     (result[group] ||= []).push(item);
     return result;
   }, {});
@@ -324,10 +327,10 @@ export function App() {
           const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
           buttons[next].focus();buttons[next].click();
         }}>
-          {[['inspect','实验检查',IconAdjustments],...(hasSocial?[['network','关系网络',IconNetwork],['posts','帖子浏览',IconMessages]]:[])].map(([id,title,Icon])=><button key={id} role="tab" aria-selected={pageMode===id} tabIndex={pageMode===id?0:-1} aria-current={pageMode===id?'page':undefined} onClick={()=>setMode(id)}><Icon size={14}/>{title}</button>)}
+          {[['inspect','实验设置',IconAdjustments],...(hasSocial?[['network','关系网络',IconNetwork],['posts','帖子浏览',IconMessages]]:[])].map(([id,title,Icon])=><button key={id} role="tab" aria-selected={topMode===id} tabIndex={topMode===id?0:-1} aria-current={topMode===id?'page':undefined} onClick={()=>setMode(id)}><Icon size={14}/>{title}</button>)}
         </nav>
         <div className="global-controls">
-          {run?.ticks?.length > 0 && (
+          {pageMode !== 'plugins' && run?.ticks?.length > 0 && (
             <div className="tick-controls">
               <button aria-label="查看上一个已保存 tick" disabled={tickIndex <= 0} onClick={() => setTickId(run.ticks[tickIndex - 1].id)}><IconChevronLeft size={16} /></button>
               <label>
@@ -344,7 +347,7 @@ export function App() {
       </header>
       {copyState && <div className="copy-status" role="status">{copyState.startsWith("{") ? <><p>浏览器未允许自动复制，请手动复制下方请求并发给 agent：</p><textarea readOnly value={copyState} rows={7} onFocus={(event) => event.target.select()} /></> : copyState}</div>}
       {error && <div className="data-error" role="alert">工作台数据无法读取：{error} 请检查 HTML 中的 society0-workbench-data。</div>}
-      {pageMode!=='inspect'?(social?<SocialPanel frame={social} mode={pageMode} onMode={setMode} selected={socialSelected} onSelect={setSocialSelected} onInspect={(id)=>{if(entities.some(e=>e.id===id))setEntityId(id);setMode('inspect');}}/>:<Empty title="此时点尚未整理社交资料">请由实验转换脚本补充当前时点的网络、帖子与信息流。</Empty>):<div className={`shell ${collapsed ? "collapsed" : ""}`}>
+      {topMode!=='inspect'?(social?<SocialPanel frame={social} mode={pageMode} onMode={setMode} selected={socialSelected} onSelect={setSocialSelected} onInspect={(id)=>{if(entities.some(e=>e.id===id))setEntityId(id);setMode('inspect');}}/>:<Empty title="此时点尚未整理社交资料">请由实验转换脚本补充当前时点的网络、帖子与信息流。</Empty>):<div className={`shell ${collapsed ? "collapsed" : ""}`}>
         <aside className="sidebar">
           <div className="side-heading"><span>观察范围</span>
             <button aria-label={collapsed ? "展开侧栏" : "折叠侧栏"} title={collapsed ? "展开侧栏" : "折叠侧栏"} onClick={() => setCollapsed(!collapsed)}>
@@ -356,14 +359,17 @@ export function App() {
               <input aria-label="搜索主体" placeholder="搜索主体" value={query} onChange={(event) => setQuery(event.target.value)} />
             </label>
           )}
-          <nav className="actors" aria-label="主体与实验视角">
+          <nav className="actors" aria-label="主体与实验配置">
+            <div className="actor-label">实验配置</div>
+            {entities.filter(item=>item.kind==='overview').map(item=><button key={item.id} title={item.name} className={pageMode!=='plugins'&&entityId===item.id?'selected':''} onClick={()=>{setEntityId(item.id);setMode('inspect');}}><IconWorld size={18}/><span>{item.name}</span></button>)}
+            <button title="插件配置" className={pageMode==='plugins'?'selected':''} onClick={()=>setMode('plugins')}><IconPlug size={18}/><span>插件配置</span></button>
             {Object.entries(groups).map(([group, entries]) => (
-              <div key={group}>
-                <div className="actor-label">{group}<span>{entries.length}</span></div>
-                {entries.map((item) => {
+              entries.some(item=>item.kind!=='overview') && <div key={group}>
+                <div className="actor-label">{group}<span>{entries.filter(item=>item.kind!=='overview').length}</span></div>
+                {entries.filter(item=>item.kind!=='overview').map((item) => {
                   const Icon = item.kind === "llm-agent" ? IconRobot : item.kind === "overview" ? IconWorld : item.kind === "institution" ? IconBuilding : IconChartBar;
-                  return <button key={item.id} title={item.name} className={entityId === item.id ? "selected" : ""}
-                    onClick={() => setEntityId(item.id)}><Icon size={18} /><span>{item.name}<small>{item.subtitle || labelForKind[item.kind] || ""}</small></span></button>;
+                  return <button key={item.id} title={item.name} className={pageMode!=='plugins' && entityId === item.id ? "selected" : ""}
+                    onClick={() => {setEntityId(item.id);setMode('inspect');}}><Icon size={18} /><span>{item.name}<small>{item.subtitle || labelForKind[item.kind] || ""}</small></span></button>;
                 })}
               </div>
             ))}
@@ -371,10 +377,10 @@ export function App() {
             {entities.length > 0 && !Object.keys(groups).length && <Empty title="没有匹配的主体" />}
           </nav>
         </aside>
-        <div className={`content ${rightTabs.length ? "" : "without-insight"}`}>
+        {pageMode==='plugins'?<PluginPanel version={version} config={config} onChange={onConfigChange} onOpenSettings={id=>{setEntityId(id);setMode('inspect');}}/>:<div className={`content ${rightTabs.length ? "" : "without-insight"}`}>
           <Workspace snapshot={snapshot} entity={entity} context={context} tabs={mainTabs} version={version} config={config} onConfigChange={onConfigChange} />
           {rightTabs.length > 0 && <Insight key={`insight:${key}`} snapshot={snapshot} tabs={rightTabs} context={context} changes={changes} />}
-        </div>
+        </div>}
       </div>}
     </div>
   );

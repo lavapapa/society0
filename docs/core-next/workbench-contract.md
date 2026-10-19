@@ -6,6 +6,8 @@
 
 `export_payload([RunSelection(path, version, steps, actors), ...], title=..., question=...)` 返回现有渲染器所需的 study 和 versions。path 指向含 runner.json 的正式运行目录；version 是展示版本名称，steps 和 actors 显式选择步骤及主体。相同版本下的公开配置及实体选择必须一致，多个配置版本可分别保存其运行。空选择列表生成真正的空态。
 
+每个版本同时保留运行清单中的 `plugins`，包括名称、服务依赖、数据依赖和组合关系；同一版本下的插件组合必须一致。实验转换脚本按实际配置补充中文用途、开关绑定和参数页，具体字段见 [skill 工作台指南](../../skill/references/workbench-guide.md#插件配置与新增机制)。[SNS 示例](../../examples/core_next/sns_community/README.md) 包含真实三轮数据和可离线阅读的工作台。
+
 适配器对每个运行物化一次所选最大完整步骤的只读视图，然后读取各个已保存 Results。逐行表、TableValue 的完整结构与 DatasetTable 的封存引用均通过 Results 的统一接口读取，导出按每页最多 1,000 行、1 MiB 的预算读取，页内共享封存块缓存；页项以 value 与 payload_ref 显式区分，巨记录通过原文范围接口拼回。Thread 以 actor、业务 Moment 和 publish_step 定位每个步骤的完整事件前缀，同一时点再次激活的后续事件不会进入更早步骤。
 
 结果记录同时提供完整 JSON 原文与按字段展开的表格；嵌套单元格保留 JSON 文本。数值型阶段指标连接为所选完整步骤的曲线，横轴保留步骤与业务时间；布尔值、非数值和超出 JavaScript 精确整数范围的值仍在原文中显示。曲线不会使用当前选择之后的数据。

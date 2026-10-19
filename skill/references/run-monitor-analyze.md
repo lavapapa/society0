@@ -10,6 +10,8 @@ Observation 提供 status、list_threads、thread_tail、原文范围、result_p
 
 工作台由 kernel.workbench 从实际运行与结果引用生成静态数据；它不执行研究计划，也不把浏览器草稿直接作为已应用配置。研究配置变更生成新版本并经明确运行请求产生新工件。原始 Thread 的信息暴露与测量结果分别解释。
 
+已有工作台数据转换文件时，先读取其中按主体、轮次保存的 `sessions/events`，沿 `threadId` 与事件序号引用原文。缺少内容时再使用 Observation 续读。使用引擎提供的读取接口处理压缩记录，避免自行猜测压缩格式、重复实现解码；分析时保留实际输入、工具参数与返回值的对应关系。
+
 ## 失败诊断
 
 `IncompleteActivation` 是运行层摘要。先用 `Observation(run_dir).action_summary()` 找到失败主体与终止原因，再用 `list_threads`、`thread_tail` 读取该主体最后一次 provider response、前面的 request 和工具回执。大记录沿 `payload_ref` 完整读取；诊断使用 live 数据，保留 `complete_through` 与未完成事件的区别。先记录具体 `finish_reason`、错误内容和事件位置，再决定检查哪段源码。
