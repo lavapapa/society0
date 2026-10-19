@@ -1562,7 +1562,7 @@ progress::-webkit-progress-value {
 .virtual-header,
 .virtual-row {
   display: grid;
-  min-width: max-content;
+  min-width: 0;
   width: 100%;
 }
 .virtual-header {

@@ -6,14 +6,24 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconLayoutGrid,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
   IconRobot,
   IconSearch,
   IconWorld,
   IconX,
+  IconAdjustments,
+  IconNetwork,
+  IconMessages,
+  IconCopy,
+  IconInfoCircle,
+  IconEye,
 } from "@tabler/icons-react";
 import { blankStudy, changeRequest, changesBetween, mainTabsFor, rightTabsFor, setAtPath, snapshotFor } from "./model";
 import { ViewTabs } from "./views";
 import { ConfigPanel } from "./ConfigPanel";
+import { SocialPanel } from "./SocialPanel";
+import { socialFor } from "./social";
 
 function readStudy() {
   const source = document.getElementById("society0-workbench-data")?.textContent;
@@ -56,7 +66,7 @@ function ModuleCard({ module, context, focused, onFocus }) {
         </button>
       </header>
       <ViewTabs views={module.views || []} context={context} />
-      {module.source && <footer className="module-source">资料来源：{module.source}</footer>}
+      {module.source && <details className="module-source"><summary>资料来源</summary>{module.source}</details>}
     </section>
   );
 }
@@ -79,10 +89,10 @@ function MechanismCard({ mechanism, context, focused, onFocus }) {
           {focused ? <IconX size={16} /> : <IconArrowsMaximize size={16} />}
         </button>
       </header>
-      <span className={`access access-${access}`}>{status}</span>
+      <span className={`access access-${access}`}><IconEye size={12} />{status}</span>
       {mechanism.description && <p className="mechanism-description">{mechanism.description}</p>}
       {mechanism.reason && <p className="mechanism-reason">{mechanism.reason}</p>}
-      {mechanism.source && <p className="module-source">判断依据：{mechanism.source}</p>}
+      {mechanism.source && <details className="module-source"><summary>判断依据</summary>{mechanism.source}</details>}
       <ViewTabs views={mechanism.views || []} context={context} />
     </section>
   );
@@ -118,8 +128,8 @@ function SessionPanel({ sessions, hasSnapshot }) {
               {event.time && <time>{event.time}</time>}
             </div>
             {event.text && <p>{event.text}</p>}
-            {event.data !== undefined && <pre className="tool-output">{JSON.stringify(event.data, null, 2)}</pre>}
-            {event.source && <small>来源：{event.source}</small>}
+            {event.data !== undefined && <details className="event-source"><summary>完整记录</summary><pre className="tool-output">{JSON.stringify(event.data, null, 2)}</pre></details>}
+            {event.source && <details className="event-source"><summary>来源</summary><small>{event.source}</small></details>}
           </section>
         ))}
         {!session.events?.length && <Empty title="这次会话没有可展示的记录" />}
@@ -131,6 +141,7 @@ function SessionPanel({ sessions, hasSnapshot }) {
 function Workspace({ snapshot, entity, context, tabs, version, config, onConfigChange }) {
   const [tabId, setTabId] = useState(tabs[0]?.id || "");
   const [focus, setFocus] = useState(null);
+  useEffect(() => { setFocus(null); }, [entity?.id, context.tick?.id, version?.id]);
   const tab = tabs.find((item) => item.id === tabId) || tabs[0];
   const modules = tab?.id === "mechanisms" ? snapshot?.mechanisms || [] : tab?.modules || [];
   const shown = focus ? modules.filter((item) => item.id === focus) : modules;
@@ -154,9 +165,9 @@ function Workspace({ snapshot, entity, context, tabs, version, config, onConfigC
         </div>
       )}
       {tab?.id === "mechanisms" && (
-        <p className="view-explainer">这里展示当前主体在此 tick 可接触的 FoV 机制。机制说明不代表本次会话实际注入的资料。</p>
+        <details className="view-explainer"><summary><IconInfoCircle size={12} />如何阅读 FoV</summary><p>中间按机制展示此 tick 可接触的资料；实际注入内容见右侧会话。</p></details>
       )}
-      {tab?.id === "config" && <ConfigPanel version={version} entity={entity} config={config} onChange={onConfigChange} />}
+      {tab?.id === "config" && <ConfigPanel key={`${version.id}:${entity?.id}`} version={version} entity={entity} config={config} onChange={onConfigChange} />}
       {tab?.id !== "config" &&
       <div className={`module-grid ${focus ? "focused" : ""}`}>
         {shown.map((item) => tab?.id === "mechanisms" ? (
@@ -179,14 +190,22 @@ function Workspace({ snapshot, entity, context, tabs, version, config, onConfigC
 
 function Insight({ snapshot, tabs, context, changes }) {
   const [tabId, setTabId] = useState(tabs[0]?.id || "");
+  const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    if (!expanded) return;
+    const close = (event) => { if (event.key === "Escape") setExpanded(false); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [expanded]);
   const tab = tabs.find((item) => item.id === tabId) || tabs[0];
   return (
-    <aside className="insight">
+    <aside className={`insight ${expanded ? "reading-expanded" : ""}`}>
       <div className="insight-tabs" role="tablist" aria-label="相关记录">
         {tabs.map((item) => (
           <button key={item.id} role="tab" aria-selected={tab?.id === item.id}
             className={tab?.id === item.id ? "active" : ""} onClick={() => setTabId(item.id)}>{item.title}</button>
         ))}
+        <button className="reading-toggle" aria-label={expanded ? "收起记录阅读" : "展开记录阅读"} title={expanded ? "收起记录阅读 · Esc" : "展开记录阅读"} onClick={() => setExpanded(!expanded)}>{expanded ? <IconX size={15}/> : <IconArrowsMaximize size={15}/>}</button>
       </div>
       <div className="insight-body">
         {tab?.id === "sessions" ? <SessionPanel sessions={snapshot?.sessions || []} hasSnapshot={Boolean(snapshot)} /> : tab?.id === "changes" ? (
@@ -215,6 +234,8 @@ function Insight({ snapshot, tabs, context, changes }) {
 
 export function App() {
   const { data, error } = loaded;
+  const [mode,setMode] = useState(data.study?.defaultView || (data.versions.some(v=>v.social || v.runs.some(r=>r.socialSnapshots?.length))?'network':'inspect'));
+  const [socialSelected,setSocialSelected] = useState(null);
   const [versionId, setVersionId] = useState(data.versions[0]?.id || "");
   const [runId, setRunId] = useState(data.versions[0]?.runs?.[0]?.id || "");
   const [entityId, setEntityId] = useState(data.versions[0]?.entities?.[0]?.id || "");
@@ -243,6 +264,9 @@ export function App() {
   const tick = run?.ticks?.find((item) => item.id === tickId);
   const tickIndex = run?.ticks?.findIndex((item) => item.id === tickId) ?? -1;
   const snapshot = snapshotFor(data, versionId, runId, tickId, entityId);
+  const social = socialFor(version,run,tickId);
+  const hasSocial = Boolean(version?.social || runs.some(r=>r.socialSnapshots?.length));
+  const pageMode = hasSocial ? mode : 'inspect';
   const mainTabs = mainTabsFor(snapshot, entity, Boolean(version));
   const rightTabs = rightTabsFor(snapshot, entity, Boolean(version));
   const context = { version, run, tick, entity, snapshot };
@@ -272,17 +296,15 @@ export function App() {
     <div className="app">
       <a className="skip-link" href="#main-content">跳到主体视图</a>
       <header className="topbar">
-        <div className="brand"><IconLayoutGrid size={22} /> Society0 工作台</div>
-        <div className="global-controls">
-          <span className="experiment" title={data.study?.question || ""}>{data.study?.title || "未命名实验"}</span>
-          <span className="snapshot-badge">{run ? "已保存试运行" : "配置检查"}</span>
-          {data.versions.length > 0 && <label>配置版本
+        <div className="brand" title={data.study?.title || "未命名实验"}><IconLayoutGrid size={18} /> Society0 工作台</div>
+        <div className="version-controls">
+          {data.versions.length > 0 && <label title="配置版本">
             <select aria-label="配置版本" value={versionId} onChange={(event) => {
               const next = data.versions.find((item) => item.id === event.target.value);
               setVersionId(event.target.value); setRunId(next?.runs?.[0]?.id || ""); setTickId(next?.runs?.[0]?.ticks?.[0]?.id || ""); setEntityId(next?.entities?.[0]?.id || ""); setCopyState("");
             }}>{data.versions.map((item) => <option key={item.id} value={item.id}>{item.name || item.id}</option>)}</select>
           </label>}
-          {version && <label>试运行
+          {version && <label title="试运行">
               <select aria-label="试运行" value={runId} onChange={(event) => {
                 const nextRun = runs.find((item) => item.id === event.target.value);
                 setRunId(event.target.value);
@@ -293,10 +315,22 @@ export function App() {
               </select>
             </label>
           }
+        </div>
+        <nav className="workbench-pages" aria-label="工作台页面" role="tablist" onKeyDown={(event)=>{
+          if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+          const buttons=[...event.currentTarget.querySelectorAll('button')],index=buttons.indexOf(document.activeElement);
+          if(index<0)return;
+          event.preventDefault();
+          const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(index+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;
+          buttons[next].focus();buttons[next].click();
+        }}>
+          {[['inspect','实验检查',IconAdjustments],...(hasSocial?[['network','关系网络',IconNetwork],['posts','帖子浏览',IconMessages]]:[])].map(([id,title,Icon])=><button key={id} role="tab" aria-selected={pageMode===id} tabIndex={pageMode===id?0:-1} aria-current={pageMode===id?'page':undefined} onClick={()=>setMode(id)}><Icon size={14}/>{title}</button>)}
+        </nav>
+        <div className="global-controls">
           {run?.ticks?.length > 0 && (
             <div className="tick-controls">
               <button aria-label="查看上一个已保存 tick" disabled={tickIndex <= 0} onClick={() => setTickId(run.ticks[tickIndex - 1].id)}><IconChevronLeft size={16} /></button>
-              <label>查看 tick
+              <label>
                 <select aria-label="Tick" value={tickId} onChange={(event) => setTickId(event.target.value)}>
                   {run.ticks.map((item) => <option key={item.id} value={item.id}>{item.label || item.id}</option>)}
                 </select>
@@ -305,18 +339,16 @@ export function App() {
                 onClick={() => setTickId(run.ticks[tickIndex + 1].id)}><IconChevronRight size={16} /></button>
             </div>
           )}
-          <button className="copy-changes" disabled={!changes.length} onClick={copyChanges}>复制变更{changes.length ? ` (${changes.length})` : ""}</button>
+          <button className="copy-changes" disabled={!changes.length} onClick={copyChanges}><IconCopy size={13}/>复制变更{changes.length ? ` (${changes.length})` : ""}</button>
         </div>
       </header>
-      {data.study?.question && <p className="study-question">研究问题：{data.study.question}</p>}
-      {version && <p className="workbench-status">{run ? `正在查看 ${version.name || version.id} 下的 ${run.name || run.id}；结果来自已保存资料。` : `正在检查 ${version.name || version.id} 的配置；页面内修改不会写入实验文件。`}{runs.length ? ` 本版本共 ${runs.length} 次试运行。` : " 本版本尚无试运行。"}</p>}
       {copyState && <div className="copy-status" role="status">{copyState.startsWith("{") ? <><p>浏览器未允许自动复制，请手动复制下方请求并发给 agent：</p><textarea readOnly value={copyState} rows={7} onFocus={(event) => event.target.select()} /></> : copyState}</div>}
       {error && <div className="data-error" role="alert">工作台数据无法读取：{error} 请检查 HTML 中的 society0-workbench-data。</div>}
-      <div className={`shell ${collapsed ? "collapsed" : ""}`}>
+      {pageMode!=='inspect'?(social?<SocialPanel frame={social} mode={pageMode} onMode={setMode} selected={socialSelected} onSelect={setSocialSelected} onInspect={(id)=>{if(entities.some(e=>e.id===id))setEntityId(id);setMode('inspect');}}/>:<Empty title="此时点尚未整理社交资料">请由实验转换脚本补充当前时点的网络、帖子与信息流。</Empty>):<div className={`shell ${collapsed ? "collapsed" : ""}`}>
         <aside className="sidebar">
           <div className="side-heading"><span>观察范围</span>
-            <button aria-label={collapsed ? "展开侧栏" : "折叠侧栏"} onClick={() => setCollapsed(!collapsed)}>
-              <IconLayoutGrid size={16} />
+            <button aria-label={collapsed ? "展开侧栏" : "折叠侧栏"} title={collapsed ? "展开侧栏" : "折叠侧栏"} onClick={() => setCollapsed(!collapsed)}>
+              {collapsed ? <IconLayoutSidebarLeftExpand size={16} /> : <IconLayoutSidebarLeftCollapse size={16} />}
             </button>
           </div>
           {entities.length > 0 && (
@@ -340,10 +372,10 @@ export function App() {
           </nav>
         </aside>
         <div className={`content ${rightTabs.length ? "" : "without-insight"}`}>
-          <Workspace key={`workspace:${key}`} snapshot={snapshot} entity={entity} context={context} tabs={mainTabs} version={version} config={config} onConfigChange={onConfigChange} />
+          <Workspace snapshot={snapshot} entity={entity} context={context} tabs={mainTabs} version={version} config={config} onConfigChange={onConfigChange} />
           {rightTabs.length > 0 && <Insight key={`insight:${key}`} snapshot={snapshot} tabs={rightTabs} context={context} changes={changes} />}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

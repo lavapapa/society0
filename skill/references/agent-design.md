@@ -39,6 +39,10 @@ When using LLM agents, state is part of the agent's self-description. That is us
 
 ## 经验与阶段
 
+LLMDriver 按主体、Moment 与模式分别保存 Thread。跨轮已有原文可供研究者追查；下一轮的自动经验输入由记忆提取和召回机制提供。向研究者解释时分别说明会话记录、跨轮记忆和当前感知材料。
+
+行为实验若要求每次激活至少完成某类真实动作，同时设置 `required_tags` 与 `completion_tags`，例如两者均含 `social_write`：前者要求该类动作成功，后者在成功后结束激活。单独设置 `completion_tags` 仍允许纯文本自然结束。试运行后从动作记录核对实际次数；允许不行动的研究设计应单独说明其完成条件。
+
 MemoryPolicy 的 auto_write、auto_recall、active_tools 独立，policy_selector 每激活冻结。关闭召回保持当前感知材料；提取空结果与提供方失败分别处理。默认衰减时钟为完整步骤序号，业务日期原文保留。需要显式经验保存时使用 starter 的完成钩子。
 
 reasoning_stages 提供阶段名称、指导与可选输出标记，保留原始响应和片段引用，不额外调用模型。模型选择可按激活、主体、类型和默认配置明确优先级，使用现有共享提供方实例。
