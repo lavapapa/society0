@@ -63,6 +63,27 @@ def test_table_sets_belong_to_each_writer_and_capture_after_restore(tmp_path):
             assert continued.read(lambda r: r.query(f'SELECT id FROM {table} ORDER BY id')) == [(1,), (2,), (3,), (4,)]
 
 
+def test_open_configures_connection_before_session_schema_navigation(tmp_path, monkeypatch):
+    path = tmp_path / 'run'
+    with StageStore.create(path, ['CREATE TABLE records(id INTEGER PRIMARY KEY)']):
+        pass
+    original = storage._tables
+    calls = []
+
+    def tables(connection):
+        # foreign_keys 切换会使已有 prepared statements 失效；保留原有配置后导航顺序。
+        assert connection.pragma('foreign_keys') == 1, 'configure connection before Session schema navigation'
+        assert connection.pragma('journal_mode') == 'wal'
+        assert connection.pragma('synchronous') == 2
+        calls.append(1)
+        return original(connection)
+
+    monkeypatch.setattr(storage, '_tables', tables)
+    with StageStore.open(path) as store:
+        store.complete(1)
+        assert calls == [1]
+
+
 @pytest.mark.parametrize('operation', ['open', 'restore'])
 @pytest.mark.parametrize('definition', ['id TEXT PRIMARY KEY', 'id TEXT'])
 def test_new_writer_still_checks_primary_keys_and_releases_failed_open(tmp_path, operation, definition):
