@@ -5,7 +5,34 @@ import subprocess
 import sys
 import pytest
 
+import apsw
+from society0.kernel.storage import StageStore
 from benchmarks.core_next_checkpoint_baseline import checkpoint_baseline
+
+
+def test_restored_cold_body_corruption_is_rejected(tmp_path, monkeypatch):
+    original = StageStore.restore
+    def corrupted(source, destination, **kwargs):
+        store = original(source, destination, **kwargs)
+        store.transaction(lambda writer: writer.execute(
+            'UPDATE cold_history SET body=? WHERE id=0', (b'corrupted',)))
+        return store
+    monkeypatch.setattr(StageStore, 'restore', corrupted)
+    with pytest.raises(AssertionError):
+        checkpoint_baseline(tmp_path / 'corrupt-history', history_rows=5, steps=2)
+
+
+def test_continued_materialized_balance_corruption_is_rejected(tmp_path, monkeypatch):
+    original = StageStore.prepare_readonly
+    def corrupted(source, destination, **kwargs):
+        reader = original(source, destination, **kwargs)
+        if Path(destination).name == 'continued':
+            with apsw.Connection(str(Path(destination) / 'current.sqlite')) as connection:
+                connection.execute('UPDATE current_positions SET value=999 WHERE id=0')
+        return reader
+    monkeypatch.setattr(StageStore, 'prepare_readonly', corrupted)
+    with pytest.raises(AssertionError):
+        checkpoint_baseline(tmp_path / 'corrupt-continued', history_rows=5, steps=2)
 
 
 def test_checkpoint_baseline_measures_real_complete_restore_and_readonly(tmp_path):
