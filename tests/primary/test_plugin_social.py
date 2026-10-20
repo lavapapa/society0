@@ -68,25 +68,53 @@ async def test_social_two_instances_original_body_and_rejections(tmp_path):
     {'type':'cv_targeted','params':{'target_cv_mean':0.6,'max_iterations':25}},
 ])
 @pytest.mark.parametrize('directed',[True,False])
-def test_social_topology_matches_existing_algorithm(distribution,directed):
+def test_social_topology_seed_nodes_edges_and_random_state_contract(distribution,directed):
     import random
     from society0.plugins.social_models import SocialNetworkConfig
-    from tests.reference.builtin_algorithms import SocialNetworkEnv
     from society0.plugins.social_topology import generate_topology
-    from types import SimpleNamespace
     config=SocialNetworkConfig(distribution=distribution,is_directed=directed)
     members=[str(i) for i in range(12)]
-    proxy=SimpleNamespace(_config=config)
-    for name in ('_create_traditional_graph','_create_cv_targeted_graph','_create_base_graph_for_cv','_get_base_distribution','_optimize_cv_distribution','_increase_mutual_connections','_decrease_mutual_connections','_calculate_cv_for_node','_calculate_average_cv_for_graph'):
-        setattr(proxy,name,getattr(SocialNetworkEnv,name).__get__(proxy))
     saved=random.getstate()
-    try:
-        random.seed(913)
-        original=SocialNetworkEnv._generate_topology(proxy,members)
-    finally:random.setstate(saved)
     actual=generate_topology(members,config,seed=913)
-    assert list(actual.nodes)==list(original.nodes)
-    assert list(actual.edges)==list(original.edges)
+    assert random.getstate()==saved
+    repeated=generate_topology(members,config,seed=913)
+    assert list(actual.nodes)==members
+    assert list(actual.edges)==list(repeated.edges)
+    assert all(a!=b and a in members and b in members for a,b in actual.edges)
+    if distribution['type']=='complete':
+        assert actual.number_of_edges()==(66 if directed else 132)
+        assert actual.has_edge('0','11')
+        assert actual.has_edge('11','0') is (not directed)
+    elif distribution['type']=='scale_free':
+        assert actual.number_of_edges()==(20 if directed else 40)
+    elif distribution['type']=='small_world':
+        assert actual.number_of_edges()==(24 if directed else 48)
+    else:
+        assert actual.number_of_edges()>0
+    if not directed and distribution['type']!='cv_targeted':
+        assert all(actual.has_edge(b,a) for a,b in actual.edges)
+
+
+@pytest.mark.parametrize('members,distribution,directed,expected',[
+    ('abc',{'type':'random','params':{'connection_probability':0}},True,[]),
+    ('abc',{'type':'random','params':{'connection_probability':1}},True,
+     [('a','b'),('a','c'),('b','a'),('b','c'),('c','a'),('c','b')]),
+    ('abc',{'type':'complete'},False,
+     [('a','b'),('a','c'),('b','a'),('b','c'),('c','a'),('c','b')]),
+    ('abcd',{'type':'small_world','params':{'k_neighbors':2,'rewiring_probability':0}},True,
+     [('a','b'),('a','d'),('b','c'),('c','d')]),
+    ('ab',{'type':'scale_free','params':{'m_edges':1}},False,[('a','b'),('b','a')]),
+    ('ab',{'type':'cv_targeted','params':{'target_cv_mean':0,'base_algorithm':'random',
+        'base_params':{'connection_probability':0},'max_iterations':1}},True,[]),
+    ('ab',{'type':'cv_targeted','params':{'target_cv_mean':1,'base_algorithm':'random',
+        'base_params':{'connection_probability':0},'max_iterations':1}},True,[('a','b'),('b','a')]),
+])
+def test_topology_canonical_edges_for_current_distribution_contract(members,distribution,directed,expected):
+    from society0.plugins.social_models import SocialNetworkConfig
+    from society0.plugins.social_topology import generate_topology
+    graph=generate_topology(members,SocialNetworkConfig(distribution=distribution,is_directed=directed),seed=913)
+    assert list(graph.nodes)==list(members)
+    assert list(graph.edges)==expected
 
 
 @pytest.mark.asyncio
@@ -116,30 +144,29 @@ async def test_social_topology_configuration_is_persisted_and_not_regenerated_on
 
 
 @pytest.mark.asyncio
-async def test_social_active_pool_and_scores_match_old_semantics_without_body_scan(tmp_path):
+async def test_social_active_pool_and_explicit_weighted_scores_without_body_scan(tmp_path):
     from society0.plugins.social_models import SocialNetworkConfig
-    from tests.reference.builtin_algorithms import SocialNetworkEnv
-    from types import SimpleNamespace
-    config=SocialNetworkConfig(social_media={'recommendation':{'full_scan_until':5,'recent_keep_count':3,'top_engagement_keep_count':2,'min_lifetime_ticks':2,'use_embedding_similarity':False}})
+    config=SocialNetworkConfig(social_media={'recommendation':{'full_scan_until':5,'recent_keep_count':3,'top_engagement_keep_count':2,'min_lifetime_ticks':2,'use_embedding_similarity':False,'time_decay_hours':1,'chronological_weight':0.25,'engagement_weight':0.5,'network_weight':1,'follow_bonus':2}})
     async with compose(tmp_path/'run',plan(social_plugin('abc',edges=[('a','b')],config=config))) as host:
-        social=host.service('social','mechanism'); posts={}
+        social=host.service('social','mechanism')
         for index in range(12):
             actor='b' if index%2 else 'c'
             key=social.execute('publish_post',actor,actor,{'content':str(index)},index).value['post_id']
             if index%3==0:social.execute('like_post','a',key,{},index)
-            posts[key]=social.post_details(key)
-        features={key:{'created_tick':p['created_tick'],'engagement_score':float(len(p['likes']))} for key,p in posts.items()}
-        expected=SocialNetworkEnv._build_active_pool_ids(SimpleNamespace(_config=config),posts,features,12)
         pool=social.active_pool(12)
-        assert [p['post_id'] for p in pool]==expected
-        graph=__import__('networkx').DiGraph([('a','b')])
-        import math
-        for key,feature in features.items():feature['time_score']=math.exp(-max(0,12-feature['created_tick'])/config.social_media.recommendation.time_decay_hours)
-        proxy=SimpleNamespace(_config=config,graph=graph,_get_recommendation_cache=lambda:{'post_features':features})
-        original=SocialNetworkEnv._score_posts(proxy,SimpleNamespace(id='a'),[posts[k] for k in expected],{})
+        assert [p['post_id'] for p in pool]==['post_12','post_11','post_10','post_7']
         source,output=await social.recommendation('a',12)
-        ranked=social._rank_metadata(source,output.items)
-        assert [(p['post_id'],p['_recommendation_score']) for p in ranked]==[(p['post_id'],p['_recommendation_score']) for p in original]
+        assert source.following==frozenset({'b'})
+        assert [p.post_id for p in output.items]==['post_10','post_12','post_7','post_11']
+        assert [round(p.score,6) for p in output.items]==[2.512447,2.09197,0.50062,0.033834]
+        assert [dict(p.components) for p in output.items]==[
+            {'time_score':time,'time_contribution':time_part,'engagement_score':engagement,
+             'engagement_contribution':engagement_part,'network_score':network,
+             'network_contribution':network_part,'semantic_score':0.0,
+             'semantic_contribution':0.0,'total_score':total}
+            for time,time_part,engagement,engagement_part,network,network_part,total in [
+                (0.049787,0.012447,1,0.5,2,2,2.512447),(0.367879,0.09197,0,0,2,2,2.09197),
+                (0.002479,0.00062,1,0.5,0,0,0.50062),(0.135335,0.033834,0,0,0,0,0.033834)]]
         assert all('content' not in p for p in pool)
 
 
@@ -183,8 +210,6 @@ async def test_social_embedding_batch_original_vectors_restore_and_exposure_boun
 @pytest.mark.asyncio
 async def test_social_preference_preserves_recent_interaction_ties_and_read_actions(tmp_path):
     from society0.plugins.social_models import SocialNetworkConfig
-    from tests.reference.builtin_algorithms import SocialNetworkEnv
-    from types import SimpleNamespace
     cfg=SocialNetworkConfig(social_media={'recommendation':{'use_embedding_similarity':False,'interaction_limit':4,'include_following_in_query':True}})
     async with compose(tmp_path/'run',plan(social_plugin('abc',config=cfg,edges=[('a','b')]))) as host:
         social=host.service('social','mechanism')
@@ -193,15 +218,10 @@ async def test_social_preference_preserves_recent_interaction_ties_and_read_acti
         social.execute('like_post','a','post_1',{},2)
         social.execute('comment','a','post_1',{'content':'comment on one'},2)
         social.execute('like_post','a','post_2',{},2)
-        posts={key:social.post_details(key) for key in ('post_1','post_2','post_3')}
-        for key,post in posts.items():
-            post['like_events']=[{'agent_id':x,'created_tick':2} for x in post['likes']]
-        proxy=SimpleNamespace(_config=cfg,_posts_view=lambda:posts,
-                              _collect_recent_posts_for_agent=lambda actor,limit:[posts['post_3']],
-                              graph=__import__('networkx').DiGraph([('a','b')]))
-        proxy._collect_recent_interactions_for_agent=SocialNetworkEnv._collect_recent_interactions_for_agent.__get__(proxy)
-        expected=SocialNetworkEnv._build_agent_preference_text(proxy,SimpleNamespace(id='a',get_raw_data=lambda:{'persona':''}))
-        assert social.preference_text('a')==expected
+        assert social.preference_text('a')==(
+            'Recent posts:\n[post_3] a body\nTags: x\n\n'
+            'Recent interactions:\nLike post_1: b body\nComment post_1: comment on one\n'
+            'Like post_2: c body\nComment post_2: comment on two\n\nFollowing:\nb')
         actions=host.service('interaction','actions');scope=InteractionScope('a',Moment(2,'read'))
         info=host.service('interaction','information')
         import json

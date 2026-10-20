@@ -1,5 +1,7 @@
 # 固定旧版环境对照
 
+本页保存历史运行证据。Next 后续按[当前基础环境合同](../../../docs/core-next/basic-env-migration.md)验证，旧引擎录制、比较器和算法副本已从 Next 退役。下文的结果与缺陷均属于当时版本。
+
 本报告记录实际旧引擎与 Next 工作树的确定性对照。代码限定为独立录制脚本和实验测试；业务源码未由本任务修改。共同轨迹见[逐笔记录](<oracle-common-trace.json>)，运行身份、依赖和计数见[数字工件](<oracle-evidence.json>)。
 
 ## 一、来源
@@ -8,7 +10,7 @@
 
 Next 基础提交为 `7320b13a7d8d58cbe116f9bbc407224fec05de3c`，执行本轮并行修改中的工作树。旧新共用原仓 Python 3.12 虚拟环境，子进程使用各自的 `PYTHONPATH`。已有依赖足以运行这些无模型场景，无额外安装、外网模型或付费请求。旧依赖声明中的 ollama、jmespath 未安装，这些脚本未触发相应消费者；实际依赖版本保存在数字工件中。
 
-入口为[旧引擎录制](<../../../tests/reference/basic_env_v4114_oracle.py>)、[隔离与比较协议](<../../../tests/reference/basic_env_oracle_protocol.py>)、[Next plain/RR 适配](<../../../tests/reference/basic_env_next_oracle.py>)、[Next social 适配](<../../../tests/reference/basic_env_next_social.py>)与[验收测试](<../../../tests/experiments/test_basic_env_oracle.py>)。
+当时的录制脚本、比较协议与测试由 [Git 历史](https://github.com/lavapapa/society0/tree/ead2d7f29d20fd1f470a1813100f1e3428429508/tests/reference)保存。Next 的现行跨进程消费者与直接断言见[基础环境实验](../../../tests/experiments/test_basic_env_oracle.py)。
 
 ## 二、结果
 
@@ -34,18 +36,8 @@ Next 基础提交为 `7320b13a7d8d58cbe116f9bbc407224fec05de3c`，执行本轮�
 
 本轮没有覆盖语义向量/预录向量、五类拓扑生成、完整 LLMDriver+scripted provider、异常动作矩阵、大规模分页、通知消费及环境成本分解。旧 FoV 与 Next 信息路由比较研究信息内容，未要求逐字符排版一致。全仓离线回归与非作者审查由集成代理执行；本报告不作性能收益或发布结论。
 
-## 四、复现
+## 四、历史资料
 
-在本工作树执行以下命令，测试会从本地 Git 自动导出固定旧源码并运行两侧隔离进程：
+原始运行目录由数字工件的 `run_root` 指向，临时路径存续受本机清理策略影响；本目录永久保留共同轨迹、数字工件和历史结果。旧脚本的源码身份由 Git 历史保存，现行 Next 测试执行当前合同与自身恢复比较。
 
-```sh
-env -u ALL_PROXY -u HTTP_PROXY -u HTTPS_PROXY -u NO_PROXY \
-    -u all_proxy -u http_proxy -u https_proxy -u no_proxy \
-    PYTHONPATH=src \
-    '/Users/marvin/Documents/同花顺（2）/research/simulation/society0core/.venv/bin/python' \
-    -m pytest tests/experiments/test_basic_env_oracle.py -o addopts= -q
-```
-
-定点重放已知旧恢复缺陷可加 `-k legacy_complete_point`；该测试同时断言旧缺陷的精确观察和比较器拒绝，预期测试通过。原始运行目录由数字工件的 `run_root` 指向，可读取旧完整源、真实检查点、旧输出及 Next 输出。临时路径存续受本机清理策略影响，永久留存的共同轨迹与脚本支持重新生成。
-
-这些证据支持固定脚本的逐笔等价与 Next 恢复判断，后续验收应围绕上述剩余范围继续扩展。
+这些证据支持当时固定脚本的逐笔等价与恢复判断。当前验收范围以基础环境合同为准。

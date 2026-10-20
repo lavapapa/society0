@@ -53,11 +53,13 @@ Install the `observe` extra to start the HTTP server. Observation reads live dia
 
 Keep observed simulation outcomes separate from empirical claims. Preserve all information needed for decisions, actionable domain operations, original messages and fact ordering. Memory writing, recall and active tools are independently configured. Provider failures and budget truncation remain visible; a successfully readable checkpoint alone does not establish scientific validity.
 
-Run the deterministic suite with the development dependencies. Real endpoint tests use an explicit environment profile and separate output directory.
+Next validates its own contracts through explicit expectations and current public consumers. Legacy source launchers, algorithm copies and old-version comparison tests are retired from this branch; historical implementations remain in Git history and `stable/4.1`. The engine provides runtime mechanisms; consumers own study design and scientific validity.
+
+Run the deterministic suite and experiments with the development dependencies. Real endpoint tests use an explicit environment profile and separate output directory.
 
 ```sh
-uv sync --all-extras
-uv run pytest -m 'not real_e2e'
+uv sync --frozen --all-extras
+uv run pytest tests/primary tests/e2e tests/experiments -m 'not real_e2e'
 ```
 
 The [implementation overview](docs/core-next/implementation-result.md) links the current contracts and measured limits. Architecture boundaries are in [PROJECT.md](PROJECT.md), semantic parity in [the capability map](docs/core-next/capability-parity.md), and historical investigations retain their original source versions under `research/`.

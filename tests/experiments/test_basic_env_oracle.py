@@ -1,181 +1,193 @@
-"""实际 v4.1.14 引擎录制、跨进程 Next 对照和比较器主动损坏验收。"""
-import copy
+"""Next 当前合同：逐条消息、主体信息、社会事实与新进程恢复。"""
+from copy import deepcopy
 import json
 import subprocess
 import sys
 
 import pytest
-from tests.reference.basic_env_oracle_protocol import (
-    ROOT, assert_equal, clean_env, normalized_record, rr_semantics, run_legacy, social_semantics,
-)
+
+from tests.primary.process_support import ROOT, clean_env
 
 
-@pytest.fixture(scope="module")
-def legacy(tmp_path_factory):
-    return run_legacy(tmp_path_factory.mktemp("legacy-oracle") / "first")
+def run_process(script, path, *, source=None, start=None, stop=None, kind=None):
+    output = path.with_suffix('.json')
+    command = [sys.executable, str(ROOT / 'tests/e2e' / script),
+               '--output', str(output), '--run', str(path)]
+    for flag, value in [('source', source), ('start', start), ('stop', stop), ('kind', kind)]:
+        if value is not None:
+            command += ['--' + flag, str(value)]
+    result = subprocess.run(command, cwd=path.parent, env=clean_env(ROOT / 'src'),
+                            capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    return json.loads(output.read_text())
 
 
-def test_fixed_legacy_engine_runs_complete_scenarios(legacy):
-    scenarios = legacy["scenarios"]
-    assert [s["state"] for s in scenarios["plain"]["steps"]] == [{}, {}, {}]
-    rr = scenarios["round_robin_conversation"]
-    assert len(rr["final_state"]["message_facts"]) == 21
-    assert len(rr["final_state"]["pairing_completed_pairs"]) == 6
-    social = scenarios["social_network"]
-    assert social["steps"][0]["trending_ids"] == ["post_1", "post_2"]
-    assert "post_2" not in social["steps"][0]["active_pool"]
-    assert social["final_state"]["post_counter"] == 5
-    assert social["final_state"]["notification_counter"] == 10
-    # 真实 after_tick 完成后累计曝光，覆盖每次 feed 与热门 action。
-    totals = {}
-    for step in social["steps"]:
-        for post, count in step["pending_exposures"].items():
-            totals[post] = totals.get(post, 0) + count
-    for post, count in totals.items():
-        assert social["final_state"]["post_projection"][post]["view_count"] == count
+def next_rr(path, **kwargs):
+    return run_process('basic_env_process.py', path, **kwargs)
 
 
-def test_legacy_repeated_process_is_deterministic(legacy, tmp_path):
-    other = run_legacy(tmp_path / "other")
-    assert_equal(normalized_record(legacy), normalized_record(other))
+def next_social(path, **kwargs):
+    return run_process('social_process.py', path, **kwargs)
 
 
-def test_legacy_complete_point_separate_process_restore(legacy, tmp_path):
-    first = run_legacy(tmp_path / "first", steps=1)
-    restored = run_legacy(tmp_path / "restored", resume_source=tmp_path / "first/runs", steps=2)
-    for name, scenario in restored["scenarios"].items():
-        scenario["steps"] = first["scenarios"][name]["steps"] + scenario["steps"]
-        scenario["actions"] = first["scenarios"][name]["actions"] + scenario["actions"]
-    for name in ("plain", "round_robin_conversation"):
-        assert_equal(normalized_record(legacy["scenarios"][name]), normalized_record(restored["scenarios"][name]))
-    # 已知旧缺陷：实际恢复后的图丢失动态关注。精确保留反例，不放宽共同合同。
-    old_social = legacy["scenarios"]["social_network"]
-    restored_social = restored["scenarios"]["social_network"]
-    assert old_social["actions"][14]["result"] == "Successfully unfollowed a"
-    assert restored_social["actions"][14]["result"] == "Not following a"
-    with pytest.raises(AssertionError, match=r"actions\[13\].state.edges"):
-        assert_equal(normalized_record(old_social), normalized_record(restored_social))
+def test_next_plain_run_plan_and_new_process_restore(tmp_path):
+    expected = [{'tick': tick, 'state': {}, 'actors': list('abcd')} for tick in range(3)]
+    assert next_rr(tmp_path / 'plain', kind='plain') == expected
+    first = next_rr(tmp_path / 'plain-first', kind='plain', stop=1)
+    rest = next_rr(tmp_path / 'plain-rest', kind='plain', source=tmp_path / 'plain-first')
+    assert first + rest == expected
 
 
-@pytest.mark.parametrize("damage", ["message", "exposure", "pairing", "notification", "ranking"])
-def test_comparator_rejects_single_semantic_corruption(legacy, damage):
-    expected = normalized_record(legacy)
-    damaged = copy.deepcopy(expected)
-    rr = damaged["scenarios"]["round_robin_conversation"]
-    social = damaged["scenarios"]["social_network"]
-    if damage == "message":
-        rr["steps"][0]["messages"][0]["content"] += "损坏"
-    elif damage == "exposure":
-        social["steps"][0]["pending_exposures"]["post_1"] += 1
-    elif damage == "pairing":
-        rr["steps"][0]["pairing"]["pairing_details"][0]["agent2"] = "b"
-    elif damage == "notification":
-        social["final_state"]["notification_facts"][0]["target_agent_id"] = "d"
-    else:
-        social["steps"][0]["trending_ids"].reverse()
-    with pytest.raises(AssertionError, match=r"\$\.scenarios"):
-        assert_equal(expected, damaged)
+def assert_rr_contract(steps):
+    pairs = [[['a', 'd'], ['b', 'c']], [['a', 'c'], ['d', 'b']], [['a', 'b'], ['c', 'd']]]
+    partners = {'a': ['d', 'c', 'b'], 'b': ['c', 'd', 'a'],
+                'c': ['b', 'a', 'd'], 'd': ['a', 'b', 'c']}
+    messages = []
+    for number, step in enumerate(steps, 1):
+        assert step['round'] == number
+        assert step['pairs'] == pairs[number - 1]
+        current = [{'sender': actor, 'receiver': partners[actor][number - 1],
+                    'round': number, 'content': f'r{number}:{actor}:私信全文'} for actor in 'abcd']
+        current += [{'sender': 'a', 'receiver': actor, 'round': number,
+                     'content': f'r{number}:广播全文'} for actor in 'bcd']
+        messages += current
+        assert step['messages'] == messages
+        assert step['action_results'] == [
+            {'status': 'completed', 'value': {'sent_to': partners[actor][number - 1],
+                                            'message_id': (number - 1) * 7 + i + 1}}
+            for i, actor in enumerate('abcd')
+        ] + [{'status': 'completed', 'value': {'round': number, 'delivered': [
+            {'receiver': actor, 'message_id': (number - 1) * 7 + i + 5}
+            for i, actor in enumerate('bcd')]}}]
+        assert step['inbox'] == {a: [m for m in current if m['receiver'] == a] for a in 'abcd'}
+        assert step['actors'] == {actor: {
+            'partner': partners[actor][number - 1], 'history': partners[actor][:number],
+            'upcoming': [{'round': r, 'partner': partners[actor][r - 1]} for r in range(number, 4)],
+            'can_converse': True, 'round': number, 'members': list('abcd'), 'total_rounds': 3,
+            'duration': 10, 'marker': f'ready-{number}',
+            'actor_record': {'persona': f'{actor}：谨慎的讨论参与者，保留完整个人设定。',
+                             'state': {'opinion': f'{actor}的独立判断', 'confidence': i + 1,
+                                       'conversation_marker': f'ready-{number}'}}}
+            for i, actor in enumerate('abcd')}
 
 
-@pytest.mark.parametrize("damage", ["message", "pairing", "exposure"])
-def test_common_protocol_rejects_single_corruption(legacy, damage):
-    expected = {"rr": rr_semantics(legacy),
-                "social": social_semantics(legacy["scenarios"]["social_network"], legacy=True)}
-    damaged = copy.deepcopy(expected)
-    if damage == "message":
-        damaged["rr"][0]["messages"][0]["content"] += "损坏"
-    elif damage == "pairing":
-        damaged["rr"][0]["pairs"][0][1] = "b"
-    else:
-        damaged["social"]["steps"][0]["pending_exposures"]["post_1"] += 1
-    with pytest.raises(AssertionError):
-        assert_equal(expected, damaged)
+def test_next_rr_per_message_actor_information_and_process_restore(tmp_path):
+    continuous = next_rr(tmp_path / 'continuous')
+    assert_rr_contract(continuous)
+    first = next_rr(tmp_path / 'first', stop=1)
+    remaining = next_rr(tmp_path / 'restored', source=tmp_path / 'first', start=2)
+    assert first + remaining == continuous
 
 
-@pytest.mark.parametrize("index,before,after", [
-    (0, "Successfully followed b", "Not following b"),
-    (4, "post_1", "post_wrong"), (11, "post_3", "post_wrong"),
-    (12, "旧热帖 #topic 原文", "损坏正文"), (12, "作者用户 ID: a", "作者用户 ID: b"),
-    (12, "👁️0", "👁️999"),
-])
-def test_legacy_result_corruption_survives_common_mapping(legacy, index, before, after):
-    original = legacy["scenarios"]["social_network"]
-    damaged = copy.deepcopy(original)
-    assert before in damaged["actions"][index]["result"]
-    damaged["actions"][index]["result"] = damaged["actions"][index]["result"].replace(before, after)
-    with pytest.raises(AssertionError):
-        assert_equal(social_semantics(original, legacy=True), social_semantics(damaged, legacy=True))
+def assert_social_contract(record):
+    actions, steps = record['actions'], record['steps']
+    assert [a['name'] for a in actions] == [
+        'follow', 'follow', 'follow', 'follow', 'publish_post', 'publish_post',
+        'like_post', 'like_post', 'like_post', 'like_post', 'comment', 'repost',
+        'get_trending_posts', 'publish_post', 'unfollow', 'get_trending_posts',
+        'publish_post', 'get_trending_posts']
+    assert all(a['result_status'] == 'completed' for a in actions)
+    expected_edges = [['a', 'b'], ['b', 'c'], ['c', 'a'], ['d', 'a']]
+    for index, (action, post_count, notice_count) in enumerate(zip(actions,
+            [0, 0, 0, 0, 1, 2, 2, 2, 2, 2, 2, 3, 3, 4, 4, 4, 5, 5],
+            [1, 2, 3, 4, 4, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 10, 10])):
+        state = action['state']
+        assert list(state['posts']) == [f'post_{i}' for i in range(1, post_count + 1)]
+        assert state['edges'] == expected_edges[:min(index + 1, 4) if index < 14 else 3]
+        assert sum(len(entries) for entries in state['notifications'].values()) == notice_count
+    for index, likes in [(6, ['b']), (7, ['b', 'c']), (8, ['b', 'c', 'd'])]:
+        post = actions[index]['state']['posts']['post_1']
+        assert post['likes'] == likes and post['like_count'] == len(likes)
+        assert post['like_events'] == [{'agent_id': a, 'created_tick': 0} for a in likes]
+    for index in (0, 1, 2, 3, 6, 7, 8, 9, 14):
+        assert actions[index]['result']['changed'] is True
+    for index, identifier in [(4, 'post_1'), (5, 'post_2'), (11, 'post_3'),
+                              (13, 'post_4'), (16, 'post_5')]:
+        assert actions[index]['result']['post_id'] == identifier
+        assert identifier in actions[index]['state']['posts']
+    reply = actions[10]['state']['posts']['post_1']['replies'][0]
+    assert actions[10]['result']['reply_id'] == reply['reply_id']
+    assert reply['content'] == '评论全文' and reply['author_id'] == 'b'
+    assert [s['tick'] for s in steps] == [0, 1, 2]
+    assert [s['active_pool'] for s in steps] == [
+        ['post_1', 'post_3'], ['post_4', 'post_1'], ['post_5', 'post_1']]
+    assert [s['trending_ids'] for s in steps] == [['post_1', 'post_2']] * 3
+    assert [s['pending_exposures'] for s in steps] == [
+        {'post_1': 2, 'post_2': 1}, {'post_4': 1, 'post_1': 2, 'post_2': 1},
+        {'post_5': 1, 'post_1': 2, 'post_2': 1}]
+    assert [[p['post_id'] for p in s['ranking']] for s in steps] == [
+        ['post_1'], ['post_1', 'post_4'], ['post_1', 'post_5']]
+    for index in (12, 15, 17):
+        posts = actions[index]['result']['posts']
+        assert [p['post_id'] for p in posts] == ['post_1', 'post_2']
+        assert posts[0]['content'] == '旧热帖 #topic 原文'
+        assert posts[0]['author_id'] == 'a' and posts[0]['like_count'] == 3
+        assert posts[0]['reply_count'] == 1
+    final = record['final']
+    assert final['edges'] == [['a', 'b'], ['b', 'c'], ['c', 'a']]
+    assert [p['content'] for p in final['posts'].values()] == [
+        '旧热帖 #topic 原文', '次热帖 原文', '转发全文\n\n--- 原帖 post_1 ---\n旧热帖 #topic 原文',
+        '新冷帖 原文', '最新冷帖 原文']
+    assert [p['view_count'] for p in final['posts'].values()] == [6, 3, 0, 1, 1]
+    for identifier, author, tick, likes, replies, reposts, parent, tags, flags in [
+            ('post_1', 'a', 0, ['b', 'c', 'd'], [reply], 1, None, ['topic'], ['flagged']),
+            ('post_2', 'b', 0, ['c'], [], 0, None, [], []),
+            ('post_3', 'd', 0, [], [], 0, 'post_1', ['topic'], ['flagged']),
+            ('post_4', 'c', 1, [], [], 0, None, [], []),
+            ('post_5', 'b', 2, [], [], 0, None, [], [])]:
+        post = final['posts'][identifier]
+        assert post == {'post_id': identifier, 'author_id': author, 'created_tick': tick,
+                        'content': post['content'], 'view_count': post['view_count'],
+                        'reply_to': parent, 'tags': tags, 'special_tags': flags,
+                        'likes': likes, 'like_count': len(likes), 'replies': replies,
+                        'reply_count': len(replies), 'repost_count': reposts,
+                        'like_events': [{'agent_id': a, 'created_tick': 0} for a in likes]}
+    notices = sorted((n for entries in final['notifications'].values() for n in entries), key=lambda n: n['id'])
+    assert [n['type'] for n in notices] == ['new_follower'] * 4 + ['post_like'] * 4 + ['post_comment', 'post_repost']
+    assert notices[-2]['data']['comment_preview'] == '评论全文'
+    assert notices[-2]['data']['reply_id'] == reply['reply_id']
+    assert notices[-1]['data']['repost_id'] == 'post_3'
+    assert notices[-1]['data']['commentary_preview'] == '转发全文'
+    expected_notices = [
+        ('b', 'new_follower', {'follower_id': 'a'}),
+        ('c', 'new_follower', {'follower_id': 'b'}),
+        ('a', 'new_follower', {'follower_id': 'c'}),
+        ('a', 'new_follower', {'follower_id': 'd'}),
+        ('a', 'post_like', {'post_id': 'post_1', 'interactor_id': 'b'}),
+        ('a', 'post_like', {'post_id': 'post_1', 'interactor_id': 'c'}),
+        ('a', 'post_like', {'post_id': 'post_1', 'interactor_id': 'd'}),
+        ('b', 'post_like', {'post_id': 'post_2', 'interactor_id': 'c'}),
+        ('a', 'post_comment', {'post_id': 'post_1', 'interactor_id': 'b',
+                             'reply_id': 1, 'comment_preview': '评论全文'}),
+        ('a', 'post_repost', {'post_id': 'post_1', 'interactor_id': 'd',
+                            'repost_id': 'post_3', 'commentary_preview': '转发全文'})]
+    assert final['notifications'] == {actor: [
+        {'id': i, 'type': kind, 'created_tick': 0, 'data': data}
+        for i, (recipient, kind, data) in enumerate(expected_notices, 1) if recipient == actor]
+        for actor in 'abcd'}
+    assert record['recommended'] == {'d': ['post_1', 'post_5']}
+    assert record['intervention']['flagged_post_ids'] == ['post_1', 'post_3']
 
 
-def test_next_result_corruption_survives_common_mapping(tmp_path):
-    original = next_social(tmp_path / "next-results")
-    expected = social_semantics(original, legacy=False)
-    for index, key, value in [(0, "changed", False), (4, "post_id", "post_wrong"),
-                              (11, "post_id", "post_wrong"), (10, "reply_id", 999)]:
-        damaged = copy.deepcopy(original)
-        damaged["actions"][index]["result"][key] = value
+def test_next_social_actions_notifications_ranking_exposure_and_process_restore(tmp_path):
+    continuous = next_social(tmp_path / 'continuous-social')
+    assert_social_contract(continuous)
+    for index, key, value in [(0, 'changed', False), (4, 'post_id', 'post_wrong'),
+                               (11, 'post_id', 'post_wrong'), (10, 'reply_id', 999)]:
+        damaged = deepcopy(continuous)
+        damaged['actions'][index]['result'][key] = value
         with pytest.raises(AssertionError):
-            assert_equal(expected, social_semantics(damaged, legacy=False))
-    damaged = copy.deepcopy(original)
-    damaged["actions"][12]["result"]["posts"][0]["content"] = "损坏正文"
+            assert_social_contract(damaged)
+    damaged = deepcopy(continuous)
+    damaged['actions'][12]['result']['posts'][0]['content'] = '损坏正文'
     with pytest.raises(AssertionError):
-        assert_equal(expected, social_semantics(damaged, legacy=False))
-    damaged = copy.deepcopy(original)
-    damaged["actions"][0]["result_status"] = "rejected"
+        assert_social_contract(damaged)
+    damaged = deepcopy(continuous)
+    damaged['actions'][0]['result_status'] = 'rejected'
     with pytest.raises(AssertionError):
-        assert_equal(expected, social_semantics(damaged, legacy=False))
-
-
-def next_rr(path, *, source=None, start=1, stop=3, kind="rr"):
-    output = path.with_suffix(".json")
-    command = [sys.executable, str(ROOT / "tests/reference/basic_env_next_oracle.py"),
-               "--output", str(output), "--run", str(path), "--start", str(start), "--stop", str(stop), "--kind", kind]
-    if source:
-        command += ["--source", str(source)]
-    subprocess.run(command, cwd=path.parent, env=clean_env(ROOT / "src"), check=True,
-                   capture_output=True, text=True, timeout=120)
-    return json.loads(output.read_text())
-
-
-def test_next_plain_run_plan_and_new_process_restore(legacy, tmp_path):
-    expected = legacy["scenarios"]["plain"]["steps"]
-    assert_equal(expected, next_rr(tmp_path / "plain", kind="plain"))
-    first = next_rr(tmp_path / "plain-first", kind="plain", stop=1)
-    rest = next_rr(tmp_path / "plain-rest", kind="plain", source=tmp_path / "plain-first", start=2)
-    assert_equal(expected, first + rest)
-
-
-def next_social(path, *, source=None, start=0, stop=3):
-    output = path.with_suffix(".json")
-    command = [sys.executable, str(ROOT / "tests/reference/basic_env_next_social.py"),
-               "--output", str(output), "--run", str(path), "--start", str(start), "--stop", str(stop)]
-    if source:
-        command += ["--source", str(source)]
-    subprocess.run(command, cwd=path.parent, env=clean_env(ROOT / "src"), check=True,
-                   capture_output=True, text=True, timeout=120)
-    return json.loads(output.read_text())
-
-
-def test_next_social_matches_actual_legacy_per_action_notifications_ranking_exposure(legacy, tmp_path):
-    expected = social_semantics(legacy["scenarios"]["social_network"], legacy=True)
-    actual = social_semantics(next_social(tmp_path / "next-social"), legacy=False)
-    assert_equal(expected, actual)
-
-
-def test_next_social_process_restore_preserves_continuous_legacy_semantics(legacy, tmp_path):
-    first = next_social(tmp_path / "first-social", stop=1)
-    rest = next_social(tmp_path / "rest-social", source=tmp_path / "first-social", start=1)
-    rest["steps"] = first["steps"] + rest["steps"]
-    rest["actions"] = first["actions"] + rest["actions"]
-    assert_equal(social_semantics(legacy["scenarios"]["social_network"], legacy=True),
-                 social_semantics(rest, legacy=False))
-
-
-def test_next_rr_matches_actual_legacy_per_message_and_actor_information(legacy, tmp_path):
-    assert_equal(rr_semantics(legacy), next_rr(tmp_path / "next"))
-
-
-def test_next_rr_separate_process_restore_continues_same_legacy_script(legacy, tmp_path):
-    first = next_rr(tmp_path / "first", stop=1)
-    remaining = next_rr(tmp_path / "restored", source=tmp_path / "first", start=2)
-    assert_equal(rr_semantics(legacy), first + remaining)
+        assert_social_contract(damaged)
+    first = next_social(tmp_path / 'first-social', stop=1)
+    restored = next_social(tmp_path / 'restored-social', source=tmp_path / 'first-social', start=1)
+    restored['steps'] = first['steps'] + restored['steps']
+    restored['actions'] = first['actions'] + restored['actions']
+    assert restored == continuous

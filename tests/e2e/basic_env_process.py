@@ -1,4 +1,4 @@
-"""Next 独立进程适配：经 Actions/Information 取得 RR 的共同语义。"""
+"""Next 独立进程消费者：完整轮次信息、消息与 plain RunPlan。"""
 import argparse
 import asyncio
 import json

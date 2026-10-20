@@ -1,5 +1,5 @@
 from tests.primary.provider_http import bind_chat, bind_embedding
-"""保留96b1f3b既有递归凭据过滤合同，并经实际Thread请求与错误留证消费。"""
+"""递归凭据过滤合同，经实际 Thread 请求与错误留证消费。"""
 from copy import deepcopy
 import json
 import httpx
@@ -13,7 +13,7 @@ from society0.kernel.storage import StageStore
 from society0.kernel.threads import THREAD_SCHEMA,ThreadStore
 
 
-def test_legacy_request_credentials_are_redacted_recursively():
+def test_request_credentials_are_redacted_recursively():
     original={'messages':[{'role':'user','content':'keep'}],'transport':{'headers':{
         'Authorization':'Bearer secret','nested':{'api-key':'secret-2'}},'options':[{'password':'secret-3'}]}}
     before=deepcopy(original);value=redact_credentials(original)
