@@ -94,11 +94,11 @@ async def test_global_trending_index_cost_does_not_grow_with_history(tmp_path):
         async with compose(tmp_path/str(count),plan(social_plugin('abc',edges=[],config=CFG))) as host:
             store=host.service('storage','store');candidates=host.service('social.candidates','candidates')
             def seed(w):
-                w.executemany('INSERT INTO social_posts VALUES(?,?,?,0,NULL,0,0,0,0,?)',((f'post_{i:08d}',i,'b',float(i)) for i in range(1,count+1)))
+                w.executemany('INSERT INTO social_posts VALUES(?,?,?,?,NULL,0,0,0,0,?)',((f'post_{i:08d}',i,'b',i-count,float(i)) for i in range(1,count+1)))
                 w.execute('UPDATE social_head SET post_count=? WHERE id=1',(count,))
             store.transaction(seed)
-            plan_rows=store.read(lambda r:r.query('EXPLAIN QUERY PLAN SELECT id FROM social_posts ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT 2'))
-            assert any('pool_engagement' in str(row) for row in plan_rows)
+            plan_rows=store.read(lambda r:r.query('EXPLAIN QUERY PLAN SELECT id FROM social_posts INDEXED BY social_pool_recent WHERE created_tick>-99 AND created_tick<=1 ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT 2'))
+            assert any('pool_recent' in str(row) for row in plan_rows)
             original=store.read;vm=[0]
             def read(callback,**kwargs):
                 def run(view):
@@ -107,7 +107,7 @@ async def test_global_trending_index_cost_does_not_grow_with_history(tmp_path):
                     finally:view._connection.set_progress_handler(None,0)
                 return original(run,**kwargs)
             store.read=read
-            assert candidates.trending_ids()==[f'post_{count:08d}',f'post_{count-1:08d}']
+            assert candidates.trending_ids(1)==[f'post_{count:08d}',f'post_{count-1:08d}']
             measured.append(vm[0])
     print({'history':[100,10000],'trending_top2_sql_vm':measured})
     assert measured[1]<=measured[0]+10

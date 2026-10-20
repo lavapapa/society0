@@ -8,7 +8,7 @@ from society0.plugins.social_ranking import weighted_ranking_plugin, chronologic
 
 def plugins():
     from examples.core_next.recommendation_observer import recommendation_observer_plugin
-    config={'social_media':{'recommendation':{'use_embedding_similarity':False,'chronological_weight':0.,'engagement_weight':1.,'network_weight':0.}}}
+    config={'social_media':{'trending':{'inject_into_feed':False},'recommendation':{'use_embedding_similarity':False,'chronological_weight':0.,'engagement_weight':1.,'network_weight':0.}}}
     return [
         actor_data_plugin(records=[ActorRecord(actor,'unused') for actor in ('a','b','c')]),
         interaction_plugin(lambda *args:True),

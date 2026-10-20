@@ -281,7 +281,7 @@ async def test_social_intervention_trending_and_full_notification_content_surviv
         assert result['flagged_post_ids']==[first,second]
         assert social.intervene(1,target_hashtag='#policy',draw=random.Random(8).random,intervention_rate=1,tag_to_apply='checked')['posts_flagged']==0
         assert social.post_details(first)['special_tags']==['checked']
-        assert social.update_trending_topics()==[first,second]
+        assert social.update_trending_topics(1)==[first,second]
         host.service('storage','store').complete(1)
     async with compose(tmp_path/'restore',plugins,source=tmp_path/'run') as host:
         social=host.service('social','mechanism')

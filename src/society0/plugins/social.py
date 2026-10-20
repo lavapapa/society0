@@ -70,7 +70,7 @@ class Social:
     def notifications(self,actor,**kwargs):return self.notices.notifications(actor,**kwargs)
     def active_pool(self,tick):return self.candidates.active_pool(tick)
     def intervene(self,tick,**kwargs):return self.content.intervene(tick,**kwargs)
-    def update_trending_topics(self):return self.content.update_trending_topics()
+    def update_trending_topics(self,tick):return self.content.update_trending_topics(tick)
     def trending_ids(self):return self.content.trending_ids()
     def recommended_ids(self,actor):return self.exposure.recommended_ids(actor)
     def set_recommended(self,actor,ids):self.exposure.set_recommended(actor,ids)
@@ -88,8 +88,9 @@ class Social:
 
     async def recommended_feed(self,actor,tick,*,record_impressions=True,query=None):
         source,result=await self.recommendation(actor,tick,query=query)
-        ranked=self._rank_metadata(source,result.items[:self._recommendation_config.post_count])
-        output=[dict(self.post_details(item['post_id']),_recommendation_score=item['_recommendation_score']) for item in ranked]
+        ids=self.content.feed_ids(actor,tick,[item.post_id for item in result.items],self._recommendation_config.post_count)
+        scores={item.post_id:{'total_score':round(float(item.score),6),**dict(item.components)} for item in result.items}
+        output=[dict(self.post_details(identifier),_recommendation_score=scores.get(identifier,{'trending':True})) for identifier in ids]
         if record_impressions:self.present(actor,[item['post_id'] for item in output])
         return output
 
@@ -108,7 +109,7 @@ class Social:
         self.exposure.flush()
 
     def trending(self,tick,*,limit=2,record_impressions=False,actor=None):
-        ids=self.candidates.trending_ids(limit)
+        ids=self.candidates.trending_ids(tick,limit)
         output=[self.post_details(identifier) for identifier in ids]
         if record_impressions:
             if actor is None:raise ValueError('actual trending presentation requires actor')
@@ -116,7 +117,10 @@ class Social:
         return output
 
     def register(self,information,actions,*,on_close):
-        provider=SocialInformation(self,_social_routes(self.name,self.data.actors))
+        routes=_social_routes(self.name,self.data.actors)
+        if not self.config.social_media.enabled:
+            routes={key:value for key,value in routes.items() if key in ('participants','profiles','notifications','notification_data')}
+        provider=SocialInformation(self,routes)
         on_close(provider.close)
         def member(scope,target):return self.store.read(lambda r:self._member(r,scope.actor))
         descriptions={
@@ -138,6 +142,7 @@ class Social:
                  ('follow','participants',empty,('social','social_write','follow')),
                  ('unfollow','participants',empty,('social','social_write','follow')))
         for operation,kind,schema,tags in entries:
+            if not self.config.social_media.enabled and operation not in ('follow','unfollow'):continue
             def available(scope,target,operation=operation,kind=kind):
                 if not member(scope,target):return False
                 if operation=='publish_post':return target.key==scope.actor
@@ -149,6 +154,7 @@ class Social:
         def notices(scope,target,args):return ActionResult('completed',{'notifications':self.notifications(scope.actor,consume=True)})
         def trending(scope,target,args):return ActionResult('completed',{'posts':self.trending(scope.moment.time,record_impressions=True,actor=scope.actor)})
         for operation,kind,handler,read_only in (('get_trending_posts','participants',trending,False),('get_notifications','participants',notices,False)):
+            if not self.config.social_media.enabled and operation=='get_trending_posts':continue
             def available(scope,target,kind=kind,operation=operation):
                 if not member(scope,target):return False
                 if operation in ('get_trending_posts','get_notifications'):return target.key==scope.actor

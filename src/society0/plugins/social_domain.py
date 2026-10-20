@@ -44,6 +44,17 @@ def _profile(r,name,actor,actors):
             'posts':[row[0] for row in r.iter_query(f'SELECT id FROM {table("posts")} WHERE author=? ORDER BY ordinal',(actor,))]}
 
 
+def _trending_ids(view, data, tick, limit, *, actor=None):
+    cfg=data.config.social_media.trending
+    if not data.config.social_media.enabled or not cfg.enabled or limit==0:return []
+    predicate='created_tick>? AND created_tick<=?'
+    bindings=[tick-cfg.calculation_window_ticks,tick]
+    if actor is not None:
+        predicate+=' AND author<>?';bindings.append(actor)
+    return [row[0] for row in view.iter_query(f'SELECT id FROM {data.table("posts")} INDEXED BY {data.table("pool_recent")} WHERE '+predicate+
+        ' ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT ?',(*bindings,limit))]
+
+
 class SocialData:
     def __init__(self,name,store,actors):
         self.name,self.store,self.actors=name,store,actors
@@ -174,6 +185,7 @@ class Content(DomainService):
     def _content_valid(self,content):return self.content_limit<0 or len(content)<=self.content_limit
 
     def publish_in(self,w,actor,content,tags,tick,reply_to=None):
+        if not self.config.social_media.enabled:return ActionResult('rejected',{'reason':'social_media_disabled'})
         if not self._content_valid(content):return ActionResult('rejected',{'reason':'content_length'})
         counter=w.query(f'SELECT post_count FROM {self.table("head")} WHERE id=1')[0][0]+1
         identifier='post_'+str(counter)
@@ -190,6 +202,7 @@ class Content(DomainService):
         return ActionResult('completed',{'post_id':identifier})
 
     def execute_in(self,w,operation,actor,target,arguments,tick):
+        if not self.config.social_media.enabled:return ActionResult('rejected',{'reason':'social_media_disabled'})
         if operation=='publish_post':
             if target!=actor:return ActionResult('rejected',{'reason':'participant_unavailable'})
             return self.publish_in(w,actor,arguments['content'],arguments.get('tags',[]),tick,arguments.get('reply_to'))
@@ -250,9 +263,21 @@ class Content(DomainService):
                     'tag_applied':tag_to_apply,'total_posts':total,'posts_flagged':len(flagged),'flagged_post_ids':flagged,'timestamp':tick}
         return self.store.transaction(write)
 
-    def update_trending_topics(self):
+    def feed_ids(self,actor,tick,ranked_ids,post_count):
+        if not self.config.social_media.enabled:return []
+        cfg=self.config.social_media.trending
+        popular=self.store.read(lambda view:_trending_ids(view,self.data,tick,min(cfg.injection_count,post_count),actor=actor)) if cfg.inject_into_feed else []
+        from itertools import chain
+        selected=[];seen=set()
+        for identifier in chain(popular,ranked_ids):
+            if identifier not in seen:
+                selected.append(identifier);seen.add(identifier)
+            if len(selected)==post_count:break
+        return selected
+
+    def update_trending_topics(self,tick):
         def write(w):
-            ids=[row[0] for row in w.query(f'SELECT id FROM {self.table("posts")} ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT 3')]
+            ids=_trending_ids(w,self.data,tick,3)
             w.execute(f'INSERT INTO {self.table("trending")} VALUES(1,?) ON CONFLICT(id) DO UPDATE SET ids=excluded.ids',(json.dumps(ids),))
             return ids
         return self.store.transaction(write)
@@ -306,6 +331,7 @@ class ActivePool(DomainService):
         return self.store.read(lambda view:[asdict(item) for item in self.active_pool_in(view,tick)])
 
     def active_pool_in(self,view,tick):
+        if not self.config.social_media.enabled:return ()
         cfg=self._recommendation_config
         total=view.query(f'SELECT post_count FROM {self.table("head")} WHERE id=1')[0][0]
         source=self.table('posts');bindings=()
@@ -320,5 +346,5 @@ class ActivePool(DomainService):
         rows=view.iter_query(prefix+f'SELECT p.id,p.author,p.created_tick,p.like_count,p.reply_count,p.repost_count,p.view_count,p.engagement FROM {joined} ORDER BY p.created_tick DESC,p.engagement DESC,p.id DESC',bindings)
         return tuple(Candidate(*row) for row in rows)
 
-    def trending_ids(self,limit=2):
-        return self.store.read(lambda r:[row[0] for row in r.query(f'SELECT id FROM {self.table("posts")} ORDER BY engagement DESC,created_tick DESC,id DESC LIMIT ?',(limit,))])
+    def trending_ids(self,tick,limit=2):
+        return self.store.read(lambda view:_trending_ids(view,self.data,tick,limit))
