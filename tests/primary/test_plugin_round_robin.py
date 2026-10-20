@@ -103,11 +103,19 @@ async def test_clear_current_messages_preserves_history_and_precision_originals(
 
 
 @pytest.mark.parametrize('size',[2,4,6,20])
-def test_circle_schedule_matches_existing_builtin_order(size):
-    from tests.reference.builtin_algorithms import RoundRobinConversationEnv
+def test_circle_schedule_covers_every_pair_and_actor_once_per_round(size):
+    from itertools import combinations
     from society0.plugins.round_robin import _schedule
     members=[str(i) for i in range(size)]
-    assert _schedule(members)==RoundRobinConversationEnv._build_round_robin_schedule(None,members)
+    rounds=_schedule(members)
+    assert len(rounds)==size-1
+    assert rounds[0]==[(members[i],members[-1-i]) for i in range(size//2)]
+    for pairs in rounds:
+        assert len(pairs)==size//2
+        assert sorted(actor for pair in pairs for actor in pair)==sorted(members)
+    all_pairs=[frozenset(pair) for pairs in rounds for pair in pairs]
+    assert len(all_pairs)==len(set(all_pairs))==size*(size-1)//2
+    assert set(all_pairs)=={frozenset(pair) for pair in combinations(members,2)}
 
 
 @pytest.mark.asyncio

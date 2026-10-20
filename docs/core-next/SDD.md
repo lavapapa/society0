@@ -16,7 +16,7 @@
 
 ### 1.2 代码边界
 
-`society0.kernel.plugins` 只管理组合，`society0.kernel.interaction` 管理引用、作用域、信息和行动合同。持久化、时间、模型与记忆进入相应基础插件模块。公共入口已切换到 Core 与基础插件；旧实现从产品移除，固定 Git 基线及 tests/reference 保留比较证据。
+`society0.kernel.plugins` 只管理组合，`society0.kernel.interaction` 管理引用、作用域、信息和行动合同。持久化、时间、模型与记忆进入相应基础插件模块。公共入口使用 Core 与基础插件。Next 按自身合同与当前公共消费者验证，旧实现、旧源码启动器、算法副本及旧版对照测试从本分支移除；历史版本由 Git 历史与 stable/4.1 保存。
 
 机制插件持有自己的类型和索引定义，可注册信息提供者和行动定义。通用 Core 不包含市场、行业、经济或社交推荐的业务规则。
 

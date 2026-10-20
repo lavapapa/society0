@@ -26,7 +26,7 @@ Serial phases preserve business order. Independent phases use explicit Phase.cap
 
 ## Changes and evidence
 
-Use specifications and failure-first tests for substantial work, reuse mature libraries and existing code, and keep interfaces tied to real consumers. Breaking interface changes do not require compatibility layers. Preserve semantic comparison fixtures under tests/reference with their source commit identity. Historical research and old format evidence retain their version context.
+Use specifications and failure-first tests for substantial work, reuse mature libraries and existing code, and keep interfaces tied to real consumers. Breaking interface changes do not require compatibility layers. Validate Next's current contracts with explicit expectations and actual public consumers. Retire legacy implementations, algorithm copies, source launchers and old-version comparison tests from Next; Git history and stable/4.1 retain their version context. The engine supplies runtime mechanisms; study design and scientific validity belong to its consumers.
 
 Run focused deterministic tests followed by the full deterministic suite. Independent review must challenge actual consumers and failure boundaries. Performance evidence should separate compute, service waiting, encoding, storage, Python/native memory and cold/hot behavior. Compare identical information and business semantics; fewer messages or tools are not sufficient evidence of improvement.
 

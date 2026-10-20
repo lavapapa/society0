@@ -1,5 +1,4 @@
-"""独立审查：真实 Driver 的输入选择、增量游标及共同协议反例。"""
-import copy
+"""真实 Driver 的输入选择、增量游标、完整输入效果与恢复边界。"""
 import json
 import subprocess
 import sys
@@ -12,7 +11,7 @@ from society0 import Phase, Plugin, compose
 from society0.kernel.cognition import InputBatch
 from society0.kernel.interaction import Moment
 from tests.primary.test_social_cognition import plugins, SOCIAL_SOURCE_ID, NOTICE_SOURCE_ID
-from tests.reference.basic_env_oracle_protocol import ROOT, assert_equal, clean_env, run_legacy, social_semantics
+from tests.primary.process_support import ROOT, clean_env
 
 
 @pytest.mark.asyncio
@@ -203,11 +202,3 @@ async def test_composed_receipt_effect_and_complete_boundary(tmp_path, failure):
         if not failure:
             assert receipts == [(tid, 1)]
             assert threads.input_cursor(tid, 'operating_context')['position'][NOTICE_SOURCE_ID] == 1
-
-
-def test_common_social_protocol_detects_changed_action_outcome(tmp_path):
-    recorded = run_legacy(tmp_path / 'oracle')['scenarios']['social_network']
-    damaged = copy.deepcopy(recorded)
-    damaged['actions'][0]['result'] = 'Not following a: deliberately corrupted outcome'
-    with pytest.raises(AssertionError):
-        assert_equal(social_semantics(recorded, legacy=True), social_semantics(damaged, legacy=True))

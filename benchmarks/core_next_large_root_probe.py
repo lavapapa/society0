@@ -1,14 +1,11 @@
 """真实根的存储机制试验；SQL fixture 不代表产业环境迁移。"""
 from __future__ import annotations
 import argparse
-import gc
-from itertools import chain
 import json
 from pathlib import Path
 import resource
 import sys
 import time
-import zlib
 from society0.kernel.storage import StageStore
 from society0.kernel._json_chunks import CHUNK_BYTES, decode_chunk, decode_chunks
 
@@ -152,20 +149,6 @@ def alignment_probe(path, *, body_bytes=10*1024*1024):
     return output
 
 
-def source_entries(source):
-    # 旧格式解析仅发生在独立转换/全值对照进程。
-    from benchmarks.real_state_conversion_probe import source_state
-    from society0.incremental_checkpoint import PersistenceSchema,_WILDCARD
-    from society0.persistence import PersistenceManager
-    state,manifest=source_state(source)
-    declarations=manifest['root_metadata']['persistence_schemas']
-    schema=PersistenceSchema.merge(*(PersistenceSchema.compile(item['schema'],root_path=tuple(
-        _WILDCARD if part=='*' else part for part in item['root_path'])) for item in declarations))
-    PersistenceManager._v4_apply_transient_defaults(state,schema)
-    manager=object.__new__(PersistenceManager);manager._v4_schema=schema
-    yield from manager._v4_root_entries(state)
-
-
 def peak_rss():
     value=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return value if sys.platform=='darwin' else value*1024
@@ -173,56 +156,38 @@ def peak_rss():
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--mode',choices=['convert','verify','read','whole','split','restore'],required=True)
+    parser.add_argument('--mode',choices=['read','whole','split','restore'],required=True)
     parser.add_argument('--run',type=Path,required=True)
-    parser.add_argument('--source',type=Path)
     parser.add_argument('--target',type=Path)
     parser.add_argument('--steps',type=int,default=20)
     args=parser.parse_args()
     started=time.perf_counter();cpu=time.process_time()
     result={'mode':args.mode,'scope':'storage fixture; no industry rule migration','python':sys.version}
-    if args.mode=='convert':
-        entries=source_entries(args.source);first=next(entries)
-        result['conversion_prepare_seconds']=time.perf_counter()-started
-        result['conversion_prepare_peak_rss_bytes']=peak_rss()
-        write_start=time.perf_counter()
-        with build_fixture(args.run,chain([first],entries)) as store:
-            result['root_write_seconds']=time.perf_counter()-write_start
-            result['entries'],result['raw_bytes']=store.read(lambda v:v.query('SELECT count(*),sum(raw_bytes) FROM fixture_entries')[0])
-            result['open_disk']=disk_usage(args.run)
-    elif args.mode=='restore':
+    if args.mode=='restore':
         with StageStore.restore(args.run,args.target) as store:
             result['complete_step']=store.complete_step
             result['open_disk']=disk_usage(args.target)
     else:
         with StageStore.open(args.run) as store:
-            if args.mode=='verify':
-                count=0
-                for sequence,expected in enumerate(source_entries(args.source)):
-                    assert load_entry(store,sequence)==expected,sequence
-                    count+=1
-                assert store.read(lambda v:v.query('SELECT count(*) FROM fixture_entries')[0][0])==count
-                result.update(all_entries_equal=True,entries=count)
+            # 固定活动量；选择成本单列，运行不扫描全部历史重建状态。
+            select_start=time.perf_counter()
+            small=store.read(lambda v:v.query("SELECT seq FROM fixture_selection WHERE kind='small' ORDER BY ordinal"))
+            large=store.read(lambda v:v.query("SELECT seq,raw_bytes FROM fixture_selection WHERE kind='large'"))
+            result['selection_seconds']=time.perf_counter()-select_start
+            result['large_entry']=large
+            if args.mode=='read':
+                start=time.perf_counter()
+                for _ in range(100):
+                    for (sequence,) in small:store.read(lambda v,s=sequence:v.query('SELECT value FROM fixture_hot WHERE seq=?',(s,)))
+                result['hot_query_seconds']=time.perf_counter()-start
+                result['hot_query_count']=100*len(small)
+                sequence,total=large[0];start=time.perf_counter()
+                data=read_range(store,sequence,max(0,total//2),64)
+                result['cold_range_seconds']=time.perf_counter()-start
+                result['cold_range_bytes']=len(data)
             else:
-                # 固定活动量；选择成本单列，运行不扫描全部历史重建状态。
-                select_start=time.perf_counter()
-                small=store.read(lambda v:v.query("SELECT seq FROM fixture_selection WHERE kind='small' ORDER BY ordinal"))
-                large=store.read(lambda v:v.query("SELECT seq,raw_bytes FROM fixture_selection WHERE kind='large'"))
-                result['selection_seconds']=time.perf_counter()-select_start
-                result['large_entry']=large
-                if args.mode=='read':
-                    start=time.perf_counter()
-                    for _ in range(100):
-                        for (sequence,) in small:store.read(lambda v,s=sequence:v.query('SELECT value FROM fixture_hot WHERE seq=?',(s,)))
-                    result['hot_query_seconds']=time.perf_counter()-start
-                    result['hot_query_count']=100*len(small)
-                    sequence,total=large[0];start=time.perf_counter()
-                    data=read_range(store,sequence,max(0,total//2),64)
-                    result['cold_range_seconds']=time.perf_counter()-start
-                    result['cold_range_bytes']=len(data)
-                else:
-                    result['steps']=modify_probe(store,[large[0][0]],mode=args.mode,steps=args.steps)
-                result['open_disk']=disk_usage(args.run)
+                result['steps']=modify_probe(store,[large[0][0]],mode=args.mode,steps=args.steps)
+            result['open_disk']=disk_usage(args.run)
     result.update(wall_seconds=time.perf_counter()-started,cpu_seconds=time.process_time()-cpu,peak_rss_bytes=peak_rss(),
                   closed_disk=disk_usage(args.target if args.mode=='restore' else args.run))
     print(json.dumps(result,ensure_ascii=False))

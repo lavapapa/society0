@@ -1,45 +1,31 @@
-# 猎龙：基础环境迁移验收
+# 基础环境验证
 
-本文定义基础环境的行为对照与成本验收。Core 组合边界、公共接口及子插件设计的本轮工作见 [可组合性实施规格](../../.scratch/next-composition/PRD.md)。环境迁移用于持续发现并检验公共底座的问题。产业链环境及旧稳定源码不在修改范围；Next 的路线定义见 [PROJECT](../../PROJECT.md#版本路线)。
+基础环境按 Next 自身合同验证 plain、round-robin conversation 与 social network。引擎提供机制、信息、行动、完整步骤、恢复与观察；使用方在情景层设计研究问题、控制实验、基线与科研有效性评估。路线与分支职责见 [PROJECT](../../PROJECT.md)。
 
-本轮 Core 组合检验的结果权威入口为[架构结果](<../../research/core-next/composable-mechanisms/architecture-result.md>)，其中关联实际消费者、逐笔 oracle、冻结验收与成本边界；本文保留迁移验收规格，以下实施项的实际收口状态见[任务清单](<../../.scratch/next-composition/TODO.md>)。
+## 一、当前合同
 
-## 一、基线
+Next 分支移除旧实现、旧源码启动器、算法副本与旧版对照测试。历史实现保存在 Git 历史与 `stable/4.1`，原始运行资料继续保留其版本身份。当前测试以显式期望和公共消费者为依据。
 
-旧基线固定为 `v4.1.14` / `4ff2df74668931aef12b1a4951fab1d97d6a0981`。Next 从 `6ba4a62` 的已交付实现接续。已有 `tests/reference` 固定于 `96b1f3b`，可复用算法消费者；完整环境验收须同时调用固定旧基线与 Next，比较共同语义输出。
-
-旧版共有三个基础环境：plain、round_robin_conversation、social_network。Next 已有对应插件，本轮在现有实现上补缺和对照，不重写另一套环境。首次盘点为源码核查，以下差异尚待失败先行实验确认。
-
-## 二、功能
-
-| 环境 | 等价范围 | 优先核验的差异 |
+| 环境 | 验证范围 | 当前消费者 |
 |---|---|---|
-| plain | 空机制组合、规则主体、正式 RunPlan 入口与恢复、基础安装 | 作为运行与持久化成本控制组 |
-| round-robin | 分组、circle 配对、轮次、私信、广播、参与标记、小组及对话资料、初始化收件箱、历史与恢复 | Next Python 服务有 group/conversation 视图，主体 Information 路由可能缺少组成员、未来伙伴、总轮次和时长；直接 start、重复或倒回轮次需要明确合同 |
-| social-network | 五类图及顺序、发帖/赞/评论/转发/关注、候选排序、曝光、通知、干预、热门、原文、向量和恢复 | 默认 feed 读取与旧 FoV 曝光路径有差别；热门 top2 从全局变为活动池候选，keep_count=1 可形成反例；向量故障和失败转发的结果需明确重设 |
+| plain | 空机制组合、规则主体、RunPlan、完整步骤及新进程恢复 | [基础环境实验](../../tests/experiments/test_basic_env_oracle.py) |
+| round-robin | 每对一次、确定配对顺序、消息与广播身份、完整主体资料、参与标记、历史、权限与恢复 | [轮次插件测试](../../tests/primary/test_plugin_round_robin.py)、[独立进程消费者](../../tests/e2e/basic_env_process.py) |
+| social-network | 五类拓扑、发帖互动与关注、活动候选、明确评分、偏好原文、通知、全局热门、干预、曝光、原向量与恢复 | [社交插件测试](../../tests/primary/test_plugin_social.py)、[独立进程消费者](../../tests/e2e/social_process.py) |
+| 认知组合 | 多来源输入选择、同 Moment 增量游标、完整 Thread、呈现效果及失败步骤边界 | [认知消费者](../../tests/primary/test_cognition_oracle_review.py) |
 
-源码定位：旧版 `src/society0/env/{plain,round_robin,social_network}/env.py`，Next `src/society0/plugins/{plain,round_robin,social}.py`。旧实现的空操作与缺陷应单独说明；修复旧缺陷需要明确新合同和失败用例，不能默认为已等价。
+[基础环境实验](../../tests/experiments/test_basic_env_oracle.py) 直接断言四人三轮的每条消息、收件人、主体信息与动作结果，以及社会场景的排名、通知、曝光和事实；完整运行与新进程恢复逐项比较当前 Next 结果。推荐评分、拓扑和偏好文本的输入与期望由当前合同明确给出。
 
-## 三、实施
+公共组合的目录委托、登记、可替换推荐、多来源认知和关闭路径见 [公共运行手册](../../examples/core_next/README.md)。真实模型、嵌入与记忆按 [真实测试合同](real-test-migration.md) 单独验证。
 
-- [x] 固定旧稳定身份，盘点现有插件及参考测试。
-- [ ] P0：plain 正式运行/完整点/新进程恢复对照，验证基础依赖与轻量路径。
-- [ ] P1：round-robin 使用四人三轮固定脚本，逐轮比较配对、每条消息、广播收件人、主体完整可见资料、参与标记与恢复；用真实 Session/Information 消费者验证信息可达。先补失败用例，再修复 Next。
-- [ ] P2：social 使用固定有向图与动作脚本，关闭语义向量，逐事件比较写操作、通知、热门、干预与恢复。加入 keep_count=1 且旧高热帖退出活动池的反例。
-- [ ] P3：推荐使用预录独立向量，比较每项评分、候选次序、曝光、after_tick 及恢复；分别定义只读预览和有曝光的呈现行为，检查主体默认入口。
-- [ ] P4：通过 scripted provider 的完整 LLMDriver 验证资料发现、分页原文、行动、同 Moment 再激活与完整 Thread；不调用付费模型。
-- [ ] P5：同语义性能对照、直接测试及确定性全量、非作者挑剔审查。按结果记录明确收益、回退及适用规模。
+## 二、成本与执行
 
-旧版与 Next 使用隔离解释器和运行目录。同一脚本比较所有相关值、事实顺序、主体信息范围和恢复后继续运行结果；容许公开 API 与物理存储格式不同。仅白名单化与语义无关的身份字段。测试应能通过主动损坏单条消息、曝光或配对结果证明比较器会失败。
+固定活动主体、当前消息或活动帖子及本步新增事件后扩大累计历史，检查当前读取和完整步骤的增长成本；再扩大活动集合，区分真实业务工作量。分别记录根初始化、纯机制步骤、含 Driver 的计算、提供方等待、发布、关闭与恢复。完整 Thread、全文读取和全图初始化按实际数据量计成本。
 
-## 四、性能
+复用巨消息范围读取、冷正文点赞、历史增长 VM 计数、向量缓存与恢复测试。性能调整保持完整信息、行动自主性和逐笔事实。运行直接相关测试后执行确定性主套件与实验：
 
-先证明功能等价，再量成本。固定活动主体、当前消息/活动帖子及本步新增事件，扩大累计历史（100、10,000，较大规模视试验成本逐级增加），报告连续步骤的增长斜率。另行扩大活动集合，说明真实工作量的成本。
+```sh
+uv sync --frozen --all-extras
+uv run pytest tests/primary tests/e2e tests/experiments -m 'not real_e2e'
+```
 
-分别记录根初始化、纯机制步骤、含 Driver 的计算、模型/记忆等待、完整点发布、关闭和恢复。指标覆盖墙钟、CPU、Python/原生峰值内存、实际读取/物化字节、增量磁盘；观察与基准工具本身的开销单列。
-
-复用既有巨消息范围读取、冷正文点赞、历史增长 VM 计数、向量缓存与恢复测试。特别测量多主体交错推荐分页与同版本缓存，以及主体现实信息入口是否新增全表读取。完整 Thread、全文读取和整图初始化仍按实际数据量计成本。不得以资料变少、动作减少或曝光被省略解释为性能改善。
-
-基础组合后续改造保留本页旧稳定基线与既有 oracle 身份。当前 Next 的目录委托、登记、推荐来源、完整多来源认知及关闭路径已有 [公共消费者](../../examples/core_next/README.md) 和 [开发验证记录](../../research/core-next/foundation-composition/validation-result.md)；原逐值 oracle 的共同语义字段保留。确定性原向量、缓存与恢复证据和真实提供方证据分别记录，本次实时 OAuth 工具／恢复通过，真实 memory/embedding 与最终集成交付继续按 [当前清单](../../research/core-next/foundation-composition/implementation-plan.md) 执行。
-
-长期社会效果与真实模型成本按各研究协议另行判断。
+真实端点测试使用显式环境配置与独立运行目录。长期社会效果与真实模型成本由各研究协议评估。

@@ -1,4 +1,4 @@
-"""与固定旧脚本相同动作的 Next 社交独立进程适配。"""
+"""Next 社交独立进程消费者：动作、通知、排名、曝光与恢复。"""
 import argparse
 import asyncio
 import json
