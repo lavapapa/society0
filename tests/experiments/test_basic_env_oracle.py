@@ -39,6 +39,8 @@ def test_next_plain_run_plan_and_new_process_restore(tmp_path):
 
 
 def assert_rr_contract(steps):
+    assert len(steps) == 3, 'expected exactly three rounds'
+    assert [step['round'] for step in steps] == [1, 2, 3], 'expected round identities [1, 2, 3]'
     pairs = [[['a', 'd'], ['b', 'c']], [['a', 'c'], ['d', 'b']], [['a', 'b'], ['c', 'd']]]
     partners = {'a': ['d', 'c', 'b'], 'b': ['c', 'd', 'a'],
                 'c': ['b', 'a', 'd'], 'd': ['a', 'b', 'c']}
@@ -71,9 +73,24 @@ def assert_rr_contract(steps):
             for i, actor in enumerate('abcd')}
 
 
+@pytest.mark.parametrize('steps,reason', [
+    ([], 'exactly three rounds'),
+    ([{'round': 1}], 'exactly three rounds'),
+    ([{'round': 1}, {'round': 2}], 'exactly three rounds'),
+    ([{'round': 1}, {'round': 1}, {'round': 3}], 'round identities'),
+    ([{'round': 2}, {'round': 1}, {'round': 3}], 'round identities'),
+])
+def test_rr_contract_rejects_incomplete_or_wrong_round_identities(steps, reason):
+    with pytest.raises(AssertionError, match=reason):
+        assert_rr_contract(steps)
+
+
 def test_next_rr_per_message_actor_information_and_process_restore(tmp_path):
     continuous = next_rr(tmp_path / 'continuous')
     assert_rr_contract(continuous)
+    for incomplete in (continuous[:1], continuous[:2], continuous[1:]):
+        with pytest.raises(AssertionError, match='exactly three rounds'):
+            assert_rr_contract(incomplete)
     first = next_rr(tmp_path / 'first', stop=1)
     remaining = next_rr(tmp_path / 'restored', source=tmp_path / 'first', start=2)
     assert first + remaining == continuous

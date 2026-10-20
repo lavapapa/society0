@@ -4,7 +4,7 @@
 
 ## 一、方法
 
-转换来源是 R3/8pct/attempt-003 的初始完整根，旧 gzip 为 173829194 字节，解压 JSON 约 1.879 GB。转换读取工具使用产品快照 `537ac50` 中的旧 `source_state`、`PersistenceSchema` 与 `_v4_root_entries`。这些仅用于基线转换与逐值对照；测量进程加载新版 kernel，不构造 World。旧接口最终移除后，复跑转换需要保留该独立基线部署，不构成新版兼容 API。
+转换来源是 R3/8pct/attempt-003 的初始完整根，旧 gzip 为 173829194 字节，解压 JSON 约 1.879 GB。当时的转换读取工具使用产品快照 `537ac50` 中的旧 `source_state`、`PersistenceSchema` 与 `_v4_root_entries`，测量进程加载当时的新版 kernel。本页保存该版本的结果；旧转换入口已从 Next 退役，源码由 Git 历史保存。
 
 每条声明记录完整编码到 64 KiB 原始块并压缩，SQL 表以 sequence/chunk 定位。小头表记录正文大小，独立热字段表保存试验修改值。初始化时记录固定活动样本，后续读进程通过主键访问，避免为选择样本扫描全表。原路径保留在记录正文；本 fixture 未验收按业务路径查找的能力。
 
@@ -20,7 +20,7 @@
 
 ## 三、复跑
 
-小型验收命令为 `PYTHONPATH=src .venv/bin/python -m pytest -q tests/experiments/test_core_next_large_root_probe.py`。`core_next_large_root_probe.py` 提供 convert、verify、read、whole、split、restore 六种独立进程模式。真实 source 使用冻结旧根；run/target 必须是本任务新目录。whole/split 修改当前 fixture，各路线应从同一初始完整点恢复到独立目录，以免混入上一组修改。恢复另起进程测峰值，转换进程解析旧 JSON 的历史高水位不作为新运行内存。
+当前小型验收命令为 `PYTHONPATH=src .venv/bin/python -m pytest -q tests/experiments/test_core_next_large_root_probe.py`。[当前探针](../../benchmarks/core_next_large_root_probe.py) 提供 read、whole、split、restore 四种独立进程模式，通过 build_fixture 创建 Next SQL 输入。whole/split 修改当前 fixture，各路线从同一初始完整点恢复到独立目录；run/target 使用新的输出目录。历史 convert/verify 模式随旧转换器退役，原始测量数据继续保留当时的来源身份。
 
 运行探针的读取称为冷进程读取，操作系统文件页缓存未清空。完整检查点历史可以持续增长，热读与修改的计数和耗时须另做固定活动量的连续步骤对照。当前小试验已经逐值验证类型、顺序、跨块范围读取、未完成写入排除以及整值和拆分两条恢复路径；真实大根结果见下一节。
 
@@ -57,4 +57,4 @@
 
 结论是，新 kernel 已展示按需读取和小工作集恢复，巨大热 entry 的整值重编码仍需领域冷热拆分，空间复制仍需进一步处理。后续验收同时比较完整目录占盘、随机读取放大、正常步骤工作集与 fork 独立性，逐值恢复始终作为同一条成功条件。
 
-复现部署说明：实际运行脚本 `large-root-runtime-command-20261004.sh` 中的 `benchmarks/core_next_large_root_probe_runtime.py` 是当前提交 `benchmarks/core_next_large_root_probe.py` 的原文副本，仅改部署文件名。已从远端取回该实际文件，保存为 `large-root-executed-runtime-20261004.py`，逐字符比较一致。`benchmarks/core_next_v04_diag.py` 的实际源保存为 `large-root-diagnostic-command-20261004.py`。复跑时把这两个文件复制到运行脚本所列文件名，kernel 源使用冻结 `537ac50`，旧转换读取工具按第一节的独立基线部署定位。
+历史运行的原始命令保存在[命令记录](large-root-runtime-command-20261004.txt)，诊断查询保存为[SQLite 元数据查询](large-root-diagnostic-command-20261004.py)。当时的完整执行脚本含旧转换器依赖，已随旧执行入口退役，其源码保存在提交 `9181b4bf819762b01daf481bcaf462a27c449565` 的 Git 历史中。原始 JSON/txt 结果与 kernel 冻结身份 `537ac50` 继续保留；当前 Next 验证使用第三节的探针与实验。
