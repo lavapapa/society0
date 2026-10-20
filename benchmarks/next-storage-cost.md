@@ -44,7 +44,7 @@ uv run --no-sync python -m benchmarks.core_next_storage_cost \
 | `compressed_read_*` | Zstd 输入端实际 read 次数及压缩字节，包含 EOF 读取 |
 | `validate_references_*` | writer open 的完整链引用验证段 |
 
-分段耗时具有包含关系：`tables` 包含 `schema`，Session 重建包含表访问和 attach，export 包含 sink 的压缩，apply 包含读取/解压，backup 包含其内部同步。SQLite 同步还可能落在 apply 等段内。报告中的分段不可直接相加。Session 内存是原生跟踪状态；进程 RSS 为包含导入和验证的整进程高水位。
+分段耗时具有包含关系：`tables` 包含 `schema`，Session 重建包含原生创建和 attach，export 包含 sink 的压缩，apply 包含读取/解压，backup 包含其内部同步。writer open 验证并固定本实例的业务表名；后续完整步骤重建 Session 沿用这些表名，因此 complete 段的 schema/table_info 计数为零，attach 仍随表数增长。新 open 和可写 restore 仍执行表与主键验证。SQLite 同步还可能落在 apply 等段内。报告中的分段不可直接相加。Session 内存是原生跟踪状态；进程 RSS 为包含导入和验证的整进程高水位。
 
 `instrumentation.bookkeeping_seconds` 实测数字累加函数的部分开销，作为下界；wrapper、执行 trace、原生内存采样和 Python VFS 的额外成本用同配置纯计时进程比较。两类运行的总耗时、每段绝对值和比值分别保留。调度和文件缓存噪声可能使 profile 更快，负差值保留原值。cProfile 耗时不进入加速结论。
 

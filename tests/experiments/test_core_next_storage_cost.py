@@ -19,8 +19,11 @@ def test_counts_follow_actual_schema_and_stream_calls(tmp_path):
         complete = result['costs']['complete']
         restore = result['costs']['restore']
         assert complete['session_create_count'] == 2
-        assert complete['tables_count'] == 2
-        assert complete['schema_count'] == 2
+        assert complete.get('tables_count', 0) == 0
+        assert complete.get('schema_count', 0) == 0
+        assert complete.get('table_info_count', 0) == 0
+        assert result['costs']['cold_open']['tables_count'] == 1
+        assert result['costs']['cold_open']['schema_count'] == 2
         assert complete['export_count'] == 2
         assert complete['export_bytes'] > 0
         assert complete['session_memory_samples'] == 2
@@ -42,7 +45,7 @@ def test_counts_follow_actual_schema_and_stream_calls(tmp_path):
         assert result['verification']['restore_matches']
         assert result['verification']['continued_complete_step'] == 3
     assert wide['costs']['complete']['session_attach_count'] - small['costs']['complete']['session_attach_count'] == 14
-    assert wide['costs']['complete']['table_info_count'] - small['costs']['complete']['table_info_count'] == 14
+    assert wide['costs']['cold_open']['table_info_count'] - small['costs']['cold_open']['table_info_count'] == 7
     assert 'body' not in small['costs']
 
 
@@ -53,9 +56,10 @@ def test_table_info_counter_observes_extra_native_sql(tmp_path, monkeypatch):
         return original(connection)
     monkeypatch.setattr(storage, '_tables', extra_query)
     result = storage_cost(tmp_path / 'extra-query', mode='profile', history_rows=2, steps=2)
-    complete = result['costs']['complete']
-    assert complete['tables_returned'] == 6
-    assert complete['table_info_count'] == 8
+    opened = result['costs']['cold_open']
+    assert opened['tables_returned'] == 3
+    assert opened['table_info_count'] == 4
+    assert result['costs']['complete'].get('table_info_count', 0) == 0
 
 
 def test_disabled_export_is_visible_in_counts(tmp_path, monkeypatch):
