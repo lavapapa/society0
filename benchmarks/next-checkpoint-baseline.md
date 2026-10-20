@@ -36,4 +36,4 @@ uv run --no-sync python -m pytest \
 
 确定性测试确认使用真实完整点、只读物化、恢复、工件与继续运行；改变无关历史保留相同本步工作量。测试不使用依赖机器速度的阈值。性能结论在实际报告中绑定工作负载和机器，后续优化用同一检查点做前后对照。
 
-当前源码已采用 `changeset_stream` 导出，恢复把 `stream.read` 作为 APSW 的读取回调，根建立通过 SQLite backup 完成。后续工作先确认原生 Session 内存、行布局、备份及链校验成本，避免重复实现已经存在的流式能力。
+当前源码已采用 `changeset_stream` 导出，恢复把 `stream.read` 作为 APSW 的读取回调，根建立通过 SQLite backup 完成。[存储成本归属实验](next-storage-cost.md)复用此路径，分别测量原生 Session 内存、行布局、备份与链校验成本。
