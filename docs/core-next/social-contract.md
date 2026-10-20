@@ -21,7 +21,7 @@
 
 根配方的 `mechanism` 服务指向 presentation。各叶可以独立安装；数据初始化先决使用 `schema_requires`，运行借用使用 `requires`。成员目录由 [actor_data_plugin](actor-contract.md) 提供，驱动装配可再依赖机制输入，避免将运行映射加入数据依赖链。
 
-`config.social_media.recommendation.use_embedding_similarity` 是语义功能的唯一开关，默认 False。True 要求同时绑定 `embedding=('embeddings','profile')` 与 `vector_client=('vectors','client')`；False 时传入任一资源会报错。无语义配方不安装 semantic 叶或向量表。关系生成支持既有拓扑模型，也可显式提供 edges；seed 固定初始化随机源，恢复读取持久关系与配置。正文长度限制为 -1 时不设业务上限，与模型预算及 Thread 历史无关。
+`config.social_media.recommendation.use_embedding_similarity` 是语义功能的唯一开关，默认 False。True 要求同时绑定 `embedding=('embeddings','profile')` 与 `vector_client=('vectors','client')`；False 时传入任一资源会报错。无语义配方不安装 semantic 叶或向量表。关系生成支持既有拓扑模型，也可显式提供 edges；seed 固定初始化随机源，恢复读取持久关系与配置。正文长度限制为 -1 时不设业务上限，与模型预算及 Thread 历史无关。`social_media.enabled=False` 关闭媒体写入、推荐与热门呈现，撤去媒体 Information 路由和动作；网络关系、主体资料与通知保留，直接内容服务调用同样拒绝媒体写入。
 
 ## 二、推荐策略
 
@@ -48,7 +48,13 @@ plugins = [
 
 推荐首先做声明依赖的轻量版本与成员检查；未命中时先完成正文向量准备，再在一个 ReadView 内读取成员、版本、候选、关系和完整偏好。向量查询使用该不可变输入，SQL 视图在网络等待前释放，等待返回后核对完整依赖版本与派生集合水位。来源变化抛 ValueError，调用者显式请求下一次读取。ranker 同步消费纯值输入，成功结果保留完整候选、评分和原始正文入口。
 
-### 2.2 静态配置
+### 2.2 计分与召回
+
+`time_decay_hours` 沿用字段名，实际以传入的 tick 计算指数尺度：`exp(-max(tick-created_tick, 0)/scale)`，正值使用配置，非正值使用 1；经过一个尺度后时间分量为 `exp(-1)`。领域调用决定 tick 的研究时间口径。
+
+`candidate_count` 是大候选池语义召回的基数。排除本人后池大小超过 `full_scan_until` 时，向量查询 `n_results=max(int(candidate_count*recall_multiplier),post_count)`；小池请求 `max(池大小,post_count)`。它改变语义分数的召回范围，活动候选集合与完整排名继续保留。
+
+### 2.3 静态配置
 
 一次 Run 的来源、依赖与策略绑定保持固定。weighted 在构造时复制有效 RecommendationConfig，公开配置字段只读；Recommendations.ranker 是只读绑定。调用者修改原配置副本不影响当前服务。切换策略或配置通过新 Run/compose 装配，可从可信完整点恢复，缓存从空开始。输入与参数的来源身份记录在 RunContract.configuration，源码身份与依赖由运行合同声明。
 
@@ -56,13 +62,13 @@ plugins = [
 
 主体通过动态行动发现发布、点赞、评论、转发、关注与取消关注，执行时重验成员资格及目标。读取帖子、公开资料、热门帖子与消费通知有显式行动入口。公开资料保留类型、架构、兴趣、心情、社交统计与近期原文预览；私有人格留在主体认知范围。
 
-`/social/posts`、`participants`、`replies` 支持结构化查询；posts 元数据携带 `content_path`。`content/<id>`、`reply_content/<id>` 提供完整原文字节范围，`notifications` 提供未读条目，`notification_data/<id>` 核验收件人并保留消费后的原始内容。热门查询使用全局热门索引，与活动推荐候选池分别取数。
+`/social/posts`、`participants`、`replies` 支持结构化查询；posts 元数据携带 `content_path`。`content/<id>`、`reply_content/<id>` 提供完整原文字节范围，`notifications` 提供未读条目，`notification_data/<id>` 核验收件人并保留消费后的原始内容。热门查询与活动推荐候选池分别取数。`trending.enabled` 控制热门结果；`calculation_window_ticks` 选择创建时间落在 `(tick-window, tick]` 的帖子，按累计互动分、创建时间、id 降序排序。旧帖的新互动保留在事实中，创建窗口外的帖子退出当前热门集合。
 
 `/social/feed` 是只读推荐预览，按排名分页返回候选元数据、完整分数、Ref、正文路径及精确总数。游标以 JSON 明文绑定运行、主体、Moment、路径、实际排名版本与权限版本。Page.revision 为 `[ranking_revision, access_revision]`；每一页核对 source/output/页面排名版本一致，并核对请求前后权限版本。首屏允许正文向量准备产生的新排名版本，已有续页遇相关变化明确过期。无关 Thread 诊断与 observer 写入保持旧页有效。feed 和平台根目录的 search_revision 同样反映实际外部来源版本。
 
-页面查询不登记曝光。`recommended_feed` 按配置 post_count 取得完整帖子并默认登记曝光；预览调用可显式关闭这一效果。传输页大小、预览字符配置均不改变可继续取得的完整集合、原文字节与九项 weighted 评分。
+页面查询不登记曝光。`recommended_feed` 按配置 post_count 取得完整帖子并默认登记曝光；预览调用可显式关闭这一效果。`trending.inject_into_feed=True` 时，认知来源与 `recommended_feed` 优先放入至多 `injection_count` 条热门帖，排除本人、去重，余位沿用完整排名，总数保持 post_count 上限；热门可以来自活动池外。完整排名与 `/social/feed` 分页继续反映绑定策略的全部候选，热门呈现策略独立于排名。传输页大小、正文预览配置保持完整集合、原文字节与 weighted 评分可读。
 
-`social_source_plugin` 导出 `source` 服务，借用 recommendation/content/exposure/data；Thread 和环境文案由 cognition_plugin 统一装配。来源接收 SourcePosition，返回 SourceBatch；其原始位置保留 `seen`、`visible`、`recommended`：新帖给出完整详情，已见帖给出改变的元数据，次序变化保留新 id 序列。曝光与推荐 id 的 effects 使用同一次读取计算的 fresh/ids，保存成功后确认。单纯构建 SourceBatch 保持只读。
+`social_source_plugin` 导出 `source` 服务，借用 recommendation/content/exposure/data；Thread 和环境文案由 cognition_plugin 统一装配。来源接收 SourcePosition，返回 SourceBatch；其原始位置保留 `seen`、`visible`、`recommended`：新帖默认给出完整详情，已见帖给出改变的元数据，次序变化保留新 id 序列。`feed_content_preview_chars` 与 `feed_max_chars` 默认均为 None；显式配置分别限制每条新帖正文字符数与本批新帖正文字符总数，同时设置时共同生效，按呈现顺序分配。零预算保留每帖 id、其他详情、`content_length`、`content_truncated` 和完整 `content_path`；中文和 emoji 按 Python 字符计数。两个值适用于新帖的 content，完整 JSON、回复、其他来源、既有 Thread 保持各自内容；排序与可用动作保持原合同。曝光与推荐 id 的 effects 使用同一次读取计算的 fresh/ids，保存成功后确认。单纯构建 SourceBatch 保持只读。
 
 ```python
 from society0.plugins import cognition_plugin, social_source_plugin
@@ -92,6 +98,6 @@ Host 先等待 Runtime idle，再执行 semantic 的 worker 阶段停止，最�
 
 推荐及语义分数使用按主体的有界 LRU，`cache_capacity` 默认 128，可通过配方或叶工厂配置。版本相同的排序快照保存候选元数据和排名，不缓存帖子全文；命中后分页为 O(page) 的元数据构造，加上依赖版本核验。冷查询、版本变更或淘汰后需要重建活动候选、评分和排序；语义路径另含完整偏好读取、嵌入与向量查询。冷恢复仍包含历史状态和派生索引重建，成本未因此改善。
 
-显式 `intervene` 扫描需要检查的正文，成本属于采用该规则的步骤。`update_trending_topics` 通过当前热门索引更新短投影。
+显式 `intervene` 扫描需要检查的正文，成本属于采用该规则的步骤。`update_trending_topics(tick)` 按同一创建窗口更新前三条热门 id 的短投影，`trending_ids()` 读取最后一次显式更新的投影。热门选择先按创建时间索引限定窗口，再排序；工作量由窗口内帖子数决定。
 
-逐笔对照范围与合同差异见 [旧新对照报告](../../research/core-next/composable-mechanisms/oracle-report.md)；性能口径、冷恢复限制与复现入口见 [分项成本报告](../../research/core-next/composable-mechanisms/cost-report.md)。这些报告分别限定确定性语义与资源测量的证据范围。
+字段的实际消费者与白盒断言见 [字段矩阵](social-field-matrix.md)。逐笔对照范围与合同差异见 [旧新对照报告](../../research/core-next/composable-mechanisms/oracle-report.md)；性能口径、冷恢复限制与复现入口见 [分项成本报告](../../research/core-next/composable-mechanisms/cost-report.md)。这些报告分别限定确定性语义与资源测量的证据范围。

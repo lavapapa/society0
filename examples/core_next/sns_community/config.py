@@ -26,7 +26,7 @@ AGENTS = (
      "persona": "常在评论区潜水，偶尔询问细节。对热门结论保持好奇，会关注讨论中提供有用信息的账号。"},
 )
 SOCIAL_CONFIG = {"is_directed": True, "social_media": {
-    "recommendation": {"post_count": 5, "use_embedding_similarity": False, "feed_content_preview_chars": 280},
+    "recommendation": {"post_count": 5, "use_embedding_similarity": False, "feed_content_preview_chars": None, "feed_max_chars": None},
     "trending": {"enabled": False}, "content_length_limit": 280,
 }}
 MEMORY = {

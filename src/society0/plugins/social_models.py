@@ -17,7 +17,6 @@ class NetworkDistributionType(str, Enum):
 class CVTargetedParams(BaseModel):
     """基于CV值的网络生成参数。"""
     target_cv_mean: float = Field(0.1, description="目标CV值均值。", ge=0, le=1)
-    target_cv_std: float = Field(0.05, description="目标CV值标准差。", ge=0, le=0.5)
     base_algorithm: NetworkDistributionType = Field(NetworkDistributionType.SMALL_WORLD,
                                                    description="基础网络生成算法。")
     base_params: Optional[Dict[str, Any]] = Field(default_factory=dict,
@@ -83,9 +82,9 @@ class RecommendationConfig(BaseModel):
     like_score: float = Field(1.0, description="单次点赞的分值。")
     reply_score: float = Field(1.5, description="单次回复的分值。")
     repost_score: float = Field(2.0, description="单次转发的分值。")
-    time_decay_hours: float = Field(12.0, description="内容热度的半衰期（小时）。")
+    time_decay_hours: float = Field(12.0, description="时间评分的指数衰减尺度：exp(-max(当前tick-创建tick,0)/尺度)。沿用字段名；单位为tick，非正值按1计算。")
     post_count: int = Field(5, description="在信息流中返回的帖子数量。", ge=1)
-    candidate_count: int = Field(15, description="旧版候选数量参数；默认推荐池不再受它限制。", ge=1)
+    candidate_count: int = Field(15, description="语义大池召回基数；向量请求数为max(int(candidate_count*recall_multiplier),post_count)。候选池不受此值截断。", ge=1)
     full_scan_until: int = Field(5000, description="活跃池帖子数不超过该值时默认全量评分。", ge=1)
     recent_keep_count: int = Field(1000, description="超过全量阈值后保留的最新帖子数量。", ge=1)
     top_engagement_keep_count: int = Field(500, description="超过全量阈值后保留的高互动帖子数量。", ge=1)
@@ -106,27 +105,27 @@ class RecommendationConfig(BaseModel):
         2.0, description="向量召回数量与候选数量的倍数。", ge=1.0
     )
     follow_bonus: float = Field(0.2, description="关注作者时的额外得分。", ge=0)
-    feed_content_preview_chars: int = Field(
-        160,
-        description="推荐流中单条帖子正文展示的最大字符数，避免 FoV prompt 过大。",
-        ge=40,
+    feed_content_preview_chars: int | None = Field(
+        None,
+        description="认知来源中每条新帖正文的可选字符上限；默认完整正文，原文路径及总长度始终保留。",
+        ge=0,
     )
-    feed_max_chars: int = Field(
-        3000,
-        description="推荐流 FoV 文本最大字符数，超过时截断并提示。",
-        ge=500,
+    feed_max_chars: int | None = Field(
+        None,
+        description="认知来源单批新帖正文的可选总字符预算；默认完整。元信息、原文入口、既有Thread和其他输入保持完整。",
+        ge=0,
     )
 
 class TrendingConfig(BaseModel):
     """热门帖子功能的配置。"""
     enabled: bool = Field(True, description="是否启用热门功能。")
-    calculation_window_ticks: int = Field(100, description="计算热门趋势的时间窗口（以 tick 为单位）。", ge=1)
-    inject_into_feed: bool = Field(True, description="是否将热门帖子注入用户的信息流。")
-    injection_count: int = Field(1, description="注入信息流的热门帖子数量。", ge=0)
+    calculation_window_ticks: int = Field(100, description="热门帖创建时间窗口：(当前tick-窗口, 当前tick]；窗口内按累计互动分排序。", ge=1)
+    inject_into_feed: bool = Field(True, description="是否在认知来源和recommended_feed中优先呈现热门帖，保持post_count上限。")
+    injection_count: int = Field(1, description="优先呈现的热门帖数，排除自己并去重；剩余位置沿用排名。", ge=0)
 
 class SocialMediaFeatures(BaseModel):
     """所有与社交媒体相关功能配置的容器。"""
-    enabled: bool = Field(True, description="全局启用或禁用社交媒体功能。")
+    enabled: bool = Field(True, description="启用发帖、互动、推荐和热门呈现；关闭时保留网络关系、主体资料与通知。")
     recommendation: RecommendationConfig = Field(default_factory=RecommendationConfig)
     trending: TrendingConfig = Field(default_factory=TrendingConfig)
     content_length_limit: int = Field(

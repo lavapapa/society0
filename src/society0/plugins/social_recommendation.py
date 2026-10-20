@@ -58,6 +58,8 @@ class Recommendations:
         return view.revision_for(self._dependencies)
 
     async def _input(self,actor,tick,query):
+        if not self.data.config.social_media.enabled:
+            return self.store.read(lambda view:RankingInput(actor,tick,(),frozenset(),{},self.revision_in(view,actor)))
         if self.semantic is not None:await self.semantic.flush_embeddings()
         def read(view):
             revision=self.revision_in(view,actor)
