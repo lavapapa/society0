@@ -1,5 +1,7 @@
 # Society0
 
+> **A new version is under active development.** The [`next` branch](https://github.com/lavapapa/society0/tree/next) rebuilds the architecture: an explicit plugin host with declared dependencies, per-actor information and action scopes, a single-file research workbench, and an SNS example with a full [WorkBuddy walkthrough](https://github.com/lavapapa/society0/blob/next/docs/workbuddy-next-walkthrough.md). New users should start there. This `main` branch keeps the current line that existing studies run on.
+
 Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
 
 The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; release readiness and outstanding validation are tracked in [the implementation checklist](docs/core-next/TODO.md). Existing artifacts must be read using their producing version.
