@@ -66,13 +66,20 @@ def expected_positions(active_rows, steps, delta_rows):
     return values
 
 
-def verify(reader, history_rows, active_rows, steps, delta_rows, body):
+def verify(reader, history_rows, active_rows, steps, delta_rows, body, *, continued=False):
     """正文逐行核对，在测量阶段之外执行；不构造完整世界副本。"""
     def check(view):
-        assert view.query('SELECT count(*) FROM cold_history')[0][0] == history_rows
+        history_count = 0
+        for identifier, actual_body in view.iter_query('SELECT id,body FROM cold_history ORDER BY id'):
+            assert identifier == history_count and actual_body == body
+            history_count += 1
+        assert history_count == history_rows
         positions = view.query('SELECT id,value FROM current_positions ORDER BY id',
                                max_rows=active_rows)
-        assert positions == list(enumerate(expected_positions(active_rows, steps, delta_rows)))
+        expected = expected_positions(active_rows, steps, delta_rows)
+        if continued:
+            expected[0] += 1
+        assert positions == list(enumerate(expected))
         count = 0
         for identifier, actor, amount, actual_body in view.iter_query(
                 'SELECT id,actor,amount,body FROM step_facts ORDER BY id'):
@@ -81,7 +88,7 @@ def verify(reader, history_rows, active_rows, steps, delta_rows, body):
             assert actual_body == body
             count += 1
         assert count == steps * delta_rows
-        assert view.complete_step == steps
+        assert view.complete_step == steps + int(continued)
     reader.read(check)
 
 
@@ -176,7 +183,8 @@ def checkpoint_baseline(path, *, history_rows=1000, active_rows=8, steps=4,
     with timed(stages, 'continued_readonly'):
         continued = StageStore.prepare_readonly(path / 'restored', path / 'continued')
     try:
-        assert continued.read(lambda view: view.complete_step) == steps + 1
+        with timed(stages, 'continued_verification'):
+            verify(continued, history_rows, active_rows, steps, delta_rows, body, continued=True)
     finally:
         continued.close()
 
