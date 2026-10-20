@@ -45,3 +45,5 @@ dist/
 .env
 .env.*
 !.env.example
+
+.scratch/

@@ -156,7 +156,7 @@ main 相对共同祖先没有 `src/`、`pyproject.toml` 或 `uv.lock` 的独立�
 | U02 | 两轮曝光→显式保存记忆→访谈测量的完整入门实验 | `skill/assets/minimal_experiment.py`；`tests/primary/test_skill_starter.py` | preflight 不调用提供方；当前信息与 recalled memory 分离；每阶段失败可见；新 engine 不继承前次可变配置 |
 | U03 | 工作台运行/tick/主体精确资料、配置编辑差异、虚拟列表与机制/会话视图 | `tools/workbench-template/src/model.js`、`views.jsx`、`ConfigPanel.jsx`；`tests/model.test.mjs`、`render.test.mjs` | 零伪造主体/记录，删增主体按 ID，指标与可用资料匹配；配置改动生成新版本请求，不能静默改运行历史 |
 | U04 | 单文件工作台渲染及输入数据范围 | `skill/scripts/render_workbench.py`；`test_workbench_renderer.py` | run/tick/snapshot 范围完整、版本 ID 唯一、数据真实嵌入；按新产物适配，不修改既有报告真实性 |
-| U05 | 安装/公开说明、WorkBuddy 使用案例与平台中立 | `README.md`；`docs/workbuddy-walkthrough.md`；`docs/validation/workbuddy-2026-10-03.md` | 安装、运行、读取、恢复实例与发行代码一致；案例证据可保历史身份，不能冒充新版已验证 |
+| U05 | 安装/公开说明、WorkBuddy 使用案例与平台中立 | `README.md`；`docs/workbuddy-next-walkthrough.md`；`docs/validation/sns-workbuddy-2026-10-19.md` | 安装、运行、读取、恢复实例与发行代码一致；案例证据可保历史身份，不能冒充新版已验证 |
 
 ### 5.2 重设与边界
 
