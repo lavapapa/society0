@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import json
 from pathlib import Path
 import platform
 import resource
+import random
 import subprocess
 import sys
 import time
@@ -93,27 +94,62 @@ def verify(reader, history_rows, active_rows, steps, delta_rows, body, *, contin
 
 
 def checkpoint_baseline(path, *, history_rows=1000, active_rows=8, steps=4,
-                        delta_rows=3, body_bytes=128, artifacts_per_step=1):
+                        delta_rows=3, body_bytes=128, artifacts_per_step=1,
+                        extra_tables=0, position_body_bytes=0, position_body_layout='inline',
+                        observer=None):
     workload = dict(history_rows=history_rows, active_rows=active_rows, steps=steps,
                     delta_rows=delta_rows, body_bytes=body_bytes,
-                    artifacts_per_step=artifacts_per_step)
+                    artifacts_per_step=artifacts_per_step, extra_tables=extra_tables,
+                    position_body_bytes=position_body_bytes)
     for name, value in workload.items():
-        minimum = 0 if name in ('history_rows', 'artifacts_per_step') else 1
+        minimum = 0 if name in ('history_rows', 'artifacts_per_step', 'extra_tables', 'position_body_bytes') else 1
         if type(value) is not int or value < minimum:
             raise ValueError(f'{name} must be an integer >= {minimum}')
+    if position_body_layout not in ('inline', 'detached'):
+        raise ValueError('position_body_layout must be inline or detached')
+    workload['position_body_layout'] = position_body_layout
     path = Path(path).resolve()
     path.mkdir(parents=True, exist_ok=False)
     body = b'x' * body_bytes
+    position_body = random.Random(37).randbytes(position_body_bytes)
+    schema = list(SCHEMA)
+    schema += [f'CREATE TABLE idle_{n}(id INTEGER PRIMARY KEY,value INTEGER)' for n in range(extra_tables)]
+    if position_body_bytes:
+        schema += (['ALTER TABLE current_positions ADD COLUMN body BLOB'] if position_body_layout == 'inline'
+                   else ['CREATE TABLE position_bodies(id INTEGER PRIMARY KEY,body BLOB NOT NULL)'])
     stages, samples = {}, []
+
+    @contextmanager
+    def measured(target, name):
+        with timed(target, name), observer(name) if observer else nullcontext():
+            yield
+
+    def verify_position_body(reader):
+        if position_body_bytes:
+            table = 'current_positions' if position_body_layout == 'inline' else 'position_bodies'
+            def check(view):
+                count = 0
+                for _, actual in view.iter_query(f'SELECT id,body FROM {table} ORDER BY id'):
+                    assert actual == position_body
+                    count += 1
+                assert count == active_rows
+            reader.read(check)
 
     def initialize(writer):
         writer.executemany('INSERT INTO cold_history VALUES(?,?)',
                            ((i, body) for i in range(history_rows)))
-        writer.executemany('INSERT INTO current_positions VALUES(?,0)',
+        writer.executemany('INSERT INTO current_positions(id,value) VALUES(?,0)',
                            ((i,) for i in range(active_rows)))
+        if position_body_bytes:
+            if position_body_layout == 'inline':
+                writer.executemany('UPDATE current_positions SET body=? WHERE id=?',
+                                   ((position_body, i) for i in range(active_rows)))
+            else:
+                writer.executemany('INSERT INTO position_bodies VALUES(?,?)',
+                                   ((i, position_body) for i in range(active_rows)))
 
-    with timed(stages, 'create'):
-        store = StageStore.create(path / 'source', SCHEMA, initialize=initialize)
+    with measured(stages, 'create'):
+        store = StageStore.create(path / 'source', schema, initialize=initialize)
     try:
         for step in range(1, steps + 1):
             sample = dict(step=step, facts_appended=delta_rows, projection_updates=delta_rows)
@@ -126,50 +162,53 @@ def checkpoint_baseline(path, *, history_rows=1000, active_rows=8, steps=4,
                     writer.execute('INSERT INTO step_facts VALUES(?,?,?,?)',
                                    (number + 1, actor, 1, body))
 
-            with timed(sample, 'transaction'):
+            with measured(sample, 'transaction'):
                 store.transaction(write)
-            with timed(sample, 'artifact_prepare'):
+            with measured(sample, 'artifact_prepare'):
                 artifacts = [store.prepare_artifact((body,)) for _ in range(artifacts_per_step)]
-            with timed(sample, 'complete'):
+            with measured(sample, 'complete'):
                 descriptor = store.complete(step, artifacts=artifacts)
             sample['changeset_bytes'] = (store.path / descriptor['changeset']).stat().st_size
             sample['artifacts'] = len(artifacts)
             samples.append(sample)
-        with timed(stages, 'source_verification'):
+        with measured(stages, 'source_verification'):
             verify(store, history_rows, active_rows, steps, delta_rows, body)
+            verify_position_body(store)
     finally:
-        with timed(stages, 'close'):
+        with measured(stages, 'close'):
             store.close()
     source_disk = disk_usage(path / 'source')
 
-    with timed(stages, 'cold_open'):
+    with measured(stages, 'cold_open'):
         reopened = StageStore.open(path / 'source')
     try:
-        with timed(stages, 'open_verification'):
+        with measured(stages, 'open_verification'):
             verify(reopened, history_rows, active_rows, steps, delta_rows, body)
     finally:
         reopened.close()
 
-    with timed(stages, 'readonly'):
+    with measured(stages, 'readonly'):
         readonly = StageStore.prepare_readonly(path / 'source', path / 'readonly')
     try:
-        with timed(stages, 'readonly_verification'):
+        with measured(stages, 'readonly_verification'):
             verify(readonly, history_rows, active_rows, steps, delta_rows, body)
+            verify_position_body(readonly)
     finally:
         readonly.close()
 
-    with timed(stages, 'restore'):
+    with measured(stages, 'restore'):
         restored = StageStore.restore(path / 'source', path / 'restored')
     try:
-        with timed(stages, 'restore_verification'):
+        with measured(stages, 'restore_verification'):
             verify(restored, history_rows, active_rows, steps, delta_rows, body)
+            verify_position_body(restored)
             refs = restored.read(lambda view: view.query('SELECT path FROM _stage_artifacts',
                                 max_rows=max(1, steps * artifacts_per_step)))
             assert len(refs) == steps * artifacts_per_step
             for (reference,) in refs:
                 data, total = restored.read_artifact(reference, size=body_bytes)
                 assert total == body_bytes and data == body
-        with timed(stages, 'continue'):
+        with measured(stages, 'continue'):
             restored.transaction(lambda writer: writer.execute(
                 'UPDATE current_positions SET value=value+1 WHERE id=0'))
             restored.complete(steps + 1)
@@ -180,10 +219,10 @@ def checkpoint_baseline(path, *, history_rows=1000, active_rows=8, steps=4,
     finally:
         restored.close()
     # 继续点再次重建，以实际恢复消费者检查最后一次提交可用。
-    with timed(stages, 'continued_readonly'):
+    with measured(stages, 'continued_readonly'):
         continued = StageStore.prepare_readonly(path / 'restored', path / 'continued')
     try:
-        with timed(stages, 'continued_verification'):
+        with measured(stages, 'continued_verification'):
             verify(continued, history_rows, active_rows, steps, delta_rows, body, continued=True)
     finally:
         continued.close()
