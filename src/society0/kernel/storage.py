@@ -398,6 +398,8 @@ class StageStore:
                 raise StorageError('current contains an incomplete step; restore required')
             if _schema(self._connection) != self._manifest['schema']:
                 raise StorageError('schema mismatch')
+            # Writer 禁止 DDL；本次 open 验证的表集合可供后续各步 Session 复用。
+            self._session_tables = tuple(_tables(self._connection))
             self._validate_references(self.path, self._manifest, self._last['step'])
             self._connection.execute('PRAGMA foreign_keys=ON')
             self._connection.execute('PRAGMA journal_mode=WAL')
@@ -451,7 +453,7 @@ class StageStore:
 
     def _start_session(self):
         self._session = apsw.Session(self._connection, 'main')
-        for table in _tables(self._connection):
+        for table in self._session_tables:
             self._session.attach(table)
 
     @property
