@@ -398,13 +398,13 @@ class StageStore:
                 raise StorageError('current contains an incomplete step; restore required')
             if _schema(self._connection) != self._manifest['schema']:
                 raise StorageError('schema mismatch')
-            # Writer 禁止 DDL；本次 open 验证的表集合可供后续各步 Session 复用。
-            self._session_tables = tuple(_tables(self._connection))
             self._validate_references(self.path, self._manifest, self._last['step'])
             self._connection.execute('PRAGMA foreign_keys=ON')
             self._connection.execute('PRAGMA journal_mode=WAL')
             self._connection.execute('PRAGMA synchronous=FULL')
             self._connection.execute('UPDATE _stage_runtime SET complete_step=?', (self.complete_step,))
+            # Writer 禁止 DDL；本次 open 验证的表集合可供后续各步 Session 复用。
+            self._session_tables = tuple(_tables(self._connection))
             self._start_session()
             self._reader = StageReader(self.path).__enter__()
             return self
