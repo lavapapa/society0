@@ -41,6 +41,17 @@ def _head(view, thread_id):
     return dict(zip(('actor','kind','provider_session_id','status','last_seq','message_count','ordinal'), rows[0]), id=thread_id)
 
 
+def _jsonable(value):
+    """领域结果中的 tuple 按 JSON 数组落库；列表和映射保持原顺序。"""
+    if isinstance(value, tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, list):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    return value
+
+
 def _append(writer, thread_id, kind, payload, *, allow_closed=False):
     head = _head(writer, thread_id)
     if head['status'] != 'open' and not allow_closed:
@@ -235,7 +246,7 @@ class ThreadStore:
     def finish_action(self,thread_id,start_seq,payload,*,status,tags=(),elapsed_s):
         def write(writer):
             kind='action_error' if status in ('error','cancelled') else 'action_result'
-            sequence=_append(writer,thread_id,kind,{**payload,'start_seq':start_seq,'tags':list(tags),'elapsed_s':elapsed_s})
+            sequence=_append(writer,thread_id,kind,_jsonable({**payload,'start_seq':start_seq,'tags':list(tags),'elapsed_s':elapsed_s}))
             action_stats.finish(writer,thread_id,start_seq,sequence,status,tags,elapsed_s)
             return sequence
         return self.store.transaction(write)

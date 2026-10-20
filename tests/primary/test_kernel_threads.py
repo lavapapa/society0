@@ -257,3 +257,16 @@ def test_input_context_is_message_reference_and_survives_cursor_updates(tmp_path
         store.complete(1)
         with StageStore.restore(store.path,tmp_path/'restored') as restored:
             assert ThreadStore(restored).input_context(tid,'cognition')==first
+
+
+def test_action_result_tuples_are_stored_as_json_arrays(tmp_path):
+    store, threads = setup(tmp_path / 'run')
+    with store:
+        thread = threads.open('actor', {'time': 1, 'phase': 'act'}, 'operating')
+        start = threads.start_action(thread, {'call_id': 'c1', 'name': 'x', 'target': {}, 'arguments': {}})
+        threads.finish_action(thread, start, {'call_id': 'c1', 'name': 'x',
+            'result': {'status': 'completed', 'value': {'ids': ('a', 'b')}}},
+            status='completed', tags=(), elapsed_s=0.1)
+        events = threads.tail(thread, limit=10)['items']
+        result = next(item for item in events if item['kind'] == 'action_result')
+        assert result['payload']['result']['value']['ids'] == ['a', 'b']
