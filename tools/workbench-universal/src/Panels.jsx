@@ -3,6 +3,7 @@ import { formatTime } from './data.js';
 import { Badge, StateBlock, Skeleton } from './ui.jsx';
 import { ExposurePanel, FeedPanel, GraphPanel } from './SocialPanels.jsx';
 import { BarsPanel, ComparePanel, DistributionPanel, HeatPanel, OrderBookPanel } from './IndustryPanels.jsx';
+import { BoardPanel, EventCalendarPanel, FlowPanel, GanttPanel, TimelinePanel } from './EventPanels.jsx';
 
 /* ---------- 面板网格：尺寸预设 + 排序 + 键盘移动，持久在浏览器 ---------- */
 
@@ -322,6 +323,11 @@ export const PANEL_TYPES = {
   distribution: DistributionPanel,
   heat: HeatPanel,
   orderbook: OrderBookPanel,
+  events: EventCalendarPanel,
+  timeline: TimelinePanel,
+  gantt: GanttPanel,
+  board: BoardPanel,
+  flow: FlowPanel,
 };
 
 export function renderPanel(panel, datasets, selection, select) {
