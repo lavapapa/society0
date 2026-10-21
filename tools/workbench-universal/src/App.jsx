@@ -1,17 +1,15 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { RUN_STATUS_LABELS, describeRevision } from './data.js';
 import { SetupInsight, SetupMain, SetupWorkspace } from './SetupPanel.jsx';
-import { RunDetail, RunPicker } from './RunPanel.jsx';
+import { RunLauncher } from './RunPanel.jsx';
 import { TimePicker } from './TimePanel.jsx';
+import { activeRunOf } from './data.js';
 import { ObserveMain, useLayout } from './ObservePage.jsx';
 import { AtlasMain } from './AtlasPage.jsx';
 import { useWorkbench } from './store.js';
 import { buildProposal, copyText, diffConfig, proposalText } from './proposal.js';
 
-const BASE_PAGES = [
-  { id: 'setup', label: '实验设置' },
-  { id: 'runs', label: '运行' },
-];
+const BASE_PAGES = [{ id: 'setup', label: '实验设置' }];
 
 export function App({ raw }) {
   const wb = useWorkbench(raw);
@@ -43,7 +41,7 @@ export function App({ raw }) {
     setCopyState(ok ? 'copied' : 'manual');
   }, [proposal]);
 
-  const run = runs.find((item) => item.id === selection.runId) || null;
+  const run = activeRunOf(data, version?.id) || null;
   const world = worlds.find((item) => item.id === (run?.worldId || selection.worldId)) || null;
   const observations = useMemo(() => (run ? data.observations.filter((obs) => obs.runId === run.id) : []), [data.observations, run]);
 
@@ -54,7 +52,7 @@ export function App({ raw }) {
           <span className="brand">Society0</span>
           <span className="study-title" title={data.study.title}>{data.study.title}</span>
           <span className="study-revision">{describeRevision(data)}</span>
-          <RunPicker runs={runs} worlds={worlds} selection={selection} select={select} version={version} />
+          <RunLauncher runs={runs} worlds={worlds} observations={data.observations} onOpenSetup={() => select({ pageId: 'setup' })} />
         </div>
 
         <div className="topbar-center">
@@ -75,7 +73,7 @@ export function App({ raw }) {
         </div>
 
         <div className="topbar-right">
-          <TimePicker run={run} observations={observations} selection={selection} select={select} modes={data.workspace.timeModes} />
+          <TimePicker run={run} observations={observations} selection={selection} select={select} mode={data.workspace.timeMode} />
           <button
             type="button"
             className="copy-button"
@@ -100,7 +98,7 @@ export function App({ raw }) {
           {collapsed ? null : (
             <div className="sidebar-body">
               <div onClick={() => { if (window.innerWidth <= 620) setMobileSidebar(false); }}>
-                {pageId === 'setup' ? <SetupWorkspace {...wb} /> : <RunSidebar runs={runs} selection={selection} select={select} />}
+                {pageId === 'setup' ? <SetupWorkspace {...wb} /> : <ScopeSidebar run={run} world={world} observations={observations} selection={selection} select={select} />}
               </div>
             </div>
           )}
@@ -112,10 +110,8 @@ export function App({ raw }) {
               <SetupMain {...wb} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
             ) : pageId === 'atlas' ? (
               <AtlasMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
-            ) : pageId === 'observe' ? (
-              <ObserveMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             ) : (
-              <RunDetail run={run} world={world} observations={observations} selection={selection} select={select} />
+              <ObserveMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             )}
           </section>
           {pageId === 'setup' ? (
@@ -129,19 +125,41 @@ export function App({ raw }) {
   );
 }
 
-function RunSidebar({ runs, selection, select }) {
-  if (!runs.length) {
+function ScopeSidebar({ run, world, observations, selection, select }) {
+  if (!run) {
     return <p className="side-empty">还没有运行资料。世界计划可以先在实验设置里核对。</p>;
   }
+  const current = observations.find((obs) => obs.id === selection.observationId) || observations[0] || null;
   return (
-    <div className="side-group">
-      <h3>运行 · {runs.length}</h3>
-      {runs.map((run) => (
-        <button key={run.id} type="button" className="side-item" aria-current={selection.runId === run.id} onClick={() => select({ runId: run.id })}>
-          <span className="label">{run.label}</span>
-          <span className={`status-text ${run.status || 'unknown'}`}>{RUN_STATUS_LABELS[run.status] || RUN_STATUS_LABELS.unknown}</span>
-        </button>
-      ))}
-    </div>
+    <>
+      <div className="side-group">
+        <h3>观察范围</h3>
+        <dl className="side-kv">
+          <dt>运行</dt><dd>{run.label}</dd>
+          <dt>状态</dt><dd>{RUN_STATUS_LABELS[run.status] || RUN_STATUS_LABELS.unknown}</dd>
+          <dt>世界</dt><dd>{world?.label || '世界待提供'}</dd>
+          <dt>时点</dt><dd>{current ? current.label : '待提供'}</dd>
+          <dt>资料截至</dt><dd>{run.dataThrough || '尚无完整资料'}</dd>
+        </dl>
+      </div>
+      {observations.length > 1 ? (
+        <div className="side-group">
+          <h3>时点 · {observations.length}</h3>
+          {observations.map((obs) => (
+            <button
+              key={obs.id}
+              type="button"
+              className="side-item side-sub"
+              aria-current={obs.id === (current?.id || '')}
+              onClick={() => select({ observationId: obs.id })}
+            >
+              <span className="label">{obs.label}</span>
+              <span className="count">{obs.availability === 'partial' ? '部分' : ''}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <p className="side-empty">范围由资料决定；换运行请从顶部「运行」里检视。</p>
+    </>
   );
 }

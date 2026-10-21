@@ -65,7 +65,8 @@ export function normalize(raw) {
       pages: list(data.workspace?.pages),
       panels: list(data.workspace?.panels),
       defaultSelection: data.workspace?.defaultSelection || {},
-      timeModes: list(data.workspace?.timeModes),
+      timeMode: data.workspace?.timeMode || 'round',
+      activeRunId: data.workspace?.activeRunId || '',
       configSections: list(data.workspace?.configSections),
       entityGroups: list(data.workspace?.entityGroups),
     },
@@ -87,15 +88,68 @@ export function worldsOfVersion(data, versionId) {
   return data.worlds.filter((world) => !world.versionId || world.versionId === versionId);
 }
 
-/** 配置分区固定顺序：插件配置、平行世界必须位于最前两项。 */
+/**
+ * 配置分区：插件配置与平行世界固定在前，其余由已装插件派生。
+ * 插件声明 category 与 configSection，两者都参与归组；未声明分区的插件归入「其他插件配置」。
+ */
+const SECTION_ICONS = {
+  plugins: 'grid',
+  worlds: 'branch',
+  environment: 'clock',
+  agents: 'user',
+  market: 'chart',
+  memory: 'layers',
+  runtime: 'cpu',
+  other: 'dot',
+};
+
+const CATEGORY_SECTION = {
+  环境: 'environment',
+  时间: 'environment',
+  主体: 'agents',
+  决策: 'agents',
+  市场: 'market',
+  记忆: 'memory',
+  运行: 'runtime',
+};
+
+const SECTION_LABELS = {
+  environment: '环境与时间',
+  agents: '主体与决策',
+  market: '市场与价格',
+  memory: '记忆与检索',
+  runtime: '运行时与调度',
+  other: '其他插件配置',
+};
+
 export function configSections(data, version) {
-  const custom = list(version?.configSections).length ? version.configSections : data.workspace.configSections;
-  const rest = list(custom).filter((section) => section.id !== 'plugins' && section.id !== 'worlds');
+  const declared = list(version?.configSections).length ? version.configSections : data.workspace.configSections;
+  const dynamic = new Map();
+  for (const plugin of data.plugins) {
+    const id = plugin.configSection || CATEGORY_SECTION[plugin.category] || 'other';
+    if (id === 'plugins' || id === 'worlds') continue;
+    if (!dynamic.has(id)) {
+      const declaredLabel = list(declared).find((section) => section.id === id)?.label;
+      dynamic.set(id, { id, label: declaredLabel || SECTION_LABELS[id] || id, plugins: [] });
+    }
+    dynamic.get(id).plugins.push(plugin.id);
+  }
   return [
-    { id: 'plugins', label: '插件配置' },
-    { id: 'worlds', label: '平行世界' },
-    ...rest.map((section) => ({ id: section.id, label: section.label })),
+    { id: 'plugins', label: '插件配置', icon: SECTION_ICONS.plugins },
+    { id: 'worlds', label: '平行世界', icon: SECTION_ICONS.worlds },
+    ...[...dynamic.values()].map((section) => ({ ...section, icon: SECTION_ICONS[section.id] || SECTION_ICONS.other })),
   ];
+}
+
+/** 当前观察所用的运行：由资料声明，不在界面里切换。 */
+export function activeRunOf(data, versionId) {
+  const candidates = runsOf(data, versionId);
+  const declared = data.workspace.activeRunId;
+  return candidates.find((run) => run.id === declared)
+    || candidates.find((run) => run.status === 'completed' && run.dataThrough)
+    || candidates.find((run) => run.status === 'running')
+    || candidates[0]
+    || null;
 }
 
 export function entityGroups(data, version) {

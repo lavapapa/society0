@@ -24,7 +24,27 @@
 
 - `datasets[]`：`{id, availability, title, source, ...}`，内容按组件类型不同；每个数据集只服务一个面板。
 - `panels[]`：`{id, title, type, datasetId, size}`。`type` 取 `catalog.md` 中的组件类型；`size` 取 `s`、`m`、`l`、`full`。
-- `workspace.pages`：声明页面顺序，例如 `["setup", "runs", "observe"]`。**只有 `panels` 非空时页面才出现“观察”页**；`atlas: true` 时出现“图鉴”并替代“观察”。
+- `workspace.pages`：声明页面顺序，例如 `["setup", "observe"]`。**只有 `panels` 非空时页面才出现“观察”页**；`atlas: true` 时出现“图鉴”并替代“观察”。页面只有「实验设置」与按需的「观察／图鉴」，运行不是页面。
+- `workspace.timeMode`：`round` 或 `calendar`。顶栏右上只呈现这一种形态；有日期但声明 `round` 时仍用轮次，反之亦然。
+- `workspace.activeRunId`：当前观察所用运行。未声明时取最近完成且带 `dataThrough` 的运行。界面不提供运行切换，换运行靠改这份资料。
+
+## 一之三、插件与配置分区
+
+```json
+{
+  "plugins": [{
+    "id": "env.industry", "label": "产业链环境", "category": "环境",
+    "configSection": "environment", "description": "生产、库存、市场、交付与会计规则。",
+    "parameters": 3,
+    "fields": [{ "key": "environment.tick_days", "path": "environment.tick_days", "label": "每步自然日", "type": "number" }],
+    "values": { "environment.tick_days": 7 }
+  }]
+}
+```
+
+- `configSection` 决定这个插件归入哪个配置分区；未声明时按 `category` 归组（环境→`environment`，主体／决策→`agents`，市场→`market`，记忆→`memory`，运行→`runtime`），都不匹配则归入「其他插件配置」。
+- 配置导航固定两项：**插件配置**、**平行世界**；其余分区由 `plugins` 派生，没有插件就没有那一项。
+- 插件参数读 `fields` + `values`；`key` 是参数名，`path` 是它在真实配置里的位置，仅用于展示与提议定位。
 
 ```json
 {

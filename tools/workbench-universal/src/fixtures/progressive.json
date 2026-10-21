@@ -98,7 +98,38 @@
       "category": "环境",
       "availability": "ready",
       "description": "生产、库存、市场、交付与会计规则。",
-      "parameters": 12
+      "parameters": 3,
+      "configSection": "environment",
+      "fields": [
+        {
+          "path": "environment.tick_days",
+          "label": "每步自然日",
+          "type": "number",
+          "description": "一个完整步骤覆盖的自然日数量。",
+          "key": "environment.tick_days"
+        },
+        {
+          "path": "environment.start_date",
+          "label": "开始日期",
+          "type": "text",
+          "key": "environment.start_date"
+        },
+        {
+          "path": "environment.industry.pricing",
+          "label": "定价方式",
+          "options": [
+            "cost_plus",
+            "target_return",
+            "follow_market"
+          ],
+          "key": "environment.industry.pricing"
+        }
+      ],
+      "values": {
+        "environment.tick_days": 7,
+        "environment.start_date": "2026-05-01",
+        "environment.industry.pricing": "cost_plus"
+      }
     },
     {
       "id": "cognition.llm",
@@ -106,10 +137,32 @@
       "category": "主体",
       "availability": "ready",
       "description": "完整 Thread、工具发现与行动调用。",
-      "parameters": 9,
+      "parameters": 2,
       "dependsOn": [
         "env.industry"
-      ]
+      ],
+      "configSection": "agents",
+      "fields": [
+        {
+          "path": "agents.decision_cadence",
+          "label": "决策节奏",
+          "options": [
+            "month_end",
+            "weekly"
+          ],
+          "key": "agents.decision_cadence"
+        },
+        {
+          "path": "agents.max_turns",
+          "label": "单次激活最大回合",
+          "type": "number",
+          "key": "agents.max_turns"
+        }
+      ],
+      "values": {
+        "agents.decision_cadence": "month_end",
+        "agents.max_turns": 12
+      }
     },
     {
       "id": "memory.vector",
@@ -117,10 +170,29 @@
       "category": "记忆",
       "availability": "partial",
       "description": "记忆提取、召回与主动工具；嵌入服务参数尚未提供。",
-      "parameters": 4,
+      "parameters": 2,
       "dependsOn": [
         "cognition.llm"
-      ]
+      ],
+      "configSection": "memory",
+      "fields": [
+        {
+          "path": "memory.embedding_model",
+          "label": "嵌入模型",
+          "type": "text",
+          "key": "memory.embedding_model"
+        },
+        {
+          "path": "memory.chunk_size",
+          "label": "分块长度",
+          "type": "number",
+          "key": "memory.chunk_size"
+        }
+      ],
+      "values": {
+        "memory.embedding_model": "text-embedding-3-small",
+        "memory.chunk_size": 800
+      }
     },
     {
       "id": "tax.excise",
@@ -128,10 +200,23 @@
       "category": "制度",
       "availability": "ready",
       "description": "按生产销售环节计税，携带已税状态。",
-      "parameters": 6,
+      "parameters": 1,
       "dependsOn": [
         "env.industry"
-      ]
+      ],
+      "configSection": "other",
+      "fields": [
+        {
+          "path": "tax.excise_rate",
+          "label": "税率",
+          "type": "number",
+          "description": "按应税产品的生产销售环节征收。",
+          "key": "tax.excise_rate"
+        }
+      ],
+      "values": {
+        "tax.excise_rate": 0.04
+      }
     },
     {
       "id": "policy.announcement",
@@ -139,7 +224,26 @@
       "category": "制度",
       "availability": "awaiting",
       "description": "公告日与生效日分离；税率与生效范围待补充。",
-      "parameters": 0
+      "parameters": 2,
+      "configSection": "other",
+      "fields": [
+        {
+          "path": "policy.announce_date",
+          "label": "公告日期",
+          "type": "text",
+          "key": "policy.announce_date"
+        },
+        {
+          "path": "policy.effective_date",
+          "label": "生效日期",
+          "type": "text",
+          "key": "policy.effective_date"
+        }
+      ],
+      "values": {
+        "policy.announce_date": "2026-05-08",
+        "policy.effective_date": "2026-06-01"
+      }
     }
   ],
   "worlds": [
@@ -628,7 +732,9 @@
         "id": "agents",
         "label": "主体与决策"
       }
-    ]
+    ],
+    "timeMode": "calendar",
+    "activeRunId": "run-common-01"
   },
   "panels": [
     {

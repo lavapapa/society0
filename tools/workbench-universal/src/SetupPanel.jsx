@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { configSections, entityGroups, formatTime, hasContent } from './data.js';
 import { Badge, Notice, SectionTitle, StateBlock } from './ui.jsx';
+import { SectionIcon } from './icons.jsx';
 import { copyText, diffConfig, valueAt, withValueAt } from './proposal.js';
 
 /** 配置字段编辑：值写入版本草稿，不修改资料本身。 */
-function ConfigFields({ fields, baseConfig, draftConfig, onChange }) {
+function ConfigFields({ fields, baseConfig, draftConfig, onChange, values }) {
   if (!fields.length) {
     return (
       <StateBlock kind="awaiting" title="参数尚未提供" tight>
@@ -15,8 +16,8 @@ function ConfigFields({ fields, baseConfig, draftConfig, onChange }) {
   return (
     <div className="field-list">
       {fields.map((field) => {
-        const current = valueAt(draftConfig, field.path);
-        const original = valueAt(baseConfig, field.path);
+        const current = values ? values[field.key || field.path] : valueAt(draftConfig, field.path);
+        const original = values ? values[field.key || field.path] : valueAt(baseConfig, field.path);
         const dirty = JSON.stringify(current) !== JSON.stringify(original);
         return (
           <div className="field" key={field.path}>
@@ -28,17 +29,17 @@ function ConfigFields({ fields, baseConfig, draftConfig, onChange }) {
             <div className="field-value">
               {field.type === 'boolean' ? (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-                  <input type="checkbox" checked={Boolean(current)} onChange={(event) => onChange(field.path, event.target.checked)} />
+                  <input type="checkbox" checked={Boolean(current)} onChange={(event) => onChange(field.key || field.path, event.target.checked)} />
                   {current ? '已启用' : '未启用'}
                 </label>
               ) : field.type === 'number' ? (
                 <input
                   type="number"
                   value={current ?? ''}
-                  onChange={(event) => onChange(field.path, event.target.value === '' ? null : Number(event.target.value))}
+                  onChange={(event) => onChange(field.key || field.path, event.target.value === '' ? null : Number(event.target.value))}
                 />
               ) : field.options ? (
-                <select value={current ?? ''} onChange={(event) => onChange(field.path, event.target.value)}>
+                <select value={current ?? ''} onChange={(event) => onChange(field.key || field.path, event.target.value)}>
                   {field.options.map((option) => {
                     const value = typeof option === 'string' ? option : option.value;
                     const label = typeof option === 'string' ? option : option.label;
@@ -46,9 +47,9 @@ function ConfigFields({ fields, baseConfig, draftConfig, onChange }) {
                   })}
                 </select>
               ) : field.multiline ? (
-                <textarea rows={3} value={current ?? ''} onChange={(event) => onChange(field.path, event.target.value)} />
+                <textarea rows={3} value={current ?? ''} onChange={(event) => onChange(field.key || field.path, event.target.value)} />
               ) : (
-                <input type="text" value={current ?? ''} onChange={(event) => onChange(field.path, event.target.value)} />
+                <input type="text" value={current ?? ''} onChange={(event) => onChange(field.key || field.path, event.target.value)} />
               )}
               {dirty ? <span className="original">原值：{formatValue(original)}</span> : null}
             </div>
@@ -66,7 +67,7 @@ function formatValue(value) {
   return String(value);
 }
 
-function PluginSection({ plugins, study }) {
+function PluginSection({ plugins, study, selectedId, onSelect }) {
   const [copied, setCopied] = useState(false);
   if (!plugins.length) {
     const hint = `我想为「${study.title}」准备实验机制。请先帮我确认这次实验需要哪些插件（环境、主体认知、记忆、市场等），再补充各自的参数。`;
@@ -94,7 +95,13 @@ function PluginSection({ plugins, study }) {
   return (
     <div className="plugin-list">
       {plugins.map((plugin) => (
-        <article className="plugin" key={plugin.id}>
+        <button
+          type="button"
+          className="plugin"
+          key={plugin.id}
+          aria-current={selectedId === plugin.id}
+          onClick={() => onSelect(plugin.id)}
+        >
           <h4>{plugin.label}</h4>
           <Badge state={plugin.availability}>{labelFor(plugin.availability)}</Badge>
           {plugin.description ? <p>{plugin.description}</p> : null}
@@ -104,7 +111,7 @@ function PluginSection({ plugins, study }) {
             {plugin.parameters ? <span>{plugin.parameters} 个参数</span> : <span>参数待补充</span>}
             {plugin.dependsOn?.length ? <span>依赖：{plugin.dependsOn.join('、')}</span> : null}
           </div>
-        </article>
+        </button>
       ))}
     </div>
   );
@@ -134,7 +141,7 @@ function WorldSection({ worlds, runs, onOpenRuns }) {
               <Badge state={world.availability}>{labelFor(world.availability)}</Badge>
               <span className="world-run-count">
                 {worldRuns.length ? (
-                  <button type="button" className="link-button" onClick={() => onOpenRuns(world.id)}>{worldRuns.length} 次运行</button>
+                  <button type="button" className="link-button" onClick={() => onOpenRuns()}>{worldRuns.length} 次运行</button>
                 ) : (
                   <span>尚无运行</span>
                 )}
@@ -165,37 +172,63 @@ function WorldSection({ worlds, runs, onOpenRuns }) {
 export function SetupWorkspace({ data, version, runs, selection, select, draftFor, setDraft }) {
   const sections = useMemo(() => configSections(data, version), [data, version]);
   const sectionId = sections.some((item) => item.id === selection.sectionId) ? selection.sectionId : 'plugins';
+  const section = sections.find((item) => item.id === sectionId);
   const groups = useMemo(() => entityGroups(data, version), [data, version]);
-  const [entityTab, setEntityTab] = useState('overview');
-
-  const source = version?.configSource || '';
-  const baseConfig = version?.config || {};
-  const draft = draftFor(source);
-  const draftConfig = draft?.value?.config ?? baseConfig;
-  const changes = useMemo(() => diffConfig(baseConfig, draftConfig, version?.configFields || []), [baseConfig, draftConfig, version]);
-
-  const updateField = (path, value) => {
-    const next = withValueAt(draftConfig, path, value);
-    setDraft(source, { config: next, base: baseConfig });
-  };
-
-  const entity = data.entities.find((item) => item.id === selection.entityId) || null;
+  const sectionPlugins = section?.plugins
+    ? data.plugins.filter((plugin) => section.plugins.includes(plugin.id))
+    : [];
 
   return (
     <>
-      {sections.map((section) => (
+      {sections.map((item) => (
         <button
-          key={section.id}
+          key={item.id}
           type="button"
           className="side-item"
-          aria-current={sectionId === section.id}
-          onClick={() => select({ sectionId: section.id, entityId: '' })}
+          aria-current={sectionId === item.id}
+          onClick={() => select({ sectionId: item.id, pluginId: '' })}
         >
-          <span className="index">{section.id === 'plugins' ? 1 : section.id === 'worlds' ? 2 : '·'}</span>
-          <span className="label">{section.label}</span>
-          <span className={`dot ${sectionState(section.id, data, changes)}`} />
+          <span className="side-icon"><SectionIcon name={item.icon} /></span>
+          <span className="label">{item.label}</span>
+          <span className={`dot ${sectionState(item.id, data)}`} />
         </button>
       ))}
+
+      {sectionId === 'plugins' && data.plugins.length ? (
+        <div className="side-group">
+          <h3>已装插件</h3>
+          {data.plugins.map((plugin) => (
+            <button
+              key={plugin.id}
+              type="button"
+              className="side-item side-sub"
+              aria-current={selection.pluginId === plugin.id}
+              onClick={() => select({ sectionId: 'plugins', pluginId: plugin.id })}
+            >
+              <span className="label">{plugin.label}</span>
+              <span className="count">{plugin.parameters ?? '—'}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {sectionPlugins.length ? (
+        <div className="side-group">
+          <h3>本分区的插件</h3>
+          {sectionPlugins.map((plugin) => (
+            <button
+              key={plugin.id}
+              type="button"
+              className="side-item side-sub"
+              aria-current={selection.pluginId === plugin.id}
+              onClick={() => select({ sectionId: sectionId, pluginId: plugin.id })}
+            >
+              <span className="label">{plugin.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       <div className="side-group">
         <h3>主体与对象</h3>
         {groups.length ? (
@@ -209,7 +242,7 @@ export function SetupWorkspace({ data, version, runs, selection, select, draftFo
                   <button
                     key={item.id}
                     type="button"
-                    className="side-item"
+                    className="side-item side-sub"
                     aria-current={selection.entityId === item.id}
                     onClick={() => select({ entityId: item.id, pageId: 'setup' })}
                   >
@@ -223,15 +256,14 @@ export function SetupWorkspace({ data, version, runs, selection, select, draftFo
           <p className="side-empty">主体尚未配置。等 Agent 补入身份与分组后，这里会出现目录。</p>
         )}
       </div>
-      <div style={{ display: 'none' }}>{entityTab}</div>
     </>
   );
 }
 
-function sectionState(sectionId, data, changes) {
+function sectionState(sectionId, data) {
   if (sectionId === 'plugins') return data.plugins.length ? 'ready' : 'awaiting';
   if (sectionId === 'worlds') return data.worlds.length ? 'ready' : 'awaiting';
-  return changes.length ? 'awaiting' : '';
+  return '';
 }
 
 function PreparationChecklist({ data }) {
@@ -266,7 +298,7 @@ function PreparationChecklist({ data }) {
   );
 }
 
-export function SetupMain({ data, version, runs, selection, select, draftFor, setDraft, proposalText, copyState, onCopy }) {
+export function SetupMain({ data, version, runs, selection, select, draftFor, setDraft, proposalText, copyState, onCopy, onOpenRuns }) {
   const sections = useMemo(() => configSections(data, version), [data, version]);
   const sectionId = sections.some((item) => item.id === selection.sectionId) ? selection.sectionId : 'plugins';
   const section = sections.find((item) => item.id === sectionId) || sections[0];
@@ -277,16 +309,59 @@ export function SetupMain({ data, version, runs, selection, select, draftFor, se
   const changes = useMemo(() => diffConfig(baseConfig, draftConfig, version?.configFields || []), [baseConfig, draftConfig, version]);
 
   const entity = data.entities.find((item) => item.id === selection.entityId) || null;
+  const plugin = data.plugins.find((item) => item.id === selection.pluginId) || null;
+  const pluginDraft = draft?.value?.plugins || {};
+  const pluginValues = Object.fromEntries(
+    (plugin?.fields || []).map((field) => {
+      const key = field.key || field.path;
+      const override = pluginDraft[`${plugin.id}.${key}`];
+      return [key, override !== undefined ? override : plugin.values?.[key] ?? field.value ?? ''];
+    }),
+  );
+  const pluginDraftDirty = Object.keys(pluginDraft).filter((key) => key.startsWith(`${plugin?.id || ''}.`)).length;
 
   if (entity) {
     return <EntityInspector entity={entity} data={data} onBack={() => select({ entityId: '' })} />;
+  }
+
+  if (plugin) {
+    return (
+      <>
+        <div className="workspace-head">
+          <h1>{plugin.label}</h1>
+          <p>{plugin.category || '插件'} · {plugin.id}</p>
+          <span className="spacer" />
+          <button type="button" onClick={() => select({ pluginId: '' })}>返回配置</button>
+        </div>
+        <div className="workspace-body">
+          {plugin.description ? <p className="section-intro">{plugin.description}</p> : null}
+          {plugin.dependsOn?.length ? (
+            <p className="section-intro">依赖：{plugin.dependsOn.join('、')}</p>
+          ) : null}
+          {plugin.fields?.length ? (
+            <>
+              <SectionTitle title="插件参数" note={pluginDraftDirty ? `${pluginDraftDirty} 处未发送修改` : '修改后可在右侧复制请求'} />
+              <ConfigFields
+                fields={plugin.fields}
+                values={pluginValues}
+                onChange={(key, value) => setDraft(source, { config: draftConfig, base: baseConfig, plugins: { ...(draft?.value?.plugins || {}), [`${plugin.id}.${key}`]: value } })}
+              />
+            </>
+          ) : (
+            <StateBlock kind="awaiting" title="这个插件还没有声明可编辑参数" tight>
+              插件存在与参数定义随资料进入；资料更新后再回到这里核对。
+            </StateBlock>
+          )}
+        </div>
+      </>
+    );
   }
 
   return (
     <>
       <div className="workspace-head">
         <h1>{section.label}</h1>
-        <p>{section.id === 'plugins' ? '决定实验里存在哪些机制' : section.id === 'worlds' ? '计划要对照的世界与参数' : '当前版本的实际配置'}</p>
+        <p>{section.id === 'plugins' ? '决定实验里存在哪些机制' : section.id === 'worlds' ? '计划要对照的世界与参数' : `${section.plugins?.length || 0} 个插件在本分区`}</p>
         <span className="spacer" />
         {version?.configSource ? <span className="muted mono" style={{ fontSize: 10 }}>{version.configSource}</span> : null}
       </div>
@@ -294,19 +369,22 @@ export function SetupMain({ data, version, runs, selection, select, draftFor, se
         {section.id === 'plugins' ? (
           <>
             <p className="section-intro">
-              插件决定环境里存在哪些机制。这里的组件开关只影响页面呈现，仿真插件是否启用以实际配置为准。
+              插件决定环境里存在哪些机制。点开任一插件可检查详情并调整它的参数；页面里的开关只影响呈现，仿真插件是否启用以实际配置为准。
             </p>
             {version?.configFields?.length ? (
               <>
-                <SectionTitle title="参数" note={changes.length ? `${changes.length} 处未发送修改` : '修改后可在右侧复制请求'} />
+                <SectionTitle title="通用参数" note={changes.length ? `${changes.length} 处未发送修改` : '修改后可在右侧复制请求'} />
                 <ConfigFields fields={version.configFields} baseConfig={baseConfig} draftConfig={draftConfig} onChange={(path, value) => setDraft(source, { config: withValueAt(draftConfig, path, value), base: baseConfig })} />
                 <div style={{ height: 16 }} />
               </>
-            ) : version ? (
-              <p className="section-intro">这个版本没有声明可编辑参数；如需修改，先让 Agent 补充字段定义。</p>
             ) : null}
             <div className="section-title"><h2>已配置插件</h2>{data.plugins.length ? <span>{data.plugins.length} 项</span> : null}</div>
-            <PluginSection plugins={data.plugins} study={data.study} />
+            <PluginSection
+              plugins={data.plugins}
+              study={data.study}
+              selectedId={selection.pluginId}
+              onSelect={(pluginId) => select({ sectionId: 'plugins', pluginId })}
+            />
             <PreparationChecklist data={data} />
           </>
         ) : section.id === 'worlds' ? (
@@ -314,12 +392,18 @@ export function SetupMain({ data, version, runs, selection, select, draftFor, se
             <p className="section-intro">
               平行世界先记录计划，再补入运行。每个世界可以有多次运行；来源与参数差异随资料一起呈现。
             </p>
-            <WorldSection worlds={data.worlds} runs={runs} onOpenRuns={(worldId) => select({ pageId: 'runs', worldId })} />
+            <WorldSection worlds={data.worlds} runs={runs} onOpenRuns={() => onOpenRuns?.()} />
           </>
         ) : (
-          <StateBlock kind="unconfigured" title={section.label}>
-            这个分区还没有随资料提供内容。
-          </StateBlock>
+          <>
+            <p className="section-intro">本分区由已装插件派生，内容随插件资料进入。</p>
+            <PluginSection
+              plugins={data.plugins.filter((item) => (section.plugins || []).includes(item.id))}
+              study={data.study}
+              selectedId={selection.pluginId}
+              onSelect={(pluginId) => select({ sectionId: section.id, pluginId })}
+            />
+          </>
         )}
       </div>
     </>
