@@ -638,9 +638,81 @@ class StageStore:
         return cls._materialize(source, destination, step=step, run_id=run_id, readonly=False)
 
     @classmethod
-    def prepare_readonly(cls, source, destination, *, step=None, run_id=None):
-        """物化完整点供观察，共用恢复链且省去可写运行的新根。"""
+    def prepare_readonly(cls, source, destination, *, step=None, run_id=None, latest=False):
+        """物化完整点供观察；latest 直接用最新完整 current 快照，不重放 changeset。"""
+        if latest:
+            return cls._materialize_latest(source, destination, step=step, run_id=run_id)
         return cls._materialize(source, destination, step=step, run_id=run_id, readonly=True)
+
+    @classmethod
+    def _materialize_latest(cls, source, destination, *, step=None, run_id=None):
+        """只读观察最新完整点：复制 current，保留工件与运行身份边界。"""
+        source, destination = Path(source).resolve(), Path(destination).resolve()
+        manifest = _manifest(source)
+        if manifest.get('readonly'):
+            raise StorageError('read-only prepared view is not a recovery source')
+        if run_id == manifest['run_id']:
+            raise StorageError('restore requires a new run identity')
+        latest = cls._latest(source)['step']
+        selected = latest if step is None else step
+        if selected != latest:
+            raise StorageError('latest readonly view requires the latest complete step')
+        temporary = destination.with_name(destination.name + '.building-' + uuid.uuid4().hex)
+        temporary.mkdir(parents=True)
+        try:
+            with (source / 'writer.lock').open('a+b') as lock:
+                try:
+                    fcntl.flock(lock, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except BlockingIOError as error:
+                    raise StorageError('active writer prevents latest readonly snapshot') from error
+                original = apsw.Connection(str(source / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
+                try:
+                    row = original.execute('SELECT complete_step,failed FROM _stage_runtime').get
+                    if row is None or row[0] != selected or row[1] != 0:
+                        raise StorageError('current database is not a complete step')
+                    if _schema(original) != manifest['schema']:
+                        raise StorageError('schema mismatch')
+                    _backup(original, temporary / 'current.sqlite')
+                    artifacts = [dict(path=path, size=size) for path, size in
+                                 original.execute('SELECT path,size FROM _stage_artifacts ORDER BY path')]
+                finally:
+                    original.close()
+                references = {}
+                for artifact in artifacts:
+                    name = artifact['path']
+                    if name in references:
+                        continue
+                    source_file = source / name
+                    if not source_file.is_file() or source_file.stat().st_size != artifact['size']:
+                        raise StorageError('missing or changed artifact')
+                    target_file = temporary / name
+                    target_file.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        os.link(source_file, target_file)
+                    except OSError as error:
+                        if error.errno != errno.EXDEV:
+                            raise
+                        shutil.copyfile(source_file, target_file)
+                    _sync(target_file)
+                    _sync(target_file.parent)
+                    references[name] = artifact
+                connection = apsw.Connection(str(temporary / 'current.sqlite'))
+                try:
+                    identity = run_id or uuid.uuid4().hex
+                    connection.execute('UPDATE _stage_runtime SET run_id=?,revision=0,failed=0,complete_step=?', (identity, selected))
+                    connection.execute('UPDATE _stage_table_revisions SET revision=0')
+                    fresh = dict(manifest, run_id=identity, root_step=selected,
+                                 source={'run_id': manifest['run_id'], 'step': selected})
+                    cls._finish_initial(temporary, connection, fresh, list(references.values()), readonly=True)
+                finally:
+                    connection.close()
+            if destination.exists():
+                raise FileExistsError(destination)
+            os.rename(temporary, destination)
+            _sync(destination.parent)
+            return StageReader(destination)
+        finally:
+            shutil.rmtree(temporary, ignore_errors=True)
 
     @classmethod
     def _materialize(cls, source, destination, *, step=None, run_id=None, readonly=False):

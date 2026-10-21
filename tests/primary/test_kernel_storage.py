@@ -461,3 +461,21 @@ def test_run_under_symlink_parent_keeps_prepared_artifacts_usable(tmp_path):
         assert restored.read_artifact(reference)==(b'full original',13)
     with StageStore.open(link/'run') as reopened:
         assert reopened.read_artifact(reference)==(b'full original',13)
+
+
+def test_latest_readonly_snapshot_skips_changeset_replay(tmp_path, monkeypatch):
+    with make(tmp_path / 'run') as store:
+        store.transaction(lambda w: w.execute('UPDATE account SET balance=12'))
+        store.complete(1)
+        store.transaction(lambda w: w.execute('UPDATE account SET balance=13'))
+        store.complete(2)
+        source = store.path
+    def forbidden(*args, **kwargs):
+        raise AssertionError('latest readonly view must not replay the chain')
+    monkeypatch.setattr(StageStore, '_materialize', forbidden)
+    with StageStore.prepare_readonly(source, tmp_path / 'view', latest=True) as reader:
+        assert reader.read(lambda r: r.complete_step) == 2
+        assert reader.read(lambda r: r.query('SELECT balance FROM account')[0][0]) == 13
+    assert not (tmp_path / 'view' / 'root.sqlite').exists()
+    with pytest.raises(StorageError, match='latest complete step'):
+        StageStore.prepare_readonly(source, tmp_path / 'old', step=1, latest=True)
