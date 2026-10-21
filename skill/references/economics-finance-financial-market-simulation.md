@@ -339,7 +339,7 @@ reason_raw, coded_factor, decision, source_population, coder_model,
 coding_prompt_version, factor_presence
 ```
 
-Use this analysis to refine message design. If LLMs mention the right factors but over-weight them relative to humans, treat the model as directionally aligned but miscalibrated.
+Use factor coding to generate message hypotheses and diagnose discrepancies with humans. Report factor mentions, estimated weights and observed behavior separately. Shared factor vocabulary alone establishes neither effect direction nor policy ranking; assess those claims against the relevant human benchmark or explicit alternative mechanisms.
 
 ### Two Implementation Modes
 
@@ -354,6 +354,14 @@ Use **action mode** when the user wants an actual bank balance-sheet simulation:
 Action mode uses decision LLMDrivers with bank actions discovered against account refs. Withdrawing and retaining deposits are alternative choices; successful choice completion is declared explicitly. A subsequent rule phase settles withdrawals and updates liquidity, preserving every account and transaction.
 
 Do not mix these modes without labeling them. Survey intent measures propensity; action mode changes bank state.
+
+For an action-mode liquidity study, identify the constraints and unknowns that change treatment meaning in the first design pass; complete the relevant settlement contract during configuration before execution:
+
+- Separate book assets, equity, immediately usable settlement funds, eligible unencumbered collateral, and financing proceeds. Track encumbrance, haircuts, borrowing limits and arrival times; avoid counting both a pledged asset and its financing proceeds as fresh liquidity. Existing cash does not require new collateral.
+- Identify payer and recipient accounts and banks. An internal book transfer reallocates deposits; an outgoing interbank payment consumes settlement funds, while incoming funding may replenish them at another time. Payroll and other scheduled payments need an explicit funding route, obligation and settlement window.
+- Separate discretionary customer behavior from contractual payment obligations and channel capacity. Preserve requests, queues, partial/failed settlement, balances and visible feedback. Lower realized outflow can reflect blocked payment rather than restored confidence.
+- Represent timing at the resolution that changes feasibility: funding arrival, collateral release, settlement cutoffs and concentrated payments may require ordered within-day events. Daily totals do not identify their ordering. Update available balances along the dated cash-flow path and evaluate breaches over the requested horizon; a one-day outflow quantile alone does not establish multi-day survival probability.
+- Keep customer types, independent accounts and population weights distinct. Corporate concentration, insurance coverage and payment needs can be attributes, separate roles or explicit external scenarios; state which responses are lost when a role is held exogenous. Check insurance aggregation and eligibility against the applicable jurisdiction.
 
 ### Fidelity Matrix
 
