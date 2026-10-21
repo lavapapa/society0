@@ -4,6 +4,7 @@ import { App } from './App.jsx';
 import emptyStudy from './fixtures/empty-study.json';
 import progressive from './fixtures/progressive.json';
 import social from './fixtures/social.json';
+import compare from './fixtures/compare.json';
 import './styles.css';
 
 function readData() {
@@ -19,6 +20,7 @@ function readData() {
   const fixture = new URLSearchParams(window.location.search).get('fixture');
   if (fixture === 'progressive') return progressive;
   if (fixture === 'social') return social;
+  if (fixture === 'compare') return compare;
   return emptyStudy;
 }
 
