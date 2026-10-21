@@ -16,7 +16,7 @@ LLMDriver 通过 Pydantic AI Agent.iter 推进模型与工具节点，在主体�
 
 `repeated_response_limit` 默认 None，重复响应沿用既有总轮次预算。显式设为整数时，以正文及工具名称、参数的原值比较连续响应；达到重复次数时返回 incomplete，原因是 repeated_response。例如设为 4 时，第五个连续相同响应触发结束。
 
-动作查找、完整描述、执行采用 action_find、action_describe、action_invoke。默认 strict_tools=False，action_invoke.arguments 使用原生 JSON 对象，action_find.cursor 使用对象或 null；ls 与 find 的 cursor 保留实际提供方的 JSON 游标；工具声明显式 strict:false。strict_tools=True 将这些动态字段声明为 JSON 字符串（游标仍可为 null），在元工具分派边界解码一次；每种模式仅接受自己声明的类型。严格模式无法解码的行动文本继续作为失败行动尝试计数。实际 Action schema、作用域与权限校验在领域入口执行。allowed_names 与 allowed_tags 共同限定本次选择，名称与标签所需动作由 required_names、required_tags 表达；未满足时按剩余推理预算继续提醒。accepted 表示请求已受理，完成状态由 completed 表达。领域 ActionResult.terminal 或配置 completion_names、completion_tags 在成功完成后触发终止；同一 shell 后续动作因此被拒绝。共享领域处理器抛错或取消会传播给 Runtime，当前步骤失败；无可用动作、陈旧游标和查询参数错误作为工具反馈。
+动作查找、完整描述、执行采用 action_find、action_describe、action_invoke。默认 strict_tools=False，action_invoke.arguments 使用原生 JSON 对象，action_find.cursor 使用完整的 next_cursor 对象或 null，非严格模式允许省略。首次查询、更换 query 或 target 时省略 cursor 或设为 null；继续相同查询时原样复制完整 next_cursor，包含外层 identity 与内层 cursor，不能使用空对象或仅取内层。游标结构错误及查询不匹配会返回明确的重新查询指引；ls 与 find 的 cursor 保留实际提供方的 JSON 游标；工具声明显式 strict:false。strict_tools=True 将这些动态字段声明为 JSON 字符串（游标仍可为 null），在元工具分派边界解码一次；每种模式仅接受自己声明的类型。严格模式无法解码的行动文本继续作为失败行动尝试计数。实际 Action schema、作用域与权限校验在领域入口执行。allowed_names 与 allowed_tags 共同限定本次选择，名称与标签所需动作由 required_names、required_tags 表达；未满足时按剩余推理预算继续提醒。accepted 表示请求已受理，完成状态由 completed 表达。领域 ActionResult.terminal 或配置 completion_names、completion_tags 在成功完成后触发终止；同一 shell 后续动作因此被拒绝。共享领域处理器抛错或取消会传播给 Runtime，当前步骤失败；无可用动作、陈旧游标和查询参数错误作为工具反馈。
 
 工具回执保存原调用、完整正文及独立的行动语义元数据。重复同一 call_id 读取既有结果，不重复业务动作，并恢复该结果的成功名称、标签、终止及事实覆盖状态。相同 ID 配不同调用被拒绝。只读结果可提供 facts 引用；重复发现提示追加在完整结果旁。写入默认清空本次事实覆盖，显式 changed=false 保留。该机制没有改变原始工具正文。
 
