@@ -27,6 +27,10 @@ export const PANEL_CATALOG = [
   { type: 'strategy', group: '博弈与评估', label: '策略份额', batch: 'B8', purpose: '逐回合占比、缺项' },
   { type: 'forecast', group: '博弈与评估', label: '预测与观测', batch: 'B8', purpose: '区间带、误差、基线' },
   { type: 'diagnostics', group: '博弈与评估', label: '诊断用量', batch: 'B8', purpose: '激活、调用、耗时' },
+  { type: 'artifacts', group: '基础呈现', label: '工件目录', batch: 'B9', purpose: '文件、大小与类型' },
+  { type: 'candles', group: '基础呈现', label: 'K 线', batch: 'B9', purpose: '开高低收与缺失占位' },
+  { type: 'timemap', group: '运行与时间', label: '时间映射', batch: 'B9', purpose: '步骤、业务区间、执行时间' },
+  { type: 'checkpoints', group: '运行与时间', label: '检查点索引', batch: 'B9', purpose: '完整点与可读状态' },
 ];
 
 export const PANEL_GROUPS = [...new Set(PANEL_CATALOG.map((item) => item.group))];
