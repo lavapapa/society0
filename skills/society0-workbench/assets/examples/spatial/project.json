@@ -1,0 +1,6 @@
+{
+  "title": "区域物流与扩散",
+  "data": "data.json",
+  "template": "../../shell.html",
+  "output": "index.html"
+}
