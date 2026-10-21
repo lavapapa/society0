@@ -303,7 +303,7 @@ export function SetupMain({ data, version, runs, selection, select, draftFor, se
                 <div style={{ height: 16 }} />
               </>
             ) : null}
-            <SectionTitle title="已配置插件" note={data.plugins.length ? `${data.plugins.length} 项` : ''} />
+            <div className="section-title"><h2>已配置插件</h2>{data.plugins.length ? <span>{data.plugins.length} 项</span> : null}</div>
             <PluginSection plugins={data.plugins} study={data.study} />
             <PreparationChecklist data={data} />
           </>
