@@ -11,6 +11,42 @@ import sys
 from pathlib import Path
 
 MARKER = "null"
+PARTIAL_TYPES = {"table", "metric", "series", "records", "thread", "document"}
+TYPED_KEYS = {
+    "table": "rows", "metric": "items", "series": "series", "records": "records",
+    "thread": "messages", "document": "paragraphs", "graph": "nodes", "feed": "posts",
+    "events": "events", "timeline": "lanes", "gantt": "tasks", "board": "columns",
+    "flow": "steps", "map": "nodes", "track": "tracks", "od": "rows",
+    "diffusion": "states", "compare": "worlds", "bars": "bars",
+    "distribution": "groups", "heat": "rows", "orderbook": "bids", "matrix": "rows",
+    "strategy": "rounds", "forecast": "series", "diagnostics": "runs",
+    "artifacts": "files", "candles": "bars", "timemap": "rows", "checkpoints": "checkpoints",
+}
+
+
+def diagnose(data):
+    """返回阻断错误与提示；错误定位到具体面板或数据集。"""
+    errors, warnings = [], []
+    datasets = {item.get("id"): item for item in data.get("datasets") or [] if isinstance(item, dict)}
+    panels = data.get("panels") or (data.get("workspace") or {}).get("panels") or []
+    if not panels:
+        warnings.append("panels 为空：页面只会显示实验设置，没有观察页。设计阶段可以只有 document 与 table。")
+    for panel in panels:
+        pid = panel.get("id") or "(无 id)"
+        dataset_id = panel.get("datasetId")
+        kind = panel.get("type")
+        if not dataset_id:
+            errors.append(f"面板 {pid} 缺少 datasetId")
+            continue
+        dataset = datasets.get(dataset_id)
+        if dataset is None:
+            errors.append(f"面板 {pid} 引用了不存在的 datasetId {dataset_id}")
+            continue
+        key = TYPED_KEYS.get(kind)
+        if key and dataset.get("availability") not in (None, "unconfigured", "awaiting", "empty", "error", "loading"):
+            if not dataset.get(key):
+                errors.append(f"面板 {pid}（{kind}）的数据集 {dataset_id} 缺少 {key}")
+    return errors, warnings
 
 
 def load_data(path):
@@ -62,6 +98,13 @@ def main():
         raise SystemExit(f"缺少模板：{template_path}")
 
     data = load_data(data_path)
+    errors, warnings = diagnose(data)
+    for warning in warnings:
+        print(f"提示：{warning}")
+    if errors:
+        for error in errors:
+            print(f"错误：{error}")
+        raise SystemExit(f"资料未通过合同检查，共 {len(errors)} 处；详见 references/data-contract.md")
     template = template_path.read_text(encoding="utf-8")
     result = embed(template, data)
     output.parent.mkdir(parents=True, exist_ok=True)

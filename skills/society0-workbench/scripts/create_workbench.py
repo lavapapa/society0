@@ -61,7 +61,8 @@ def main():
     project = {
         "title": args.title,
         "data": "data.json",
-        "template": os.path.relpath(os.path.realpath(TEMPLATE), os.path.realpath(target)),
+        # 用绝对真实路径：目标可能是符号链接或不在同一卷，相对路径会在别处解析失败。
+        "template": os.path.realpath(TEMPLATE),
         "output": "index.html",
     }
     (target / "project.json").write_text(json.dumps(project, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

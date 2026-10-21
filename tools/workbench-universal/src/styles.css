@@ -447,7 +447,8 @@ svg { flex-shrink: 0; }
 .table-wrap { overflow: auto; max-height: 320px; border: 1px solid var(--line-soft); border-radius: 7px; }
 .table-wrap table { width: 100%; border-collapse: collapse; font-size: 11px; }
 .table-wrap th { position: sticky; top: 0; z-index: 1; padding: 6px 9px; background: var(--surface-muted); border-bottom: 1px solid var(--line); font-size: 10px; font-weight: 500; color: var(--muted); white-space: nowrap; }
-.table-wrap td { padding: 6px 9px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.table-wrap td { padding: 6px 9px; border-bottom: 1px solid var(--line-soft); }
+.table-wrap td.wrap { white-space: normal; line-height: 1.6; }
 .table-wrap tr:last-child td { border-bottom: 0; }
 .table-empty { padding: 14px; font-size: 11px; color: var(--faint); text-align: center; }
 .panel-source { margin-top: 7px; font-size: 9.5px; color: var(--faint); }

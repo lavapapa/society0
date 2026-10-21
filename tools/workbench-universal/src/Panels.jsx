@@ -145,7 +145,15 @@ export function TablePanel({ dataset }) {
           <tbody>
             {shown.map((row, index) => (
               <tr key={row.id || index}>
-                {columns.map((col) => <td key={col.key} style={{ textAlign: col.align || 'left' }}>{row[col.key] ?? '—'}</td>)}
+                {columns.map((col) => {
+                  const value = row[col.key];
+                  const tone = { 推荐: 'ready', 已选定: 'ready', 已确认: 'ready', 待确认: 'awaiting', 待定: 'awaiting', 候选: undefined }[value];
+                  return (
+                    <td key={col.key} className={col.align === 'right' ? 'nowrap' : 'wrap'} style={{ textAlign: col.align || 'left' }}>
+                      {tone ? <Badge state={tone}>{value}</Badge> : value ?? '—'}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -318,7 +326,9 @@ export function DocumentPanel({ dataset }) {
     <DatasetState dataset={dataset}>
       <article className="doc">
         {(dataset.paragraphs || []).map((text, index) => <p key={index}>{text}</p>)}
-        {dataset.source ? <p className="panel-source">来源：{dataset.source}</p> : null}
+        {dataset.source && !(dataset.paragraphs || []).some((text) => String(text).includes(dataset.source)) ? (
+          <p className="panel-source">来源：{dataset.source}</p>
+        ) : null}
       </article>
     </DatasetState>
   );
