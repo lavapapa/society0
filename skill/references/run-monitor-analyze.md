@@ -8,7 +8,7 @@
 
 Observation 提供 status、list_threads、thread_tail、原文范围、result_phases/result_page、resource_usage、action_summary。实时诊断与已完成步骤分别读取。固定历史视图通过 prepare_complete 准备；巨大原文使用引用完整续读，保留总数与继续位置。Memory/Thread/业务 SQL 与工作区引用在同一个完整点恢复。
 
-工作台交接按 society0-workbench 的实际合同执行。配置变更生成新版本；既有授权覆盖的构建、运行和重复自动推进，改变实验问题、机制或费用范围时先确认。原始 Thread 的信息暴露与测量结果分别解释。
+分析开始加载 society0-workbench，按其起步指引接入当前工作台；将解释正文与来源引用走资料接入路径交付，并核实更新回执。配置变更生成新版本；既有授权覆盖的构建、运行和重复自动推进，改变实验问题、机制或费用范围时先确认。原始 Thread 的信息暴露与测量结果分别解释。
 
 使用 Observation 和规范存储读取实际事实、原文与来源，沿 Thread ID 与事件序号引用。工作台已有可验证的来源定位时可复用；缺少内容时继续读取原始工件。使用引擎提供的接口处理压缩记录，保留实际输入、工具参数与返回值的对应关系。
 
