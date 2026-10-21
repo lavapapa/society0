@@ -85,6 +85,7 @@ class LLMPolicy:
     per_action_limits: dict = field(default_factory=dict)
     parallel_tool_calls: bool = False
     empty_retries: int = 1
+    repeated_response_limit: int | None = 4
     empty_retry_temperature_delta: float | None = None
     empty_retry_temperature_max: float = 1.0
     repeated_read_temperature_delta: float | None = None
@@ -107,7 +108,7 @@ class LLMPolicy:
                 raise ValueError('reasoning stage requires name and optional desc strings')
         if self.mode not in ('decision', 'interview'):
             raise ValueError('mode must be decision or interview')
-        for value in (self.max_turns, self.max_action_calls, *self.per_action_limits.values()):
+        for value in (self.max_turns, self.max_action_calls, self.repeated_response_limit, *self.per_action_limits.values()):
             if value is not None and (type(value) is not int or value < 0):
                 raise ValueError('budgets must be nonnegative integers or None')
         if type(self.empty_retries) is not int or self.empty_retries < 0:
@@ -442,7 +443,8 @@ class LLMDriver:
             from pydantic_ai.exceptions import UsageLimitExceeded, UnexpectedModelBehavior
             from .model_messages import history, display_response
 
-            empty = parallel_errors = repeated_read_streak = empty_retry_attempt = 0
+            empty = parallel_errors = repeated_read_streak = empty_retry_attempt = repeated_response_streak = 0
+            last_response_signature = None
             pending_calls = {}
             incomplete = None
 
@@ -535,6 +537,15 @@ class LLMDriver:
                                 break
                             response = display_response(node.model_response)
                             calls, content = response.get('tool_calls', []), response.get('content', '')
+                            signature=(content,tuple((item['function']['name'],item['function']['arguments']) for item in calls))
+                            if (content.strip() or calls) and signature==last_response_signature:
+                                repeated_response_streak+=1
+                            else:
+                                repeated_response_streak=0
+                            last_response_signature=signature
+                            if self.policy.repeated_response_limit is not None and repeated_response_streak>=self.policy.repeated_response_limit:
+                                reason='repeated_response'
+                                break
                             pending_calls = {item['id']: item for item in calls}
                             if self.policy.direct_json:
                                 try:
