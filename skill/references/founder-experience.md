@@ -1,197 +1,74 @@
-# Founder Experience Notes
+# 社会仿真的设计经验
 
-Use this reference before helping a user design a new Society0 simulation, especially when the user brings an ambitious domain idea, a large knowledge graph, a paper-derived world, an economic or institutional mechanism, or a prediction-oriented use case.
+新问题起步时阅读本页，用它理解研究问题为什么需要某种世界。这里提炼旧版 Skill 中的研究先例与创始设计经验；具体实现使用当前 Society0 的 Plugin、Actor/Driver、Information/Actions、Schedule 和 RunPlan。
 
-These notes are intentionally domain-neutral. They record reusable founder-level design lessons without preserving any project-specific assets, private examples, company lists, proprietary schemas, or sensitive implementation details.
+## 1. 仿真要构造什么
 
-## Core Stance
+社会仿真把一个问题放进可反复干预的人工社会：处境、目标与认知各异的主体，依据局部信息，在共同制度和资源约束下作出选择；交易、沟通、协作或冲突改变世界，形成下一轮选择的条件。研究者观察这些微观过程怎样汇成群体现象，以及改变某项政策或机制后，过程和结果怎样分化。
 
-Society0 is not a traditional ABM framework with LLMs swapped in for rule functions. It is a language-mediated simulation framework where the environment hosts what can be seen, done, constrained, recorded, settled, and measured, while LLM agents interpret situated evidence and choose bounded actions inside that hosted world.
+先判断用户关心哪一层结果：消息怎样改变理解，理解怎样改变行动，行动怎样经由互动改变市场、组织或群体。结果层次决定世界需要延伸到哪里。例如研究通胀消息的理解，可以构造受访者与信息的实验；研究它如何改变消费，需要接上预算和购买；研究物价与就业，再接上企业、交易及生产反馈。
 
-The most common failure is hardworking but misplaced structure: turning a user's idea into nodes, scalar states, propagation weights, taxonomies, and risk scores before proving that the simulated world has actors, observations, actions, consequences, and records that mean anything.
+Society0 让 LLM 处理情境理解、语言、判断、协商、计划与经验；环境承载资源、权限、交易、会计、时间及制度后果。政策公告、承诺和传言保留有意义的文本，让主体结合自身处境理解；金额、数量、期限等进入真实约束。宏观结果从微观行动及环境记录中汇总，主体获得它当时实际能接触的信息。
 
-Before writing code, ask what must be true for the simulation to be legitimate:
+## 2. 沿作用过程选择表示
 
-- What evidence supports the world structure?
-- What can be claimed from that evidence, and what must not be claimed?
-- Which entities are actual decision-making subjects, and which are only processes, slots, resources, locations, products, topics, or graph nodes?
-- Which consequences are mechanically hosted by the environment?
-- Which decisions genuinely require LLM interpretation, planning, language, memory, or judgment?
-- Which outputs can be recomputed from records rather than accepted as a final narrative?
+构思时先画出政策传导，再确定主体和环境：
 
-## Evidence Boundary First
+> 干预改变谁的资源、信息或行动机会 → 谁怎样判断与选择 → 与谁发生交易、沟通或竞争 → 环境兑现什么后果 → 后果怎样影响下一期选择 → 哪些群体的结果因此不同。
 
-Start with the evidence boundary, not the agent list.
+- **主体及其裁量。** 找到掌握关键选择的人或组织，说明它知道什么、追求什么、能改变什么。家庭可选择劳动与消费，企业可选择定价与招聘；税款、库存、道路、岗位是相应状态或机制。政府研究中涉及执法裁量、协商或政策学习时可设为决策主体；固定规则的征税与发放可由环境执行。
+- **环境与制度。** 写出共享资源、预算、产权、资格、交易或分配规则、公开与私有信息。行动产生可观察后果，才能把“愿意购买”“提交订单”“真正成交”串成研究过程。
+- **异质性及关系。** 为差异写出理由：财富缓冲影响消费调整，融资约束影响投资，技能影响转岗，网络位置影响信息和交易机会。主体类型说明共同条件，个体保留各自状态与历史；关系结构决定影响如何传递。
+- **尺度与时间。** 人数服务于角色、分层和关系结构；时间覆盖机制需要的反馈周期。收入与消费需要反复结算，投资需要建设与回收阶段，合作需要重复互动。地图适合距离和选址改变机会的情境；同伴网络适合传播、模仿或匹配影响答案的情境。
 
-When the user provides a document, dataset, graph, website, benchmark, paper, or internal artifact, first classify it:
+先充分考虑相关因素，再把它们分成核心动态机制、外部情景、固定背景和后续扩展。每个复杂度选择都解释：增加它后，多回答哪个问题；采用较简单方案时，保留了什么、略去了什么。
 
-- relatively stable structure, such as roles, relationships, institutions, legal rules, platform constraints, or historical chronology.
-- external observations, such as news, announcements, transactions, survey waves, prices, reports, logs, messages, or measurements.
-- weak signals or generated text that may help construct hypotheses but should not become deterministic truth.
-- missing information that limits what the simulation can claim.
+## 3. 从研究先例理解取舍
 
-Then state the interpretation boundary in plain research language. For example, an artifact may support a scenario, exposure, qualitative direction, or mechanism exploration, while not supporting causal identification, profit prediction, individual-level replication, or policy proof.
+下面的设定来自旧版 Skill 保留的研究材料。研究原有设定与这里迁移出的设计理由分别使用；论文的人数、时期和模型配置是先例，当前方案根据自己的问题选择。
 
-Do not let a rich artifact seduce the design into false completeness. A large graph does not imply every node should be an agent. A long taxonomy does not imply every label should become state. A generated explanation does not imply the environment should treat it as a measured parameter.
+### 家庭行为与税制：EconAgent
 
-## Subject Layer Before Agent Layer
+原研究让家庭选择工作和消费，环境兑现劳动收入、税款、再分配及商品约束，汇总行为推动价格与工资，再反馈给家庭。家庭异质性与经验使同一环境产生不同反应。
 
-Do not equate every object in the domain with an agent.
+迁移到税改问题时，可让两个世界保持同一家庭初态与经济背景，改变税制，沿税后资源、劳动、消费与价格比较传导过程。工资能力、财富缓冲与既往经历值得分层，因为它们影响税改后的选择。若问题是机械税负分配，固定行为的测算更直接；需要研究企业自主定价、招聘与投资时，再扩展企业层。见[宏观研究先例](economics-finance-macro-urban-simulation.md)。
 
-First determine the subject layer:
+### 多市场联动与产业调整：SimCity
 
-- Who or what can perceive?
-- Who or what can decide?
-- Who or what can act?
-- Who or what bears consequences?
-- Which objects only mediate, constrain, store, route, or transform the process?
+原研究扩展企业、异质商品、融资和税收，并区分城市迁入期与人口固定的发展期。企业掌握生产、定价、招聘和投资，家庭掌握就业与购买；多个市场把它们连起来。
 
-Many domains contain useful graph nodes, institutions, products, documents, locations, prices, roles, resources, or technical processes that should not become LLM agents. Represent them as environment state, records, resources, parameters, or deterministic placeholders until the design proves they need situated cognition.
+迁移到产业政策时，成本可经由价格、岗位和收入传播，销售与利润再改变下一期计划。增加企业的理由是引入家庭模型缺少的决策；增加空间的理由是让距离、选址或迁移改变机会。研究城市扩张时保留迁入过程，研究既有人口下的政策响应时选择相应稳定阶段。见[宏观研究先例](economics-finance-macro-urban-simulation.md)。
 
-LLM agents should be introduced where the study needs interpretation, language, strategic planning, social meaning, negotiation, judgment under incomplete information, memory, or explanation. Deterministic rules should own arithmetic, validation, accounting, settlement, scheduling, permissions, and physical or institutional constraints.
+### 信息政策与预期：通胀预期实验
 
-## Minimal Numbers, Maximal Semantics
+先测家庭的原有预期，给予不同信息，再观察理解和判断的变化。此时主体的主要裁量在解释消息；环境控制信息内容、时点和测量方式。先验信念与相关家庭背景有助于理解异质反应。研究即时更新采用前测—处理—后测；研究持续性再增加后续波次，研究消费后果再接上预算与行动。完整市场反馈适合后一类问题，单独的信息实验更便于解释消息本身的作用。见[预期研究先例](economics-finance-expectations-survey-simulation.md)。
 
-Avoid over-structuring external information.
+### 公共资源与合作规范：GovSim
 
-A useful rule is: keep numbers minimal and semantics rich. Some external information has hard numeric consequences that must update environment state, such as a quantity, date, capacity, price, budget, vote count, or deadline. Much other information is meaningful because it is text: announcements, rumors, policy language, arguments, warnings, explanations, commitments, uncertainty, or conflicting narratives.
+个人采集带来当期收益，也改变共同资源的存量和下一期再生。重复互动使短期收益与未来机会发生张力；公开记录、协商和同伴行为参与规范形成。原研究用同时申报、统一分配避免先后采集的顺序影响，并比较沟通等机制。同类指令用于观察合作形成，贪婪新成员作为策略异质性的独立扰动。迁移到治理政策时，可分别改变信息公开、协商渠道和配额制度。一次性意愿问答适合研究态度；资源持续性需要采集、再生及重复决策形成闭环。见[治理研究先例](governance-institution-public-policy-simulation-design.md)。
 
-Do not prematurely force semantic information into large event taxonomies with many fields such as confidence, direction, magnitude, duration, visibility, and type unless those fields are necessary for the environment to enforce consequences or for the study's measurement design.
+### 授权与组织协作：CareerAgent
 
-A better pattern is:
+将自主权落实为任务选择、分工、协商和组队权限。管理与专业能力影响决策负担和任务执行，合作表现更新信任，信任再影响后续组队。原研究比较能力配置：能力均值刻画团队总体水平，离散程度刻画组合差异。迁移到授权政策时可固定员工与任务流，改变权限结构，再比较不同能力组合下的效果。会议表达适合研究协商过程；工作完成、压力与组织演化需要连接任务、工时、期限和多轮合作。见[组织研究先例](organization-workflow-collaboration-simulation-design.md)。
 
-```text
-external material -> minimal numeric updates where unavoidable
-                  -> semantic messages or local evidence in FoVs
-                  -> agent interpretation and bounded action
-                  -> environment-hosted consequences and records
-```
+## 4. 用平行世界回答问题
 
-The LLM's intelligence should be exercised on semantically rich situated evidence, not bypassed by giving the agent a pre-digested conclusion.
+把“想看什么”写成明确比较，并给每个比较一个用途：
 
-## Do Not Embed Macro Conclusions In Micro Design
+| 比较目的 | 改变什么 | 共同保持什么 | 能回答什么 |
+|---|---|---|---|
+| 政策选择 | 税制、补贴方式、资格、权限等政策安排 | 政策前人口与状态、制度背景、外生事件；同预算比较明确预算口径 | 哪种政策通过什么过程产生不同结果 |
+| 机制解释 | 信息、协商、融资、网络传播等某一通道 | 其余制度及起始条件 | 哪条传导通道对差异重要 |
+| 适用条件 | 人口结构、供给弹性、资源或执行条件 | 每种条件下采用同一组政策比较 | 哪种条件下政策效果或权衡发生变化 |
 
-Avoid placing a macro expectation directly inside each agent's visible state or prompt as if it were an individual belief or local observation.
+共同条件固定在干预前及外生背景。政策后的收入、价格、信念、交易与关系属于结果链，允许随世界自然演化。政策包比较可以同时改变多个安排，并按组合策略解释；想拆出单项机制时，另加匹配对照或交叉设计。已有共同历史适合在可信完整步骤分叉；独立调查和不同人口情景可采用对应初始化。
 
-Macro claims, aggregate shocks, institutional summaries, or expert narratives should be converted into:
+同时观察传导过程、最终目标与分布：政策先影响了谁，行为如何改变，资源怎样重新分配，短期和后续结果有什么区别。这样，即使总量接近，仍能解释受益者、代价承担者和机制差异。
 
-- environment conditions that are genuinely global.
-- public or role-specific information that agents can read.
-- numeric constraints only where the mechanism requires them.
-- researcher-only labels or step params when the agent should not know them.
+## 5. 前两轮如何体现专业判断
 
-If a micro agent should react to a broad development, make the reaction pass through FoV, memory, local state, action affordances, and hosted consequences. Do not make the prompt say the conclusion that the simulation is supposed to discover or stress-test.
+首轮就交付一套可讨论的推荐世界：研究问题、主要作用路径、主体裁量、环境规则、关键异质性、时间结构与值得比较的政策。主动补出用户未提及但会改变答案的因素，并用通俗因果说明其价值；把有意义的替代设计交给用户选择。
 
-## Environment-Hosted Consequences
+次轮依据用户的预算、群体、地区、时限或政策偏好，收敛主体与环境，形成清楚的世界比较，多组或交叉设计时用矩阵表达；讲清一轮如何发生以及观察什么。数据未齐时，用有身份的设计假设继续构思，将最影响设定的数据列为后续需求。精细校准、实现与运行按相应阶段推进。
 
-A world-changing action should not be a mere structured opinion.
-
-When an agent acts, the environment should record the action and later apply whatever deterministic consequences the study defines. The consequence may be immediate or delayed, but it should be hosted by the environment rather than left as prose in the agent's answer.
-
-This matters because many failures look like successful runs:
-
-- The model writes a plausible plan, but no state changes.
-- A run completes, but no required action happened.
-- A metric is printed, but it cannot be recomputed from records.
-- A prompt tells the model the intended causal direction, so the output only mirrors the prompt.
-- A propagation score moves, but no actor saw, decided, acted, or bore consequences.
-
-For action-bearing behavior, prefer `instruct` with a narrow environment action set, required action or required action tags when the study demands behavior, and post-run inspection of successful action counts and action records. Use `interview` for measurement, not for hidden world-changing behavior.
-
-## Avoid Traditional ABM Drift
-
-Society0 can borrow ABM discipline, but it should not inherit ABM reflexes blindly.
-
-Borrow:
-
-- explicit mechanisms.
-- transparent assumptions.
-- environment constraints.
-- baselines, ablations, and repeated runs.
-- sensitivity checks.
-- auditability.
-
-Avoid:
-
-- scalar propagation fields that substitute for social or institutional process.
-- risk or utility scores that appear calibrated only because they have parameters.
-- making every graph node an agent.
-- using agent personas to compensate for a weak environment.
-- turning external text into rigid taxonomy before proving which fields matter.
-- treating a large run as stronger evidence than a small interpretable run.
-
-If the mechanism can be fully expressed as a deterministic numerical transition, implement it as a rule. If the mechanism depends on meaning, ambiguity, attention, belief, persuasion, identity, negotiation, planning, or language, expose the right evidence and actions to LLM agents.
-
-## Build In Stages
-
-Use this order for new designs:
-
-```text
-evidence boundary
--> subject layer
--> environment-hosted state and constraints
--> FoVs and action affordances
--> smallest real step loop
--> pilot run with inspectable records
--> interpretation boundary
--> scale, ablations, and calibration
-```
-
-The first pilot should prove that the environment, FoVs, actions, records, and measurements are coherent. It should not try to prove the domain thesis.
-
-Only scale after the pilot shows:
-
-- agents see the intended evidence and not hidden labels.
-- actions actually occur when required.
-- deterministic consequences are applied in the intended order.
-- errors can be explained as provider failure, configuration failure, or domain consequence.
-- outputs are recomputable from tables, records, checkpoints, or other explicit artifacts.
-
-## Use AI Intelligence Properly
-
-Do not use prompts to hint at the desired answer. Use prompts, FoVs, and actions to create a situation where the model has to interpret evidence and make a bounded decision.
-
-Good uses of LLM intelligence include:
-
-- interpreting ambiguous text or conflicting accounts.
-- planning under incomplete information.
-- making role-specific tradeoffs.
-- explaining reasons in natural language.
-- reacting to communication, persuasion, or institutional signals.
-- producing decisions that deterministic rules then validate and settle.
-
-Poor uses include:
-
-- asking the model to calculate deterministic mechanics.
-- asking the model to invent missing measurements.
-- placing the expected conclusion in the instruction.
-- using long personas to replace state, FoV, action, and records.
-- relying on a final narrative when the run artifacts do not support it.
-
-## Boundary Discipline
-
-Separate framework improvements from experiment-specific logic.
-
-Generic Society0 improvements may belong in core when they improve the runtime for many domains: model-provider access, `step(ctx)` ergonomics, capability discovery, action-loop diagnostics, provider-neutral configuration, runtime summaries, or env-agnostic abstractions.
-
-Experiment-specific worlds should usually start outside core, using `plain`, experiment registries, custom scripts, or a local custom environment. Promote an environment into core only after the mechanism is stable, reusable, documented, tested, and clearly not private to one study.
-
-Do not commit secrets, proprietary source material, run artifacts, or private datasets into public docs. When extracting lessons from a real project, preserve the general design rule and remove domain-specific entities, examples, and sensitive details.
-
-## Review Questions
-
-Before implementing or approving a Society0 design, ask:
-
-- What claim is this run allowed to support?
-- What claim would be overreach?
-- What evidence enters the world as structure, observation, message, or numeric constraint?
-- Who is the real decision-making subject?
-- What is hosted by the environment even if all LLM agents were replaced by rule agents?
-- What does the LLM decide that cannot be replaced by a simple rule without changing the study?
-- What action changes the world, and where is that change recorded?
-- What deterministic rule applies consequences?
-- What output table would let a skeptical researcher recompute the result?
-- What must be checked before interpreting a completed run as meaningful?
-
-If these questions cannot be answered, stop at a smaller pilot or a design note. Do not scale the run.
-
+检查专业程度时，重点看各项设定是否有研究理由、作用过程是否连贯、对照是否能回答问题、用户是否理解取舍。信息丰富的可解释设计，比一长串因素名称更有用。
