@@ -1,6 +1,8 @@
 """低层 Model/EmbeddingModel 适配：规范留证、资源许可与明确的重试拥有者。"""
 from __future__ import annotations
 import asyncio
+from bisect import bisect_right
+from itertools import accumulate
 from collections import OrderedDict, deque
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
@@ -347,6 +349,7 @@ class ModelProvider(_Provider):
             raise ValueError('subscription provider does not accept session metadata')
         self.threads, self.request_options, self.session_transport = threads, dict(request_options or {}), session_transport
         for endpoint in self.endpoints: _parameters(endpoint, self.request_options)
+        self._route_weights = list(accumulate(endpoint.weight for endpoint in self.endpoints))
 
     def validate_options(self, options):
         for endpoint in self.endpoints: _parameters(endpoint, {**self.request_options, **options})
@@ -361,9 +364,11 @@ class ModelProvider(_Provider):
     @_operation
     async def request_model(self, thread_id, options, *, model_messages=None):
         """显式 SDK 历史可为列表或同步 loader；loader 在既有请求许可内执行。"""
-        endpoint = self._select()
         selected = {**self.request_options, **options}
         head = self.threads.describe(thread_id)
+        # 固定抽样点落在端点的累计权重区间；相同配置下每轮选择保持一致。
+        endpoint = self.endpoints[bisect_right(self._route_weights,
+            head['model_route'] * self._route_weights[-1], hi=len(self.endpoints) - 1)]
         if self.session_transport:
             selected['extra_body'] = {**selected.get('extra_body', {}), 'metadata': {
                 **selected.get('extra_body', {}).get('metadata', {}), 'session_id': head['provider_session_id']}}
