@@ -302,6 +302,8 @@ export function SetupMain({ data, version, runs, selection, select, draftFor, se
                 <ConfigFields fields={version.configFields} baseConfig={baseConfig} draftConfig={draftConfig} onChange={(path, value) => setDraft(source, { config: withValueAt(draftConfig, path, value), base: baseConfig })} />
                 <div style={{ height: 16 }} />
               </>
+            ) : version ? (
+              <p className="section-intro">这个版本没有声明可编辑参数；如需修改，先让 Agent 补充字段定义。</p>
             ) : null}
             <div className="section-title"><h2>已配置插件</h2>{data.plugins.length ? <span>{data.plugins.length} 项</span> : null}</div>
             <PluginSection plugins={data.plugins} study={data.study} />

@@ -1,20 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { findVersion, normalize, runsOf, worldsOfVersion } from './data.js';
 
-const STORAGE_KEY = 'society0-workbench';
+const STORAGE_KEY_PREFIX = 'society0-workbench';
 
-function readStored() {
+function storageKey(studyId) {
+  return `${STORAGE_KEY_PREFIX}:${studyId || 'unknown'}`;
+}
+
+function readStored(studyId) {
   try {
-    const text = window.localStorage.getItem(STORAGE_KEY);
+    const text = window.localStorage.getItem(storageKey(studyId));
     return text ? JSON.parse(text) : {};
   } catch {
     return {};
   }
 }
 
-function writeStored(value) {
+function writeStored(studyId, value) {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
+    window.localStorage.setItem(storageKey(studyId), JSON.stringify(value));
   } catch {
     /* 浏览器禁用持久存储时继续以当前页面状态工作。 */
   }
@@ -27,7 +31,7 @@ function draftKey(studyId, source) {
 
 export function useWorkbench(raw) {
   const data = useMemo(() => normalize(raw), [raw]);
-  const stored = useMemo(readStored, []);
+  const stored = useMemo(() => readStored(data.study.id), [data.study.id]);
 
   const [versionId, setVersionId] = useState(() => {
     const candidate = stored.selection?.versionId;
@@ -37,7 +41,7 @@ export function useWorkbench(raw) {
   const [worldId, setWorldId] = useState(() => stored.selection?.worldId || '');
   const [observationId, setObservationId] = useState(() => stored.selection?.observationId || '');
   const [entityId, setEntityId] = useState(() => stored.selection?.entityId || '');
-  const [pageId, setPageId] = useState(() => stored.selection?.pageId || 'setup');
+  const [pageId, setPageId] = useState(() => stored.selection?.pageId || '');
   const [sectionId, setSectionId] = useState(() => stored.selection?.sectionId || 'plugins');
   const [collapsed, setCollapsed] = useState(() => Boolean(stored.ui?.collapsed));
   const [drafts, setDrafts] = useState(() => stored.drafts || {});
@@ -48,12 +52,12 @@ export function useWorkbench(raw) {
   const worlds = useMemo(() => worldsOfVersion(data, version?.id), [data, version?.id]);
 
   useEffect(() => {
-    writeStored({
+    writeStored(data.study.id, {
       selection: { versionId, runId, worldId, observationId, entityId, pageId, sectionId },
       ui: { collapsed },
       drafts,
     });
-  }, [versionId, runId, worldId, observationId, entityId, pageId, sectionId, collapsed, drafts]);
+  }, [data.study.id, versionId, runId, worldId, observationId, entityId, pageId, sectionId, collapsed, drafts]);
 
   useEffect(() => {
     if (runId && !runs.some((run) => run.id === runId)) setRunId('');

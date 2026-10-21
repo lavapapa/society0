@@ -100,18 +100,40 @@ export function TimeControl({ observations, selection, select, modes }) {
         className="time-current"
         aria-expanded={open}
         aria-haspopup="dialog"
-        onClick={() => {
-          if (mode === 'calendar' && canCalendar) setOpen((value) => !value);
-        }}
+        onClick={() => setOpen((value) => !value)}
       >
         <strong>{current.label}</strong>
         <small>{formatTime(current.businessTime)}</small>
-        {mode === 'calendar' && canCalendar ? <span className="caret" aria-hidden="true">▾</span> : null}
+        <span className="caret" aria-hidden="true">▾</span>
       </button>
 
       <button type="button" className="icon-button" aria-label="下一个时点" disabled={index < 0 || index >= observations.length - 1} onClick={() => step(1)}>›</button>
 
       {!canCalendar && allowed.includes('calendar') ? <span className="time-note">没有日期映射，日历不可用</span> : null}
+
+      {open && (!canCalendar || mode === 'round') ? (
+        <div className="observation-list" role="dialog" aria-label="选择时点">
+          <div className="observation-head">
+            <strong>可用时点</strong>
+            <small>{observations.length} 个</small>
+          </div>
+          <ul>
+            {observations.map((obs) => (
+              <li key={obs.id}>
+                <button
+                  type="button"
+                  aria-pressed={obs.id === current.id}
+                  onClick={() => { select({ observationId: obs.id }); setOpen(false); }}
+                >
+                  <span>{obs.label}</span>
+                  <small>{formatTime(obs.businessTime)}</small>
+                  {obs.availability === 'partial' ? <em>部分资料</em> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {open && mode === 'calendar' && canCalendar ? (
         <div className="calendar" role="dialog" aria-label="按日期选择观测点">
