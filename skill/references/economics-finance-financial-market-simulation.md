@@ -339,7 +339,7 @@ reason_raw, coded_factor, decision, source_population, coder_model,
 coding_prompt_version, factor_presence
 ```
 
-Use this analysis to refine message design. If LLMs mention the right factors but over-weight them relative to humans, treat the model as directionally aligned but miscalibrated.
+Use factor coding to generate message hypotheses and diagnose discrepancies with humans. Report factor mentions, estimated weights and observed behavior separately. Shared factor vocabulary alone establishes neither effect direction nor policy ranking; assess those claims against the relevant human benchmark or explicit alternative mechanisms.
 
 ### Two Implementation Modes
 
