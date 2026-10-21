@@ -1532,6 +1532,133 @@
           "status": "failed"
         }
       ]
+    },
+    {
+      "id": "ds-artifacts",
+      "availability": "ready",
+      "title": "工件目录",
+      "source": "mock · 运行产物",
+      "files": [
+        {
+          "path": "run/root.sqlite",
+          "type": "数据库",
+          "size": 12582912
+        },
+        {
+          "path": "run/changesets/0001.changeset.zst",
+          "type": "增量",
+          "size": 48213
+        },
+        {
+          "path": "run/threads/lin/0001.json",
+          "type": "Thread",
+          "size": 20480
+        },
+        {
+          "path": "run/artifacts/report.md",
+          "type": "文档",
+          "size": 3204
+        }
+      ]
+    },
+    {
+      "id": "ds-candles",
+      "availability": "ready",
+      "title": "报价区间",
+      "source": "mock · 报价记录",
+      "bars": [
+        {
+          "t": "05-01",
+          "open": 82.1,
+          "high": 83.4,
+          "low": 81.6,
+          "close": 83.0
+        },
+        {
+          "t": "05-02",
+          "open": 83.0,
+          "high": 83.9,
+          "low": 82.4,
+          "close": 82.7
+        },
+        {
+          "t": "05-03",
+          "open": 82.7,
+          "high": 84.2,
+          "low": 82.5,
+          "close": 84.0
+        },
+        {
+          "t": "05-06",
+          "open": 84.0,
+          "high": 84.6,
+          "low": 83.1,
+          "close": 83.4
+        },
+        {
+          "t": "05-07",
+          "open": 83.4,
+          "high": 83.8,
+          "low": 82.9,
+          "close": 83.6
+        }
+      ]
+    },
+    {
+      "id": "ds-timemap",
+      "availability": "ready",
+      "title": "时间映射",
+      "source": "mock · 运行清单",
+      "rows": [
+        {
+          "step": 1,
+          "label": "第 1 步",
+          "start": "2026-05-01",
+          "end": "2026-05-07",
+          "executedAt": "2026-05-01T09:12:00"
+        },
+        {
+          "step": 2,
+          "label": "第 2 步",
+          "start": "2026-05-08",
+          "end": "2026-05-14",
+          "executedAt": "2026-05-01T09:14:00",
+          "note": "含 5/14 决策"
+        },
+        {
+          "step": 3,
+          "label": "第 3 步",
+          "start": "2026-05-15",
+          "end": "2026-05-21",
+          "executedAt": "2026-05-01T09:16:00"
+        }
+      ]
+    },
+    {
+      "id": "ds-checkpoints",
+      "availability": "partial",
+      "title": "完整点",
+      "source": "mock · 检查点",
+      "checkpoints": [
+        {
+          "id": "cp-3",
+          "label": "第 3 步",
+          "businessTime": "2026-05-21",
+          "availability": "ready"
+        },
+        {
+          "id": "cp-2",
+          "label": "第 2 步",
+          "businessTime": "2026-05-14",
+          "availability": "partial"
+        },
+        {
+          "id": "cp-1",
+          "label": "第 1 步",
+          "businessTime": "2026-05-07",
+          "availability": "ready"
+        }
+      ]
     }
   ],
   "panels": [
@@ -1722,6 +1849,34 @@
       "title": "激活与工具用量",
       "type": "diagnostics",
       "datasetId": "ds-diag",
+      "size": "m"
+    },
+    {
+      "id": "p-artifacts",
+      "title": "工件目录",
+      "type": "artifacts",
+      "datasetId": "ds-artifacts",
+      "size": "m"
+    },
+    {
+      "id": "p-candles",
+      "title": "报价 K 线",
+      "type": "candles",
+      "datasetId": "ds-candles",
+      "size": "m"
+    },
+    {
+      "id": "p-timemap",
+      "title": "时间映射",
+      "type": "timemap",
+      "datasetId": "ds-timemap",
+      "size": "m"
+    },
+    {
+      "id": "p-checkpoints",
+      "title": "检查点",
+      "type": "checkpoints",
+      "datasetId": "ds-checkpoints",
       "size": "m"
     }
   ],
