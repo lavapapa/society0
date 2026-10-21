@@ -633,3 +633,40 @@ svg { flex-shrink: 0; }
 .flow-step strong { font-size: 10.5px; font-weight: 500; }
 .flow-step small { display: block; font-size: 9.5px; color: var(--faint); }
 .flow-time { font-size: 9px; color: var(--faint); }
+
+/* 空间、轨迹、OD 与扩散 ------------------------------------------------ */
+.map-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; font-size: 10px; color: var(--faint); }
+.map-missing { color: var(--warn-text); }
+.map-tools .link-button { margin-left: auto; }
+.map-stage { border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; background: #f8fbfd; }
+.map-stage svg { width: 100%; display: block; }
+.map-node { cursor: pointer; }
+.map-node circle { fill: #cfe0ec; stroke: #fff; stroke-width: 1.5; }
+.map-node.active circle { fill: #4a8fc2; }
+.map-label { font-size: 9.5px; fill: #365b8f; text-anchor: middle; }
+.map-note { font-size: 8.5px; fill: #8292a1; text-anchor: middle; }
+.route-label { font-size: 8.5px; fill: #7b93a6; text-anchor: middle; }
+.track-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 10px; color: var(--muted); }
+.track-controls input { flex: 1; accent-color: var(--accent); }
+.od-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.od-table th { padding: 4px 6px; background: var(--surface-muted); border: 1px solid var(--line-soft); font-weight: 500; color: var(--muted); font-size: 9.5px; }
+.od-table td { padding: 4px 6px; border: 1px solid var(--line-soft); text-align: center; font-variant-numeric: tabular-nums; }
+.state-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+.state-legend span { display: flex; align-items: center; gap: 4px; }
+.state-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.state-bars { display: flex; flex-direction: column; gap: 4px; }
+.state-bar { display: grid; grid-template-columns: minmax(56px, 0.6fr) minmax(0, 2fr) auto; align-items: center; gap: 8px; font-size: 10px; }
+.state-track { height: 10px; background: #f1f5f8; border-radius: 3px; overflow: hidden; }
+.state-track div { height: 100%; border-radius: 3px; }
+.diffusion-table { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+.diffusion-table th { padding: 4px 6px; background: var(--surface-muted); border-bottom: 1px solid var(--line); font-size: 9px; color: var(--muted); text-align: left; }
+.diffusion-table td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
+
+.track-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 10px; color: var(--muted); margin-bottom: 5px; }
+.track-legend li { display: flex; align-items: center; gap: 4px; }
+.track-legend i { width: 12px; height: 2px; background: #a9c4d6; }
+.track-legend li.active { color: var(--accent-deep); }
+.track-legend li.active i { background: var(--accent); height: 3px; }
+.track-current { margin-left: auto; color: var(--faint); }
+
+.map-stage svg { max-height: 340px; }

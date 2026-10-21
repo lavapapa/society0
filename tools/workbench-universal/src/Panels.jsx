@@ -4,6 +4,7 @@ import { Badge, StateBlock, Skeleton } from './ui.jsx';
 import { ExposurePanel, FeedPanel, GraphPanel } from './SocialPanels.jsx';
 import { BarsPanel, ComparePanel, DistributionPanel, HeatPanel, OrderBookPanel } from './IndustryPanels.jsx';
 import { BoardPanel, EventCalendarPanel, FlowPanel, GanttPanel, TimelinePanel } from './EventPanels.jsx';
+import { DiffusionPanel, MapPanel, ODPanel, TrackPanel } from './SpatialPanels.jsx';
 
 /* ---------- 面板网格：尺寸预设 + 排序 + 键盘移动，持久在浏览器 ---------- */
 
@@ -328,6 +329,10 @@ export const PANEL_TYPES = {
   gantt: GanttPanel,
   board: BoardPanel,
   flow: FlowPanel,
+  map: MapPanel,
+  track: TrackPanel,
+  od: ODPanel,
+  diffusion: DiffusionPanel,
 };
 
 export function renderPanel(panel, datasets, selection, select) {
