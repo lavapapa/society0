@@ -165,10 +165,17 @@ class _Ledger:
     async def find(self, target, *, query='', limit=100, cursor=None):
         identity=_json([self.session.actor.id,asdict(self.session.moment),
                         self.driver.policy.allowed_names,self.driver.policy.allowed_tags])
+        if not _ACTION_CURSOR_VALIDATOR.is_valid(cursor):
+            raise ValueError('Invalid action_find cursor. ' + _ACTION_CURSOR_HELP)
         if cursor is not None and cursor['identity']!=identity:
-            raise ValueError('action cursor mismatch')
-        page=await self.base.find(target,query=query,limit=limit,cursor=None if cursor is None else cursor['cursor'],
-                                  names=self.driver.policy.allowed_names,tags=self.driver.policy.allowed_tags)
+            raise ValueError('Action cursor belongs to a different activation. ' + _ACTION_CURSOR_HELP)
+        try:
+            page=await self.base.find(target,query=query,limit=limit,cursor=None if cursor is None else cursor['cursor'],
+                                      names=self.driver.policy.allowed_names,tags=self.driver.policy.allowed_tags)
+        except ValueError as error:
+            if str(error).startswith('action cursor'):
+                raise ValueError(str(error) + '. ' + _ACTION_CURSOR_HELP) from error
+            raise
         continuation=None if page.next_cursor is None else {'identity':identity,'cursor':page.next_cursor}
         return Page(page.items,page.total,continuation,page.revision)
 
@@ -276,6 +283,19 @@ _REF = {'type': 'object', 'properties': {key: {'type': 'string'} for key in ('na
         'required': ['namespace', 'kind', 'key'], 'additionalProperties': False}
 
 
+_ACTION_CURSOR_HELP = ('For the first page or a new query/target, omit cursor or set it to null. '
+                       'To continue the same query and target, copy the complete next_cursor from the previous result unchanged; '
+                       'do not use an empty object or invent a cursor.')
+_ACTION_CURSOR_SCHEMA = {'type': ['object', 'null'], 'description': _ACTION_CURSOR_HELP,
+    'properties': {'identity': {'type': 'string'}, 'cursor': {
+        'type': 'object', 'properties': {'identity': {'type': 'string'},
+            'offset': {'type': 'integer', 'minimum': 0},
+            'candidates': {'type': 'array', 'items': {'type': 'string'}}},
+        'required': ['identity', 'offset'], 'additionalProperties': False}},
+    'required': ['identity', 'cursor'], 'additionalProperties': False}
+_ACTION_CURSOR_VALIDATOR = validator_for(_ACTION_CURSOR_SCHEMA)(_ACTION_CURSOR_SCHEMA)
+
+
 def _schema(properties):
     return {'type': 'object', 'properties': properties, 'required': list(properties), 'additionalProperties': False}
 
@@ -308,8 +328,9 @@ class LLMDriver:
         dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
         cursor = {**dynamic, 'type': [dynamic['type'], 'null']}
         schemas = {
-            'action_find': _schema({'target': _REF, 'query': {'type': 'string', 'description': 'Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching.'}, 'limit': {'type': 'integer'},
-                                    'cursor': cursor}),
+            'action_find': {**_schema({'target': _REF, 'query': {'type': 'string', 'description': 'Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching.'}, 'limit': {'type': 'integer'},
+                                    'cursor': {**cursor, 'description': _ACTION_CURSOR_HELP} if self.policy.strict_tools else _ACTION_CURSOR_SCHEMA}),
+                            'required': ['target', 'query', 'limit']},
             'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
             'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': dynamic}),
             'ls': {**_schema({'path': {'type':'string'}, 'limit': {'type':'integer'}, 'cursor': cursor if self.policy.strict_tools else {}}), 'required':['path']},
@@ -348,7 +369,7 @@ class LLMDriver:
             return {'result': asdict(result), 'observation': ledger.feedback}
         if name == 'action_find':
             return await _read_tool(ledger.find, Ref(**arguments['target']), query=arguments['query'], limit=arguments['limit'],
-                                    cursor=arguments['cursor'])
+                                    cursor=arguments.get('cursor'))
         if name == 'action_describe':
             return await _read_tool(ledger.describe, arguments['name'], Ref(**arguments['target']))
         if name in ('read','ls','find','grep'):
@@ -494,7 +515,9 @@ class LLMDriver:
                 elif errors := list(schemas[name].iter_errors(arguments)):
                     feedback = _json({'error': 'invalid_tool_arguments', 'details': [
                         {'path': list(error.absolute_path), 'message': error.message,
-                         'validator': error.validator, 'expected': error.validator_value} for error in errors]})
+                         'validator': error.validator, 'expected': error.validator_value} for error in errors],
+                        **({'message': _ACTION_CURSOR_HELP} if name == 'action_find' and
+                           any(list(error.absolute_path)[:1] == ['cursor'] for error in errors) else {})})
                 elif name == 'submit_result':
                     structured = arguments
                     feedback = _json({'status': 'completed', 'result': arguments})
