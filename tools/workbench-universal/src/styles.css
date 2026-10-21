@@ -670,3 +670,32 @@ svg { flex-shrink: 0; }
 .track-current { margin-left: auto; color: var(--faint); }
 
 .map-stage svg { max-height: 340px; }
+
+/* 矩阵、策略、预测与诊断 ------------------------------------------------ */
+.matrix-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.matrix-table th { padding: 5px 7px; background: var(--surface-muted); border: 1px solid var(--line-soft); font-weight: 500; color: var(--muted); font-size: 9.5px; }
+.matrix-table td { padding: 6px 7px; border: 1px solid var(--line-soft); text-align: center; vertical-align: top; }
+.matrix-table td strong { display: block; font-size: 12px; color: var(--accent-deep); }
+.matrix-table td span { display: block; font-size: 10px; color: var(--muted); }
+.matrix-table td small { display: block; font-size: 8.5px; color: var(--faint); margin-top: 2px; }
+.matrix-missing { color: var(--faint); }
+.strategy-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.strategy-table th { padding: 4px 6px; border-bottom: 1px solid var(--line); font-size: 9.5px; color: var(--muted); text-align: left; }
+.strategy-table th i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; }
+.strategy-table td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); font-variant-numeric: tabular-nums; }
+.forecast svg { width: 100%; display: block; }
+.forecast-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 3px; font-size: 10px; color: var(--muted); }
+.forecast-legend li { display: flex; align-items: center; gap: 4px; }
+.forecast-legend i { width: 12px; height: 2px; }
+.forecast-errors { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+.forecast-errors th { padding: 3px 6px; text-align: left; color: var(--muted); font-size: 9px; border-bottom: 1px solid var(--line); }
+.forecast-errors td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); }
+.diag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 6px; margin-bottom: 6px; }
+.diag { padding: 7px 8px; border: 1px solid var(--line-soft); border-radius: 6px; background: #fcfdfe; }
+.diag span { display: block; font-size: 9.5px; color: var(--faint); }
+.diag strong { display: block; font-size: 14px; margin-top: 2px; }
+.diag strong small { font-size: 9px; font-weight: 400; color: var(--faint); }
+.diag > small { display: block; font-size: 9px; color: var(--muted); margin-top: 2px; }
+.diag-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.diag-table th { padding: 3px 6px; text-align: left; color: var(--muted); font-size: 9px; border-bottom: 1px solid var(--line); }
+.diag-table td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); }

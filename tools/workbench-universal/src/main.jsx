@@ -7,6 +7,7 @@ import social from './fixtures/social.json';
 import compare from './fixtures/compare.json';
 import events from './fixtures/events.json';
 import spatial from './fixtures/spatial.json';
+import analysis from './fixtures/analysis.json';
 import './styles.css';
 
 function readData() {
@@ -25,6 +26,7 @@ function readData() {
   if (fixture === 'compare') return compare;
   if (fixture === 'events') return events;
   if (fixture === 'spatial') return spatial;
+  if (fixture === 'analysis') return analysis;
   return emptyStudy;
 }
 
