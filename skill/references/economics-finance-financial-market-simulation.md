@@ -355,6 +355,14 @@ Action mode uses decision LLMDrivers with bank actions discovered against accoun
 
 Do not mix these modes without labeling them. Survey intent measures propensity; action mode changes bank state.
 
+For an action-mode liquidity study, identify the constraints and unknowns that change treatment meaning in the first design pass; complete the relevant settlement contract during configuration before execution:
+
+- Separate book assets, equity, immediately usable settlement funds, eligible unencumbered collateral, and financing proceeds. Track encumbrance, haircuts, borrowing limits and arrival times; avoid counting both a pledged asset and its financing proceeds as fresh liquidity. Existing cash does not require new collateral.
+- Identify payer and recipient accounts and banks. An internal book transfer reallocates deposits; an outgoing interbank payment consumes settlement funds, while incoming funding may replenish them at another time. Payroll and other scheduled payments need an explicit funding route, obligation and settlement window.
+- Separate discretionary customer behavior from contractual payment obligations and channel capacity. Preserve requests, queues, partial/failed settlement, balances and visible feedback. Lower realized outflow can reflect blocked payment rather than restored confidence.
+- Represent timing at the resolution that changes feasibility: funding arrival, collateral release, settlement cutoffs and concentrated payments may require ordered within-day events. Daily totals do not identify their ordering. Update available balances along the dated cash-flow path and evaluate breaches over the requested horizon; a one-day outflow quantile alone does not establish multi-day survival probability.
+- Keep customer types, independent accounts and population weights distinct. Corporate concentration, insurance coverage and payment needs can be attributes, separate roles or explicit external scenarios; state which responses are lost when a role is held exogenous. Check insurance aggregation and eligibility against the applicable jurisdiction.
+
 ### Fidelity Matrix
 
 | Paper element | Society0 mapping | Fidelity |
