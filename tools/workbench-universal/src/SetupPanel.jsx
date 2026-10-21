@@ -95,13 +95,11 @@ function PluginSection({ plugins, study }) {
     <div className="plugin-list">
       {plugins.map((plugin) => (
         <article className="plugin" key={plugin.id}>
-          <h4>
-            {plugin.label}
-            {plugin.category ? <span className="badge">{plugin.category}</span> : null}
-          </h4>
+          <h4>{plugin.label}</h4>
           <Badge state={plugin.availability}>{labelFor(plugin.availability)}</Badge>
           {plugin.description ? <p>{plugin.description}</p> : null}
           <div className="plugin-meta">
+            {plugin.category ? <span>{plugin.category}</span> : null}
             <span className="mono">{plugin.id}</span>
             {plugin.parameters ? <span>{plugin.parameters} 个参数</span> : <span>参数待补充</span>}
             {plugin.dependsOn?.length ? <span>依赖：{plugin.dependsOn.join('、')}</span> : null}
