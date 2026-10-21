@@ -1,0 +1,6 @@
+{
+  "title": "锂电消费税政策传导",
+  "data": "data.json",
+  "template": "../../shell.html",
+  "output": "index.html"
+}
