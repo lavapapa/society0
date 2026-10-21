@@ -1,0 +1,6 @@
+{
+  "title": "政策窗口与组织排程",
+  "data": "data.json",
+  "template": "../../shell.html",
+  "output": "index.html"
+}

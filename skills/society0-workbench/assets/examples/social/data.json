@@ -1,0 +1,488 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "mock",
+  "study": {
+    "id": "study-social-demo",
+    "title": "SNS 社区信息扩散",
+    "question": "推荐顺序、可见范围与模型注入如何影响主体的互动？",
+    "description": "示例资料，用于检查网络、帖子与曝光检查的呈现。",
+    "dataRevision": "2",
+    "updatedAt": "2026-10-21T12:20:00+08:00"
+  },
+  "versions": [
+    {
+      "id": "v014",
+      "label": "v014 · 启用动作入口",
+      "configSource": "versions/v014/experiment.py",
+      "config": {
+        "feed": {
+          "post_count": 6,
+          "use_embedding_similarity": false
+        },
+        "memory": {
+          "auto_write": true,
+          "auto_recall": true
+        }
+      },
+      "configFields": [
+        {
+          "path": "/feed/post_count",
+          "label": "呈现帖数",
+          "type": "number",
+          "description": "每轮呈现给主体的帖子数量。"
+        },
+        {
+          "path": "/feed/use_embedding_similarity",
+          "label": "相似度加权",
+          "type": "boolean",
+          "description": "是否在排序中加入嵌入相似度。"
+        }
+      ]
+    }
+  ],
+  "plugins": [
+    {
+      "id": "social.platform",
+      "label": "社交平台",
+      "category": "环境",
+      "availability": "ready",
+      "description": "帖子、关注、回复与推荐。",
+      "parameters": 11
+    },
+    {
+      "id": "cognition.llm",
+      "label": "大模型主体认知",
+      "category": "主体",
+      "availability": "ready",
+      "description": "完整 Thread 与动态行动。",
+      "parameters": 9
+    }
+  ],
+  "worlds": [
+    {
+      "id": "world-sns",
+      "label": "SNS 社区",
+      "versionId": "v014",
+      "availability": "ready",
+      "plannedSource": "初始世界",
+      "overrides": {}
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-sns-01",
+      "worldId": "world-sns",
+      "versionId": "v014",
+      "label": "三轮试运行",
+      "status": "completed",
+      "dataThrough": "2026-05-09",
+      "availability": "ready"
+    }
+  ],
+  "entities": [
+    {
+      "id": "actor-lin",
+      "label": "凌晨两点半",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "谨慎，先追问来源",
+        "关注": "5 人"
+      }
+    },
+    {
+      "id": "actor-bo",
+      "label": "今天也想摸鱼",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "爱转发"
+      }
+    },
+    {
+      "id": "actor-chen",
+      "label": "像素汽水",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "技术怀疑者"
+      }
+    },
+    {
+      "id": "actor-du",
+      "label": "橘子海.exe",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "情绪化"
+      }
+    },
+    {
+      "id": "actor-eve",
+      "label": "不加糖的拿铁",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "理性观察"
+      }
+    },
+    {
+      "id": "actor-fang",
+      "label": "一只路过的猫",
+      "kind": "大模型主体",
+      "group": "用户",
+      "availability": "ready",
+      "attributes": {
+        "人设": "吃瓜"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "sns-1",
+      "runId": "run-sns-01",
+      "round": 1,
+      "businessTime": "2026-05-07",
+      "label": "第 1 轮",
+      "availability": "ready"
+    },
+    {
+      "id": "sns-2",
+      "runId": "run-sns-01",
+      "round": 2,
+      "businessTime": "2026-05-08",
+      "label": "第 2 轮",
+      "availability": "ready"
+    },
+    {
+      "id": "sns-3",
+      "runId": "run-sns-01",
+      "round": 3,
+      "businessTime": "2026-05-09",
+      "label": "第 3 轮",
+      "availability": "ready"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "ds-graph",
+      "availability": "ready",
+      "title": "关系网络",
+      "source": "mock · 关注边",
+      "nodes": [
+        {
+          "id": "n1",
+          "label": "凌晨两点半",
+          "groupId": "用户",
+          "group": "用户",
+          "entityId": "actor-lin",
+          "size": 3,
+          "note": "发帖 1"
+        },
+        {
+          "id": "n2",
+          "label": "今天也想摸鱼",
+          "group": "用户",
+          "entityId": "actor-bo"
+        },
+        {
+          "id": "n3",
+          "label": "像素汽水",
+          "group": "用户",
+          "entityId": "actor-chen"
+        },
+        {
+          "id": "n4",
+          "label": "橘子海.exe",
+          "group": "用户",
+          "entityId": "actor-du"
+        },
+        {
+          "id": "n5",
+          "label": "不加糖的拿铁",
+          "group": "用户",
+          "entityId": "actor-eve"
+        },
+        {
+          "id": "n6",
+          "label": "一只路过的猫",
+          "group": "用户",
+          "entityId": "actor-fang"
+        },
+        {
+          "id": "n7",
+          "label": "收费传闻",
+          "group": "话题",
+          "size": 5
+        }
+      ],
+      "edges": [
+        {
+          "source": "n2",
+          "target": "n1",
+          "relation": "关注"
+        },
+        {
+          "source": "n3",
+          "target": "n1",
+          "relation": "关注"
+        },
+        {
+          "source": "n4",
+          "target": "n1",
+          "relation": "关注"
+        },
+        {
+          "source": "n5",
+          "target": "n2",
+          "relation": "关注"
+        },
+        {
+          "source": "n6",
+          "target": "n3",
+          "relation": "关注"
+        },
+        {
+          "source": "n1",
+          "target": "n7",
+          "relation": "评论"
+        },
+        {
+          "source": "n2",
+          "target": "n7",
+          "relation": "转发"
+        },
+        {
+          "source": "n4",
+          "target": "n7",
+          "relation": "评论"
+        }
+      ]
+    },
+    {
+      "id": "ds-feed",
+      "availability": "ready",
+      "title": "帖子",
+      "source": "mock · 三轮结果",
+      "posts": [
+        {
+          "id": "post_1",
+          "author": "凌晨两点半",
+          "authorEntityId": "actor-lin",
+          "at": "2026-05-07",
+          "tick": 1,
+          "content": "刷到一张截图，说下周开始收藏夹要收费了？还没找到官方公告，有人知道原始出处吗？",
+          "originalOrder": 0,
+          "scope": "recommended",
+          "likes": 2,
+          "replies": [
+            {
+              "id": "r1",
+              "author": "像素汽水",
+              "at": "2026-05-08",
+              "content": "这个截图看着像去年的旧图，时间线对不上。"
+            },
+            {
+              "id": "r2",
+              "author": "橘子海.exe",
+              "at": "2026-05-08",
+              "content": "先别慌，等公告。"
+            }
+          ]
+        },
+        {
+          "id": "post_2",
+          "author": "今天也想摸鱼",
+          "authorEntityId": "actor-bo",
+          "at": "2026-05-08",
+          "tick": 2,
+          "content": "刚问了客服，回复是“暂未接到通知”，但也没有否认。",
+          "originalOrder": 1,
+          "scope": "recommended",
+          "likes": 5,
+          "replies": [
+            {
+              "id": "r3",
+              "author": "不加糖的拿铁",
+              "at": "2026-05-09",
+              "content": "客服口径不能当证据。"
+            }
+          ]
+        },
+        {
+          "id": "post_3",
+          "author": "像素汽水",
+          "authorEntityId": "actor-chen",
+          "at": "2026-05-09",
+          "tick": 3,
+          "content": "整理了一下时间线，三条传闻版本互相矛盾，缺乏原始出处。",
+          "originalOrder": 2,
+          "scope": "visible",
+          "likes": 7,
+          "replies": []
+        }
+      ]
+    },
+    {
+      "id": "ds-exposure",
+      "availability": "partial",
+      "title": "曝光与注入",
+      "source": "mock · 轮次记录",
+      "rows": [
+        {
+          "id": "x1",
+          "actor": "凌晨两点半",
+          "recommended": 6,
+          "visible": 0,
+          "injected": 0,
+          "addedLater": 2
+        },
+        {
+          "id": "x2",
+          "actor": "今天也想摸鱼",
+          "recommended": 6,
+          "visible": 1,
+          "injected": 1,
+          "addedLater": 1
+        },
+        {
+          "id": "x3",
+          "actor": "像素汽水",
+          "recommended": 6,
+          "visible": 2,
+          "injected": 2,
+          "addedLater": 0
+        }
+      ]
+    },
+    {
+      "id": "ds-thread",
+      "availability": "ready",
+      "title": "主体会话",
+      "source": "mock · Thread",
+      "total": 4,
+      "messages": [
+        {
+          "seq": 1,
+          "role": "system",
+          "content": "你是 SNS 社区的用户「凌晨两点半」，谨慎，先追问来源。"
+        },
+        {
+          "seq": 2,
+          "role": "user",
+          "content": "本轮推荐的帖子：post_1。成员：bo、chen、du、eve、fang。"
+        },
+        {
+          "seq": 3,
+          "role": "assistant",
+          "content": "我先评论追问出处。"
+        },
+        {
+          "seq": 4,
+          "role": "tool",
+          "tool": "social.comment",
+          "status": "completed",
+          "content": "{\"reply_id\": 1}"
+        }
+      ]
+    },
+    {
+      "id": "ds-records",
+      "availability": "ready",
+      "title": "互动记录",
+      "source": "mock · 事件",
+      "records": [
+        {
+          "id": "g1",
+          "title": "评论 post_1",
+          "at": "2026-05-07",
+          "actor": "凌晨两点半",
+          "body": "追问截图出处与时间线。",
+          "entityId": "actor-lin"
+        },
+        {
+          "id": "g2",
+          "title": "关注 像素汽水",
+          "at": "2026-05-08",
+          "actor": "今天也想摸鱼",
+          "body": "关注关系新增一条。",
+          "entityId": "actor-bo"
+        },
+        {
+          "id": "g3",
+          "title": "发帖",
+          "at": "2026-05-09",
+          "actor": "像素汽水",
+          "body": "整理时间线，指出三条传闻互相矛盾。",
+          "entityId": "actor-chen"
+        }
+      ]
+    }
+  ],
+  "documents": [],
+  "artifacts": [],
+  "workspace": {
+    "pages": [
+      "setup",
+      "runs"
+    ],
+    "panels": [],
+    "defaultSelection": {},
+    "timeModes": [
+      "round",
+      "calendar"
+    ],
+    "configSections": [
+      {
+        "id": "environment",
+        "label": "环境与时间"
+      },
+      {
+        "id": "agents",
+        "label": "主体与决策"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "p-graph",
+      "title": "关系网络",
+      "type": "graph",
+      "datasetId": "ds-graph",
+      "size": "m"
+    },
+    {
+      "id": "p-feed",
+      "title": "帖子浏览",
+      "type": "feed",
+      "datasetId": "ds-feed",
+      "size": "m"
+    },
+    {
+      "id": "p-exposure",
+      "title": "曝光与注入",
+      "type": "exposure",
+      "datasetId": "ds-exposure",
+      "size": "l"
+    },
+    {
+      "id": "p-thread",
+      "title": "主体会话：凌晨两点半",
+      "type": "thread",
+      "datasetId": "ds-thread",
+      "size": "m"
+    },
+    {
+      "id": "p-records",
+      "title": "互动记录",
+      "type": "records",
+      "datasetId": "ds-records",
+      "size": "l"
+    }
+  ]
+}
