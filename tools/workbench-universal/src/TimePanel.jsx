@@ -28,22 +28,22 @@ function monthMatrix(year, month) {
   });
 }
 
-/** 轮次 / 日历双模式时间定位；日历按需展开，不遮挡主区。 */
-/** 顶栏中间的时间插槽：没有运行时给出占位，保证标签栏位置不随右侧控件变化。 */
-export function TimePicker({ run, observations, selection, select, modes }) {
+/**
+ * 时点定位：资料声明用轮次还是日历，界面只呈现那一种形态。
+ * 轮次给步进与可用时点列表，日历给月历与同日多点选择。
+ */
+export function TimePicker({ run, observations, selection, select, mode }) {
   if (!run || !observations.length) return null;
-  return <TimeControl observations={observations} selection={selection} select={select} modes={modes} />;
+  return <TimeControl observations={observations} selection={selection} select={select} mode={mode} />;
 }
 
-export function TimeControl({ observations, selection, select, modes }) {
-  const allowed = modes?.length ? modes : ['round', 'calendar'];
+export function TimeControl({ observations, selection, select, mode = 'round' }) {
   const hasDates = observations.some((obs) => parseDate(obs.businessTime));
-  const canCalendar = hasDates && allowed.includes('calendar');
+  const calendar = mode === 'calendar' && hasDates;
 
   const current = observations.find((obs) => obs.id === selection.observationId) || observations[0] || null;
   const index = current ? observations.indexOf(current) : -1;
 
-  const [mode, setMode] = useState(canCalendar ? 'calendar' : 'round');
   const [open, setOpen] = useState(false);
   const trigger = useRef(null);
   const { anchorRef, popoverRef, style: popoverStyle } = useAnchoredPopover(open, 300);
@@ -93,13 +93,6 @@ export function TimeControl({ observations, selection, select, modes }) {
 
   return (
     <div className="time-control">
-      {canCalendar ? (
-        <div className="time-mode" role="group" aria-label="时间模式">
-          <button type="button" aria-pressed={mode === 'round'} onClick={() => { setMode('round'); setOpen(false); }}>轮次</button>
-          <button type="button" aria-pressed={mode === 'calendar'} onClick={() => setMode('calendar')}>日历</button>
-        </div>
-      ) : null}
-
       <button type="button" className="icon-button" aria-label="上一个时点" disabled={index <= 0} onClick={() => step(-1)}>‹</button>
 
       <button
@@ -117,9 +110,8 @@ export function TimeControl({ observations, selection, select, modes }) {
 
       <button type="button" className="icon-button" aria-label="下一个时点" disabled={index < 0 || index >= observations.length - 1} onClick={() => step(1)}>›</button>
 
-      {!canCalendar && allowed.includes('calendar') ? <span className="time-note">没有日期映射，日历不可用</span> : null}
 
-      {open && (!canCalendar || mode === 'round') ? (
+      {open && !calendar ? (
         <div className="observation-list" role="dialog" aria-label="选择时点" ref={popoverRef} style={popoverStyle}>
           <div className="observation-head">
             <strong>可用时点</strong>
@@ -143,7 +135,7 @@ export function TimeControl({ observations, selection, select, modes }) {
         </div>
       ) : null}
 
-      {open && mode === 'calendar' && canCalendar ? (
+      {open && calendar ? (
         <div className="calendar" role="dialog" aria-label="按日期选择观测点" ref={popoverRef} style={popoverStyle}>
           <div className="calendar-head">
             <button type="button" className="icon-button" aria-label="上个月" onClick={() => shiftMonth(-1)}>‹</button>

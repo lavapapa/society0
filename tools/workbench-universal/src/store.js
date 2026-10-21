@@ -41,6 +41,7 @@ export function useWorkbench(raw) {
   const [worldId, setWorldId] = useState(() => stored.selection?.worldId || '');
   const [observationId, setObservationId] = useState(() => stored.selection?.observationId || '');
   const [entityId, setEntityId] = useState(() => stored.selection?.entityId || '');
+  const [pluginId, setPluginId] = useState(() => stored.selection?.pluginId || '');
   const [pageId, setPageId] = useState(() => stored.selection?.pageId || '');
   const [sectionId, setSectionId] = useState(() => stored.selection?.sectionId || 'plugins');
   const [collapsed, setCollapsed] = useState(() => Boolean(stored.ui?.collapsed));
@@ -53,11 +54,11 @@ export function useWorkbench(raw) {
 
   useEffect(() => {
     writeStored(data.study.id, {
-      selection: { versionId, runId, worldId, observationId, entityId, pageId, sectionId },
+      selection: { versionId, runId, worldId, observationId, entityId, pluginId, pageId, sectionId },
       ui: { collapsed },
       drafts,
     });
-  }, [data.study.id, versionId, runId, worldId, observationId, entityId, pageId, sectionId, collapsed, drafts]);
+  }, [data.study.id, versionId, runId, worldId, observationId, entityId, pluginId, pageId, sectionId, collapsed, drafts]);
 
   useEffect(() => {
     if (runId && !runs.some((run) => run.id === runId)) setRunId('');
@@ -96,6 +97,7 @@ export function useWorkbench(raw) {
     if ('worldId' in patch) setWorldId(patch.worldId);
     if ('observationId' in patch) setObservationId(patch.observationId);
     if ('entityId' in patch) setEntityId(patch.entityId);
+    if ('pluginId' in patch) setPluginId(patch.pluginId);
     if ('pageId' in patch) setPageId(patch.pageId);
     if ('sectionId' in patch) setSectionId(patch.sectionId);
   }, []);
@@ -105,7 +107,7 @@ export function useWorkbench(raw) {
     version,
     runs,
     worlds,
-    selection: { versionId, runId, worldId, observationId, entityId, pageId, sectionId },
+    selection: { versionId, runId, worldId, observationId, entityId, pluginId, pageId, sectionId },
     collapsed,
     setCollapsed,
     select,

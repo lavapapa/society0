@@ -784,3 +784,61 @@ svg { flex-shrink: 0; }
 .checkpoints small { color: var(--faint); font-size: 9.5px; }
 .checkpoints em { font-style: normal; font-size: 9.5px; color: var(--faint); }
 
+
+/* 运行模态框 ------------------------------------------------------------ */
+.run-launcher { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.run-launcher:hover { background: #eef4f8; color: var(--accent-deep); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgb(23 43 58 / 34%); }
+.modal { display: flex; flex-direction: column; width: min(1080px, 96vw); max-height: 86vh; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 30px 80px rgb(20 40 56 / 28%); overflow: hidden; }
+.modal-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); background: var(--surface-muted); }
+.modal-head .spacer { flex: 1; }
+.modal-head strong { font-size: 12px; }
+.modal-body { padding: 14px; overflow: auto; }
+.modal-section { margin-top: 14px; }
+.kanban { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; align-items: start; }
+.kanban-column { display: flex; flex-direction: column; background: var(--surface-muted); border: 1px solid var(--line-soft); border-radius: 8px; min-height: 120px; }
+.kanban-column > header { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; font-size: 10.5px; color: var(--muted); border-bottom: 1px solid var(--line-soft); }
+.kanban-column > header span { font-size: 9.5px; color: var(--faint); }
+.kanban-column ul { display: flex; flex-direction: column; gap: 5px; padding: 6px; }
+.kanban-card { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 7px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; text-align: left; }
+.kanban-card:hover { border-color: #b9cfdd; box-shadow: 0 2px 6px #23415814; }
+.kanban-card strong { font-size: 10.5px; font-weight: 500; }
+.kanban-card small { font-size: 9.5px; color: var(--faint); }
+.kanban-card .run-status { align-self: flex-start; margin-top: 2px; }
+.kanban-empty { padding: 10px 4px; text-align: center; font-size: 9.5px; color: var(--faint); }
+.obs-list { display: flex; flex-direction: column; }
+.obs-item { display: grid; grid-template-columns: minmax(90px, 0.5fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--line-soft); font-size: 10.5px; }
+.obs-time { color: var(--faint); }
+
+/* 世界谱系图（Archify dataflow 思路） ------------------------------------ */
+.world-diagram { display: flex; flex-direction: column; gap: 8px; }
+.world-diagram svg { width: 100%; height: auto; max-height: 58vh; margin: 0 auto; display: block; background: #fcfdfe; border: 1px solid var(--line-soft); border-radius: 8px; }
+.world-title { font-size: 11.5px; font-weight: 600; fill: #1f3a4d; }
+.world-meta { font-size: 9.5px; fill: #7b93a6; }
+.world-param { font-size: 9px; fill: #365b8f; font-family: var(--mono); }
+.world-edge-label { font-size: 9px; fill: #93a9ba; }
+.world-run-count { font-size: 8.5px; fill: #9aabb9; }
+.world-run-dot { cursor: pointer; fill: #9fb6c6; }
+.world-run-dot.completed { fill: #6aa88f; }
+.world-run-dot.running { fill: #4a8fc2; }
+.world-run-dot.failed { fill: #c0867f; }
+.world-run-dot.queued { fill: #cbb894; }
+.world-run-dot.active { stroke: #365b8f; stroke-width: 1.6; }
+.world-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 9.5px; color: var(--faint); justify-content: center; }
+.world-legend li { display: flex; align-items: center; gap: 5px; }
+.world-legend i { width: 10px; height: 10px; display: inline-block; flex-shrink: 0; }
+
+/* 配置导航图标 ---------------------------------------------------------- */
+.side-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; color: var(--faint); }
+.side-item[aria-current='true'] .side-icon { color: var(--accent-deep); }
+.side-sub { padding-left: 16px; }
+.side-kv { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 3px 8px; padding: 2px 4px 6px; font-size: 10.5px; }
+.side-kv dt { color: var(--faint); }
+.side-kv dd { overflow: hidden; text-overflow: ellipsis; }
+button.plugin { text-align: left; width: 100%; cursor: pointer; }
+button.plugin[aria-current='true'] { border-color: var(--accent); background: #f5fafd; }
+@media (max-width: 900px) {
+  .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modal { width: 96vw; max-height: 90vh; }
+  .modal-backdrop { padding: 8px; }
+}
