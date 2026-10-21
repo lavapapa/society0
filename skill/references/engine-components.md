@@ -8,6 +8,8 @@
 
 标准工厂包括 actor_data_plugin、actor_plugin、interaction_plugin、thread_plugin、memory_plugin、model_plugin、embedding_plugin、workspace_plugin、results_plugin、dataset_plugin、runtime_plugin。按实际消费者选用，普通规则不需要模型、记忆或 shell。领域机制通过 PluginContext.require 获取显式依赖服务，provide 暴露自身服务，on_close 归还资源，on_step 注册完整步骤钩子。
 
+选择典型插件集、补齐依赖闭包或替换实现时，按[插件集与装配](<plugin-sets.md>)形成角色绑定、时空状态归属及字段消费者清单。
+
 ## 二、交互
 
 ActorRecord 保存人格、主观状态、配置和角色；actor_data_plugin 提供独立 directory，actor_plugin 将目录与驱动工厂绑定为 ActorStore，并按实际主体按需加载。机制依赖目录，驱动可再依赖机制输入。Driver 可以是规则或 LLM，使用绑定身份的 Session。共享 Information 提供目录、分页数据与原文范围；Actions 注册按目标类型发现的模板，执行时重新检查资格。信息读取资格与领域允许的行动由机制定义。

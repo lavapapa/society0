@@ -75,6 +75,7 @@ description: "帮助用户使用 Society0 把现实问题或论文转成仿真�
 | 深化实验方法和可识别性 | [设计方法](references/research-design.md) |
 | 社会仿真的本质、研究先例和设计取舍 | [设计经验](references/founder-experience.md) |
 | 查现有引擎与插件能力 | [组件](references/engine-components.md) |
+| 选插件集、补依赖、绑定服务或开发替换实现 | [插件集与装配](references/plugin-sets.md) |
 | 明确状态、FoV 与环境约束 | [环境设计](references/environment-design.md) |
 | 主体身份、认知与行动 | [主体设计](references/agent-design.md) |
 | 编写步骤与时序 | [调度](references/step-dsl.md) |
