@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime } from './data.js';
 import { Badge, StateBlock, Skeleton } from './ui.jsx';
+import { ExposurePanel, FeedPanel, GraphPanel } from './SocialPanels.jsx';
 
 /* ---------- 面板网格：尺寸预设 + 排序 + 键盘移动，持久在浏览器 ---------- */
 
@@ -66,7 +67,7 @@ export function PanelGrid({ panels, renderPanel, layout, onLayout }) {
               <span className="spacer" />
               <div className="tile-size" role="group" aria-label={`${panel.title}尺寸`}>
                 {Object.entries(SIZES).map(([key, value]) => (
-                  <button key={key} type="button" aria-pressed={size === key} onClick={() => resize(id, key)} title={value.label}>{key === 'full' ? '全' : key}</button>
+                  <button key={key} type="button" aria-pressed={size === key} onClick={() => resize(id, key)} title={value.label}>{value.label}</button>
                 ))}
               </div>
               <button type="button" className="icon-button" aria-label="上移面板" disabled={index === 0} onClick={() => move(id, -1)}>↑</button>
@@ -312,6 +313,9 @@ export const PANEL_TYPES = {
   records: RecordPanel,
   thread: ThreadPanel,
   document: DocumentPanel,
+  graph: GraphPanel,
+  feed: FeedPanel,
+  exposure: ExposurePanel,
 };
 
 export function renderPanel(panel, datasets, selection, select) {
@@ -321,6 +325,8 @@ export function renderPanel(panel, datasets, selection, select) {
     return <Custom dataset={dataset} selection={selection} select={select} />;
   }
   const Component = PANEL_TYPES[panel.type] || PANEL_TYPES.document;
-  if (panel.type === 'records') return <Component dataset={dataset} selection={selection} select={select} />;
+  if (panel.type === 'records' || panel.type === 'graph' || panel.type === 'feed' || panel.type === 'exposure') {
+    return <Component dataset={dataset} selection={selection} select={select} />;
+  }
   return <Component dataset={dataset} />;
 }

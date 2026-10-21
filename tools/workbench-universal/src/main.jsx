@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.jsx';
 import emptyStudy from './fixtures/empty-study.json';
 import progressive from './fixtures/progressive.json';
+import social from './fixtures/social.json';
 import './styles.css';
 
 function readData() {
@@ -16,7 +17,9 @@ function readData() {
     }
   }
   const fixture = new URLSearchParams(window.location.search).get('fixture');
-  return fixture === 'progressive' ? progressive : emptyStudy;
+  if (fixture === 'progressive') return progressive;
+  if (fixture === 'social') return social;
+  return emptyStudy;
 }
 
 createRoot(document.getElementById('root')).render(<App raw={readData()} />);

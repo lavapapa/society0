@@ -1,0 +1,6 @@
+{
+  "title": "SNS 社区信息扩散",
+  "data": "data.json",
+  "template": "../../shell.html",
+  "output": "index.html"
+}
