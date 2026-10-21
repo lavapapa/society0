@@ -326,7 +326,277 @@
       "availability": "ready"
     }
   ],
-  "datasets": [],
+  "datasets": [
+    {
+      "id": "ds-metrics",
+      "availability": "ready",
+      "title": "关键指标",
+      "source": "mock · 经营汇总",
+      "items": [
+        {
+          "label": "本月产量",
+          "value": "1,240",
+          "unit": "万只",
+          "delta": "+8.4%"
+        },
+        {
+          "label": "平均单位成本",
+          "value": "82.6",
+          "unit": "元",
+          "delta": "−1.2%",
+          "deltaTone": "down"
+        },
+        {
+          "label": "计提消费税",
+          "value": "312.4",
+          "unit": "万元",
+          "note": "按已提供口径"
+        },
+        {
+          "label": "库存天数",
+          "value": "—",
+          "unit": "天",
+          "note": "尚未提供"
+        }
+      ]
+    },
+    {
+      "id": "ds-price",
+      "availability": "partial",
+      "title": "价格与税额",
+      "source": "mock · 交易汇总",
+      "range": "2026-05-01 ~ 2026-06-30",
+      "series": [
+        {
+          "key": "price",
+          "label": "单位售价",
+          "unit": "元",
+          "points": [
+            {
+              "t": 1,
+              "v": 100
+            },
+            {
+              "t": 2,
+              "v": 104
+            },
+            {
+              "t": 3,
+              "v": 101
+            },
+            {
+              "t": 4,
+              "v": 108
+            },
+            {
+              "t": 5,
+              "v": 112
+            },
+            {
+              "t": 6,
+              "v": 110
+            }
+          ]
+        },
+        {
+          "key": "tax",
+          "label": "单位税额",
+          "unit": "元",
+          "points": [
+            {
+              "t": 1,
+              "v": 0
+            },
+            {
+              "t": 2,
+              "v": 0
+            },
+            {
+              "t": 3,
+              "v": 0
+            },
+            {
+              "t": 4,
+              "v": 2.1
+            },
+            {
+              "t": 5,
+              "v": 2.1
+            },
+            {
+              "t": 6,
+              "v": 2.4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ds-stock",
+      "availability": "ready",
+      "title": "企业库存",
+      "source": "mock · 当前投影",
+      "total": 4,
+      "loadedRange": "4 / 4",
+      "columns": [
+        {
+          "key": "actor",
+          "label": "企业"
+        },
+        {
+          "key": "product",
+          "label": "产品"
+        },
+        {
+          "key": "units",
+          "label": "数量",
+          "align": "right"
+        },
+        {
+          "key": "cost",
+          "label": "单位成本",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        {
+          "id": "r1",
+          "actor": "宁德时代",
+          "product": "方形电芯",
+          "units": "12,400",
+          "cost": "82.6"
+        },
+        {
+          "id": "r2",
+          "actor": "宁德时代",
+          "product": "圆柱电芯",
+          "units": "3,100",
+          "cost": "76.2"
+        },
+        {
+          "id": "r3",
+          "actor": "弗迪电池",
+          "product": "刀片电芯",
+          "units": "8,900",
+          "cost": "79.4"
+        },
+        {
+          "id": "r4",
+          "actor": "正极材料厂",
+          "product": "磷酸铁锂",
+          "units": "420",
+          "cost": "4.1"
+        }
+      ]
+    },
+    {
+      "id": "ds-thread",
+      "availability": "ready",
+      "title": "主体会话",
+      "source": "mock · Thread",
+      "total": 6,
+      "messages": [
+        {
+          "seq": 1,
+          "role": "system",
+          "content": "你是宁德时代的经营负责人。"
+        },
+        {
+          "seq": 2,
+          "role": "user",
+          "content": "当前经营：库存 12,400 单位，现金 3.2 亿元。"
+        },
+        {
+          "seq": 3,
+          "role": "assistant",
+          "content": "先查看上游报价，再决定本月排产。"
+        },
+        {
+          "seq": 4,
+          "role": "tool",
+          "tool": "industry.operating_plan",
+          "content": "返回 3 条计划，其中 1 条待确认。"
+        },
+        {
+          "seq": 5,
+          "role": "assistant",
+          "content": "将方形电芯排产维持在 1,200，并上调售价 2%。"
+        },
+        {
+          "seq": 6,
+          "role": "tool",
+          "tool": "industry.update_plan",
+          "status": "completed",
+          "content": "计划已保存。"
+        }
+      ]
+    },
+    {
+      "id": "ds-records",
+      "availability": "ready",
+      "title": "近期记录",
+      "source": "mock · 事件记录",
+      "records": [
+        {
+          "id": "e1",
+          "title": "提交月度经营计划",
+          "at": "2026-05-22",
+          "actor": "宁德时代",
+          "body": "计划包含排产、采购与销售三项。\n上游报价仍在确认。",
+          "entityId": "actor-001"
+        },
+        {
+          "id": "e2",
+          "title": "政策公告发布",
+          "at": "2026-05-20",
+          "actor": "地方税务部门",
+          "body": "公告日与生效日分离：9 月 1 日生效。"
+        },
+        {
+          "id": "e3",
+          "title": "库存盘点",
+          "at": "2026-05-18",
+          "actor": "弗迪电池",
+          "body": "刀片电芯库存 8,900 单位。",
+          "availability": "partial"
+        }
+      ]
+    },
+    {
+      "id": "ds-doc",
+      "availability": "ready",
+      "title": "政策说明",
+      "source": "mock · 情景文档",
+      "paragraphs": [
+        "消费税在法定生产销售环节征收。",
+        "同一批商品完成该环节后，普通转售只携带已税状态。",
+        "连续生产的抵扣资格按直接来源、产品转换与税务规则判断。"
+      ]
+    },
+    {
+      "id": "ds-issues",
+      "availability": "ready",
+      "title": "议题与证据",
+      "source": "mock · 研究整理",
+      "rows": [
+        {
+          "id": "i1",
+          "issue": "税负是否完全转嫁",
+          "support": "售价上调 2%",
+          "counter": "销量同步下滑",
+          "status": "待定",
+          "entityId": "actor-001"
+        },
+        {
+          "id": "i2",
+          "issue": "上游能否吸收税负",
+          "support": "材料报价稳定",
+          "counter": "产能利用率下降",
+          "status": "未定"
+        }
+      ]
+    }
+  ],
   "documents": [
     {
       "id": "doc-01",
@@ -359,5 +629,56 @@
         "label": "主体与决策"
       }
     ]
-  }
+  },
+  "panels": [
+    {
+      "id": "p-metrics",
+      "title": "关键指标",
+      "type": "metric",
+      "datasetId": "ds-metrics",
+      "size": "l"
+    },
+    {
+      "id": "p-price",
+      "title": "价格与税额走势",
+      "type": "series",
+      "datasetId": "ds-price",
+      "size": "l"
+    },
+    {
+      "id": "p-stock",
+      "title": "企业库存",
+      "type": "table",
+      "datasetId": "ds-stock",
+      "size": "m"
+    },
+    {
+      "id": "p-thread",
+      "title": "主体会话：宁德时代",
+      "type": "thread",
+      "datasetId": "ds-thread",
+      "size": "m"
+    },
+    {
+      "id": "p-records",
+      "title": "近期记录",
+      "type": "records",
+      "datasetId": "ds-records",
+      "size": "l"
+    },
+    {
+      "id": "p-doc",
+      "title": "政策说明",
+      "type": "document",
+      "datasetId": "ds-doc",
+      "size": "m"
+    },
+    {
+      "id": "p-issues",
+      "title": "议题与证据",
+      "type": "table",
+      "datasetId": "ds-issues",
+      "size": "m"
+    }
+  ]
 }

@@ -3,10 +3,11 @@ import { RUN_STATUS_LABELS, describeRevision } from './data.js';
 import { SetupInsight, SetupMain, SetupWorkspace } from './SetupPanel.jsx';
 import { RunDetail, RunPicker } from './RunPanel.jsx';
 import { TimeControl } from './TimePanel.jsx';
+import { ObserveMain, useLayout } from './ObservePage.jsx';
 import { useWorkbench } from './store.js';
 import { buildProposal, copyText, diffConfig, proposalText } from './proposal.js';
 
-const PAGES = [
+const BASE_PAGES = [
   { id: 'setup', label: '实验设置' },
   { id: 'runs', label: '运行' },
 ];
@@ -14,7 +15,9 @@ const PAGES = [
 export function App({ raw }) {
   const wb = useWorkbench(raw);
   const { data, version, runs, worlds, selection, select, collapsed, setCollapsed, draftFor } = wb;
-  const pageId = PAGES.some((page) => page.id === selection.pageId) ? selection.pageId : 'setup';
+  const pages = [...BASE_PAGES, ...(data.panels.length ? [{ id: 'observe', label: '观察' }] : [])];
+  const pageId = pages.some((page) => page.id === selection.pageId) ? selection.pageId : 'setup';
+  const [layout, setLayout] = useLayout(data.study.id);
 
   const source = version?.configSource || '';
   const draft = draftFor(source);
@@ -48,7 +51,7 @@ export function App({ raw }) {
         </div>
         <div className="topbar-center">
           <nav className="pages" aria-label="工作台页面">
-            {PAGES.map((page) => (
+            {pages.map((page) => (
               <button key={page.id} type="button" aria-current={pageId === page.id ? 'page' : undefined} onClick={() => select({ pageId: page.id })}>
                 {page.label}
               </button>
@@ -103,6 +106,8 @@ export function App({ raw }) {
           <section className="panel workspace" aria-label="工作区">
             {pageId === 'setup' ? (
               <SetupMain {...wb} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
+            ) : pageId === 'observe' ? (
+              <ObserveMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             ) : (
               <RunDetail run={run} world={world} observations={observations} selection={selection} select={select} />
             )}
