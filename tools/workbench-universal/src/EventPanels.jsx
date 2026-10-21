@@ -82,7 +82,13 @@ export function EventCalendarPanel({ dataset }) {
             <div key={key} className={`month-cell${outside ? ' outside' : ''}`}>
               <span className="month-date">{date.getUTCDate()}</span>
               {items.slice(0, 3).map((event) => (
-                <span key={event.id} className={`event-chip layer-${layers.indexOf(event.layer || '事件') % 4}`} title={`${event.title}${event.until ? ` · 至 ${event.until}` : ''}`}>
+                <span
+                  key={event.id}
+                  className={`event-chip layer-${layers.indexOf(event.layer || '事件') % 4}`}
+                  tabIndex={0}
+                  aria-label={`${event.title}，${event.start}${event.until ? ` 至 ${event.until}` : ''}`}
+                  title={`${event.title}${event.until ? ` · 至 ${event.until}` : ''}`}
+                >
                   {event.short || event.title}
                 </span>
               ))}
@@ -91,7 +97,19 @@ export function EventCalendarPanel({ dataset }) {
           );
         })}
       </div>
-      <p className="panel-source">本月 {monthEvents.length} 个事件；区间事件在开始日记入，结束日期在详情中列出。{dataset.source ? `来源：${dataset.source}` : ''}</p>
+      {monthEvents.length ? (
+        <ul className="month-event-list">
+          {monthEvents.map((event) => (
+            <li key={`list-${event.id}`}>
+              <span className="event-date">{String(event.start).slice(5)}</span>
+              <span className="event-title">{event.title}</span>
+              {event.until ? <small>至 {String(event.until).slice(5)}</small> : null}
+              <em>{event.layer || '事件'}</em>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="panel-source">本月 {monthEvents.length} 个事件；区间事件在开始日记入，结束日期在右侧列出。{dataset.source ? `来源：${dataset.source}` : ''}</p>
     </div>
   );
 }

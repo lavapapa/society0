@@ -61,7 +61,7 @@ def main():
     project = {
         "title": args.title,
         "data": "data.json",
-        "template": os.path.relpath(TEMPLATE, target),
+        "template": os.path.relpath(os.path.realpath(TEMPLATE), os.path.realpath(target)),
         "output": "index.html",
     }
     (target / "project.json").write_text(json.dumps(project, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

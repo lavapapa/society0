@@ -183,6 +183,15 @@ export function SeriesPanel({ dataset }) {
             <line key={ratio} x1={pad.left} x2={width - pad.right} y1={pad.top + plotH * ratio} y2={pad.top + plotH * ratio} stroke="#eef3f7" />
           ))}
           <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + plotH} stroke="#dfe7ee" />
+          <line x1={pad.left} x2={width - pad.right} y1={pad.top + plotH} y2={pad.top + plotH} stroke="#dfe7ee" />
+          {[0, 0.5, 1].map((ratio) => {
+            const value = minX + (maxX - minX) * ratio;
+            return (
+              <text key={`x${ratio}`} x={x(value)} y={height - 6} fontSize="10" fill="#8292a1" textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'}>
+                {formatAxis(value)}
+              </text>
+            );
+          })}
           {series.map((line, index) => {
             const values = (line.points || []).map((point) => point.v);
             const lo = Math.min(...values);
@@ -217,6 +226,11 @@ export function SeriesPanel({ dataset }) {
       {dataset.source ? <p className="panel-source">来源：{dataset.source}{dataset.range ? ` · 范围 ${dataset.range}` : ''}</p> : null}
     </DatasetState>
   );
+}
+
+function formatAxis(value) {
+  if (!Number.isFinite(value)) return '—';
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function formatNumber(value) {

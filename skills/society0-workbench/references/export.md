@@ -2,14 +2,14 @@
 
 默认交付是单个 HTML，双击即可打开，不依赖 CDN、本地服务或模型端点。
 
-## 一、构建
+## 一、页面从哪来
 
-```bash
-cd tools/workbench-universal
-npm run build
-```
+安装副本已经带好构建产物 `assets/shell.html`，不需要 Node，也不需要源码工程：
 
-产物位于 `dist/index.html`，样式、脚本与当前资料均内联。
+- 直接打开 `assets/examples/atlas/index.html` 查看组件；
+- 需要自己的页面时用 `scripts/create_workbench.py` 生成，再用 `scripts/render_workbench.py` 刷新。
+
+只有修改组件源码时才需要 Core 仓的 `tools/workbench-universal`：`npm run build` 产出 `dist/index.html`，再复制为 `assets/shell.html`。安装副本不含该工程。
 
 ## 二、项目级导出
 
