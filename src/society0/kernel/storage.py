@@ -667,9 +667,11 @@ class StageStore:
                     raise StorageError('active writer prevents latest readonly snapshot') from error
                 original = apsw.Connection(str(source / 'current.sqlite'), flags=apsw.SQLITE_OPEN_READONLY)
                 try:
-                    row = original.execute('SELECT complete_step,failed FROM _stage_runtime').get
-                    if row is None or row[0] != selected or row[1] != 0:
-                        raise StorageError('current database is not a complete step')
+                    row = original.execute('SELECT run_id,revision,complete_step,failed FROM _stage_runtime').get
+                    latest_descriptor = cls._latest(source)
+                    if (row is None or row[0] != manifest['run_id'] or row[2] != selected
+                            or row[3] != 0 or row[1] != latest_descriptor['live_revision']):
+                        raise StorageError('current database is not a clean complete step')
                     if _schema(original) != manifest['schema']:
                         raise StorageError('schema mismatch')
                     _backup(original, temporary / 'current.sqlite')
