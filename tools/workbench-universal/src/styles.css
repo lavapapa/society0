@@ -712,3 +712,12 @@ svg { flex-shrink: 0; }
 .atlas-index span { color: var(--muted); }
 .atlas-index em { font-style: normal; font-size: 9px; color: var(--faint); text-align: right; }
 .atlas-index li.missing { opacity: 0.55; }
+
+/* 移动端观察范围抽屉 ---------------------------------------------------- */
+.mobile-nav { display: none; }
+@media (max-width: 620px) {
+  .mobile-nav { display: inline-flex; height: 24px; width: 28px; padding: 0; border: 1px solid transparent; background: transparent; color: var(--muted); font-size: 13px; margin-right: 2px; }
+  .mobile-nav[aria-expanded='true'] { background: #fff; border-color: #cbd9e5; color: var(--accent-deep); }
+  .shell.mobile-sidebar .sidebar { position: absolute; z-index: 40; top: 72px; left: 6px; right: 6px; max-height: 70vh; box-shadow: 0 18px 48px rgb(35 65 88 / 22%); }
+  .shell { position: relative; }
+}
