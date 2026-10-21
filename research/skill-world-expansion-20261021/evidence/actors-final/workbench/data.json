@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "mock",
+  "study": {
+    "id": "study-local",
+    "title": "储能补贴退出后的供应链调整",
+    "question": "储能补贴退出后，电芯、配套、替代技术、集成商、采购方及融资方如何调整，并经由供需与交易反馈影响项目交付？",
+    "description": "基础设定待用户确认。建议以补贴退出为外部冲击，追踪企业产能、采购路线、替代技术成熟、融资约束及项目成交的动态反馈。当前候选范围来自合成验收资料，覆盖虚构机构 A–H；关系仅确认 C→A/B→F→G，其余连接待确认。",
+    "dataRevision": "1",
+    "updatedAt": "2026-10-21"
+  },
+  "versions": [],
+  "plugins": [],
+  "worlds": [],
+  "runs": [],
+  "entities": [],
+  "observations": [],
+  "datasets": [],
+  "documents": [],
+  "artifacts": [],
+  "workspace": {
+    "pages": [
+      "setup"
+    ],
+    "panels": [],
+    "defaultSelection": {},
+    "timeModes": [
+      "round"
+    ]
+  }
+}
