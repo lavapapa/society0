@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime } from './data.js';
 import { Badge, StateBlock, Skeleton } from './ui.jsx';
 import { ExposurePanel, FeedPanel, GraphPanel } from './SocialPanels.jsx';
+import { BarsPanel, ComparePanel, DistributionPanel, HeatPanel, OrderBookPanel } from './IndustryPanels.jsx';
 
 /* ---------- 面板网格：尺寸预设 + 排序 + 键盘移动，持久在浏览器 ---------- */
 
@@ -316,6 +317,11 @@ export const PANEL_TYPES = {
   graph: GraphPanel,
   feed: FeedPanel,
   exposure: ExposurePanel,
+  compare: ComparePanel,
+  bars: BarsPanel,
+  distribution: DistributionPanel,
+  heat: HeatPanel,
+  orderbook: OrderBookPanel,
 };
 
 export function renderPanel(panel, datasets, selection, select) {

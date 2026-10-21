@@ -1,0 +1,793 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "mock",
+  "study": {
+    "id": "study-compare-demo",
+    "title": "锂电消费税：多世界比较",
+    "question": "2%、4%、8% 三档税率在生产、库存与资金上的差异如何？",
+    "description": "示例资料，用于比较多世界结果与产业指标。",
+    "dataRevision": "3",
+    "updatedAt": "2026-10-21T12:30:00+08:00"
+  },
+  "versions": [
+    {
+      "id": "v003",
+      "label": "v003 · 含政策公告",
+      "configSource": "scenario/config/v003.yaml",
+      "config": {
+        "environment": {
+          "tick_days": 7,
+          "start_date": "2026-05-01",
+          "end_date_inclusive": "2026-12-31"
+        },
+        "agents": {
+          "decision_cadence": "month_end",
+          "max_turns": 64
+        },
+        "memory": {
+          "auto_write": true,
+          "auto_recall": false,
+          "active_tools": true
+        }
+      },
+      "configFields": [
+        {
+          "path": "/environment/tick_days",
+          "label": "每步自然日",
+          "type": "number",
+          "description": "一个完整步骤覆盖的自然日数量；改变后所有时点整体重排。"
+        },
+        {
+          "path": "/environment/start_date",
+          "label": "开始日期",
+          "type": "text",
+          "description": "仿真业务时间的起点。"
+        },
+        {
+          "path": "/agents/decision_cadence",
+          "label": "决策节奏",
+          "type": "text",
+          "options": [
+            "month_end",
+            "every_tick",
+            "event_only"
+          ],
+          "description": "主体在哪些日期进入决策阶段。"
+        },
+        {
+          "path": "/memory/auto_write",
+          "label": "自动写入记忆",
+          "type": "boolean",
+          "description": "完成一次激活后是否提取长期记忆。"
+        },
+        {
+          "path": "/memory/auto_recall",
+          "label": "自动召回",
+          "type": "boolean",
+          "description": "激活前是否自动检索相关记忆。"
+        }
+      ]
+    },
+    {
+      "id": "v002",
+      "label": "v002 · 无政策",
+      "configSource": "scenario/config/v002.yaml",
+      "config": {
+        "environment": {
+          "tick_days": 7,
+          "start_date": "2026-05-01",
+          "end_date_inclusive": "2026-12-31"
+        },
+        "agents": {
+          "decision_cadence": "month_end",
+          "max_turns": 64
+        },
+        "memory": {
+          "auto_write": true,
+          "auto_recall": false,
+          "active_tools": true
+        }
+      },
+      "configFields": []
+    }
+  ],
+  "plugins": [
+    {
+      "id": "env.industry",
+      "label": "产业链环境",
+      "category": "环境",
+      "availability": "ready",
+      "description": "生产、库存、市场、交付与会计规则。",
+      "parameters": 12
+    },
+    {
+      "id": "cognition.llm",
+      "label": "大模型主体认知",
+      "category": "主体",
+      "availability": "ready",
+      "description": "完整 Thread、工具发现与行动调用。",
+      "parameters": 9,
+      "dependsOn": [
+        "env.industry"
+      ]
+    },
+    {
+      "id": "memory.vector",
+      "label": "向量记忆",
+      "category": "记忆",
+      "availability": "partial",
+      "description": "记忆提取、召回与主动工具；嵌入服务参数尚未提供。",
+      "parameters": 4,
+      "dependsOn": [
+        "cognition.llm"
+      ]
+    },
+    {
+      "id": "tax.excise",
+      "label": "消费税",
+      "category": "制度",
+      "availability": "ready",
+      "description": "按生产销售环节计税，携带已税状态。",
+      "parameters": 6,
+      "dependsOn": [
+        "env.industry"
+      ]
+    },
+    {
+      "id": "policy.announcement",
+      "label": "政策公告",
+      "category": "制度",
+      "availability": "awaiting",
+      "description": "公告日与生效日分离；税率与生效范围待补充。",
+      "parameters": 0
+    }
+  ],
+  "worlds": [
+    {
+      "id": "world-base",
+      "label": "共同历史 · 无税",
+      "versionId": "v003",
+      "availability": "ready",
+      "plannedSource": "初始世界",
+      "overrides": {}
+    },
+    {
+      "id": "world-2pct",
+      "label": "公告后 2%",
+      "versionId": "v003",
+      "availability": "ready",
+      "parentWorldId": "world-base",
+      "plannedSource": "第 10 步完整点",
+      "overrides": {
+        "tax_rate": 0.02
+      }
+    },
+    {
+      "id": "world-4pct",
+      "label": "公告后 4%",
+      "versionId": "v003",
+      "availability": "partial",
+      "parentWorldId": "world-base",
+      "plannedSource": "第 10 步完整点",
+      "overrides": {
+        "tax_rate": 0.04
+      }
+    },
+    {
+      "id": "world-8pct",
+      "label": "公告后 8%",
+      "versionId": "v003",
+      "availability": "awaiting",
+      "parentWorldId": "world-base",
+      "plannedSource": "",
+      "overrides": {
+        "tax_rate": 0.08
+      }
+    }
+  ],
+  "runs": [
+    {
+      "id": "run-common-01",
+      "worldId": "world-base",
+      "versionId": "v003",
+      "label": "共同历史 A",
+      "status": "completed",
+      "dataThrough": "2026-07-09",
+      "availability": "ready"
+    },
+    {
+      "id": "run-common-02",
+      "worldId": "world-base",
+      "versionId": "v003",
+      "label": "共同历史 B（重跑）",
+      "status": "failed",
+      "dataThrough": "2026-06-04",
+      "availability": "partial"
+    },
+    {
+      "id": "run-2pct-01",
+      "worldId": "world-2pct",
+      "versionId": "v003",
+      "label": "2% 分支",
+      "status": "running",
+      "dataThrough": "2026-09-30",
+      "availability": "partial"
+    },
+    {
+      "id": "run-4pct-01",
+      "worldId": "world-4pct",
+      "versionId": "v003",
+      "label": "4% 分支",
+      "status": "queued",
+      "availability": "awaiting"
+    }
+  ],
+  "entities": [
+    {
+      "id": "actor-001",
+      "label": "宁德时代",
+      "kind": "企业",
+      "group": "电芯制造",
+      "availability": "ready",
+      "attributes": {
+        "角色": "生产者",
+        "决策模式": "大模型",
+        "所在地区": "福建宁德"
+      }
+    },
+    {
+      "id": "actor-002",
+      "label": "比亚迪弗迪电池",
+      "kind": "企业",
+      "group": "电芯制造",
+      "availability": "ready",
+      "attributes": {
+        "角色": "生产者",
+        "决策模式": "大模型"
+      }
+    },
+    {
+      "id": "actor-003",
+      "label": "某正极材料厂",
+      "kind": "企业",
+      "group": "材料",
+      "availability": "partial",
+      "attributes": {
+        "角色": "供应商",
+        "决策模式": "规则"
+      }
+    },
+    {
+      "id": "actor-004",
+      "label": "整车厂采购部",
+      "kind": "企业",
+      "group": "下游",
+      "availability": "ready",
+      "attributes": {
+        "角色": "采购方",
+        "决策模式": "规则"
+      }
+    },
+    {
+      "id": "actor-005",
+      "label": "地方税务部门",
+      "kind": "机构",
+      "group": "制度",
+      "availability": "ready",
+      "attributes": {
+        "角色": "征管"
+      }
+    }
+  ],
+  "observations": [
+    {
+      "id": "obs-01",
+      "runId": "run-common-01",
+      "step": 1,
+      "round": 1,
+      "businessTime": "2026-05-08",
+      "label": "第 1 步",
+      "availability": "ready"
+    },
+    {
+      "id": "obs-02",
+      "runId": "run-common-01",
+      "step": 2,
+      "round": 2,
+      "businessTime": "2026-05-15",
+      "label": "第 2 步",
+      "availability": "ready"
+    },
+    {
+      "id": "obs-03",
+      "runId": "run-common-01",
+      "step": 3,
+      "round": 3,
+      "businessTime": "2026-05-22",
+      "label": "第 3 步",
+      "availability": "partial"
+    },
+    {
+      "id": "obs-03b",
+      "runId": "run-common-01",
+      "step": 3,
+      "round": 3,
+      "businessTime": "2026-05-22",
+      "label": "第 3 步 · 复核后",
+      "availability": "ready"
+    },
+    {
+      "id": "obs-04",
+      "runId": "run-common-01",
+      "step": 4,
+      "round": 4,
+      "businessTime": "2026-06-30",
+      "label": "第 4 步（月末）",
+      "availability": "ready"
+    }
+  ],
+  "datasets": [
+    {
+      "id": "ds-compare",
+      "availability": "ready",
+      "title": "单位税额对比",
+      "source": "mock · 世界结果",
+      "defaultMetric": "tax",
+      "worlds": [
+        {
+          "id": "world-2pct",
+          "label": "公告后 2%",
+          "isBaseline": true,
+          "through": "2026-12-31",
+          "series": [
+            {
+              "key": "tax",
+              "label": "单位税额",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 2.1
+                },
+                {
+                  "t": 2,
+                  "v": 2.1
+                },
+                {
+                  "t": 3,
+                  "v": 2.3
+                },
+                {
+                  "t": 4,
+                  "v": 2.4
+                }
+              ]
+            },
+            {
+              "key": "price",
+              "label": "单位售价",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 108
+                },
+                {
+                  "t": 2,
+                  "v": 110
+                },
+                {
+                  "t": 3,
+                  "v": 111
+                },
+                {
+                  "t": 4,
+                  "v": 112
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "world-4pct",
+          "label": "公告后 4%",
+          "through": "2026-11-30",
+          "series": [
+            {
+              "key": "tax",
+              "label": "单位税额",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 4.2
+                },
+                {
+                  "t": 2,
+                  "v": 4.3
+                },
+                {
+                  "t": 3,
+                  "v": 4.6
+                }
+              ]
+            },
+            {
+              "key": "price",
+              "label": "单位售价",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 112
+                },
+                {
+                  "t": 2,
+                  "v": 115
+                },
+                {
+                  "t": 3,
+                  "v": 118
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "world-8pct",
+          "label": "公告后 8%",
+          "through": "2026-10-31",
+          "series": [
+            {
+              "key": "tax",
+              "label": "单位税额",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 8.4
+                },
+                {
+                  "t": 2,
+                  "v": 8.8
+                }
+              ]
+            },
+            {
+              "key": "price",
+              "label": "单位售价",
+              "unit": "元",
+              "points": [
+                {
+                  "t": 1,
+                  "v": 121
+                },
+                {
+                  "t": 2,
+                  "v": 126
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ds-bars",
+      "availability": "ready",
+      "title": "累计税额",
+      "source": "mock · 世界汇总",
+      "bars": [
+        {
+          "id": "b1",
+          "label": "2%",
+          "value": 3.62,
+          "unit": "亿元"
+        },
+        {
+          "id": "b2",
+          "label": "4%",
+          "value": 7.18,
+          "unit": "亿元"
+        },
+        {
+          "id": "b3",
+          "label": "8%",
+          "value": 14.05,
+          "unit": "亿元"
+        },
+        {
+          "id": "b4",
+          "label": "无税",
+          "value": 0,
+          "unit": "亿元"
+        }
+      ]
+    },
+    {
+      "id": "ds-dist",
+      "availability": "ready",
+      "title": "企业税负",
+      "source": "mock · 企业汇总",
+      "groups": [
+        {
+          "id": "d1",
+          "label": "电芯",
+          "unit": "万元",
+          "values": [
+            120,
+            180,
+            210,
+            260,
+            310,
+            420,
+            580
+          ]
+        },
+        {
+          "id": "d2",
+          "label": "材料",
+          "unit": "万元",
+          "values": [
+            40,
+            55,
+            62,
+            70,
+            88,
+            120
+          ]
+        },
+        {
+          "id": "d3",
+          "label": "下游",
+          "unit": "万元",
+          "values": [
+            8,
+            12,
+            15,
+            18,
+            22,
+            30,
+            44,
+            60
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ds-heat",
+      "availability": "partial",
+      "title": "主体月度产量",
+      "source": "mock · 当前投影",
+      "columns": [
+        {
+          "key": "m5",
+          "label": "5月"
+        },
+        {
+          "key": "m6",
+          "label": "6月"
+        },
+        {
+          "key": "m7",
+          "label": "7月"
+        },
+        {
+          "key": "m8",
+          "label": "8月"
+        },
+        {
+          "key": "m9",
+          "label": "9月"
+        }
+      ],
+      "rows": [
+        {
+          "id": "h1",
+          "label": "宁德时代",
+          "values": {
+            "m5": 12400,
+            "m6": 12100,
+            "m7": 11800,
+            "m8": 9600,
+            "m9": 8900
+          }
+        },
+        {
+          "id": "h2",
+          "label": "弗迪电池",
+          "values": {
+            "m5": 8900,
+            "m6": 9100,
+            "m7": 8800,
+            "m8": 8400,
+            "m9": 8100
+          }
+        },
+        {
+          "id": "h3",
+          "label": "正极材料",
+          "values": {
+            "m5": 420,
+            "m6": 430,
+            "m7": 410,
+            "m8": 390
+          }
+        }
+      ]
+    },
+    {
+      "id": "ds-book",
+      "availability": "ready",
+      "title": "电芯报价",
+      "source": "mock · 报价记录",
+      "last": {
+        "price": 82.6,
+        "quantity": 120
+      },
+      "bids": [
+        {
+          "price": 82.4,
+          "quantity": 320
+        },
+        {
+          "price": 82.2,
+          "quantity": 210
+        },
+        {
+          "price": 81.9,
+          "quantity": 120
+        }
+      ],
+      "asks": [
+        {
+          "price": 82.9,
+          "quantity": 260
+        },
+        {
+          "price": 83.2,
+          "quantity": 180
+        },
+        {
+          "price": 83.5,
+          "quantity": 90
+        }
+      ]
+    },
+    {
+      "id": "ds-stock",
+      "availability": "ready",
+      "title": "企业库存",
+      "source": "mock · 当前投影",
+      "total": 4,
+      "loadedRange": "4 / 4",
+      "columns": [
+        {
+          "key": "actor",
+          "label": "企业"
+        },
+        {
+          "key": "product",
+          "label": "产品"
+        },
+        {
+          "key": "units",
+          "label": "数量",
+          "align": "right"
+        },
+        {
+          "key": "cost",
+          "label": "单位成本",
+          "align": "right"
+        }
+      ],
+      "rows": [
+        {
+          "id": "r1",
+          "actor": "宁德时代",
+          "product": "方形电芯",
+          "units": "12,400",
+          "cost": "82.6"
+        },
+        {
+          "id": "r2",
+          "actor": "宁德时代",
+          "product": "圆柱电芯",
+          "units": "3,100",
+          "cost": "76.2"
+        },
+        {
+          "id": "r3",
+          "actor": "弗迪电池",
+          "product": "刀片电芯",
+          "units": "8,900",
+          "cost": "79.4"
+        },
+        {
+          "id": "r4",
+          "actor": "正极材料厂",
+          "product": "磷酸铁锂",
+          "units": "420",
+          "cost": "4.1"
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-01",
+      "entityId": "actor-001",
+      "title": "初始经营计划",
+      "kind": "计划",
+      "at": "2026-05-01",
+      "availability": "ready"
+    }
+  ],
+  "artifacts": [],
+  "workspace": {
+    "pages": [
+      "setup",
+      "runs"
+    ],
+    "panels": [],
+    "defaultSelection": {},
+    "timeModes": [
+      "round",
+      "calendar"
+    ],
+    "configSections": [
+      {
+        "id": "environment",
+        "label": "环境与时间"
+      },
+      {
+        "id": "agents",
+        "label": "主体与决策"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "p-compare",
+      "title": "单位税额对比",
+      "type": "compare",
+      "datasetId": "ds-compare",
+      "size": "l"
+    },
+    {
+      "id": "p-bars",
+      "title": "各世界累计税额",
+      "type": "bars",
+      "datasetId": "ds-bars",
+      "size": "m"
+    },
+    {
+      "id": "p-dist",
+      "title": "企业税负分布",
+      "type": "distribution",
+      "datasetId": "ds-dist",
+      "size": "m"
+    },
+    {
+      "id": "p-heat",
+      "title": "主体 × 月份产量",
+      "type": "heat",
+      "datasetId": "ds-heat",
+      "size": "m"
+    },
+    {
+      "id": "p-book",
+      "title": "电芯报价盘口",
+      "type": "orderbook",
+      "datasetId": "ds-book",
+      "size": "m"
+    },
+    {
+      "id": "p-stock2",
+      "title": "企业库存",
+      "type": "table",
+      "datasetId": "ds-stock",
+      "size": "l"
+    }
+  ]
+}

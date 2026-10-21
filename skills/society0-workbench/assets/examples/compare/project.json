@@ -1,0 +1,6 @@
+{
+  "title": "锂电消费税：多世界比较",
+  "data": "data.json",
+  "template": "../../shell.html",
+  "output": "index.html"
+}
