@@ -85,7 +85,7 @@ class LLMPolicy:
     per_action_limits: dict = field(default_factory=dict)
     parallel_tool_calls: bool = False
     empty_retries: int = 1
-    repeated_response_limit: int | None = 4
+    repeated_response_limit: int | None = None
     empty_retry_temperature_delta: float | None = None
     empty_retry_temperature_max: float = 1.0
     repeated_read_temperature_delta: float | None = None
