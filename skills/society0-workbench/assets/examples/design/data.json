@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "draft",
+  "study": {
+    "id": "study-design-demo",
+    "title": "撤离路线设计",
+    "question": "在什么条件下居民会选择撤离？",
+    "description": "设计阶段示例：只有设计说明、来源、因素表与候选，尚无世界与运行。",
+    "dataRevision": "2",
+    "updatedAt": "2026-10-21T14:10:00+08:00"
+  },
+  "versions": [],
+  "plugins": [],
+  "worlds": [],
+  "runs": [],
+  "entities": [],
+  "observations": [],
+  "datasets": [
+    {
+      "id": "ds-brief",
+      "availability": "ready",
+      "title": "设计说明",
+      "source": "用户对话 · 第 3 轮",
+      "paragraphs": [
+        "实验关注撤离决策：在风险提示、撤离距离与家庭约束同时存在时，居民是否撤离。",
+        "本轮先锁定可观测条件与候选方案，未确认的项保持待定。",
+        "来源：用户在第 3 轮确认方向；第 5 轮补充家庭约束。"
+      ]
+    },
+    {
+      "id": "ds-sources",
+      "availability": "ready",
+      "title": "证据",
+      "source": "公开资料与访谈记录",
+      "columns": [
+        {
+          "key": "item",
+          "label": "条目"
+        },
+        {
+          "key": "where",
+          "label": "来源与定位"
+        },
+        {
+          "key": "strength",
+          "label": "强弱"
+        }
+      ],
+      "rows": [
+        {
+          "id": "s1",
+          "item": "预警发布后同步撤离通知",
+          "where": "示例来源：应急管理部门公告（链接字段待补）",
+          "strength": "较强"
+        },
+        {
+          "id": "s2",
+          "item": "家庭宠物影响撤离选择",
+          "where": "示例来源：访谈记录第 4 条（原文定位待补）",
+          "strength": "中等"
+        }
+      ],
+      "total": 2,
+      "loadedRange": "2 / 2"
+    },
+    {
+      "id": "ds-factors",
+      "availability": "ready",
+      "title": "因素表",
+      "source": "用户选择记录",
+      "columns": [
+        {
+          "key": "factor",
+          "label": "因素"
+        },
+        {
+          "key": "state",
+          "label": "状态"
+        },
+        {
+          "key": "note",
+          "label": "说明"
+        }
+      ],
+      "rows": [
+        {
+          "id": "f1",
+          "factor": "撤离距离",
+          "state": "已选定",
+          "note": "按社区到安置点的里程"
+        },
+        {
+          "id": "f2",
+          "factor": "家庭约束",
+          "state": "待确认",
+          "note": "宠物、老人、儿童责任"
+        },
+        {
+          "id": "f3",
+          "factor": "风险感知",
+          "state": "待确认",
+          "note": "尚未决定如何度量"
+        }
+      ],
+      "total": 3,
+      "loadedRange": "3 / 3"
+    },
+    {
+      "id": "ds-candidates",
+      "availability": "partial",
+      "title": "候选方案",
+      "source": "设计讨论",
+      "columns": [
+        {
+          "key": "cand",
+          "label": "候选"
+        },
+        {
+          "key": "status",
+          "label": "状态"
+        },
+        {
+          "key": "ref",
+          "label": "依据"
+        }
+      ],
+      "rows": [
+        {
+          "id": "c1",
+          "cand": "一次撤离决策",
+          "status": "推荐",
+          "ref": "因素 s1"
+        },
+        {
+          "id": "c2",
+          "cand": "分阶段撤离（先老幼）",
+          "status": "候选",
+          "ref": "因素 f2"
+        },
+        {
+          "id": "c3",
+          "cand": "不撤离对照组",
+          "status": "候选",
+          "ref": "—"
+        }
+      ],
+      "total": 3,
+      "loadedRange": "3 / 3",
+      "note": "用户尚未确认最终方案"
+    }
+  ],
+  "panels": [
+    {
+      "id": "p-brief",
+      "title": "设计说明",
+      "type": "document",
+      "datasetId": "ds-brief",
+      "size": "l"
+    },
+    {
+      "id": "p-sources",
+      "title": "证据与来源",
+      "type": "table",
+      "datasetId": "ds-sources",
+      "size": "m"
+    },
+    {
+      "id": "p-factors",
+      "title": "设计因素",
+      "type": "table",
+      "datasetId": "ds-factors",
+      "size": "m"
+    },
+    {
+      "id": "p-candidates",
+      "title": "候选方案",
+      "type": "table",
+      "datasetId": "ds-candidates",
+      "size": "m"
+    }
+  ],
+  "documents": [],
+  "artifacts": [],
+  "workspace": {
+    "pages": [
+      "setup",
+      "observe"
+    ],
+    "timeModes": [
+      "round"
+    ]
+  }
+}

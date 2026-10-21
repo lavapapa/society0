@@ -1,0 +1,6 @@
+{
+  "title": "撤离路线设计",
+  "data": "data.json",
+  "template": "/path/to/workspace/research/simulation/society0core/skills/society0-workbench/assets/shell.html",
+  "output": "index.html"
+}
