@@ -58,6 +58,7 @@ export function normalize(raw) {
     observations: list(data.observations),
     datasets: list(data.datasets),
     panels: list(data.panels || data.workspace?.panels),
+    atlas: Boolean(data.atlas),
     documents: list(data.documents),
     artifacts: list(data.artifacts),
     workspace: {

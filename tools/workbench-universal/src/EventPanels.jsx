@@ -83,7 +83,7 @@ export function EventCalendarPanel({ dataset }) {
               <span className="month-date">{date.getUTCDate()}</span>
               {items.slice(0, 3).map((event) => (
                 <span key={event.id} className={`event-chip layer-${layers.indexOf(event.layer || '事件') % 4}`} title={`${event.title}${event.until ? ` · 至 ${event.until}` : ''}`}>
-                  {event.title}
+                  {event.short || event.title}
                 </span>
               ))}
               {items.length > 3 ? <span className="event-more">+{items.length - 3}</span> : null}

@@ -8,6 +8,7 @@ import compare from './fixtures/compare.json';
 import events from './fixtures/events.json';
 import spatial from './fixtures/spatial.json';
 import analysis from './fixtures/analysis.json';
+import atlas from './fixtures/atlas.json';
 import './styles.css';
 
 function readData() {
@@ -27,6 +28,7 @@ function readData() {
   if (fixture === 'events') return events;
   if (fixture === 'spatial') return spatial;
   if (fixture === 'analysis') return analysis;
+  if (fixture === 'atlas') return atlas;
   return emptyStudy;
 }
 
