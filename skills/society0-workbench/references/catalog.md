@@ -37,7 +37,7 @@
 | WB-01-06 | 文档阅读 | `document` | 段落与来源，不再重复标题 |
 | — | 自定义面板 | `custom` | `window.SOCIETY0_PANELS` 注册普通 React 组件 |
 
-示例：`assets/examples/progressive/`（含网格、表、指标、时序、会话、记录、文档）；`assets/templates/custom-panel/`（自定义面板）。
+示例：`assets/examples/progressive/`（运行后的完整画面：网格、表、指标、时序、会话、记录、文档）；`assets/examples/design/`（无运行的设计阶段小示例）；`assets/templates/custom-panel/`（自定义面板）。
 
 ## 四、社交组件（B4 已交付）
 

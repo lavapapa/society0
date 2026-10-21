@@ -29,6 +29,13 @@
 
 `availability` 取 `unconfigured`、`awaiting`、`loading`、`empty`、`partial`、`ready`、`error`、`stale`。数值零仍是零。
 
+## 三之二、放置层级
+
+- 数据集放顶层 `datasets`，面板放顶层 `panels`，页面顺序写 `workspace.pages`；
+- 面板用 `datasetId` 连接数据集，一个面板一份数据；
+- `panels` 非空才会出现“观察”页；设计阶段可以只有 `document` 与 `table`；
+- 不要把面板嵌进 `datasets` 或 `workspace.panels`。
+
 ## 四、面板声明
 
 ```json

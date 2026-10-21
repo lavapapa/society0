@@ -18,7 +18,9 @@ export function App({ raw }) {
   const { data, version, runs, worlds, selection, select, collapsed, setCollapsed, draftFor } = wb;
   const pages = [...BASE_PAGES, ...(data.atlas ? [{ id: 'atlas', label: '图鉴' }] : data.panels.length ? [{ id: 'observe', label: '观察' }] : [])];
   const declared = data.workspace.pages.filter((id) => pages.some((page) => page.id === id));
-  const fallbackPage = declared[0] || 'setup';
+  // 设计阶段（无配置版本、只有面板）直接进观察页，避免首屏停在空配置上。
+  const designStage = !data.versions.length && data.panels.length > 0 && !data.atlas;
+  const fallbackPage = designStage ? 'observe' : declared[0] || 'setup';
   const pageId = pages.some((page) => page.id === selection.pageId) ? selection.pageId : fallbackPage;
   const [layout, setLayout] = useLayout(data.study.id);
   const [mobileSidebar, setMobileSidebar] = useState(false);

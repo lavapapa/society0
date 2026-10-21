@@ -11,11 +11,37 @@
   "study": { "id": "", "title": "", "question": "", "description": "", "dataRevision": "", "updatedAt": "" },
   "versions": [], "plugins": [], "worlds": [], "runs": [],
   "entities": [], "observations": [], "datasets": [],
-  "documents": [], "artifacts": [], "workspace": {}
+  "panels": [], "documents": [], "artifacts": [],
+  "workspace": { "pages": ["setup"], "timeModes": ["round"] }
 }
 ```
 
 `dataKind` 取 `mock`、`draft` 或 `recorded`。`dataRevision` 是显式版本号，不计算哈希。
+
+## 一之二、面板与数据集
+
+资料分三层：**数据集 → 面板 → 页面入口**。
+
+- `datasets[]`：`{id, availability, title, source, ...}`，内容按组件类型不同；每个数据集只服务一个面板。
+- `panels[]`：`{id, title, type, datasetId, size}`。`type` 取 `catalog.md` 中的组件类型；`size` 取 `s`、`m`、`l`、`full`。
+- `workspace.pages`：声明页面顺序，例如 `["setup", "runs", "observe"]`。**只有 `panels` 非空时页面才出现“观察”页**；`atlas: true` 时出现“图鉴”并替代“观察”。
+
+```json
+{
+  "datasets": [{ "id": "ds-factors", "availability": "ready", "source": "用户选择记录", "title": "因素表",
+                 "columns": [{ "key": "factor", "label": "因素" }], "rows": [{ "id": "f1", "factor": "撤离距离" }] }],
+  "panels": [{ "id": "p-factors", "title": "设计因素", "type": "table", "datasetId": "ds-factors", "size": "m" }],
+  "workspace": { "pages": ["setup", "observe"] }
+}
+```
+
+设计阶段可以只有 `documents`、`panels` 与 `datasets`，`versions`、`worlds`、`runs`、`entities` 为空。
+
+### 1.3 旧集合的去留
+
+- `documents[]`：早期资料目录，只在需要独立文件清单时使用；专题阅读请直接用 `document` 面板，见 `components/tables-records.md`。
+- `artifacts[]`：导入的工件清单，对应 `artifacts` 面板。
+- `workspace.panels`：早期把面板放在 `workspace` 内；现已提到顶层 `panels`，旧写法会被读取但新资料统一用顶层字段。
 
 ## 二、身份
 
