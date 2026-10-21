@@ -8,9 +8,13 @@ LLMDriver 通过 Pydantic AI Agent.iter 推进模型与工具节点，在主体�
 
 `provider.request_model(thread_id, options, model_messages=...)` 返回原始 SDK ModelResponse、已保存的消息序号和未完成原因。Agent 在激活入口解码完整 Thread，后续请求把已有 typed 消息列表直接交给同一个提供方入口；提供方不再物化第二份历史。Agent 退出后释放该激活历史，再进入记忆提取。历史会在本次激活的工具与服务等待期间保持驻留。独立的 `provider.request(thread_id, options)` 从同一物理入口派生 assistant 角色视图及 finish_reason，供记忆提取等消费者使用。`ModelProvider(endpoints, threads, max_attempts=2, retry_delay=0.1)` 为现有模型资源管理器的适配器；关闭时执行 `await provider.close()`。物理请求消息在一次短读内与 through 水位一起捕获，所有重试引用同一水位，SDK 获得同一完整消息列表。SDK 内置重试关闭；适配器仅重试连接、超时、限流及服务端错误。必需 Thread 写入失败直接传播，避免把已发送请求当作网络失败再次发送。上下文超限返回明确未完成原因。
 
+每个 Thread 创建时保存一个均匀随机抽样点 `thread_heads.model_route`。ModelProvider 按配置顺序的累计 endpoint 权重选择服务；端点顺序及权重不变时，同一 Thread 的续轮、关闭后重开和检查点恢复均选择同一服务。权重控制新 Thread 的分配概率，实际请求数量仍由各 Thread 的工作量决定。各 profile 独立使用自己的端点和权重；嵌入请求沿用逐批抽样。重试继续留在已选端点，耗尽后保留原失败语义。运行中更换端点或权重需要建立新运行；新增字段要求使用本版本创建的 Thread 存储。
+
 ## 二、决定
 
 `LLMPolicy` 的 turns、总行动次数和逐动作次数是独立预算；默认 None 表示未在此层增设限制。动作失败尝试也计数。明确的直接调用批次在执行前检查总额度，跨轮重复 call_id 先查回执；shell 内动态动作在每次 invoke 前检查。达到硬上限直接返回 incomplete，保存已发生事实，不额外请求结束语。length 响应即使含完整外观的工具调用也不执行。SDK 请求上限显式使用 max_turns，None 保持无上限；工具均按声明顺序执行。SDK 协议错误不额外重试：未声明工具、无法解析的工具 JSON、同一响应内重复工具 ID 等以 model_protocol_error 记录未完成，领域处理器异常继续传播。动态工具参数仍由 jsonschema 验证，合法 JSON 中的参数错误作为完整工具反馈，包含 jsonschema 的字段路径、错误信息、校验项和期望值；所有动态元工具共用这一反馈。
+
+`repeated_response_limit` 默认 None，重复响应沿用既有总轮次预算。显式设为整数时，以正文及工具名称、参数的原值比较连续响应；达到重复次数时返回 incomplete，原因是 repeated_response。例如设为 4 时，第五个连续相同响应触发结束。
 
 动作查找、完整描述、执行采用 action_find、action_describe、action_invoke。默认 strict_tools=False，action_invoke.arguments 使用原生 JSON 对象，action_find.cursor 使用对象或 null；ls 与 find 的 cursor 保留实际提供方的 JSON 游标；工具声明显式 strict:false。strict_tools=True 将这些动态字段声明为 JSON 字符串（游标仍可为 null），在元工具分派边界解码一次；每种模式仅接受自己声明的类型。严格模式无法解码的行动文本继续作为失败行动尝试计数。实际 Action schema、作用域与权限校验在领域入口执行。allowed_names 与 allowed_tags 共同限定本次选择，名称与标签所需动作由 required_names、required_tags 表达；未满足时按剩余推理预算继续提醒。accepted 表示请求已受理，完成状态由 completed 表达。领域 ActionResult.terminal 或配置 completion_names、completion_tags 在成功完成后触发终止；同一 shell 后续动作因此被拒绝。共享领域处理器抛错或取消会传播给 Runtime，当前步骤失败；无可用动作、陈旧游标和查询参数错误作为工具反馈。
 
