@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { RUN_STATUS_LABELS, describeRevision } from './data.js';
 import { SetupInsight, SetupMain, SetupWorkspace } from './SetupPanel.jsx';
 import { RunDetail, RunPicker } from './RunPanel.jsx';
-import { TimeControl } from './TimePanel.jsx';
+import { TimePicker } from './TimePanel.jsx';
 import { ObserveMain, useLayout } from './ObservePage.jsx';
 import { AtlasMain } from './AtlasPage.jsx';
 import { useWorkbench } from './store.js';
@@ -54,9 +54,11 @@ export function App({ raw }) {
           <span className="brand">Society0</span>
           <span className="study-title" title={data.study.title}>{data.study.title}</span>
           <span className="study-revision">{describeRevision(data)}</span>
+          <RunPicker runs={runs} worlds={worlds} selection={selection} select={select} version={version} />
         </div>
+
         <div className="topbar-center">
-          <nav className="pages" aria-label="工作台页面">
+          <nav className={`pages${pages.length > 5 ? ' scrollable' : ''}`} aria-label="工作台页面">
             <button
               type="button"
               className="mobile-nav"
@@ -70,33 +72,20 @@ export function App({ raw }) {
               </button>
             ))}
           </nav>
-          {run ? (
-            <TimeControl observations={observations} selection={selection} select={select} modes={data.workspace.timeModes} />
-          ) : null}
         </div>
+
         <div className="topbar-right">
-          <RunPicker runs={runs} worlds={worlds} selection={selection} select={select} version={version} />
-          {data.versions.length > 1 ? (
-            <label className="version-select">
-              <select aria-label="配置版本" value={version?.id || ''} onChange={(event) => select({ versionId: event.target.value })}>
-                {data.versions.map((item) => (
-                  <option key={item.id} value={item.id}>{item.label}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {pageId === 'setup' ? (
-            <button
-              type="button"
-              className="copy-button"
-              data-has-draft={changes.length > 0}
-              disabled={!changes.length}
-              onClick={copy}
-              title={changes.length ? '复制参数变更请求' : '当前没有待发送变更'}
-            >
-              {copyState === 'copied' ? '已复制' : copyState === 'manual' ? '请手动复制' : '复制变更'}
-            </button>
-          ) : null}
+          <TimePicker run={run} observations={observations} selection={selection} select={select} modes={data.workspace.timeModes} />
+          <button
+            type="button"
+            className="copy-button"
+            data-has-draft={changes.length > 0}
+            disabled={!changes.length}
+            onClick={copy}
+            title={changes.length ? '复制参数变更请求' : '当前没有待发送变更'}
+          >
+            {copyState === 'copied' ? '已复制' : copyState === 'manual' ? '请手动复制' : '复制变更'}
+          </button>
         </div>
       </header>
 
