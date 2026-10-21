@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "dataKind": "mock",
+  "study": {
+    "id": "study-demo",
+    "title": "锂电消费税政策传导",
+    "question": "消费税在生产销售环节征收后，价格、产量与库存如何传导到下游？",
+    "description": "尚未开始配置。",
+    "dataRevision": "0",
+    "updatedAt": "2026-10-21T10:00:00+08:00"
+  },
+  "versions": [],
+  "plugins": [],
+  "worlds": [],
+  "runs": [],
+  "entities": [],
+  "observations": [],
+  "datasets": [],
+  "documents": [],
+  "artifacts": [],
+  "workspace": { "pages": ["setup"], "panels": [], "defaultSelection": {}, "timeModes": ["round"] }
+}
