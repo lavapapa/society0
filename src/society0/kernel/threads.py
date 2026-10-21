@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, is_dataclass
 import json
+import random
 import uuid
 
 from ._json_chunks import CHUNK_BYTES, decode_chunks, decode_chunk
@@ -12,7 +13,7 @@ THREAD_SCHEMA = (
     '''CREATE TABLE thread_heads(
         id TEXT PRIMARY KEY NOT NULL,actor TEXT NOT NULL,kind TEXT NOT NULL,
         provider_session_id TEXT NOT NULL,status TEXT NOT NULL,
-        last_seq INTEGER NOT NULL,message_count INTEGER NOT NULL,ordinal INTEGER NOT NULL,moment TEXT NOT NULL)''',
+        last_seq INTEGER NOT NULL,message_count INTEGER NOT NULL,ordinal INTEGER NOT NULL,moment TEXT NOT NULL,model_route REAL NOT NULL)''',
     'CREATE INDEX thread_moment ON thread_heads(actor,moment,kind,ordinal)',
     '''CREATE TABLE thread_artifacts(thread_id TEXT NOT NULL,reference TEXT NOT NULL,artifact TEXT NOT NULL,actor TEXT NOT NULL,PRIMARY KEY(thread_id,reference))''',
     'CREATE UNIQUE INDEX thread_artifact_actor_reference ON thread_artifacts(actor,reference)',
@@ -35,10 +36,10 @@ def _load(view, thread_id, sequence):
 
 
 def _head(view, thread_id):
-    rows = view.query('SELECT actor,kind,provider_session_id,status,last_seq,message_count,ordinal FROM thread_heads WHERE id=?', (thread_id,))
+    rows = view.query('SELECT actor,kind,provider_session_id,status,last_seq,message_count,ordinal,model_route FROM thread_heads WHERE id=?', (thread_id,))
     if not rows:
         raise KeyError(thread_id)
-    return dict(zip(('actor','kind','provider_session_id','status','last_seq','message_count','ordinal'), rows[0]), id=thread_id)
+    return dict(zip(('actor','kind','provider_session_id','status','last_seq','message_count','ordinal','model_route'), rows[0]), id=thread_id)
 
 
 def _jsonable(value):
@@ -101,7 +102,8 @@ class ThreadStore:
             for scope in ('all', 'actor:' + actor):
                 writer.execute('INSERT INTO thread_counts VALUES(?,1) ON CONFLICT(scope) DO UPDATE SET total=total+1', (scope,))
             ordinal = writer.query("SELECT total FROM thread_counts WHERE scope='all'")[0][0]
-            writer.execute('INSERT INTO thread_heads VALUES(?,?,?,?,?,0,0,?,?)', (thread_id,actor,kind,provider_session_id,'open',ordinal,json.dumps(moment,sort_keys=True,allow_nan=False)))
+            # 一次抽样随 Thread 持久化，关闭、重开和恢复均沿用；不保存历史绑定表。
+            writer.execute('INSERT INTO thread_heads VALUES(?,?,?,?,?,0,0,?,?,?)', (thread_id,actor,kind,provider_session_id,'open',ordinal,json.dumps(moment,sort_keys=True,allow_nan=False),random.random()))
             _append(writer, thread_id, 'opened', {'moment': moment, 'metadata': metadata})
         self.store.transaction(write)
         return thread_id
