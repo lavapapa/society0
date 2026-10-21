@@ -19,6 +19,7 @@ export function App({ raw }) {
   const pages = [...BASE_PAGES, ...(data.panels.length ? [{ id: 'observe', label: '观察' }] : []), ...(data.atlas ? [{ id: 'atlas', label: '图鉴' }] : [])];
   const pageId = pages.some((page) => page.id === selection.pageId) ? selection.pageId : 'setup';
   const [layout, setLayout] = useLayout(data.study.id);
+  const [mobileSidebar, setMobileSidebar] = useState(false);
 
   const source = version?.configSource || '';
   const draft = draftFor(source);
@@ -52,6 +53,13 @@ export function App({ raw }) {
         </div>
         <div className="topbar-center">
           <nav className="pages" aria-label="工作台页面">
+            <button
+              type="button"
+              className="mobile-nav"
+              aria-label="打开观察范围"
+              aria-expanded={mobileSidebar}
+              onClick={() => setMobileSidebar((value) => !value)}
+            >☰</button>
             {pages.map((page) => (
               <button key={page.id} type="button" aria-current={pageId === page.id ? 'page' : undefined} onClick={() => select({ pageId: page.id })}>
                 {page.label}
@@ -88,7 +96,7 @@ export function App({ raw }) {
         </div>
       </header>
 
-      <div className={`shell${collapsed ? ' collapsed' : ''}`}>
+      <div className={`shell${collapsed ? ' collapsed' : ''}${mobileSidebar ? ' mobile-sidebar' : ''}`}>
         <aside className="panel sidebar" aria-label="实验配置">
           <div className="sidebar-head">
             <strong>{collapsed ? '' : '观察范围'}</strong>
@@ -98,7 +106,9 @@ export function App({ raw }) {
           </div>
           {collapsed ? null : (
             <div className="sidebar-body">
-              {pageId === 'setup' ? <SetupWorkspace {...wb} /> : <RunSidebar runs={runs} selection={selection} select={select} />}
+              <div onClick={() => { if (window.innerWidth <= 620) setMobileSidebar(false); }}>
+                {pageId === 'setup' ? <SetupWorkspace {...wb} /> : <RunSidebar runs={runs} selection={selection} select={select} />}
+              </div>
             </div>
           )}
         </aside>
