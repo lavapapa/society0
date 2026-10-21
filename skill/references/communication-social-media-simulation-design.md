@@ -1,6 +1,6 @@
 # Communication And Social Media Simulation Design
 
-Use this guide for Society0 simulations about social media, news diffusion, rumor or fake-news spread, information diffusion, polarization, echo chambers, platform interventions, social movements, group agents, and hybrid-scale communication systems. Load `founder-experience.md` first as a preflight, then load this guide after `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about social media, news diffusion, rumor or fake-news spread, information diffusion, polarization, echo chambers, platform interventions, social movements, group agents, and hybrid-scale communication systems. Use [SKILL.md](../SKILL.md) for the execution flow; consult the conditional references below as needed.
 
 This guide is not a literature review. It distills design moves from social-media and communication simulation papers into Society0's env-first scaffold: setting, FoVs, actions, hosted constraints, records, measurements, baselines, ablations, and interpretation boundaries.
 
@@ -9,7 +9,7 @@ Contents:
 - Domain stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - Founder preflight
 - General construction rules
 - Paper-derived patterns
@@ -75,19 +75,14 @@ Choose the target by the communication object being simulated:
 - **Group-agent or hybrid-scale simulation**: one agent represents a behaviorally similar group, or LLM agents model semantic leaders while rules model followers. Use when scale is part of the method, not just a performance wish.
 - **Topology-aware execution or network-sensitive scheduling**: network structure shapes exposure, intervention effects, and possibly batched updates. Use as an approximation layer only when fidelity effects are measured.
 
-## Loading Order
+## Conditional References
 
-For communication and social-media work, load only the files needed for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. `founder-experience.md` as a preflight before turning artifacts into agents, states, or claims
-7. This guide
-8. `run-monitor-analyze.md` when planning metrics, tables, repeated runs, or qualitative review
-9. Source files only if implementing or debugging a concrete env: start from `src/society0/env/`, `src/society0/environment.py`, `src/society0/schedule.py`, and `src/society0/agent/core.py`
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Consult `founder-experience.md` when the mapping from source artifacts to actors, exposure, or research claims needs clarification.
+- Add a domain guide when health, legal, education, market, or other domain-specific consequences enter the mechanism; consult `run-monitor-analyze.md` when defining diffusion metrics or trace review.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions social media, communication, feeds, posting, reposting, commenting, likes, follows, recommendation algorithms, news diffusion, information diffusion, rumor, fake news, misinformation, disinformation, belief spread, attitude dynamics, emotion propagation, opinion dynamics, public opinion, attitude diffusion, polarization, echo chambers, bridging algorithms, platform interventions, social movements, online events, group agents, hybrid scale, OASIS, S3, FPS, HiSim, GA-S3, MIDSim, LAID, FDE-LLM, TopoSim, POSIM, discourse_sim, or ES-MAS.
 

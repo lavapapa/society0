@@ -35,6 +35,6 @@ python skill/scripts/render_workbench.py \
   --output workbench.html
 ```
 
-新实验完成后，请 AI 根据实际产物编写转换脚本，按 [工作台指南](../../../skill/references/workbench-guide.md) 补充插件、配置页、社交快照和会话。工作台展示已保存的数据；页面中的配置修改通过“复制变更”交给 AI，再写入新的实验版本。
+本例保留上述静态数据的渲染方式。新实验从 [society0 主流程](../../../skill/SKILL.md) 开始，并按 [工作台交接](../../../skill/references/workbench-guide.md) 加载独立的 society0-workbench Skill；展示和用户选择按它的实际接口处理。
 
 阅读时先选版本、运行和轮次，再从关系网络、帖子详情追查用户会话。推荐动态与动作入口属于不同信息来源，应分别核对。

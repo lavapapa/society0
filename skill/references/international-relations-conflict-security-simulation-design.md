@@ -5,9 +5,7 @@ escalation, conflict/security mechanisms, strategic games, diplomacy/security
 decision-making, or historical conflict and battle emulation as research
 mechanisms.
 
-Load it after `research-design.md`, `environment-design.md`,
-`agent-design.md`, and `step-dsl.md`; also load
-`simulation-paper-distillation.md` when adapting a paper. Use the governance
+Use [SKILL.md](../SKILL.md) for the execution flow. Use the governance
 guide when formal institutions, public accountability, lawmaking, moderation, or
 policy participation are the main mechanism. Use city/emergency, economics, or
 communication guides when those domains host the actual behavior.
@@ -17,7 +15,7 @@ Contents:
 - High-risk boundary
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - Society0 construction rules
 - Pattern notes
 - Minimal scaffold checklist
@@ -273,26 +271,14 @@ Inference for Society0 mapping:
   `identify_missing_information`, `refuse_unsafe_request`, and
   `classify_constraint`, not operational courses of action.
 
-## Loading Order
+## Conditional References
 
-For IR, conflict, crisis, and security work, load only the files needed for the
-target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `governance-institution-public-policy-simulation-design.md` when formal
-   authority, policy practice, lawmaking, participation, accountability, or
-   institution design dominates
-8. `communication-social-media-simulation-design.md` when public messaging,
-   propaganda, rumor, media, or platform diffusion dominates
-9. `city-community-emergency-simulation-design.md` when place, mobility,
-   evacuation, preparedness, or infrastructure hosts the mechanism
-10. `run-monitor-analyze.md` for repeated runs, score tables, trace review, and
-    validation
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Add `governance-institution-public-policy-simulation-design.md` for institutional authority, `communication-social-media-simulation-design.md` for public messaging or diffusion, or `city-community-emergency-simulation-design.md` for place, mobility, or preparedness mechanisms.
+- Consult `run-monitor-analyze.md` when defining repeated-run scores, trace review, or validation.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions international relations, IR, diplomacy,
 security dilemma, strategic game, crisis escalation, de-escalation, wargame,

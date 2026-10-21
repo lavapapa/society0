@@ -2,10 +2,7 @@
 
 Use this guide for Society0 simulations about cities, neighborhoods,
 communities, emergency preparedness, evacuation, mobility, participatory urban
-planning, traffic signal control, and urban-task evaluation. Load it after
-`research-design.md`, `environment-design.md`, `agent-design.md`, and
-`step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a
-paper.
+planning, traffic signal control, and urban-task evaluation. Use [SKILL.md](../SKILL.md) for the execution flow; consult the conditional references below as needed.
 
 This guide is not an operational emergency plan, traffic-control directive, or
 city-policy recommendation. It distills design moves from LLM-based urban and
@@ -18,7 +15,7 @@ Contents:
 - Domain stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - Society0 construction rules
 - Paper-derived patterns
 - Dirty-work triage
@@ -110,27 +107,14 @@ public accountability, or participation design. Use the communication guide when
 social-media diffusion is the mechanism. Use economics/finance guides when city
 behavior is mainly a household, market, or macroeconomic process.
 
-## Loading Order
+## Conditional References
 
-For city, community, mobility, emergency, and traffic work, load only the files
-needed for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `governance-institution-public-policy-simulation-design.md` when the use
-   case involves institutional authority, participation, or policy-practice
-   preconditions
-8. `communication-social-media-simulation-design.md` when warnings, rumors, or
-   platform communication are central
-9. `run-monitor-analyze.md` when planning repeated runs, output tables,
-   validation, replay, or qualitative review
-10. Source files only when implementing or debugging a concrete env: start from
-   `src/society0/env/`, `src/society0/environment.py`,
-   `src/society0/schedule.py`, and `src/society0/agent/core.py`
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Add `governance-institution-public-policy-simulation-design.md` for institutional authority or participation; add `communication-social-media-simulation-design.md` for warning, rumor, or platform-diffusion mechanisms.
+- Consult `run-monitor-analyze.md` when defining repeated-run validation or qualitative trace review.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions city, neighborhood, community,
 emergency, disaster, evacuation, preparedness, warnings, mobility, urban

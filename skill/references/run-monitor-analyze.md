@@ -8,9 +8,9 @@
 
 Observation 提供 status、list_threads、thread_tail、原文范围、result_phases/result_page、resource_usage、action_summary。实时诊断与已完成步骤分别读取。固定历史视图通过 prepare_complete 准备；巨大原文使用引用完整续读，保留总数与继续位置。Memory/Thread/业务 SQL 与工作区引用在同一个完整点恢复。
 
-工作台由 kernel.workbench 从实际运行与结果引用生成静态数据；它不执行研究计划，也不把浏览器草稿直接作为已应用配置。研究配置变更生成新版本并经明确运行请求产生新工件。原始 Thread 的信息暴露与测量结果分别解释。
+工作台交接按 society0-workbench 的实际合同执行。配置变更生成新版本；既有授权覆盖的构建、运行和重复自动推进，改变实验问题、机制或费用范围时先确认。原始 Thread 的信息暴露与测量结果分别解释。
 
-已有工作台数据转换文件时，先读取其中按主体、轮次保存的 `sessions/events`，沿 `threadId` 与事件序号引用原文。缺少内容时再使用 Observation 续读。使用引擎提供的读取接口处理压缩记录，避免自行猜测压缩格式、重复实现解码；分析时保留实际输入、工具参数与返回值的对应关系。
+使用 Observation 和规范存储读取实际事实、原文与来源，沿 Thread ID 与事件序号引用。工作台已有可验证的来源定位时可复用；缺少内容时继续读取原始工件。使用引擎提供的接口处理压缩记录，保留实际输入、工具参数与返回值的对应关系。
 
 ## 失败诊断
 
@@ -32,7 +32,7 @@ Observation 提供 status、list_threads、thread_tail、原文范围、result_p
 
 Anchor each explanation to the comparison actually made. Report group sizes, observed values and uncertainty before proposing a mechanism. Agent reasons are self-reported explanations that suggest hypotheses; repeated mentions of one cue do not establish that it caused the outcome or suppressed another cue. A small or absent difference also leaves multiple explanations open.
 
-For each proposed follow-up, state the target factor, what varies, what stays fixed, and which contrast tests the claim. For example, comparing two messages both forwarded by a familiar person while changing official endorsement tests the endorsement condition. To study familiarity at a fixed endorsement level, compare familiar and unfamiliar senders under that same level; to study how the two factors interact, cross both factors. Choose follow-ups to distinguish explanations, including a possible null result, and agree the design with the researcher before running.
+For each proposed follow-up, state the target factor, what varies, what stays fixed, and which contrast tests the claim. For example, comparing two messages both forwarded by a familiar person while changing official endorsement tests the endorsement condition. To study familiarity at a fixed endorsement level, compare familiar and unfamiliar senders under that same level; to study how the two factors interact, cross both factors. Choose follow-ups to distinguish explanations, including a possible null result. Execute repetitions already covered by the approved plan; obtain agreement for new experimental factors, scope or spending.
 
 Keep the underlying message content fixed when isolating a source cue. Adding an official debunk changes both the authority cue and the corrective information; that comparison measures a combined treatment, not an isolated familiarity or authority effect.
 
@@ -49,17 +49,18 @@ Typical checks:
 
 ### 读取完整步骤的指标与表
 
-下面代码可在完成无模型起步后直接运行，读取 `runs/first-study/resumed` 的第 2 步。分析其他运行时修改 `run_dir`、`step` 与 `table_name`。LLM starter 的表名为 `responses`；先通过阶段结果头部的 `tables` 查看实际表名。代码准备一个选定完整步骤的只读目录，逐页读取结果，大行按引用拼接完整 JSON，并保留阶段序号。显式分析全部所选行的成本随行数与原文大小增长。
+下面代码可在完成[安装验收](installation.md)后直接运行，沿用 `SOCIETY0_STUDY` 环境变量，读取 `environment-check/resumed` 的第 2 步。分析其他运行时修改 `run_dir`、`step` 与 `table_name`。LLM starter 的运行位于 `$SOCIETY0_STUDY/versions/v001/runs/pilot-001` 或 `resumed-001`，表名为 `responses`；先通过阶段结果头部的 `tables` 查看实际表名。代码准备一个选定完整步骤的只读目录，逐页读取结果，大行按引用拼接完整 JSON，并保留阶段序号。显式分析全部所选行的成本随行数与原文大小增长。
 
 ```python
 import base64
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from society0.kernel.observation import Observation
 from society0.kernel.storage import StageStore
 
-run_dir = Path("runs/first-study/resumed")
+run_dir = Path(os.environ['SOCIETY0_STUDY']) / 'environment-check' / 'resumed'
 step = 2
 table_name = "decisions"
 
@@ -130,7 +131,7 @@ Code outputs can be coded inductively, but the researcher should review categori
 
 Recommended report:
 
-1. Research question.
+1. 具体实验问题及世界比较的口径。
 2. Simulation design: agents, environment, providers, steps, conditions.
 3. Measurements and output schemas.
 4. Quantitative results.

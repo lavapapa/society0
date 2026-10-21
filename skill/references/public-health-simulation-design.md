@@ -1,6 +1,6 @@
 # Public Health, Risk, And Health Behavior Simulation Design
 
-Use this guide for Society0 simulations about public-health behavior, vaccine hesitancy, risk communication, heatwaves, climate-health stressors, vulnerability, protective behavior, social support, and community information diffusion. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about public-health behavior, vaccine hesitancy, risk communication, heatwaves, climate-health stressors, vulnerability, protective behavior, social support, and community information diffusion. Use [SKILL.md](../SKILL.md) for the execution flow. Consult [paper distillation](simulation-paper-distillation.md) when adapting a paper; use [installation](installation.md) to locate the selected Next repository when implementation is needed.
 
 This guide supports research design and mechanism exploration. It does not provide medical advice, public-health policy recommendations, diagnosis, treatment, or emergency guidance.
 

@@ -1,12 +1,12 @@
 # 用研究 skill 组织实验
 
-Society0 的研究 skill 帮助研究者把问题、材料与假设转为环境、主体、行动和测量。Python 包执行计划；skill 提供研究协作方法、领域指南和一份可直接运行的起步程序，这些是研究方法资产，不会在运行时装进环境。打算用这个项目做研究时先看这页：先[完成首次运行](../start/quickstart.md)，装好 skill，做一个小试验，再按研究主题选方法资源，最后核对真实结果。
+把问题告诉 society0 Skill，助手会结合两轮并行搜索与领域知识，提出主体、环境和影响因素的选择，再与你确定实验问题和平行世界，自动构建、运行并解释结果。Python 包实际执行仿真；Skill 提供协作步骤、领域参考和起步程序。已有运行可以直接分析或恢复，首次缺少环境时再准备安装。
 
 ## 把 skill 装进编码助手
 
 从本站对应的源码取得完整 [skill 目录](https://github.com/lavapapa/society0/tree/@COMMIT@/skill)。将它作为名为 society0 的 skill 放入所用编码助手支持的技能目录，保留入口、references、assets 和 scripts 的相对结构。具体发现位置按该助手的配置选择。
 
-安装后请助手加载 Society0 skill，并确认它能读取 [SKILL.md](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/SKILL.md)、[运行快速说明](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/references/runtime-quickstart.md)与[完整起步程序](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py)。只复制入口文件会缺少所引用的研究方法和程序资产。
+安装后请助手加载 society0，确认能读取 [SKILL.md](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/SKILL.md)、[安装准备](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/references/installation.md)、[运行快速说明](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/references/runtime-quickstart.md)与[完整起步程序](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py)。首次安装依次核对源码、解释器与依赖、模型、初始化、真实试跑和恢复。正式使用从开始加载独立的 society0-workbench，由它指导工作台操作；缺少入口时记录接入待办。
 
 可以这样开始：
 
@@ -39,4 +39,4 @@ uv run python skill/assets/minimal_experiment.py \
 
 让助手先读取真实阶段结果、Thread 原文和记忆，再解释一次运行。用小试验核对行动是否发生、原文是否完整、测量是否属于对应主体；运行成功之后继续检查研究问题所需的基线、重复与现实数据口径。
 
-可以在配置初稿或已保存结果上生成[静态工作台](../guide/workbench.md)。页面中的修改请求由研究者核对后应用到新版本配置，保留旧运行。扩大主体规模前，根据实际请求用量与资源成本安排预算；[研究边界](../concepts/research.md)说明如何区分软件验证、仿真观察与现实证据。
+设计初稿、配置选择、运行状态和结果按 society0-workbench 的实际要求交付。世界可以独立初始化、配对控制变量或从可信完整点分叉，选择依据是要回答的实验问题。扩大规模前根据实际请求用量与资源成本安排预算；[研究边界](../concepts/research.md)说明如何区分软件验证、仿真观察与现实证据。

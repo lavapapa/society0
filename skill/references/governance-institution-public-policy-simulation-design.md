@@ -6,9 +6,7 @@ public policy labs, commons governance, norm formation, moderation systems,
 elections, roll-call voting, public-good cooperation, sanctions, accountability,
 or policy-practice simulations.
 
-Load it after `research-design.md`, `environment-design.md`, `agent-design.md`,
-and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a
-paper.
+Use [SKILL.md](../SKILL.md) for the execution flow; consult the conditional references below as needed.
 
 Do not use this guide as a generic multi-agent template. If the mechanism is a
 social feed, news diffusion, misinformation spread, or platform recommendation,
@@ -23,7 +21,7 @@ Contents:
 - Boundary stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - Society0 construction rules
 - Minimal scaffold checklist
 - Baselines and ablations
@@ -259,25 +257,14 @@ These simulations can support exploration and rehearsal. They cannot replace
 affected-community participation, expert review, legal analysis, or official
 policy evaluation.
 
-## Loading Order
+## Conditional References
 
-For governance, institution, and public-policy work, load only the files needed
-for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `communication-social-media-simulation-design.md` when feeds, diffusion,
-   recommendations, or misinformation are the main mechanism
-8. `interview-survey-deliberation-simulation-design.md` when surveys,
-   respondent simulation, focus groups, or deliberation protocols dominate
-9. Economics/finance guides when macro, market, banking, or expectations
-   mechanics dominate
-10. `run-monitor-analyze.md` when planning metrics, repeated runs, qualitative
-   process review, or validation
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Add `communication-social-media-simulation-design.md` for feed or diffusion mechanisms, `interview-survey-deliberation-simulation-design.md` for respondent or deliberation protocols, or economics/finance guides for market, banking, or expectations mechanisms.
+- Consult `run-monitor-analyze.md` when defining institutional metrics, repeated-run validation, or qualitative process review.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions governance, institutions, public policy,
 policy simulation, legislatures, committees, coalitions, government formation,

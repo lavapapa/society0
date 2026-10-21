@@ -3,9 +3,7 @@
 Use this guide for Society0 simulations about organizations, management,
 workflows, collaboration, team behavior, enterprise task environments, human-AI
 teamwork, workplace coordination, software-company workflows, and
-organization-level decision behavior. Load it after `research-design.md`,
-`environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load
-`simulation-paper-distillation.md` when adapting a paper.
+organization-level decision behavior. Use [SKILL.md](../SKILL.md) for the execution flow; consult the conditional references below as needed.
 
 This guide is not a generic multi-agent-framework guide. Extract organization,
 team, workflow, role, delegation, artifact, and task environment mechanisms only.
@@ -17,7 +15,7 @@ Contents:
 - Domain stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - Society0 construction rules
 - Paper-derived patterns
 - Dirty-work triage
@@ -123,35 +121,14 @@ Use `consumer-marketing-marketplace-simulation-design.md` when organization
 agents appear as buyers, sellers, service providers, or customer-facing proxies
 inside a transaction marketplace.
 
-## Loading Order
+## Conditional References
 
-For organization, workflow, collaboration, and team behavior work, load only the
-files needed for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `governance-institution-public-policy-simulation-design.md` when role
-   authority, compliance, sanctions, public legitimacy, or accountable
-   institutional decisions are central
-8. `city-community-emergency-simulation-design.md` when the team is situated in
-   a spatial, urban, mobility, traffic, or emergency environment
-9. `communication-social-media-simulation-design.md` when workplace
-   communication is mediated by public feeds, audience visibility, rumors, or
-   platform interventions
-10. `economics-finance-simulation-design.md` when firm, labor, market, banking,
-    or macroeconomic mechanisms are central
-11. `consumer-marketing-marketplace-simulation-design.md` when buyer/seller
-    agents, catalogs, search, negotiation, payments, or marketplace welfare are
-    central
-12. `run-monitor-analyze.md` when planning repeated runs, output tables,
-    validators, trace replay, or qualitative review
-13. Source files only when implementing or debugging a concrete env: start from
-    `src/society0/env/`, `src/society0/environment.py`,
-    `src/society0/schedule.py`, and `src/society0/agent/core.py`
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Add a domain guide only for the cross-domain mechanisms identified in **Target Taxonomy**: public authority, spatial emergencies, platform visibility, economic institutions, or marketplace transactions.
+- Consult `run-monitor-analyze.md` when defining artifact validators, repeated-run metrics, or trace review.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions organization, management, workflow,
 collaboration, teamwork, team behavior, human-AI team, workplace, enterprise,

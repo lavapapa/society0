@@ -75,8 +75,9 @@ async def test_analysis_snippet_reads_all_pages_and_original_large_values(tmp_pa
     from society0.kernel.runtime import Phase
     study.plugins[-1] = schedule_plugin(SequenceSchedule((10,20), [Phase('decide', lambda ctx: StepResult(
         metrics={'rows': len(expected)}, tables={'decisions': iter(expected)}))]))
-    run_dir = tmp_path/'runs/first-study/resumed'
+    run_dir = tmp_path/'environment-check/resumed'
     await run_plan(run_dir, study)
+    monkeypatch.setenv('SOCIETY0_STUDY', str(tmp_path))
     monkeypatch.chdir(tmp_path)
     document = (ROOT/'skill/references/run-monitor-analyze.md').read_text()
     code = re.findall(r'```python\n(.*?)\n```', document, re.S)[0]

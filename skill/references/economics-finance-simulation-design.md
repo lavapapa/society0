@@ -1,13 +1,13 @@
 # Economics And Finance Simulation Design
 
-Use this reference as the entry point for economics, macroeconomics, banking, market, policy, expectations, and finance simulations in Society0. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, and `step-dsl.md`; then load the target guide that matches the user's study.
+Use this reference as the entry point for economics, macroeconomics, banking, market, policy, expectations, and finance simulations in Society0. Use [SKILL.md](../SKILL.md) for the execution flow; select a target guide below when its economic mechanism is needed.
 
 Contents:
 
 - Domain stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - General construction rules
 - Design-transfer and dirty-work triage
 - Reproduction boundaries
@@ -73,24 +73,14 @@ Choose the target by the economic object being simulated:
 - **Bank-run or crisis-communication simulation**: depositor personas receive panic messages and bank communications; env maps withdrawal propensities into liquidity or contagion dynamics. Use `economics-finance-financial-market-simulation.md`.
 - **Consumer marketing or agentic marketplaces**: consumers, buyer agents, seller agents, catalogs, search, discounts, proposals, payments, welfare, and manipulation are the mechanism. Use `consumer-marketing-marketplace-simulation-design.md`; return here only for broader economic interpretation or market-design baselines.
 
-## Loading Order
+## Conditional References
 
-For economics/finance work, load only the files needed for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `founder-experience.md`
-2. `research-design.md`
-3. `environment-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This overview
-7. One or more target guides:
-   - `economics-finance-macro-urban-simulation.md`
-   - `economics-finance-expectations-survey-simulation.md`
-   - `economics-finance-financial-market-simulation.md`
-   - `economics-finance-method-synthesis.md`
-   - `consumer-marketing-marketplace-simulation-design.md` when purchase, marketing, or marketplace transaction design is central
-
-Load `economics-finance-method-synthesis.md` when the user asks for a new design, reproduction fidelity, robustness plan, or cross-paper methodology.
+- Select the matching economic mechanism from **Target Taxonomy**; add another domain guide only when that mechanism crosses domains.
+- Consult `economics-finance-method-synthesis.md` for cross-paper methodology, robustness, or reproduction fidelity.
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 ## General Construction Rules
 

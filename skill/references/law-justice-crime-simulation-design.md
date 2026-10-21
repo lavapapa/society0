@@ -1,6 +1,6 @@
 # Law, Justice, Crime, And Legal Society Simulation Design
 
-Use this guide for Society0 simulations about legal society, crime propensity, legal deterrence, legislation, adjudication, enforcement, litigation, legal aid, rights protection, regulatory evasion, and justice-system access. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about legal society, crime propensity, legal deterrence, legislation, adjudication, enforcement, litigation, legal aid, rights protection, regulatory evasion, and justice-system access. Use [SKILL.md](../SKILL.md) for the execution flow. Consult [paper distillation](simulation-paper-distillation.md) when adapting a paper; use [installation](installation.md) to locate the selected Next repository when implementation is needed.
 
 This guide is for legal social simulation, not legal advice, legal QA, or courtroom role-play alone.
 
