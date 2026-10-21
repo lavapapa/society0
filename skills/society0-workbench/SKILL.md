@@ -35,7 +35,7 @@ description: 为 Society0 及相关多主体研究创建、配置和刷新轻量
 | 新增组件 | `references/custom-extension.md` 及最接近的组件组 |
 | 离线交付 | `references/export.md` |
 
-`references/catalog.md` 列出当前真正可用的 27 个组件、示例与入口；按任务加载其中一组。需要的能力尚未交付时说明缺项，并在已有授权内新增本地视图。
+`references/catalog.md` 列出当前真正可用的 31 个组件、示例与入口；按任务加载其中一组。需要的能力尚未交付时说明缺项，并在已有授权内新增本地视图。
 
 ## 语义与交付
 

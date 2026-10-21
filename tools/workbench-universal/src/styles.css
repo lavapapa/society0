@@ -749,3 +749,23 @@ svg { flex-shrink: 0; }
 @media (max-width: 620px) {
   .topbar-center { overflow: visible; }
 }
+
+/* 工件、K线、时间映射与检查点 ------------------------------------------- */
+.artifacts-summary { font-size: 10px; color: var(--faint); margin-bottom: 5px; }
+.artifacts ul { display: flex; flex-direction: column; gap: 0; max-height: 240px; overflow-y: auto; }
+.artifacts li { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 2px; border-bottom: 1px solid var(--line-soft); font-size: 10.5px; }
+.artifact-type { font-size: 9px; color: var(--faint); text-align: right; }
+.artifact-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-size { color: var(--muted); font-variant-numeric: tabular-nums; }
+.candles svg { width: 100%; display: block; max-height: 220px; }
+.timemap { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+.timemap th { padding: 4px 6px; text-align: left; font-size: 9.5px; color: var(--muted); background: var(--surface-muted); border-bottom: 1px solid var(--line); }
+.timemap td { padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
+.checkpoints { display: flex; flex-direction: column; gap: 0; }
+.checkpoints li { display: grid; grid-template-columns: 12px minmax(86px, 0.6fr) minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 2px; border-bottom: 1px solid var(--line-soft); font-size: 10.5px; }
+.cp-dot { width: 7px; height: 7px; border-radius: 50%; background: #7fb09a; }
+.cp-dot.partial { background: #bf8755; }
+.cp-dot.error { background: #c98b84; }
+.cp-dot.awaiting { background: #d8e2ea; }
+.checkpoints small { color: var(--faint); font-size: 9.5px; }
+.checkpoints em { font-style: normal; font-size: 9.5px; color: var(--faint); }

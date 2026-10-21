@@ -6,6 +6,7 @@ import { BarsPanel, ComparePanel, DistributionPanel, HeatPanel, OrderBookPanel }
 import { BoardPanel, EventCalendarPanel, FlowPanel, GanttPanel, TimelinePanel } from './EventPanels.jsx';
 import { DiffusionPanel, MapPanel, ODPanel, TrackPanel } from './SpatialPanels.jsx';
 import { DiagnosticsPanel, ForecastPanel, MatrixPanel, StrategyPanel } from './AnalysisPanels.jsx';
+import { ArtifactsPanel, CandlesPanel, CheckpointsPanel, TimeMapPanel } from './MorePanels.jsx';
 
 /* ---------- 面板网格：尺寸预设 + 排序 + 键盘移动，持久在浏览器 ---------- */
 
@@ -185,7 +186,8 @@ export function SeriesPanel({ dataset }) {
           <line x1={pad.left} x2={pad.left} y1={pad.top} y2={pad.top + plotH} stroke="#dfe7ee" />
           <line x1={pad.left} x2={width - pad.right} y1={pad.top + plotH} y2={pad.top + plotH} stroke="#dfe7ee" />
           {[0, 0.5, 1].map((ratio) => {
-            const value = minX + (maxX - minX) * ratio;
+            const raw = minX + (maxX - minX) * ratio;
+            const value = Number.isInteger(minX) && Number.isInteger(maxX) ? Math.round(raw) : raw;
             return (
               <text key={`x${ratio}`} x={x(value)} y={height - 6} fontSize="10" fill="#8292a1" textAnchor={ratio === 0 ? 'start' : ratio === 1 ? 'end' : 'middle'}>
                 {formatAxis(value)}
@@ -352,6 +354,10 @@ export const PANEL_TYPES = {
   strategy: StrategyPanel,
   forecast: ForecastPanel,
   diagnostics: DiagnosticsPanel,
+  artifacts: ArtifactsPanel,
+  candles: CandlesPanel,
+  timemap: TimeMapPanel,
+  checkpoints: CheckpointsPanel,
 };
 
 export function renderPanel(panel, datasets, selection, select) {
