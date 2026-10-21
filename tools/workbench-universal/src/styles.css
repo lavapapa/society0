@@ -586,7 +586,7 @@ svg { flex-shrink: 0; }
 .month-cell { min-height: 44px; padding: 3px 4px; border: 1px solid var(--line-soft); border-radius: 4px; background: #fff; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .month-cell.outside { background: #fafbfc; }
 .month-date { font-size: 9px; color: var(--faint); }
-.event-chip { display: block; padding: 1px 4px; border-radius: 3px; font-size: 8.5px; line-height: 1.45; color: #365b8f; background: #eaf1f6; overflow-wrap: anywhere; }
+.event-chip { display: block; padding: 1px 3px; border-radius: 3px; font-size: 8.5px; line-height: 1.4; color: #365b8f; background: #eaf1f6; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .event-chip.layer-1 { background: #fbf1e2; color: #8a5a1e; }
 .event-chip.layer-2 { background: #eaf4ef; color: #3f735f; }
 .event-chip.layer-3 { background: #f1f0fa; color: #5c548f; }
@@ -699,3 +699,16 @@ svg { flex-shrink: 0; }
 .diag-table { width: 100%; border-collapse: collapse; font-size: 10px; }
 .diag-table th { padding: 3px 6px; text-align: left; color: var(--muted); font-size: 9px; border-bottom: 1px solid var(--line); }
 .diag-table td { padding: 3px 6px; border-bottom: 1px solid var(--line-soft); }
+
+/* 组件图鉴 -------------------------------------------------------------- */
+.atlas-groups { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 10px; }
+.atlas-groups button { height: 26px; padding: 0 9px; font-size: 10.5px; border-color: var(--line-soft); background: #fff; color: var(--muted); }
+.atlas-groups button[aria-pressed='true'] { background: var(--selected-bg); border-color: var(--line); color: var(--accent-deep); }
+.atlas-groups button span { margin-left: 5px; font-size: 9px; color: var(--faint); }
+.atlas-index { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 3px 12px; margin-bottom: 14px; }
+.atlas-index li { display: grid; grid-template-columns: 78px 84px minmax(0, 1fr) 22px; align-items: baseline; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); font-size: 10px; }
+.atlas-index code { font-size: 9.5px; color: var(--accent-deep); }
+.atlas-index strong { font-size: 10.5px; font-weight: 500; }
+.atlas-index span { color: var(--muted); }
+.atlas-index em { font-style: normal; font-size: 9px; color: var(--faint); text-align: right; }
+.atlas-index li.missing { opacity: 0.55; }

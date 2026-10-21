@@ -4,6 +4,7 @@ import { SetupInsight, SetupMain, SetupWorkspace } from './SetupPanel.jsx';
 import { RunDetail, RunPicker } from './RunPanel.jsx';
 import { TimeControl } from './TimePanel.jsx';
 import { ObserveMain, useLayout } from './ObservePage.jsx';
+import { AtlasMain } from './AtlasPage.jsx';
 import { useWorkbench } from './store.js';
 import { buildProposal, copyText, diffConfig, proposalText } from './proposal.js';
 
@@ -15,7 +16,7 @@ const BASE_PAGES = [
 export function App({ raw }) {
   const wb = useWorkbench(raw);
   const { data, version, runs, worlds, selection, select, collapsed, setCollapsed, draftFor } = wb;
-  const pages = [...BASE_PAGES, ...(data.panels.length ? [{ id: 'observe', label: '观察' }] : [])];
+  const pages = [...BASE_PAGES, ...(data.panels.length ? [{ id: 'observe', label: '观察' }] : []), ...(data.atlas ? [{ id: 'atlas', label: '图鉴' }] : [])];
   const pageId = pages.some((page) => page.id === selection.pageId) ? selection.pageId : 'setup';
   const [layout, setLayout] = useLayout(data.study.id);
 
@@ -106,6 +107,8 @@ export function App({ raw }) {
           <section className="panel workspace" aria-label="工作区">
             {pageId === 'setup' ? (
               <SetupMain {...wb} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
+            ) : pageId === 'atlas' ? (
+              <AtlasMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             ) : pageId === 'observe' ? (
               <ObserveMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             ) : (
