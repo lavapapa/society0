@@ -45,7 +45,7 @@
 
 ## 二、身份
 
-- `versions[]`：配置版本，`id`、`label`、`configSource`、`config`，可选 `configFields[]`。
+- `versions[]`：配置版本，`id`、`label`、`configSource`、`config`，可选 `configFields[]`。工作台按资料里的当前版本呈现，不提供版本切换；需要并列查看两版时，各自生成一份资料与页面。
 - `worlds[]`：`id`、`label`、`versionId`、`parentWorldId`、`plannedSource`、`overrides`。
 - `runs[]`：`id`、`label`、`worldId`、`versionId`、`status`、`dataThrough`。
 - `observations[]`：`id`、`runId`、`step`、`round`、`businessTime`、`label`。

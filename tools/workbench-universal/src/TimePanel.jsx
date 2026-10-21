@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { formatTime } from './data.js';
+import { useAnchoredPopover } from './useAnchoredPopover.js';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -28,6 +29,12 @@ function monthMatrix(year, month) {
 }
 
 /** 轮次 / 日历双模式时间定位；日历按需展开，不遮挡主区。 */
+/** 顶栏中间的时间插槽：没有运行时给出占位，保证标签栏位置不随右侧控件变化。 */
+export function TimePicker({ run, observations, selection, select, modes }) {
+  if (!run || !observations.length) return null;
+  return <TimeControl observations={observations} selection={selection} select={select} modes={modes} />;
+}
+
 export function TimeControl({ observations, selection, select, modes }) {
   const allowed = modes?.length ? modes : ['round', 'calendar'];
   const hasDates = observations.some((obs) => parseDate(obs.businessTime));
@@ -39,6 +46,7 @@ export function TimeControl({ observations, selection, select, modes }) {
   const [mode, setMode] = useState(canCalendar ? 'calendar' : 'round');
   const [open, setOpen] = useState(false);
   const trigger = useRef(null);
+  const { anchorRef, popoverRef, style: popoverStyle } = useAnchoredPopover(open, 300);
 
   const anchor = parseDate(current?.businessTime) || parseDate(observations[0]?.businessTime) || new Date();
   const [cursor, setCursor] = useState(() => ({ year: anchor.getUTCFullYear(), month: anchor.getUTCMonth() }));
@@ -96,7 +104,7 @@ export function TimeControl({ observations, selection, select, modes }) {
 
       <button
         type="button"
-        ref={trigger}
+        ref={(node) => { trigger.current = node; anchorRef.current = node; }}
         className="time-current"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -112,7 +120,7 @@ export function TimeControl({ observations, selection, select, modes }) {
       {!canCalendar && allowed.includes('calendar') ? <span className="time-note">没有日期映射，日历不可用</span> : null}
 
       {open && (!canCalendar || mode === 'round') ? (
-        <div className="observation-list" role="dialog" aria-label="选择时点">
+        <div className="observation-list" role="dialog" aria-label="选择时点" ref={popoverRef} style={popoverStyle}>
           <div className="observation-head">
             <strong>可用时点</strong>
             <small>{observations.length} 个</small>
@@ -136,7 +144,7 @@ export function TimeControl({ observations, selection, select, modes }) {
       ) : null}
 
       {open && mode === 'calendar' && canCalendar ? (
-        <div className="calendar" role="dialog" aria-label="按日期选择观测点">
+        <div className="calendar" role="dialog" aria-label="按日期选择观测点" ref={popoverRef} style={popoverStyle}>
           <div className="calendar-head">
             <button type="button" className="icon-button" aria-label="上个月" onClick={() => shiftMonth(-1)}>‹</button>
             <strong>{cursor.year} 年 {cursor.month + 1} 月</strong>

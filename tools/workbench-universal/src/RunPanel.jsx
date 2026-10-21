@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RUN_STATUS_LABELS, formatTime } from './data.js';
 import { StateBlock } from './ui.jsx';
+import { useAnchoredPopover } from './useAnchoredPopover.js';
 
 function statusLabel(status) {
   return RUN_STATUS_LABELS[status] || RUN_STATUS_LABELS.unknown;
@@ -17,7 +18,7 @@ export function RunPicker({ runs, worlds, selection, select, version }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const trigger = useRef(null);
-  const popover = useRef(null);
+  const { anchorRef: popoverAnchor, popoverRef, style: popoverStyle } = useAnchoredPopover(open, 560);
 
   const current = runs.find((run) => run.id === selection.runId) || null;
 
@@ -65,7 +66,7 @@ export function RunPicker({ runs, worlds, selection, select, version }) {
     <div className="run-picker">
       <button
         type="button"
-        ref={trigger}
+        ref={(node) => { trigger.current = node; popoverAnchor.current = node; }}
         className="run-trigger"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -79,7 +80,7 @@ export function RunPicker({ runs, worlds, selection, select, version }) {
       </button>
 
       {open ? (
-        <div className="run-popover" role="dialog" aria-label="运行选择" ref={popover}>
+        <div className="run-popover" role="dialog" aria-label="运行选择" ref={popoverRef} style={popoverStyle}>
           <div className="run-popover-head">
             <div className="segmented" role="tablist" aria-label="运行视图">
               <button type="button" role="tab" aria-selected={view === 'board'} onClick={() => setView('board')}>运行看板</button>
