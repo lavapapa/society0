@@ -109,7 +109,7 @@ export function App({ raw }) {
             {pageId === 'setup' ? (
               <SetupMain {...wb} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
             ) : pageId === 'atlas' ? (
-              <AtlasMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
+              <AtlasMain data={data} selection={selection} select={select} />
             ) : (
               <ObserveMain data={data} selection={selection} select={select} layout={layout} onLayout={setLayout} />
             )}
