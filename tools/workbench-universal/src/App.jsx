@@ -1,7 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { RUN_STATUS_LABELS, configSections, describeRevision, formatTime } from './data.js';
+import { RUN_STATUS_LABELS, describeRevision } from './data.js';
 import { SetupInsight, SetupMain, SetupWorkspace } from './SetupPanel.jsx';
-import { StateBlock } from './ui.jsx';
+import { RunDetail, RunPicker } from './RunPanel.jsx';
+import { TimeControl } from './TimePanel.jsx';
 import { useWorkbench } from './store.js';
 import { buildProposal, copyText, diffConfig, proposalText } from './proposal.js';
 
@@ -12,7 +13,7 @@ const PAGES = [
 
 export function App({ raw }) {
   const wb = useWorkbench(raw);
-  const { data, version, runs, selection, select, collapsed, setCollapsed, draftFor } = wb;
+  const { data, version, runs, worlds, selection, select, collapsed, setCollapsed, draftFor } = wb;
   const pageId = PAGES.some((page) => page.id === selection.pageId) ? selection.pageId : 'setup';
 
   const source = version?.configSource || '';
@@ -33,6 +34,10 @@ export function App({ raw }) {
     setCopyState(ok ? 'copied' : 'manual');
   }, [proposal]);
 
+  const run = runs.find((item) => item.id === selection.runId) || null;
+  const world = worlds.find((item) => item.id === (run?.worldId || selection.worldId)) || null;
+  const observations = useMemo(() => (run ? data.observations.filter((obs) => obs.runId === run.id) : []), [data.observations, run]);
+
   return (
     <div className="app">
       <header className="topbar">
@@ -49,8 +54,12 @@ export function App({ raw }) {
               </button>
             ))}
           </nav>
+          {run ? (
+            <TimeControl observations={observations} selection={selection} select={select} modes={data.workspace.timeModes} />
+          ) : null}
         </div>
         <div className="topbar-right">
+          <RunPicker runs={runs} worlds={worlds} selection={selection} select={select} version={version} />
           {data.versions.length > 1 ? (
             <label className="version-select">
               <select aria-label="配置版本" value={version?.id || ''} onChange={(event) => select({ versionId: event.target.value })}>
@@ -60,16 +69,18 @@ export function App({ raw }) {
               </select>
             </label>
           ) : null}
-          <button
-            type="button"
-            className="copy-button"
-            data-has-draft={changes.length > 0}
-            disabled={!changes.length}
-            onClick={copy}
-            title={changes.length ? '复制参数变更请求' : '当前没有待发送变更'}
-          >
-            {copyState === 'copied' ? '已复制' : copyState === 'manual' ? '请手动复制' : '复制变更'}
-          </button>
+          {pageId === 'setup' ? (
+            <button
+              type="button"
+              className="copy-button"
+              data-has-draft={changes.length > 0}
+              disabled={!changes.length}
+              onClick={copy}
+              title={changes.length ? '复制参数变更请求' : '当前没有待发送变更'}
+            >
+              {copyState === 'copied' ? '已复制' : copyState === 'manual' ? '请手动复制' : '复制变更'}
+            </button>
+          ) : null}
         </div>
       </header>
 
@@ -91,14 +102,14 @@ export function App({ raw }) {
         <div className={`main${pageId === 'setup' ? '' : ' no-insight'}`}>
           <section className="panel workspace" aria-label="工作区">
             {pageId === 'setup' ? (
-              <SetupMain {...wb} proposal={proposal} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
+              <SetupMain {...wb} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
             ) : (
-              <RunsMain runs={runs} worlds={wb.worlds} selection={selection} select={select} />
+              <RunDetail run={run} world={world} observations={observations} selection={selection} select={select} />
             )}
           </section>
           {pageId === 'setup' ? (
             <aside className="panel insight" aria-label="变更与记录">
-              <SetupInsight changes={changes} proposal={proposal} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
+              <SetupInsight changes={changes} proposalText={proposalText(proposal)} copyState={copyState} onCopy={copy} />
             </aside>
           ) : null}
         </div>
@@ -123,43 +134,3 @@ function RunSidebar({ runs, selection, select }) {
     </div>
   );
 }
-
-function RunsMain({ runs, worlds, selection, select }) {
-  if (!runs.length) {
-    return (
-      <>
-        <div className="workspace-head"><h1>运行</h1><p>还没有可查看的运行</p></div>
-        <div className="workspace-body">
-          <StateBlock kind="unconfigured" title="还没有运行资料">
-            运行出现后，这里会按世界和状态列出每一次运行。可以先在实验设置里核对平行世界计划。
-          </StateBlock>
-        </div>
-      </>
-    );
-  }
-  return (
-    <>
-      <div className="workspace-head"><h1>运行</h1><p>{runs.length} 次运行</p></div>
-      <div className="workspace-body">
-        <div className="grid-cards">
-          {runs.map((run) => (
-            <button
-              key={run.id}
-              type="button"
-              className={`run-card${selection.runId === run.id ? ' selected' : ''}`}
-              aria-current={selection.runId === run.id}
-              onClick={() => select({ runId: run.id })}
-            >
-              <span className="run-world">{worlds.find((world) => world.id === run.worldId)?.label || '世界待提供'}</span>
-              <strong>{run.label}</strong>
-              <span className={`run-status ${run.status || 'unknown'}`}>{RUN_STATUS_LABELS[run.status] || RUN_STATUS_LABELS.unknown}</span>
-              <small>{run.dataThrough ? `资料截至 ${formatTime(run.dataThrough)}` : '尚无完整资料'}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-}
-
-export { configSections };
