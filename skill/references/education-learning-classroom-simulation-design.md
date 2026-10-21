@@ -1,6 +1,6 @@
 # Education, Learning, And Classroom Simulation Design
 
-Use this guide for Society0 simulations about classroom learning, tutoring, teacher scaffolding, student misconceptions, peer learning, informal classroom social dynamics, and educational intervention rehearsal. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about classroom learning, tutoring, teacher scaffolding, student misconceptions, peer learning, informal classroom social dynamics, and educational intervention rehearsal. Use [SKILL.md](../SKILL.md) for the execution flow. Consult [paper distillation](simulation-paper-distillation.md) when adapting a paper; use [installation](installation.md) to locate the selected Next repository when implementation is needed.
 
 This guide is not a generic education-agent reference. Use it only when learning state, classroom interaction, teacher action, peer relation, or educational assessment is the simulation target.
 

@@ -4,9 +4,7 @@ Use this guide for Society0 simulations about LLM respondents, survey experiment
 social psychology experiment replication, vignette/scenario experiments, deliberation,
 group discussion, focus groups, mini-publics, citizens' juries, Habermas Machine-style
 consensus systems, silicon samples, interview-grounded agents, and generative agent
-simulations of people. Load it after `research-design.md`, `environment-design.md`,
-`agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md`
-when adapting a paper.
+simulations of people. Use [SKILL.md](../SKILL.md) for the execution flow; consult the conditional references below as needed.
 
 This is not a generic generative-agent or AgentSociety architecture guide. It distills
 respondent simulation and deliberative protocols into Society0's env-first scaffold:
@@ -18,7 +16,7 @@ Contents:
 - Domain stance
 - Evidence map
 - Target taxonomy
-- Loading order
+- Conditional references
 - General construction rules
 - Paper-derived patterns
 - Dirty-work triage
@@ -133,19 +131,14 @@ Use the communication guide when feeds, platforms, diffusion, recommendations, o
 social-media affordances are the core mechanism. Use economics/finance guides when the
 target is macro expectations, forecasters, markets, or bank behavior.
 
-## Loading Order
+## Conditional References
 
-For interview, survey, and deliberation work, load only the files needed for the target:
+Follow [SKILL.md](../SKILL.md) for the execution flow. Read additional material when the current design needs it:
 
-1. `research-design.md`
-2. `environment-design.md`
-3. `agent-design.md`
-4. `step-dsl.md`
-5. `simulation-paper-distillation.md` when adapting a paper
-6. This guide
-7. `run-monitor-analyze.md` when planning repeated runs, output tables, validation, or qualitative review
-8. Domain-specific guides when the content domain dominates the respondent method
-9. Source files only when implementing or debugging a concrete env: start from `src/society0/env/`, `src/society0/environment.py`, `src/society0/schedule.py`, and `src/society0/agent/core.py`
+- Consult `simulation-paper-distillation.md` when adapting a paper.
+- Add `communication-social-media-simulation-design.md` when platform exposure shapes responses, or economics/finance guides when expectations, markets, or banking shape the protocol; add other domain guides only when their mechanisms are required.
+- Consult `run-monitor-analyze.md` when defining repeated-run validation, response tables, or qualitative review.
+- For implementation or debugging, resolve `$SOCIETY0_REPO` through [installation](installation.md), then inspect `$SOCIETY0_REPO/src/society0/kernel/` for runtime contracts, `$SOCIETY0_REPO/src/society0/plugins/` for reusable mechanisms, and `$SOCIETY0_REPO/examples/core_next/` for consumers.
 
 Load this guide when the user mentions LLM respondents, AI respondents, simulated
 participants, human subjects replacement, survey experiments, vignette experiments,

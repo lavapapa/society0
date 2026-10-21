@@ -4,7 +4,7 @@
 
 ## 驱动
 
-RuleDriver 使用相同 Session 信息与行动门面执行确定规则。LLMDriver 维护完整 Thread、动态元工具、行动预算与结构化测量；CognitiveInput 保留单来源 tuple 协议，多来源通过 cognition_plugin 的 SourceSpec 显式绑定独立位置。常用配置沿 [规则与模型配方](../../docs/core-next/builtin-composition.md) 装配，完整运行见 [公共组合示例](../../examples/core_next/README.md)。临时提醒通过激活信号传递，不隐式积累到人格或权威主观状态。
+RuleDriver 使用相同 Session 信息与行动门面执行确定规则。LLMDriver 维护完整 Thread、动态元工具、行动预算与结构化测量；CognitiveInput 保留单来源 tuple 协议，多来源通过 cognition_plugin 的 SourceSpec 显式绑定独立位置。从[安装指南](installation.md)定位 `$SOCIETY0_REPO`，将变量展开为绝对路径后读取：常用配置沿 `$SOCIETY0_REPO/docs/core-next/builtin-composition.md` 装配，完整运行见 `$SOCIETY0_REPO/examples/core_next/README.md`。临时提醒通过激活信号传递，不隐式积累到人格或权威主观状态。
 
 ## Persona Design
 

@@ -1,5 +1,7 @@
 # Research Design
 
+本页用于在已选定问题上深化方法。第一版设计与选择流程见[第一轮设计](design-first-pass.md)，世界与运行设置见[实验配置](experiment-configuration.md)。这里的 research question 是方法术语，面向用户交付可比较、可观察的具体实验问题；按需要选择重复、基线和敏感性分析。
+
 ## From Observation To Simulation
 
 Start by translating the user's everyday observation into a research scaffold:

@@ -1,6 +1,6 @@
 # Consumer, Marketing, And Marketplace Simulation Design
 
-Use this guide for Society0 simulations about consumer choice, marketing interventions, price promotions, word-of-mouth, buyer/seller agentic markets, search, negotiation, transaction, marketplace design, welfare, manipulation, and consumer-facing agent behavior. Load it after `founder-experience.md`, `research-design.md`, `environment-design.md`, `agent-design.md`, and `step-dsl.md`; also load `simulation-paper-distillation.md` when adapting a paper.
+Use this guide for Society0 simulations about consumer choice, marketing interventions, price promotions, word-of-mouth, buyer/seller agentic markets, search, negotiation, transaction, marketplace design, welfare, manipulation, and consumer-facing agent behavior. Use [SKILL.md](../SKILL.md) for the execution flow. Consult [paper distillation](simulation-paper-distillation.md) when adapting a paper; use [installation](installation.md) to locate the selected Next repository when implementation is needed.
 
 Route macroeconomics, financial markets, banking, and household labor/consumption to the economics/finance guides first. Use this guide when the mechanism is consumer-facing choice, marketing exposure, or marketplace transaction design.
 
