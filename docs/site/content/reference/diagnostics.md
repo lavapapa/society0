@@ -12,7 +12,7 @@
 
 action_counts 统计尝试；successful_action_counts 对应 completed，accepted_action_counts 保留受理，failed_action_counts 包含 rejected、error、cancelled。完成标签去重后计数，错误样本给出 Thread 和事件序号。error_limit 控制最近样本数量，max_bytes 容纳不了摘要时失败并提示调整预算。
 
-一个 shell 脚本中的每次 invoke 单独计数，外层 bash 不重复计入。领域 handler 内的内部调用归于本次工具实现；已保存回执的复用不新增执行。DriverResult 的行动账本用于激活预算，工作台使用实际执行投影。规则主体行为由领域 StepResult 指标表达。
+一个 shell 脚本中的每次 invoke 单独计数，外层 bash 不重复计入。领域 handler 内的内部调用归于本次工具实现；已保存回执的复用不新增执行。DriverResult 的行动账本用于激活预算，Observation 使用实际执行投影。规则主体行为由领域 StepResult 指标表达。
 
 ## 物理用量
 

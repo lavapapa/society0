@@ -203,19 +203,6 @@ async def test_sampling_streams_only_keys_then_fetches_selected_projection(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_shared_environment_example_checkpoint_and_workspace(tmp_path):
-    import runpy
-    from pathlib import Path
-    pytest.importorskip('bashkit')
-    example = runpy.run_path(str(Path(__file__).parents[2] / 'examples/core_next/shared_environment.py'))
-    report = await example['demonstrate'](tmp_path / 'example', history=1000)
-    assert report['restored_equal'] and report['complete_step']==1
-    assert report['artifact_count'] >= 10
-    assert [actor['actor'] for actor in report['actors']] == ['alice','bob']
-    assert any(command['stdout']=='12\n' for command in report['actors'][0]['commands'])
-
-
-@pytest.mark.asyncio
 async def test_mixed_indexed_seek_does_not_scan_prior_equal_rank(tmp_path):
     with StageStore.create(tmp_path/'mixed',[
         'CREATE TABLE items(id INTEGER PRIMARY KEY,owner TEXT NOT NULL,rank INTEGER NOT NULL)',

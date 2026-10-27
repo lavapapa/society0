@@ -1,25 +1,16 @@
-include README.md
-include LICENSE
-include pyproject.toml
-include pytest.ini
-graft src
-graft docs
-graft examples
-graft skill
-prune tests
-prune runs
-prune output
-prune tmp
-prune artifacts
-prune reports
-prune logs
-prune checkpoints
-prune chroma_store
-prune chroma_backups
-prune metadata
-prune diffs
-prune interviews
-prune edit_history
-prune .refs
+include README.md LICENSE PROJECT.md AGENTS.md
+include pyproject.toml pytest.ini uv.lock constraints.txt
+recursive-include src *.py *.pyi py.typed
+recursive-include examples *.py *.json *.md
+recursive-include tests *.py
+recursive-include scripts *.py
+recursive-include benchmarks *.py *.md
+recursive-include docs *.md *.py *.yml *.yaml *.css *.txt
+recursive-include native/society0-filesystem *.toml *.lock *.rs
+prune native/society0-filesystem/target
+prune docs/site/site
+prune docs/site/.venv
+prune docs/site/.build
+prune benchmarks/results
 global-exclude __pycache__ *.py[cod] *.egg-info
 global-exclude .env .env.* *.jsonl *.log *.sqlite *.sqlite3 *.db

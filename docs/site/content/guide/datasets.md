@@ -57,7 +57,7 @@ from society0.kernel.results import DatasetTable, StepResult
 result = StepResult(tables={"source_material": DatasetTable(reference)})
 ```
 
-随后按[结果教程](../tutorial/results.md)取得阶段表的引用并分页读取。工作台导出仍然会物化你明确选择的结果范围，转交引用并不能省掉展示端取得全部正文的开销。
+随后按[结果教程](../tutorial/results.md)取得阶段表的引用并分页读取。完整导出会物化所选范围，成本随原文大小增长。
 
 ## 核对恢复后的资料
 

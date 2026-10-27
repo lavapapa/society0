@@ -14,6 +14,23 @@ social_plugin 返回包含叶插件的普通 Plugin，根 `mechanism` 服务指�
 
 `config.social_media.recommendation.use_embedding_similarity` 默认 False。启用时必须同时提供 embedding 与 vector_client 引用；关闭时传入任一语义资源会失败。无语义配方不安装 semantic 叶及向量表。初始化可传 edges 或使用配置拓扑，seed 固定初始化随机源，恢复使用持久配置及关系。
 
+## 独立装配叶插件
+
+每个工厂返回普通 Plugin，可通过具名服务替换其中一个叶，同时保留其余社交机制。参数中的 data、content、relations 等引用决定真实依赖；修改实例名时一并更新引用。
+
+<!-- api: society0.plugins.social.social_data_plugin -->
+<!-- api: society0.plugins.social.social_notifications_plugin -->
+<!-- api: society0.plugins.social.social_relations_plugin -->
+<!-- api: society0.plugins.social.social_engagement_plugin -->
+<!-- api: society0.plugins.social.social_content_plugin -->
+<!-- api: society0.plugins.social.social_exposure_plugin -->
+<!-- api: society0.plugins.social.social_candidates_plugin -->
+<!-- api: society0.plugins.social.social_semantic_plugin -->
+<!-- api: society0.plugins.social_recommendation.social_recommendation_plugin -->
+<!-- api: society0.plugins.social.social_presentation_plugin -->
+<!-- api: society0.plugins.social_ranking.weighted_ranking_plugin -->
+<!-- api: society0.plugins.social_ranking.chronological_ranking_plugin -->
+
 ## 推荐与呈现
 
 推荐策略消费纯值输入，结果保持完整合格候选、精确总数及同一 revision。
@@ -27,7 +44,10 @@ social_plugin 返回包含叶插件的普通 Plugin，根 `mechanism` 服务指�
 
 recommendation 返回 `(RankingInput, RankingOutput)`；recommendation_input 可供独立策略比较，两者均不登记曝光。默认 weighted 综合时间、互动、关系和可选语义得分；chronological 按创建 tick 与帖子 ID 降序排列。策略与配置绑定在一次运行内固定，改变绑定通过新 Run 装配。
 
-`/world/<实例名>/feed` 为只读预览，分页保留得分、Ref、正文路径及精确总数。recommended_feed 返回配置数量的完整帖子，默认登记曝光，预览可传 record_impressions=False。`present` 接收消费者确认实际呈现的 ID，曝光在此时登记。媒体开关、热门窗口与注入、可选正文预算的字段语义见[社交合同](https://github.com/lavapapa/society0/blob/@COMMIT@/docs/core-next/social-contract.md)。
+`/world/<实例名>/feed` 为只读预览，分页保留得分、Ref、正文路径及精确总数。recommended_feed 返回配置数量的完整帖子，默认登记曝光，预览可传 record_impressions=False。`present` 接收消费者确认实际呈现的 ID，曝光在此时登记。媒体与热门配置由下方模型声明定义；`inject_into_feed` 在 `post_count` 上限内优先加入去重后的热门帖，排除主体自己的帖子。
+
+<!-- api: society0.plugins.social_models.SocialMediaFeatures -->
+<!-- api: society0.plugins.social_models.TrendingConfig -->
 
 <!-- api: society0.plugins.social_cognition.social_source_plugin -->
 <!-- api: society0.plugins.social_cognition.SocialPerception -->

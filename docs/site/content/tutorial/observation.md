@@ -84,4 +84,4 @@ uv run python -m society0.kernel.observation runs/hello/run \
 
 CLI 会准备选中的完整步骤，读完把临时视图清掉。要连着读很多页，就用 [ObservationService](../reference/observation.md) 复用同一份准备好的视图，或者按[结果教程](results.md)开一个只读分析目录，省得每个请求都重新准备一遍。
 
-走到这里，你手上已经有一个能运行、能读结果、能从完整步骤恢复、还能实时观察的小实验。接下来可以按[操作指南](../guide/index.md)扩展机制，或者用[研究 skill](../resources/research-skill.md)把研究问题组织成带对照和测量的实验。
+走到这里，你手上已经有一个能运行、能读结果、能从完整步骤恢复、还能实时观察的小实验。接下来可以按[操作指南](../guide/index.md)扩展机制，为自己的运行添加对照条件和测量。

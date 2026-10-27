@@ -1,8 +1,0 @@
-{
-  "name": "society0-network-prototypes",
-  "private": true,
-  "type": "module",
-  "scripts": {"build": "vite build", "test": "node --test model.test.mjs", "dev": "vite --host 127.0.0.1"},
-  "dependencies": {"react": "19.2.0", "react-dom": "19.2.0", "@tabler/icons-react": "^3.46.0", "cytoscape": "^3.33.1"},
-  "devDependencies": {"vite": "6.4.2", "@vitejs/plugin-react": "5.0.4", "vite-plugin-singlefile": "^2.3.0", "@playwright/test": "^1.56.0"}
-}

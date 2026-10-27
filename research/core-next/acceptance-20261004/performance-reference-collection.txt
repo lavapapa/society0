@@ -1,3 +1,0 @@
-
-no tests collected in 0.07s
-exit_code=5

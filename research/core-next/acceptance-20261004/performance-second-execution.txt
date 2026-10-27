@@ -1,3 +1,0 @@
-Connection timed out during banner exchange
-Connection to UNKNOWN port 65535 timed out
-exit_code=255

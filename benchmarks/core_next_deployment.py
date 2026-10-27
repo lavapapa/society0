@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tarfile
 
-ROOTS=('src','tests','native','skill/assets','examples/core_next')
+ROOTS=('src','tests','native','examples/core_next')
 FILES=('pyproject.toml','uv.lock','benchmarks/core_next_deployment.py')
 
 

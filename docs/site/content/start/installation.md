@@ -1,6 +1,6 @@
 # 安装 Society0
 
-照着这一页装好基础包，你就能在本地跑起一次规则运行，并把结果读出来。等研究需要模型、记忆或文件工具时，再回到这里加对应的可选依赖。下面的命令都用仓库自带的锁文件，适用于 macOS 和 Linux。
+本页从固定源码安装全部可选依赖，随后用规则示例运行并读取结果。命令使用仓库自带的锁文件，适用于 macOS 和 Linux；源码安装原生组件需要 Rust 工具链。模型、嵌入和订阅账号按实际运行另行配置。
 
 ## 取得与本站一致的源码
 
@@ -10,13 +10,13 @@
 git clone --branch next https://github.com/lavapapa/society0.git
 cd society0
 git switch --detach @COMMIT@
-uv sync --frozen
+uv sync --frozen --all-extras
 uv run python -c "import society0; print(society0.__version__)"
 ```
 
-最后一行会打印已安装包的版本，可以拿去和[本站构建身份](version.md)核对。命令里的这个提交由本站构建时填入。`next` 与旧稳定线分开维护，显式切到这个提交，后面的模块和示例才和文档一致。本地已经有这份提交的源码时，从 `uv sync --frozen` 继续。
+最后一行会打印已安装包的版本，可以拿去和[本站构建身份](version.md)核对。命令里的这个提交由本站构建时填入。`next` 与旧稳定线分开维护，显式切到这个提交，后面的模块和示例才和文档一致。本地已经有这份提交的源码时，从 `uv sync --frozen --all-extras` 继续。
 
-uv 会在仓库里建一个独立的 `.venv`，后续命令通过 `uv run` 使用它，并假定终端仍停在仓库根目录。基础安装已经包含规则主体、共享存储、插件组合、结果与恢复，这条路径不需要模型账号，也不需要编译 Rust。
+uv 会在仓库里建一个独立的 `.venv`，后续命令通过 `uv run` 使用它，并假定终端仍停在仓库根目录。规则运行使用共享存储、插件组合、结果与恢复，无需模型账号。上面的全功能安装同时准备原生文件工具；请先安装 [rustup](https://rustup.rs/)，工具链以[原生组件声明](https://github.com/lavapapa/society0/blob/@COMMIT@/native/society0-filesystem/rust-toolchain.toml)为准。
 
 ## 按功能增加可选依赖
 

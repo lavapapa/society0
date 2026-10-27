@@ -79,10 +79,10 @@ async def test_analysis_snippet_reads_all_pages_and_original_large_values(tmp_pa
     await run_plan(run_dir, study)
     monkeypatch.setenv('SOCIETY0_STUDY', str(tmp_path))
     monkeypatch.chdir(tmp_path)
-    document = (ROOT/'skill/references/run-monitor-analyze.md').read_text()
+    document = (ROOT/'docs/core-next/results-analysis.md').read_text()
     code = re.findall(r'```python\n(.*?)\n```', document, re.S)[0]
     namespace = {}
-    exec(compile(code, 'run-monitor-analyze.md', 'exec'), namespace)
+    exec(compile(code, 'results-analysis.md', 'exec'), namespace)
     assert [row['value'] for row in namespace['table_rows']] == expected
     assert namespace['metric_rows'] == [{'step': 2, 'phase': 'decide', 'phase_index': 0,
                                         'name': 'rows', 'value': len(expected)}]

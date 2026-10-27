@@ -1,3 +1,0 @@
-...                                                                      [100%]
-3 passed in 0.62s
-exit_code=0

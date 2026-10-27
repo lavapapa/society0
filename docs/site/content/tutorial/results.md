@@ -84,20 +84,4 @@ uv run python read_results.py
 
 把一个很大的 JSON 值完整读回来，内存里终究要放下它。分页控制的是每次传输多少；批量导出时逐条消费迭代器，别像教学代码这样把整张表转成 list。
 
-## 导出给工作台查看
-
-做完[对话教程](conversation.md)之后，可以把它那两个完整步骤导出给工作台：
-
-```bash
-uv run python -m society0.kernel.workbench \
-  --run runs/conversation/run --version baseline \
-  --steps 1 2 --actors a b c d \
-  --output runs/conversation/workbench.json
-uv run python skill/scripts/render_workbench.py \
-  --data runs/conversation/workbench.json \
-  --output runs/conversation/workbench.html
-```
-
-用浏览器打开生成的 HTML，里面能看到阶段指标、消息回执和来源位置。导出只保留选中的那几个完整步骤的记录；运行中的实时诊断仍然通过 Observation 读。多版本怎么选、完整导出要花多少，见[工作台指南](../guide/workbench.md)。
-
 结果读取已经和运行分开。下一课学习[恢复与继续](recovery.md)，从相同的完整步骤建立另一份可执行的运行。

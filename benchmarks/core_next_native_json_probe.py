@@ -8,12 +8,8 @@ import resource
 import tempfile
 import time
 
-# 固定旧 Python 编码基线，独立于当前产品 push API。
-import importlib.util
-from pathlib import Path
-_spec=importlib.util.spec_from_file_location('json_baseline',Path(__file__).parents[1]/'research/core-next/json-codec-baseline-f4d03a6.py')
-_baseline=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_baseline)
-raw_chunks=_baseline.raw_chunks
+# 固定 Python 流式编码对照，独立于当前产品 push API。
+from benchmarks.json_stream_baseline import raw_chunks
 
 
 def native_options(module):

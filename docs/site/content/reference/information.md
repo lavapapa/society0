@@ -19,7 +19,7 @@ authorize 返回 SQL 谓词与 bindings，表达逐行可见范围。dependencie
 
 ## 查询与翻页
 
-每个请求用一次短读事务，翻页按确定的排序键继续。下面代码要求 `SQLInformation('reports', reader, routes)` 已挂载到 `/reports`，并登记含 id、price 字段的 orders 数据集。
+每个请求用一次短读事务，翻页按确定的排序键继续。下面代码要求 `SQLInformation('reports', reader, routes)` 已挂载到 `/reports`，并登记含 id、length 字段的 documents 数据集。
 
 <!-- api: society0.kernel.information_sql.SQLInformation.query -->
 <!-- api: society0.kernel.information_sql.SQLInformation.metadata -->
@@ -28,8 +28,8 @@ authorize 返回 SQL 谓词与 bindings，表达逐行可见范围。dependencie
 ```python
 from society0.kernel.interaction import Query
 
-page = await session.information.query('/reports/orders', Query(
-    fields=('id', 'price'), filters=(('price', 'le', 100),),
+page = await session.information.query('/reports/documents', Query(
+    fields=('id', 'length'), filters=(('length', 'le', 100),),
     order=(('id', 'asc'),), limit=100))
 ```
 

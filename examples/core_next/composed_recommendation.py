@@ -23,7 +23,7 @@ WEIGHTS = dict(chronological_weight=.1, engagement_weight=.2, network_weight=.4,
 
 
 def body(author, number):
-    return (f'帖子{author} 序号{number}：完整产业讨论、证据与不同观点🙂🚀\n' * 6000)
+    return (f'帖子{author} 序号{number}：完整社区讨论、证据与不同观点🙂🚀\n' * 6000)
 
 
 def output_values(output):

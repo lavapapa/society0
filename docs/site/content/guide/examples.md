@@ -16,38 +16,7 @@ uv run python -m society0.kernel.runner \
   --output runs/conversation/run
 ```
 
-这个示例用规则 Driver，主体 `a、b、c、d` 在 `work` 和 `commons` 两个机制里交流。每个对话机制实例各自维护自己的事实，同一批主体共用一个环境。跑完之后可以按[结果教程](../tutorial/results.md)导出工作台 JSON。
-
-## 带模型和记忆的两轮实验
-
-`skill/assets/minimal_experiment.py` 是一份完整的两轮模型实验：Alice 读一条消息，执行查看详情的行动，写入经验，再回答一次结构化的可信度测量。它同时需要 LLM、embedding 和记忆依赖。
-
-```bash
-uv sync --frozen --extra llm --extra memory
-```
-
-在同一个终端里设置可以公开的模型信息和私有密钥。下面的占位值要换成你所用服务实际支持的模型和向量维数；密钥通过终端或你自己的环境管理器提供。
-
-```bash
-export SOCIETY0_RELEASE="$(git rev-parse HEAD)"
-export SOCIETY0_LLM_BASE_URL="https://YOUR_PROVIDER/v1"
-export SOCIETY0_LLM_MODEL="YOUR_CHAT_MODEL"
-export SOCIETY0_EMBED_BASE_URL="https://YOUR_PROVIDER/v1"
-export SOCIETY0_EMBED_MODEL="YOUR_EMBEDDING_MODEL"
-export SOCIETY0_EMBED_DIMENSIONS="YOUR_VECTOR_DIMENSIONS"
-# 在当前环境设置 SOCIETY0_LLM_API_KEY 与 SOCIETY0_EMBED_API_KEY。
-```
-
-先跑一次只做初始化的检查，再换一个新目录正式跑两轮：
-
-```bash
-uv run python skill/assets/minimal_experiment.py \
-  --check --run-dir runs/llm-study/check
-uv run python skill/assets/minimal_experiment.py \
-  --run-dir runs/llm-study/run
-```
-
-`--check` 用空时间序列，不会发出模型请求。正式运行会调用提供方服务，按所选模型产生费用。特定于模型的选项通过 `SOCIETY0_LLM_OPTIONS` 的 JSON 配置；工具阶段参数和其他调用阶段怎么区分，见[模型教程](../tutorial/llm.md)。
+这个示例用规则 Driver，主体 `a、b、c、d` 在 `work` 和 `commons` 两个机制里交流。每个对话机制实例各自维护自己的事实，同一批主体共用一个环境。跑完之后可以按[结果教程](../tutorial/results.md)通过 Python 读取指标与消息表。
 
 ## 跑一遍公共组合场景
 
@@ -95,7 +64,6 @@ uv run python -m society0.kernel.observation runs/composition/run
 | `examples/core_next/immutable_catalog.py` | 不可变大正文、热引用与数据集 |
 | `examples/core_next/graph_environment.py` | 外部准备、持久图数据与派生视图 |
 | `examples/core_next/parallel_graph.py` | 共享计算服务与多进程计算边界 |
-| `examples/core_next/shared_environment.py` | SQL 信息、行动、shell 和多个机制的共享状态 |
 | `examples/core_next/codex_subscription.py` | 订阅模型与公开运行工厂 |
 
 这些文件各有自己的入口和输入条件。翻一下[当前版本源码](https://github.com/lavapapa/society0/tree/@COMMIT@/examples/core_next)，按文件里定义的工厂或命令行来用。订阅路径另有[完整使用指南](subscription.md)。

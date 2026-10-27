@@ -1,19 +1,16 @@
 # Society0 Next 技术文档站
 
-本站使用 MkDocs Material，覆盖Next通用内核与非产业内置能力。正文、配置、构建和检查脚本随源码版本维护；生成HTML和离线包放在显式输出目录。
+本站使用 MkDocs Material，覆盖通用 Core、plain、cognition、round_robin 与全部 Social 插件。正文随源码维护；HTML、工具 schema 和离线包由构建脚本生成。
 
-## 一、源文件
+## 一、内容
 
-- [站点配置](mkdocs.yml)维护唯一导航，页面按入门、教程、概念、指南、参考与研究资源分组。
-- [正文首页](content/index.md)及相邻Markdown维护面向用户的说明。接口页使用 `<!-- api: society0.kernel.plugins.Plugin -->` 标记，由[构建脚本](build.py)从当前源码AST提取签名、字段和准确定位。
-- [工具导出](export_tools.py)通过真实LLMDriver生成策略变体的JSON Schema，创建声明时不调用模型。生成的版本页与schema均读取本站所在仓库。
-- [样式](content/assets/site.css)、离线Worker shim及许可证保持随包提供。字体采用系统字体，离线浏览与搜索可用。
-- [重构计划](PLAN.md)记录目录责任、参考项目与本次验收范围。长期API语义正文与历史审查记录分别维护。
-- [写作规范](WRITING.md)约定正文的读者视角、用词和句子结构；改稿或新增页面前先读一遍。
+[站点配置](mkdocs.yml)维护导航；[正文首页](content/index.md)通向安装、教程、概念、指南和 Python API。接口页中的 `<!-- api: society0.kernel.plugins.Plugin -->` 标记由[构建脚本](build.py)从源码 AST 提取签名、字段和定位。
+
+[工具导出](export_tools.py)从 LLMDriver 生成工具 JSON Schema，创建声明时无需调用模型。版本页读取项目元数据，避免手工复制版本信息。[写作规范](WRITING.md)定义正文责任与用词；[样式](content/assets/site.css)、离线 Worker 和许可证随站点提供。
 
 ## 二、构建
 
-先按仓库安装说明准备已包含 `llm` 依赖的Core Python环境，供工具声明导出使用。文档构建依赖在独立环境安装，从仓库根目录执行：
+先按[安装指南](content/start/installation.md)准备项目环境，再在仓库根目录安装独立的文档依赖：
 
 ```sh
 uv venv --python 3.12 docs/site/.venv
@@ -22,29 +19,14 @@ uv pip install --python docs/site/.venv/bin/python -r docs/site/requirements-doc
 docs/site/.venv/bin/python docs/site/check_build.py
 docs/site/.venv/bin/python docs/site/build.py \
   --api-python "$PWD/.venv/bin/python" \
-  --output /absolute/path/to/society0-docs
-
-docs/site/.venv/bin/python docs/site/check_site.py /absolute/path/to/society0-docs/site
+  --output "$PWD/docs/site/.build"
+docs/site/.venv/bin/python docs/site/check_site.py "$PWD/docs/site/.build/site"
 ```
 
-把输出路径改为自己的文档构建目录。输出包含 `site/`、`society0-docs-html.zip` 与 `build-manifest.json`。每次严格构建更新该目录内的站点和压缩包；模板展开在临时目录完成，手写正文保持原样。
+输出包含 `site/`、`society0-docs-html.zip` 和 `build-manifest.json`。每次构建重建指定输出目录下的站点；Markdown 展开在临时目录中完成。`--api-python` 指向安装相同 Next 依赖的 Python，导出进程通过 PYTHONPATH 读取当前仓库源码。
 
-`--api-python`可以指向另一个安装了相同Next依赖的Python环境；导出子进程会通过PYTHONPATH读取本站所在仓库的实际代码。构建环境只用于Markdown渲染，模型与Shell可选能力不会在构建时启动。
+## 三、检查
 
-## 三、验证与发布
+修改页面后，核对实际源码、默认值、示例与链接，运行构建函数检查、严格构建和站点引用检查。教程里的规则程序按实际命令执行；远端模型示例需要独立的账号授权。
 
-修改页面后核对实际源码、默认值及示例，先运行最小构建函数检查，再严格构建并检查内部链接、资源和锚点。教程的完整无模型程序应实际执行；模型配置示例需说明端点与依赖前提。
-
-交付前通过浏览器检查首页路径、搜索、复制、明暗模式、移动目录及至少一条完整教程。直接文件打开与HTTP访问均需检查中文搜索；将ZIP解压到新目录后重新验证，确保资源与相对路径完整。
-
-发布时把 `site/` 目录部署到静态HTTP服务器。本站使用 `.html` 链接，离线包与HTTP站点采用同一套路径。公网URL、服务器状态和实测结果写在相应发布记录中。站内源码链接固定到构建提交，正式交付前将对应源码提交推送到远端Next。
-
-## 四、Read the Docs
-
-仓库根目录的 [Read the Docs 配置](../../.readthedocs.yaml) 使用平台的[自定义构建步骤](https://docs.readthedocs.com/platform/stable/build-customization.html)。导入 `lavapapa/society0` 时将默认源码分支设为 `next`，配置路径为 `.readthedocs.yaml`，文档语言设为简体中文。GitHub App 的仓库访问范围选择 Society0；每次向启用版本对应的分支推送后，由集成触发重新构建。
-
-云端沿用同一个构建器，先生成真实接口与工具声明，再严格渲染和检查全站引用。声明导出环境从现有锁文件提取Python依赖，省去没有执行消费者的原生文件工具；Markdown渲染环境安装文档的独立固定依赖。这两个环境分别保留自己的版本约束，无需修改产品锁文件。
-
-构建将HTML放入平台的 `html` 输出，将完整离线包放入 `htmlzip` 输出，并在站点根目录提供 `society0-docs-html.zip` 下载。平台项目为 [society0-next](https://app.readthedocs.org/projects/society0-next/)，站点地址 <https://society0-next.readthedocs.io/zh-cn/latest/>，默认分支为 `next`，默认版本 `latest`。向 `next` 推送后GitHub集成自动触发重建；只有该版本对外提供，稳定线版本保持停用。
-
-平台每条构建命令在独立shell中执行，配置通过 `python -m uv` 调用工具，避免安装脚本与PATH不一致。发布后核对首页、版本页提交号、中文与英文符号搜索、离线包下载及站内链接。
+浏览生成的首页、教程和参考页，检查搜索、代码复制、明暗模式与移动目录。离线包解压后使用相对链接浏览；外部源码链接需要网络。仓库的 [Read the Docs 配置](../../.readthedocs.yaml)复用同一构建器，实际构建身份以生成的版本页为准。

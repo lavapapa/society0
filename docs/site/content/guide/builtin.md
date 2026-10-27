@@ -43,4 +43,4 @@ social 的帖子、公开资料、回复、通知和 feed 都在实例路径下�
 
 正式 Runtime 会收集机制登记的步骤回调；social 的曝光和语义任务在 after 钩子里完成，早于完整步骤发布。直接调用底层服务，就要自己承担同样的收尾工作。语义推荐默认关闭；启用时把 embedding 和 vector client 一起接上，具体接线见[社交指南](social.md)。
 
-用不同名字注册多个实例之后，逐个核对服务引用、成员和路径。公开工厂和信息接口见[轮次对话参考](../reference/round-robin.md)、[社交参考](../reference/social.md)，运行后的展示见[工作台](workbench.md)。
+用不同名字注册多个实例之后，逐个核对服务引用、成员和路径。公开工厂和信息接口见[轮次对话参考](../reference/round-robin.md)、[社交参考](../reference/social.md)，运行后的读取见[结果教程](../tutorial/results.md)。

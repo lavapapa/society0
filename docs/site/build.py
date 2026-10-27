@@ -128,7 +128,7 @@ def build(args):
             page.write_text(text.replace('@COMMIT@', commit))
         (stage / 'start/version.md').write_text(f'''# 版本与来源
 
-本站面向 Society0 Next（猎龙），覆盖通用内核与非产业内置扩展。
+本站面向 Society0 Next（猎龙），覆盖通用内核、plain、cognition、round_robin 与全部 Social 插件。
 
 ## 一、构建身份
 
@@ -145,7 +145,7 @@ def build(args):
 
 安装与复现研究时显式固定Next源码及依赖。既有稳定架构在 `stable/4.1` 维护，具有独立的接口与运行格式。每次研究保存源码身份、输入配置、模型服务设置和完整运行工件。
 
-页面中的源码链接固定在本站构建提交。源码仓内的设计记录、历史验收与研究工件分别保留其原始身份；长期运行和部署状态应从对应运行工件核实。
+页面中的源码链接固定在本站构建提交。运行状态与完整步骤从实际运行工件核实。
 
 ## 三、使用范围
 
@@ -159,7 +159,7 @@ def build(args):
         config_file = temp / 'mkdocs.yml'
         config_file.write_text(yaml.safe_dump(config, allow_unicode=True, sort_keys=False))
         subprocess.run([sys.executable, '-m', 'mkdocs', 'build', '--strict', '--config-file', str(config_file)], check=True)
-        # MkDocs的404模板使用站点根路径，无法随离线包迁移；保留全部77个内容页面。
+        # MkDocs的404模板使用站点根路径，无法随离线包迁移。
         not_found = (output / 'site' / '404.html').resolve()
         assert not_found.parent == (output / 'site').resolve()
         print(f'移除离线包不使用的根路径404页面：{not_found}')

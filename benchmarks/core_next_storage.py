@@ -480,7 +480,7 @@ def main():
     parser.add_argument('--n', type=int, default=1000)
     parser.add_argument('--workers', type=int, default=0)
     parser.add_argument('--input')
-    parser.add_argument('--output', default='research/core-next/storage-experiment-results-20261004.json')
+    parser.add_argument('--output', default='storage-experiment-results.json')
     args = parser.parse_args()
     if args.case:
         result = session_probe(args.layout, args.body_bytes, touched=args.touched) if args.case == 'session' else storage_probe(args.n) if args.case == 'storage' else compress_probe(args.input, args.workers)

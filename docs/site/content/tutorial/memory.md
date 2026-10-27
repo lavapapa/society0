@@ -80,7 +80,7 @@ uv run python -m society0.kernel.runner \
 
 ## 装配片段：把记忆接到自己的驱动上
 
-下面这段是放进已有模型计划里的**装配片段**。它沿用[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L70)自定义的 `cognition.input` 服务，依赖具名模型、嵌入和向量客户端资源。如果你用的是[多来源 cognition_plugin](../guide/cognition.md)，输入服务的引用要写成 `("cognition", "input_builder")`：
+下面这段是放进已有模型计划里的**装配片段**。它使用[多来源 cognition_plugin](../guide/cognition.md)的 `input_builder` 服务，依赖具名模型、嵌入和向量客户端资源：
 
 ```python title="记忆与驱动连接片段"
 from society0.kernel.memory import MemoryPolicy
@@ -95,12 +95,12 @@ memory = memory_plugin(
 )
 driver = llm_driver_plugin(
     provider=("resources", "models", "main"),
-    input_builder=("cognition", "input"),
+    input_builder=("cognition", "input_builder"),
     extensions=(("memory", "extension"),),
 )
 ```
 
-把 `memory` 和 `driver` 加进已有的插件集合，再把主体的驱动标签指到这份工厂。资源怎么接，可以参考[研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py#L81)：它在浏览成功之后才启用自动提取，访谈沿用默认的跳过自动写入边界，自动召回独立于前两者。
+把 `memory` 和 `driver` 加进已有的插件集合，再把主体的驱动标签指到这份工厂。资源接线见[模型与嵌入](../guide/models.md)。访谈默认跳过自动写入，自动召回独立配置。
 
 自动写入会处理 `completed` 和 `waiting`，未完成的激活保留诊断。记忆正文、原始向量和作业回执都存在 SQL 里，检索索引由这些事实重建；默认可见版本和衰减用的是 `Session.step`。这些边界的理由见[记忆概念](../concepts/memory.md)。
 

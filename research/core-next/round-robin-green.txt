@@ -1,3 +1,0 @@
-.........{'history': [100, 10000], 'current_inbox_vm': [111, 111]}
-..
-11 passed in 0.35s

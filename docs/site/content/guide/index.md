@@ -29,6 +29,6 @@
 
 先看观察接口确认这次运行发布了哪些完整步骤，再决定继续恢复、做只读分析还是导出展示。
 
-[存储与恢复](storage.md)讲怎么从完整步骤建立新分支、什么时候可以清理资源；[工作台](workbench.md)把运行保存下来的工件导出成静态 HTML；安装、装配或运行时出错，按[排查指南](troubleshooting.md)定位第一次失败发生在哪一步。
+[存储与恢复](storage.md)讲怎么从完整步骤建立新分支、什么时候可以清理资源；[结果教程](../tutorial/results.md)通过 Python 分页读取运行保存的指标和原文；安装、装配或运行时出错，按[排查指南](troubleshooting.md)定位第一次失败发生在哪一步。
 
-想直接从一个能跑的计划开始，先看[可执行示例](examples.md)。研究问题、实验设计和证据解释交给[研究 skill](../resources/research-skill.md)组织；参数、返回值这类精确内容查[接口参考](../reference/index.md)。
+想直接从一个能跑的计划开始，先看[可执行示例](examples.md)。参数、返回值这类精确内容查[接口参考](../reference/index.md)。

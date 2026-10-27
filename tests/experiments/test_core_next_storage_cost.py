@@ -77,14 +77,26 @@ def test_disabled_export_is_visible_in_counts(tmp_path, monkeypatch):
 
 
 def test_large_unchanged_inline_body_is_charged_to_native_session(tmp_path):
-    results = {layout: storage_cost(tmp_path / layout, mode='profile', history_rows=2,
-                                   steps=2, delta_rows=2, active_rows=2,
-                                   position_body_bytes=65536, position_body_layout=layout)
-               for layout in ('inline', 'detached')}
-    inline, detached = (results[layout]['costs']['complete'] for layout in ('inline', 'detached'))
-    assert inline['session_memory_max_bytes'] > detached['session_memory_max_bytes'] + 2 * 65536
+    sizes = (32768, 65536)
+    active_rows = 2
+    results = {(layout, size): storage_cost(tmp_path / f'{layout}-{size}', mode='profile',
+                                           history_rows=2, steps=2, delta_rows=active_rows,
+                                           active_rows=active_rows, position_body_bytes=size,
+                                           position_body_layout=layout)
+               for layout in ('inline', 'detached') for size in sizes}
+    costs = {key: result['costs']['complete'] for key, result in results.items()}
+    # 同布局增大正文，固定表/列元数据开销；跨布局相减会混入额外表的 Session 开销。
+    growth = {layout: costs[layout, sizes[1]]['session_memory_max_bytes']
+                      - costs[layout, sizes[0]]['session_memory_max_bytes']
+              for layout in ('inline', 'detached')}
+    assert growth['inline'] >= active_rows * (sizes[1] - sizes[0])
+    assert growth['detached'] == 0
     # 未修改的正文由 Session 保存旧行，但不进入净列变更导出；允许表头的列掩码差异。
-    assert abs(inline['export_bytes'] - detached['export_bytes']) < 32
+    for layout in ('inline', 'detached'):
+        assert costs[layout, sizes[0]]['export_bytes'] == costs[layout, sizes[1]]['export_bytes']
+    for size in sizes:
+        assert costs['inline', size]['session_memory_max_bytes'] > costs['detached', size]['session_memory_max_bytes']
+        assert abs(costs['inline', size]['export_bytes'] - costs['detached', size]['export_bytes']) < 32
     assert all(result['verification']['restore_matches'] for result in results.values())
 
 
