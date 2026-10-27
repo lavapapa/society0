@@ -58,7 +58,7 @@ uv run python inspect_cognition.py
 
 预期找到一个持久 Thread，消费位置里带着社交来源和通知来源各自的键。消息中有完整背景和中文原文，也有固定提供方的响应。第二次激活只追加新材料，之前输入过的原文继续留在 Thread 里。追加什么由来源位置决定，上下文里已经有什么由 Thread 决定。
 
-这一例的固定响应直接结束决定，工具仍然由驱动提供；要看到主体真正完成某个领域动作，得用后面的真实研究 starter。
+这一例的固定响应直接结束决定，工具仍然由驱动提供；要看到主体完成领域动作，可以继续运行[记忆教程](memory.md)的脚本化工具场景。
 
 ## 换成 interview，提交结构化结果
 
@@ -84,7 +84,7 @@ uv run python -m society0.kernel.runner \
 
 ## 接到真实提供方和记忆服务
 
-[完整研究 starter](https://github.com/lavapapa/society0/blob/@COMMIT@/skill/assets/minimal_experiment.py)把过程分成浏览和访谈两段：先要求 `news.view_details` 成功，下一步再提交可信度评分和理由。它同时装配模型、嵌入和记忆服务，适合在看清当前这条链之后复制出去改。
+完整认知、提供方、记忆与行动策略分别装配。先用本地脚本场景核对输入和完成条件，再为自己的运行计划配置远端服务。
 
 接入真实服务时，按[提供方指南](../guide/models.md)选择 profile、配置凭据与请求参数。用 `llm_driver_plugin` 绑定 provider 和 input_builder，`LLMPolicy` 决定哪些行动允许、哪些必需、哪些算完成，以及预算多少。已有的硬上限被耗尽，或者输出被截断，这次激活记成 `incomplete`；这样的步骤怎么处理，由阶段策略决定。
 

@@ -65,6 +65,5 @@
 | 指标、表与结果分页 | [StepResult、Results](results.md) |
 | 当前诊断、完整视图与 HTTP 服务 | [Observation](observation.md) |
 | 行动、请求、时间与用量 | [诊断指标](diagnostics.md) |
-| 从完整工件导出页面数据 | [RunSelection、export_payload](workbench.md) |
 
 辅助实现按实际使用它的组件归入上述页面。扩展时以公开的运行入口和明确的服务为接入点，可以少依赖内部调度和存储细节；具体做法见[预设配方与服务替换](../guide/composition.md)。

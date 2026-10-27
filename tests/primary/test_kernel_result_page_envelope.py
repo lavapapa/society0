@@ -39,8 +39,7 @@ async def test_record_reference_shaped_value_remains_exact_json(tmp_path,sealed)
 
 
 @pytest.mark.asyncio
-async def test_workbench_thousand_small_dataset_rows_open_once_decode_shared_frame_once(tmp_path,monkeypatch):
-    from society0.kernel.workbench import _rows
+async def test_thousand_small_dataset_rows_open_once_decode_shared_frame_once(tmp_path,monkeypatch):
     values=[{'i':i} for i in range(1000)]
     opens=[];original=Datasets._open
     @contextmanager
@@ -53,5 +52,7 @@ async def test_workbench_thousand_small_dataset_rows_open_once_decode_shared_fra
         header=await results.write_phase(1,0,'step',StepResult(tables={'data':DatasetTable(ref)}))
         monkeypatch.setattr(Datasets,'_open',opened)
         calls=count_dataset_frames(monkeypatch)
-        assert list(_rows(results,header['tables']['data']))==values
+        page=results.page(header['tables']['data'],limit=1000,max_bytes=1048576)
+        assert [item['value'] for item in page['items']]==values
+        assert page['next_cursor'] is None
         assert len(calls)==1 and len(opens)==1

@@ -29,4 +29,4 @@
 
 学习途中要弄清边界，读[概念专题](../concepts/index.md)。已经知道目标、准备动手完成一项具体任务，查[操作指南](../guide/index.md)。需要某个参数、返回值或异常，查[接口参考](../reference/index.md)。
 
-研究设计与论文改编可以交给[研究 skill](../resources/research-skill.md)协助；它会把研究问题转成环境、主体、处理条件和测量方案。现在从[安装](installation.md)开始即可。
+现在从[安装](installation.md)开始即可。

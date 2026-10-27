@@ -32,7 +32,7 @@ ReadView 与 Writer 都是借用视图，有效期严格限于同步回调之内
 
 ```python
 rows = store.read(lambda view: view.query(
-    'SELECT id, amount FROM orders WHERE owner=? LIMIT 20', ('alice',)))
+    'SELECT id, content FROM posts WHERE author=? LIMIT 20', ('alice',)))
 # rows 是独立的结果；网络等待应发生在 read 返回之后。
 ```
 

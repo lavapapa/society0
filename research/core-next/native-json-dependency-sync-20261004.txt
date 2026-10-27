@@ -1,8 +1,0 @@
-Resolved 98 packages in 2.06s
-   Building society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
-      Built society0 @ file:///path/to/workspace/.codex-worktrees/society0-core-next
-Prepared 2 packages in 852ms
-Uninstalled 1 package in 0.84ms
-Installed 2 packages in 1ms
- + python-rapidjson==1.25
- ~ society0==5.0.0 (from file:///path/to/workspace/.codex-worktrees/society0-core-next)

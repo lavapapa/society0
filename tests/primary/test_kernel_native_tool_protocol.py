@@ -8,6 +8,23 @@ from tests.primary.test_kernel_llm import setup, reply, call
 
 TARGET={'namespace':'m','kind':'job','key':'1'}
 FIELDS={'action_invoke':'arguments','action_find':'cursor','ls':'cursor','find':'cursor'}
+ACTION_CURSOR={'identity':'激活标识🙂','cursor':{'identity':'查询标识','offset':3,'candidates':['work','其他']}}
+
+
+def assert_payload_schema(name,schema,strict):
+    value=ACTION_CURSOR if name=='action_find' else {'嵌套':{'array':[1,None,'正文🙂']}}
+    validate(json.dumps(value) if strict else value,schema)
+    if strict or name not in ('ls','find'):
+        with pytest.raises(ValidationError):validate(value if strict else json.dumps(value),schema)
+    if FIELDS[name]=='cursor':validate(None,schema)
+    if name=='action_find' and not strict:
+        # 行动游标由激活身份和查询游标组成；候选集仅在无 revision 时出现。
+        validate({'identity':'激活','cursor':{'identity':'查询','offset':0}},schema)
+        for invalid in ({}, {'嵌套':{'array':[1,None]}},
+                        {'identity':'激活','cursor':{}},
+                        {'identity':'激活','cursor':{'identity':'查询','offset':-1}},
+                        {'identity':'激活','cursor':{'identity':'查询','offset':0,'details':[]}}):
+            with pytest.raises(ValidationError):validate(invalid,schema)
 
 @pytest.mark.parametrize('strict',[False,True])
 def test_dynamic_schema_has_one_explicit_format(strict):
@@ -17,11 +34,7 @@ def test_dynamic_schema_has_one_explicit_format(strict):
         name=definition['name']
         if name not in FIELDS:continue
         schema=definition['parameters']['properties'][FIELDS[name]]
-        value={'嵌套':{'array':[1,None,'正文🙂']}}
-        validate(json.dumps(value) if strict else value,schema)
-        if strict or name not in ('ls','find'):
-            with pytest.raises(ValidationError):validate(value if strict else json.dumps(value),schema)
-        if FIELDS[name]=='cursor':validate(None,schema)
+        assert_payload_schema(name,schema,strict)
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('strict',[False,True])
@@ -51,10 +64,32 @@ async def test_file_and_action_cursors_reach_consumers_without_reencoding(strict
     ledger=SimpleNamespace(find=consume)
     cursor={'identity':'完整标识','cursor':{'offset':3,'details':['🙂',1]}}
     wire=lambda value:json.dumps(value,ensure_ascii=False) if strict else value
-    await driver._dispatch('action_find',{'target':TARGET,'query':'','limit':2,'cursor':wire(cursor)},session,ledger,None)
+    await driver._dispatch('action_find',{'target':TARGET,'query':'','limit':2,'cursor':wire(ACTION_CURSOR)},session,ledger,None)
     await driver._dispatch('ls',{'path':'/world/data','limit':2,'cursor':wire(cursor)},session,ledger,None)
     await driver._dispatch('find',{'path':'/world/data','pattern':'*','limit':2,'cursor':wire(cursor)},session,ledger,None)
-    assert [item[1]['cursor'] for item in seen]==[cursor,cursor,cursor]
+    assert [item[1]['cursor'] for item in seen]==[ACTION_CURSOR,cursor,cursor]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('strict',[False,True])
+async def test_action_cursor_from_consumer_validates_and_continues(tmp_path,strict):
+    from society0.kernel.interaction import Action, ActionResult
+    from society0.kernel.llm import _Ledger
+    store,threads,_,driver,session,_=setup(tmp_path,[],policy=LLMPolicy(strict_tools=strict))
+    session.actions.actions.register(Action('其他',('m','job'),'其他',{'type':'object'},
+                                             lambda *args:ActionResult('completed')))
+    with store:
+        ledger=_Ledger(driver,session,threads.open('a',session.moment,'decision'))
+        arguments={'target':TARGET,'query':'','limit':1,'cursor':None}
+        first=await driver._dispatch('action_find',arguments,session,ledger,None)
+        assert first.total==2 and first.next_cursor is not None
+        arguments['cursor']=json.dumps(first.next_cursor,ensure_ascii=False) if strict else first.next_cursor
+        schema=next(tool['function']['parameters'] for tool in driver._tools()
+                    if tool['function']['name']=='action_find')
+        validate(arguments,schema)
+        second=await driver._dispatch('action_find',arguments,session,ledger,None)
+        assert second.total==2 and second.next_cursor is None
+        assert {item.name for item in first.items+second.items}=={'work','其他'}
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('kind',['openai','openai-responses','siwc'])
@@ -88,10 +123,7 @@ async def test_sdk_wire_retains_dynamic_schema_and_explicit_strict(tmp_path,kind
                 if kind!='openai':assert tool['strict'] is strict
                 if tool['name'] not in FIELDS:continue
                 field=tool['parameters']['properties'][FIELDS[tool['name']]]
-                value={'任意动态字段':{'多层':[1,'🙂',None]}}
-                validate(json.dumps(value) if strict else value,field)
-                if strict or tool['name'] not in ('ls','find'):
-                    with pytest.raises(ValidationError):validate(value if strict else json.dumps(value),field)
+                assert_payload_schema(tool['name'],field,strict)
         finally:await provider.close()
 
 @pytest.mark.asyncio

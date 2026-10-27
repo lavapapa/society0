@@ -1,3 +1,0 @@
-....{'inactive_counts': [100, 10000], 'selector_vm': [136, 136]}
-.
-5 passed in 0.17s

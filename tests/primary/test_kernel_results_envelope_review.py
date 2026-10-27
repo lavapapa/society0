@@ -39,9 +39,7 @@ async def test_review_envelope_pagination_recovers_every_value_with_bounded_wire
 
 
 @pytest.mark.asyncio
-async def test_review_workbench_shared_frame_is_decompressed_once(tmp_path,monkeypatch):
-    import society0.kernel.datasets as datasets
-    from society0.kernel.workbench import _rows
+async def test_review_results_shared_frame_is_decompressed_once(tmp_path,monkeypatch):
 
     values=[{'v':i,'literal':{'payload_ref':'business'}} for i in range(1000)]
     with StageStore.create(tmp_path/'run',RESULTS_SCHEMA+DATASET_SCHEMA) as store:
@@ -49,5 +47,7 @@ async def test_review_workbench_shared_frame_is_decompressed_once(tmp_path,monke
         result=Results(store)
         table=(await result.write_phase(1,0,'phase',StepResult(tables={'records':DatasetTable(ref)})))['tables']['records']
         calls=count_dataset_frames(monkeypatch)
-        assert list(_rows(result,table))==values
+        page=result.page(table,limit=1000,max_bytes=1048576)
+        assert [item['value'] for item in page['items']]==values
+        assert page['next_cursor'] is None
         assert len(calls)==1

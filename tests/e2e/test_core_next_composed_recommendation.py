@@ -99,7 +99,7 @@ def test_public_recommendation_cli(tmp_path, variant):
         if event['event'] == 'original-read':
             number = int(event['post_id'].split('_')[1])
             author = 'b' if number == 1 else 'd'
-            expected = f'帖子{author} 序号{number}：完整产业讨论、证据与不同观点🙂🚀\n' * 6000
+            expected = f'帖子{author} 序号{number}：完整社区讨论、证据与不同观点🙂🚀\n' * 6000
             assert event['content'] == expected
             assert len(event['content'].encode()) > 100000
     if variant == 'external-selection':

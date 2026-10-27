@@ -1,7 +1,0 @@
-interface:
-  display_name: "Society0"
-  short_description: "Design, configure, build and run Society0 experiments."
-  default_prompt: "Use $society0. Route by the user's task: for a new experiment, combine two bounded parallel search rounds with domain knowledge and offer meaningful actor, environment and mechanism choices; configure comparisons, then build and run the approved plan autonomously. Load society0-workbench from the start of formal use. For existing runs or learning requests, enter the relevant path directly."
-
-policy:
-  allow_implicit_invocation: true

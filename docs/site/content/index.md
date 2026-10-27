@@ -42,7 +42,7 @@ Society0 是一个用 Python 写的多主体仿真引擎，给需要研究社会
 
     边跑边看进度与会话，从可信的完整步骤恢复，导出能定位到原文的结果。
 
-    [实时观察](tutorial/observation.md) → [存储管理](guide/storage.md) → [研究工作台](guide/workbench.md)
+    [实时观察](tutorial/observation.md) → [存储管理](guide/storage.md) → [读取结果](tutorial/results.md)
 
 </div>
 
@@ -67,11 +67,10 @@ Society0 是一个用 Python 写的多主体仿真引擎，给需要研究社会
 | 换主体目录、组合插件、配置推荐或排查故障 | [任务指南](guide/index.md) |
 | 查参数、状态、返回值、所有权和资源开销 | [接口参考](reference/index.md) |
 | 找一个可以直接执行的例子 | [示例索引](guide/examples.md) |
-| 用编码助手组织研究设计、试点和分析 | [研究 Skill](resources/research-skill.md) |
 
 ## 读之前需要知道的
 
-本站讲的是独立重构线 **Next（猎龙）**。源码、依赖和本站的构建身份见[版本与来源](start/version.md)；产业环境有独立仓库和自己的领域文档，不在这里。
+本站讲的是独立重构线 **Next（猎龙）**。源码、依赖和本站的构建身份见[版本与来源](start/version.md)；公开范围包括通用内核、plain、cognition、round_robin 与全部 Social 插件。
 
 教程里的命令都在源码仓库根目录执行，每次尝试使用新的运行目录。标注“完整程序”的代码可以按给定文件名保存，标注“装配片段”的代码需要放进你自己的运行计划。模型地址、凭据和研究参数由你提供。
 

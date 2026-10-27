@@ -19,11 +19,8 @@ from unittest.mock import patch
 from backports import zstd
 
 from society0.kernel._json_chunks import CHUNK_BYTES
-# spool/threaded 对照保留 f4d03a6 Python 遍历成本；default 路径运行当前产品。
-import importlib.util
-_spec=importlib.util.spec_from_file_location('json_baseline',Path(__file__).parents[1]/'research/core-next/json-codec-baseline-f4d03a6.py')
-_baseline=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(_baseline)
-_json_parts=_baseline._json_parts
+# spool/threaded 使用固定 Python 流式对照；default 路径运行当前产品。
+from benchmarks.json_stream_baseline import _json_parts
 from society0.kernel.storage import StageStore, Writer
 from society0.kernel.threads import ThreadStore, THREAD_SCHEMA
 

@@ -1,8 +1,0 @@
-{
-  "files": 1083,
-  "bytes": 127191537,
-  "conflicts": [],
-  "destination": "/path/to/workspace/research/simulation/society0core/research",
-  "comparison": "direct bytes",
-  "source_worktree": "/path/to/workspace/.codex-worktrees/society0-core-next"
-}

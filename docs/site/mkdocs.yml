@@ -1,7 +1,5 @@
 site_name: Society0 Next · 技术文档
 site_description: 构建共享环境，组织主体决定，保存可追溯、可恢复的研究运行。
-repo_url: https://github.com/lavapapa/society0/tree/next
-repo_name: Society0 / next
 edit_uri: ''
 use_directory_urls: false
 nav:
@@ -54,7 +52,6 @@ nav:
           - 并发与进程计算: guide/parallel.md
       - 运行与分析:
           - 存储与恢复管理: guide/storage.md
-          - 导出研究工作台: guide/workbench.md
           - 排查问题: guide/troubleshooting.md
   - 接口参考:
       - 查找接口: reference/index.md
@@ -92,10 +89,8 @@ nav:
           - StepResult 与分页: reference/results.md
           - Observation 与 HTTP: reference/observation.md
           - 行动与用量诊断: reference/diagnostics.md
-          - 工作台导出: reference/workbench.md
-  - 示例与研究:
+  - 示例与贡献:
       - 示例索引: guide/examples.md
-      - 研究 Skill: resources/research-skill.md
       - 贡献与维护: resources/contributing.md
 
 theme:

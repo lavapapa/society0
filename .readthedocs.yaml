@@ -12,6 +12,7 @@ build:
       - python -m uv export --frozen --extra llm --no-dev --no-emit-package society0-filesystem --no-emit-project --no-hashes --output-file /tmp/society0-docs-runtime.txt
       - python -m uv venv .venv
       - python -m uv pip install --python .venv/bin/python -r /tmp/society0-docs-runtime.txt
+      - python -m uv pip install --python .venv/bin/python --no-deps -e .
       # 渲染工具与产品依赖分开，保持两份已有依赖固定独立。
       - python -m uv venv docs/site/.venv
       - python -m uv pip install --python docs/site/.venv/bin/python -r docs/site/requirements-docs.txt

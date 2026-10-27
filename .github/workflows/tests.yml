@@ -3,8 +3,8 @@ name: tests
 on:
   pull_request:
   push:
-    branches:
-      - next
+    branches: [next, 'release/**']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,47 +14,36 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SOCIETY0_RUN_REAL_E2E: "0"
-
+      SOCIETY0_RUN_REAL_E2E: '0'
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
         with:
-          version: "0.8.12"
+          version: '0.8.12'
           enable-cache: true
-
-      - name: Install Python and native filesystem toolchain
+      - name: Install Python and native toolchain
         run: |
           uv python install 3.12
           rustup toolchain install 1.95.0 --profile minimal
-
-      - name: Install locked package with all test extras
+      - name: Install locked public package
         run: uv sync --frozen --all-extras --python 3.12
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: tools/workbench-template/package-lock.json
-
-      - name: Install workbench dependencies
-        run: npm ci --prefix tools/workbench-template
-
-      - name: Run deterministic suite and local experiments
-        # sqlite-vec belongs to a separate feasibility environment and is explicitly skipped here.
+      - name: Test public runtime and local experiments
         run: uv run --no-sync pytest tests/primary tests/e2e tests/experiments -m 'not real_e2e'
-
-      - name: Produce actual pilot workbench payload
+      - name: Build public distributions
         run: |
-          printf '{"release":{"commit":"%s"},"start":1,"end":2}\n' "$GITHUB_SHA" > "$RUNNER_TEMP/pilot.json"
-          uv run --no-sync python -m society0.kernel.runner --factory examples.core_next.conversation_pilot:build --config "$RUNNER_TEMP/pilot.json" --output "$RUNNER_TEMP/pilot-run"
-          uv run --no-sync python -m society0.kernel.workbench --run "$RUNNER_TEMP/pilot-run" --version ci --steps 1 2 --actors a b c d --output "$RUNNER_TEMP/pilot-payload.json"
-
-      - name: Render and test actual pilot results
-        env:
-          CORE_NEXT_WORKBENCH_PAYLOAD: ${{ runner.temp }}/pilot-payload.json
-        run: npm test --prefix tools/workbench-template
+          uv build
+          CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=${HOME:?}=/build-home" uv build native/society0-filesystem --out-dir dist
+          cp constraints.txt dist/constraints.txt
+      - name: Verify distribution scope
+        run: uv run --no-sync python scripts/check_release.py dist
+      - name: Install wheels in an independent environment
+        run: |
+          uv venv "$RUNNER_TEMP/installed" --python 3.12
+          uv pip install --python "$RUNNER_TEMP/installed/bin/python" --constraint constraints.txt --find-links dist 'society0[llm,memory,social,shell,observe]==2.0.0a1'
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/installed/bin/python" "$GITHUB_WORKSPACE/scripts/release_smoke.py"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: society0-next-linux
+          path: dist/*
+          if-no-files-found: error

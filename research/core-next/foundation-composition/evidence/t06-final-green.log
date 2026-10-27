@@ -1,8 +1,0 @@
-......................................{'notice_thread_history': [100, 10000], 'increment_composer_sql_vm': [115, 115]}
-..............................................................bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1247/test_shell_actual_domain_attem0/results/shell-0apld7my/output — scripts can modify host files
-.bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1247/test_terminal_inside_shell_sto0/results/shell-v2nsnhpi/output — scripts can modify host files
-......bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1247/test_shell_output_artifact_sur0/results/shell-tksk5o0f/output — scripts can modify host files
-.bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1247/test_shell_output_artifact_sur1/results/shell-kit_gj3e/output — scripts can modify host files
-bashkit: warning: writable mount at /private/var/folders/r0/jfnvxq550ts5j6jj4rvpsyt40000gp/T/pytest-of-marvin/pytest-1247/test_shell_output_artifact_sur1/new-results/shell-kfb1_7b1/output — scripts can modify host files
-.......
-115 passed in 6.76s

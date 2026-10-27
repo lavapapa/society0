@@ -1,65 +1,39 @@
-# Society0 Next · 猎龙
+# Society0 Next
 
-This is the independent, fully redesigned **Next** line, codenamed **猎龙**, intended for **Society0 V2**. Development lives on [`next`](https://github.com/lavapapa/society0/tree/next). The existing architecture remains the official stable line on [`stable/4.1`](https://github.com/lavapapa/society0/tree/stable/4.1), including industry-chain consumers. Install Next from an explicit branch or commit; the repository default selects the stable line.
+Society0 is a Python multi-agent simulation engine. Actors share one environment; plugins define information, actions and mechanisms. Rule and LLM drivers use the same interfaces, while explicit schedules control time and ordering. Complete steps preserve state, full Threads and results for analysis and recovery.
 
-Society0 is a general social simulation engine for agent-assisted research. Actors share one environment; plugins implement its internal mechanisms. Rule and LLM drivers use the same information and action interfaces, while code schedules define the study's timing and ordering.
+This is the **Next** release line. The [release notes](docs/release-next-2.0.0a1.md) identify this alpha; package metadata lives in [pyproject.toml](pyproject.toml). Next development uses `next`; the existing stable architecture remains on `stable/4.1`.
 
-**Documentation** — the Chinese handbook at **[society0-next.readthedocs.io](https://society0-next.readthedocs.io/zh-cn/latest/)** covers this line end to end: installation, a step-by-step tutorial, the concepts behind the runtime, task guides and the API reference. Tutorials start from two rule actors and need no model account; reference pages carry signatures and tool schemas generated from the current source. Read the Docs rebuilds the site on every push to `next`, and the same pages are downloadable as an offline package from the site root.
+## Get started
 
-The handbook source lives in [docs/site](docs/site/README.md), together with the build and local-preview instructions. Editorial rules for the pages are in the [writing guide](docs/site/WRITING.md).
-
-**Design inspiration.** Society0 Next draws inspiration and design reference from [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) and its approach to spatiotemporal composability. DSH's everything-is-a-plugin architecture is powered by Cordis; the accompanying paper, [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512) (Yifan Shi, Wei Zhang and Tianyi Cui, 2026), informs Next's explicit plugin dependencies and resource lifecycles within a shared simulation environment. We gratefully acknowledge this foundation; [shared environment and composition](docs/site/content/concepts/environment.md) explains how Next applies it.
-
-The package version is defined in [pyproject.toml](pyproject.toml). This branch contains the redesigned Core; the completed redesign is tracked in [the implementation checklist](docs/core-next/TODO.md), and the next validation phase in [basic-environment migration](docs/core-next/basic-env-migration.md). Existing artifacts must be read using their producing version. The V2 product name defines an independent line; source installation must select Next explicitly, rather than relying on package-version ordering against the stable line.
-
-## Start a study
-
-Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) to install from a chosen source revision, run two rule actors, read actual results and continue the remaining time in a new directory. It uses the base package and needs no model account. Python 3.12 or later and macOS or Linux are supported by the storage implementation.
-
-For assistant-guided experiments, install the complete [society0 skill](skill/SKILL.md) folder under that name in your assistant's skill directory. Start with [installation and verification](skill/references/installation.md) when an environment is needed. The workflow combines two bounded parallel search rounds with domain knowledge, offers actor/environment/mechanism choices, configures comparative worlds, then builds and runs the approved plan autonomously and interprets the results. Formal use connects to the separately supplied `society0-workbench` skill from the start; its current contract owns workbench interaction. The [starter](skill/assets/minimal_experiment.py) and [runtime quickstart](skill/references/runtime-quickstart.md) provide a small real-model action, memory and measurement example.
-
-中文图文教程：[用 WorkBuddy 开展 SNS 社区实验](docs/workbuddy-next-walkthrough.md)，从安装技能、检查配置，到运行、浏览真实帖子与会话、分析结果；附带可离线打开的[真实实验工作台](docs/examples/sns-workbench.html)和[示例配置](examples/core_next/sns_community/README.md)。
-
-Use the functional dependency groups required by your study: `llm`, `memory`, `social`, `shell` and `observe`. Base rule runs need no model endpoints or Rust build. The LLM file tools use the native filesystem package, with its own wheel and source build requirements; see [installation](docs/core-next/installation.md).
-
-Codex subscription access is configured through the [subscription guide](docs/core-next/subscription-guide.md). The `llm` extra provides the Pydantic AI integration; simulation actions and complete Thread history remain owned by Society0. The [model and driver contracts](docs/core-next/llm-contract.md) describe the integration boundary.
-
-## Compose an environment
-
-`Plugin` declares services, static child plugins, schema and initialization, with separate service and data-prerequisite graphs. `compose` establishes the shared state before installing services. `ActorRecord` describes persistent identity and subjective state; `actor_data_plugin` owns the persistent directory and `actor_plugin` binds it to drivers built only when needed. `rule_driver_plugin` and `llm_driver_plugin` expose factories through ordinary plugin services. Activation extensions share cognition and memory between drivers; restored actor records resolve their stored driver names against those services.
-
-[Rule and LLM presets](docs/core-next/builtin-composition.md) return ordinary plugin tuples with explicit schedules, resources and input-builder bindings. `cognition_plugin` composes ordered `SourceSpec` services under one consumer, retaining each source’s independent position and complete input history.
-
-The [public composition runbook](examples/core_next/README.md) provides executable configurations for multi-source cognition, independent positions, recommendation changes, external actor directories, registration, cleanup and process recovery. Its read-only verifier reports actual artifact differences as JSON.
-
-`Information` provides discoverable documents and datasets with authorized totals, continuation cursors and complete original-content reads. `Actions` exposes templates against resource references and rechecks eligibility when invoked. `LLMDriver` offers these through meta tools and an optional Bashkit shell, preserving the full Thread. `RuleDriver` accesses the same structured interfaces.
-
-`Schedule` supplies the next simulation time and ordered `Phase` sequence; `Runtime` executes and publishes that complete step. Serial execution is the default; explicitly independent phases can run concurrent actors. Endpoint and shared request limits separately bound external calls. Completion, waiting and incomplete outcomes remain distinct.
-
-The [two-mechanism conversation plan](examples/core_next/conversation_pilot.py), [external graph initialization](examples/core_next/graph_environment.py), [typed records](examples/core_next/typed_records.py) and [immutable catalog](examples/core_next/immutable_catalog.py) demonstrate reusable mechanisms. The [independent recommendation observer](examples/core_next/recommendation_observer.py) consumes reusable ranking inputs and strategies; the [social contract](docs/core-next/social-contract.md) explains leaf composition and explicit cognition effects. Detailed contracts are in [docs/core-next](docs/core-next).
-
-## Run and inspect
-
-`RunPlan` and `run_plan` freeze the public run contract and execute complete steps. Preserve code, dependency and configuration identities, and supply credentials through the runtime environment. Every attempt uses its own run directory.
+Use Python 3.12 or later on macOS or Linux, [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. Check out the release source and install its locked dependencies:
 
 ```sh
-python -m society0.kernel.observation /path/to/run
-python -m society0.kernel.observation /path/to/run --serve 8711
-```
-
-Install the `observe` extra to start the HTTP server. Observation reads live diagnostics, Thread tails, resource usage, action outcomes and results. Fixed complete views support historical analysis. Large records retain original-content references and byte-range continuation. [The observation contract](docs/core-next/observation-contract.md) explains version boundaries, API examples and costs; the [workbench](docs/core-next/workbench-contract.md) renders recorded experiment outputs.
-
-## Research and verification
-
-Keep observed simulation outcomes separate from empirical claims. Preserve all information needed for decisions, actionable domain operations, original messages and fact ordering. Memory writing, recall and active tools are independently configured. Provider failures and budget truncation remain visible; a successfully readable checkpoint alone does not establish scientific validity.
-
-Next validates its own contracts through explicit expectations and current public consumers. Legacy source launchers, algorithm copies and old-version comparison tests are retired from this branch; historical implementations remain in Git history and `stable/4.1`. The engine provides runtime mechanisms; consumers own study design and scientific validity.
-
-Run the deterministic suite and experiments with the development dependencies. Real endpoint tests use an explicit environment profile and separate output directory.
-
-```sh
+git clone --branch next-v2.0.0a1 https://github.com/lavapapa/society0.git
+cd society0
 uv sync --frozen --all-extras
-uv run pytest tests/primary tests/e2e tests/experiments -m 'not real_e2e'
 ```
 
-The [implementation overview](docs/core-next/implementation-result.md) links the current contracts and measured limits. Architecture boundaries are in [PROJECT.md](PROJECT.md), semantic parity in [the capability map](docs/core-next/capability-parity.md), and historical investigations retain their original source versions under `research/`.
+The source installation builds the independent native filesystem package when needed; prepare the Rust toolchain described in the [installation guide](docs/site/content/start/installation.md). Installing dependencies makes no model requests. Model endpoints and credentials belong to your explicit runtime environment.
+
+Follow [the first run and recovery tutorial](docs/core-next/getting-started.md) to run two rule actors, read their results and resume in a new directory. **Run → Results → recovery works entirely through Python and requires no UI.** Rule examples need no model account. [Result analysis](docs/core-next/results-analysis.md) includes complete pagination and large-record reads.
+
+## Public capabilities
+
+- **Core:** Plugin composition, Actor/Driver, Information/Actions, Schedule/Runtime, RunPlan, SQL storage, complete-step recovery, Results and Observation.
+- **Agent services:** full Thread history, LLM provider adapters, independent memory policies, file tools, workspace and optional shell.
+- **Built-in plugins:** `plain`, multi-source `cognition`, `round_robin`, and all general Social plugins—relationships, publishing, interactions, notifications, trends, recommendation and cognition sources.
+
+Start with the [rule and conversation examples](examples/core_next/README.md), then use the deterministic Social and composition examples to explore mechanisms without a remote model. The [Social guide](docs/site/content/guide/social.md) explains how to select and combine individual plugins.
+
+## Documentation
+
+The Chinese [handbook](https://society0-next.readthedocs.io/zh-cn/latest/) contains tutorials, configuration guides and Python API references. Its [source and build instructions](docs/site/README.md) provide a static site and offline package; signatures and tool schemas are generated from the checked-out source.
+
+- [Configuration and RunPlan](docs/site/content/reference/runner.md)
+- [Plugin composition](docs/site/content/guide/composition.md)
+- [Results API](docs/site/content/reference/results.md) and [Observation API](docs/site/content/reference/observation.md)
+- [Recovery and storage](docs/site/content/guide/storage.md)
+- [Project boundaries](PROJECT.md)
+
+**Design inspiration.** Next draws on [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), its Cordis-powered plugin architecture and [*A Programming Paradigm for Spatiotemporal Composability*](https://arxiv.org/abs/2608.25512). [Shared environment and composition](docs/site/content/concepts/environment.md) describes how Next applies explicit dependencies and resource lifecycles.

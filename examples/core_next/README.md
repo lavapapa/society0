@@ -1,90 +1,74 @@
-# Next 公共组合示例
+# Next 可运行示例
 
-本页说明如何通过公共工厂运行与验收组合能力。各场景由普通 Python 代码生成 RunPlan；配置选择有限的研究用例。所有输出保留真实 SQL、完整 Thread、完整点与退出事实。接口合同见 [Next 组合合同](../../docs/core-next/composition-contract.md)。
+从规则、对话或 Social 场景开始，再按需要替换插件。示例保存完整步骤、结果和 Thread，支持从完整点恢复；输出由本次运行生成。安装步骤见[安装指南](../../docs/site/content/start/installation.md)，首次结果读取见[运行与恢复](../../docs/core-next/getting-started.md)。
 
-## 一、运行
+## 一、规则与对话
 
-从干净、已提交的仓库根目录执行。使用已安装项目依赖的 Python，输出目录须为新目录。以下命令冻结当前源码提交，用确定性 typed provider 完成两个步骤，再由另一个进程从 step 1 恢复。
+在仓库根目录完成 `uv sync --frozen --all-extras` 后，为本次尝试建立新目录并保存配置：
 
-```bash
-export PYTHONPATH="$PWD/src:$PWD"
-export OUT="$(mktemp -d /tmp/society0-composition.XXXXXX)"
-python - <<'PY'
+```sh
+export OUT="$(mktemp -d /tmp/society0-examples.XXXXXX)"
+uv run python - <<'PY'
 import json, os, subprocess
 from pathlib import Path
-commit=subprocess.run(['git','rev-parse','HEAD'],check=True,capture_output=True,text=True).stdout.strip()
-config={'release':{'commit':commit},'case':'multi-source','variant':'default',
-        'provider':'scripted','start':1,'end':2}
-(Path(os.environ['OUT'])/'config.json').write_text(json.dumps(config),encoding='utf-8')
+config = {'release': {'commit': subprocess.check_output(
+    ['git', 'rev-parse', 'HEAD'], text=True).strip()}, 'start': 1, 'end': 2}
+(Path(os.environ['OUT']) / 'config.json').write_text(json.dumps(config))
 PY
-python -m society0.kernel.runner \
-  --factory examples.core_next.composed_cognition:build \
-  --config "$OUT/config.json" --output "$OUT/continuous"
-python -m society0.kernel.runner \
-  --factory examples.core_next.composed_cognition:build \
-  --config "$OUT/config.json" --output "$OUT/restored" \
-  --source "$OUT/continuous" --step 1
-python -m tests.e2e.core_next_composition_assertions \
-  --case multi-source --run "$OUT/restored" \
-  --continuous "$OUT/continuous" --output "$OUT/report.json"
+uv run python -m society0.kernel.runner \
+  --factory examples.core_next.rule_run:build \
+  --config "$OUT/config.json" --output "$OUT/rule"
+uv run python -m society0.kernel.runner \
+  --factory examples.core_next.conversation_pilot:build \
+  --config "$OUT/config.json" --output "$OUT/conversation"
+uv run python -m society0.kernel.observation "$OUT/conversation"
 ```
 
-验收器输出纯 JSON：`format`、`case`、`variant`、`source_commit`、`run_id`、`checks`、`first_difference`。每条检查列出预期、实际值和事实位置。成功退出 0；事实差异退出 1；输入不全或读取失败退出 2。`--output` 保存同一份报告，stdout 保留机器格式。
+[规则计划](rule_run.py)让 Alice、Bob 各作一次决定；[对话计划](conversation_pilot.py)让四名主体同时进入两个具名轮次机制。每步先配对再发送消息，结果包含配对与完整消息。以上入口均无需模型账号。
 
-默认场景使用真实 social 与持久通知来源，原文含中文、emoji 与独立序号。两次激活共享同一 Moment；主体每次实际获得完整已有 Thread。通知确认发生在输入与来源位置保存之后。社交嵌入关闭，模型由确定性提供方实现。
+## 二、Social 与认知
 
-## 二、场景
+[组合工厂](composed_cognition.py)接受 `case`、`variant` 和 `provider="scripted"`。以下场景使用完整 LLMDriver、本地固定响应和真实 Social 插件；语义嵌入关闭：
 
-`release.commit` 和 `provider="scripted"` 为公共配置的必填项。`variant` 由下表限定；通常使用 `start=1,end=2`。规则场景使用轻量规则配方；大模型场景经完整 LLMDriver 执行，保留正常工具、回合与行动预算。
+```sh
+uv run python - <<'PY'
+import json, os
+from pathlib import Path
+path = Path(os.environ['OUT'])
+config = json.loads((path / 'config.json').read_text())
+config.update(case='multi-source', variant='default', provider='scripted')
+(path / 'social.json').write_text(json.dumps(config))
+PY
+uv run python -m society0.kernel.runner \
+  --factory examples.core_next.composed_cognition:build \
+  --config "$OUT/social.json" --output "$OUT/social"
+uv run python -m society0.kernel.runner \
+  --factory examples.core_next.composed_cognition:build \
+  --config "$OUT/social.json" --output "$OUT/social-restored" \
+  --source "$OUT/social" --step 1
+uv run python -m society0.kernel.observation "$OUT/social-restored"
+```
 
-| case | variant | 实际消费路径 |
+`multi-source` 将社交内容与持久通知按顺序送进主体认知。两个来源分别保存位置，完整原文与固定响应留在 Thread，通知在输入保存后确认。恢复配置保留完整时间序列 `start=1,end=2`，runner 跳过已完成部分。
+
+需要单独观察排序时，在配置中使用 `case="recommendation", variant="default"`，输出到新目录。[推荐计划](composed_recommendation.py)使用规则 Driver、本地确定性嵌入和 Chroma，保存候选集、完整排名与分页记录。其 `validate(path)` 返回逐项只读检查；`compare(continuous, restored)` 比较连续与恢复后的业务事实。[Social 指南](../../docs/site/content/guide/social.md)说明各叶插件与曝光语义。
+
+## 三、扩展场景
+
+下面的场景仍使用组合工厂及 `provider="scripted"`；每次变更使用新配置和新输出目录。完整参数校验由各文件的 `build` 函数定义。
+
+| case | 示例 variant | 文件与用途 |
 |---|---|---|
-| `multi-source` | `default`、`reordered`、`discarded`、`interview` | 双来源顺序、独立选材、结构化访谈与完整历史 |
-| `multi-source` | `empty-values` | 两个来源分别产生 None、0、空字典，实际保存并继续消费，区分缺席与已存在的 None |
-| `multi-source` | `concurrent` | 独立 Phase 容量 2，两个主体经 Event 真正交错；各自位置、背景和原文保持隔离 |
-| `multi-source` | `moment-switch` | 三个进程依次使用 Moment A、B、A；end 分别 1、2、3，从各上一步完整点恢复，原 A 身份与历史继续使用 |
-| `source-lifecycle` | `default` | notices A/B → B → A/B，end 分别 1、2、3；省去来源保留其旧位置 |
-| `registration` | `default`、`re-register`、`owned`、`install-failure` | 实际发现、读取、执行、撤销登记、同名重注册、所有权关闭与安装失败清理 |
-| `recommendation` | `default`、`external-selection`、`external-relations`、`native`、`semantic-change`、`paging` | 真实推荐、外部数据变化、缓存失效、异步中途变化丢弃、分页与全部原文 |
-| `actor-directory` | `default`、`readonly`、`persona` | 显式外部目录、分页、驱动选择与同 ReadView persona 依赖 |
-| `artifact-read` | `default` | 全部长正文的 UTF-8 分块读取、所有权边界与关闭作用域 |
-| `manifest` | `default`、`alternate-tree`、`write-failure` | includes 静态展开、两个 DAG、同根不同树恢复与真实清单写失败 |
-| `shutdown` | `runtime-first`、`worker-first`、`runtime-error`、`worker-error` | step 2 worker 待定时取消运行，实际等待工作与关闭依赖；额外关闭异常精确记录 |
-| `extensions` | `default`、`memory-write`、`memory-recall`、`memory-tools`、`memory-all`、`runtime-replacement` | 扩展准备与逆序退出，独立记忆策略，真实主动工具，替代 Runtime/Schedule |
-| `configuration` | `legal-two-graphs`、`external-directory`、`base-only` | 独立 DAG、明确 data 引用与无大模型/记忆可选依赖的基础规则路径 |
-| `configuration` | `duplicate-source`、`empty-source-id`、`bad-service`、`bad-position`、`missing-provider`、`missing-builder`、`duplicate-plugin`、`service-cycle`、`schema-cycle`、`records-and-data` | 指定公共边界的异常类别、消息、I/O 与业务完成事实 |
+| `multi-source` | `default`、`reordered`、`discarded`、`interview` | [多来源认知](composed_cognition.py)：顺序、来源选择与访谈 |
+| `source-lifecycle` | `default` | [来源生命周期](composed_cognition.py)：省去来源后保留历史位置 |
+| `recommendation` | `default`、`external-selection`、`external-relations`、`native`、`semantic-change`、`paging` | [推荐](composed_recommendation.py)：外部来源、变化与分页 |
+| `actor-directory` / `artifact-read` | `default` | [目录与正文](composed_directory_artifacts.py)：目录委托与范围读取 |
+| `registration` / `manifest` | `default` | [登记与清单](composed_registration_manifest.py)：所有权与组合图 |
+| `extensions` | `default`、`memory-write`、`memory-recall`、`memory-tools`、`memory-all` | [激活扩展](composed_shutdown_extensions.py)：独立记忆开关 |
+| `configuration` | `legal-two-graphs`、`external-directory`、`base-only` | [配置](composed_configuration.py)：依赖图与服务替换 |
 
-`multi-source` 默认来源为 `social.main.feed.v1` 与 `notice.main.v1`，`source-lifecycle` 为 `notice.a.v1` 与 `notice.b.v1`。`sources` 列表顺序决定材料顺序；省去来源保留其 schema 和历史 cursor，空列表保留基础认知。空值与并发场景使用固定的 `position.a.v1`、`position.b.v1`。改变 ID 的含义时创建新 ID 或新 Run。
+[来源边界](composed_source_edges.py)和[退出扩展](composed_shutdown_extensions.py)还提供受控失败场景；它们按配置产生错误，适合检查自己的恢复与清理流程。
 
-`moment` 默认 `{"time":1,"phase":"read"}`，普通步骤序号沿用该 Moment。`activations_per_step` 固定为 2。`extensions` 额外接受 `mode="interview"`：结构化访谈保留其独立记忆写入边界。
+通用机制示例还包括[持久图](graph_environment.py)、[并行图计算](parallel_graph.py)、[类型化记录](typed_records.py)、[不可变数据集](immutable_catalog.py)和[独立推荐观察器](recommendation_observer.py)。[订阅示例](codex_subscription.py)需要明确的外部账号授权，其配置见[订阅指南](../../docs/site/content/guide/subscription.md)。
 
-推荐语义与记忆场景通过确定性完整文本嵌入及本运行拥有的本地 Chroma 验证；真实模型与嵌入服务需另走显式获授权环境。
-
-## 三、失败
-
-失败验收保留原工件，并从最近可信完整点创建新目录。`multi-source` 的 `fault` 支持 `source-read`、`append-invalid-context`、`append-invalid-message`、`append-invalid-cursor`、`after-callback-partial-write`、`after-step-flush`、`provider-error`、`before-complete`；设置 `fault_step=2`。使用成功配置从失败运行的 step 1 恢复，然后通过 `--failed-run` 同时核对未发布步骤与成功链。
-
-配置负例在构造、图校验、服务安装或实际来源消费边界失败。下面使用公开 build/run_plan 保存完整异常栈，再以实际退出码验收。将配置的 case/variant 改为所需负例，执行于新目录。
-
-```bash
-python -c 'import asyncio,json,sys; from examples.core_next.composed_cognition import build; from society0.kernel.runner import run_plan; asyncio.run(run_plan(sys.argv[2],build(json.load(open(sys.argv[1])))))' \
-  "$OUT/config.json" "$OUT/failed" > "$OUT/failure.log" 2>&1
-STATUS=$?
-python -m tests.e2e.core_next_composition_assertions \
-  --case configuration --config "$OUT/config.json" \
-  --log "$OUT/failure.log" --exit-code "$STATUS" --run "$OUT/failed"
-```
-
-构造或图错误发生在目录创建之前，`--run` 可省略；服务与位置错误需要保存已有运行目录。验收匹配确切异常类别与相关消息，并核对业务未完成。
-
-`registration/install-failure` 与 `manifest/write-failure` 使用标准 runner CLI。消费者须将真实 subprocess 的 `returncode`、`stdout`、`stderr` 保存为失败目录中的 `cli-result.json` 后，再调用标准验收器。清单写失败发生于标准状态文件建立之前；附属退出事实与可读原生 SQL 共同解释该边界。
-
-四个 shutdown 场景预期 CLI 非零退出、可信 complete_step=1。步骤撤销后原生 StageStore 拒绝进一步事务，已声明的 Journal 资源将关闭事实保存至退出工件；验收比对步骤内 SQL 前缀、任务排空与依赖关闭顺序。
-
-## 四、证据
-
-默认 `capture=true` 为行为验收保存实际 typed provider 参数、选项及完整观测副本。普通双来源及来源生命周期场景可设置 `capture=false`，用于成本采样时关闭这批额外副本；原生 Thread、请求事件、工具、来源确认、正常结果和完整点仍完整保存。故障验收要求 `capture=true`。完整行为验收使用默认捕获，成本对照另行核对原生权威事实。
-
-实际模型服务的配置入口为 [显式环境合同](../../tests/e2e/core_next_real_support.py)；OAuth 路线通过 `SOCIETY0_REAL_LLM_PROVIDER=openai-codex` 使用成熟原生适配器。SDK 参数捕获、离线 HTTP 正文、真实网络推理分别留证。实时服务、成本结果和发布提交见各自的运行与发布工件。
-
-确定性场景解决组合、历史、位置、缓存与清理风险；正式使用应按研究协议固定源码、依赖、模型参数与起止范围，并继续验证真实提供方的行动、记忆和恢复链。
+运行之后通过[Results API](../../docs/site/content/reference/results.md)取数，用[分页指南](../../docs/core-next/results-analysis.md)取得全部大正文，并保留代码、依赖、配置与完整点以供复现。
