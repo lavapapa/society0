@@ -31,7 +31,11 @@ def check(path):
                         'native/society0-filesystem/pyproject.toml',
                         'native/society0-filesystem/build.rs',
                         'native/society0-filesystem/src/lib.rs',
-                        'scripts/release_smoke.py')
+                        'scripts/release_smoke.py',
+                        'constraints.txt',
+                        'docs/site/content/assets/iframe-worker.js',
+                        'docs/site/content/assets/mark.svg',
+                        'docs/site/vendor/iframe-worker-LICENSE')
             for suffix in required:
                 if not any(name.endswith('/' + suffix) for name in names):
                     raise ValueError(f'{path.name}: missing source dependency: {suffix}')

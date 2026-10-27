@@ -4,8 +4,9 @@ recursive-include src *.py *.pyi py.typed
 recursive-include examples *.py *.json *.md
 recursive-include tests *.py
 recursive-include scripts *.py
-recursive-include benchmarks *.py *.md
-recursive-include docs *.md *.py *.yml *.yaml *.css *.txt
+recursive-include benchmarks *.py *.md *.rs *.toml *.lock
+prune benchmarks/native_fs_probe/target
+recursive-include docs *.md *.py *.yml *.yaml *.css *.txt *.js *.svg *LICENSE
 recursive-include native/society0-filesystem *.toml *.lock *.rs
 prune native/society0-filesystem/target
 prune docs/site/site
