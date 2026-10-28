@@ -1,0 +1,424 @@
+{
+  "format": "society-profile/v2",
+  "bundles": [],
+  "patches": [
+    {
+      "insert": [
+        {
+          "id": "run",
+          "name": "run",
+          "group": true,
+          "lifetime": "run",
+          "config": [
+            {
+              "id": "model-providers",
+              "name": "@society0/core/model-providers",
+              "config": {}
+            },
+            {
+              "id": "model-pi",
+              "name": "@society0/core/model-pi",
+              "config": {
+                "name": "pi/v1",
+                "providerId": "local-gateway",
+                "credential": "authorized-local",
+                "models": [
+                  {
+                    "id": "Qwen3.6-35B-A3B-FP8",
+                    "name": "Qwen3.6 local gateway",
+                    "provider": "local-gateway",
+                    "api": "openai-completions",
+                    "baseUrl": "http://127.0.0.1:4000/v1",
+                    "reasoning": true,
+                    "input": [
+                      "text"
+                    ],
+                    "cost": {
+                      "input": 0,
+                      "output": 0,
+                      "cacheRead": 0,
+                      "cacheWrite": 0
+                    },
+                    "contextWindow": 8192,
+                    "maxTokens": 256,
+                    "compat": {
+                      "supportsStore": false,
+                      "supportsDeveloperRole": false,
+                      "supportsReasoningEffort": false,
+                      "maxTokensField": "max_tokens",
+                      "thinkingFormat": "qwen-chat-template"
+                    }
+                  }
+                ],
+                "maxTokens": 256
+              }
+            },
+            {
+              "id": "slots",
+              "name": "@society0/host/slots",
+              "config": {}
+            },
+            {
+              "id": "execution-fence",
+              "name": "@society0/core/execution-fence",
+              "config": {}
+            },
+            {
+              "id": "sqlite",
+              "name": "@society0/core/sqlite",
+              "config": {
+                "directory": "./run",
+                "runId": "example",
+                "generation": "g1",
+                "maxTransactionMs": 20000
+              }
+            },
+            {
+              "id": "artifacts-local",
+              "name": "@society0/core/artifacts-local",
+              "config": {
+                "directory": "./run/artifacts"
+              }
+            },
+            {
+              "id": "initializers",
+              "name": "@society0/core/initializers",
+              "config": {}
+            },
+            {
+              "id": "sqlite-bootstrap",
+              "name": "@society0/core/sqlite-bootstrap",
+              "config": {
+                "maxTransactionMs": 15000
+              }
+            },
+            {
+              "id": "sqlite-history",
+              "name": "@society0/core/sqlite-history",
+              "config": {
+                "directory": "./run",
+                "runId": "example",
+                "generation": "g1",
+                "controlSequence": "0"
+              }
+            },
+            {
+              "id": "attempts",
+              "name": "@society0/core/attempts",
+              "config": {
+                "directory": "./attempts",
+                "lineage": "example"
+              }
+            },
+            {
+              "id": "actors",
+              "name": "@society0/core/actors",
+              "config": {}
+            },
+            {
+              "id": "results",
+              "name": "@society0/core/results",
+              "config": {}
+            },
+            {
+              "id": "thread",
+              "name": "@society0/core/thread",
+              "config": {}
+            },
+            {
+              "id": "generation-views",
+              "name": "@society0/core/generation-views",
+              "config": {}
+            },
+            {
+              "id": "run-controller",
+              "name": "@society0/core/run-controller",
+              "config": {}
+            },
+            {
+              "id": "observation",
+              "name": "@society0/core/observation",
+              "config": {}
+            },
+            {
+              "id": "social-repository",
+              "name": "@society0/social/social-repository",
+              "config": {}
+            },
+            {
+              "id": "measurement-repository",
+              "name": "@society0/social/measurement-repository",
+              "config": {}
+            },
+            {
+              "id": "bootstrap",
+              "name": "bootstrap",
+              "group": true,
+              "lifetime": "bootstrap",
+              "config": [
+                {
+                  "id": "social-init",
+                  "name": "@society0/social/social-init",
+                  "config": {}
+                },
+                {
+                  "id": "topology-edges",
+                  "name": "@society0/social/topology-edges",
+                  "config": {
+                    "actors": [
+                      {
+                        "id": "alice",
+                        "attributes": {
+                          "name": "Alice"
+                        }
+                      },
+                      {
+                        "id": "bob",
+                        "attributes": {
+                          "name": "Bob"
+                        }
+                      }
+                    ],
+                    "edges": [
+                      {
+                        "from": "bob",
+                        "to": "alice"
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "generation",
+              "name": "generation",
+              "group": true,
+              "lifetime": "generation",
+              "config": [
+                {
+                  "id": "random",
+                  "name": "@society0/core/random",
+                  "config": {
+                    "seed": "public-example-1"
+                  }
+                },
+                {
+                  "id": "actor-eligibility",
+                  "name": "@society0/core/actor-eligibility",
+                  "config": {}
+                },
+                {
+                  "id": "drivers",
+                  "name": "@society0/core/drivers",
+                  "config": {}
+                },
+                {
+                  "id": "activation-mailbox",
+                  "name": "@society0/core/activation-mailbox",
+                  "config": {}
+                },
+                {
+                  "id": "activation",
+                  "name": "@society0/core/activation",
+                  "config": {}
+                },
+                {
+                  "id": "information",
+                  "name": "@society0/core/information",
+                  "config": {}
+                },
+                {
+                  "id": "actions",
+                  "name": "@society0/core/actions",
+                  "config": {}
+                },
+                {
+                  "id": "perception",
+                  "name": "@society0/core/perception",
+                  "config": {}
+                },
+                {
+                  "id": "perception-actor",
+                  "name": "@society0/core/perception-actor",
+                  "config": {}
+                },
+                {
+                  "id": "completion-strict",
+                  "name": "@society0/core/completion-strict",
+                  "config": {}
+                },
+                {
+                  "id": "checkpoint-policy",
+                  "name": "@society0/core/checkpoint-policy",
+                  "config": {}
+                },
+                {
+                  "id": "termination",
+                  "name": "@society0/core/termination",
+                  "config": {}
+                },
+                {
+                  "id": "generation-binding",
+                  "name": "@society0/core/generation-binding",
+                  "config": {
+                    "generation": "g1"
+                  }
+                },
+                {
+                  "id": "clock-ticks",
+                  "name": "@society0/core/clock-ticks",
+                  "config": {}
+                },
+                {
+                  "id": "runtime-staged",
+                  "name": "@society0/core/runtime-staged",
+                  "config": {}
+                },
+                {
+                  "id": "social",
+                  "name": "@society0/social/social",
+                  "config": {}
+                },
+                {
+                  "id": "propagation-neighbors",
+                  "name": "@society0/social/propagation-neighbors",
+                  "config": {}
+                },
+                {
+                  "id": "social-ranking",
+                  "name": "@society0/social/social-ranking",
+                  "config": {}
+                },
+                {
+                  "id": "social-recommendations",
+                  "name": "@society0/social/social-recommendations",
+                  "config": {}
+                },
+                {
+                  "id": "social-perception",
+                  "name": "@society0/social/social-perception",
+                  "config": {}
+                },
+                {
+                  "id": "measurements",
+                  "name": "@society0/social/measurements",
+                  "config": {}
+                },
+                {
+                  "id": "measurement-every",
+                  "name": "@society0/social/measurement-every",
+                  "config": {}
+                },
+                {
+                  "id": "social-measurement",
+                  "name": "@society0/social/social-measurement",
+                  "config": {}
+                },
+                {
+                  "id": "exploration",
+                  "name": "@society0/core/exploration",
+                  "config": {}
+                },
+                {
+                  "id": "mount-world",
+                  "name": "@society0/core/mount-world",
+                  "config": {}
+                },
+                {
+                  "id": "mount-results",
+                  "name": "@society0/core/mount-results",
+                  "config": {}
+                },
+                {
+                  "id": "mount-context",
+                  "name": "@society0/core/mount-context",
+                  "config": {}
+                },
+                {
+                  "id": "exploration-shell",
+                  "name": "@society0/core/exploration-shell",
+                  "config": {}
+                },
+                {
+                  "id": "actor-tools",
+                  "name": "@society0/core/actor-tools",
+                  "config": {}
+                },
+                {
+                  "id": "agent-runtimes",
+                  "name": "@society0/core/agent-runtimes",
+                  "config": {}
+                },
+                {
+                  "id": "agent-runtime-pi",
+                  "name": "@society0/core/agent-runtime-pi",
+                  "config": {}
+                },
+                {
+                  "id": "inference-defaults",
+                  "name": "@society0/core/inference-defaults",
+                  "config": {}
+                },
+                {
+                  "id": "prompts",
+                  "name": "@society0/core/prompts",
+                  "config": {
+                    "sections": [
+                      {
+                        "id": "social-publish",
+                        "text": "Publish exactly one short social post using publish. Do not call any other tool. After the action succeeds, reply briefly."
+                      }
+                    ],
+                    "tools": [
+                      {
+                        "id": "publish",
+                        "name": "publish",
+                        "action": "social.publish"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "driver-llm",
+                  "name": "@society0/core/driver-llm",
+                  "config": {
+                    "provider": "pi/v1",
+                    "model": "Qwen3.6-35B-A3B-FP8",
+                    "perceptions": [
+                      "actor/v1",
+                      "social/profile",
+                      "social/notifications",
+                      "social/feed",
+                      "social/recommendations"
+                    ],
+                    "requiredActions": [
+                      {
+                        "name": "social.publish",
+                        "minimumCompleted": 1
+                      }
+                    ],
+                    "maxRequests": 2,
+                    "maxToolCalls": 1
+                  }
+                },
+                {
+                  "id": "round-robin",
+                  "name": "@society0/social/round-robin",
+                  "config": {
+                    "actors": [
+                      "alice"
+                    ],
+                    "rounds": 1,
+                    "driver": "llm/v1"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "configSources": [],
+  "lockfile": "./module-lock.json"
+}
