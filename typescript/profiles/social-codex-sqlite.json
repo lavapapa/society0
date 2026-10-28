@@ -382,8 +382,18 @@
                     "rounds": 1,
                     "driver": "llm/v1"
                   }
+                },
+                {
+                  "id": "mount-workspace",
+                  "name": "@society0/core/mount-workspace",
+                  "config": {}
                 }
               ]
+            },
+            {
+              "id": "workspace",
+              "name": "@society0/extras/workspace",
+              "config": {}
             }
           ]
         }

@@ -181,7 +181,9 @@
                 {
                   "id": "driver-rule",
                   "name": "@society0/core/driver-rule",
-                  "config": {}
+                  "config": {
+                    "handler": "plain/update"
+                  }
                 },
                 {
                   "id": "rule-passive",

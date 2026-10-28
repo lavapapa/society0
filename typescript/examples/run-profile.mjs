@@ -29,7 +29,9 @@ export async function runProfile(options) {
   try {
     const overrides=[{id:'sqlite',config:{...config('sqlite'),directory,runId}},{id:'artifacts-local',config:{...config('artifacts-local'),directory:join(directory,'artifacts')}},{id:'sqlite-history',config:{...config('sqlite-history'),directory,runId}},{id:'attempts',config:{...config('attempts'),directory:lineageDirectory,lineage}}];
     if(options.patches) overrides.push(...JSON.parse(await readFile(resolve(options.patches),'utf8')));
+    const compileStarted=performance.now();
     const plan=await host.ctx.profileLoader.compile(profile,{baseURL:profileURL.href,cliPatches:overrides});
+    metrics.profileCompileMs=performance.now()-compileStarted;
     if(options.inspect) return {mode:'inspect',plan:host.ctx.profileLoader.dump(plan),modelRequests:0};
     const uses=name=>plan.flat.some(e=>!e.disabled&&e.name===name);
     const modelEnabled=uses('@society0/core/driver-llm');
@@ -54,18 +56,22 @@ export async function runProfile(options) {
     const [{artifactsMigration},{actorsMigration},{resultsMigration},{threadMigration},{actionsMigration}]=await Promise.all(['artifacts-local','actors','results','thread','actions'].map(n=>import('@society0/core/'+n)));
     const migrations=[artifactsMigration,actorsMigration,resultsMigration(source),threadMigration(source),actionsMigration(source)];
     if(uses('@society0/core/perception'))migrations.push((await import('@society0/core/perception')).perceptionMigration(source));
+    const workspaceEntry=plan.flat.find(e=>!e.disabled&&e.name==='@society0/extras/workspace');
+    const workspace=workspaceEntry?await import('@society0/extras/workspace'):undefined;
+    if(workspace)migrations.push(workspace.workspaceMigration(workspaceEntry.binding.identity.source));
     if(modelEnabled)migrations.push((await import('@society0/core/actor-tools')).actorToolsMigration(source));
     if(event)migrations.push((await import('@society0/core/runtime-events')).eventsMigration);
     if(social)migrations.push((await import('@society0/social/social-repository')).socialMigration,(await import('@society0/social/measurement-repository')).measurementMigration);
-    metrics.compileMs=performance.now()-started;
+    metrics.preparationMs=performance.now()-started;
     const openStarted=performance.now();
     handle=await host.ctx.runDirectory.create({runId,generation:plan,mount:{runEntryId:'run',bootstrapEntryId:'bootstrap'},async prepare(bootstrapCtx,phase){
       mountedTree=phase.tree;
+      if(workspace&&!options.reopen){const consumer=await bootstrapCtx.plugin({name:'public.workspace-seed',inject:['initializers'],apply(ctx){ctx.initializers.register(workspace.workspaceInitializer({after:[social?'social.seed':'plain.seed']}))}});await consumer.await();}
       let c;const consumer=await phase.run.plugin({name:'public.prepare',inject:['attempts','sqliteBootstrap','history','database'],apply(ctx){c=ctx}});await consumer.await();
       if(options.reopen) await c.attempts.verifyAuthority(); else await c.attempts.initialize();
       let root;
       if(options.reopen) root=options.observe?await c.history.current():await c.history.activate();
-      else root=await c.sqliteBootstrap.create({operationId:'create:'+runId,runId,directory,input:{},migrations,initialFrontier:{codec:event?'events/1':'staged/1',value:'0',logicalTime:event?{time:'0',offset:'0'}:'0',completedCount:'0',pendingAcknowledgements:[]},initialControl:{generation:databaseEntry.config.generation,controlSequence:historyEntry.config.controlSequence,planId:profileURL.href},requiredInitializerIds:[social?'social.seed':'plain.seed']});
+      else root=await c.sqliteBootstrap.create({operationId:'create:'+runId,runId,directory,input:{},migrations,initialFrontier:{codec:event?'events/1':'staged/1',value:'0',logicalTime:event?{time:'0',offset:'0'}:'0',completedCount:'0',pendingAcknowledgements:[]},initialControl:{generation:databaseEntry.config.generation,controlSequence:historyEntry.config.controlSequence,planId:profileURL.href},requiredInitializerIds:[social?'social.seed':'plain.seed',...workspace?['workspace.seed']:[]]});
       const status=await c.history.status();
       return {root,metadata:c.database.metadata,database:c.database,state:status.state};
     }});
@@ -73,7 +79,7 @@ export async function runProfile(options) {
     lease=host.ctx.runDirectory.acquire(runId,options.observe?'read':'write');
     let c;consumerFiber=await lease.ctx.plugin({name:'public.consume',inject:['runs','observation','history','database','attempts'],apply(ctx){c=ctx}});await consumerFiber.await();
     const nativeScopes={bootstrapDisposed:!mountedTree.entries.has('bootstrap'),generationMounted:mountedTree.entries.has('generation'),leaseUsesRunContext:lease.ctx===mountedTree.entries.get('run').ctx};
-    if(event&&!options.offline&&!options.observe){const consumer=await mountedTree.entries.get('generation').ctx.plugin({name:'public.events',inject:['proposalSource'],async apply(ctx){await ctx.proposalSource.push({id:'event-1',offset:'1',time:'1',payload:{message:'public SDK event'}});ctx.proposalSource.end()}});await consumer.await();await consumer.dispose();}
+    if(event&&!options.offline&&!options.observe){const consumer=await mountedTree.entries.get('generation').ctx.plugin({name:'public.events',inject:['proposalSource'],async apply(ctx){await ctx.proposalSource.push({id:'event-1',offset:'1',time:'1',payload:{handler:'plain.update',actorId:'alice',attributes:{name:'Alice',message:'public SDK event'}}});ctx.proposalSource.end()}});await consumer.await();await consumer.dispose();}
     const before=await c.history.current();
     const runStarted=performance.now();
     const result=options.observe?{status:'observation-only',advanced:false}:options.offline?{status:'offline-mounted',advanced:false}:await c.runs.run(new AbortController().signal);
@@ -89,7 +95,7 @@ export async function runProfile(options) {
     const status=await c.observation.status();
     const cut=await c.history.current();
     metrics.memory=process.memoryUsage();metrics.resourceUsage=process.resourceUsage();metrics.totalMs=performance.now()-started;
-    const branch=await options.afterRun?.({host,ctx:c,cut,plan,profileURL,directory,runId});
+    const branch=await options.afterRun?.({host,ctx:c,cut,plan,tree:mountedTree,profileURL,directory,runId});
     return report={branch,profile:profileURL.href,runId,directory,reopened:!!options.reopen,root:handle.root,before,cut,result,nativeScopes,lineage:c.attempts.authority(),configuration:host.ctx.profileLoader.dump(plan),source,actorCount,observation,receipts,socialObservation,status,history:c.history.diagnostics(),metrics,modelRequests:options.afterRun?(branch?.modelRequests??null):modelEnabled&&!options.offline&&!options.observe?null:0};
   } finally {const closing=performance.now();await consumerFiber?.dispose();await lease?.release();await handle?.close();const closed=await host.close();if(report){report.close=closed;report.metrics.closeMs=performance.now()-closing;report.metrics.totalMs=performance.now()-started;}}
 }

@@ -95,3 +95,7 @@ node run-profile.mjs --profile runs/rule-b/profile.json \
 ```
 
 分支默认观察源与目标，不推进目标。`--advance-target` 显式推进零模型目标；获授权 Social 调用方可导入 `forkProfile`，传入同样的 `configureHost`、`allowModelRequests` 以及 `advanceTarget:true`。结果保留分支 operationId、源/目标完整点、目标有效配置、实际 authority 与关闭状态；目标保存自己的完整 profile，后续 reopen 继续使用所输出的共享 lineage。
+
+分支可用 `--point-id <complete-point-id>` 选择历史完整点。`--diagnostics <new-ndjson-file>` 在创建前记录源 history baseline，此后每5秒串行记录计数/阶段耗时差值、active、elapsed、RSS与采样开销；结束前记录末次快照。当前点备份与历史段重放分别计量，阶段累计时长存在包含关系。发生创建异常时，例子输出 operationId 和目标目录，供公开 `runBranch.probe(operationId)` 核实。
+
+模型profile同时声明 `/world`、`/results`、`/workspace`、`/context`。Workspace的公开migration在bootstrap采用实际Extras来源；公开 `workspaceInitializer({after:[actorSeedId]})` 登记于bootstrap的原生consumer，随该scope一起关闭，reopen沿用已有数据。测试中的 `model-replay` 用于零网络的原生PI/工具与冻结context验证；Social默认provider仍为本机网关。

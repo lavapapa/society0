@@ -21,6 +21,7 @@ for(const name of selected.length?selected:['rule-sqlite','event-sqlite']){
  assert.deepEqual(first.nativeScopes,{bootstrapDisposed:true,generationMounted:true,leaseUsesRunContext:true});
  assert.equal(first.close.status,'closed');assert.equal(first.close.drained,true);assert.equal(first.result.status,'completed');assert.equal(first.cut.frontier.completedCount,'1');
  assert.equal(first.observation.rows.length,2);assert.equal(first.status.state,'clean');assert.equal(first.modelRequests,0);
+ if(name==='event-sqlite'){assert.equal(JSON.parse(first.observation.rows.find(row=>row.id==='alice').attributes).message,'public SDK event');assert.equal(first.receipts.rows.filter(row=>row.action==='plain.update').length,1);}
  const bootstrap=await readFile(join(directory,'bootstrap.json'),'utf8');
  const reopened=await invoke(['--reopen']);await writeFile(join(output,name+'-reopen.json'),JSON.stringify(reopened,null,2));
  assert.equal(reopened.close.status,'closed');assert.equal(reopened.close.drained,true);assert.equal(reopened.before.id,first.cut.id);assert.deepEqual(reopened.observation.rows,first.observation.rows);
