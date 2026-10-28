@@ -1,0 +1,361 @@
+--- a/vendor/cordis/src/fiber.ts
++++ b/vendor/cordis/src/fiber.ts
+@@ -2,7 +2,7 @@
+ import type { Awaitable, Dict } from '@deepseek-ai/cosmokit'
+ import { Context } from './context.ts'
+ import type { Plugin } from './registry.ts'
+-import { buildOuterStack, composeError, DisposableList, getTraceable, isConstructor, isObject, symbols } from './utils.ts'
++import { buildOuterStack, composeError, DisposableList, getTraceable, emitLifecycle, isConstructor, isObject, symbols } from './utils.ts'
+ import type { Impl } from './reflect.ts'
+ import type { StandardSchemaV1 } from '@standard-schema/spec'
+ 
+@@ -68,8 +68,8 @@
+ /**
+  * Function returned by an effect to release resources during disposal.
+  *
+- * Disposers run in reverse registration order when the owning fiber unloads;
+- * they may be async, in which case unloading awaits them.
++ * Disposers within one effect run in reverse registration order. Independent
++ * effects unload concurrently after committed dependents and children drain.
+  */
+ export type Disposable<T = any> = () => T
+ 
+@@ -114,26 +114,6 @@
+ function runDisposable(dispose: Disposable) {
+   const result = dispose()
+   return effectInertia.get(dispose)?.() ?? result
+-}
+-
+-/** Notify plugin teardown without allowing one observer to break ownership cleanup. */
+-function emitPluginDisposed(context: Context, fiber: Fiber) {
+-  const args: any[] = ['internal/plugin', fiber]
+-  let callbacks: Function[]
+-  try {
+-    callbacks = context.events.dispatch('emit', args)
+-  } catch (error) {
+-    context.logger.error(error)
+-    return
+-  }
+-  for (const callback of callbacks) {
+-    try {
+-      const returned = callback(...args)
+-      void Promise.resolve(returned).catch(error => context.logger.error(error))
+-    } catch (error) {
+-      context.logger.error(error)
+-    }
+-  }
+ }
+ 
+ /**
+@@ -205,6 +185,11 @@
+   // Same as `this.ctx`, but with a more specific type.
+   protected context: Context
+ 
++  /** Actual structural owners; retained until cleanup has physically finished. */
++  public readonly children = new Set<Fiber>()
++  /** Own provisions are distinct from the committed injection snapshot. */
++  public readonly provisions = new Set<Impl>()
++  private committed = new Set<Impl>()
+   private _error: any
+   private _runner: EffectRunner<string>
+   private _store: Dict<Impl> = Object.create(null)
+@@ -266,7 +251,7 @@
+         const remove = runtime.fibers.push(this)
+         return async () => {
+           this.uid = null
+-          emitPluginDisposed(this.context, this)
++          emitLifecycle(this.context, 'internal/plugin', this)
+           if (this.ctx.registry.has(runtime.callback)) {
+             remove()
+             if (!runtime.fibers.length) {
+@@ -290,11 +275,14 @@
+           // itself failing, which we can't recover from in this exact spot
+           // (calling the logger again is what just failed). Let the
+           // rejection propagate; process-level crash is the honest outcome.
+-          while (this.inertia) {
+-            await this.inertia
++          try {
++            while (this.inertia) await this.inertia
++          } finally {
++            parent.fiber.children.delete(this)
+           }
+         }
+       }, 'ctx.plugin()')
++      parent.fiber.children.add(this)
+ 
+       try {
+         // Publish only after the parent owns a fully assigned disposer. A
+@@ -404,8 +392,8 @@
+    *
+    * `execute` runs immediately; the disposers it produces are collected and
+    * run (in reverse order) either when the returned disposer is called or
+-   * when the fiber unloads, whichever comes first. Calling the disposer twice
+-   * is a no-op. Throws `CordisError('INACTIVE_EFFECT')` if the fiber is
++   * when the fiber unloads, whichever comes first. Repeated calls join ongoing
++   * cleanup and become no-ops after it settles. Throws `CordisError('INACTIVE_EFFECT')` if the fiber is
+    * already disposed, and `TypeError` if `execute` returns an invalid shape.
+    *
+    * @param execute — the effect body; see {@link Effect} for accepted shapes.
+@@ -427,18 +415,24 @@
+     const dispose = () => {
+       if (disposing) return disposalTask
+       disposing = true
+-      let task!: void | Promise<void>
+-      for (const disposable of disposables.splice(0).reverse()) {
+-        if (task) {
+-          task = task.then(() => runDisposable(disposable))
+-        } else {
++      let task: void | Promise<void> = undefined
++      const errors: unknown[] = []
++      const run = (disposable: Disposable) => {
++        try {
+           const result = runDisposable(disposable)
+           if (isObject(result) && 'then' in result) {
+-            task = result as any
++            return Promise.resolve(result).then(() => {}, error => { errors.push(error) })
+           }
+-        }
+-      }
+-      return disposalTask = task
++        } catch (error) { errors.push(error) }
++      }
++      for (const disposable of disposables.splice(0).reverse()) {
++        if (task) task = task.then(() => run(disposable))
++        else task = run(disposable)
++      }
++      const finish = () => { if (errors.length) throw new AggregateError(errors, 'effect cleanup failed') }
++      if (task) return disposalTask = task.then(finish)
++      finish()
++      return disposalTask = undefined
+     }
+ 
+     const meta: EffectMeta = { label, children: [] }
+@@ -460,7 +454,6 @@
+     let resolveSetup: (() => void) | undefined
+     let rejectSetup: ((reason: unknown) => void) | undefined
+     let setupBarrier: Promise<void> | undefined
+-    let setupFailed = false
+     let inFlight: void | Promise<void>
+     let removeWrapper = () => false
+ 
+@@ -502,10 +495,9 @@
+     }
+ 
+     const wrapper = defineProperty(() => {
+-      // A synchronous setup failure can race an owner unload that already
+-      // captured this wrapper but has not invoked it yet. The failed effect is
+-      // never returned publicly, so let that internal caller await rollback.
+-      if (!runner.epoch) return setupFailed ? inFlight : undefined
++      // Repeated public disposal and structural owners join ongoing cleanup,
++      // including rollback after a synchronous setup failure.
++      if (!runner.epoch) return inFlight
+       runner.epoch = false
+       return finalizeDisposal(() => {
+         if (executing) return disposeAfter(waitForSetup())
+@@ -522,7 +514,6 @@
+       task = this._execute(runner)
+     } catch (reason) {
+       executing = false
+-      setupFailed = true
+       runner.epoch = false
+       let cleanup: void | Promise<void>
+       try {
+@@ -582,16 +573,15 @@
+     const oldState = this.state
+     this.state = callback() ?? this._getState()
+     if (oldState === this.state) return
+-    // FIXME internal/fiber-info
+-    this.context.emit('internal/status', this, oldState)
+-
+-    // only notify changes between ACTIVE and NON-ACTIVE states
+-    if (oldState !== FiberState.ACTIVE && this.state !== FiberState.ACTIVE) return
+-    for (const key of Reflect.ownKeys(this.ctx.reflect.store)) {
+-      const impl = this.ctx.reflect.store[key as symbol]
+-      if (impl.fiber !== this) continue
+-      this.ctx.reflect.notify([impl.name])
+-    }
++    // Propagate native invalidation before notifying observational listeners.
++    if (oldState === FiberState.ACTIVE || this.state === FiberState.ACTIVE) {
++      for (const key of Reflect.ownKeys(this.ctx.reflect.store)) {
++        const impl = this.ctx.reflect.store[key as symbol]
++        if (impl.fiber !== this) continue
++        this.ctx.reflect.notify([impl.name])
++      }
++    }
++    emitLifecycle(this.context, 'internal/status', this, oldState)
+   }
+ 
+   _checkImpl(name: string) {
+@@ -617,7 +607,7 @@
+         epoch = INACTIVE
+         break
+       }
+-      epoch += ':' + impl.fiber.uid
++      epoch += ':' + impl.uid
+     }
+     this._setEpoch(epoch)
+   }
+@@ -672,6 +662,8 @@
+ 
+   private async _reload() {
+     this.store = { ...this._store }
++    this.committed = new Set(Object.values(this.store))
++    for (const impl of this.committed) impl.dependents.add(this)
+     const oldEpoch = this._runner.epoch
+     try {
+       await Promise.resolve()
+@@ -700,6 +692,13 @@
+   }
+ 
+   private async _unload() {
++    // Let the transition publish UNLOADING before withdrawing public admission.
++    await Promise.resolve()
++    const retirement = [...this.provisions].map(impl => this.ctx.reflect.retire(impl))
++    // Request every child to stop before waiting; a child disposer is otherwise
++    // an ordinary parent effect, which would deadlock behind this barrier.
++    const children = [...this.children].map(child => Promise.resolve(child.dispose()))
++    await Promise.all([...retirement, ...children])
+     await Promise.all(this._disposables.clear().map(async (dispose) => {
+       try {
+         await composeError(async (info) => {
+@@ -712,6 +711,11 @@
+       }
+     }))
+     this.store = undefined
++    for (const impl of this.committed) {
++      impl.dependents.delete(this)
++      if (!impl.dependents.size) impl.release?.()
++    }
++    this.committed.clear()
+     this._updateState(() => {
+       if (this._runner.epoch === INACTIVE) {
+         this.inertia = undefined
+--- a/vendor/cordis/src/reflect.ts
++++ b/vendor/cordis/src/reflect.ts
+@@ -1,7 +1,7 @@
+ import { defineProperty, isNullable } from '@deepseek-ai/cosmokit'
+ import type { Dict } from '@deepseek-ai/cosmokit'
+ import { Context } from './context.ts'
+-import { getTraceable, symbols, withProps } from './utils.ts'
++import { getTraceable, emitLifecycle, symbols, withProps } from './utils.ts'
+ import { Fiber, FiberState } from './fiber.ts'
+ 
+ declare module './context.ts' {
+@@ -113,7 +113,13 @@
+ }
+ 
+ /** Concrete service implementation record stored in the root reflect service. */
++let bindingCounter = 0
+ export interface Impl {
++  uid: number
++  isolate: symbol
++  dependents: Set<Fiber>
++  retired?: Promise<void>
++  release?: () => void
+   /** The service name. */
+   name: string
+   /** The fiber that provided the service (owns its lifetime). */
+@@ -151,10 +157,12 @@
+ 
+         if (!ctx.fiber.runtime) return ctx.reflect.get(prop, false)
+         return ctx.events.waterfall('internal/get', ctx, prop, error, () => {
+-          const key = target[symbols.isolate][prop]
+-          let fiber = (ctx[symbols.shadow] as Context ?? ctx).fiber
++          const origin = ctx[symbols.shadow] as Context ?? ctx
++          const key = origin[symbols.isolate][prop]
++          let fiber = origin.fiber
+           while (true) {
+-            const impl = fiber.store?.[prop]
++            const own = [...fiber.provisions].find(impl => impl.name === prop && impl.isolate === key)
++            const impl = own ?? fiber.store?.[prop]
+             if (impl) return getTraceable(ctx, impl.value)
+             if (prop in fiber.inject) {
+               error.message = `cannot get required service "${prop}" in inactive context`
+@@ -237,7 +245,7 @@
+   _getImpl(name: string, strict = true) {
+     const key = this.ctx[symbols.isolate][name]
+     const impl = key && this.store[key]
+-    if (!impl) return
++    if (!impl || impl.retired) return
+     if (strict && impl.fiber.state !== FiberState.ACTIVE) return
+     return impl
+   }
+@@ -285,23 +293,32 @@
+ 
+       this.ctx.root[symbols.isolate][name] ??= Symbol(name)
+       const key = this.ctx[symbols.isolate][name]
+-      const impl: Impl = { name, value, fiber: this.ctx.fiber, check }
++      const impl: Impl = { name, value, fiber: this.ctx.fiber, check, uid: ++bindingCounter, isolate: key, dependents: new Set() }
+       if (this.store[key]) {
+         throw new Error(`service "${name}" has been registered at <${this.store[key].fiber.name}>`)
+       }
+       this.store[key] = impl
+-      this.ctx.fiber.store![name] = impl
++      this.ctx.fiber.provisions.add(impl)
+       if (this.ctx.fiber.state === FiberState.ACTIVE) {
+         this.notify([name])
+       }
+       return async () => {
+-        delete this.store[key]
+-        const fibers = this.notify([name])
+-        await Promise.allSettled(fibers.map(fiber => fiber.await()))
+-        // ensure self access before dependencies cleanup
+-        delete this.ctx.fiber.store![name]
++        await this.retire(impl)
++        this.ctx.fiber.provisions.delete(impl)
+       }
+     }, `ctx.provide(${JSON.stringify(name)})`)
++  }
++
++  /** Withdraw exactly this binding, retaining old committed consumers until cleanup. */
++  retire(impl: Impl): Promise<void> {
++    if (impl.retired) return impl.retired
++    const barrier = Promise.withResolvers<void>()
++    impl.retired = barrier.promise
++    impl.release = barrier.resolve
++    if (this.store[impl.isolate] === impl) delete this.store[impl.isolate]
++    this.notify([impl.name], (ctx, name) => ctx[symbols.isolate][name] === impl.isolate)
++    if (!impl.dependents.size) barrier.resolve()
++    return barrier.promise
+   }
+ 
+   /**
+@@ -330,7 +347,7 @@
+     for (const name of names) {
+       const self: Context = Object.create(this.ctx)
+       self[symbols.filter] = (target: Context) => filter(target, name)
+-      this.ctx.events.emit(self, 'internal/service', name, this._getImpl(name, false)?.value)
++      emitLifecycle(this.ctx, self, 'internal/service', name, this._getImpl(name, false)?.value)
+     }
+     return fibers
+   }
+--- a/vendor/cordis/src/utils.ts
++++ b/vendor/cordis/src/utils.ts
+@@ -88,6 +88,17 @@
+   return true
+ }
+ 
++/** Lifecycle notifications are observational: isolate failures without awaiting observers. */
++export function emitLifecycle(context: Context, ...args: any[]) {
++  let callbacks: Function[]
++  try { callbacks = context.events.dispatch('emit', args) }
++  catch (error) { context.logger.error(error); return }
++  for (const callback of callbacks) {
++    try { void Promise.resolve(callback(...args)).catch(error => context.logger.error(error)) }
++    catch (error) { context.logger.error(error) }
++  }
++}
++
+ /** Merge two prototype chains while preserving descriptors from `proto1`. */
+ export function joinPrototype(proto1: {}, proto2: {}) {
+   if (proto1 === Object.prototype) return proto2
+--- a/vendor/loader/src/config/isolate.ts
++++ b/vendor/loader/src/config/isolate.ts
+@@ -132,6 +132,7 @@
+     for (const [symbol1, symbol2, flag1, flag2] of Object.values(diff)) {
+       if (flag1 === flag2 && entry.ctx.reflect.store[symbol1] && !entry.ctx.reflect.store[symbol2]) {
+         entry.ctx.reflect.store[symbol2] = entry.ctx.reflect.store[symbol1]
++        entry.ctx.reflect.store[symbol2].isolate = symbol2
+         delete entry.ctx.reflect.store[symbol1]
+       }
+     }

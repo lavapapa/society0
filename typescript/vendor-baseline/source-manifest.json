@@ -1,0 +1,263 @@
+{
+  "format": 1,
+  "repository": "https://github.com/deepseek-ai/deepseek-harness",
+  "commit": "22ddee3792402c3e70ec5f86a63c3e3e895a2f60",
+  "license": "MIT",
+  "fingerprint_algorithm": "sha256 over each UTF-8 relative path, NUL, exact bytes, NUL; paths sorted lexicographically",
+  "packages": [
+    {
+      "directory": "cordis",
+      "package": "@deepseek-ai/cordis",
+      "source_manifest_version": "4.0.5",
+      "sha256": "ca1a52d3885daaa8b34a234785e10bc3c902bebdfd30608fc8bec813c35829f8",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/context.ts",
+          "bytes": 6153,
+          "sha256": "96b388162d6013c1898de61e35f28917abb93809de24174980f2a1a348d0b115"
+        },
+        {
+          "path": "src/events.ts",
+          "bytes": 14917,
+          "sha256": "9aff93dcfcad98aebb692c19c36d3bf034a96f9085bc66900a997cda3f79e6fe"
+        },
+        {
+          "path": "src/fiber.ts",
+          "bytes": 26318,
+          "sha256": "c0728ad4fac2c19aa0df64acfb6f742f143090f85c35a10f4594266bbaf3b589"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 815,
+          "sha256": "071fb226e9a21556625e4391b28e6641b9b34b1cd402155246e0437993d8b740"
+        },
+        {
+          "path": "src/logger.ts",
+          "bytes": 8644,
+          "sha256": "05cb6be3e4cf8d078185b5d10c87e536c7d2b2b3ad43c270a0dbafaa28f41fef"
+        },
+        {
+          "path": "src/reflect.ts",
+          "bytes": 15434,
+          "sha256": "6847b9781044023d65aebb5896a873b9f0a3d777eaf7fa0dd2a7a408eb6b74a6"
+        },
+        {
+          "path": "src/registry.ts",
+          "bytes": 11753,
+          "sha256": "34bbd60ae502b4f85201c204afb52a9acabde6878d9278493478c1b2183debd3"
+        },
+        {
+          "path": "src/service.ts",
+          "bytes": 4263,
+          "sha256": "614205c6ce7cf1a057b8b352e96aa4fcd734c967a3d2283a126c9c61f268e3be"
+        },
+        {
+          "path": "src/utils.ts",
+          "bytes": 10236,
+          "sha256": "8fe273424583d21267ef13f248840e97454d09d836a0ac08323a9482c2069263"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 1237,
+          "sha256": "b2426a9e1970d1b4a1702544e74d23a750fbebcfa132fbb8980549d2f484eee8"
+        }
+      ]
+    },
+    {
+      "directory": "cosmokit",
+      "package": "@deepseek-ai/cosmokit",
+      "source_manifest_version": "1.8.6",
+      "sha256": "3ef624d415680e2f157aac1c6d7b814278ef4c97c3a8526cdf99ab019baf9a87",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/array.ts",
+          "bytes": 1453,
+          "sha256": "cf4de899ecffd66a90d8cef6f4c7d127d31f77f776d8e173d41c30d2d7632cf7"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 506,
+          "sha256": "1087da74b9c461984e547d524ee766eebcf329a78e4720bff5b60a004ccf6e8c"
+        },
+        {
+          "path": "src/misc.ts",
+          "bytes": 3865,
+          "sha256": "117617943074ea57c15f216905dacd2f6d1c4c2ff16586f97a7a7a87dbf2141f"
+        },
+        {
+          "path": "src/string.ts",
+          "bytes": 3928,
+          "sha256": "5564272b3e15e49235cbe3a8b453f27306baf282d23a893982841670f65d3c04"
+        },
+        {
+          "path": "src/time.ts",
+          "bytes": 3054,
+          "sha256": "49957c4608465a1fbd738186a92c47fffcd1fc4ba59dbf89524f8a773fe16fe2"
+        },
+        {
+          "path": "src/types.ts",
+          "bytes": 7038,
+          "sha256": "cc49c12e4a637f7b0754ff78a8299e9c42fa40ee8c678550af0c538a80146a92"
+        },
+        {
+          "path": "src/volatile.ts",
+          "bytes": 3637,
+          "sha256": "937433215595f89da249ec7cabb89e331ff4135a40c6686a95666d2095315e55"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 740,
+          "sha256": "ccd99887312b5c025651dfa8ab113f627770be4f631f5f13b9cdfbdcbf511ddb"
+        }
+      ]
+    },
+    {
+      "directory": "schemastery",
+      "package": "@deepseek-ai/schemastery",
+      "source_manifest_version": "3.18.5",
+      "sha256": "a08ca3cea7d2950a530e7ce1b6728fdac0afd47edef7329754ec4ec797c95cf3",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 36623,
+          "sha256": "a6647b515659cf439b701fa9f9574c9c310ce3872d26a13a81e9fa4d02ba10ad"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 938,
+          "sha256": "177eab1c24ff0941c0bdc13ecdedd341fd344e027c7db2daf0a89b7011efd2f5"
+        }
+      ]
+    },
+    {
+      "directory": "loader",
+      "package": "@deepseek-ai/cordis-plugin-loader",
+      "source_manifest_version": "1.0.6",
+      "sha256": "b06b30dc4a5e5ce318807a02d1571aa7f2809f011b03319936799d94671ba5f3",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/config/diff.ts",
+          "bytes": 2171,
+          "sha256": "6025a6b9798a0a16af017bb7d8d6394bbe345685b2ace56b15975add5843edb3"
+        },
+        {
+          "path": "src/config/entry.ts",
+          "bytes": 8189,
+          "sha256": "87edbbc63b8e090094d75bda074289c7ce55afc73c37d8ff0a252579c0902cf4"
+        },
+        {
+          "path": "src/config/group.ts",
+          "bytes": 2610,
+          "sha256": "5e138e8a8fad22e21d031859345797c445efbc380559fc32d35b03c835e60ccc"
+        },
+        {
+          "path": "src/config/isolate.ts",
+          "bytes": 5560,
+          "sha256": "dfc9e961f61fe5f7701b5593f98902aa971884fb242e208fc0d5207794117094"
+        },
+        {
+          "path": "src/config/tree.ts",
+          "bytes": 4419,
+          "sha256": "365137ca32bf8b30ff22edca899dac6c844f921324a7c12eda33fac4c35898b1"
+        },
+        {
+          "path": "src/config/utils.ts",
+          "bytes": 1051,
+          "sha256": "d85b8ac1693af4667e9c0395cd1d6b15ec28387073a81f0d00bd38d909a05f8e"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 7308,
+          "sha256": "a135e2189a0feb0af08ff79de761698fb8ce7b41c96fefda1d4a299e5982fef3"
+        },
+        {
+          "path": "src/internal.ts",
+          "bytes": 5765,
+          "sha256": "35a50d597fed58656a11e3c5294fdf99524ed8c106739b4fab522a288eefa877"
+        },
+        {
+          "path": "src/resolve.ts",
+          "bytes": 2763,
+          "sha256": "416336cfdc468ad504c6b7df64d32975a94e18914eca5d5e01dc9682207754d6"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 1069,
+          "sha256": "e5a2092daa45b264072465788c5b0a750b5d88c4801333070ba90063af65491c"
+        }
+      ]
+    },
+    {
+      "directory": "include",
+      "package": "@deepseek-ai/cordis-plugin-include",
+      "source_manifest_version": "1.0.10",
+      "sha256": "03d0cb1b8a3a5270b7f6ffc3cbcc21343500931564b169c54649e90c9d6fed9c",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 11686,
+          "sha256": "50005dcc3b35cb8e18e33ee157567aa14210b932fb25e22506d31aee25e59428"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 978,
+          "sha256": "d6d6047472127599a6f7cf59a4a569530e8a1f518d151e69e7f6d5c67599ab75"
+        }
+      ]
+    },
+    {
+      "directory": "group",
+      "package": "@deepseek-ai/cordis-plugin-group",
+      "source_manifest_version": "1.0.5",
+      "sha256": "47f30d31ed5f6e008a9e275a0011a6d9c3998769a7d6b69bc6446715f4b1496b",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "sha256": "034fb52b1d57360ecbae6cb1632a88f86fd7c3d3f5631a5f082710203dda0be7"
+        },
+        {
+          "path": "src/index.ts",
+          "bytes": 80,
+          "sha256": "e3679df2068439b6624ef2b247f1e28db0de769f4986db3bd3da077f0d2269e6"
+        },
+        {
+          "path": "upstream-package.json",
+          "bytes": 872,
+          "sha256": "5fd58be1a7e3705815cbcba9fd573ff367edb8508ace1b09ea5e98a5649f8066"
+        }
+      ]
+    }
+  ],
+  "source_fingerprint": "11972d7a3d755c7b045648a5c81575d8e28538a30a188ef942289d4e1f828560",
+  "source_fingerprint_algorithm": "sha256 over sorted package directory, NUL, package sha256 ASCII, NUL",
+  "verified_environment": {
+    "node": "24.22.1",
+    "typescript": "6.0.3"
+  }
+}

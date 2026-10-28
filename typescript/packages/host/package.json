@@ -1,0 +1,35 @@
+{
+  "name": "@society0/host",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./abi": {
+      "types": "./dist/abi.d.ts",
+      "default": "./dist/abi.js"
+    },
+    "./source": {
+      "types": "./dist/source.d.ts",
+      "default": "./dist/source.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "peerDependencies": {
+    "@society0/cordis": "4.0.5-society0.1"
+  },
+  "dependencies": {
+    "semver": "7.7.4"
+  }
+}

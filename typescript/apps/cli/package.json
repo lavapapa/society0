@@ -1,0 +1,23 @@
+{
+  "name": "@society0/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "bin": {
+    "society0": "./dist/main.js"
+  },
+  "dependencies": {
+    "@society0/host": "0.1.0"
+  },
+  "peerDependencies": {
+    "@society0/cordis": "4.0.5-society0.1"
+  }
+}

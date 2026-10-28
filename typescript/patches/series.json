@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "upstreamCommit": "22ddee3792402c3e70ec5f86a63c3e3e895a2f60",
+  "patches": [
+    {
+      "file": "0001-native-lifecycle.patch",
+      "id": "society0-native-lifecycle-001",
+      "paths": [
+        "vendor/cordis/src/fiber.ts",
+        "vendor/cordis/src/reflect.ts",
+        "vendor/cordis/src/utils.ts",
+        "vendor/loader/src/config/isolate.ts"
+      ],
+      "purpose": "Committed binding retirement, structural children drain, effect cleanup join and fault collection, isolated lifecycle observers, Loader label identity",
+      "order": 1
+    }
+  ]
+}
