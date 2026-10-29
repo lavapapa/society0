@@ -1,0 +1,6 @@
+import type { MemoryChangeCursor, EmbeddingIdentity, MemoryIndexProgress } from '@society0/core/contracts/cognition';
+export type { EmbeddingIdentity, EmbeddingOrigin, MemoryVector, MemoryChangeCursor, MemoryChange, VectorDistance, MemoryIndexProgress, MemoryIndex } from '@society0/core/contracts/cognition';
+export function vectorFault(code: string): never { throw Object.assign(new Error(code), { code }); }
+export function compareCursor(a: MemoryChangeCursor, b: MemoryChangeCursor): number { const x = BigInt(a.revision), y = BigInt(b.revision); return x < y ? -1 : x > y ? 1 : Buffer.compare(Buffer.from(a.id), Buffer.from(b.id)); }
+export function sameIdentity(a: EmbeddingIdentity, b: EmbeddingIdentity): boolean { return a.provider === b.provider && a.configId === b.configId && a.model === b.model && a.dimensions === b.dimensions; }
+export function sameProjection(a: Pick<MemoryIndexProgress, "runId" | "generation" | "space" | "identity" | "distance">, b: Pick<MemoryIndexProgress, "runId" | "generation" | "space" | "identity" | "distance">): boolean { return a.runId === b.runId && a.generation === b.generation && a.space === b.space && a.distance === b.distance && sameIdentity(a.identity, b.identity); }

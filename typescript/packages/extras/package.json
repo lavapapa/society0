@@ -1,0 +1,65 @@
+{
+  "name": "@society0/extras",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./datasets": {
+      "types": "./dist/datasets/index.d.ts",
+      "default": "./dist/datasets/index.js"
+    },
+    "./dataset-jsonl": {
+      "types": "./dist/dataset-jsonl/index.d.ts",
+      "default": "./dist/dataset-jsonl/index.js"
+    },
+    "./shell": {
+      "types": "./dist/shell/index.d.ts",
+      "default": "./dist/shell/index.js"
+    },
+    "./memory": {
+      "types": "./dist/memory/index.d.ts",
+      "default": "./dist/memory/index.js"
+    },
+    "./memory-repository": {
+      "types": "./dist/memory-repository/index.d.ts",
+      "default": "./dist/memory-repository/index.js"
+    },
+    "./memory-write-experience": {
+      "types": "./dist/memory-write-experience/index.d.ts",
+      "default": "./dist/memory-write-experience/index.js"
+    },
+    "./vector-index": {
+      "types": "./dist/vector-index/index.d.ts",
+      "default": "./dist/vector-index/index.js"
+    },
+    "./vector-providers": {
+      "types": "./dist/vector-providers/index.d.ts",
+      "default": "./dist/vector-providers/index.js"
+    },
+    "./vector-exact": {
+      "types": "./dist/vector-exact/index.d.ts",
+      "default": "./dist/vector-exact/index.js"
+    },
+    "./workspace": {
+      "types": "./dist/workspace/index.d.ts",
+      "default": "./dist/workspace/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@society0/host": "0.1.0",
+    "@society0/cordis": "4.0.5-society0.1"
+  },
+  "dependencies": {
+    "@society0/core": "0.1.0",
+    "@society0/schemastery": "3.18.5-society0.1"
+  }
+}

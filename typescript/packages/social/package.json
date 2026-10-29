@@ -1,0 +1,86 @@
+{
+  "name": "@society0/social",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "exports": {
+    "./package.json": "./package.json",
+    "./social-repository": {
+      "types": "./dist/social-repository/index.d.ts",
+      "default": "./dist/social-repository/index.js"
+    },
+    "./social-init": {
+      "types": "./dist/social-init/index.d.ts",
+      "default": "./dist/social-init/index.js"
+    },
+    "./topology-edges": {
+      "types": "./dist/topology-edges/index.d.ts",
+      "default": "./dist/topology-edges/index.js"
+    },
+    "./social": {
+      "types": "./dist/social/index.d.ts",
+      "default": "./dist/social/index.js"
+    },
+    "./propagation-neighbors": {
+      "types": "./dist/propagation-neighbors/index.d.ts",
+      "default": "./dist/propagation-neighbors/index.js"
+    },
+    "./measurement-repository": {
+      "types": "./dist/measurement-repository/index.d.ts",
+      "default": "./dist/measurement-repository/index.js"
+    },
+    "./measurements": {
+      "types": "./dist/measurements/index.d.ts",
+      "default": "./dist/measurements/index.js"
+    },
+    "./measurement-every": {
+      "types": "./dist/measurement-every/index.d.ts",
+      "default": "./dist/measurement-every/index.js"
+    },
+    "./round-robin": {
+      "types": "./dist/round-robin/index.d.ts",
+      "default": "./dist/round-robin/index.js"
+    },
+    "./social-recommendations": {
+      "types": "./dist/social-recommendations/index.d.ts",
+      "default": "./dist/social-recommendations/index.js"
+    },
+    "./social-ranking": {
+      "types": "./dist/social-ranking/index.d.ts",
+      "default": "./dist/social-ranking/index.js"
+    },
+    "./social-semantic": {
+      "types": "./dist/social-semantic/index.d.ts",
+      "default": "./dist/social-semantic/index.js"
+    },
+    "./social-measurement": {
+      "types": "./dist/social-measurement/index.d.ts",
+      "default": "./dist/social-measurement/index.js"
+    },
+    "./social-perception": {
+      "types": "./dist/social-perception/index.d.ts",
+      "default": "./dist/social-perception/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
+    }
+  },
+  "peerDependencies": {
+    "@society0/host": "0.1.0",
+    "@society0/cordis": "4.0.5-society0.1"
+  },
+  "dependencies": {
+    "@society0/core": "0.1.0",
+    "@society0/schemastery": "3.18.5-society0.1",
+    "@society0/extras": "0.1.0"
+  }
+}
