@@ -1,0 +1,28 @@
+{
+  "name": "@society0/random-native",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "source",
+    "vendor",
+    "build/random_native.node",
+    "build.py",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "python3 build.py"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "@society0/sqlite-native",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.mjs"
+    }
+  },
+  "files": [
+    "src",
+    "native",
+    "vendor",
+    "build/sqlite_native.node",
+    "build.py",
+    "LICENSE",
+    "README.md",
+    "SPEC.md",
+    "INTEGRATION.md"
+  ],
+  "scripts": {
+    "build": "python3 build.py"
+  },
+  "libc": [
+    "glibc"
+  ]
+}

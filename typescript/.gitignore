@@ -1,3 +1,12 @@
 node_modules/
 .build/
 artifacts/
+
+coverage/
+
+.metrics/
+
+target/
+
+# 由离线 recipe 从随附官方 SQLite 源码生成。
+packages/sqlite-native/vendor/libsqlite3.so
