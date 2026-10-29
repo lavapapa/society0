@@ -1,0 +1,61 @@
+--- a/vendor/include/src/index.ts
++++ b/vendor/include/src/index.ts
+@@ -54,16 +54,16 @@
+  * @param warn - sink for skipped-patch diagnostics (printf-style, `%C` = code).
+  * @returns a detached entry list with every applicable patch applied.
+  */
+-export function applyEntryPatches(
+-  data: EntryOptions[],
+-  patches: PatchOptions[] | undefined,
++export function applyEntryPatches<T extends PatchEntry = EntryOptions>(
++  data: T[],
++  patches: PatchOptions<T>[] | undefined,
+   warn: (message: string, ...args: any[]) => void,
+-): EntryOptions[] {
++): T[] {
+   if (!patches?.length) return [...data]
+   data = structuredClone(data)
+ 
+-  const entryMap = new Map<string, EntryOptions>()
+-  const buildMap = (entries: EntryOptions[]) => {
++  const entryMap = new Map<string, T>()
++  const buildMap = (entries: T[]) => {
+     for (const entry of entries) {
+       if (entry.id) entryMap.set(entry.id, entry)
+       if (entry.group && Array.isArray(entry.config)) {
+@@ -119,25 +119,26 @@
+ 
+     for (const [key, value] of Object.entries(overrides)) {
+       if (key === 'id') continue
+-      target[key] = value
++      target[key as keyof T] = value as T[keyof T]
+     }
+   }
+ 
+   return data
+ }
+ 
+-/** Runtime patch applied to entries loaded from an included config file. */
+-export interface PatchOptions {
++/** Structural fields interpreted by the generic patch algorithm. */
++export interface PatchEntry {
+   id?: string
+-  insert?: EntryOptions[]
+   name?: string
+   config?: any
+   group?: boolean | null
+-  disabled?: boolean | null
+-  inject?: any
+-  intercept?: any
+-  isolate?: any
+-  [key: string]: any
++}
++
++/** Runtime patch preserves the caller's entry and per-field value types. */
++export type PatchOptions<T extends PatchEntry = EntryOptions> = Partial<T> & {
++  id?: string
++  name?: string
++  insert?: T[]
+ }
+ 
+ /** Config namespace for the file-backed include loader. */

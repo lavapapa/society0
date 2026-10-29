@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "strict": true,
+    "skipLibCheck": false,
+    "noEmit": true,
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "@society0/include": [
+        "../.build/include/dist/index.d.ts"
+      ],
+      "@society0/loader": [
+        "../.build/loader/dist/index.d.ts"
+      ]
+    }
+  },
+  "include": [
+    "include-types.ts"
+  ]
+}

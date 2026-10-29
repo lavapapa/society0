@@ -13,6 +13,15 @@
       ],
       "purpose": "Committed binding retirement, structural children drain, effect cleanup join and fault collection, isolated lifecycle observers, Loader label identity",
       "order": 1
+    },
+    {
+      "file": "0002-include-generic-types.patch",
+      "id": "society0-include-generic-types-002",
+      "paths": [
+        "vendor/include/src/index.ts"
+      ],
+      "purpose": "Preserve the entry type and typed patch fields through applyEntryPatches; default EntryOptions; emitted runtime JavaScript unchanged",
+      "order": 2
     }
   ]
 }
