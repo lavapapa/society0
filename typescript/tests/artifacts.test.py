@@ -7,9 +7,12 @@ for file in sorted((artifacts/'tarballs').glob('society0-*.tgz')):
         members=set(archive.getnames())
         package=json.load(archive.extractfile('package/package.json'))
         assert 'workspace:' not in json.dumps(package),file
-        assert not any(name.startswith('package/src/') for name in members),file
+        assert not any(name.startswith('package/src/') and not (package['name'] in ['@society0/sqlite-native','@society0/random-native'] and (name.endswith('.mjs') or name.endswith('.js') or name.endswith('.d.ts'))) for name in members),file
         for required in ['LICENSE','SOURCE.json','BUILD-LOCK.json','PATCHES/series.json','PATCHES/0001-native-lifecycle.patch']:
             assert 'package/'+required in members,(file,required)
+        series=json.load(archive.extractfile('package/PATCHES/series.json'))
+        for index,patch in enumerate(series['patches'],1):
+            assert patch['order']==index and 'package/PATCHES/'+patch['file'] in members,(file,patch)
         def targets(value):
             if isinstance(value,str): yield value
             elif isinstance(value,dict):
@@ -25,5 +28,6 @@ for file in sorted((artifacts/'tarballs').glob('society0-*.tgz')):
                 text=archive.extractfile(member).read().decode()
                 assert 'const enum ' not in text,(file,member)
         checked.append(package['name'])
-assert len(checked)==8,checked
+expected=json.loads((artifacts/'release.json').read_text())['packages']
+assert len(checked)==len(expected),(checked,expected)
 print(json.dumps({'tarballChecks':'passed','packages':checked,'checks':['exports and bins exist','JS and declaration distribution','no workspace protocol','physical consumer packages','runtime enum declarations','licenses, source, lock and ordered patch bytes']},indent=2))

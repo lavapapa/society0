@@ -1,0 +1,37 @@
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {resolve,join} from 'node:path';import {pathToFileURL} from 'node:url';import {execFileSync} from 'node:child_process';
+const root=resolve(process.argv[2]);const directory=resolve(process.argv[3]);
+const read=async path=>JSON.parse(await readFile(path,'utf8'));
+const save=(path,value)=>writeFile(path,JSON.stringify(value,null,2)+'\n');
+const pkg=await read(join(directory,'package.json'));
+const series=await read(join(root,'patches/series.json'));
+const gitCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
+const dirty=execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:root,encoding:'utf8'}).trim();
+const {hostAbi}=await import(pathToFileURL(resolve(root,'.build/host/dist/abi.js')).href);
+const source={package:pkg.name,version:pkg.version,gitCommit,lockfile:'BUILD-LOCK.json',patches:series.patches.map(item=>item.file),hostAbi};
+const entries=[],schemas=[],apis=[],limitations=[{code:'SCHEMA_DIALECT',dialect:'schemastery',detail:'Schema.toJSON exports declared validation structure. Runtime transforms, custom validators and constructor checks still require plugin loading.'}];
+if(dirty)limitations.push({code:'DIRTY_WORKTREE',detail:'Built from the named commit plus current working tree changes.',paths:dirty.split('\n')});
+for(const [exportPath,target] of Object.entries(pkg.exports)){
+ const file=typeof target==='string'?target:target.default;
+ if(!file?.endsWith('.js'))continue;
+ const namespace=await import(pathToFileURL(resolve(directory,file)).href);
+ if(!namespace.metadata&&!namespace.api)continue;
+ if(!namespace.metadata||!namespace.api||!namespace.Config)throw Error(`SIDECAR_DECLARATIONS ${pkg.name}${exportPath}`);
+ if(namespace.api.exportPath!==exportPath)throw Error(`SIDECAR_EXPORT_PATH ${pkg.name}${exportPath}`);
+ if((namespace.default??namespace).Config!==namespace.Config)throw Error(`SIDECAR_CONFIG_IDENTITY ${pkg.name}${exportPath}`);
+ if(namespace.metadata.hostAbi!==hostAbi)throw Error(`SIDECAR_ABI ${pkg.name}${exportPath}`);
+ const index=entries.length;let schema=null;
+ if(typeof namespace.Config.toJSON==='function')schema=namespace.Config.toJSON();
+ else limitations.push({code:'RUNTIME_ONLY_CONFIG',exportPath});
+ entries.push({exportPath,metadata:namespace.metadata,configSchemaPointer:`#/schema/entries/${index}/schema`,apiPointer:`#/entries/${index}`});
+ schemas.push({exportPath,schema});apis.push(namespace.api);
+}
+await mkdir(join(directory,'generated'),{recursive:true});
+await save(join(directory,'generated/plugin.meta.json'),{format:'society-plugin-metadata/v1',package:{name:pkg.name,version:pkg.version},source,entries});
+await save(join(directory,'generated/plugin.schema.json'),{format:'society-config-schema/v1',schema:{dialect:'schemastery',entries:schemas},limitations});
+await save(join(directory,'generated/plugin.api.json'),{format:'society-plugin-api/v1',entries:apis});
+pkg.society={...pkg.society,plugin:{metadata:'./plugin.meta.json',configSchema:'./plugin.schema.json',api:'./plugin.api.json'}};
+for(const name of ['meta','schema','api'])pkg.exports[`./plugin.${name}.json`]=`./generated/plugin.${name}.json`;
+pkg.files=[...new Set([...pkg.files,'generated'])];await save(join(directory,'package.json'),pkg);
+const provenance=await read(join(directory,'SOURCE.json'));provenance.implementation={...source,dirty:!!dirty};await save(join(directory,'SOURCE.json'),provenance);
+console.log(`sidecars ${pkg.name}: ${entries.length} actual plugin exports`);

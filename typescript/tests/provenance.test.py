@@ -5,6 +5,8 @@ with tempfile.TemporaryDirectory(prefix='pr01-provenance-', dir=os.environ['TMPD
     probe=Path(directory)
     for name in ['scripts','patches','vendor','vendor-baseline']: (probe/name).mkdir()
     shutil.copyfile(root/'scripts/build.py',probe/'scripts/build.py')
+    shutil.copyfile(root/'scripts/build_entries.py',probe/'scripts/build_entries.py')
+    shutil.copyfile(root/'scripts/build_compile.py',probe/'scripts/build_compile.py')
     for name in ['vendor','vendor-baseline']: shutil.copyfile(root/name/'source-manifest.json',probe/name/'source-manifest.json')
     shutil.copyfile(root/'package-lock.json',probe/'package-lock.json')
     series=json.loads((root/'patches/series.json').read_text())

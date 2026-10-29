@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {setImmediate} from 'node:timers/promises';import {Service} from '../.build/host/dist/abi.js';import {createTestHost} from '../.build/host/dist/testkit.js';import {slotKey} from '../.build/host/dist/slots/index.js';
+test('slot watcher children retain contributor context for additional required services',async()=>{
+ const host=await createTestHost();class Extra extends Service{constructor(ctx){super(ctx,'extra')}read(){return 42}}const key=slotKey('author/context');
+ try{await host.ctx.plugin(Extra);await host.ctx.plugin({inject:['slots','extra'],apply(ctx){ctx.slots.inject(key,async child=>{await child.plugin({inject:['slots','extra'],apply(owner){owner.slots.contribute(key,{id:'native',value:owner.extra.read()})}})})}});host.ctx.slots.declare({key,strategy:'single',required:true,validate:value=>value});await setImmediate();const lease=await host.ctx.slots.acquire(key,{generation:'test'});assert.equal(lease.items[0].value,42);await lease.release()}finally{await host.close()}
+});
