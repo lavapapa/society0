@@ -1,0 +1,10 @@
+import Schema from '@society0/schemastery';
+import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
+export const Config = Schema.object({});
+export const metadata: PluginMetadata = { "title": "mount-results", "summary": "注册当前主体/results查询结果文件和来源", "configVersion": 1, "configPolicy": [], "scope": "generation", "allowedScopes": ["generation"], "hostAbi": "society0/host/1" };
+export const api: ApiEntry = { "exportPath": "./mount-results", "provides": [], "requires": [{ "service": { "key": "exploration", "protocol": "exploration", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "workspace", "protocol": "workspace", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "results", "protocol": "results", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
+import type { Context } from '@society0/cordis';
+import type { WritableExplorationMount } from '../contracts/exploration.js';
+import '../exploration/index.js';
+import { writableMount } from '../mount-workspace/index.js';
+export default { Config, inject: ["exploration", "workspace", "results"], apply(ctx: Context) { ctx.exploration.register(writableMount(ctx.get('workspace') as WritableExplorationMount, '/results')); } };

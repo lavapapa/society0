@@ -1,0 +1,329 @@
+{
+  "name": "@society0/core",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.16.0"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "SOURCE.json"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "default": "./dist/sqlite/index.js"
+    },
+    "./execution-fence": {
+      "types": "./dist/execution-fence/index.d.ts",
+      "default": "./dist/execution-fence/index.js"
+    },
+    "./initializers": {
+      "types": "./dist/initializers/index.d.ts",
+      "default": "./dist/initializers/index.js"
+    },
+    "./sqlite-bootstrap": {
+      "types": "./dist/sqlite-bootstrap/index.d.ts",
+      "default": "./dist/sqlite-bootstrap/index.js"
+    },
+    "./sqlite/database": {
+      "types": "./dist/sqlite/database.d.ts",
+      "default": "./dist/sqlite/database.js"
+    },
+    "./sqlite/schema": {
+      "types": "./dist/sqlite/schema.d.ts",
+      "default": "./dist/sqlite/schema.js"
+    },
+    "./sqlite/contracts": {
+      "types": "./dist/sqlite/contracts.d.ts",
+      "default": "./dist/sqlite/contracts.js"
+    },
+    "./execution-fence/state": {
+      "types": "./dist/execution-fence/state.d.ts",
+      "default": "./dist/execution-fence/state.js"
+    },
+    "./artifacts-local": {
+      "types": "./dist/artifacts-local/index.d.ts",
+      "default": "./dist/artifacts-local/index.js"
+    },
+    "./sqlite-history": {
+      "types": "./dist/sqlite-history/index.d.ts",
+      "default": "./dist/sqlite-history/index.js"
+    },
+    "./actors": {
+      "types": "./dist/actors/index.d.ts",
+      "default": "./dist/actors/index.js"
+    },
+    "./drivers": {
+      "types": "./dist/drivers/index.d.ts",
+      "default": "./dist/drivers/index.js"
+    },
+    "./actor-eligibility": {
+      "types": "./dist/actor-eligibility/index.d.ts",
+      "default": "./dist/actor-eligibility/index.js"
+    },
+    "./contracts/common": {
+      "types": "./dist/contracts/common.d.ts",
+      "default": "./dist/contracts/common.js"
+    },
+    "./contracts/runtime": {
+      "types": "./dist/contracts/runtime.d.ts",
+      "default": "./dist/contracts/runtime.js"
+    },
+    "./contracts/eligibility": {
+      "types": "./dist/contracts/eligibility.d.ts",
+      "default": "./dist/contracts/eligibility.js"
+    },
+    "./activation": {
+      "types": "./dist/activation/index.d.ts",
+      "default": "./dist/activation/index.js"
+    },
+    "./activation-mailbox": {
+      "types": "./dist/activation-mailbox/index.d.ts",
+      "default": "./dist/activation-mailbox/index.js"
+    },
+    "./clock-ticks": {
+      "types": "./dist/clock-ticks/index.d.ts",
+      "default": "./dist/clock-ticks/index.js"
+    },
+    "./clock-event": {
+      "types": "./dist/clock-event/index.d.ts",
+      "default": "./dist/clock-event/index.js"
+    },
+    "./proposal-sequence": {
+      "types": "./dist/proposal-sequence/index.d.ts",
+      "default": "./dist/proposal-sequence/index.js"
+    },
+    "./proposal-events": {
+      "types": "./dist/proposal-events/index.d.ts",
+      "default": "./dist/proposal-events/index.js"
+    },
+    "./runtime-staged": {
+      "types": "./dist/runtime-staged/index.d.ts",
+      "default": "./dist/runtime-staged/index.js"
+    },
+    "./runtime-events": {
+      "types": "./dist/runtime-events/index.d.ts",
+      "default": "./dist/runtime-events/index.js"
+    },
+    "./completion-strict": {
+      "types": "./dist/completion-strict/index.d.ts",
+      "default": "./dist/completion-strict/index.js"
+    },
+    "./checkpoint-policy": {
+      "types": "./dist/checkpoint-policy/index.d.ts",
+      "default": "./dist/checkpoint-policy/index.js"
+    },
+    "./termination": {
+      "types": "./dist/termination/index.d.ts",
+      "default": "./dist/termination/index.js"
+    },
+    "./generation-views": {
+      "types": "./dist/generation-views/index.d.ts",
+      "default": "./dist/generation-views/index.js"
+    },
+    "./generation-binding": {
+      "types": "./dist/generation-binding/index.d.ts",
+      "default": "./dist/generation-binding/index.js"
+    },
+    "./run-controller": {
+      "types": "./dist/run-controller/index.d.ts",
+      "default": "./dist/run-controller/index.js"
+    },
+    "./random": {
+      "types": "./dist/random/index.d.ts",
+      "default": "./dist/random/index.js"
+    },
+    "./attempts": {
+      "types": "./dist/attempts/index.d.ts",
+      "default": "./dist/attempts/index.js"
+    },
+    "./contracts/random": {
+      "types": "./dist/contracts/random.d.ts",
+      "default": "./dist/contracts/random.js"
+    },
+    "./actions": {
+      "types": "./dist/actions/index.d.ts",
+      "default": "./dist/actions/index.js"
+    },
+    "./thread": {
+      "types": "./dist/thread/index.d.ts",
+      "default": "./dist/thread/index.js"
+    },
+    "./information": {
+      "types": "./dist/information/index.d.ts",
+      "default": "./dist/information/index.js"
+    },
+    "./results": {
+      "types": "./dist/results/index.d.ts",
+      "default": "./dist/results/index.js"
+    },
+    "./contracts/data": {
+      "types": "./dist/contracts/data.d.ts",
+      "default": "./dist/contracts/data.js"
+    },
+    "./contracts/domain": {
+      "types": "./dist/contracts/domain.d.ts",
+      "default": "./dist/contracts/domain.js"
+    },
+    "./exploration": {
+      "types": "./dist/exploration/index.d.ts",
+      "default": "./dist/exploration/index.js"
+    },
+    "./mount-world": {
+      "types": "./dist/mount-world/index.d.ts",
+      "default": "./dist/mount-world/index.js"
+    },
+    "./mount-workspace": {
+      "types": "./dist/mount-workspace/index.d.ts",
+      "default": "./dist/mount-workspace/index.js"
+    },
+    "./mount-results": {
+      "types": "./dist/mount-results/index.d.ts",
+      "default": "./dist/mount-results/index.js"
+    },
+    "./perception": {
+      "types": "./dist/perception/index.d.ts",
+      "default": "./dist/perception/index.js"
+    },
+    "./perception-actor": {
+      "types": "./dist/perception-actor/index.d.ts",
+      "default": "./dist/perception-actor/index.js"
+    },
+    "./driver-rule": {
+      "types": "./dist/driver-rule/index.d.ts",
+      "default": "./dist/driver-rule/index.js"
+    },
+    "./rule-passive": {
+      "types": "./dist/rule-passive/index.d.ts",
+      "default": "./dist/rule-passive/index.js"
+    },
+    "./plain": {
+      "types": "./dist/plain/index.d.ts",
+      "default": "./dist/plain/index.js"
+    },
+    "./plain-init": {
+      "types": "./dist/plain-init/index.d.ts",
+      "default": "./dist/plain-init/index.js"
+    },
+    "./contracts/exploration": {
+      "types": "./dist/contracts/exploration.d.ts",
+      "default": "./dist/contracts/exploration.js"
+    },
+    "./contracts/perception": {
+      "types": "./dist/contracts/perception.d.ts",
+      "default": "./dist/contracts/perception.js"
+    },
+    "./replay": {
+      "types": "./dist/replay/index.d.ts",
+      "default": "./dist/replay/index.js"
+    },
+    "./observation": {
+      "types": "./dist/observation/index.d.ts",
+      "default": "./dist/observation/index.js"
+    },
+    "./model-providers": {
+      "types": "./dist/model-providers/index.d.ts",
+      "default": "./dist/model-providers/index.js"
+    },
+    "./prompts": {
+      "types": "./dist/prompts/index.d.ts",
+      "default": "./dist/prompts/index.js"
+    },
+    "./driver-llm": {
+      "types": "./dist/driver-llm/index.d.ts",
+      "default": "./dist/driver-llm/index.js"
+    },
+    "./model-replay": {
+      "types": "./dist/model-replay/index.d.ts",
+      "default": "./dist/model-replay/index.js"
+    },
+    "./embedding": {
+      "types": "./dist/embedding/index.d.ts",
+      "default": "./dist/embedding/index.js"
+    },
+    "./embedding-http": {
+      "types": "./dist/embedding-http/index.d.ts",
+      "default": "./dist/embedding-http/index.js"
+    },
+    "./model-pi": {
+      "types": "./dist/model-pi/index.d.ts",
+      "default": "./dist/model-pi/index.js"
+    },
+    "./mount-context": {
+      "types": "./dist/mount-context/index.d.ts",
+      "default": "./dist/mount-context/index.js"
+    },
+    "./exploration-shell": {
+      "types": "./dist/exploration-shell/index.d.ts",
+      "default": "./dist/exploration-shell/index.js"
+    },
+    "./actor-tools": {
+      "types": "./dist/actor-tools/index.d.ts",
+      "default": "./dist/actor-tools/index.js"
+    },
+    "./agent-runtimes": {
+      "types": "./dist/agent-runtimes/index.d.ts",
+      "default": "./dist/agent-runtimes/index.js"
+    },
+    "./agent-runtime-pi": {
+      "types": "./dist/agent-runtime-pi/index.d.ts",
+      "default": "./dist/agent-runtime-pi/index.js"
+    },
+    "./inference-defaults": {
+      "types": "./dist/inference-defaults/index.d.ts",
+      "default": "./dist/inference-defaults/index.js"
+    },
+    "./model-credentials": {
+      "types": "./dist/model-credentials/index.d.ts",
+      "default": "./dist/model-credentials/index.js"
+    },
+    "./model-codex-subscription": {
+      "types": "./dist/model-codex-subscription/index.d.ts",
+      "default": "./dist/model-codex-subscription/index.js"
+    },
+    "./contracts/cognition": {
+      "types": "./dist/contracts/cognition.d.ts",
+      "default": "./dist/contracts/cognition.js"
+    },
+    "./contracts/inference": {
+      "types": "./dist/contracts/inference.d.ts",
+      "default": "./dist/contracts/inference.js"
+    },
+    "./contracts/actor-tools": {
+      "types": "./dist/contracts/actor-tools.d.ts",
+      "default": "./dist/contracts/actor-tools.js"
+    },
+    "./contracts/model-auth": {
+      "types": "./dist/contracts/model-auth.d.ts",
+      "default": "./dist/contracts/model-auth.js"
+    },
+    "./information/page": {
+      "types": "./dist/information/page.d.ts",
+      "default": "./dist/information/page.js"
+    }
+  },
+  "peerDependencies": {
+    "@society0/host": "0.1.0",
+    "@society0/cordis": "4.0.5-society0.1"
+  },
+  "dependencies": {
+    "@society0/sqlite-native": "0.1.0",
+    "p-limit": "7.3.3",
+    "@society0/schemastery": "3.18.5-society0.1",
+    "ajv": "8.20.0",
+    "@vscode/ripgrep": "1.18.0",
+    "@society0/random-native": "0.1.0",
+    "@earendil-works/pi-ai": "1.3.0",
+    "@earendil-works/pi-agent-core": "1.3.0",
+    "just-bash": "3.6.0",
+    "@modelcontextprotocol/sdk": "1.32.2"
+  }
+}

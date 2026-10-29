@@ -1,0 +1,26 @@
+import {chunks} from '../results/payload.js';
+import type {Models,AssistantMessage,Model,Api,SimpleStreamOptions} from '@earendil-works/pi-ai';
+import {PassThrough} from 'node:stream';
+import type {AttemptIdentity} from '../attempts/ledger.js';
+import type {ArtifactRef} from '../artifacts-local/store.js';
+import type {Invocation} from '../contracts/common.js';
+import type {ResolvedModelSelection} from '../contracts/inference.js';
+import type {Ledger,PiProviderOptions} from './provider.js';
+import {boundedNative} from './stream.js';
+type Transcript=Parameters<ResolvedModelSelection['streamFn']>[1];
+export class PiPhysicalRequest {
+ private raw=new PassThrough({highWaterMark:65536});private archived!:Promise<ArtifactRef>;private rawBytes=0;private sent=false;
+ private requestRef!:ArtifactRef;private rawRef?:ArtifactRef;private payloads:ArtifactRef[]=[];private control=new AbortController();
+ constructor(private models:Models,private ledger:Ledger,private config:PiProviderOptions,private context:Invocation,private model:Model<Api>,private transcript:Transcript,private options:ResolvedModelSelection['options'],private identity:AttemptIdentity){}
+ private archive(value:unknown){const bytes=Buffer.from(JSON.stringify(value));if(bytes.length>this.config.maxRequestBytes)throw Error('MODEL_ARCHIVE_BUDGET');return this.ledger.stageEvidence(chunks(bytes,this.ledger.evidenceChunkBytes),'application/json')}
+ private async claim(){this.requestRef=await this.archive({model:this.model,context:this.transcript,options:this.options});const claim=await this.ledger.claim(this.identity,{provider:this.config.providerId,model:this.model.id,request:this.requestRef},[this.requestRef]);if(claim.status!=='send-permitted')throw Error('MODEL_ATTEMPT_'+claim.status.toUpperCase());return claim.physicalRequestId}
+ private transport:typeof fetch=async(input,init)=>{this.sent=true;const response=await(this.config.fetch??fetch)(input,{...init,redirect:'error'});if(!response.body)return response;let bytes=0;const body=response.body.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform:(chunk,output)=>{bytes+=chunk.length;if(bytes>this.config.maxRawBytes)throw Error('MODEL_RESPONSE_BYTES');output.enqueue(chunk)}}));return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers})};
+ private async* rawChunks(){for await(const part of this.raw)yield* chunks(Buffer.from(part),this.ledger.evidenceChunkBytes)}
+ private async rawEvent(event:unknown){const bytes=Buffer.from(JSON.stringify(event)+'\n');this.rawBytes+=bytes.length;if(bytes.length>this.config.maxEventBytes||this.rawBytes>this.config.maxRawBytes)throw Error('MODEL_RAW_EVENT_BUDGET');await new Promise<void>((resolve,reject)=>this.raw.write(bytes,error=>error?reject(error):resolve()))}
+ private streamOptions(taskSignal:AbortSignal,callerSignal?:AbortSignal):SimpleStreamOptions{return {...this.options,signal:AbortSignal.any([this.context.signal,taskSignal,this.control.signal,...(callerSignal?[callerSignal]:[])]),fetch:this.transport,timeoutMs:this.config.timeoutMs??30000,onPayload:async payload=>{this.payloads.push(await this.archive(payload));return undefined},onProviderStreamEvent:event=>this.rawEvent(event)}}
+ private async create(taskSignal:AbortSignal,callerSignal?:AbortSignal){try{return this.models.streamSimple(this.model,this.transcript,this.streamOptions(taskSignal,callerSignal))}catch(error){this.raw.end();const raw=await this.archived;await this.ledger.settle(this.identity,{status:'not_dispatched',error:'MODEL_SETUP_FAILED'},[this.requestRef,raw]);throw error}}
+ private async settle(message:AssistantMessage){this.raw.end();this.rawRef=await this.archived;const normalized=await this.archive(message),refs=[this.requestRef,...this.payloads,this.rawRef,normalized];if(this.sent&&(message.stopReason==='aborted'||message.stopReason==='error'))await this.ledger.markUnknown(this.identity,'provider request ended without a known successful external result',refs);else await this.ledger.settle(this.identity,{status:this.sent?'response':'not_dispatched',normalized,raw:this.rawRef,usage:message.usage},refs)}
+ private async failure(error:unknown):Promise<never>{this.raw.end();try{this.rawRef??=await this.archived}catch{}await this.ledger.markUnknown(this.identity,String(error),[this.requestRef,...this.payloads,...(this.rawRef?[this.rawRef]:[])]);throw error}
+ private async complete(pumped:Promise<void>,physical:Promise<void>){const results=await Promise.allSettled([pumped,physical]);const failed=results.find(result=>result.status==='rejected');if(failed?.status==='rejected')throw failed.reason}
+ async start(taskSignal:AbortSignal,callerSignal:AbortSignal|undefined,claimed:(id:string)=>void){claimed(await this.claim());this.archived=this.ledger.stageEvidence(this.rawChunks(),'application/x-ndjson');void this.archived.catch(()=>{});const native=await this.create(taskSignal,callerSignal);const bridge=boundedNative(native,this.model,{maxPendingEvents:this.config.maxPendingEvents??128,maxPendingBytes:this.config.maxPendingBytes??4194304},error=>this.control.abort(error));const physical=native.result().then(message=>this.settle(message)).catch(error=>this.failure(error));return {stream:bridge.stream,completed:this.complete(bridge.pumped,physical),peak:bridge.diagnostics}}
+}
