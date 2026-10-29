@@ -1,6 +1,8 @@
-# Society0 TypeScript Host
+# Society0 Next TypeScript
 
-这个目录包含显式 boot 的原生 Cordis 宿主、唯一 CLI，以及从固定源码构建的框架包。生产入口输出 ESM JavaScript 和声明；包名采用项目自己的 `@society0` scope，发布操作由项目单独授权。
+这个目录提供 Society0 Next 的原生 Cordis 宿主、CLI、完整 Core、Extras 与 Social，以及 SQLite 原生存储、完整点恢复和分叉能力。生产入口输出 ESM JavaScript 和声明；包名采用项目自己的 `@society0` scope，发布操作由项目单独授权。
+
+使用发行包从[公开 SDK 安装](<docs/public-usage.md#一安装>)开始，再按[四个 profile 的运行入口](<docs/public-usage.md#二运行>)创建、推进和重开 run。[分叉步骤](<docs/public-usage.md#六分叉>)说明目标 profile、事件输入及共享 lineage authority。
 
 ## 一、构建
 
@@ -57,8 +59,8 @@ boot 文件是 BootEntry 数组，空数组启动纯宿主。进程空闲、SIGI
 
 vendor 的独立编译允许来源中既有的 implicit any/this；其余 strict 检查保持开启。host、CLI、两个 TS 插件和 JSDoc 插件保持完整 strict，消费者使用 `skipLibCheck=false` 验证真实声明边界。
 
-## 四、范围
+## 四、验收入口
 
-PR01 验收入口见[生产消费者测试](<tests/consumer.test.mjs>)及[来源失败门](<tests/provenance.test.py>)。移植的[原生生命周期测试](<tests/native/lifecycle.test.ts>)和[Loader 迁移测试](<tests/native/loader-migration.test.ts>)直接消费安装后的包。
+`npm test` 执行[包清单](<package.json>)中 `scripts.test` 指定的 PR01、PR02 测试。构建、来源与插件打包消费分别由上面的命令执行；完整公开 SDK 用户链使用[生命周期消费者](<tests/pr12-consumer.mjs>)、[四根 PI 消费者](<tests/pr12-four-roots.mjs>)和[模型分叉消费者](<tests/pr12-model-branch.mjs>)，参数指向独立安装目录和新证据目录，具体调用见各入口的参数定义。
 
-完整 profile 规划、祖先/后代依赖环预检、受保护动态装配、tasks/resources 服务、Host 关闭期限与科研操作 lease 属于后续 PR。当前 boot 审计要求种子 Fiber 全部 ACTIVE；普通 Cordis 动态 API 保持原生行为。每次关闭须等待其返回的 Promise 完成，再报告资源已回收。
+宿主基础验收见[生产消费者测试](<tests/consumer.test.mjs>)及[来源失败门](<tests/provenance.test.py>)。移植的[原生生命周期测试](<tests/native/lifecycle.test.ts>)和[Loader 迁移测试](<tests/native/loader-migration.test.ts>)直接消费安装后的包。每次关闭须等待其返回的 Promise 完成，再报告资源已回收。

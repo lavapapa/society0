@@ -4,7 +4,7 @@
 
 ## 一、安装
 
-准备一个空目录，以及发行候选提供的公开依赖 tarball、[运行例子](../examples/run-profile.mjs)、[锁定工具](../examples/profile-lock.mjs)和[profiles](../profiles/)。Node 版本要求读取发行包 `engines.node`。
+准备一个空目录，以及发行候选提供的公开依赖 tarball、[运行例子](../examples/run-profile.mjs)、[锁定工具](../examples/profile-lock.mjs)和[profiles](../profiles/)。Node 版本要求读取发行包 `engines.node`。下面的离线安装命令要求第三方依赖已在 npm 缓存中；首次联网安装可去掉 `--offline`。
 
 ```sh
 mkdir public-consumer
@@ -61,7 +61,7 @@ Codex 订阅使用独立 provider 与 pi runtime。真实账号登录需要额�
 
 ## 五、模型调用方
 
-两个模型 profile 可用 `--offline` 检查完整的原生装配和根点。Social 的真实请求由获授权调用方通过导出的 `runProfile` 接入内存凭据；默认命令行返回 `MODEL_NOT_AUTHORIZED`。凭据引用为 `authorized-local`，实际 provider ID 为 `local-gateway`；驱动选择注册名 `pi/v1`。每次 activation 的上限为两次模型请求和一次工具调用，完成要求为实际 `social.publish` 回执。
+两个模型 profile 可用 `--offline` 检查完整的原生装配和根点。Social 的真实请求由获授权调用方通过导出的 `runProfile` 接入内存凭据；默认命令行返回 `MODEL_NOT_AUTHORIZED`。凭据引用为 `authorized-local`，实际 provider ID 为 `local-gateway`；驱动选择注册名 `pi/v1`。每次 activation 的模型请求与工具调用预算读取 profile 中 `driver-llm` 的 `maxRequests`、`maxToolCalls`，并通过安装包 `Config` 和 `--inspect` 核对有效值；完成要求为实际 `social.publish` 回执。
 
 ```js
 import {runProfile} from './run-profile.mjs';
