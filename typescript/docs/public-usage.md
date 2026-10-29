@@ -13,7 +13,7 @@ npm init -y
 # RELEASE 指向发行候选提供的公开 tarball 闭包目录。
 npm install --offline --ignore-scripts "$RELEASE"/*.tgz
 # 把 run-profile.mjs、profile-lock.mjs 和 profiles/ 复制到本目录。
-node profile-lock.mjs module-lock.json @society0/host @society0/core @society0/social
+node profile-lock.mjs module-lock.json @society0/host @society0/core @society0/extras @society0/social
 node run-profile.mjs --help
 ```
 
@@ -99,3 +99,9 @@ node run-profile.mjs --profile runs/rule-b/profile.json \
 分支可用 `--point-id <complete-point-id>` 选择历史完整点。`--diagnostics <new-ndjson-file>` 在创建前记录源 history baseline，此后每5秒串行记录计数/阶段耗时差值、active、elapsed、RSS与采样开销；结束前记录末次快照。当前点备份与历史段重放分别计量，阶段累计时长存在包含关系。发生创建异常时，例子输出 operationId 和目标目录，供公开 `runBranch.probe(operationId)` 核实。
 
 模型profile同时声明 `/world`、`/results`、`/workspace`、`/context`。Workspace的公开migration在bootstrap采用实际Extras来源；公开 `workspaceInitializer({after:[actorSeedId]})` 登记于bootstrap的原生consumer，随该scope一起关闭，reopen沿用已有数据。测试中的 `model-replay` 用于零网络的原生PI/工具与冻结context验证；Social默认provider仍为本机网关。
+
+Event目标使用 `--advance-target --target-events target-events.json`，或传 `targetEvents` 数组给 `forkProfile`。批次需包含新事件ID，offset严格大于选定完整点并递增，time沿持久moment非递减；例子向目标原生generation source推入该有限批次后调用end。源事件与目标事件分别提供。源示例完成offset/time=1后，目标文件可为：
+
+```json
+[{"id":"target-event-2","offset":"2","time":"2","payload":{"handler":"plain.update","actorId":"alice","attributes":{"name":"Alice","message":"target event only"}}}]
+```
