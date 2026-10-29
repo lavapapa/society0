@@ -7,97 +7,150 @@ import {applyEntryPatches} from '@society0/include';
 import {performance} from 'node:perf_hooks';
 
 export async function runProfile(options) {
-  if(options.observe&&!options.reopen)throw Error('OBSERVE_REQUIRES_REOPEN: use --reopen --observe with an existing run directory');
-  const started=performance.now();
-  const {createHost}=await import('@society0/host');
-  const profileURL=pathToFileURL(resolve(options.profile));
-  const profile=JSON.parse(await readFile(profileURL,'utf8'));
-  if(options.lock) profile.lockfile=pathToFileURL(resolve(options.lock)).href;
-  let directory=resolve(options.directory);const runId=options.runId??'example';
-  const lineageDirectory=resolve(options.lineageDirectory??join(dirname(directory),'lineages',basename(directory))),lineage=options.lineage??runId;
-  const flatten=entries=>entries.flatMap(e=>e.group?flatten(e.config??[]):[e]);
-  const entries=flatten(applyEntryPatches([],profile.patches,message=>{throw Error('PROFILE_PATCH: '+message)}));
-  const config=id=>entries.find(e=>e.id===id)?.config??{};
-  const has=name=>entries.some(e=>e.name===name&&!e.disabled);
-  const event=has('@society0/core/runtime-events'),social=has('@society0/social/social');
-  const boot=['resources','tasks','composition-strategies','slot-strategies','module-resolver','config-resolvers','profile-loader','inspector','run-directory'];
-  const seed=boot.map(name=>({specifier:'@society0/host/'+name}));
-  if(entries.some(e=>['@society0/core/model-pi','@society0/core/model-codex-subscription'].includes(e.name)))seed.push({specifier:'@society0/host/slots'},{specifier:'@society0/core/model-credentials',config:{stores:[]}});
-  if(options.branchDirectory)seed.push({specifier:'@society0/host/commands'},{specifier:'@society0/host/run-branch',config:{directory:resolve(options.branchDirectory)}});
-  const host=await createHost({baseURL:import.meta.url,boot:seed});
-  const metrics={}; let handle,lease,report,mountedTree,consumerFiber;
+  validateMode(options);
+  const started=performance.now(),{createHost}=await import('@society0/host');
+  const run=await readRun(options);run.started=started;run.metrics={};
+  run.host=await createHost({baseURL:import.meta.url,boot:hostBoot(run)});
   try {
-    const overrides=[{id:'sqlite',config:{...config('sqlite'),directory,runId}},{id:'artifacts-local',config:{...config('artifacts-local'),directory:join(directory,'artifacts')}},{id:'sqlite-history',config:{...config('sqlite-history'),directory,runId}},{id:'attempts',config:{...config('attempts'),directory:lineageDirectory,lineage}}];
-    if(options.patches) overrides.push(...JSON.parse(await readFile(resolve(options.patches),'utf8')));
-    const compileStarted=performance.now();
-    const plan=await host.ctx.profileLoader.compile(profile,{baseURL:profileURL.href,cliPatches:overrides});
-    metrics.profileCompileMs=performance.now()-compileStarted;
-    if(options.inspect) return {mode:'inspect',plan:host.ctx.profileLoader.dump(plan),modelRequests:0};
-    const uses=name=>plan.flat.some(e=>!e.disabled&&e.name===name);
-    const modelEnabled=uses('@society0/core/driver-llm');
-    if(uses('@society0/core/model-codex-subscription')&&!options.offline&&!options.observe) throw Error('CODEX_NOT_AUTHORIZED: use --inspect for offline configuration; account login requires separate authorization');
-    if(modelEnabled&&!options.offline&&!options.observe&&!options.allowModelRequests) throw Error('MODEL_NOT_AUTHORIZED: use --inspect; live execution must be coordinated by the authorized model owner');
-    const databaseEntry=plan.flat.find(e=>e.id==='sqlite');
-    const historyEntry=plan.flat.find(e=>e.id==='sqlite-history');
-    const source=databaseEntry.binding.identity.source;
-    directory=resolve(databaseEntry.config.directory);
-    const authorityConfig=plan.flat.find(e=>e.id==='attempts').config;
-    const authorityDirectory=resolve(authorityConfig.directory);
-    if(options.reopen){
-      try{await stat(join(authorityDirectory,'attempts.sqlite'));await stat(join(directory,'world.sqlite'));}
-      catch(error){throw Error('REOPEN_AUTHORITY_UNAVAILABLE: preserve '+directory+' and '+authorityDirectory+'; existing run storage and lineage authority are required; no authority was initialized',{cause:error});}
-    }else{
-      await mkdir(dirname(directory),{recursive:true});
-      try{await mkdir(directory);}catch(error){throw Error('FRESH_RUN_EXISTS: '+directory+'; select a new directory or explicitly use --reopen; preserve any missing authority as unknown',{cause:error});}
-      await mkdir(dirname(authorityDirectory),{recursive:true});
-      try{await mkdir(authorityDirectory);}catch(error){throw Error('FRESH_LINEAGE_EXISTS: '+authorityDirectory+'; select a new lineage directory; existing authority will not be initialized',{cause:error});}
-    }
-    await options.configureHost?.(host.ctx);
-    const [{artifactsMigration},{actorsMigration},{resultsMigration},{threadMigration},{actionsMigration}]=await Promise.all(['artifacts-local','actors','results','thread','actions'].map(n=>import('@society0/core/'+n)));
-    const migrations=[artifactsMigration,actorsMigration,resultsMigration(source),threadMigration(source),actionsMigration(source)];
-    if(uses('@society0/core/perception'))migrations.push((await import('@society0/core/perception')).perceptionMigration(source));
-    const workspaceEntry=plan.flat.find(e=>!e.disabled&&e.name==='@society0/extras/workspace');
-    const workspace=workspaceEntry?await import('@society0/extras/workspace'):undefined;
-    if(workspace)migrations.push(workspace.workspaceMigration(workspaceEntry.binding.identity.source));
-    if(modelEnabled)migrations.push((await import('@society0/core/actor-tools')).actorToolsMigration(source));
-    if(event)migrations.push((await import('@society0/core/runtime-events')).eventsMigration);
-    if(social)migrations.push((await import('@society0/social/social-repository')).socialMigration,(await import('@society0/social/measurement-repository')).measurementMigration);
-    metrics.preparationMs=performance.now()-started;
-    const openStarted=performance.now();
-    handle=await host.ctx.runDirectory.create({runId,generation:plan,mount:{runEntryId:'run',bootstrapEntryId:'bootstrap'},async prepare(bootstrapCtx,phase){
-      mountedTree=phase.tree;
-      if(workspace&&!options.reopen){const consumer=await bootstrapCtx.plugin({name:'public.workspace-seed',inject:['initializers'],apply(ctx){ctx.initializers.register(workspace.workspaceInitializer({after:[social?'social.seed':'plain.seed']}))}});await consumer.await();}
-      let c;const consumer=await phase.run.plugin({name:'public.prepare',inject:['attempts','sqliteBootstrap','history','database'],apply(ctx){c=ctx}});await consumer.await();
-      if(options.reopen) await c.attempts.verifyAuthority(); else await c.attempts.initialize();
-      let root;
-      if(options.reopen) root=options.observe?await c.history.current():await c.history.activate();
-      else root=await c.sqliteBootstrap.create({operationId:'create:'+runId,runId,directory,input:{},migrations,initialFrontier:{codec:event?'events/1':'staged/1',value:'0',logicalTime:event?{time:'0',offset:'0'}:'0',completedCount:'0',pendingAcknowledgements:[]},initialControl:{generation:databaseEntry.config.generation,controlSequence:historyEntry.config.controlSequence,planId:profileURL.href},requiredInitializerIds:[social?'social.seed':'plain.seed',...workspace?['workspace.seed']:[]]});
-      const status=await c.history.status();
-      return {root,metadata:c.database.metadata,database:c.database,state:status.state};
-    }});
-    metrics[options.reopen?'recoverMs':'createMs']=performance.now()-openStarted;
-    lease=host.ctx.runDirectory.acquire(runId,options.observe?'read':'write');
-    let c;consumerFiber=await lease.ctx.plugin({name:'public.consume',inject:['runs','observation','history','database','attempts'],apply(ctx){c=ctx}});await consumerFiber.await();
-    const nativeScopes={bootstrapDisposed:!mountedTree.entries.has('bootstrap'),generationMounted:mountedTree.entries.has('generation'),leaseUsesRunContext:lease.ctx===mountedTree.entries.get('run').ctx};
-    if(event&&!options.offline&&!options.observe){const consumer=await mountedTree.entries.get('generation').ctx.plugin({name:'public.events',inject:['proposalSource'],async apply(ctx){await ctx.proposalSource.push({id:'event-1',offset:'1',time:'1',payload:{handler:'plain.update',actorId:'alice',attributes:{name:'Alice',message:'public SDK event'}}});ctx.proposalSource.end()}});await consumer.await();await consumer.dispose();}
-    const before=await c.history.current();
-    const runStarted=performance.now();
-    const result=options.observe?{status:'observation-only',advanced:false}:options.offline?{status:'offline-mounted',advanced:false}:await c.runs.run(new AbortController().signal);
-    metrics.advanceAndSaveMs=performance.now()-runStarted;
-    if(!options.offline&&!options.observe&&result.status!=='completed') throw Error('RUN_'+result.status+': '+JSON.stringify({runId,directory,...result})+'; preserve the run directory and probe the reported complete point before retrying');
-    const queryStarted=performance.now();
-    const actorCount=(await c.observation.query({sql:'SELECT COUNT(*) AS count FROM s0_actors'})).rows[0].count;
-    const observation=await c.observation.query({sql:'SELECT id,attributes FROM s0_actors ORDER BY id'});
-    const receipts=await c.observation.query({sql:'SELECT operation_id,actor_id,action,value FROM action_receipts ORDER BY operation_id'});
-    const socialObservation=social?{posts:await c.observation.query({sql:'SELECT id,author_id,content FROM social_posts ORDER BY ordinal'}),deliveries:await c.observation.query({sql:'SELECT event_id,post,recipient,sender FROM social_deliveries ORDER BY ordinal'})}:undefined;
-    metrics.queryMs=performance.now()-queryStarted;
-    const history=c.history.diagnostics();
-    const status=await c.observation.status();
-    const cut=await c.history.current();
-    metrics.memory=process.memoryUsage();metrics.resourceUsage=process.resourceUsage();metrics.totalMs=performance.now()-started;
-    const branch=await options.afterRun?.({host,ctx:c,cut,plan,tree:mountedTree,profileURL,directory,runId});
-    return report={branch,profile:profileURL.href,runId,directory,reopened:!!options.reopen,root:handle.root,before,cut,result,nativeScopes,lineage:c.attempts.authority(),configuration:host.ctx.profileLoader.dump(plan),source,actorCount,observation,receipts,socialObservation,status,history:c.history.diagnostics(),metrics,modelRequests:options.afterRun?(branch?.modelRequests??null):modelEnabled&&!options.offline&&!options.observe?null:0};
-  } finally {const closing=performance.now();await consumerFiber?.dispose();await lease?.release();await handle?.close();const closed=await host.close();if(report){report.close=closed;report.metrics.closeMs=performance.now()-closing;report.metrics.totalMs=performance.now()-started;}}
+    await compileRun(run);
+    if(options.inspect)return {mode:'inspect',plan:run.host.ctx.profileLoader.dump(run.plan),modelRequests:0};
+    resolveRunDefinition(run);authorizeRun(run);
+    await admitStorage(run);await options.configureHost?.(run.host.ctx);
+    await collectMigrations(run);run.metrics.preparationMs=performance.now()-started;
+    await openRun(run);
+    return run.report=await consumeRun(run);
+  } finally {await closeRun(run);}
+}
+function validateMode(options){
+  if(options.observe&&!options.reopen)throw Error('OBSERVE_REQUIRES_REOPEN: use --reopen --observe with an existing run directory');
+}
+function literalEntries(entries){return entries.flatMap(entry=>entry.group?literalEntries(entry.config??[]):[entry]);}
+function entryConfig(entries,id){return entries.find(entry=>entry.id===id)?.config??{};}
+function activeModule(entries,name){return entries.some(entry=>!entry.disabled&&entry.name===name);}
+async function readRun(options){
+  const profileURL=pathToFileURL(resolve(options.profile)),profile=JSON.parse(await readFile(profileURL,'utf8'));
+  if(options.lock)profile.lockfile=pathToFileURL(resolve(options.lock)).href;
+  const directory=resolve(options.directory),runId=options.runId??'example';
+  const lineageDirectory=resolve(options.lineageDirectory??join(dirname(directory),'lineages',basename(directory))),lineage=options.lineage??runId;
+  const entries=literalEntries(applyEntryPatches([],profile.patches,message=>{throw Error('PROFILE_PATCH: '+message)}));
+  return {options,profileURL,profile,directory,runId,lineageDirectory,lineage,entries,event:activeModule(entries,'@society0/core/runtime-events'),social:activeModule(entries,'@society0/social/social')};
+}
+function hostBoot(run){
+  const names=['resources','tasks','composition-strategies','slot-strategies','module-resolver','config-resolvers','profile-loader','inspector','run-directory'];
+  const seed=names.map(name=>({specifier:'@society0/host/'+name}));
+  if(run.entries.some(entry=>['@society0/core/model-pi','@society0/core/model-codex-subscription'].includes(entry.name)))seed.push({specifier:'@society0/host/slots'},{specifier:'@society0/core/model-credentials',config:{stores:[]}});
+  if(run.options.branchDirectory)seed.push({specifier:'@society0/host/commands'},{specifier:'@society0/host/run-branch',config:{directory:resolve(run.options.branchDirectory)}});
+  return seed;
+}
+async function compileRun(run){
+  const {directory,runId,lineageDirectory,lineage,entries}=run;
+  const overrides=[{id:'sqlite',config:{...entryConfig(entries,'sqlite'),directory,runId}},{id:'artifacts-local',config:{...entryConfig(entries,'artifacts-local'),directory:join(directory,'artifacts')}},{id:'sqlite-history',config:{...entryConfig(entries,'sqlite-history'),directory,runId}},{id:'attempts',config:{...entryConfig(entries,'attempts'),directory:lineageDirectory,lineage}}];
+  if(run.options.patches)overrides.push(...JSON.parse(await readFile(resolve(run.options.patches),'utf8')));
+  const started=performance.now();run.plan=await run.host.ctx.profileLoader.compile(run.profile,{baseURL:run.profileURL.href,cliPatches:overrides});run.metrics.profileCompileMs=performance.now()-started;
+}
+function resolveRunDefinition(run){
+  run.modelEnabled=activeModule(run.plan.flat,'@society0/core/driver-llm');
+  run.databaseEntry=run.plan.flat.find(entry=>entry.id==='sqlite');run.historyEntry=run.plan.flat.find(entry=>entry.id==='sqlite-history');
+  run.source=run.databaseEntry.binding.identity.source;run.directory=resolve(run.databaseEntry.config.directory);
+  run.authorityDirectory=resolve(run.plan.flat.find(entry=>entry.id==='attempts').config.directory);
+}
+function authorizeRun(run){
+  if(run.options.offline||run.options.observe)return;
+  if(activeModule(run.plan.flat,'@society0/core/model-codex-subscription'))throw Error('CODEX_NOT_AUTHORIZED: use --inspect for offline configuration; account login requires separate authorization');
+  if(run.modelEnabled&&!run.options.allowModelRequests)throw Error('MODEL_NOT_AUTHORIZED: use --inspect; live execution must be coordinated by the authorized model owner');
+}
+async function admitStorage(run){
+  if(run.options.reopen)return verifyExistingStorage(run);
+  await reserveFreshStorage(run);
+}
+async function verifyExistingStorage({directory,authorityDirectory}){
+  try{await stat(join(authorityDirectory,'attempts.sqlite'));await stat(join(directory,'world.sqlite'));}
+  catch(error){throw Error('REOPEN_AUTHORITY_UNAVAILABLE: preserve '+directory+' and '+authorityDirectory+'; existing run storage and lineage authority are required; no authority was initialized',{cause:error});}
+}
+async function reserveFreshStorage({directory,authorityDirectory}){
+  await mkdir(dirname(directory),{recursive:true});
+  try{await mkdir(directory);}catch(error){throw Error('FRESH_RUN_EXISTS: '+directory+'; select a new directory or explicitly use --reopen; preserve any missing authority as unknown',{cause:error});}
+  await mkdir(dirname(authorityDirectory),{recursive:true});
+  try{await mkdir(authorityDirectory);}catch(error){throw Error('FRESH_LINEAGE_EXISTS: '+authorityDirectory+'; select a new lineage directory; existing authority will not be initialized',{cause:error});}
+}
+async function collectMigrations(run){
+  const [{artifactsMigration},{actorsMigration},{resultsMigration},{threadMigration},{actionsMigration}]=await Promise.all(['artifacts-local','actors','results','thread','actions'].map(name=>import('@society0/core/'+name)));
+  const {source}=run;run.migrations=[artifactsMigration,actorsMigration,resultsMigration(source),threadMigration(source),actionsMigration(source)];
+  if(activeModule(run.plan.flat,'@society0/core/perception'))run.migrations.push((await import('@society0/core/perception')).perceptionMigration(source));
+  await collectWorkspaceMigration(run);
+  if(run.modelEnabled)run.migrations.push((await import('@society0/core/actor-tools')).actorToolsMigration(source));
+  if(run.event)run.migrations.push((await import('@society0/core/runtime-events')).eventsMigration);
+  if(run.social)run.migrations.push((await import('@society0/social/social-repository')).socialMigration,(await import('@society0/social/measurement-repository')).measurementMigration);
+}
+async function collectWorkspaceMigration(run){
+  const entry=run.plan.flat.find(entry=>!entry.disabled&&entry.name==='@society0/extras/workspace');
+  if(!entry)return;
+  run.workspace=await import('@society0/extras/workspace');run.migrations.push(run.workspace.workspaceMigration(entry.binding.identity.source));
+}
+async function openRun(run){
+  const started=performance.now();
+  run.handle=await run.host.ctx.runDirectory.create({runId:run.runId,generation:run.plan,mount:{runEntryId:'run',bootstrapEntryId:'bootstrap'},prepare:(ctx,phase)=>prepareRun(run,ctx,phase)});
+  run.metrics[run.options.reopen?'recoverMs':'createMs']=performance.now()-started;
+  run.lease=run.host.ctx.runDirectory.acquire(run.runId,run.options.observe?'read':'write');
+  run.consumerFiber=await run.lease.ctx.plugin({name:'public.consume',inject:['runs','observation','history','database','attempts'],apply(ctx){run.ctx=ctx}});await run.consumerFiber.await();run.nativeScopes=nativeScopes(run);
+}
+async function prepareRun(run,bootstrapCtx,phase){
+  run.mountedTree=phase.tree;await registerWorkspaceSeed(run,bootstrapCtx);
+  let ctx;const consumer=await phase.run.plugin({name:'public.prepare',inject:['attempts','sqliteBootstrap','history','database'],apply(value){ctx=value}});await consumer.await();
+  if(run.options.reopen)await ctx.attempts.verifyAuthority();else await ctx.attempts.initialize();
+  const root=await prepareRoot(run,ctx),status=await ctx.history.status();
+  return {root,metadata:ctx.database.metadata,database:ctx.database,state:status.state};
+}
+async function registerWorkspaceSeed(run,bootstrapCtx){
+  if(!run.workspace||run.options.reopen)return;
+  const consumer=await bootstrapCtx.plugin({name:'public.workspace-seed',inject:['initializers'],apply(ctx){ctx.initializers.register(run.workspace.workspaceInitializer({after:[run.social?'social.seed':'plain.seed']}))}});await consumer.await();
+}
+async function prepareRoot(run,ctx){
+  if(run.options.reopen)return run.options.observe?ctx.history.current():ctx.history.activate();
+  return ctx.sqliteBootstrap.create({operationId:'create:'+run.runId,runId:run.runId,directory:run.directory,input:{},migrations:run.migrations,initialFrontier:initialFrontier(run.event),initialControl:{generation:run.databaseEntry.config.generation,controlSequence:run.historyEntry.config.controlSequence,planId:run.profileURL.href},requiredInitializerIds:[run.social?'social.seed':'plain.seed',...run.workspace?['workspace.seed']:[]]});
+}
+function initialFrontier(event){return {codec:event?'events/1':'staged/1',value:'0',logicalTime:event?{time:'0',offset:'0'}:'0',completedCount:'0',pendingAcknowledgements:[]};}
+async function feedExampleEvent(run){
+  if(!run.event||run.options.offline||run.options.observe)return;
+  const consumer=await run.mountedTree.entries.get('generation').ctx.plugin({name:'public.events',inject:['proposalSource'],async apply(ctx){await ctx.proposalSource.push({id:'event-1',offset:'1',time:'1',payload:{handler:'plain.update',actorId:'alice',attributes:{name:'Alice',message:'public SDK event'}}});ctx.proposalSource.end()}});await consumer.await();await consumer.dispose();
+}
+async function advanceRun(run){
+  if(run.options.observe)return {status:'observation-only',advanced:false};
+  if(run.options.offline)return {status:'offline-mounted',advanced:false};
+  return run.ctx.runs.run(new AbortController().signal);
+}
+function requireCompleted(run,result){
+  if(run.options.offline||run.options.observe)return;
+  if(result.status!=='completed')throw Error('RUN_'+result.status+': '+JSON.stringify({runId:run.runId,directory:run.directory,...result})+'; preserve the run directory and probe the reported complete point before retrying');
+}
+async function observeRun(run){
+  const started=performance.now(),ctx=run.ctx;
+  const actorCount=(await ctx.observation.query({sql:'SELECT COUNT(*) AS count FROM s0_actors'})).rows[0].count;
+  const observation=await ctx.observation.query({sql:'SELECT id,attributes FROM s0_actors ORDER BY id'});
+  const receipts=await ctx.observation.query({sql:'SELECT operation_id,actor_id,action,value FROM action_receipts ORDER BY operation_id'});
+  const socialObservation=await observeSocial(run);run.metrics.queryMs=performance.now()-started;
+  const status=await ctx.observation.status(),cut=await ctx.history.current();return {actorCount,observation,receipts,socialObservation,status,cut};
+}
+async function observeSocial(run){
+  if(!run.social)return;
+  return {posts:await run.ctx.observation.query({sql:'SELECT id,author_id,content FROM social_posts ORDER BY ordinal'}),deliveries:await run.ctx.observation.query({sql:'SELECT event_id,post,recipient,sender FROM social_deliveries ORDER BY ordinal'})};
+}
+function nativeScopes(run){return {bootstrapDisposed:!run.mountedTree.entries.has('bootstrap'),generationMounted:run.mountedTree.entries.has('generation'),leaseUsesRunContext:run.lease.ctx===run.mountedTree.entries.get('run').ctx};}
+function modelRequests(run,branch){
+  if(run.options.afterRun)return branch?.modelRequests??null;
+  return run.modelEnabled&&!run.options.offline&&!run.options.observe?null:0;
+}
+async function consumeRun(run){
+  await feedExampleEvent(run);const before=await run.ctx.history.current(),started=performance.now();
+  const result=await advanceRun(run);run.metrics.advanceAndSaveMs=performance.now()-started;requireCompleted(run,result);
+  const observed=await observeRun(run);run.metrics.memory=process.memoryUsage();run.metrics.resourceUsage=process.resourceUsage();run.metrics.totalMs=performance.now()-run.started;
+  const {host,plan,profileURL,directory,runId}=run;
+  const branch=await run.options.afterRun?.({host,ctx:run.ctx,cut:observed.cut,plan,tree:run.mountedTree,profileURL,directory,runId});
+  return {branch,profile:profileURL.href,runId,directory,reopened:!!run.options.reopen,root:run.handle.root,before,result,nativeScopes:run.nativeScopes,lineage:run.ctx.attempts.authority(),configuration:host.ctx.profileLoader.dump(plan),source:run.source,...observed,history:run.ctx.history.diagnostics(),metrics:run.metrics,modelRequests:modelRequests(run,branch)};
+}
+async function closeRun(run){
+  const started=performance.now();await run.consumerFiber?.dispose();await run.lease?.release();await run.handle?.close();const closed=await run.host.close();
+  if(run.report){run.report.close=closed;run.metrics.closeMs=performance.now()-started;run.metrics.totalMs=performance.now()-run.started;}
 }
 
 async function main(){

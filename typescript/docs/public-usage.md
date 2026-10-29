@@ -12,7 +12,7 @@ cd public-consumer
 npm init -y
 # RELEASE 指向发行候选提供的公开 tarball 闭包目录。
 npm install --offline --ignore-scripts "$RELEASE"/*.tgz
-# 把 run-profile.mjs、profile-lock.mjs 和 profiles/ 复制到本目录。
+# 把 run-profile.mjs、run-profile-branch.mjs、profile-lock.mjs 和 profiles/ 复制到本目录。
 node profile-lock.mjs module-lock.json @society0/host @society0/core @society0/extras @society0/social
 node run-profile.mjs --help
 ```
