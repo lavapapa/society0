@@ -24,12 +24,82 @@
       "types": "./dist/source.d.ts",
       "default": "./dist/source.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./resources": {
+      "types": "./dist/resources/index.d.ts",
+      "default": "./dist/resources/index.js"
+    },
+    "./diagnostics": {
+      "types": "./dist/diagnostics/index.d.ts",
+      "default": "./dist/diagnostics/index.js"
+    },
+    "./tasks": {
+      "types": "./dist/tasks/index.d.ts",
+      "default": "./dist/tasks/index.js"
+    },
+    "./module-resolver": {
+      "types": "./dist/module-resolver/index.d.ts",
+      "default": "./dist/module-resolver/index.js"
+    },
+    "./config-resolvers": {
+      "types": "./dist/config-resolvers/index.d.ts",
+      "default": "./dist/config-resolvers/index.js"
+    },
+    "./profile-loader": {
+      "types": "./dist/profile-loader/index.d.ts",
+      "default": "./dist/profile-loader/index.js"
+    },
+    "./inspector": {
+      "types": "./dist/inspector/index.d.ts",
+      "default": "./dist/inspector/index.js"
+    },
+    "./composition-strategies": {
+      "types": "./dist/composition-strategies/index.d.ts",
+      "default": "./dist/composition-strategies/index.js"
+    },
+    "./slot-strategies": {
+      "types": "./dist/slot-strategies/index.d.ts",
+      "default": "./dist/slot-strategies/index.js"
+    },
+    "./slots": {
+      "types": "./dist/slots/index.d.ts",
+      "default": "./dist/slots/index.js"
+    },
+    "./commands": {
+      "types": "./dist/commands/index.d.ts",
+      "default": "./dist/commands/index.js"
+    },
+    "./scaffold": {
+      "types": "./dist/scaffold/index.d.ts",
+      "default": "./dist/scaffold/index.js"
+    },
+    "./testkit": {
+      "types": "./dist/testkit.d.ts",
+      "default": "./dist/testkit.js"
+    },
+    "./run-directory": {
+      "types": "./dist/run-directory/index.d.ts",
+      "default": "./dist/run-directory/index.js"
+    },
+    "./observation-gateway": {
+      "types": "./dist/observation-gateway/index.d.ts",
+      "default": "./dist/observation-gateway/index.js"
+    },
+    "./run-branch": {
+      "types": "./dist/run-branch/index.d.ts",
+      "default": "./dist/run-branch/index.js"
+    }
   },
   "peerDependencies": {
     "@society0/cordis": "4.0.5-society0.1"
   },
   "dependencies": {
-    "semver": "7.7.4"
+    "semver": "7.7.4",
+    "p-limit": "7.3.3",
+    "@society0/include": "1.0.10-society0.1",
+    "@society0/loader": "1.0.6-society0.1",
+    "@society0/schemastery": "3.18.5-society0.1",
+    "js-yaml": "4.3.2",
+    "resolve.exports": "2.0.4"
   }
 }

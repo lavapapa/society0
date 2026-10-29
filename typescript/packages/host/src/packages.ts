@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import semver from 'semver';
+import { exports as resolveExports } from 'resolve.exports';
 
 interface Manifest {
   name: string;
@@ -31,25 +32,13 @@ function required(name: string, baseURL: string): Package {
   if (!found) throw new Error(`PACKAGE_MISSING: ${name} resolved from ${baseURL}`);
   return found;
 }
-function target(value: unknown): string | undefined {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    for (const [condition, branch] of Object.entries(value)) {
-      if (['node', 'import', 'default'].includes(condition)) {
-        const result = target(branch);
-        if (result) return result;
-      }
-    }
-  }
-}
 function entry(pkg: Package, specifier: string): string {
   const subpath = specifier.slice(packageName(specifier).length);
   const key = subpath ? '.' + subpath : '.';
-  const exports = pkg.manifest.exports;
-  const value = typeof exports === 'object' && Object.keys(exports).some(k => k.startsWith('.'))
-    ? exports[key] : key === '.' ? exports : undefined;
-  const selected = target(value);
-  if (!selected?.startsWith('./')) throw new Error(`PACKAGE_EXPORTS: ${specifier} has no explicit ESM export ${key} at ${pkg.directory}/package.json`);
+  let selected: string | undefined;
+  try { selected = resolveExports(pkg.manifest, key)?.[0]; }
+  catch (cause) { throw new Error(`PACKAGE_EXPORTS: ${specifier} export ${key} at ${pkg.directory}/package.json`, {cause}); }
+  if (!selected?.startsWith('./')) throw new Error(`PACKAGE_EXPORTS: ${specifier} has no ESM export ${key} at ${pkg.directory}/package.json`);
   const filename = resolve(pkg.directory, selected);
   if (relative(pkg.directory, filename).startsWith('..') || !existsSync(filename) || !statSync(filename).isFile()) {
     throw new Error(`PACKAGE_EXPORTS: ${specifier} export ${key} targets missing/invalid ${filename}`);
@@ -57,46 +46,86 @@ function entry(pkg: Package, specifier: string): string {
   return pathToFileURL(filename).href;
 }
 
-/** Validate the complete declared dependency graph before importing boot modules. */
-export function preflight(specifiers: readonly string[], baseURL: string): string[] {
-  const canonical = new Map(['@society0/host', '@society0/cordis'].map(name => [name, required(name, import.meta.url)]));
-  const visited = new Set<string>();
-  function inspect(pkg: Package) {
-    if (visited.has(pkg.directory)) return;
-    visited.add(pkg.directory);
-    const { manifest, directory } = pkg;
-    const expected = canonical.get(manifest.name);
+function peerPackage(pkg: Package, name: string, range: string, anchor: string): Package | undefined {
+  const peer = locate(name, anchor);
+  if (!peer && pkg.manifest.peerDependenciesMeta?.[name]?.optional) return;
+  assertPeerRange(pkg, peer, name, range, anchor);
+  return peer;
+}
+function assertPeerRange(pkg: Package, peer: Package | undefined, name: string, range: string, anchor: string): void {
+  if (!peer || !semver.validRange(range) || !semver.satisfies(peer.manifest.version, range)) {
+    throw new Error(`PEER_CONFLICT: ${pkg.manifest.name} at ${pkg.directory} requires ${name}@${range}; resolved ${peer?.manifest.version ?? 'missing'} at ${peer?.directory ?? anchor}`);
+  }
+}
+function assertHostPeer(pkg: Package): void {
+  if (!pkg.manifest.peerDependencies?.['@society0/host'] && !pkg.manifest.peerDependencies?.['@society0/cordis']) {
+    throw new Error(`HOST_PEER_REQUIRED: ${pkg.manifest.name} at ${pkg.directory} must declare @society0/host or @society0/cordis peer`);
+  }
+}
+class PackageGraph {
+  private readonly canonical = new Map(['@society0/host', '@society0/cordis'].map(name => [name, required(name, import.meta.url)]));
+  private readonly visited = new Set<string>();
+  private assertIdentity(pkg: Package, anchor: string): void {
+    const {manifest, directory} = pkg;
+    const expected = this.canonical.get(manifest.name);
     if (expected && expected.directory !== directory) {
       throw new Error(`FRAMEWORK_DUPLICATE: ${manifest.name}: host ${expected.directory}; plugin ${directory}`);
     }
     if (['@deepseek-ai/cordis', 'cordis'].includes(manifest.name)) {
-      throw new Error(`FRAMEWORK_DUPLICATE: host ${canonical.get('@society0/cordis')!.directory}; foreign framework ${directory}`);
+      throw new Error(`FRAMEWORK_DUPLICATE: host ${this.canonical.get('@society0/cordis')!.directory}; foreign framework ${directory}`);
     }
-    const anchor = pathToFileURL(join(directory, 'package.json')).href;
-    for (const [name, expected] of canonical) {
+    for (const [name, canonical] of this.canonical) {
       const resolved = locate(name, anchor);
-      if (resolved && resolved.directory !== expected.directory) {
-        throw new Error(`FRAMEWORK_DUPLICATE: ${name} resolved from ${directory}; host ${expected.directory}; plugin ${resolved.directory}`);
+      if (resolved && resolved.directory !== canonical.directory) {
+        throw new Error(`FRAMEWORK_DUPLICATE: ${name} resolved from ${directory}; host ${canonical.directory}; plugin ${resolved.directory}`);
       }
     }
-    for (const [name, range] of Object.entries(manifest.peerDependencies ?? {})) {
-      const peer = locate(name, anchor);
-      if (!peer && manifest.peerDependenciesMeta?.[name]?.optional) continue;
-      if (!peer || !semver.validRange(range) || !semver.satisfies(peer.manifest.version, range)) {
-        throw new Error(`PEER_CONFLICT: ${manifest.name} at ${directory} requires ${name}@${range}; resolved ${peer?.manifest.version ?? 'missing'} at ${peer?.directory ?? anchor}`);
-      }
-      inspect(peer);
-    }
-    for (const name of Object.keys(manifest.dependencies ?? {})) inspect(required(name, anchor));
   }
-  const packages = specifiers.map(specifier => required(packageName(specifier), baseURL));
-  // Resolve every export before any import. Entry validation deliberately accepts explicit exports only.
-  const urls = packages.map((pkg, i) => entry(pkg, specifiers[i]!));
-  packages.forEach((pkg) => {
-    if (!pkg.manifest.peerDependencies?.['@society0/host'] && !pkg.manifest.peerDependencies?.['@society0/cordis']) {
-      throw new Error(`HOST_PEER_REQUIRED: ${pkg.manifest.name} at ${pkg.directory} must declare @society0/host or @society0/cordis peer`);
+  private inspectPeers(pkg: Package, anchor: string): void {
+    for (const [name, range] of Object.entries(pkg.manifest.peerDependencies ?? {})) {
+      const peer = peerPackage(pkg, name, range, anchor);
+      if (peer) this.inspect(peer);
     }
-    inspect(pkg);
-  });
+  }
+  inspect(pkg: Package): void {
+    if (this.visited.has(pkg.directory)) return;
+    this.visited.add(pkg.directory);
+    const anchor = pathToFileURL(join(pkg.directory, 'package.json')).href;
+    this.assertIdentity(pkg, anchor);
+    this.inspectPeers(pkg, anchor);
+    for (const name of Object.keys(pkg.manifest.dependencies ?? {})) this.inspect(required(name, anchor));
+  }
+}
+function verifyBatch(graph: PackageGraph, specifiers: readonly string[], baseURL: string): string[] {
+  const packages = specifiers.map(specifier => required(packageName(specifier), baseURL));
+  // Resolve every export before any import. Export-map semantics belong to resolve.exports.
+  const urls = packages.map((pkg, i) => entry(pkg, specifiers[i]!));
+  for (const pkg of packages) {
+    assertHostPeer(pkg);
+    graph.inspect(pkg);
+  }
   return urls;
+}
+
+/** 一次编译批次的验证图；批次内安装树保持不变，下一批次新建session。 */
+export interface PreflightSession {
+  preflight(specifiers: readonly string[], baseURL: string): string[];
+}
+export function createPreflightSession(): PreflightSession {
+  let graph: PackageGraph | undefined;
+  return {
+    preflight(specifiers, baseURL) {
+      try {
+        graph ??= new PackageGraph();
+        return verifyBatch(graph, specifiers, baseURL);
+      } catch (error) {
+        graph = undefined;
+        throw error;
+      }
+    },
+  };
+}
+/** Validate the complete declared dependency graph before importing boot modules. */
+export function preflight(specifiers: readonly string[], baseURL: string): string[] {
+  return createPreflightSession().preflight(specifiers, baseURL);
 }
