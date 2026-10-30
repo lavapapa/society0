@@ -31,7 +31,7 @@ test('BLOB范围属于固定snapshot，期限结束后拒绝借用',async()=>{
  d.execSchema("CREATE TABLE t(id INTEGER PRIMARY KEY,b BLOB);INSERT INTO t VALUES(1,CAST(X'01020304'||zeroblob(4194296)||X'05060708' AS BLOB));");
  }catch(error){d.close();throw error;}
  try{
- s=openConnection({path:home+'/db',readOnly:true});s.beginSnapshot();
+ s=openConnection({path:home+'/db',readOnly:true});s.beginSnapshot({maxAgeMs:60000});
  d.begin();d.execute('UPDATE t SET b=? WHERE id=?',[new Uint8Array([9,8,7]),1n]);d.commit();
  assert.deepEqual([...s.readBlobRange({table:'t',column:'b',rowid:1n,offset:4194300,length:4,maxBytes:4})],[5,6,7,8]);
  assert.throws(()=>s.readBlobRange({table:'t',column:'b',rowid:1n,offset:0,length:5,maxBytes:4}),{code:'SQLITE_RESULT_LIMIT'});
@@ -65,11 +65,11 @@ test('Session schema拒绝无主键/可空主键和虚拟表',()=>{
  const d=openConnection({path:dir()+'/db'});try{d.execSchema('CREATE TABLE plain(v);CREATE TABLE nullable(id TEXT PRIMARY KEY,v);CREATE VIRTUAL TABLE virtual USING fts5(v);');for(const table of ['plain','nullable','virtual','absent'])assert.throws(()=>d.startSession([table]));}finally{d.close();}
 });
 test('1MiB原生硬上限导致级联OOM，Session退役且回滚可诊断',()=>{
- const d=openConnection({path:dir()+'/db',maxCapturedBytes:32*1024*1024,maxInputBytes:4096});
+ const d=openConnection({path:dir()+'/db',maxCapturedBytes:32*1024*1024,maxInputBytes:4096,timeoutMs:30000});
  try{
  d.execSchema('CREATE TABLE parent(id INTEGER PRIMARY KEY);CREATE TABLE t(id INTEGER PRIMARY KEY,p REFERENCES parent(id) ON DELETE CASCADE,b BLOB);INSERT INTO parent VALUES(1);WITH RECURSIVE n(x) AS(VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<512) INSERT INTO t SELECT x,1,zeroblob(4096) FROM n;');
- d.startSession(['parent','t']);configureHeapLimit(1024*1024);d.begin();assert.throws(()=>d.execute('DELETE FROM parent'),{code:'SQLITE_NOMEM'});assert.equal(d.state().session,'retired');assert.equal(d.state().lastError.sqliteCode,7);assert.ok(d.state().retiredSessionBytes>0);
- configureHeapLimit(0);assert.throws(()=>d.commit(),{code:'SQLITE_TRANSACTION_FAILED'});d.rollback();assert.equal(one(d),512n);assert.equal(d.state().session,'none');d.startSession(['parent','t']);d.begin();d.execute('DELETE FROM t WHERE id=?',[1n]);d.commit();d.exportSegment(dir()+'/recovered');assert.equal(one(d),511n);
+ d.startSession(['parent','t']);configureHeapLimit(1024*1024);d.begin({maxDurationMs:5000});assert.throws(()=>d.execute('DELETE FROM parent'),{code:'SQLITE_NOMEM'});assert.equal(d.state().session,'retired');assert.equal(d.state().lastError.sqliteCode,7);assert.ok(d.state().retiredSessionBytes>0);
+ configureHeapLimit(0);assert.throws(()=>d.commit(),{code:'SQLITE_TRANSACTION_FAILED'});d.rollback();assert.equal(one(d),512n);assert.equal(d.state().session,'none');d.startSession(['parent','t']);d.begin({maxDurationMs:5000});d.execute('DELETE FROM t WHERE id=?',[1n]);d.commit();d.exportSegment(dir()+'/recovered');assert.equal(one(d),511n);
  }finally{configureHeapLimit(0);d.close();}
 });
 test('宿主在worker阻塞于原生SQL时直接SAB取消，结算后再释放worker',async()=>{
