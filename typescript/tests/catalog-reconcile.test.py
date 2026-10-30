@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory() as temporary:
     orphan = {'fields': {}, 'plugins': {'@society0/host/memory': {'state': 'added-plugin', 'design': 'docs/design-amendments.md'}}}
     assert errors(run(make_world(base / 'orphan', runtime_plugins=('resources', 'memory'), registry=orphan))) == []
     assert 'UNRECONCILED' in errors(run(make_world(base / 'unregistered', runtime_plugins=('resources', 'memory'))))
-    skeleton = run(make_world(base / 'skeleton', runtime_fields=('closeTimeoutMs', 'inlineBytes')))
+    skeleton = run(make_world(base / 'skeleton', runtime_fields=('closeTimeoutMs', 'inlineBytes')), '--skeleton')
     assert skeleton.returncode == 0, skeleton.stderr
     assert '@society0/host/resources/inlineBytes' in skeleton.stdout
 print(json.dumps({'case': 'RV3-16-T02', 'status': 'passed'}))

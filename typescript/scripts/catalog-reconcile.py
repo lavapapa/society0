@@ -1,0 +1,82 @@
+"""对照 catalog/plan.json 与运行时 Config，登记每项差异。用法：catalog-reconcile.py <plan.json> [--skeleton]"""
+import json, sys
+from pathlib import Path
+REGISTRY = 'docs/config-reconciliation.json'
+PLAN = 'inputs/society0_next_refactor_v3/catalog/plan.json'
+def read(path):
+    return json.loads(path.read_text())
+def object_keys(schema):
+    if not schema: return []
+    node = schema['refs'].get(str(schema['uid']))
+    return list((node.get('dict') or {}).keys()) if node and node.get('type') == 'object' else []
+def runtime_plugins(build):
+    plugins = {}
+    for meta_path in sorted(build.glob('*/generated/plugin.meta.json')):
+        package = read(meta_path)['package']['name']
+        schemas = {entry['exportPath']: entry['schema'] for entry in read(meta_path.with_name('plugin.schema.json'))['schema']['entries']}
+        for entry in read(meta_path)['entries']:
+            export = entry['exportPath']
+            identity = package if export == '.' else package + '/' + export[2:]
+            plugins[identity] = {'fields': object_keys(schemas.get(export)), 'policy': [item['path'].split('/')[1] for item in entry['metadata']['configPolicy']]}
+    return plugins
+def consumer_line(W, entry, field):
+    path, _, line = str(entry.get('consumer', '')).rpartition(':')
+    file = W / 'repo' / path
+    if not line.isdigit() or not file.is_file(): return False
+    lines = file.read_text().splitlines()
+    index = int(line) - 1
+    if index >= len(lines): return False
+    text = lines[index]
+    return field in text and 'Schema.object(' not in text and 'configPolicy' not in text
+def missing_errors(W, plugin, plan_fields, runtime_fields, registry):
+    errors, entries = [], registry.get('fields', {})
+    for field in sorted(set(plan_fields) - set(runtime_fields)):
+        entry = entries.get(plugin + '/' + field) or {}
+        accepted = (entry.get('state') == 'renamed' and entry.get('runtime') in runtime_fields) or (entry.get('state') == 'deferred' and entry.get('limitation')) or (entry.get('state') == 'dropped' and entry.get('reason') and entry.get('design'))
+        if not accepted: errors.append(('UNRECONCILED', plugin, field))
+    return errors
+def added_errors(W, plugin, plan_fields, runtime_fields, registry):
+    errors, entries = [], registry.get('fields', {})
+    for field in sorted(set(runtime_fields) - set(plan_fields)):
+        entry = entries.get(plugin + '/' + field) or {}
+        if entry.get('state') != 'added' or not consumer_line(W, entry, field): errors.append(('UNRECONCILED', plugin, field))
+    return errors
+def plugin_errors(plan_plugins, runtime, registry):
+    errors, entries = [], registry.get('plugins', {})
+    for plugin in sorted(set(runtime) - set(plan_plugins)):
+        entry = entries.get(plugin) or {}
+        if entry.get('state') != 'added-plugin' or not entry.get('design'): errors.append(('UNRECONCILED', plugin))
+    for plugin in sorted(set(plan_plugins) - set(runtime)):
+        entry = entries.get(plugin) or {}
+        if entry.get('state') != 'removed-plugin' or not entry.get('reason'): errors.append(('UNRECONCILED', plugin))
+    return errors
+def plan_fields(plugin):
+    return [field['name'] for field in plugin.get('config', [])]
+def skeleton(plan_plugins, runtime, registry):
+    entries, plugins = registry.get('fields', {}), registry.get('plugins', {})
+    fields = {}
+    for identity in sorted(runtime):
+        known = set(plan_fields(plan_plugins[identity])) if identity in plan_plugins else set()
+        for field in sorted(set(runtime[identity]['fields']) - known):
+            fields[identity + '/' + field] = entries.get(identity + '/' + field, {'state': 'unclassified', 'consumer': 'typescript/packages/<pkg>/src/<file>.ts:<line>'})
+        for field in sorted(known - set(runtime[identity]['fields'])):
+            fields[identity + '/' + field] = entries.get(identity + '/' + field, {'state': 'unclassified', 'reason': '', 'design': ''})
+    for identity in sorted(set(runtime) - set(plan_plugins)):
+        plugins[identity] = registry.get('plugins', {}).get(identity, {'state': 'unclassified', 'design': 'docs/design-amendments.md'})
+    return {'fields': fields, 'plugins': plugins}
+def main():
+    plan_path = Path(sys.argv[1]).resolve()
+    W = plan_path.parents[3]
+    plan = {plugin.get('package') or plugin['id']: plugin for plugin in read(plan_path)['plugins']}
+    runtime = runtime_plugins(W / 'repo/typescript/.build')
+    registry = read(W / 'repo/typescript' / REGISTRY)
+    errors = plugin_errors(plan, runtime, registry)
+    for identity in sorted(set(plan) & set(runtime)):
+        errors += missing_errors(W, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
+        errors += added_errors(W, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
+    output = {'errors': errors}
+    if '--skeleton' in sys.argv[1:]: output['skeleton'] = skeleton(plan, runtime, registry)
+    print(json.dumps(output, ensure_ascii=False, indent=1))
+    return 0 if not errors or '--skeleton' in sys.argv[1:] else 1
+if __name__ == '__main__':
+    raise SystemExit(main())
