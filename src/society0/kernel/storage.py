@@ -378,6 +378,9 @@ class StageStore:
         self._manifest = _manifest(self.path)
         if self._manifest.get('readonly'):
             raise StorageError('read-only prepared view cannot open a writer')
+        if not (self.path / 'current.sqlite').is_file():
+            # 可写连接会就地新建空库；工作库缺失属于恢复边界，不能静默建库。
+            raise StorageError('working database missing; restore required')
         self.run_id = self._manifest['run_id']
         self.source = self._manifest['source']
         self._last = self._latest(self.path)

@@ -285,6 +285,18 @@ def test_streaming_prepared_artifact_is_independent_of_input(tmp_path):
             assert (restored.path / ref).read_bytes() == b'a' * 100_000
 
 
+def test_missing_working_database_requires_restore(tmp_path):
+    """工作库缺失按恢复处置，不能凭空建一个空库把运行目录弄脏。"""
+    run = tmp_path / 'run'
+    with make(run) as store:
+        store.transaction(lambda w: w.execute('UPDATE account SET balance=11'))
+        store.complete(1)
+    (run / 'current.sqlite').unlink()
+    with pytest.raises(StorageError, match='restore'):
+        StageStore.open(run)
+    assert not (run / 'current.sqlite').exists()
+
+
 def test_single_writer_lock(tmp_path):
     with make(tmp_path / 'source') as first:
         with pytest.raises(StorageError, match='writer'):
