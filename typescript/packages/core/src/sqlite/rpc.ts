@@ -9,7 +9,7 @@ export class SqlRpc {
  constructor(data:unknown,private maxBytes:number,private maxPending:number){
   this.worker=new Worker(new URL('./worker.js',import.meta.url),{workerData:data,execArgv:[]});
   this.exited=new Promise(resolve=>this.worker.once('exit',()=>{this.dead=true;for(const p of this.pending.values())p.reject(fault('SQLITE_WORKER_LOST'));this.pending.clear();resolve()}));
-  this.worker.on('error',error=>{for(const p of this.pending.values())p.reject(error);this.pending.clear()});
+  this.worker.on('error',error=>{const lost=Object.assign(fault('SQLITE_WORKER_LOST',String(error)),{cause:error});this.dead=true;for(const p of this.pending.values())p.reject(lost);this.pending.clear()});
   this.worker.on('message',message=>{const p=this.pending.get(message.id);if(!p)return;this.pending.delete(message.id);message.error?p.reject(Object.assign(new Error(message.error.message),{code:message.error.code,sqliteCode:message.error.sqliteCode,stopReason:message.error.stopReason,commitPhase:message.error.commitPhase,receipt:message.error.receipt})):p.resolve(message.value)});
  }
  call<T=any>(op:string,args:unknown={},signal?:AbortSignal):Promise<T>{

@@ -71,8 +71,13 @@ export class ActionCall {
             return;
         if (claim.status === 'unknown')
             return fail('ACTION_ATTEMPT_UNKNOWN');
-        if (claim.status === 'existing' && claim.record.status === 'unknown' && this.entry.definition.effect !== 'external')
-            return fail('ACTION_ATTEMPT_UNKNOWN');
+        if (claim.status === 'existing' && claim.record.status === 'unknown') {
+            if (this.entry.definition.effect === 'external')
+                return fail('ACTION_ATTEMPT_UNKNOWN');
+            const stored = claim.record.result as { code?: string; commit?: unknown } | undefined;
+            const code = stored?.code === 'SQLITE_COMMIT_UNKNOWN' || stored?.code === 'SQLITE_SEGMENT_FAILED' ? stored.code : 'ACTION_ATTEMPT_UNKNOWN';
+            throw Object.assign(new Error(code), { code, storage: true, ...(stored?.commit ? { commit: stored.commit } : {}) });
+        }
         if (this.entry.definition.effect === 'external')
             return fail('ACTION_ATTEMPT_EXISTS');
         this.attempt.attempt++;

@@ -97,7 +97,7 @@ export class Database {
   const failure=error as {commitPhase?:string;notSent?:boolean;code?:string};
   if(commitStarted&&failure?.commitPhase==='segment')return this.segmentFailed(error,id,operationId);
   if(commitStarted&&failure?.commitPhase!=='prepare'&&!failure?.notSent)return this.unknownCommit(error,id,operationId);
-  if(this.rpc.snapshot().exited||failure?.code==='SQLITE_WORKER_LOST'){this.halted=true;this.fence.halt('SQLITE_WORKER_LOST')}
+  if(this.rpc.snapshot().exited||failure?.code==='SQLITE_WORKER_LOST'){this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.exited;throw error}
   if(begun)try{await this.rpc.call('rollback',{tx:id})}catch{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.worker.terminate();await this.rpc.exited}
   throw error;
  }

@@ -20,7 +20,7 @@ test('PR07 external process effect with lost response retains unknown send autho
         for await (const chunk of ctx.attempts.readArtifact(partial))
             original += Buffer.from(chunk).toString();
         assert.equal(original, 'physical effect committed');
-        await assert.rejects(ctx.actions.execute('external.lost', null, env.context('lost-response')), /ACTION_ATTEMPT_EXISTS/);
+        await assert.rejects(ctx.actions.execute('external.lost', null, env.context('lost-response')), /ACTION_ATTEMPT_UNKNOWN/);
     }
     finally {
         await env.close();
