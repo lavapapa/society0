@@ -44,6 +44,8 @@ with tempfile.TemporaryDirectory() as temporary:
     orphan = {'fields': {}, 'plugins': {'@society0/host/memory': {'state': 'added-plugin', 'design': 'docs/design-amendments.md'}}}
     assert errors(run(make_world(base / 'orphan', runtime_plugins=('resources', 'memory'), registry=orphan))) == []
     assert 'UNRECONCILED' in errors(run(make_world(base / 'unregistered', runtime_plugins=('resources', 'memory'))))
+    declared = {'fields': {'@society0/host/resources/inlineBytes': {'state': 'added', 'consumer': 'typescript/packages/host/src/resources.ts:3'}}, 'plugins': {}}
+    assert 'UNRECONCILED' in errors(run(make_world(base / 'declaration', runtime_fields=('closeTimeoutMs', 'inlineBytes'), registry=declared, consumer='const closeTimeoutMs = 1;\nconst inlineBytes = 2;\ninterface Options { readonly inlineBytes: number; }\n')))
     skeleton = run(make_world(base / 'skeleton', runtime_fields=('closeTimeoutMs', 'inlineBytes')), '--skeleton')
     assert skeleton.returncode == 0, skeleton.stderr
     assert '@society0/host/resources/inlineBytes' in skeleton.stdout

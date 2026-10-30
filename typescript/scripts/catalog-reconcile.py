@@ -1,5 +1,5 @@
 """对照 catalog/plan.json 与运行时 Config，登记每项差异。用法：catalog-reconcile.py <plan.json> [--skeleton]"""
-import json, sys
+import json, re, sys
 from pathlib import Path
 REGISTRY = 'docs/config-reconciliation.json'
 PLAN = 'inputs/society0_next_refactor_v3/catalog/plan.json'
@@ -27,6 +27,8 @@ def consumer_line(W, entry, field):
     index = int(line) - 1
     if index >= len(lines): return False
     text = lines[index]
+    if re.match(r'\s*(?:export\s+)?(?:interface|type|declare|readonly)\b', text): return False
+    if re.search(r'(?:^|[\s{;(])(?:readonly\s+)?' + re.escape(field) + r'\??\s*:', text) and '=' not in text: return False
     return field in text and 'Schema.object(' not in text and 'configPolicy' not in text
 def missing_errors(W, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
