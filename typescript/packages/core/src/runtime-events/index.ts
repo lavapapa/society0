@@ -113,12 +113,12 @@ export class RuntimeDriver extends Service implements Runtime {
         const release = handler.retention.hold();
         try {
             const operationId = context.operationId + '/event/' + event.id, source = proposal.reservation?.source ?? 'events';
-            await context.database.transaction(context.lease, {
+            const fresh = (await context.database.transaction(context.lease, {
                 operationId, maxDurationMs: 15000, maxStatements: 128, maxInputBytes: 1048576, maxChangedRows: 10000, maxCapturedBytes: 4194304
-            }, tx => this.writeEvent(tx, source, event, handler.value, context));
-            const status = await this.activateEvent(handler.value, event, context, admissions);
+            }, tx => this.writeEvent(tx, source, event, handler.value, context))).value;
+            const status = fresh ? await this.activateEvent(handler.value, event, context, admissions) : 'settled';
             return {
-                operationId, status
+                operationId, status, duplicate: !fresh
             };
         }
         finally {
@@ -134,12 +134,13 @@ export class RuntimeDriver extends Service implements Runtime {
         if (found.length) {
             if (String(found[0]!.offset) !== event.offset)
                 throw Error('EVENT_ID_CONFLICT');
-            return;
+            return false;
         }
         await handler.execute(event, tx, context);
         await tx.execute({
             sql: 'INSERT INTO s0_runtime_events VALUES (?,?,?)', parameters: [source, event.id, event.offset]
         });
+        return true;
     }
     private async activateEvent(handler: EventHandler, event: RuntimeEvent, context: ExecutionContext, admissions: Json[]) {
         context.signal.throwIfAborted();
@@ -156,18 +157,20 @@ export class RuntimeDriver extends Service implements Runtime {
         return activationStatus(rejected, results);
     }
     private async executeEvents(plan: EventPlan, proposal: Proposal, context: ExecutionContext, admissions: Json[]) {
-        const requiredOperations: string[] = [], eventIds: string[] = [];
+        const requiredOperations: string[] = [], eventIds: string[] = [], duplicateEventIds: string[] = [];
         let status: AdvanceResult['status'] = 'settled';
         for (const event of plan.events) {
             const result = await this.executeEvent(event, proposal, context, admissions);
             requiredOperations.push(result.operationId);
             eventIds.push(event.id);
+            if (result.duplicate)
+                duplicateEventIds.push(event.id);
             status = result.status;
             if (status !== 'settled')
                 break;
         }
         return {
-            requiredOperations, eventIds, status
+            requiredOperations, eventIds, duplicateEventIds, status
         };
     }
     private async advance(proposal: Proposal, context: ExecutionContext): Promise<AdvanceResult> {
@@ -178,7 +181,7 @@ export class RuntimeDriver extends Service implements Runtime {
                 status: executed.status, frontier: {
                     codec: 'events/1', value: plan.nextCursor
                 }, requiredOperations: [...executed.requiredOperations, ...activations.flatMap(result => result.requiredOperations ?? [])], evidence: {
-                    eventIds: executed.eventIds, admissions, activations: activations as unknown as Json
+                    eventIds: executed.eventIds, admissions, activations: activations as unknown as Json, ...(executed.duplicateEventIds.length ? { duplicateEventIds: executed.duplicateEventIds } : {})
                 }
             };
         }
