@@ -1,3 +1,4 @@
+// build-integration: pr05-support.mjs resolves ../.build/ packages.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readdir,writeFile,rm,access} from 'node:fs/promises';

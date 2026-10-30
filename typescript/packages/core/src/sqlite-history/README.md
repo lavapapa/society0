@@ -43,3 +43,6 @@ compact增加物化根并保留点身份，失败时原链和既有reader继续�
 计时使用performance.now累计单调wall time，返回timings.{phase}:{count,failed,totalMs}。jsonEncode精确覆盖JSON.stringify与UTF8 Buffer构造；jsonFileIO、jsonRenameIO、jsonDirectoryIO分别覆盖atomic writer已完成的文件写入同步、rename、目录同步，观察钩子等待另计。fileFinalizeIO覆盖段/根封存。
 
 compressPipeline/decompressPipeline包含编解码与管线读写等待；native.*从worker创建计至实际exit；publication/rootPublication/fork/restore/compaction为端到端阶段，export还包含消费者背压。上述阶段存在包含和并发关系，时长分别呈现。压缩纯CPU、流读写拆分与设备IO耗时明确为unknown。原子writer的细阶段记录已完成次数，端到端measure记录全部结算及失败；backupBytes为分页备份逻辑数据字节，文件系统journal和硬件传输另计。
+
+
+暂存段 `segments/<revision>.changeset` 在所属完整点描述符耐久发布后由 publish/publishRoot 删除；晚于最新点的段属于 live 后缀，close/重开/GC 保留。发布失败遗留的 `history/segments/*.zst`、`*.pending` 与 `history/roots/*.pending` 只由显式 `history.gc()` 清理；gc 在本实例内与 publish/fork/compact/export 互斥并持有发布锁，发布标记 owner 可能存活时拒绝（`HISTORY_GC_UNKNOWN`）。调用前应确保没有其他进程打开该 run 目录。`diagnostics().rawPendingCount/rawPendingBytes` 是最近一次 collectRaw/gc 的快照；`rawCollected/rawBytesCollected/orphanFilesCollected/lastGcError` 为累计/最近错误。`history/staging/` 残留与未引用 root 文件留待后续 retention。

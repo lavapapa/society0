@@ -105,3 +105,18 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 ```json
 [{"id":"target-event-2","offset":"2","time":"2","payload":{"handler":"plain.update","actorId":"alice","attributes":{"name":"Alice","message":"target event only"}}}]
 ```
+
+## 事务结果合同
+
+`database.transaction` 成功 resolve 表示事务已提交；reject 的对象表示事务确定未提交，或结果未知：
+
+| 结果 | 含义 | 调用方处置 |
+|---|---|---|
+| resolve | 已提交 | 使用 receipt |
+| 原始 `signal.reason` / `AbortError` | BEGIN 前取消，或 BEGIN 后回滚 | 按取消处理；等 ID 退出在途后重试 |
+| `SQLITE_COMMIT_UNKNOWN` | COMMIT 已发出但结果未知 | 停止写入；worker 退出后 probe；不重放回调 |
+| `SQLITE_SEGMENT_FAILED` | 已提交，但增量段证据缺失 | 停止写入；从完整点 fork 恢复；receipt 见 `cause.receipt` |
+| `SQLITE_TEXT_NOT_WELL_FORMED` | 事务内文本含孤立代理，已回滚 | 明确失败；领域入口校验原始文本 |
+| 其他 `SQLITE_*` / body 错误 | 确定未提交 | 原样处理或按 body 阶段分类 |
+
+取消按对象身份（`error===signal.reason`）或 `name==='AbortError'` 识别。完整设计说明见 `docs/design-amendments.md` 的 B 节。
