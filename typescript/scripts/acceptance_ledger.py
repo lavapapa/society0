@@ -166,7 +166,7 @@ def migrate(W, ledger):
         for path, text in texts.items():
             if cid not in text: continue
             relative = 'typescript/tests/' + path.relative_to(tests).as_posix()
-            executions += [{'path': relative, 'layer': layer, 'command': 'python3 -B tests/' + path.name if layer == 'unit' and path.suffix == '.py' else 'node --test --test-concurrency=1 tests/' + path.name} for layer in sorted(derived_layers(relative, text))]
+            executions += [dict({'path': relative, 'layer': layer, 'command': 'python3 -B tests/' + path.name if layer == 'unit' and path.suffix == '.py' else 'node --test --test-concurrency=1 tests/' + path.name}, **({'rewrittenBy': REWRITER} if layer == 'installed-e2e' and path.name in INSTALLED_COPIES else {})) for layer in sorted(derived_layers(relative, text))]
         case.pop('path', None)
         report_data[cid] = sorted({execution['path'] for execution in executions})
         if executions: case['executions'] = executions
