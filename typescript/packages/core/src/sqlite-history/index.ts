@@ -22,6 +22,7 @@ export class SqliteHistory extends Service {
  fork(request:Parameters<History['fork']>[0]){return this.history.fork(request)}
  export(pointId:string){return this.history.export(pointId)}
  compact(pointId:string){return this.history.compact(pointId)}
+ gc(){return this.history.gc()}
  status(){return this.history.status()}
  activate(){return this.history.activate()}
  diagnostics(){return this.history.diagnostics()}
