@@ -298,7 +298,7 @@ def test_missing_working_database_requires_restore(tmp_path):
 
 
 def test_statement_cache_capacity_covers_daily_working_set(tmp_path):
-    """每条连接都用满原生语句缓存：默认容量 100 在一天的 SQL 文本量下会抖动成全部未命中。"""
+    """原生缓存复用重复文本，读写连接采用同一容量。"""
     run = tmp_path / 'run'
     with make(run) as store:
         assert store._connection.cache_stats()['size'] == 512
