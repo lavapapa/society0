@@ -68,7 +68,7 @@ export class Workspace extends Service {
         maxObjectBytes: number;
     }) { super(ctx, 'workspace'); }
     private path(path: string) {
-        if (!path.startsWith('/') || posix.normalize(path) !== path || !['/workspace', '/results'].some(root => path === root || path.startsWith(root + '/')))
+        if (!path.isWellFormed() || !path.startsWith('/') || posix.normalize(path) !== path || !['/workspace', '/results'].some(root => path === root || path.startsWith(root + '/')))
             return fail('WORKSPACE_PATH');
         return path;
     }
@@ -198,14 +198,29 @@ export class Workspace extends Service {
     }
     private async removeNode(from: string, scope: DiscoveryScope, tx: SqliteTransaction) { const [count] = await tx.query({ sql: 'SELECT count(*) AS n FROM workspace_nodes WHERE actor_id=? AND parent=?', parameters: [scope.actorId, from] }, qb); if (BigInt(String(count!.n)) > 0n)
         return fail('WORKSPACE_NOT_EMPTY'); await tx.execute({ sql: 'DELETE FROM workspace_nodes WHERE actor_id=? AND path=?', parameters: [scope.actorId, from] }); }
-    async mutate(mutation: ExplorationMutation, scope: DiscoveryScope, context: ActionExecutionContext) { if (context.actorId !== scope.actorId)
-        return fail('WORKSPACE_NOT_VISIBLE'); const from = mutation.kind === 'rename' ? mutation.from : mutation.path; this.path(from); if (from === '/workspace' || from === '/results')
-        return fail('WORKSPACE_ROOT'); if (mutation.kind === 'mkdir') {
-        await context.transaction(request(context.operationId + ':mutate:' + randomUUID()), tx => this.createDirectory(mutation, from, scope, tx));
-        return;
-    } const parent = await this.mutationParent(from, scope, context); await context.transaction(request(context.operationId + ':mutate:' + randomUUID()), async (tx) => { await this.expected(parent.path, parent, scope, tx); await this.expected(from, mutation.expected, scope, tx); if (mutation.kind === 'remove')
-        await this.removeNode(from, scope, tx);
-    else
-        await this.renameNode(mutation, from, parent, scope, tx); await this.touch(tx, scope, parent.path); }); }
+    async mutate(mutation: ExplorationMutation, scope: DiscoveryScope, context: ActionExecutionContext) {
+        if (context.actorId !== scope.actorId)
+            return fail('WORKSPACE_NOT_VISIBLE');
+        const from = mutation.kind === 'rename' ? mutation.from : mutation.path;
+        this.path(from);
+        if (mutation.kind === 'rename')
+            this.path(mutation.to);
+        if (from === '/workspace' || from === '/results')
+            return fail('WORKSPACE_ROOT');
+        if (mutation.kind === 'mkdir') {
+            await context.transaction(request(context.operationId + ':mutate:' + randomUUID()), tx => this.createDirectory(mutation, from, scope, tx));
+            return;
+        }
+        const parent = await this.mutationParent(from, scope, context);
+        await context.transaction(request(context.operationId + ':mutate:' + randomUUID()), async (tx) => {
+            await this.expected(parent.path, parent, scope, tx);
+            await this.expected(from, mutation.expected, scope, tx);
+            if (mutation.kind === 'remove')
+                await this.removeNode(from, scope, tx);
+            else
+                await this.renameNode(mutation, from, parent, scope, tx);
+            await this.touch(tx, scope, parent.path);
+        });
+    }
 }
 export default Workspace;

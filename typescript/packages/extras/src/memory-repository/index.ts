@@ -26,6 +26,7 @@ CREATE TABLE memory_index_progress(generation TEXT PRIMARY KEY NOT NULL,progress
 }
 function experience(row: SqliteRow): Experience { return { id: String(row.id), actorId: String(row.actor_id), threadId: String(row.thread_id), body: JSON.parse(String(row.body)), artifacts: JSON.parse(String(row.artifacts)) }; }
 function change(row: SqliteRow): MemoryChange { const common = { cursor: { revision: String(row.revision), id: String(row.id) }, actorId: String(row.actor_id) }; return row.kind === 'delete' ? { ...common, kind: 'delete' } : { ...common, kind: 'upsert', vector: JSON.parse(String(row.vector)) }; }
+function memoryText(value: string, field: string): void { if (!value.isWellFormed()) throw Object.assign(new Error(`MEMORY_TEXT_NOT_WELL_FORMED: ${field} contains a lone surrogate`), { code: 'MEMORY_TEXT_NOT_WELL_FORMED', field }); }
 declare module '@society0/cordis' {
     interface Context {
         memoryRepository: MemoryRepository;
@@ -39,12 +40,15 @@ export class MemoryRepository extends Service {
         fail('MEMORY_RUN_MISMATCH'); }
     private limit(request: PageRequest) { if (!Number.isSafeInteger(request.maxItems) || request.maxItems < 1 || request.maxItems > this.options.maxPageItems)
         fail('MEMORY_PAGE_BUDGET'); }
-    async read(view: SqliteReadView, id: string): Promise<Experience | undefined> { this.run(view); const [row] = await view.query({ sql: 'SELECT * FROM memory_experiences WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: this.options.maxExperienceBytes + this.options.maxVectorBytes + 1024 }); return row ? experience(row) : undefined; }
+    async read(view: SqliteReadView, id: string): Promise<Experience | undefined> { this.run(view); memoryText(id, 'id'); const [row] = await view.query({ sql: 'SELECT * FROM memory_experiences WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: this.options.maxExperienceBytes + this.options.maxVectorBytes + 1024 }); return row ? experience(row) : undefined; }
     private validateVector(vector: MemoryVector | undefined): void { if (!vector)
         return; if (bytes(vector) > this.options.maxVectorBytes || vector.vector.length !== vector.identity.dimensions || vector.vector.some(n => !Number.isFinite(n)))
         fail('MEMORY_VECTOR_BUDGET'); }
     async append(tx: SqliteTransaction, value: Experience, vector?: MemoryVector): Promise<void> {
         this.run(tx);
+        memoryText(value.id, 'id');
+        memoryText(value.actorId, 'actorId');
+        memoryText(value.threadId, 'threadId');
         if (bytes(value) > this.options.maxExperienceBytes)
             fail('MEMORY_EXPERIENCE_BUDGET');
         this.validateVector(vector);
@@ -57,7 +61,7 @@ export class MemoryRepository extends Service {
         await tx.execute({ sql: 'INSERT INTO memory_experiences VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET actor_id=excluded.actor_id,thread_id=excluded.thread_id,body=excluded.body,artifacts=excluded.artifacts,vector=excluded.vector,revision=excluded.revision', parameters: [value.id, value.actorId, value.threadId, JSON.stringify(value.body), JSON.stringify(value.artifacts), encoded, revision] });
         await tx.execute({ sql: 'INSERT INTO memory_changes VALUES(?,?,?,?,?) ON CONFLICT(revision,id) DO UPDATE SET actor_id=excluded.actor_id,kind=excluded.kind,vector=excluded.vector', parameters: [revision, value.id, value.actorId, vector ? 'upsert' : 'delete', encoded] });
     }
-    async remove(tx: SqliteTransaction, id: string): Promise<void> { this.run(tx); const [row] = await tx.query({ sql: 'SELECT actor_id FROM memory_experiences WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: 4096 }); if (!row)
+    async remove(tx: SqliteTransaction, id: string): Promise<void> { this.run(tx); memoryText(id, 'id'); const [row] = await tx.query({ sql: 'SELECT actor_id FROM memory_experiences WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: 4096 }); if (!row)
         return; await tx.execute({ sql: 'DELETE FROM memory_experiences WHERE id=?', parameters: [id] }); await tx.execute({ sql: "INSERT INTO memory_changes VALUES(?,?,?,'delete',NULL) ON CONFLICT(revision,id) DO UPDATE SET kind='delete',vector=NULL", parameters: [BigInt(tx.baseRevision) + 1n, id, String(row.actor_id)] }); }
     async scan(view: SqliteReadView, request: PageRequest & {
         actorId?: string;
@@ -99,8 +103,8 @@ export class MemoryRepository extends Service {
         return rows.map(change);
     }
     async lastChange(view: SqliteReadView): Promise<MemoryChange | undefined> { this.run(view); const [row] = await view.query({ sql: 'SELECT * FROM memory_changes ORDER BY revision DESC,id DESC LIMIT 1' }, { maxRows: 1, maxBytes: this.options.maxVectorBytes + 1024 }); return row ? change(row) : undefined; }
-    async progress(view: SqliteReadView, generation: string): Promise<MemoryIndexProgress | undefined> { this.run(view); const [row] = await view.query({ sql: 'SELECT progress FROM memory_index_progress WHERE generation=?', parameters: [generation] }, { maxRows: 1, maxBytes: 16384 }); return row ? JSON.parse(String(row.progress)) : undefined; }
-    async recordProgress(tx: SqliteTransaction, progress: MemoryIndexProgress): Promise<void> { this.run(tx); if (progress.runId !== tx.runId || BigInt(progress.throughRevision) > BigInt(tx.baseRevision))
+    async progress(view: SqliteReadView, generation: string): Promise<MemoryIndexProgress | undefined> { this.run(view); memoryText(generation, 'generation'); const [row] = await view.query({ sql: 'SELECT progress FROM memory_index_progress WHERE generation=?', parameters: [generation] }, { maxRows: 1, maxBytes: 16384 }); return row ? JSON.parse(String(row.progress)) : undefined; }
+    async recordProgress(tx: SqliteTransaction, progress: MemoryIndexProgress): Promise<void> { this.run(tx); memoryText(progress.generation, 'generation'); if (progress.runId !== tx.runId || BigInt(progress.throughRevision) > BigInt(tx.baseRevision))
         fail('MEMORY_PROGRESS_IDENTITY'); const [previous] = await tx.query({ sql: 'SELECT progress FROM memory_index_progress WHERE generation=?', parameters: [progress.generation] }, { maxRows: 1, maxBytes: 16384 }); if (previous && !sameProjection(JSON.parse(String(previous.progress)), progress))
         fail('MEMORY_PROGRESS_IDENTITY'); await tx.execute({ sql: 'INSERT INTO memory_index_progress VALUES(?,?) ON CONFLICT(generation) DO UPDATE SET progress=excluded.progress', parameters: [progress.generation, JSON.stringify(progress)] }); }
 }

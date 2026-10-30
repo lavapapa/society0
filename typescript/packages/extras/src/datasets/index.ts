@@ -19,6 +19,7 @@ export const Config = Schema.object({ directory: Schema.string().default('run.da
 export const metadata: PluginMetadata = { title: 'datasets', summary: 'Indexed immutable framed datasets and bounded reference pages', configVersion: 1, configPolicy: [], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './datasets', provides: [{ key: 'datasets', protocol: 'datasets', major: 1, capabilities: [] }], requires: ['database', 'artifacts', 'slots', 'tasks'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 export function datasetsMigration(source: Readonly<Record<string, unknown>>): SqliteMigration { return { owner: 'datasets', from: 0, to: 1, after: ['artifacts-local'], source, statements: [{ sql: 'CREATE TABLE datasets(id TEXT PRIMARY KEY NOT NULL,object TEXT NOT NULL);' }] }; }
+function datasetId(id: string): string { if (!id.isWellFormed()) throw Object.assign(new Error('DATASET_ID: id contains a lone surrogate'), { code: 'DATASET_ID', field: 'id' }); return id; }
 declare module '@society0/cordis' {
     interface Context {
         datasets: Datasets;
@@ -56,8 +57,8 @@ export class Datasets extends Service {
     }
     private run(reader: SqliteReadView | SqliteTransaction) { if (reader.runId !== this.owner.database.runId)
         datasetFault('DATASET_RUN_MISMATCH'); }
-    async attach(tx: SqliteTransaction, id: string, object: ArtifactRef): Promise<void> { this.run(tx); await this.owner.artifacts.reference(tx, object); await tx.execute({ sql: 'INSERT INTO datasets VALUES(?,?)', parameters: [id, JSON.stringify(object)] }); }
-    private async object(id: string, view: SqliteReadView): Promise<ArtifactRef> { this.run(view); const [row] = await view.query({ sql: 'SELECT object FROM datasets WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: 16384 }); if (!row)
+    async attach(tx: SqliteTransaction, id: string, object: ArtifactRef): Promise<void> { this.run(tx); datasetId(id); await this.owner.artifacts.reference(tx, object); await tx.execute({ sql: 'INSERT INTO datasets VALUES(?,?)', parameters: [id, JSON.stringify(object)] }); }
+    private async object(id: string, view: SqliteReadView): Promise<ArtifactRef> { this.run(view); datasetId(id); const [row] = await view.query({ sql: 'SELECT object FROM datasets WHERE id=?', parameters: [id] }, { maxRows: 1, maxBytes: 16384 }); if (!row)
         datasetFault('DATASET_UNKNOWN'); return JSON.parse(String(row.object)); }
     async describe(id: string, view: SqliteReadView) { const object = await this.object(id, view); const directory = await this.reader.directory(object); return { id, records: String(directory.records), rawBytes: String(directory.rawBytes), codec: directory.codec }; }
     async page(id: string, view: SqliteReadView, request: PageRequest) {

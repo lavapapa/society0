@@ -50,6 +50,7 @@ import type { StoredValue } from '@society0/core/contracts/data';
 import type { PropagationStrategy, Json, PresentationRequest, SqliteTransaction, SqliteReadView, DiscoveryScope, PageRequest, Page, NewPost } from '../contracts.js';
 import { transactionRequest, page, sized } from '../paging.js';
 import { socialTime } from '../clock.js';
+function socialTextFault(field: string) { return Object.assign(new Error(`SOCIAL_TEXT_NOT_WELL_FORMED: ${field} contains a lone surrogate`), { code: 'SOCIAL_TEXT_NOT_WELL_FORMED', field }); }
 export const propagationSlot = slotKey<PropagationStrategy>('society/social-propagation');
 declare module '@society0/host' {
     interface Context {
@@ -79,6 +80,20 @@ export class Social extends Service {
     }
     present(tx: SqliteTransaction, request: PresentationRequest) {
         return this.ctx.socialRepository.present(tx, request);
+    }
+    private assertText(properties: Record<string, any>, input: any) {
+        for (const [field, property] of Object.entries(properties)) {
+            const value = input[field];
+            if (value === undefined)
+                continue;
+            if (property.type === 'string' && !value.isWellFormed())
+                throw socialTextFault(field);
+            if (property.type === 'array' && property.items?.type === 'string')
+                value.forEach((item: string, index: number) => {
+                    if (!item.isWellFormed())
+                        throw socialTextFault(`${field}[${index}]`);
+                });
+        }
     }
     private installActions() {
         const repository = this.ctx.socialRepository;
@@ -211,6 +226,7 @@ export class Social extends Service {
                 name: 'social.' + name, inputSchema: {
                     type: 'object', properties: definition.properties, required: definition.required, additionalProperties: false
                 }, outputSchema, effect: 'world', available, execute: async (input, context) => {
+                    this.assertText(definition.properties, input);
                     const operationId = context.operationId + '/social/' + name;
                     const result = await context.transaction(transactionRequest(operationId), tx => definition.execute(input, context, tx));
                     return {

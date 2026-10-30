@@ -46,6 +46,8 @@ test('NEW-6-T06 Social raw text fields fail before the write transaction',async 
  const f=await fixture({directory:root,attemptDirectory:attempts});let reservation;
  try{
   reservation=await f.ctx.executionFence.reserve({id:'domain'});
+  const notifications=await snapshotCount(f,'SELECT count(*) AS n FROM social_notifications');
+  const revision=await f.ctx.database.readRevision();
   const watched=watch(f.ctx.database);
   const cases=[
    ['publish',{content:'a'+high+'b'},'content'],
@@ -61,9 +63,10 @@ test('NEW-6-T06 Social raw text fields fail before the write transaction',async 
   for(const [index,[name,input,field]] of cases.entries())
    await assert.rejects(f.ctx.actions.execute('social.'+name,input,{...activation(f,reservation,'domain-'+index),database:watched.database}),textError('SOCIAL_TEXT_NOT_WELL_FORMED',field));
   assert.equal(watched.transactions(),0);
+  assert.equal(await f.ctx.database.readRevision(),revision);
   assert.equal(await snapshotCount(f,'SELECT count(*) AS n FROM social_posts'),'0');
   assert.equal(await snapshotCount(f,'SELECT count(*) AS n FROM action_receipts'),'0');
-  assert.equal(await snapshotCount(f,'SELECT count(*) AS n FROM social_notifications'),'0');
+  assert.equal(await snapshotCount(f,'SELECT count(*) AS n FROM social_notifications'),notifications);
  }finally{await reservation?.release();await f.host.close()}
 });
 
@@ -83,6 +86,12 @@ test('NEW-6-T07 Social JSON payloads preserve lone surrogates while raw fields s
    const [row]=await view.query({sql:"SELECT preferences FROM social_members WHERE id='a'"},{maxRows:1,maxBytes:1024});
    assert.equal(JSON.parse(String(row.preferences)).label,'v'+high);
   }finally{await view.close()}
+  await run('preferences',{value:'r'+high},'json-preferences-string');
+  const stringView=await f.ctx.database.snapshot({maxAgeMs:30000});
+  try{
+   const [row]=await stringView.query({sql:"SELECT preferences FROM social_members WHERE id='a'"},{maxRows:1,maxBytes:1024});
+   assert.equal(JSON.parse(String(row.preferences)),'r'+high);
+  }finally{await stringView.close()}
  }finally{await reservation?.release();await f.host.close()}
 });
 
@@ -93,6 +102,7 @@ test('NEW-6-T08 datasets public id rejects malformed text before SQL',async t=>{
   await f.ctx.plugin(Datasets,{directory:join(base,'datasets')});
   const object=await f.ctx.datasets.prepare((async function*(){yield {text:'ok'}})(),{maxRecordBytes:65536,frameBytes:1024,maxPendingBytes:262144,signal:new AbortController().signal});
   await assert.rejects(f.write('attach-bad',tx=>f.ctx.datasets.attach(tx,'data'+high,object)),textError('DATASET_ID','id'));
+  await assert.rejects(f.read(view=>f.ctx.datasets.describe('data'+high,view)),textError('DATASET_ID','id'));
   assert.equal(await count(f,'SELECT count(*) AS n FROM datasets'),'0');
   await f.write('attach-good',tx=>f.ctx.datasets.attach(tx,'data',object));
   assert.equal((await f.read(view=>f.ctx.datasets.describe('data',view))).id,'data');
@@ -105,6 +115,9 @@ test('NEW-6-T09 memory identity and progress text fail before SQL while JSON bod
   await assert.rejects(f.write('memory-bad-id',tx=>f.ctx.memoryRepository.append(tx,{id:'m'+high,actorId:'a',threadId:f.threadId,body:{},artifacts:[]})),textError('MEMORY_TEXT_NOT_WELL_FORMED','id'));
   await assert.rejects(f.write('memory-bad-actor',tx=>f.ctx.memoryRepository.append(tx,{id:'m1',actorId:'a'+high,threadId:f.threadId,body:{},artifacts:[]})),textError('MEMORY_TEXT_NOT_WELL_FORMED','actorId'));
   await assert.rejects(f.write('memory-bad-thread',tx=>f.ctx.memoryRepository.append(tx,{id:'m2',actorId:'a',threadId:f.threadId+high,body:{},artifacts:[]})),textError('MEMORY_TEXT_NOT_WELL_FORMED','threadId'));
+  await assert.rejects(f.write('memory-bad-remove',tx=>f.ctx.memoryRepository.remove(tx,'r'+high)),textError('MEMORY_TEXT_NOT_WELL_FORMED','id'));
+  await assert.rejects(f.read(view=>f.ctx.memoryRepository.read(view,'r'+high)),textError('MEMORY_TEXT_NOT_WELL_FORMED','id'));
+  await assert.rejects(f.read(view=>f.ctx.memoryRepository.progress(view,'g'+high)),textError('MEMORY_TEXT_NOT_WELL_FORMED','generation'));
   await assert.rejects(f.write('memory-bad-progress',tx=>f.ctx.memoryRepository.recordProgress(tx,{runId:f.runId,generation:'g'+high,throughRevision:'0'})),textError('MEMORY_TEXT_NOT_WELL_FORMED','generation'));
   await f.write('memory-json',tx=>f.ctx.memoryRepository.append(tx,{id:'json',actorId:'a',threadId:f.threadId,body:{text:'b'+high},artifacts:[]},vector('json',0)));
   const value=await f.read(view=>f.ctx.memoryRepository.read(view,'json'));
