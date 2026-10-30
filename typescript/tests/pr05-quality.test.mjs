@@ -1,9 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,readFile,writeFile,unlink} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve} from 'node:path';import {setImmediate as tick} from 'node:timers/promises';
 import {fixture,prepare,advance,frontier,targetOf} from './pr05-support.mjs';
-import {History} from '../../../evidence/pr05/build/sqlite-history/history.js';
-import {nativeJob} from '../../../evidence/pr05/build/sqlite-history/io.js';
-import {LocalArtifacts} from '../../../evidence/pr05/build/artifacts-local/store.js';
-import {AttemptLedger} from '../../../evidence/pr05/build/attempts/ledger.js';
+import {History} from '../.build/core/dist/sqlite-history/history.js';
+import {nativeJob} from '../.build/core/dist/sqlite-history/io.js';
+import {LocalArtifacts} from '../.build/core/dist/artifacts-local/store.js';
+import {AttemptLedger} from '../.build/core/dist/attempts/ledger.js';
 const raw=(f,options={})=>History.open({directory:f.directory,runId:f.runId,generation:'g1',controlSequence:'0',...options},{database:f.database,fence:f.fence,artifacts:f.artifacts});
 async function consume(stream){const chunks=[];for await(const chunk of stream)chunks.push(chunk);return Buffer.concat(chunks)}
 

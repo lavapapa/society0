@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHost, OwnedResources } from '../../../evidence/pr10/stage/host/dist/index.js';
-import Composition from '../../../evidence/pr10/stage/host/dist/composition-strategies/index.js';
-import Strategies from '../../../evidence/pr10/stage/host/dist/slot-strategies/index.js';
-import Slots from '../../../evidence/pr10/stage/host/dist/slots/index.js';
-import Random from '../../../evidence/pr10/stage/core/dist/random/index.js';
-import Topology from '../../../evidence/pr10/stage/social/dist/topology-edges/index.js';
-import { topologySlot } from '../../../evidence/pr10/stage/social/dist/social-init/index.js';
+import { createHost, OwnedResources } from '../.build/host/dist/index.js';
+import Composition from '../.build/host/dist/composition-strategies/index.js';
+import Strategies from '../.build/host/dist/slot-strategies/index.js';
+import Slots from '../.build/host/dist/slots/index.js';
+import Random from '../.build/core/dist/random/index.js';
+import Topology from '../.build/social/dist/topology-edges/index.js';
+import { topologySlot } from '../.build/social/dist/social-init/index.js';
 import { fixture } from './pr10-support.mjs';
 test('PR10-T01 all public topology families use deterministic actual Philox addresses', async () => {
     const host = await createHost({

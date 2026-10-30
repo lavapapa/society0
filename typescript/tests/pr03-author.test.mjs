@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import Schema from '@society0/schemastery';
+import Schema from '../.build/schemastery/dist/index.js';
 import {createTestHost} from '../.build/host/dist/testkit.js';
 import {pluginFiles} from '../.build/host/dist/scaffold/index.js';
 import {slotKey} from '../.build/host/dist/slots/index.js';

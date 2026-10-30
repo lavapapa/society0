@@ -2,18 +2,18 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import MeasurementRepository, { measurementMigration } from '../../../evidence/pr10/stage/social/dist/measurement-repository/index.js';
-import Measurements from '../../../evidence/pr10/stage/social/dist/measurements/index.js';
-import Every from '../../../evidence/pr10/stage/social/dist/measurement-every/index.js';
+import MeasurementRepository, { measurementMigration } from '../.build/social/dist/measurement-repository/index.js';
+import Measurements from '../.build/social/dist/measurements/index.js';
+import Every from '../.build/social/dist/measurement-every/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture, runtime } from './pr10-support.mjs';
-import Rule, { ruleHandlerSlot } from '../../../evidence/pr10/stage/core/dist/driver-rule/index.js';
-import Perceptions, { perceptionMigration } from '../../../evidence/pr10/stage/core/dist/perception/index.js';
-import { eventsMigration } from '../../../evidence/pr10/stage/core/dist/runtime-events/index.js';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
-import SocialPerception from '../../../evidence/pr10/stage/social/dist/social-perception/index.js';
+import Rule, { ruleHandlerSlot } from '../.build/core/dist/driver-rule/index.js';
+import Perceptions, { perceptionMigration } from '../.build/core/dist/perception/index.js';
+import { eventsMigration } from '../.build/core/dist/runtime-events/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
+import SocialPerception from '../.build/social/dist/social-perception/index.js';
 const perception = perceptionMigration({
     package: '@society0/core', entry: 'perception'
 });

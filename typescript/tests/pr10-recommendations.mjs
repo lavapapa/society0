@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { fixture, activation, request } from './pr10-support.mjs';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
-import Comparison from '../../../evidence/pr10/stage/social/dist/social-measurement/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
+import Comparison from '../.build/social/dist/social-measurement/index.js';
 const bounds = {
     maxItems: 10, maxBytes: 65536
 }, page = {

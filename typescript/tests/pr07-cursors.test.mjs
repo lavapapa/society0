@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, read, request, scope, page } from './pr07-support.mjs';
-import Random from '../../../evidence/pr07/stage/core/dist/random/index.js';
+import Random from '../.build/core/dist/random/index.js';
 test('PR07-T06 deep discovery keeps bounded cursors and separately counts eligibility scans', async () => {
     const env = await setup();
     const { ctx } = env;

@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import Ticks from '../../../evidence/pr06/stage/dist/clock-ticks/index.js';
-import EventClock from '../../../evidence/pr06/stage/dist/clock-event/index.js';
-import Sequence from '../../../evidence/pr06/stage/dist/proposal-sequence/index.js';
-import Events from '../../../evidence/pr06/stage/dist/proposal-events/index.js';
-import { createHost, OwnedResources } from '../../../evidence/pr10/stage/host/dist/index.js';
+import Ticks from '../.build/core/dist/clock-ticks/index.js';
+import EventClock from '../.build/core/dist/clock-event/index.js';
+import Sequence from '../.build/core/dist/proposal-sequence/index.js';
+import Events from '../.build/core/dist/proposal-events/index.js';
+import { createHost, OwnedResources } from '../.build/host/dist/index.js';
 test('PR06 integer clocks preserve values beyond safe number and stable offsets', async () => {
     const h = await createHost({ boot: [] });
     try {
@@ -41,10 +41,10 @@ test('PR06 proposal read preserves cursor; event ack requires covering persisted
         await h.close();
     }
 });
-import CompositionStrategies from '../../../evidence/pr10/stage/host/dist/composition-strategies/index.js';
-import SlotStrategies from '../../../evidence/pr10/stage/host/dist/slot-strategies/index.js';
-import Slots from '../../../evidence/pr10/stage/host/dist/slots/index.js';
-import Drivers from '../../../evidence/pr06/stage/dist/drivers/index.js';
+import CompositionStrategies from '../.build/host/dist/composition-strategies/index.js';
+import SlotStrategies from '../.build/host/dist/slot-strategies/index.js';
+import Slots from '../.build/host/dist/slots/index.js';
+import Drivers from '../.build/core/dist/drivers/index.js';
 test('PR06 named driver holds only selected provider; unrelated provider retires independently', async () => {
     const h = await createHost({ boot: [] });
     let lease;

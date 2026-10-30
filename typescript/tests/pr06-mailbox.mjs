@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, request } from './pr06-foundations.mjs';
-import { CompositionStrategies } from '../../../evidence/pr10/stage/host/dist/composition-strategies/index.js';
-import strategies from '../../../evidence/pr10/stage/host/dist/slot-strategies/index.js';
-import { Slots } from '../../../evidence/pr10/stage/host/dist/slots/index.js';
-import { DriverRegistry } from '../../../evidence/pr06/stage/dist/drivers/index.js';
-import { ActivationPolicy } from '../../../evidence/pr06/stage/dist/activation-mailbox/index.js';
-import { ActivationService } from '../../../evidence/pr06/stage/dist/activation/index.js';
+import { CompositionStrategies } from '../.build/host/dist/composition-strategies/index.js';
+import strategies from '../.build/host/dist/slot-strategies/index.js';
+import { Slots } from '../.build/host/dist/slots/index.js';
+import { DriverRegistry } from '../.build/core/dist/drivers/index.js';
+import { ActivationPolicy } from '../.build/core/dist/activation-mailbox/index.js';
+import { ActivationService } from '../.build/core/dist/activation/index.js';
 const intent = (id, actorId = 'a', momentId = 'm') => ({ id, actorId, momentId, source: 'message', driver: 'rule', input: id });
 test('PR06-T01/T07 actor waiting consumes no other actor slot; stable followup', async () => {
     const { host, ctx } = await setup();

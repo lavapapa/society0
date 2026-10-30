@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdirSync,mkdtempSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
-import {openConnection} from '../packages/sqlite-native/src/index.mjs';
-const root=fileURLToPath(new URL('../packages/sqlite-native/build/',import.meta.url));mkdirSync(root,{recursive:true});
+import {mkdtempSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {openConnection} from '../.build/sqlite-native/src/index.mjs';
+const root=join(tmpdir(),'sqlite-native-');
 const dir=()=>mkdtempSync(root+'test-');
 test('同连接参数、JOIN和两个参与者回滚',()=>{
  const d=openConnection({path:dir()+'/world.db'});

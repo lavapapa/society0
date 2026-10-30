@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture, runtime, activation, request } from './pr10-support.mjs';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
-import Comparison from '../../../evidence/pr10/stage/social/dist/social-measurement/index.js';
-import { propagationSlot } from '../../../evidence/pr10/stage/social/dist/social/index.js';
-import Rule, { ruleHandlerSlot } from '../../../evidence/pr10/stage/core/dist/driver-rule/index.js';
-import Perceptions, { perceptionMigration } from '../../../evidence/pr10/stage/core/dist/perception/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
+import Comparison from '../.build/social/dist/social-measurement/index.js';
+import { propagationSlot } from '../.build/social/dist/social/index.js';
+import Rule, { ruleHandlerSlot } from '../.build/core/dist/driver-rule/index.js';
+import Perceptions, { perceptionMigration } from '../.build/core/dist/perception/index.js';
 test('PR10-T10 expired comparison lease leaves SQL revision unchanged', async () => {
     const f = await fixture({
         social: false

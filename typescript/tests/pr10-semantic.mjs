@@ -1,16 +1,16 @@
-import Embeddings from '../../../evidence/pr10/stage/core/dist/embedding/index.js';
-import EmbeddingHttp from '../../../evidence/pr10/stage/core/dist/embedding-http/index.js';
-import Credentials from '../../../evidence/pr10/stage/core/dist/model-credentials/index.js';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
+import Embeddings from '../.build/core/dist/embedding/index.js';
+import EmbeddingHttp from '../.build/core/dist/embedding-http/index.js';
+import Credentials from '../.build/core/dist/model-credentials/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { fixture, activation, request } from './pr10-support.mjs';
-import Providers from '../../../evidence/pr10/stage/extras/dist/vector-providers/index.js';
-import Exact, { ExactMemoryIndex } from '../../../evidence/pr10/stage/extras/dist/vector-exact/index.js';
-import Semantic, { SemanticProjection, semanticMigration } from '../../../evidence/pr10/stage/social/dist/social-semantic/index.js';
+import Providers from '../.build/extras/dist/vector-providers/index.js';
+import Exact, { ExactMemoryIndex } from '../.build/extras/dist/vector-exact/index.js';
+import Semantic, { SemanticProjection, semanticMigration } from '../.build/social/dist/social-semantic/index.js';
 test('PR10-T08 actual exact index survives apply/progress crash and fresh projection replays saved vectors', async () => {
     let calls = 0;
     const server = createServer(async (req, res) => {

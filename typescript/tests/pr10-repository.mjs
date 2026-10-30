@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import Repository from '../../../evidence/pr10/stage/social/dist/social-repository/index.js';
+import Repository from '../.build/social/dist/social-repository/index.js';
 test('PR10 production SQL repository entry', () => assert.equal(typeof Repository, 'function'));
 import { fixture, activation, request, bounds } from './pr10-support.mjs';
 test('PR10-T01 real three-member root and atomic publish/reply/react/follow/unfollow', async () => {

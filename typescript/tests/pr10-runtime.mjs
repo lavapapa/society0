@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fixture, runtime, request } from './pr10-support.mjs';
-import Repository, { measurementMigration } from '../../../evidence/pr10/stage/social/dist/measurement-repository/index.js';
-import Measurements from '../../../evidence/pr10/stage/social/dist/measurements/index.js';
-import Every from '../../../evidence/pr10/stage/social/dist/measurement-every/index.js';
-import RoundRobin from '../../../evidence/pr10/stage/social/dist/round-robin/index.js';
+import Repository, { measurementMigration } from '../.build/social/dist/measurement-repository/index.js';
+import Measurements from '../.build/social/dist/measurements/index.js';
+import Every from '../.build/social/dist/measurement-every/index.js';
+import RoundRobin from '../.build/social/dist/round-robin/index.js';
 test('PR10-T04 required final interview failure preserves settled observations and blocks final cut', async () => {
     const f = await fixture({
         migrations: [measurementMigration]

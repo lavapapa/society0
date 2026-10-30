@@ -4,11 +4,11 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHost, OwnedResources, TaskSupervisor } from '../.build/host/dist/index.js';
-import { ExecutionFence } from '../../../evidence/pr07/stage/core/dist/execution-fence/index.js';
-import { SqliteDatabase } from '../../../evidence/pr07/stage/core/dist/sqlite/index.js';
-import { ArtifactsLocal, artifactsMigration } from '../../../evidence/pr07/stage/core/dist/artifacts-local/index.js';
-import { Threads, threadMigration } from '../../../evidence/pr07/stage/core/dist/thread/index.js';
-import { Results, resultsMigration } from '../../../evidence/pr07/stage/core/dist/results/index.js';
+import { ExecutionFence } from '../.build/core/dist/execution-fence/index.js';
+import { SqliteDatabase } from '../.build/core/dist/sqlite/index.js';
+import { ArtifactsLocal, artifactsMigration } from '../.build/core/dist/artifacts-local/index.js';
+import { Threads, threadMigration } from '../.build/core/dist/thread/index.js';
+import { Results, resultsMigration } from '../.build/core/dist/results/index.js';
 const req = operationId => ({ operationId, maxDurationMs: 15000, maxStatements: 100, maxInputBytes: 1048576, maxChangedRows: 200, maxCapturedBytes: 1048576 });
 const page = { maxItems: 2, maxResponseBytes: 16384 };
 async function setup() { const host = await createHost({ boot: [] }); const directory = await mkdtemp(join(tmpdir(), 'pr07-data-')); await host.ctx.plugin(OwnedResources); await host.ctx.plugin(TaskSupervisor, { concurrency: 4, maxBytes: 33554432 }); await host.ctx.plugin(ExecutionFence); await host.ctx.plugin(SqliteDatabase, { directory, runId: 'data', generation: 'g', maxTransactionMs: 20000 }); await host.ctx.plugin(ArtifactsLocal, { directory: join(directory, 'objects') }); await host.ctx.database.applyMigrations([artifactsMigration, threadMigration({ test: 'pr07' }), resultsMigration({ test: 'pr07' }), { owner: 'result-fault', from: 0, to: 1, after: ['results'], source: { consumer: 'pr07' }, statements: [{ sql: "CREATE TRIGGER result_second_batch BEFORE INSERT ON result_records WHEN NEW.set_id='second-fail' AND NEW.ordinal=3 BEGIN SELECT RAISE(ABORT,'second SQL batch failed'); END" }] }]); await host.ctx.plugin(Threads, { bodyInlineBytes: 256 }); await host.ctx.plugin(Results, { batchRows: 2, batchBytes: 4096 }); let ctx; await host.ctx.plugin({ inject: ['database', 'executionFence', 'artifacts', 'threads', 'results'], apply(c) { ctx = c; } }); const reservation = await ctx.executionFence.reserve({ id: 'data' }); return { host, ctx, reservation }; }

@@ -1,13 +1,13 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {createServer} from 'node:http';import {once} from 'node:events';
 import {fixture,activation,request} from './pr10-support.mjs';
-import Drivers from '../../../evidence/pr10/stage/core/dist/drivers/index.js';
-import Perceptions,{perceptionMigration} from '../../../evidence/pr10/stage/core/dist/perception/index.js';
-import Repository,{measurementMigration} from '../../../evidence/pr10/stage/social/dist/measurement-repository/index.js';
-import Measurements from '../../../evidence/pr10/stage/social/dist/measurements/index.js';
-import Every from '../../../evidence/pr10/stage/social/dist/measurement-every/index.js';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
-import SocialPerception from '../../../evidence/pr10/stage/social/dist/social-perception/index.js';
+import Drivers from '../.build/core/dist/drivers/index.js';
+import Perceptions,{perceptionMigration} from '../.build/core/dist/perception/index.js';
+import Repository,{measurementMigration} from '../.build/social/dist/measurement-repository/index.js';
+import Measurements from '../.build/social/dist/measurements/index.js';
+import Every from '../.build/social/dist/measurement-every/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
+import SocialPerception from '../.build/social/dist/social-perception/index.js';
 
 test('PR10 failed HTTP interview replays settled original failure without resending',async()=>{
  let calls=0;const server=createServer((req,res)=>{calls++;res.statusCode=503;res.end('完整原始失败响应')});server.listen(0,'127.0.0.1');await once(server,'listening');let f,held;

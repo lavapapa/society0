@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,writeFileSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {Worker} from 'node:worker_threads';
 import {once} from 'node:events';
 import {setTimeout as delay} from 'node:timers/promises';
-import {openConnection,createInterruptControl,configureHeapLimit,sqliteMemory} from '../packages/sqlite-native/src/index.mjs';
-const root=fileURLToPath(new URL('../packages/sqlite-native/build/',import.meta.url));const dir=()=>mkdtempSync(root+'boundary-');
+import {openConnection,createInterruptControl,configureHeapLimit,sqliteMemory} from '../.build/sqlite-native/src/index.mjs';
+const root=join(tmpdir(),'sqlite-native-');const dir=()=>mkdtempSync(root+'boundary-');
 const one=d=>d.query('SELECT count(*) AS n FROM t')[0].n;
 test('输入/输出预算、单statement、领域SQL权限和过期事务',()=>{
  const d=openConnection({path:dir()+'/db',maxInlineBytes:65536,maxInputBytes:4096});

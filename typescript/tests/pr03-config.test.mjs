@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import Schema from '@society0/schemastery';
+import Schema from '../.build/schemastery/dist/index.js';
 import {compileLayers,dumpPlan} from '../.build/host/dist/profile-loader/compiler.js';
 import {Context} from '../.build/host/dist/abi.js';
 import {ConfigResolverRegistry,envResolver,secretResolver} from '../.build/host/dist/config-resolvers/index.js';

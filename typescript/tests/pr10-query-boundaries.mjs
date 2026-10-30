@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,activation,request,bounds} from './pr10-support.mjs';
-import Measurements,{measurementMigration} from '../../../evidence/pr10/stage/social/dist/measurement-repository/index.js';
+import Measurements,{measurementMigration} from '../.build/social/dist/measurement-repository/index.js';
 
 test('PR10 public query families preserve original records across filters revisions and byte boundaries',async()=>{
  const f=await fixture({migrations:[measurementMigration]});let held;

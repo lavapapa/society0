@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture, runtime } from './pr10-support.mjs';
-import { perceptionMigration } from '../../../evidence/pr10/stage/core/dist/perception/index.js';
-import { eventsMigration } from '../../../evidence/pr10/stage/core/dist/runtime-events/index.js';
-import { actorToolsMigration } from '../../../evidence/pr10/stage/core/dist/actor-tools/index.js';
-import Workspace, { workspaceMigration } from '../../../evidence/pr10/stage/extras/dist/workspace/index.js';
-import { ReplayProvider } from '../../../evidence/pr10/stage/core/dist/model-replay/provider.js';
-const core = async (name) => (await import('../../../evidence/pr10/stage/core/dist/' + name + '/index.js')).default;
-const social = async (name) => (await import('../../../evidence/pr10/stage/social/dist/' + name + '/index.js')).default;
+import { perceptionMigration } from '../.build/core/dist/perception/index.js';
+import { eventsMigration } from '../.build/core/dist/runtime-events/index.js';
+import { actorToolsMigration } from '../.build/core/dist/actor-tools/index.js';
+import Workspace, { workspaceMigration } from '../.build/extras/dist/workspace/index.js';
+import { ReplayProvider } from '../.build/core/dist/model-replay/provider.js';
+const core = async (name) => (await import('../.build/core/dist/' + name + '/index.js')).default;
+const social = async (name) => (await import('../.build/social/dist/' + name + '/index.js')).default;
 const usage = {
     input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: {
         input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0

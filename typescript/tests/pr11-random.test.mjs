@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
-const stage=resolve(process.env.RANDOM_STAGE ?? '.build');
+import { pathToFileURL, fileURLToPath } from 'node:url';
+const stage=fileURLToPath(new URL('../.build',import.meta.url));
 const require=createRequire(stage+'/package.json');
 test('official Philox4x32-10 known answer vectors',()=>{
  const {philox}=require('@society0/random-native');

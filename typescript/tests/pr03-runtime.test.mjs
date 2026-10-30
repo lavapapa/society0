@@ -1,6 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {mkdir,writeFile,readFile,access} from 'node:fs/promises';import {resolve} from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';
-import Schema from '@society0/schemastery';
+import Schema from '../.build/schemastery/dist/index.js';
 import {Context,Service} from '../.build/host/dist/abi.js';
 import {createTestHost} from '../.build/host/dist/testkit.js';
 import {compileLayers,mountPlan} from '../.build/host/dist/profile-loader/index.js';

@@ -1,5 +1,5 @@
-import {createRequire} from 'node:module';import {resolve,join,dirname} from 'node:path';import {pathToFileURL} from 'node:url';import {mkdtemp,readFile,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';
-export const stage=resolve(process.env.PR11_STAGE??'.build');const require=createRequire(stage+'/package.json');
+import {createRequire} from 'node:module';import {resolve,join,dirname} from 'node:path';import {pathToFileURL,fileURLToPath} from 'node:url';import {mkdtemp,readFile,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';
+export const stage=fileURLToPath(new URL('../.build',import.meta.url));const require=createRequire(stage+'/package.json');
 export const resolvePackage=specifier=>require.resolve(specifier);
 export const load=specifier=>import(pathToFileURL(require.resolve(specifier)));
 export const part=(pkg,entry)=>load('@society0/'+pkg+'/'+entry);

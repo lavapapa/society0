@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-const require = createRequire(new URL('../../../evidence/pr10/stage/consumer.mjs', import.meta.url));
+const require = createRequire(new URL('../.build/release.json', import.meta.url));
 const names = ['social-repository', 'social-init', 'topology-edges', 'social', 'propagation-neighbors', 'measurement-repository', 'measurements', 'measurement-every', 'round-robin', 'social-recommendations', 'social-ranking', 'social-semantic', 'social-measurement', 'social-perception'];
 for (const name of names)
     test('PR10 public assembly ' + name, async () => {

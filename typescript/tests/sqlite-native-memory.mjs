@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {mkdtempSync} from 'node:fs';
-import {fileURLToPath} from 'node:url';
-import {openConnection,sqliteMemory,configureHeapLimit} from '../packages/sqlite-native/src/index.mjs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {openConnection,sqliteMemory,configureHeapLimit} from '../.build/sqlite-native/src/index.mjs';
 const count=Number(process.argv[2]);
 if(count){
- const root=fileURLToPath(new URL('../packages/sqlite-native/build/',import.meta.url));const home=mkdtempSync(root+'memory-');
+ const root=join(tmpdir(),'sqlite-native-');const home=mkdtempSync(root+'memory-');
  configureHeapLimit(8*1024*1024);
  const d=openConnection({path:home+'/source',maxInlineBytes:8192,maxInputBytes:512*1024,timeoutMs:60000}),target=openConnection({path:home+'/target',maxInlineBytes:8192,timeoutMs:60000});
  try{

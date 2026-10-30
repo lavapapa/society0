@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setup, read, request, page, scope } from './pr07-support.mjs';
-import Drivers from '../../../evidence/pr07/stage/core/dist/drivers/index.js';
-import ruleDriver, { ruleHandlerSlot } from '../../../evidence/pr07/stage/core/dist/driver-rule/index.js';
-import passive from '../../../evidence/pr07/stage/core/dist/rule-passive/index.js';
-import actorPerception from '../../../evidence/pr07/stage/core/dist/perception-actor/index.js';
+import Drivers from '../.build/core/dist/drivers/index.js';
+import ruleDriver, { ruleHandlerSlot } from '../.build/core/dist/driver-rule/index.js';
+import passive from '../.build/core/dist/rule-passive/index.js';
+import actorPerception from '../.build/core/dist/perception-actor/index.js';
 test('PR07-T22 two sources commit input/raw links/actor and thread cursors atomically', async () => {
     const env = await setup();
     const { ctx } = env;

@@ -1,8 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,activation,request,bounds} from './pr10-support.mjs';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
 
 test('PR10 third-party SQL sources enforce item identity budgets byte LRU and concurrent prepared replacement',async()=>{
  const f=await fixture({social:false});let held;const entered=Promise.withResolvers(),release=Promise.withResolvers();let arrivals=0;

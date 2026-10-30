@@ -1,6 +1,6 @@
-import {appendFileSync,mkdirSync} from 'node:fs';import {resolve,join} from 'node:path';import test from 'node:test';import assert from 'node:assert/strict';import {writeFile} from 'node:fs/promises';
+import {appendFileSync,mkdirSync} from 'node:fs';import {join} from 'node:path';import test from 'node:test';import assert from 'node:assert/strict';import {writeFile} from 'node:fs/promises';
 import {fixture,req} from './public-fault-support.mjs';import {installWorkerFault} from '../worker-fault.mjs';
-const output=resolve(process.env.SOCIETY0_FAULT_OUTPUT??new URL('../results',import.meta.url).pathname);mkdirSync(output,{recursive:true});const records=[];
+const output=process.env.SOCIETY0_FAULT_OUTPUT;if(!output)throw Error('SOCIETY0_FAULT_OUTPUT is required (see worker-loss-kit/README.md)');mkdirSync(output,{recursive:true});const records=[];
 for(const phase of ['before-begin','after-sql-dispatch','after-commit-reply'])test('public Cordis consumer / actual Worker '+phase,async()=>{
  const f=await fixture();const operationId='public-fault-'+phase;const reservation=await f.ctx.executionFence.reserve({id:operationId});const fault=installWorkerFault({phase,operationId,record:event=>appendFileSync(join(output,'events.jsonl'),JSON.stringify(event)+'\n')});let callbacks=0,error;
  try{

@@ -1,12 +1,12 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createHost, OwnedResources, TaskSupervisor } from '../../../evidence/pr10/stage/host/dist/index.js';
-import CompositionStrategies from '../../../evidence/pr10/stage/host/dist/composition-strategies/index.js';
-import SlotStrategies from '../../../evidence/pr10/stage/host/dist/slot-strategies/index.js';
-import Slots from '../../../evidence/pr10/stage/host/dist/slots/index.js';
-const core = async (name) => import('../../../evidence/pr10/stage/core/dist/' + name + '/index.js');
-const social = async (name) => import('../../../evidence/pr10/stage/social/dist/' + name + '/index.js');
+import { createHost, OwnedResources, TaskSupervisor } from '../.build/host/dist/index.js';
+import CompositionStrategies from '../.build/host/dist/composition-strategies/index.js';
+import SlotStrategies from '../.build/host/dist/slot-strategies/index.js';
+import Slots from '../.build/host/dist/slots/index.js';
+const core = async (name) => import('../.build/core/dist/' + name + '/index.js');
+const social = async (name) => import('../.build/social/dist/' + name + '/index.js');
 const [Fence, Database, Artifacts, Initializers, Bootstrap, History, Attempts, Actors, Eligibility, Actions, Information, Results, Threads] = await Promise.all(['execution-fence', 'sqlite', 'artifacts-local', 'initializers', 'sqlite-bootstrap', 'sqlite-history', 'attempts', 'actors', 'actor-eligibility', 'actions', 'information', 'results', 'thread'].map(core));
 const [Repo, Init, Topology, Social, Neighbors] = await Promise.all(['social-repository', 'social-init', 'topology-edges', 'social', 'propagation-neighbors'].map(social));
 const source = {

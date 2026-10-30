@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ExecutionGate } from '../packages/core/src/execution-fence/state.ts';
+import { ExecutionGate } from '../.build/core/dist/execution-fence/state.js';
 function gate(runId='run-a') { return new ExecutionGate({runId,generation:'generation-1',readRevision:async()=> '4',maxAcceptedCommits:2}); }
 test('a copied or other-run lease grants no write permission',async()=>{
  const a=gate(),b=gate('run-b');const execution=await a.reserve({id:'p1',observedRevision:'4'});

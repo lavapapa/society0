@@ -1,5 +1,5 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync}from'node:fs';import{fileURLToPath}from'node:url';import{openConnection}from'../packages/sqlite-native/src/index.mjs';
-const root=fileURLToPath(new URL('../packages/sqlite-native/build/',import.meta.url));
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync}from'node:fs';import{tmpdir}from'node:os';import{join}from'node:path';import{openConnection}from'../.build/sqlite-native/src/index.mjs';
+const root=join(tmpdir(),'sqlite-native-');
 test('真实native计数区分缓存验证、attach与Session内部metadata读取',()=>{
  for(const idle of [0,16]){
   const home=mkdtempSync(root+'schema-'),d=openConnection({path:home+'/db'}),tables=['active',...Array.from({length:idle},(_,i)=>'idle_'+i)];

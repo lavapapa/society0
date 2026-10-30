@@ -1,5 +1,5 @@
 import {parentPort,workerData} from 'node:worker_threads';
-import {openConnection} from '../packages/sqlite-native/src/index.mjs';
+import {openConnection} from '../.build/sqlite-native/src/index.mjs';
 if(parentPort){
  const connection=openConnection(workerData);
  parentPort.postMessage({event:'ready'});

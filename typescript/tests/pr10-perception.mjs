@@ -3,13 +3,13 @@ import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fixture, activation, request, runtime } from './pr10-support.mjs';
-import Drivers from '../../../evidence/pr10/stage/core/dist/drivers/index.js';
-import Perceptions, { perceptionMigration } from '../../../evidence/pr10/stage/core/dist/perception/index.js';
-import Rule, { ruleHandlerSlot } from '../../../evidence/pr10/stage/core/dist/driver-rule/index.js';
-import Rankings from '../../../evidence/pr10/stage/social/dist/social-ranking/index.js';
-import Recommendations from '../../../evidence/pr10/stage/social/dist/social-recommendations/index.js';
-import SocialPerception from '../../../evidence/pr10/stage/social/dist/social-perception/index.js';
-import { propagationSlot } from '../../../evidence/pr10/stage/social/dist/social/index.js';
+import Drivers from '../.build/core/dist/drivers/index.js';
+import Perceptions, { perceptionMigration } from '../.build/core/dist/perception/index.js';
+import Rule, { ruleHandlerSlot } from '../.build/core/dist/driver-rule/index.js';
+import Rankings from '../.build/social/dist/social-ranking/index.js';
+import Recommendations from '../.build/social/dist/social-recommendations/index.js';
+import SocialPerception from '../.build/social/dist/social-perception/index.js';
+import { propagationSlot } from '../.build/social/dist/social/index.js';
 test('PR10-T02/T03/T20 narrow third-party propagation, raw pagination and shared rule perception', async () => {
     const f = await fixture({
         propagation: 'third-party/direct', migrations: [perceptionMigration({

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Information } from '../../../evidence/pr07/stage/core/dist/information/index.js';
-import { Actions } from '../../../evidence/pr07/stage/core/dist/actions/index.js';
+import { Information } from '../.build/core/dist/information/index.js';
+import { Actions } from '../.build/core/dist/actions/index.js';
 test('PR07 production entrypoints exist', () => { assert.equal(typeof Information, 'function'); assert.equal(typeof Actions, 'function'); });
 import { setup, read, request, scope, page } from './pr07-support.mjs';
 test('PR07-T01 third-party action rolls back actors and durable receipts with one native tx', async () => {
