@@ -30,7 +30,9 @@ requests 统计物理尝试，responses 统计收到响应，errors 包括提供
 
 duration_s、queue_s、jitter_s、provider_s 是各物理尝试的墙钟累计，并带报告次数。queue_s 含许可等待，provider_s 含 SDK 请求等待；后者不能分解为纯服务端计算。duration_s 包括排队、延迟、等待和本地处理，多请求并发时累计秒数可超过运行墙钟。
 
-LLM 关闭事件按 prompt、memory_recall、setup、model、tools、memory_write、cleanup、other 保存阶段时长；行动耗时包含在 tools 内，提取与嵌入等待包含在相应记忆阶段。父子阶段不能相加作为总耗时。
+提供方终态事件的 timing 还记录 prepare_s（获得许可后组装完整消息与请求留证正文）、record_s（保存请求）、first_event_s（SDK 首个流事件）和 first_output_s（首个非空正文、思考或工具参数事件）。首事件与首输出从发起 SDK 请求开始计时，包含网络、服务端排队与处理；失败尝试保留实际到达的边界。这些字段与上述累计区间重叠，按单次物理请求读取。
+
+LLM 关闭事件按 prompt、memory_recall、setup、decode、model、tools、tool_save、memory_write、cleanup、other 保存阶段时长；decode_s 记录激活入口一次性解码完整历史，tool_save_s 记录保存工具回执与结果，两项随对应步骤出现。行动耗时包含在 tools 内，提取与嵌入等待包含在相应记忆阶段。父子阶段不能相加作为总耗时。
 
 Runtime.last_timing 保存最近尝试的阶段、收尾、发布和总耗时，progress 可携带这份诊断。complete_s 测量完整步骤发布调用，其他业务阶段同样发生存储 I/O。live 摘要包含未完成事实；prepared complete view 读取所选完整步骤，恢复沿同一事实边界。
 
