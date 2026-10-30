@@ -337,6 +337,18 @@ def _transient(error, kind):
             or (error.__cause__ is not None and _transient(error.__cause__, kind)))
 
 
+def _output_event(event):
+    """流事件是否携带非空正文、思考或工具参数；只读短属性，不复制消息。"""
+    part = getattr(event, 'part', None)
+    if part is not None:
+        if getattr(part, 'content', None): return True
+        args = getattr(part, 'args', None)
+        return bool(args)
+    delta = getattr(event, 'delta', None)
+    if delta is None: return False
+    return bool(getattr(delta, 'content_delta', None) or getattr(delta, 'args_delta', None))
+
+
 class ModelProvider(_Provider):
     def __init__(self, endpoints, threads, *, request_options=None, session_transport=None,
                  max_attempts=2, retry_delay=.1, global_concurrency=None, http_connections=None,
@@ -386,14 +398,18 @@ class ModelProvider(_Provider):
                     timing = await stack.enter_async_context(endpoint.resources.acquire())
                     timing['queue_s'] += profile_wait
                     # 同水位完整重建；没有额度的请求不物化历史，也不产生物理事实。
+                    assembling = time.perf_counter()
                     if endpoint.auth is not None: endpoint.client.api_key = await endpoint.auth.access_token()
                     messages = model_messages() if callable(model_messages) else model_messages if model_messages is not None else history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
                     physical = uuid.uuid4().hex
+                    evidence = redact_credentials({**selected, 'model': endpoint.model_name}, secrets=(endpoint.secret,))
+                    timing['prepare_s'] = time.perf_counter() - assembling
+                    recording = time.perf_counter()
                     try:
-                        evidence = redact_credentials({**selected, 'model': endpoint.model_name}, secrets=(endpoint.secret,))
                         sequence = self.threads.record_provider_request(thread_id, provider_options=evidence,
                             physical_request_id=physical, retry_of=retry_of, through=through, tool_choice_resolution=resolution)
                     except Exception as error: raise ThreadWriteError('required Thread request could not be saved') from error
+                    timing['record_s'] = time.perf_counter() - recording
                     if retry_of is None: retry_of = sequence
                     provider_started = time.perf_counter()
                     try:
@@ -401,7 +417,10 @@ class ModelProvider(_Provider):
                             async with endpoint.model.request_stream(messages, settings, params) as stream:
                                 try:
                                     async for event in stream:
-                                        pass
+                                        if 'first_event_s' not in timing:
+                                            timing['first_event_s'] = time.perf_counter() - provider_started
+                                        if 'first_output_s' not in timing and _output_event(event):
+                                            timing['first_output_s'] = time.perf_counter() - provider_started
                                 except BaseException:
                                     partial = encode(stream.get())
                                     raise
@@ -409,10 +428,15 @@ class ModelProvider(_Provider):
                     finally: timing['provider_s'] = time.perf_counter() - provider_started
                     timing['duration_s'] = time.perf_counter() - started
                     typed = encode(result)
+                    persisting = time.perf_counter()
                     try:
                         message_seq = self.threads.record_model_response(thread_id, physical, endpoint.id, typed,
                             {'response': {'usage': _usage(result)}, 'timing': timing})
                     except Exception as error: raise ThreadWriteError('required typed response could not be saved') from error
+                    try:
+                        self.threads.event(thread_id, 'provider_persist',
+                            {'physical_request_id': physical, 'persist_s': time.perf_counter() - persisting})
+                    except Exception as error: raise ThreadWriteError('provider persist timing could not be saved') from error
                     incomplete = None
                     if result.finish_reason not in ('stop', 'tool_call'):
                         incomplete = 'output_token_limit' if result.finish_reason == 'length' else 'provider_incomplete'

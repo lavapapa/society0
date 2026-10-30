@@ -528,8 +528,9 @@ class LLMDriver:
                             feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
                     except _ToolInputError as error:
                         feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
-                self.threads.save_tool_result(thread_id, item, feedback,
-                    metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                with _timed(timings, 'tool_save_s'):
+                    self.threads.save_tool_result(thread_id, item, feedback,
+                        metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
                 ledger.applied_receipts.add(identifier)
                 return feedback
 
@@ -545,10 +546,11 @@ class LLMDriver:
             agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
             try:
                 # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
-                initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
-                if not initial:
-                    self.threads.append_message(thread_id, {'role': 'user', 'content': ''})
-                    initial = [ModelRequest(parts=[UserPromptPart('')])]
+                with _timed(timings, 'decode_s'):
+                    initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
+                    if not initial:
+                        self.threads.append_message(thread_id, {'role': 'user', 'content': ''})
+                        initial = [ModelRequest(parts=[UserPromptPart('')])]
                 async with agent.iter(message_history=initial, conversation_id=thread_id,
                                       usage_limits=UsageLimits(request_limit=self.policy.max_turns)) as run:
                     del initial
