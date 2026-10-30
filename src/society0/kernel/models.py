@@ -428,15 +428,10 @@ class ModelProvider(_Provider):
                     finally: timing['provider_s'] = time.perf_counter() - provider_started
                     timing['duration_s'] = time.perf_counter() - started
                     typed = encode(result)
-                    persisting = time.perf_counter()
                     try:
                         message_seq = self.threads.record_model_response(thread_id, physical, endpoint.id, typed,
                             {'response': {'usage': _usage(result)}, 'timing': timing})
                     except Exception as error: raise ThreadWriteError('required typed response could not be saved') from error
-                    try:
-                        self.threads.event(thread_id, 'provider_persist',
-                            {'physical_request_id': physical, 'persist_s': time.perf_counter() - persisting})
-                    except Exception as error: raise ThreadWriteError('provider persist timing could not be saved') from error
                     incomplete = None
                     if result.finish_reason not in ('stop', 'tool_call'):
                         incomplete = 'output_token_limit' if result.finish_reason == 'length' else 'provider_incomplete'
