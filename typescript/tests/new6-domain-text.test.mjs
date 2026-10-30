@@ -119,10 +119,17 @@ test('NEW-6-T09 memory identity and progress text fail before SQL while JSON bod
   await assert.rejects(f.read(view=>f.ctx.memoryRepository.read(view,'r'+high)),textError('MEMORY_TEXT_NOT_WELL_FORMED','id'));
   await assert.rejects(f.read(view=>f.ctx.memoryRepository.progress(view,'g'+high)),textError('MEMORY_TEXT_NOT_WELL_FORMED','generation'));
   await assert.rejects(f.write('memory-bad-progress',tx=>f.ctx.memoryRepository.recordProgress(tx,{runId:f.runId,generation:'g'+high,throughRevision:'0'})),textError('MEMORY_TEXT_NOT_WELL_FORMED','generation'));
+  await assert.rejects(f.write('memory-budget',tx=>f.ctx.memoryRepository.append(tx,{id:'budget',actorId:'a',threadId:f.threadId,body:'x'.repeat(20000),artifacts:[]})),/MEMORY_EXPERIENCE_BUDGET/);
+  await assert.rejects(f.write('memory-missing-thread',tx=>f.ctx.memoryRepository.append(tx,{id:'missing-thread',actorId:'a',threadId:'missing-thread',body:{},artifacts:[]})),/MEMORY_THREAD_IDENTITY/);
+  await assert.rejects(f.write('memory-wrong-actor',tx=>f.ctx.memoryRepository.append(tx,{id:'wrong-actor',actorId:'b',threadId:f.threadId,body:{},artifacts:[]})),/MEMORY_THREAD_IDENTITY/);
+  await assert.rejects(f.write('memory-bad-vector',tx=>f.ctx.memoryRepository.append(tx,{id:'bad-vector',actorId:'a',threadId:f.threadId,body:{},artifacts:[]},{...vector('bad-vector',0),vector:[1]})),/MEMORY_VECTOR_BUDGET/);
+  async function* artifactBody(){yield Buffer.from('memory-artifact')}
+  const artifact=await f.ctx.artifacts.stage(artifactBody(),'text/plain');
+  await f.write('memory-artifact',tx=>f.ctx.memoryRepository.append(tx,{id:'artifact',actorId:'a',threadId:f.threadId,body:{},artifacts:[artifact]}));
   await f.write('memory-json',tx=>f.ctx.memoryRepository.append(tx,{id:'json',actorId:'a',threadId:f.threadId,body:{text:'b'+high},artifacts:[]},vector('json',0)));
   const value=await f.read(view=>f.ctx.memoryRepository.read(view,'json'));
   assert.equal(value.body.text,'b'+high);
-  assert.equal(await count(f,'SELECT count(*) AS n FROM memory_experiences'),'1');
+  assert.equal(await count(f,'SELECT count(*) AS n FROM memory_experiences'),'2');
   assert.equal(await count(f,'SELECT count(*) AS n FROM memory_index_progress'),'0');
  }finally{await f.close()}
 });
