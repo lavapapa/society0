@@ -297,6 +297,22 @@ def test_missing_working_database_requires_restore(tmp_path):
     assert not (run / 'current.sqlite').exists()
 
 
+def test_statement_cache_capacity_covers_daily_working_set(tmp_path):
+    """每条连接都用满原生语句缓存：默认容量 100 在一天的 SQL 文本量下会抖动成全部未命中。"""
+    run = tmp_path / 'run'
+    with make(run) as store:
+        assert store._connection.cache_stats()['size'] == 512
+        texts = ['UPDATE account SET balance=balance+1 WHERE id=? /* %d */' % index for index in range(150)]
+        def write(writer):
+            for index in range(300):
+                writer.execute(texts[index % len(texts)], (1,))
+        store.transaction(write)
+        cache = store._connection.cache_stats()
+        assert cache['hits'] >= 150, cache
+        assert store.read(lambda v: v.query('SELECT balance FROM account')[0][0]) == 310
+        assert store._reader._connection.cache_stats()['size'] == 512
+
+
 def test_single_writer_lock(tmp_path):
     with make(tmp_path / 'source') as first:
         with pytest.raises(StorageError, match='writer'):
