@@ -45,15 +45,12 @@ async def test_attempt_boundaries_tile_the_request_and_persist_is_one_short_even
             ('queue_s', 'jitter_s', 'prepare_s', 'record_s', 'provider_s'))
         assert timing['first_event_s'] <= timing['provider_s']
         assert timing['first_output_s'] <= timing['provider_s']
-        persisted = [item for item in items if item['kind'] == 'provider_persist']
-        assert len(persisted) == 1
-        assert persisted[0]['payload']['physical_request_id'] == response['payload']['physical_request_id']
-        assert persisted[0]['payload']['persist_s'] >= 0
         counts = store.read(usage.read)['totals']
         assert counts['requests'] == counts['responses'] == 1 and counts['errors'] == 0
         assert counts['total_tokens'] == 12
         assert counts['cache_read_reports'] == 1 and counts['cache_read_tokens'] == 0
-        # 计时事件不是消息，也不改写历史或消息计数。
+        # 计时只进终态 payload，不新增事件、不改写历史或消息计数。
+        assert [item['kind'] for item in items] == ['opened', 'message', 'request', 'message', 'provider_response']
         assert len(threads.read_messages(tid)) == 2
         assert threads.describe(tid)['message_count'] == 2
         store.complete(1)
@@ -99,5 +96,4 @@ async def test_failed_request_records_only_the_boundaries_it_reached(tmp_path):
         for name in ('queue_s', 'prepare_s', 'record_s', 'provider_s', 'duration_s'):
             assert timing[name] >= 0, name
         assert 'first_event_s' not in timing and 'first_output_s' not in timing
-        assert not [item for item in threads.tail(tid)['items'] if item['kind'] == 'provider_persist']
         store.complete(1)
