@@ -6,16 +6,23 @@ import {randomUUID} from 'node:crypto';
 import pLimit from 'p-limit';
 import type {ExecutionGate,WriteLease,PublicationLease,CommitPermit} from '../execution-fence/state.js';
 import {SqlRpc} from './rpc.js';
-import {fault,inputBytes,rpcBytes,rpcData,positive,type DatabaseOptions,type TransactionRequest,type SqliteTransaction,type SqliteSnapshot,type CommitReceipt,type CommitProbe,type SqliteRuntimeMetadata,type SqliteMigration,type SqliteSchemaVersion} from './contracts.js';
+import {fault,inputBytes,rpcBytes,rpcData,positive,type DatabaseOptions,type TransactionRequest,type SqliteTransaction,type SqliteSnapshot,type CommitReceipt,type CommitProbe,type CommitPhase,type CommitFailure,type SqliteRuntimeMetadata,type SqliteMigration,type SqliteSchemaVersion} from './contracts.js';
 export interface PhysicalTasks {run<T>(label:string,task:(signal:AbortSignal)=>Promise<T>,options?:{signal?:AbortSignal;bytes?:number}):Promise<T>&{settled:Promise<void>}}
 const inTransaction=new AsyncLocalStorage<Database>();
+type Stage<R>={dispatched:boolean;begun:boolean;done:boolean;result?:R;error?:unknown;early:any};
+function stageOf<R>():Stage<R>{const early=Promise.withResolvers<never>();void early.promise.catch(()=>{});return {dispatched:false,begun:false,done:false,early}}
+function finish<R>(stage:Stage<R>,outcome:{result:R}|{error:unknown}){if(stage.done)return;stage.done=true;Object.assign(stage,outcome)}
+function record<R>(stage:Stage<R>,work:Promise<R>):Promise<R>{return work.then(result=>{finish(stage,{result});return result},error=>{finish(stage,{error});throw error})}
+function settle<R>(stage:Stage<R>):R{if(!stage.done)throw fault('SQLITE_TX_OUTCOME_MISSING','internal invariant: physical settled without outcome');if('result' in stage)return stage.result as R;throw stage.error}
+function abortIdle(stage:Stage<unknown>,signal:AbortSignal):()=>void{const abort=()=>{if(!stage.begun)stage.early.reject(signal.reason)};signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();return()=>signal.removeEventListener('abort',abort)}
+
 export class Database {
  readonly runId:string;readonly metadata:SqliteRuntimeMetadata;
  readonly options:Required<DatabaseOptions>;
  private rpc:SqlRpc;private control=new Int32Array(new SharedArrayBuffer(4));
- private writer=pLimit({concurrency:1,rejectOnClear:true});private pendingBytes=0;private closing?:Promise<void>;private halted=false;private diagnostic=false;private lastCommitFailure?:{operationId:string;message:string;sqliteCode?:number;stopReason?:string};
+ private writer=pLimit({concurrency:1,rejectOnClear:true});private pendingBytes=0;private closing?:Promise<void>;private halted=false;private diagnostic=false;private lastCommitFailure?:CommitFailure;
  private transactions=new Set<Promise<unknown>>();private snapshots=new Set<SqliteSnapshot>();private transactionIds=new WeakMap<SqliteTransaction,string>();
- private probes=new Set<Promise<void>>();private openingSnapshots=0;private accepted=new Set<string>();private txCalls=new WeakMap<SqliteTransaction,(op:string,args:unknown)=>Promise<any>>();
+ private probes=new Set<Promise<void>>();private openingSnapshots=0;private inflight=new Set<string>();private txCalls=new WeakMap<SqliteTransaction,(op:string,args:unknown)=>Promise<any>>();
  private constructor(options:DatabaseOptions,private fence:Pick<ExecutionGate,'enter'|'halt'|'assertPublication'>,private tasks?:PhysicalTasks){
   this.options={busyTimeoutMs:5000,maxQueuedBytes:32*1024*1024,maxPending:128,maxTransactionMs:30000,maxQueryBytes:1048576,maxQueryRows:10000,maxSnapshots:16,maxSnapshotAgeMs:30000,maxInputBytes:1048576,maxInlineBytes:1048576,...options};
   for(const [key,value] of Object.entries(this.options))if(typeof value==='number')positive(value,key);
@@ -49,7 +56,7 @@ export class Database {
   private transactionRequest(request:TransactionRequest):void{
    for(const key of ['maxDurationMs','maxStatements','maxInputBytes','maxChangedRows','maxCapturedBytes'] as const)positive(request[key],key);
    if(request.maxDurationMs>this.options.maxTransactionMs||request.maxInputBytes>this.options.maxInputBytes)throw fault('SQLITE_TX_BUDGET');
-   if(typeof request.operationId!=='string'||!request.operationId||this.accepted.has(request.operationId))throw fault('OPERATION_EXISTS');
+   if(typeof request.operationId!=='string'||!request.operationId||this.inflight.has(request.operationId))throw fault('OPERATION_EXISTS');
   }
   private transactionAdmission(lease:WriteLease,request:TransactionRequest):void{
    this.available();if(inTransaction.getStore()===this)throw fault('SQLITE_NESTED_TRANSACTION');
@@ -59,32 +66,42 @@ export class Database {
   }
  transaction<T>(lease:WriteLease,request:TransactionRequest,body:(tx:SqliteTransaction)=>Promise<T>):Promise<{value:T;receipt:CommitReceipt}>{
   try{
-    this.transactionAdmission(lease,request);
-   const permit=this.fence.enter(lease);this.accepted.add(request.operationId);this.pendingBytes+=request.maxInputBytes;
-   let physical:Promise<{value:T;receipt:CommitReceipt}>,settled:Promise<void>;let criticalError:unknown;const critical=(error:unknown)=>{criticalError=error};
-   try {
-    if(this.tasks){const task=this.tasks.run('sqlite.transaction',signal=>this.writer(()=>this.perform(permit,request,body,signal,critical)),{signal:permit.signal,bytes:request.maxInputBytes});physical=task;settled=task.settled}
-    else {physical=this.writer(()=>this.perform(permit,request,body,permit.signal,critical));settled=physical.then(()=>{},()=>{})}
-   }catch(error){permit.release();this.pendingBytes-=request.maxInputBytes;throw error}
-   this.transactions.add(settled);void settled.then(()=>{this.pendingBytes-=request.maxInputBytes;permit.release();this.transactions.delete(settled)});
-   return physical.then(async result=>{await settled;return result},error=>{throw criticalError??error});
+   this.transactionAdmission(lease,request);
+   const permit=this.fence.enter(lease);this.inflight.add(request.operationId);this.pendingBytes+=request.maxInputBytes;
+   const stage=stageOf<{value:T;receipt:CommitReceipt}>();const stops=[abortIdle(stage,permit.signal)];let settled:Promise<void>;
+   const physical=(signal:AbortSignal)=>{stage.dispatched=true;stops.push(abortIdle(stage,signal));return record(stage,this.writer(()=>this.perform(permit,request,body,signal,stage)))};
+   try{
+    if(this.tasks){const task=this.tasks.run('sqlite.transaction',physical,{signal:permit.signal,bytes:request.maxInputBytes});void task.catch(error=>{if(!stage.dispatched){finish(stage,{error});stage.early.reject(error)}});settled=task.settled}
+    else settled=physical(permit.signal).then(()=>{},()=>{});
+   }catch(error){for(const stop of stops)stop();permit.release();this.inflight.delete(request.operationId);this.pendingBytes-=request.maxInputBytes;throw error}
+   this.transactions.add(settled);void settled.then(()=>{for(const stop of stops)stop();this.pendingBytes-=request.maxInputBytes;this.inflight.delete(request.operationId);permit.release();this.transactions.delete(settled)});
+   return Promise.race([settled.then(()=>settle(stage)),stage.early.promise]);
   }catch(error){return Promise.reject(error)}
  }
-  private forgetTransaction(tx:SqliteTransaction|undefined):void{if(tx){this.transactionIds.delete(tx);this.txCalls.delete(tx)}}
-  private async unknownCommit(error:unknown,operationId:string,critical:(error:unknown)=>void):Promise<never>{
+ private forgetTransaction(tx:SqliteTransaction|undefined):void{if(tx){this.transactionIds.delete(tx);this.txCalls.delete(tx)}}
+ private async unknownCommit(error:unknown,id:string,operationId:string):Promise<never>{
   const cause=error as Error&{sqliteCode?:number;stopReason?:string};
-  this.lastCommitFailure={operationId,message:String(error),sqliteCode:cause.sqliteCode,stopReason:cause.stopReason};
+  const phase=(error as {code?:string})?.code==='SQLITE_WORKER_LOST'?'transport':'commit';
+  this.lastCommitFailure={operationId,tx:id,phase,message:String(error),sqliteCode:cause.sqliteCode,stopReason:cause.stopReason};
   const unknown=Object.assign(fault('SQLITE_COMMIT_UNKNOWN',String(error)),{operationId,cause:error});
-  critical(unknown);this.halted=true;this.fence.halt('SQLITE_COMMIT_UNKNOWN');
+  this.halted=true;this.fence.halt('SQLITE_COMMIT_UNKNOWN');
   await this.rpc.worker.terminate();await this.rpc.exited;throw unknown;
-  }
-  private async failedTransaction(error:unknown,commitStarted:boolean,begun:boolean,id:string,operationId:string,critical:(error:unknown)=>void):Promise<never>{
-   if(commitStarted)return this.unknownCommit(error,operationId,critical);
-   if(this.rpc.snapshot().exited||(error as {code?:string})?.code==='SQLITE_WORKER_LOST'){this.halted=true;this.fence.halt('SQLITE_WORKER_LOST')}
-   if(begun)try{await this.rpc.call('rollback',{tx:id})}catch{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.worker.terminate();await this.rpc.exited}
-   throw error;
-  }
- private async perform<T>(permit:CommitPermit,request:TransactionRequest,body:(tx:SqliteTransaction)=>Promise<T>,signal:AbortSignal,critical:(error:unknown)=>void):Promise<{value:T;receipt:CommitReceipt}>{
+ }
+ private segmentFailed(error:unknown,id:string,operationId:string):never{
+  const cause=error as Error&{receipt?:CommitReceipt;sqliteCode?:number;stopReason?:string};
+  this.lastCommitFailure={operationId,tx:id,phase:'segment',message:String(error),sqliteCode:cause.sqliteCode,stopReason:cause.stopReason};
+  this.halted=true;this.fence.halt('SQLITE_SEGMENT_FAILED');
+  throw Object.assign(fault('SQLITE_SEGMENT_FAILED',String(error)),{operationId,committed:true,receipt:cause.receipt,cause:error});
+ }
+ private async failedTransaction(error:unknown,commitStarted:boolean,begun:boolean,id:string,operationId:string):Promise<never>{
+  const failure=error as {commitPhase?:string;notSent?:boolean;code?:string};
+  if(commitStarted&&failure?.commitPhase==='segment')return this.segmentFailed(error,id,operationId);
+  if(commitStarted&&failure?.commitPhase!=='prepare'&&!failure?.notSent)return this.unknownCommit(error,id,operationId);
+  if(this.rpc.snapshot().exited||failure?.code==='SQLITE_WORKER_LOST'){this.halted=true;this.fence.halt('SQLITE_WORKER_LOST')}
+  if(begun)try{await this.rpc.call('rollback',{tx:id})}catch{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.worker.terminate();await this.rpc.exited}
+  throw error;
+ }
+ private async perform<T>(permit:CommitPermit,request:TransactionRequest,body:(tx:SqliteTransaction)=>Promise<T>,signal:AbortSignal,stage:Stage<unknown>):Promise<{value:T;receipt:CommitReceipt}>{
   signal.throwIfAborted();permit.assertActive();this.available();Atomics.store(this.control,0,0);
   const cancel=()=>Atomics.store(this.control,0,1);signal.addEventListener('abort',cancel,{once:true});
   const id=randomUUID();let active=true,commitStarted=false,begun=false;
@@ -97,19 +114,19 @@ export class Database {
   void expired.promise.catch(()=>{});
   let tx:SqliteTransaction|undefined;let callback:Promise<T>|undefined;
   try{
-   const start=await this.rpc.call('begin',{tx:id,request},signal);begun=true;
+   stage.begun=true;const start=await this.rpc.call('begin',{tx:id,request},signal);begun=true;
    tx=Object.freeze({id,operationId:request.operationId,runId:this.runId,baseRevision:start.baseRevision,
     execute:(statement:any)=>call('execute',{statement}),query:(statement:any,bounds:any)=>call('query',{statement,bounds}),executeMany:(sql:string,parameters:any,bounds:any)=>call('many',{sql,parameters,bounds})});
    this.transactionIds.set(tx,id);this.txCalls.set(tx,call);
    callback=inTransaction.run(this,()=>Promise.resolve().then(()=>body(tx!)));void callback.catch(()=>{});
    const value=await Promise.race([callback,expired.promise]);
-   // Detached statements remain part of this transaction and poison it on failure.
    await Promise.allSettled([...work]);if(failure)throw failure;check();active=false;this.transactionIds.delete(tx);this.txCalls.delete(tx);
    if(rpcBytes(value)>this.options.maxQueryBytes)throw fault('SQLITE_RETURN_BUDGET');
-   commitStarted=true;const receipt=await this.rpc.call<CommitReceipt>('commit',{tx:id});return {value,receipt};
+   commitStarted=true;signal.removeEventListener('abort',cancel);signal.removeEventListener('abort',abort);clearTimeout(timer);
+   const receipt=await this.rpc.call<CommitReceipt>('commit',{tx:id});return {value,receipt};
   }catch(error){
-    active=false;this.forgetTransaction(tx);
-    return await this.failedTransaction(error,commitStarted,begun,id,request.operationId,critical);
+   active=false;this.forgetTransaction(tx);
+   return await this.failedTransaction(error,commitStarted,begun,id,request.operationId);
   }finally{clearTimeout(timer);signal.removeEventListener('abort',cancel);signal.removeEventListener('abort',abort);await callback?.catch(()=>{});Atomics.store(this.control,0,0)}
  }
  async snapshot({maxAgeMs}:{maxAgeMs:number}):Promise<SqliteSnapshot>{
@@ -137,6 +154,6 @@ export class Database {
   }catch(error){return {status:'unknown',reason:String(error)}}
  }
  nativeDiagnostics():Promise<ConnectionState & {schemaEnumerations:number}>{return this.readCall('state')}
- diagnostics(){return {...this.rpc.snapshot(),pendingTransactionBytes:this.pendingBytes,snapshots:this.snapshots.size,halted:this.halted,diagnostic:this.diagnostic,lastCommitFailure:this.lastCommitFailure}}
+ diagnostics(){return {...this.rpc.snapshot(),pendingTransactionBytes:this.pendingBytes,inflightOperations:this.inflight.size,snapshots:this.snapshots.size,halted:this.halted,diagnostic:this.diagnostic,lastCommitFailure:this.lastCommitFailure}}
  close():Promise<void>{return this.closing??=(async()=>{await Promise.allSettled([...this.transactions,...this.probes]);await Promise.allSettled([...this.snapshots].map(s=>s.close()));await this.rpc.close()})()}
 }

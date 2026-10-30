@@ -8,7 +8,7 @@ export class ShellInvocation {
  private stop=(reason:unknown)=>{this.failure??=reason;this.accepting=false;void this.worker.terminate()};
  private abort=()=>this.stop(this.signal.reason);
  private send(message:unknown){if(this.accepting)this.worker.postMessage(message)}
- private rpcFailure(id:unknown,error:unknown){const code=(error as {code?:string})?.code;if(['SQLITE_COMMIT_UNKNOWN','SQLITE_WORKER_LOST'].includes(code??'')){this.stop(error);return}this.send({id,error:{message:String(error),code}})}
+ private rpcFailure(id:unknown,error:unknown){const code=(error as {code?:string})?.code;if(['SQLITE_COMMIT_UNKNOWN','SQLITE_SEGMENT_FAILED','SQLITE_WORKER_LOST'].includes(code??'')){this.stop(error);return}this.send({id,error:{message:String(error),code}})}
  private admit(message:any){if(!this.accepting)return false;if(this.accepted.size>=this.config.maxPendingRpc||Buffer.byteLength(JSON.stringify(message))>this.config.maxRpcBytes){this.stop(Error('SHELL_RPC_BUDGET'));return false}return true}
  private rpc(message:any){if(!this.admit(message))return;const work=this.files.dispatch(message.op,message.args).then(value=>this.send({id:message.id,value}),error=>this.rpcFailure(message.id,error));this.accepted.add(work);void work.then(()=>this.accepted.delete(work),error=>{this.accepted.delete(work);this.stop(error)})}
  private receive=(message:any)=>{if(message.kind==='done'){this.result=message.result;return}if(message.kind==='failure'){this.stop(Object.assign(Error(message.error.message),{code:message.error.code}));return}this.rpc(message)};

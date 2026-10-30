@@ -3,7 +3,7 @@ import type {EmbeddingProvider,EmbeddingLimits,EmbeddingIdentity,EmbeddingReques
 import type {Invocation} from '../contracts/common.js';
 import type {AttemptLedger,AttemptIdentity} from '../attempts/ledger.js';
 import type {ArtifactRef} from '../artifacts-local/store.js';
-type Ledger=Pick<AttemptLedger,'claim'|'settle'|'stageEvidence'|'authority'|'evidenceChunkBytes'>&{markUnknown(identity:AttemptIdentity,reason:string,artifacts?:readonly ArtifactRef[]):Promise<void>};
+type Ledger=Pick<AttemptLedger,'claim'|'settle'|'stageEvidence'|'authority'|'evidenceChunkBytes'>&{markUnknown(identity:AttemptIdentity,reason:string,artifacts?:readonly ArtifactRef[],result?:unknown):Promise<void>};
 import {EmbeddingWaiter,type SharedVector as Vector} from './waiter.js';
 interface Item {text:string;bytes:number;operationId:string;inputIndex:number;waiters:Set<(value:Vector|Error)=>void>}
 interface Cached extends Vector {bytes:number}

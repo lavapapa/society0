@@ -71,23 +71,31 @@ export class ActionCall {
             return;
         if (claim.status === 'unknown')
             return fail('ACTION_ATTEMPT_UNKNOWN');
+        if (claim.status === 'existing' && claim.record.status === 'unknown' && this.entry.definition.effect !== 'external')
+            return fail('ACTION_ATTEMPT_UNKNOWN');
         if (this.entry.definition.effect === 'external')
             return fail('ACTION_ATTEMPT_EXISTS');
         this.attempt.attempt++;
     } }
     private async returned(receipt: ActionReceipt) { const raw = await prepareValue(receipt as unknown as Json, 16384, this.ctx.artifacts); await this.ctx.attempts.settle(this.attempt, { status: 'returned', receipt: raw }, [...references(raw), ...receipt.artifacts]); }
-    private async failed(error: ActionExecutionFailure) { const existing = await this.ctx.attempts.probe(this.attempt); if (existing.status !== 'found' || existing.record.status !== 'pending')
-        return false; const facts = { code: error.code, message: error.message, requiredOperations: error.requiredOperations }; if (this.entry.definition.effect === 'external') {
+    private async failed(error: ActionExecutionFailure): Promise<'external-unknown' | 'storage-unknown' | 'settled' | 'absent'> { const existing = await this.ctx.attempts.probe(this.attempt); if (existing.status !== 'found' || existing.record.status !== 'pending')
+        return 'absent'; const facts = { code: error.code, message: error.message, requiredOperations: error.requiredOperations }; if (this.entry.definition.effect === 'external') {
         const raw = await prepareValue(facts as unknown as Json, 0, this.ctx.artifacts);
         await this.ctx.attempts.markUnknown(this.attempt, error.message, [...references(raw), ...error.artifacts]);
-        return true;
-    } await this.ctx.attempts.settle(this.attempt, { status: 'failed', ...facts }, error.artifacts); return false; }
-    private async rejected(error: unknown): Promise<never> { const failure = new ActionExecutionFailure(error, this.committed); let unknown: boolean; try {
-        unknown = await this.failed(failure);
+        return 'external-unknown';
+    } if (error.code === 'SQLITE_COMMIT_UNKNOWN' || error.code === 'SQLITE_SEGMENT_FAILED') {
+        const cause = error.cause as { committed?: boolean; receipt?: unknown } | undefined;
+        const result = { ...facts, ...(error.code === 'SQLITE_SEGMENT_FAILED' ? { commit: { committed: true, receipt: cause?.receipt } } : {}) };
+        await this.ctx.attempts.markUnknown(this.attempt, error.message, error.artifacts, result);
+        return 'storage-unknown';
+    } await this.ctx.attempts.settle(this.attempt, { status: 'failed', ...facts }, error.artifacts); return 'settled'; }
+    private async rejected(error: unknown): Promise<never> { const failure = new ActionExecutionFailure(error, this.committed); let kind: 'external-unknown' | 'storage-unknown' | 'settled' | 'absent'; try {
+        kind = await this.failed(failure);
     }
     catch (evidenceError) {
         throw new ActionExecutionFailure(new AggregateError([error, evidenceError], 'Action failure evidence could not be persisted'), this.committed);
-    } throw unknown ? new ActionExecutionFailure(error, this.committed, 'ACTION_ATTEMPT_UNKNOWN') : failure; }
+    } if (kind === 'external-unknown')
+        throw new ActionExecutionFailure(error, this.committed, 'ACTION_ATTEMPT_UNKNOWN'); throw failure; }
     async run() {
         await this.initial();
         const input = await prepareValue(this.input, 16384, this.ctx.artifacts, this.activation.signal);

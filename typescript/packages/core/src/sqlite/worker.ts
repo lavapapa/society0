@@ -54,12 +54,16 @@ function metadataComplete(args:any){
  for(const id of args.requiredOperations){const sql='SELECT revision FROM s0_operations WHERE operation_id=?';statement({tx:args.tx,statement:{sql,parameters:[id]}});if(!db.query(sql,[id],{maxRows:1,maxBytes:256}).length)throw fault('SQLITE_REQUIRED_OPERATION',id)}
  const encoded=JSON.stringify(args.frontier);statement({tx:args.tx,statement:{sql:'frontier',parameters:[encoded]}});db.execute('INSERT INTO s0_frontier VALUES (1,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value',[encoded]);changed(tx(args));
 }
+function prepareCommit(args:any){const state=tx(args);const next=String(BigInt(revision())+1n);db.execute('UPDATE s0_identity SET revision=? WHERE id=1',[next]);db.execute('INSERT INTO s0_operations VALUES (?,?)',[state.request.operationId,next]);changed(state);return {state,next}}
+function phase(error:unknown,commitPhase:string,receipt?:unknown):never{throw Object.assign(error instanceof Error?error:new Error(String(error)),{commitPhase,receipt})}
+function stillOpen(){try{return db.state().autocommit===false}catch{return false}}
 function commit(args:any){
- const state=tx(args);const next=String(BigInt(revision())+1n);db.execute('UPDATE s0_identity SET revision=? WHERE id=1',[next]);db.execute('INSERT INTO s0_operations VALUES (?,?)',[state.request.operationId,next]);
- changed(state);db.commit();clearTimeout(state.timer);active=undefined;
+ let prepared;try{prepared=prepareCommit(args)}catch(error){phase(error,'prepare')}
+ const {state,next}=prepared!;try{db.commit()}catch(error){phase(error,stillOpen()?'prepare':'commit')}
+ clearTimeout(state.timer);active=undefined;
  const receipt={operationId:state.request.operationId,revision:next};
- mkdirSync(join(options.directory,'segments'),{recursive:true});
- db.exportSegment(join(options.directory,'segments',next+'.changeset'),{maxBytes:state.request.maxCapturedBytes*2+65536});return receipt;
+ try{mkdirSync(join(options.directory,'segments'),{recursive:true});db.exportSegment(join(options.directory,'segments',next+'.changeset'),{maxBytes:state.request.maxCapturedBytes*2+65536})}catch(error){phase(error,'segment',receipt)}
+ return receipt;
 }
 function probe(args:any){
  if(active)return {status:'unknown',reason:'writer active'};
@@ -87,5 +91,5 @@ function dispatch(op:string,args:any):unknown {
 }
 parentPort!.on('message',({id,op,args})=>{
  try{const value=dispatch(op,args);parentPort!.postMessage({id,value:rpcData(value)});if(op==='close')parentPort!.close()}
- catch(error){if(active&&['query','execute','many','metadata','commit'].includes(op))active.failed=true;const e=error as Error&{code?:string;sqliteCode?:number};const diagnostic=op==='snapshotQuery'||op==='blob'?snapshots.get(args.id)?.db:db;const stopReason=diagnostic?.state().stopReason;const code=e.sqliteCode===9&&stopReason==='capture-budget'?'SQLITE_CAPTURE_BUDGET':e.code??'SQLITE_ERROR';parentPort!.postMessage({id,error:{message:e.sqliteCode===9&&stopReason==='capture-budget'?code+': '+e.message:e.message,code,sqliteCode:e.sqliteCode,stopReason}})}
+ catch(error){if(active&&['query','execute','many','metadata','commit'].includes(op))active.failed=true;const e=error as Error&{code?:string;sqliteCode?:number};const diagnostic=op==='snapshotQuery'||op==='blob'?snapshots.get(args.id)?.db:db;const stopReason=diagnostic?.state().stopReason;const code=e.sqliteCode===9&&stopReason==='capture-budget'?'SQLITE_CAPTURE_BUDGET':e.code??'SQLITE_ERROR';parentPort!.postMessage({id,error:{message:e.sqliteCode===9&&stopReason==='capture-budget'?code+': '+e.message:e.message,code,sqliteCode:e.sqliteCode,stopReason,commitPhase:(e as any).commitPhase,receipt:(e as any).receipt}})}
 });

@@ -7,6 +7,8 @@ export interface SqliteMigration {readonly owner:string;readonly from:number;rea
 export interface TransactionRequest {readonly operationId:string;readonly expectedRevision?:string;readonly maxDurationMs:number;readonly maxStatements:number;readonly maxInputBytes:number;readonly maxChangedRows:number;readonly maxCapturedBytes:number}
 export interface CommitReceipt {readonly operationId:string;readonly revision:string}
 export type CommitProbe={status:'committed';receipt:CommitReceipt}|{status:'not-committed'}|{status:'unknown';reason:string};
+export type CommitPhase='prepare'|'commit'|'segment';
+export interface CommitFailure {readonly operationId:string;readonly tx:string;readonly phase:CommitPhase|'transport';readonly message:string;readonly sqliteCode?:number;readonly stopReason?:string}
 export interface SqliteTransaction {readonly id:string;readonly operationId:string;readonly runId:string;readonly baseRevision:string;query(statement:SqliteStatement,bounds:QueryBounds):Promise<readonly SqliteRow[]>;execute(statement:SqliteStatement):Promise<{changes:bigint;lastInsertRowid:bigint}>;executeMany(sql:string,parameters:readonly (readonly SqliteValue[])[],bounds:{maxRows:number;maxInputBytes:number}):Promise<{changes:bigint}>}
 export interface BlobRequest {table:string;column:string;rowid:bigint;offset:number;length:number;maxBytes:number}
 export interface SqliteReadView {readonly id:string;readonly runId:string;readonly revision:string;readonly schema:readonly SqliteSchemaVersion[];query(statement:SqliteStatement,bounds:QueryBounds):Promise<readonly SqliteRow[]>;readBlobRange(request:BlobRequest):Promise<Uint8Array>}
