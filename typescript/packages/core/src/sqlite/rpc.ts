@@ -7,7 +7,7 @@ export class SqlRpc {
  private limit=pLimit({concurrency:1,rejectOnClear:true});private bytes=0;private sequence=0;private dead=false;
  private pending=new Map<number,{resolve:(value:any)=>void;reject:(error:Error)=>void}>();
  constructor(data:unknown,private maxBytes:number,private maxPending:number){
-  this.worker=new Worker(new URL('./worker.js',import.meta.url),{workerData:data});
+  this.worker=new Worker(new URL('./worker.js',import.meta.url),{workerData:data,execArgv:[]});
   this.exited=new Promise(resolve=>this.worker.once('exit',()=>{this.dead=true;for(const p of this.pending.values())p.reject(fault('SQLITE_WORKER_LOST'));this.pending.clear();resolve()}));
   this.worker.on('error',error=>{for(const p of this.pending.values())p.reject(error);this.pending.clear()});
   this.worker.on('message',message=>{const p=this.pending.get(message.id);if(!p)return;this.pending.delete(message.id);message.error?p.reject(Object.assign(new Error(message.error.message),{code:message.error.code,sqliteCode:message.error.sqliteCode,stopReason:message.error.stopReason})):p.resolve(message.value)});

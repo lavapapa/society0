@@ -4,7 +4,7 @@ const exec=promisify(execFile),core=new URL('../.build/',import.meta.url).href,r
 const bootstrap=`const {mkdtemp}=await import('node:fs/promises');const {tmpdir}=await import('node:os');const {join}=await import('node:path');`;
 const cases={
  'sqlite rpc':`${bootstrap}const {Database}=await import('${core}core/dist/sqlite/database.js');const {ExecutionGate}=await import('${core}core/dist/execution-fence/state.js');
-const directory=await mkdtemp(join(tmpdir(),'rv311-rpc-')),gate=new ExecutionGate({runId:'rv3-11',generation:'g1',maxAcceptedCommits:20,readRevision:()=>0});
+const directory=await mkdtemp(join(tmpdir(),'rv311-rpc-')),gate=new ExecutionGate({runId:'rv3-11',generation:'g1',maxAcceptedCommits:20,readRevision:()=>'0'});
 const db=await Database.open({directory,runId:'rv3-11',maxTransactionMs:20000},gate);
 try{await db.applyMigrations([{owner:'notes',from:0,to:1,after:[],source:{package:'notes',version:'1'},statements:[{sql:'CREATE TABLE notes(id INTEGER PRIMARY KEY,body TEXT NOT NULL)'}]}]);await db.transaction(await gate.reserve({id:'rv3-11'}).then(item=>item.lease),{operationId:'rv3-11',maxDurationMs:15000,maxStatements:4,maxInputBytes:65536,maxChangedRows:10,maxCapturedBytes:65536},async tx=>{await tx.execute({sql:'INSERT INTO notes VALUES (?,?)',parameters:[1n,'x']})})}finally{await db.close()}`,
  'attempts ledger':`${bootstrap}const {AttemptLedger}=await import('${core}core/dist/attempts/ledger.js');const {LocalArtifacts}=await import('${core}core/dist/artifacts-local/store.js');
