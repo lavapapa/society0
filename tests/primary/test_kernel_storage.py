@@ -38,6 +38,25 @@ def test_short_transactions_live_revision_and_complete(tmp_path):
         assert balance(reopened) == 11
 
 
+def test_read_only_transaction_keeps_revision_and_wal_quiet(tmp_path):
+    """回调没有任何写入时，事务不推进版本、不产生 WAL 帧，也不多付一次提交同步。"""
+    run = tmp_path / 'run'
+    with make(run) as store:
+        store.transaction(lambda w: w.execute('UPDATE account SET balance=11'))
+        assert store.read(lambda v: (v.live_revision, v.revision_for(['account']))) == (1, 1)
+        wal = run / 'current.sqlite-wal'
+        before = wal.stat().st_size
+        assert store.transaction(lambda w: w.query('SELECT balance FROM account')[0][0]) == 11
+        assert wal.stat().st_size == before
+        assert store.read(lambda v: (v.live_revision, v.revision_for(['account']))) == (1, 1)
+        store.transaction(lambda w: w.execute('UPDATE account SET balance=12 WHERE id=999'))
+        # 零行写语句仍推进依赖版本，与纯只读回调区分。
+        assert store.read(lambda v: (v.live_revision, v.revision_for(['account']))) == (2, 2)
+        assert store.complete(1)['live_revision'] == 2
+        assert store.transaction(lambda w: None) is None
+        assert store.read(lambda v: (v.live_revision, v.complete_step)) == (2, 1)
+
+
 def test_callback_failure_and_borrow_expiry(tmp_path):
     with make(tmp_path / 'run') as store:
         escaped = store.transaction(lambda w: w)

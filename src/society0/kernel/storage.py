@@ -391,6 +391,7 @@ class StageStore:
         self._closed = False
         self._busy = False
         self._failed = False
+        self._registered = False
         self._thread = threading.get_ident()
         try:
             row = self._connection.execute('SELECT run_id,revision,failed FROM _stage_runtime').get
@@ -472,6 +473,7 @@ class StageStore:
         scope = Writer(self._connection)
         scope.publish_step = self.complete_step + 1
         scope._include_artifact = self._include_artifact
+        self._registered = False
         touched=set()
         def authorize(action,first,second,database,trigger):
             result=_authorizer(action,first,second,database,trigger)
@@ -485,8 +487,11 @@ class StageStore:
             result = _call(callback, scope)
             scope._finish()
             self._connection.set_authorizer(None)
-            self._connection.execute('UPDATE _stage_runtime SET revision=revision+1')
-            self._connection.executemany('UPDATE _stage_table_revisions SET revision=(SELECT revision FROM _stage_runtime) WHERE name=?', ((name,) for name in touched))
+            # 没有任何内容变化的事务（纯只读回调、无新工件）不推进版本：省掉一次只为
+            # 版本页发生的 WAL 追加与 FULL 同步，也不让观察者的依赖版本无故失效。
+            if touched or self._registered:
+                self._connection.execute('UPDATE _stage_runtime SET revision=revision+1')
+                self._connection.executemany('UPDATE _stage_table_revisions SET revision=(SELECT revision FROM _stage_runtime) WHERE name=?', ((name,) for name in touched))
             self._connection.execute('COMMIT')
             return result
         except BaseException:
@@ -515,6 +520,7 @@ class StageStore:
         try:
             self._connection.execute('INSERT OR IGNORE INTO _stage_artifacts SELECT ?,?,revision+1 FROM _stage_runtime',
                                      (item['path'],item['size']))
+            self._registered = True
         finally:
             self._connection.set_authorizer(self._transaction_authorizer)
 
