@@ -21,7 +21,7 @@ def answer(content='done'):
 
 
 @pytest.mark.asyncio
-async def test_attempt_boundaries_tile_the_request_and_persist_is_one_short_event(tmp_path):
+async def test_attempt_boundaries_preserve_usage_and_event_sequence(tmp_path):
     with StageStore.create(tmp_path / 'run', THREAD_SCHEMA) as store:
         threads = ThreadStore(store)
         tid = threads.open('a', 0, 'decision')
