@@ -144,8 +144,12 @@ def command(W, kind):
         dry_run = '--dry-run' in sys.argv[1:]
         fragments = read_fragments(W)
         errors, merged = merge(ledger, fragments)
-        errors += ledger_errors(merged, W, ids, False)
-        if errors or dry_run: return report(errors, dry_run)
+        ledger_errors_found = ledger_errors(merged, W, ids, False)
+        if dry_run:
+            print(json.dumps({'errors': errors, 'ledgerErrors': ledger_errors_found, 'dryRun': True, 'fragments': [path.name for path, kind, payload in fragments]}, ensure_ascii=False, indent=1))
+            return 1 if errors else 0
+        errors += ledger_errors_found
+        if errors: return report(errors, dry_run)
         merged['updatedAt'] = datetime.datetime.now(datetime.timezone.utc).isoformat()
         mtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         (W / 'evidence/acceptance.json').write_text(json.dumps(merged, ensure_ascii=False, indent=2) + '\n')
