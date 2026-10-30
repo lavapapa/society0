@@ -25,6 +25,9 @@ def source_patterns(package):
 
 def capture_acceptance(root,output):
     import shutil
+    from check_tests import violations
+    bad=list(violations(root/'tests'))
+    assert not bad, f'TEST_BASELINE {bad[:5]}'
     output.mkdir()
     shutil.copytree(root/'tests',output/'tests')
 
