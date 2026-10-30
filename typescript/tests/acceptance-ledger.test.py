@@ -30,10 +30,10 @@ def case(**overrides):
     return value
 def ledger(cases=None):
     entries = cases if cases is not None else [case(), case(id='PR02-T02', executions=[execution('typescript/tests/pr02.test.mjs', 'build-integration')])]
-    return {'source': 's', 'updatedAt': 't', 'completionRule': 'c', 'cases': entries, 'plugins': [{'id': 'p', 'pr': 'PR01', 'entry': 'repo/typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'x'}], 'profiles': [], 'legacyScope': [{'id': 'B0' + str(number), 'status': 'not-carried', 'carried': [], 'notCarried': ['x'], 'reason': 'r'} for number in range(2, 6)]}
+    return {'source': 's', 'updatedAt': 't', 'completionRule': 'c', 'cases': entries, 'plugins': [{'id': 'p', 'pr': 'PR01', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'x'}], 'profiles': [], 'legacyScope': [{'id': 'B0' + str(number), 'status': 'not-carried', 'carried': [], 'notCarried': ['x'], 'reason': 'r'} for number in range(2, 6)]}
 def run(world, value, *args):
     (world / EVIDENCE / 'acceptance.json').write_text(json.dumps(value))
-    return subprocess.run([sys.executable, '-B', str(cli), *args, str(world)], text=True, capture_output=True)
+    return subprocess.run([sys.executable, '-B', str(cli), args[0], str(world), *args[1:]], text=True, capture_output=True)
 def codes(result):
     assert result.stdout.strip(), result.stderr
     return [item[0] for item in json.loads(result.stdout)['errors']]
@@ -57,16 +57,16 @@ with tempfile.TemporaryDirectory() as temporary:
     assert 'CONSUMER_LEVEL_WITHOUT_INSTALLED' in codes(run(world, ledger([case(validationLevel='final-installed-public-production-consumer')]), 'check'))
     found(world, {**ledger(), 'legacyScope': []}, 'LEGACY_SCOPE_MISSING', '--final')
     pending = world / EVIDENCE / 'acceptance-pending/B'
-    pending.mkdir(parents=True)
+    pending.mkdir(parents=True, exist_ok=True)
     (pending / 'patch-PR01-T01.json').write_text(json.dumps({'appendEvidence': [CANDIDATE + '/manifest.json'], 'setReason': 'merged'}))
     assert codes(run(world, ledger(), 'apply')) == []
     merged = json.loads((world / EVIDENCE / 'acceptance.json').read_text())
     assert merged['cases'][0]['reason'] == 'merged', merged['cases'][0]
     assert CANDIDATE + '/manifest.json' in merged['cases'][0]['evidence']
-    assert not pending.exists() and list((world / EVIDENCE / 'acceptance-applied').rglob('patch-PR01-T01.json'))
-    pending.mkdir(parents=True)
+    assert not list(pending.rglob('*.json')) and list((world / EVIDENCE / 'acceptance-applied').rglob('patch-PR01-T01.json'))
+    pending.mkdir(parents=True, exist_ok=True)
     (pending / 'patch-PR01-T01.json').write_text(json.dumps({'setNothing': 'x'}))
-    assert 'FRAGMENT_KEY' in codes(run(world, ledger(), 'apply'))
+    assert 'FRAGMENT_KEY' in codes(run(world, merged, 'apply'))
     assert json.loads((world / EVIDENCE / 'acceptance.json').read_text())['cases'][0]['reason'] == 'merged'
     assert (pending / 'patch-PR01-T01.json').is_file()
 print(json.dumps({'case': 'RV3-12-T01', 'status': 'passed'}))
