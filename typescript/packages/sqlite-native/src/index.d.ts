@@ -19,8 +19,11 @@ export declare class SqliteConnection {
  begin(bounds?:{maxDurationMs?:number;maxCapturedBytes?:number}):void;
  commit():void;
  rollback():void;
+ /** SQL/TEXT孤立代理抛SQLITE_TEXT_NOT_WELL_FORMED；TEXT消息包含参数下标，绑定前拒绝。 */
  execute(sql:string,parameters?:readonly SqliteValue[]):{changes:bigint;lastInsertRowid:bigint};
+ /** 整批SQL/TEXT预检先于执行；SQLITE_TEXT_NOT_WELL_FORMED包含行号和参数下标。 */
  executeMany(sql:string,rows:readonly (readonly SqliteValue[])[],bounds?:{maxRows?:number;maxInputBytes?:number}):{changes:bigint;lastInsertRowid:bigint};
+ /** SQL/TEXT拒绝孤立代理；标识、路径仍按SQLITE_ARGUMENT处理。 */
  query(sql:string,parameters?:readonly SqliteValue[],bounds?:QueryBounds):SqliteRow[];
  /** 无违例返回；首个违例抛SQLITE_CONSTRAINT并定位表、父表、rowid。 */
  checkForeignKeys():void;
