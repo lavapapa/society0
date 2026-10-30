@@ -46,6 +46,10 @@ with tempfile.TemporaryDirectory() as temporary:
     assert 'UNRECONCILED' in errors(run(make_world(base / 'unregistered', runtime_plugins=('resources', 'memory'))))
     declared = {'fields': {'@society0/host/resources/inlineBytes': {'state': 'added', 'consumer': 'typescript/packages/host/src/resources.ts:3'}}, 'plugins': {}}
     assert 'UNRECONCILED' in errors(run(make_world(base / 'declaration', runtime_fields=('closeTimeoutMs', 'inlineBytes'), registry=declared, consumer='const closeTimeoutMs = 1;\nconst inlineBytes = 2;\ninterface Options { readonly inlineBytes: number; }\n')))
+    schema_line = {'fields': {'@society0/host/resources/inlineBytes': {'state': 'added', 'consumer': 'typescript/packages/host/src/resources.ts:4'}}, 'plugins': {}}
+    assert 'UNRECONCILED' in errors(run(make_world(base / 'schema-line', runtime_fields=('closeTimeoutMs', 'inlineBytes'), registry=schema_line, consumer="const closeTimeoutMs = 1;\nconst inlineBytes = 2;\nconst Config = Schema.object({\n  inlineBytes: Schema.number().default(0),\n});\n")))
+    literal = {'fields': {'@society0/host/resources/inlineBytes': {'state': 'added', 'consumer': 'typescript/packages/host/src/resources.ts:4'}}, 'plugins': {}}
+    assert errors(run(make_world(base / 'literal', runtime_fields=('closeTimeoutMs', 'inlineBytes'), registry=literal, consumer='const closeTimeoutMs = 1;\nconst inlineBytes = 2;\nconst options = {\n  inlineBytes: this.options.inlineBytes,\n};\n'))) == []
     skeleton = run(make_world(base / 'skeleton', runtime_fields=('closeTimeoutMs', 'inlineBytes')), '--skeleton')
     assert skeleton.returncode == 0, skeleton.stderr
     assert '@society0/host/resources/inlineBytes' in skeleton.stdout

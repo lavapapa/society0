@@ -28,8 +28,9 @@ def consumer_line(W, entry, field):
     if index >= len(lines): return False
     text = lines[index]
     if re.match(r'\s*(?:export\s+)?(?:interface|type|declare|readonly)\b', text): return False
-    if re.search(r'(?:^|[\s{;(])(?:readonly\s+)?' + re.escape(field) + r'\??\s*:', text) and '=' not in text: return False
-    return field in text and 'Schema.object(' not in text and 'configPolicy' not in text
+    match = re.search(r'(?:^|[\s{;(])(?:readonly\s+)?' + re.escape(field) + r'\??\s*:(.*)$', text)
+    if match and '.' not in match.group(1) and re.fullmatch(r"[\s\w<>\[\]|&?'.;]*", match.group(1)): return False
+    return field in text and 'Schema.' not in text and 'configPolicy' not in text
 def missing_errors(W, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
     for field in sorted(set(plan_fields) - set(runtime_fields)):
