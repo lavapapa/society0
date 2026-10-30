@@ -6,8 +6,8 @@ import Artifacts,{artifactsMigration} from '../.build/core/dist/artifacts-local/
 import MemoryRepository,{memoryMigration} from '../.build/extras/dist/memory-repository/index.js';import VectorProviders from '../.build/extras/dist/vector-providers/index.js';
 export const request=operationId=>({operationId,maxDurationMs:20000,maxStatements:1000,maxInputBytes:1048576,maxChangedRows:1000,maxCapturedBytes:4194304});
 export const identity={provider:'fixture',configId:'fixture-v1',model:'fixture-v1',dimensions:2};
-export async function setup(migrations=[]){
- const host=await createHost({boot:[]}),ctx=host.ctx,base=await mkdtemp(join(tmpdir(),'pr09-')),directory=join(base,'run'),runId='pr09',threadId=JSON.stringify([runId,'a','m']);
+export async function setup(migrations=[],options={}){
+ const host=await createHost({boot:[]}),ctx=host.ctx,base=options.base??await mkdtemp(join(tmpdir(),'pr09-')),directory=join(base,'run'),runId='pr09',threadId=JSON.stringify([runId,'a','m']);
  try {
   await ctx.plugin(OwnedResources);await ctx.plugin(TaskSupervisor,{concurrency:8,maxBytes:33554432});await ctx.plugin(CompositionStrategies);await ctx.plugin(strategies);await ctx.plugin(Slots);
   await ctx.plugin(ExecutionFence);await ctx.plugin(SqliteDatabase,{directory,runId,generation:'g',maxTransactionMs:20000});await ctx.plugin(Artifacts,{directory:join(directory,'objects')});await ctx.plugin(Initializers);await ctx.plugin(SqliteBootstrap,{maxTransactionMs:20000});await ctx.plugin(SqliteHistory,{directory,runId,generation:'g',controlSequence:'0'});await ctx.plugin(Attempts,{directory:join(base,'attempts'),lineage:runId});await ctx.attempts.initialize();
