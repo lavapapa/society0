@@ -17,7 +17,7 @@ test('full run/bootstrap/generation groups retain native parents and aliases acr
 
 
 test('public Core Drivers mounts below the retained run group while host Slots stays separate',async()=>{
- const {createHost}=await import('../.build/host/dist/index.js');const slots=await import('../.build/host/dist/slots/index.js');const drivers=await import('@society0/core/drivers');
+ const {createHost}=await import('../.build/host/dist/index.js');const slots=await import('../.build/host/dist/slots/index.js');const drivers=await import('../.build/core/dist/drivers/index.js');
  const host=await createHost({baseURL:new URL('../.build/host/package.json',import.meta.url).href,boot:['resources','composition-strategies','slot-strategies','module-resolver','config-resolvers','profile-loader','inspector'].map(name=>({specifier:'@society0/host/'+name}))});
  try {
   const plan=await compileLayers([{kind:'profile',uri:'public-all-groups.json',version:'1',patches:[{insert:[{id:'host',name:'host',group:true,lifetime:'host',config:[{id:'host-slots',name:'slots'},{id:'run',name:'run',group:true,lifetime:'run',config:[{id:'run-slots',name:'slots'},{id:'generation',name:'generation',group:true,lifetime:'generation',config:[{id:'drivers',name:'drivers'}]}]}]}]}]}],{slots:{plugin:slots.default,metadata:slots.metadata,api:slots.api},drivers:{plugin:drivers.default,metadata:drivers.metadata,api:drivers.api}},{externalServices:['resources','compositionStrategies']});

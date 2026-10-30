@@ -3,12 +3,12 @@ from pathlib import Path
 import json, re, subprocess, sys, time
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'scripts'))
-from acceptance_tests import INSTALLED_ONLY, INSTALLED_SCRIPTS_PREFIX, LIVE, PERFORMANCE
+from acceptance_tests import BUILD_EXCLUDED, INSTALLED_ONLY, INSTALLED_SCRIPTS_PREFIX, LIVE, PERFORMANCE
 BUILD = (root / '.build').resolve()
 def test_files():
     return [file for file in sorted((root / 'tests').glob('*.mjs')) if "from 'node:test'" in file.read_text() or 'from "node:test"' in file.read_text()]
 def build_layer():
-    return [file for file in test_files() if file.name not in INSTALLED_ONLY | LIVE | PERFORMANCE and not file.name.startswith(INSTALLED_SCRIPTS_PREFIX)]
+    return [file for file in test_files() if file.name not in INSTALLED_ONLY | LIVE | PERFORMANCE | BUILD_EXCLUDED and not file.name.startswith(INSTALLED_SCRIPTS_PREFIX)]
 def resolves_in_build(files):
     names = ['host', 'core', 'schemastery', 'cordis']
     code = "const r=require('node:module').createRequire(process.cwd()+'/x.js'),fs=require('node:fs');for(const n of %s)console.log(n+' '+fs.realpathSync(r.resolve('@society0/'+n+'/package.json')))" % json.dumps(names)

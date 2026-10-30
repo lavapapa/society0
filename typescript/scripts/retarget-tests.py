@@ -18,6 +18,7 @@ PATH_RULES = [
     (re.compile(r"\.\./packages/sqlite-native/src/index\.mjs"), '../.build/sqlite-native/src/index.mjs'),
     (re.compile(r"from '@society0/schemastery'"), "from '../.build/schemastery/dist/index.js'"),
     (re.compile(r"from '@society0/host/composition-strategies'"), "from '../.build/host/dist/composition-strategies/index.js'"),
+    (re.compile(r"import\('@society0/core/([^']+)'\)"), r"import('../.build/core/dist/\1/index.js')"),
 ]
 TMP_HEAD = "import{tmpdir}from'node:os';import{join}from'node:path';"
 TIGHT = "import{mkdtempSync}from'node:fs';import{fileURLToPath}from'node:url';"

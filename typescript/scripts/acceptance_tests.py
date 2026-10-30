@@ -13,5 +13,7 @@ INSTALLED_COPIES = {
     'pr11-random.test.mjs': 'random-native',
     'pr11-random-bootstrap.test.mjs': 'random-native',
 }
+# 需要已安装 @society0/host 才能解析第三方包 peer 的测试；在 build 层运行会写共享 node_modules。
+BUILD_EXCLUDED = {'exports.test.mjs'}
 LIVE = {'pr08-real.mjs', 'rv3-04-litellm.mjs'}
 PERFORMANCE = {'pr05-scale.test.mjs'}

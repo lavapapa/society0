@@ -2,7 +2,7 @@
 import datetime, json, re, shutil, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY, INSTALLED_PY, INSTALLED_SCRIPTS_PREFIX, LIVE
+from acceptance_tests import BUILD_EXCLUDED, INSTALLED_COPIES, INSTALLED_ONLY, INSTALLED_PY, INSTALLED_SCRIPTS_PREFIX, LIVE
 PLAN_ID = re.compile(r'^PR\d{2}-T\d{2}$')
 FIX_ID = re.compile(r'^(RV3-\d{2}|NEW-?\d+)-T\d{2}$')
 LAYERS = {'unit', 'build-integration', 'installed-e2e', 'live-model'}
@@ -20,7 +20,7 @@ def derived_layers(path, text):
     layers = set()
     if name in LIVE: layers.add('live-model')
     if name in INSTALLED_ONLY | INSTALLED_PY or name.startswith(INSTALLED_SCRIPTS_PREFIX) or name in INSTALLED_COPIES: layers.add('installed-e2e')
-    if '../.build/' in text: layers.add('build-integration')
+    if '../.build/' in text and name not in BUILD_EXCLUDED: layers.add('build-integration')
     return layers or {'unit'}
 def execution_errors(cid, case, execution, W):
     layer = execution.get('layer')
