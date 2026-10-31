@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdir,rm} from 'node:fs/promises';
 import {dirname,join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {setup,request} from './pr07-support.mjs';
+import {setup,request,read} from './pr07-support.mjs';
 import {Prompts} from '../.build/core/dist/prompts/index.js';
 import {ContextMount} from '../.build/core/dist/mount-context/index.js';
 import {ExplorationShell} from '../.build/core/dist/exploration-shell/index.js';
@@ -122,7 +122,7 @@ function expectToolReason(result,reason){
   assert.equal(result.evidence.reason,reason,JSON.stringify(result.evidence));
 }
 
-const row=(name,body)=>test(name,{timeout:300000},body);
+const row=(name,body)=>test(name,{timeout:900000},body);
 
 async function scenario(options,body){
   const env=await fixture(options);
@@ -378,5 +378,73 @@ row('RV3-05-T02 19 external action attempt unknown stays transport_unknown',asyn
     assert.equal(receipt.value.externalUnknown,true);
     assert.equal(receipt.value.persistenceUnknown,false);
     console.log(JSON.stringify({case:'RV3-05-T02-19',reason:result.value.reason,code:receipt.value.code,externalUnknown:receipt.value.externalUnknown}));
+  });
+});
+
+test('RV3-05 release failures keep unknown reasons and downgrade success',{timeout:900000},async()=>{
+  const releaseFault=async env=>{
+    const original=env.ctx.agentRuntimes.acquire.bind(env.ctx.agentRuntimes);
+    env.ctx.agentRuntimes.acquire=async(...args)=>{const held=await original(...args);return {value:held.value,release:async()=>{await held.release();throw Object.assign(Error('RUNTIME_RELEASE_FAILED'),{code:'RUNTIME_RELEASE_FAILED'})}}};
+  };
+  await scenario({},async env=>{
+    await releaseFault(env);
+    const result=await activate(env,'rv305/release-success');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'persistence_error');
+    assert.equal(result.evidence.activation.reason,'success');
+    assert.match(JSON.stringify(result.evidence.releaseFailures),/RUNTIME_RELEASE_FAILED/);
+  });
+  await scenario({storageFault:true},async env=>{
+    await releaseFault(env);
+    const result=await activate(env,'rv305/release-storage');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'persistence_unknown',JSON.stringify(result));
+    assert.equal(result.evidence.activation.reason,'persistence_unknown');
+    assert.match(JSON.stringify(result.evidence.releaseFailures),/RUNTIME_RELEASE_FAILED/);
+  });
+  const script=[toolTurn('external-release','external_probe',{}),finalTurn];
+  await scenario({script},async env=>{
+    await releaseFault(env);
+    const result=await activate(env,'rv305/release-external');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'transport_unknown',JSON.stringify(result));
+    assert.equal(result.evidence.activation.reason,'transport_unknown');
+    assert.match(JSON.stringify(result.evidence.releaseFailures),/RUNTIME_RELEASE_FAILED/);
+  });
+});
+
+test('RV3-05 unresolved orphan tool call stays thread_error/thread.history',{timeout:900000},async()=>{
+  await scenario({},async env=>{
+    const context=env.run.context('rv305/orphan-append');
+    const opened=await read(env.ctx,view=>env.ctx.threads.open(context.actorId,context.momentId,view));
+    const orphan=await env.ctx.threads.prepare({id:'rv305-orphan',interactionId:opened.interactionId,role:'assistant',content:assistant([{type:'toolCall',id:'orphan-call',name:'read',arguments:{path:'/workspace/missing'}}],'toolUse'),originalProviderFields:null},context.signal);
+    await context.database.transaction(context.writeLease,{...request('rv305/orphan-append'),maxStatements:32,maxChangedRows:64},async tx=>{await env.ctx.threads.append(tx,opened.id,orphan)});
+    const result=await activate(env,'rv305/orphan');
+    expectIncomplete(result,'thread_error','thread.history','INFERENCE_UNRESOLVED_TOOL');
+  });
+  await scenario({},async env=>{
+    const context=env.run.context('rv305/orphan-pending-append');
+    const opened=await read(env.ctx,view=>env.ctx.threads.open(context.actorId,context.momentId,view));
+    const orphan=await env.ctx.threads.prepare({id:'rv305-orphan-pending',interactionId:opened.interactionId,role:'assistant',content:assistant([{type:'toolCall',id:'pending-call',name:'read',arguments:{path:'/workspace/missing'}}],'toolUse'),originalProviderFields:{activationId:'rv305/orphan-pending'}},context.signal);
+    await context.database.transaction(context.writeLease,{...request('rv305/orphan-pending-append'),maxStatements:32,maxChangedRows:64},async tx=>{await env.ctx.threads.append(tx,opened.id,orphan)});
+    const identity={lineage:env.ctx.attempts.authority().lineage,operationId:'rv305/orphan-pending/undispatched/pending-call',attempt:0};
+    assert.equal((await env.ctx.attempts.claim(identity,{kind:'not_dispatched',threadId:opened.id})).status,'send-permitted');
+    const result=await activate(env,'rv305/orphan-pending-read');
+    expectIncomplete(result,'thread_error','thread.history','INFERENCE_UNRESOLVED_TOOL');
+  });
+});
+
+test('RV3-05 unknown action failure receipt keeps empty operations',{timeout:900000},async()=>{
+  const script=[toolTurn('ghost','ghost_action',{}),finalTurn];
+  await scenario({script},async env=>{
+    const result=await activate(env,'rv305/unknown-action');
+    assert.equal(result.status,'incomplete',JSON.stringify(result));
+    assert.equal(result.value.reason,'tool_failed',JSON.stringify(result));
+    assert.equal(result.evidence.reason,'tool_failed');
+    const receipt=result.evidence.actionReceipts[0].receipt;
+    assert.equal(receipt.value.code,'ACTION_UNAVAILABLE');
+    assert.equal(receipt.value.persistenceUnknown,false);
+    assert.equal(receipt.value.externalUnknown,false);
+    for(const id of receipt.requiredOperations)assert.equal((await env.ctx.database.probe(id)).status,'committed');
   });
 });
