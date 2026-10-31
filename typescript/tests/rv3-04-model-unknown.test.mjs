@@ -111,3 +111,22 @@ test('RV3-04-T02 PiRuntime exposes transport_unknown from settlement facts', asy
     await run.close();
   }
 });
+
+test('RV3-04-T01 complete 401/403/404/422 bodies settle failed', async () => {
+  const run = await fixture();
+  try {
+    for (const status of [401, 403, 404, 422]) {
+      const server = await withServer(complete(status, JSON.stringify({error: {message: 'status ' + status}})));
+      const result = await exercise(run, server.port, 'rv304-4xx-' + status);
+      await server.close();
+      assert.equal(result.settlements[0]?.status, 'failed');
+      assert.equal(result.settlements[0]?.httpStatus, status);
+      assert.equal(result.probe.record.status, 'settled');
+      assert.equal(result.probe.record.result.status, 'failed');
+      assert.equal(result.probe.record.result.httpStatus, status);
+      assert.equal(result.probe.record.result.physicalCalls, 1);
+    }
+  } finally {
+    await run.close();
+  }
+});
