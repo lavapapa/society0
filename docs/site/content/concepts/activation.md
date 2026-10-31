@@ -39,4 +39,4 @@
 
 动作自己的 `accepted/completed/rejected` 描述业务请求；DriverResult 描述整次激活。请求被拒绝之后主体可以接着做别的决定，请求受理了也可能还要等后续过程。预算用尽或输出被截断，都要把未完成的原因留下来。
 
-领域处理器、Thread 写入等执行异常都会使步骤失败；`collect` 处理的是返回的 incomplete。配置与实践见[调度指南](../guide/schedule.md)和[主体教程](../tutorial/actors.md)。
+领域处理器、Thread 写入等执行异常都会使步骤失败；`collect` 处理的是返回的 incomplete。准备阶段（输入效果，例如记忆召回规划）与模型循环共用同一条状态边界：明确的模型协议错误（SDK `UnexpectedModelBehavior`，含输出截断与归一化后的畸形输出）按 `incomplete` 记录，原因记为 `model_protocol_error` 并留一条 Thread 事件保存原始细节；准备阶段的提供方失败与普通执行异常仍向外传播并使步骤失败，模型循环内的提供方失败继续沿用其 `reason`。同一 Moment 再次激活沿用原 Thread 历史与消费位置，预算不重置。配置与实践见[调度指南](../guide/schedule.md)和[主体教程](../tutorial/actors.md)。
