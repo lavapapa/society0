@@ -25,6 +25,7 @@ export class AttemptLedger {
  settle(identity:AttemptIdentity,result:unknown,artifacts:readonly ArtifactRef[]=[]):Promise<void>{identity={...identity};artifacts=structuredClone(artifacts);this.identity(identity);this.encode(artifacts);const encoded=this.encode(result);return this.work(async()=>{await this.retain(artifacts);await this.call('settle',{identity,result:encoded,artifacts:this.encode(artifacts)})})}
  markUnknown(identity:AttemptIdentity,reason:string,artifacts:readonly ArtifactRef[]=[],result?:unknown):Promise<void>{identity={...identity};this.identity(identity);this.encode(reason);const refs=structuredClone(artifacts);this.encode(refs);const encoded=result===undefined?undefined:this.encode(result);return this.work(async()=>{await this.retain(refs);await this.call('unknown',{identity,reason,artifacts:this.encode(refs),...(encoded===undefined?{}:{result:encoded})})})}
  probe(identity:AttemptIdentity):Promise<AttemptProbe>{this.identity(identity);return this.work(async()=>{try{return await this.call<AttemptProbe>('probe',{identity})}catch(error){return {status:'unknown',reason:String(error)}}})}
+ get maxRecordBytes(){return this.config.maxRecordBytes}
  get evidenceChunkBytes(){return this.objects.chunkBytes}
  stageEvidence(source:AsyncIterable<Uint8Array>,mediaType:string,options?:{signal?:AbortSignal}){return this.objects.stage(source,mediaType,options)}
  readArtifact(ref:ArtifactRef,range?:{offset:string;length:number}){return this.objects.read(ref,range)}

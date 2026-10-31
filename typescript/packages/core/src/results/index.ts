@@ -9,7 +9,8 @@ import type { SqliteMigration, SqliteReadView, SqliteTransaction, TransactionReq
 import type { WriteLease } from '../execution-fence/index.js';
 import type { Json } from '../contracts/common.js';
 import type { StoredValue, ResultWriteBounds, PayloadRef, PayloadRange, PageRequest, ResultSetDescription } from '../contracts/data.js';
-import { prepareValue, attachValue, readValue } from './payload.js';
+import { attachValue, readValue } from './payload.js';
+export { prepareValue, attachValue, readValue, jsonByteBound, textChunks } from './payload.js';
 import { after, cursor, page, sized, fail, bytes, bounds as pageBounds, sqlPageBudget, assertSqlPagePrefix } from '../information/page.js';
 import '../sqlite/index.js';
 import '../artifacts-local/index.js';

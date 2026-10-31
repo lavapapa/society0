@@ -1,6 +1,6 @@
 import type { Json, Invocation, Lease, Disposer } from '@society0/core/contracts/common';
 import type { SqliteReadView, SqliteTransaction } from '@society0/core/sqlite/contracts';
-import type { Page, PageRequest, DiscoveryScope, DomainVersion } from '@society0/core/contracts/data';
+import type { Page, PageRequest, DiscoveryScope, DomainVersion, StoredValue } from '@society0/core/contracts/data';
 export type { Json, Invocation, Lease, Disposer, Page, PageRequest, DiscoveryScope, DomainVersion, SqliteReadView, SqliteTransaction };
 export type SocialReader = Pick<SqliteReadView, 'query'> & Partial<Pick<SqliteReadView, 'revision' | 'runId'>>;
 export interface SocialPost {
@@ -121,14 +121,21 @@ export interface PresentationRequest {
     versions: readonly DomainVersion[];
     itemIds: readonly string[];
 }
-export interface MeasurementRecord {
+export interface MeasurementObservation {
+    value: Json;
+    original: Json;
+    source: Json;
+}
+export interface PreparedMeasurement {
+    value: StoredValue;
+    original: StoredValue;
+    source: StoredValue;
+}
+export interface MeasurementRecord extends PreparedMeasurement {
     id: string;
     specId: string;
     kind: 'measurement' | 'interview' | 'ranking';
     actorId: string | null;
     logicalTime: Json;
-    value: Json;
-    original: Json;
-    source: Json;
     required: boolean;
 }

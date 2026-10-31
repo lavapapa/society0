@@ -1,9 +1,13 @@
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
-export const Config = Schema.object({});
+export const Config = Schema.object({
+    inlineBytes: Schema.natural().min(1).max(16384).default(16384)
+});
 export const metadata: PluginMetadata = {
-    "title": "measurement-repository", "summary": "measurement-repository", "scope": "run", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": []
+    "title": "measurement-repository", "summary": "measurement-repository", "scope": "run", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
+            "path": "/inlineBytes", "mode": "new-run", "affectsResults": true
+        }]
 };
 export const api: ApiEntry = {
     "exportPath": "./measurement-repository", "provides": [{
@@ -25,7 +29,9 @@ export const api: ApiEntry = {
 import '@society0/core/sqlite';
 import '@society0/core/artifacts-local';
 import '@society0/core/results';
-import type { MeasurementRecord, SqliteTransaction, SqliteReadView, PageRequest } from '../contracts.js';
+import { prepareValue, attachValue, readValue } from '@society0/core/results';
+import type { PayloadRef, PayloadRange } from '@society0/core/contracts/data';
+import type { MeasurementObservation, MeasurementRecord, PreparedMeasurement, SqliteTransaction, SqliteReadView, PageRequest } from '../contracts.js';
 import { after, page } from '../paging.js';
 export * from './schema.js';
 declare module '@society0/host' {
@@ -36,10 +42,28 @@ declare module '@society0/host' {
 export class MeasurementRepository extends Service {
     static Config = Config;
     static inject = ['database', 'artifacts', 'results'];
-    constructor(ctx: Context) {
+    private config: ReturnType<typeof Config>;
+    constructor(ctx: Context, input = {}) {
         super(ctx, 'measurementRepository');
+        this.config = Config(input);
+    }
+    async prepare(observation: MeasurementObservation, signal?: AbortSignal): Promise<PreparedMeasurement> {
+        const store = (value: MeasurementObservation['value']) => prepareValue(value, this.config.inlineBytes, this.ctx.artifacts, signal);
+        return {
+            value: await store(observation.value),
+            original: await store(observation.original),
+            source: await store(observation.source)
+        };
+    }
+    readPayload(ref: PayloadRef, range: PayloadRange, signal?: AbortSignal) {
+        return readValue(ref, range, this.ctx.artifacts, signal);
     }
     async append(tx: SqliteTransaction, record: MeasurementRecord) {
+        for (const value of [record.value, record.original, record.source]) {
+            if (value.kind === 'inline' && Buffer.byteLength(JSON.stringify(value.value)) > this.config.inlineBytes)
+                throw Error('MEASUREMENT_PREPARE_REQUIRED');
+            await attachValue(tx, value, this.ctx.artifacts);
+        }
         await tx.execute({
             sql: 'INSERT INTO social_measurements(id,spec_id,kind,actor_id,logical_time,value,original,source,required) VALUES(?,?,?,?,?,?,?,?,?)', parameters: [record.id, record.specId, record.kind, record.actorId, JSON.stringify(record.logicalTime), JSON.stringify(record.value), JSON.stringify(record.original), JSON.stringify(record.source), record.required ? 1 : 0]
         });

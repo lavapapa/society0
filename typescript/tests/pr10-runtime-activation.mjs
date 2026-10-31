@@ -135,7 +135,7 @@ test('PR06/PR07-T03 two actors have independent actions interviews and stable re
         const measurements = await branch.ctx.measurementRepository.page(view, {
             maxItems: 10, maxResponseBytes: 65536
         });
-        assert.deepEqual(measurements.items.map(item => [item.actorId, item.value]).sort(), [['a', 'a'], ['b', 'b']]);
+        assert.deepEqual(measurements.items.map(item => [item.actorId, item.value.value]).sort(), [['a', 'a'], ['b', 'b']]);
         await view.close();
     }
     finally {

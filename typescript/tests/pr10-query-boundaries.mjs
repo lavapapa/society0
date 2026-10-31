@@ -39,7 +39,8 @@ test('PR10 public query families preserve original records across filters revisi
   for(const [name,input,actor] of [['feed',{},'b'],['profile',{},'a'],['profile',{actorId:'b'},'a'],['network',{direction:'followers'},'a'],['network',{},'b'],['notifications',{},'a'],['notifications',{unread:true},'a'],['posts',{},'a'],['posts',{authorId:'b'},'a'],['trending',{},'a'],['trending',{time:'4',window:'4'},'a']]){
    const page=await read(v=>c.information.query('social/'+name,input,{...scope,actorId:actor},v,bounds));assert.ok(Array.isArray(page.items));assert.ok(page.responseBytes<=bounds.maxResponseBytes);
   }
-  await tx(async t=>{for(const [id,actorId,specId] of [['m1','a','s1'],['m2','a','s1'],['m3','b','s2']])await c.measurementRepository.append(t,{id,actorId,specId,kind:'measurement',logicalTime:'4',value:id,original:{id},source:{kind:'native-domain-observation'},required:false})});
+  const rows=await Promise.all([['m1','a','s1'],['m2','a','s1'],['m3','b','s2']].map(async([id,actorId,specId])=>({id,actorId,specId,kind:'measurement',logicalTime:'4',...(await c.measurementRepository.prepare({value:id,original:{id},source:{kind:'native-domain-observation'}})),required:false})));
+  await tx(async t=>{for(const row of rows)await c.measurementRepository.append(t,row)});
   for(const filter of [{},{actorId:'a'},{specId:'s1'},{actorId:'a',specId:'s1'}]){
    const page=await read(v=>c.measurementRepository.page(v,{...bounds,maxItems:1},filter));assert.ok(page.next);const tail=await read(v=>c.measurementRepository.page(v,{...bounds,maxItems:1,cursor:page.next},filter));assert.notEqual(page.items[0].id,tail.items[0].id);
   }

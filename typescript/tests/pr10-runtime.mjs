@@ -60,7 +60,7 @@ test('PR10-T04 required final interview failure preserves settled observations a
         assert.equal(result.reason, 'incomplete');
         assert.equal((await c.history.current()).id, f.root.id);
         assert.equal(result.recoveryRequired, true);
-        assert.equal((await c.attempts.probe(identity)).record.result.observation.original.response, '完整回答');
+        assert.equal((await c.attempts.probe(identity)).record.result.observation.original.value.response, '完整回答');
         const view = await c.database.snapshot({
             maxAgeMs: 30000
         });
@@ -68,7 +68,7 @@ test('PR10-T04 required final interview failure preserves settled observations a
             maxItems: 5, maxResponseBytes: 65536
         });
         assert.equal(records.total, '1');
-        assert.deepEqual(records.items[0].original.trace, ['raw', 'retained']);
+        assert.deepEqual(records.items[0].original.value.trace, ['raw', 'retained']);
         await view.close();
     }
     finally {
