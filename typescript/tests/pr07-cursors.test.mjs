@@ -100,3 +100,32 @@ test('PR07-T21 actual public Philox supplies deterministic ranks; SQL filters/pr
         await env.close();
     }
 });
+
+
+test('NEW-1-T06 information/actions discover non-ASCII ids by code point', async () => {
+    const env = await setup();
+    const { ctx } = env;
+    try {
+        const ids = ['a', 'B', 'Ａ', '𝒜', '中'];
+        for (const id of ids)
+            ctx.information.register({ id, schema: { type: 'object' }, capabilities: [], available: async () => true, query: async (input, scope, view) => ({ items: [], total: '0', revision: view.revision, responseBytes: 0 }) });
+        for (const id of ids)
+            ctx.actions.register({ name: id, inputSchema: {}, outputSchema: {}, effect: 'read', available: async () => true, execute: async () => ({ operationId: id, status: 'completed', value: null, original: null, artifacts: [] }) });
+        async function collect(discover) {
+            const all = [];
+            let cursor;
+            do {
+                const result = await read(ctx, view => discover(view, { ...page, maxItems: 1, ...(cursor ? { cursor } : {}) }));
+                all.push(...result.items.map(item => item.id ?? item.name));
+                cursor = result.next;
+            } while (cursor);
+            return all.filter(id => ids.includes(id));
+        }
+        const expected = ['B', 'a', '中', 'Ａ', '𝒜'];
+        assert.deepEqual(await collect((view, request) => ctx.information.discover(scope, view, request)), expected);
+        assert.deepEqual(await collect((view, request) => ctx.actions.discover(scope, view, request)), expected);
+    }
+    finally {
+        await env.close();
+    }
+});
