@@ -56,3 +56,9 @@
 补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四、prs/PR08.md。
 
 embedding provider 抛错可附带 `physical: not_dispatched|failed|response`；缺省视为 `unknown`。确定失败只拒绝本批，队列继续服务；`unknown`、ledger 写入失败、未取得 claim 的情况毒化队列并停止后续发送。ledger 写入失败以 `EMBEDDING_LEDGER_ERROR` 上抛，不得吞掉；claim 返回 `existing`/`unknown` 时不写 ledger。
+
+## RV3-08：Thread 大消息的精确字节预检与分块写入
+
+补充 inputs/society0_next_refactor_v3/docs/15-next-lessons.md §2.2、docs/07-storage.md:76,112、docs/16-domain-design.md:37。
+
+Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBoundedJson` 走 `jsonByteBound` 的迭代计数（与 `JSON.stringify` 字节数一致），超过 `maxMessageBytes` 时由 `Thread.append`/`Thread.appendInput` 以 `THREAD_MESSAGE_BYTES` 拒绝；顶层 undefined/function/symbol 不是可编码 Json，抛 `PAYLOAD_JSON_VALUE`（对象中同类属性跳过，数组中同类元素按 `null` 计数，保持原生 stringify 语义）。通过后用原生 `JSON.stringify` 生成字节，再经 `textChunks` 按 `artifacts.chunkBytes` 分块、可取消地 stage；`chunkBytes` 小于 6 时以 `PAYLOAD_CHUNK_BUDGET` 拒绝。同步 stringify 与预检不可抢占，峰值由 `maxMessageBytes` 约束；取消只在 stage 分块边界生效。`prepareValue` 语义不变，现有调用方不受影响。
