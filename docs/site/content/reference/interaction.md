@@ -51,7 +51,7 @@ mount 返回同步的注销函数，重复调用不会重复生效。注销不�
 
 register 返回同步且幂等的注销函数，插件可用 `ctx.on_close(actions.register(action))` 托管。注销移除模板和索引、释放依赖引用并推进登记代次；旧发现游标过期，describe 抛 `Unavailable`，invoke 返回 rejected/unavailable。
 
-`strict=True` 要求工具 schema 采用严格形式，执行前按 schema 归一化 nullable 字符串再验证参数；read_only 是领域声明，实际只读由执行机制保障。参数 schema 在注册时校验；执行参数不合法返回 rejected/invalid_arguments，未知或不可调用返回 rejected/unavailable。预期业务拒绝用 rejected；accepted 表示已受理，可返回后续 process Ref；completed 表示行动完成。terminal=True 只在模板登记为 terminal 且结果 completed 时出现，handler 自行设置绕不过判断。
+`strict=True` 要求工具 schema 采用严格形式，执行前按 schema 归一化 nullable 字符串再验证参数；read_only 是领域声明，实际只读由执行机制保障。参数 schema 在注册时校验；执行参数未通过 schema 校验时返回 rejected/invalid_arguments，并在 `value.details` 中保留逐项校验错误；未知或不可调用返回 rejected/unavailable。预期业务拒绝用 rejected；accepted 表示已受理，可返回后续 process Ref；completed 表示行动完成。terminal=True 只在模板登记为 terminal 且结果 completed 时出现，handler 自行设置绕不过判断。
 
 names、tags 传 None 不限制该维度，传空集合表示无候选。发现返回完整授权总数，候选仍逐项检查当前权限和 available；开销随相关模板候选数增长，不按全部业务对象展开。
 
