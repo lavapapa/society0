@@ -7,13 +7,15 @@ const expectCode = (body, code) => assert.throws(body, error => codeOf(error) ==
 
 test('RV3-08-T01 bounded JSON bytes and chunking match native stringify', async t => {
   await t.test('exact bytes for JSON containers and scalars', () => {
-    const shared = '共享';
+    const shared = {x: '共享', n: [1, 2]};
+    const grandchild = {x: '共享', n: [1, 2]};
     const samples = [
       null, true, false, 0, -0, 1.5, NaN, Infinity, -Infinity,
       '', '中文', 'a\u0000b', '\ud800', '\udc00', '😀',
       [undefined, NaN, -0, Infinity],
       {a: undefined, b: () => 1, c: [undefined]},
       {a: shared, b: shared, c: [shared, shared]},
+      {left: {g: grandchild}, right: {g: grandchild}},
       {数字键: 1, '0': 'zero'},
     ];
     for (const value of samples) {
@@ -77,6 +79,8 @@ test('RV3-08-T01 bounded JSON bytes and chunking match native stringify', async 
     }
     stringify.sort((a, b) => a - b);
     bounded.sort((a, b) => a - b);
+    const ratio = bounded[1] / stringify[1];
+    console.log(JSON.stringify({rv308Performance: {manyMedianMs: passMedian, nativeMedianMs: stringify[1], boundMedianMs: bounded[1], ratio}}));
     assert.ok(bounded[1] <= stringify[1] * 4, `bound ${bounded[1]}ms vs stringify ${stringify[1]}ms`);
   });
 });
