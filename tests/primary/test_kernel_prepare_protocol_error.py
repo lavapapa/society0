@@ -128,3 +128,42 @@ async def test_iter_provider_failure_keeps_reason(tmp_path):
                            input_builder=lambda current: [{'role': 'user', 'content': '材料'}])
         result = await driver.run(session(driver))
         assert (result.status, result.reason) == ('incomplete', 'provider_timeout')
+
+
+class ShellStub:
+    """最小 shell：只记录 bind_files/aclose 与构造时可见的准备状态。"""
+    has_workspace = False
+
+    def __init__(self, order): self.order = order
+
+    def bind_files(self, files): self.order.append(('bind_files', files is not None))
+
+    async def save_workspace(self): self.order.append(('save_workspace',))
+
+    async def aclose(self): self.order.append(('aclose',))
+
+
+@pytest.mark.asyncio
+async def test_prepare_effects_run_before_shell_and_actor_files_setup(tmp_path):
+    """准备阶段的挂载/状态先于 shell_factory 与 ActorFiles 初始化，生命周期顺序不变。"""
+    with StageStore.create(tmp_path / 'run', THREAD_SCHEMA) as store:
+        threads = ThreadStore(store)
+        provider = FakeProvider(threads, [reply(text='完成')])
+        order, probe = [], {}
+        def prepare(context):
+            probe['prepared'] = True
+            context.mounts['memory'] = 'prepared-mount'
+            order.append(('prepare', 'files' in context.session.cursors))
+        def build(current):
+            return InputBatch([{'role': 'user', 'content': '材料'}], 'operating_context',
+                              {'position': 1}, effects=(prepare,))
+        def shell_factory(session, ledger):
+            order.append(('shell', probe.get('prepared'), 'files' in session.cursors))
+            return ShellStub(order)
+        driver = LLMDriver(provider, threads, input_builder=build, shell_factory=shell_factory)
+        result = await driver.run(session(driver))
+        assert result.status == 'completed'
+        assert order[0] == ('prepare', False)
+        assert order[1] == ('shell', True, False)
+        assert order[2] == ('bind_files', True)
+        assert order[-1] == ('aclose',)

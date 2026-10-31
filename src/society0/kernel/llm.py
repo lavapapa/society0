@@ -432,123 +432,123 @@ class LLMDriver:
                 else:
                     for message in inputs:
                         self.threads.append_message(thread_id, message)
-            with _timed(timings,'setup_s'):
-                if self.policy.reasoning_stages and self.policy.result_schema is None:
-                    guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
-                        '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
-                        '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
-                    if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
-                        self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
-                tools = self._tools()
-                schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
-                options = dict(self.policy.request_options)
-                options['tools'] = tools
-                options['parallel_tool_calls'] = self.policy.parallel_tool_calls
-                if self.policy.direct_json:
-                    options.pop('tools')
-                    options.pop('parallel_tool_calls')
-                    options['response_format'] = {'type': 'json_schema', 'json_schema': {
-                        'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
-                if self.shell_factory is not None:
-                    shell = await invoke_maybe_async(self.shell_factory, session, ledger)
-                from .actor_files import ActorFiles
-                files=ActorFiles(session,self.threads,shell=shell)
-                session.cursors['files']=files
-                if shell is not None:shell.bind_files(files)
-            from pydantic_ai import Agent, Tool, ModelRequestNode
-            from pydantic_ai.messages import ModelRequest, UserPromptPart, ToolReturnPart
-            from .models import ThreadModel
-            from pydantic_ai.usage import UsageLimits
             from pydantic_ai.exceptions import UsageLimitExceeded, UnexpectedModelBehavior
-            from .model_messages import history, display_response
-
-            empty = parallel_errors = repeated_read_streak = empty_retry_attempt = repeated_response_streak = 0
-            last_response_signature = None
-            pending_calls = {}
-            incomplete = None
-
-            async def request_model(messages):
-                nonlocal empty_retry_attempt, incomplete
-                session.scope.check_active()
-                turn_options = dict(options)
-                adjustments = (
-                    (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
-                     'provider_empty_response_retry', 'attempt'),
-                    (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
-                     'provider_repeated_read_diversification', 'streak'),
-                )
-                for count, delta, maximum, event, counter in adjustments:
-                    if count and delta is not None:
-                        defaults = getattr(provider, 'request_options', {})
-                        before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
-                        after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
-                        turn_options['temperature'] = after
-                        self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
-                            'temperature_after': after, 'retry_scope': 'agent_activation'})
-                empty_retry_attempt = 0
-                with _timed(timings, 'model_s'):
-                    response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
-                session.scope.check_active()
-                if self.policy.reasoning_stages:
-                    content = display_response(response)['content']
-                    if content: reasoning.append({'message_seq': sequence, 'segments': _stage_segments(content, self.policy.reasoning_stages)})
-                return response
-
-            async def execute(ctx, **arguments):
-                nonlocal structured
-                session.scope.check_active()
-                identifier, name = ctx.tool_call_id, ctx.tool_name
-                item = pending_calls[identifier]
-                receipt = self.threads.get_tool_result(thread_id, identifier)
-                ledger.effects = []
-                if receipt is not None:
-                    if receipt['call'] != item: raise ValueError('one tool call id has conflicting payloads')
-                    ledger.replay(identifier, receipt['metadata'])
-                    if receipt['metadata'].get('structured') is not None: structured = receipt['metadata']['structured']
-                    feedback = receipt['content']
-                    self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
-                    return feedback
-                if structured is not None or (ledger.terminal and ledger.requirements_met()):
-                    feedback = _json({'status': 'not_executed', 'reason': 'activation_completed'})
-                elif errors := list(schemas[name].iter_errors(arguments)):
-                    feedback = _json({'error': 'invalid_tool_arguments', 'details': [
-                        {'path': list(error.absolute_path), 'message': error.message,
-                         'validator': error.validator, 'expected': error.validator_value} for error in errors],
-                        **({'message': _ACTION_CURSOR_HELP} if name == 'action_find' and
-                           any(list(error.absolute_path)[:1] == ['cursor'] for error in errors) else {})})
-                elif name == 'submit_result':
-                    structured = arguments
-                    feedback = _json({'status': 'completed', 'result': arguments})
-                else:
-                    ledger.call_id, ledger.shell_call = identifier, name == 'bash'
-                    try:
-                        with _timed(timings, 'tools_s'):
-                            feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
-                    except _ToolInputError as error:
-                        feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
-                with _timed(timings, 'tool_save_s'):
-                    self.threads.save_tool_result(thread_id, item, feedback,
-                        metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
-                ledger.applied_receipts.add(identifier)
-                return feedback
-
-            def feedback_node(content):
-                nonlocal repeated_read_streak
-                repeated_read_streak = 0
-                self.threads.append_message(thread_id, {'role': 'user', 'content': content})
-                return ModelRequestNode(ModelRequest(parts=[UserPromptPart(content)]))
-
-            agent_tools = [Tool.from_schema(execute, item['function']['name'], item['function']['description'],
-                            item['function']['parameters'], takes_ctx=True, sequential=True) for item in tools]
-            # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
-            agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
+            # 准备阶段先于设施与工具装配，生命周期顺序与原先一致；协议错误与模型循环共用
+            # 同一收束边界，其他异常仍按原类型向外传播，不在准备阶段扩大捕获面。
             try:
-                # 准备阶段与模型循环共用同一收束边界：明确模型协议错误按 incomplete 记录，
-                # 其他异常仍按原类型向外传播，不在准备阶段扩大捕获面。
                 await context.prepare()
                 prepared = True
                 for message in context.messages:
                     self.threads.append_message(thread_id,message)
+                with _timed(timings,'setup_s'):
+                    if self.policy.reasoning_stages and self.policy.result_schema is None:
+                        guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                            '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                            '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                        if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                            self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
+                    tools = self._tools()
+                    schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+                    options = dict(self.policy.request_options)
+                    options['tools'] = tools
+                    options['parallel_tool_calls'] = self.policy.parallel_tool_calls
+                    if self.policy.direct_json:
+                        options.pop('tools')
+                        options.pop('parallel_tool_calls')
+                        options['response_format'] = {'type': 'json_schema', 'json_schema': {
+                            'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+                    if self.shell_factory is not None:
+                        shell = await invoke_maybe_async(self.shell_factory, session, ledger)
+                    from .actor_files import ActorFiles
+                    files=ActorFiles(session,self.threads,shell=shell)
+                    session.cursors['files']=files
+                    if shell is not None:shell.bind_files(files)
+                from pydantic_ai import Agent, Tool, ModelRequestNode
+                from pydantic_ai.messages import ModelRequest, UserPromptPart, ToolReturnPart
+                from .models import ThreadModel
+                from pydantic_ai.usage import UsageLimits
+                from .model_messages import history, display_response
+
+                empty = parallel_errors = repeated_read_streak = empty_retry_attempt = repeated_response_streak = 0
+                last_response_signature = None
+                pending_calls = {}
+                incomplete = None
+
+                async def request_model(messages):
+                    nonlocal empty_retry_attempt, incomplete
+                    session.scope.check_active()
+                    turn_options = dict(options)
+                    adjustments = (
+                        (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
+                         'provider_empty_response_retry', 'attempt'),
+                        (repeated_read_streak, self.policy.repeated_read_temperature_delta, self.policy.repeated_read_temperature_max,
+                         'provider_repeated_read_diversification', 'streak'),
+                    )
+                    for count, delta, maximum, event, counter in adjustments:
+                        if count and delta is not None:
+                            defaults = getattr(provider, 'request_options', {})
+                            before = float(turn_options.get('temperature', defaults.get('temperature')) or 0)
+                            after = round(min(before + delta * (count if counter == 'streak' else 1), maximum), 12)
+                            turn_options['temperature'] = after
+                            self.threads.event(thread_id, event, {counter: count, 'temperature_before': before,
+                                'temperature_after': after, 'retry_scope': 'agent_activation'})
+                    empty_retry_attempt = 0
+                    with _timed(timings, 'model_s'):
+                        response, sequence, incomplete = await provider.request_model(thread_id, turn_options, model_messages=messages)
+                    session.scope.check_active()
+                    if self.policy.reasoning_stages:
+                        content = display_response(response)['content']
+                        if content: reasoning.append({'message_seq': sequence, 'segments': _stage_segments(content, self.policy.reasoning_stages)})
+                    return response
+
+                async def execute(ctx, **arguments):
+                    nonlocal structured
+                    session.scope.check_active()
+                    identifier, name = ctx.tool_call_id, ctx.tool_name
+                    item = pending_calls[identifier]
+                    receipt = self.threads.get_tool_result(thread_id, identifier)
+                    ledger.effects = []
+                    if receipt is not None:
+                        if receipt['call'] != item: raise ValueError('one tool call id has conflicting payloads')
+                        ledger.replay(identifier, receipt['metadata'])
+                        if receipt['metadata'].get('structured') is not None: structured = receipt['metadata']['structured']
+                        feedback = receipt['content']
+                        self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
+                        return feedback
+                    if structured is not None or (ledger.terminal and ledger.requirements_met()):
+                        feedback = _json({'status': 'not_executed', 'reason': 'activation_completed'})
+                    elif errors := list(schemas[name].iter_errors(arguments)):
+                        feedback = _json({'error': 'invalid_tool_arguments', 'details': [
+                            {'path': list(error.absolute_path), 'message': error.message,
+                             'validator': error.validator, 'expected': error.validator_value} for error in errors],
+                            **({'message': _ACTION_CURSOR_HELP} if name == 'action_find' and
+                               any(list(error.absolute_path)[:1] == ['cursor'] for error in errors) else {})})
+                    elif name == 'submit_result':
+                        structured = arguments
+                        feedback = _json({'status': 'completed', 'result': arguments})
+                    else:
+                        ledger.call_id, ledger.shell_call = identifier, name == 'bash'
+                        try:
+                            with _timed(timings, 'tools_s'):
+                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                        except _ToolInputError as error:
+                            feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
+                    with _timed(timings, 'tool_save_s'):
+                        self.threads.save_tool_result(thread_id, item, feedback,
+                            metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                    ledger.applied_receipts.add(identifier)
+                    return feedback
+
+                def feedback_node(content):
+                    nonlocal repeated_read_streak
+                    repeated_read_streak = 0
+                    self.threads.append_message(thread_id, {'role': 'user', 'content': content})
+                    return ModelRequestNode(ModelRequest(parts=[UserPromptPart(content)]))
+
+                agent_tools = [Tool.from_schema(execute, item['function']['name'], item['function']['description'],
+                                item['function']['parameters'], takes_ctx=True, sequential=True) for item in tools]
+                # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
+                agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
                 # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
                 with _timed(timings, 'decode_s'):
                     initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
