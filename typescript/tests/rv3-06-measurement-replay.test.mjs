@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fixture, activation } from './pr10-support.mjs';
+import { fixture, activation, request } from './pr10-support.mjs';
 import Drivers from '../.build/core/dist/drivers/index.js';
 import Repository, { measurementMigration } from '../.build/social/dist/measurement-repository/index.js';
 import Measurements from '../.build/social/dist/measurements/index.js';
@@ -219,6 +219,7 @@ test('RV3-06-T05 low ledger record budget stores the envelope by reference and s
         assert.equal(first.status, 'incomplete');
         assert.match(String(first.failure), /MEASUREMENT_APPEND_FAILED/);
         const record = (await s.c.attempts.probe(identity(s.c, s.context, spec.id))).record;
+        assert.equal(s.c.attempts.maxRecordBytes, 1024);
         assert.equal(record.status, 'settled');
         assert.equal(record.result.observation, undefined, 'envelope itself is a reference');
         const envelope = JSON.parse((await readArtifact(s.c, record.result.envelope)).toString());
@@ -329,5 +330,8 @@ test('RV3-06-T06 shared Json observations are accepted while Date and BigInt are
         assert.deepEqual(await load(s.c, sharedRows.items[0].original), shared);
         assert.equal((await page(s.c, { specId: 'date' })).total, '0');
         assert.equal((await page(s.c, { specId: 'bigint' })).total, '0');
+        await assert.rejects(s.c.database.transaction(s.held.lease, request('rv3-06-prepare'), tx => s.c.measurementRepository.append(tx, {
+            id: 'unprepared', specId: 'shared', kind: 'measurement', actorId: 'a', logicalTime: '1', value: { body: 'x'.repeat(20000) }, original: null, source: null, required: false
+        })), /MEASUREMENT_PREPARE_REQUIRED/, 'append rejects unprepared inline fields');
     } finally { await s.close(); }
 });
