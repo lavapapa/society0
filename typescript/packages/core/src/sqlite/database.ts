@@ -93,13 +93,22 @@ export class Database {
   this.halted=true;this.fence.halt('SQLITE_SEGMENT_FAILED');
   throw Object.assign(fault('SQLITE_SEGMENT_FAILED',String(error)),{operationId,committed:true,receipt:cause.receipt,cause:error});
  }
+ private async workerLost(error:unknown):Promise<never>{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.exited;throw error}
+ private async rollbackFailure(error:unknown,id:string):Promise<never>{try{await this.rpc.call('rollback',{tx:id})}catch{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.worker.terminate();await this.rpc.exited}throw error}
+ private async commitFailure(error:unknown,failure:{commitPhase?:string;notSent?:boolean},id:string,operationId:string):Promise<never>{
+  if(failure.commitPhase==='segment')return this.segmentFailed(error,id,operationId);
+  if(failure.commitPhase==='prepare'||failure.notSent)return this.rollbackFailure(error,id);
+  return this.unknownCommit(error,id,operationId);
+ }
+ private async preCommitFailure(error:unknown,failure:{code?:string},begun:boolean,id:string):Promise<never>{
+  if(this.rpc.snapshot().exited||failure.code==='SQLITE_WORKER_LOST')return this.workerLost(error);
+  if(begun)return this.rollbackFailure(error,id);
+  throw error;
+ }
  private async failedTransaction(error:unknown,commitStarted:boolean,begun:boolean,id:string,operationId:string):Promise<never>{
   const failure=error as {commitPhase?:string;notSent?:boolean;code?:string};
-  if(commitStarted&&failure?.commitPhase==='segment')return this.segmentFailed(error,id,operationId);
-  if(commitStarted&&failure?.commitPhase!=='prepare'&&!failure?.notSent)return this.unknownCommit(error,id,operationId);
-  if(this.rpc.snapshot().exited||failure?.code==='SQLITE_WORKER_LOST'){this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.exited;throw error}
-  if(begun)try{await this.rpc.call('rollback',{tx:id})}catch{this.halted=true;this.fence.halt('SQLITE_WORKER_LOST');await this.rpc.worker.terminate();await this.rpc.exited}
-  throw error;
+  if(commitStarted)return this.commitFailure(error,failure,id,operationId);
+  return this.preCommitFailure(error,failure,begun,id);
  }
  private async perform<T>(permit:CommitPermit,request:TransactionRequest,body:(tx:SqliteTransaction)=>Promise<T>,signal:AbortSignal,stage:Stage<unknown>):Promise<{value:T;receipt:CommitReceipt}>{
   signal.throwIfAborted();permit.assertActive();this.available();Atomics.store(this.control,0,0);

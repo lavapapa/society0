@@ -71,17 +71,18 @@ export class ActionCall {
             return;
         if (claim.status === 'unknown')
             return fail('ACTION_ATTEMPT_UNKNOWN');
-        if (claim.status === 'existing' && claim.record.status === 'unknown') {
-            if (this.entry.definition.effect === 'external')
-                return fail('ACTION_ATTEMPT_UNKNOWN');
-            const stored = claim.record.result as { code?: string; commit?: unknown } | undefined;
-            const code = stored?.code === 'SQLITE_COMMIT_UNKNOWN' || stored?.code === 'SQLITE_SEGMENT_FAILED' ? stored.code : 'ACTION_ATTEMPT_UNKNOWN';
-            throw Object.assign(new Error(code), { code, storage: true, ...(stored?.commit ? { commit: stored.commit } : {}) });
-        }
+        if (claim.record.status === 'unknown')
+            return this.unknownAttempt(claim.record, this.entry.definition.effect === 'external');
         if (this.entry.definition.effect === 'external')
             return fail('ACTION_ATTEMPT_EXISTS');
         this.attempt.attempt++;
     } }
+    private unknownAttempt(record: { result?: unknown }, external: boolean): never {
+        if (external) return fail('ACTION_ATTEMPT_UNKNOWN');
+        const stored = record.result as { code?: string; commit?: unknown } | undefined;
+        const code = stored?.code === 'SQLITE_COMMIT_UNKNOWN' || stored?.code === 'SQLITE_SEGMENT_FAILED' ? stored.code : 'ACTION_ATTEMPT_UNKNOWN';
+        throw Object.assign(new Error(code), { code, storage: true, ...(stored?.commit ? { commit: stored.commit } : {}) });
+    }
     private async returned(receipt: ActionReceipt) { const raw = await prepareValue(receipt as unknown as Json, 16384, this.ctx.artifacts); await this.ctx.attempts.settle(this.attempt, { status: 'returned', receipt: raw }, [...references(raw), ...receipt.artifacts]); }
     private async failed(error: ActionExecutionFailure): Promise<'external-unknown' | 'storage-unknown' | 'settled' | 'absent'> { const existing = await this.ctx.attempts.probe(this.attempt); if (existing.status !== 'found' || existing.record.status !== 'pending')
         return 'absent'; const facts = { code: error.code, message: error.message, requiredOperations: error.requiredOperations }; if (this.entry.definition.effect === 'external') {
