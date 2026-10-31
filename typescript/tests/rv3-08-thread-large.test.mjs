@@ -33,6 +33,7 @@ test('RV3-08-T02 eight MiB message keeps live memory bounded and exact bytes', a
   assert.equal(result.code, 0, stdout);
   const line = stdout.trim().split('\n').filter(Boolean).at(-1);
   const proof = JSON.parse(line).rv308Proof;
+  console.log(JSON.stringify({rv308Proof: proof}));
   assert.ok(proof.utf8Bytes > 8_000_000);
   assert.ok(proof.maxChunk <= 65536);
   assert.ok(proof.arrayBuffersLiveDelta <= 1 << 20, JSON.stringify(proof));

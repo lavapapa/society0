@@ -1,15 +1,15 @@
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
-export const Config = Schema.object({ bodyInlineBytes: Schema.natural().min(1).default(16384) });
-export const metadata: PluginMetadata = { "title": "thread", "summary": "完整保留消息链、工具调用和结果、interactionId、原始provider字段与perception cursor；大正文使用对象引用。", "configVersion": 1, "configPolicy": [{ "path": "/bodyInlineBytes", "mode": "new-run", "affectsResults": true, "secret": false }], "scope": "run", "allowedScopes": ["run"], "hostAbi": "society0/host/1" };
+export const Config = Schema.object({ bodyInlineBytes: Schema.natural().min(1).default(16384), maxMessageBytes: Schema.natural().min(1).default(16777216) });
+export const metadata: PluginMetadata = { "title": "thread", "summary": "完整保留消息链、工具调用和结果、interactionId、原始provider字段与perception cursor；大正文使用对象引用。", "configVersion": 1, "configPolicy": [{ "path": "/bodyInlineBytes", "mode": "new-run", "affectsResults": true, "secret": false }, { "path": "/maxMessageBytes", "mode": "new-run", "affectsResults": true, "secret": false }], "scope": "run", "allowedScopes": ["run"], "hostAbi": "society0/host/1" };
 export const api: ApiEntry = { "exportPath": "./thread", "provides": [{ "key": "threads", "protocol": "threads", "major": 1, "capabilities": [] }], "requires": [{ "service": { "key": "database", "protocol": "database", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }, { "service": { "key": "artifacts", "protocol": "artifacts", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
 import { Context, Service } from '@society0/cordis';
 import type { Message, ConsumerPosition, PreparedMessage } from '../contracts/domain.js';
 import type { Json } from '../contracts/common.js';
 import type { StoredValue, PayloadRef, PayloadRange, DiscoveryScope, PageRequest } from '../contracts/data.js';
 import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
-import { prepareValue, attachValue, readValue } from '../results/payload.js';
-import { after, identity, page, fail, equal, bytes, bounds, sqlPageBudget, assertSqlPagePrefix } from '../information/page.js';
+import { attachValue, readValue, prepareBoundedJson, jsonByteBound } from '../results/payload.js';
+import { after, identity, page, fail, equal, bounds, sqlPageBudget, assertSqlPagePrefix } from '../information/page.js';
 import '../artifacts-local/index.js';
 export * from './schema.js';
 export type { PreparedMessage } from '../contracts/domain.js';
@@ -24,9 +24,39 @@ export class Threads extends Service {
     static inject = ['database', 'artifacts'];
     constructor(ctx: Context, private options: {
         bodyInlineBytes: number;
+        maxMessageBytes: number;
     }) { super(ctx, 'threads'); }
     async open(actor: string, moment: string, view: SqliteReadView) { const [row] = await view.query({ sql: 'SELECT id,head,interaction_id FROM threads WHERE actor_id=? AND moment_id=?', parameters: [actor, moment] }, queryBounds); const id = row ? String(row.id) : JSON.stringify([view.runId, actor, moment]); return { id, actorId: actor, momentId: moment, interactionId: row ? String(row.interaction_id) : id, headSeq: String(row?.head ?? 0), messageCount: String(row?.head ?? 0) }; }
-    async prepare(message: Message, signal?: AbortSignal): Promise<PreparedMessage> { return { id: message.id, interactionId: message.interactionId, role: message.role, payload: await prepareValue(message as unknown as Json, this.options.bodyInlineBytes, this.ctx.artifacts, signal), references: this.references(message) }; }
+    async prepare(message: Message, signal?: AbortSignal): Promise<PreparedMessage> {
+        let payload: StoredValue;
+        try {
+            payload = await prepareBoundedJson(message as unknown as Json, { inline: this.options.bodyInlineBytes, maxBytes: this.options.maxMessageBytes }, this.ctx.artifacts, signal);
+        }
+        catch (error) {
+            const code = (error as { code?: string }).code;
+            if (code === 'PAYLOAD_JSON_BYTES')
+                return fail('THREAD_MESSAGE_BYTES');
+            if (code === 'PAYLOAD_JSON_VALUE')
+                return fail('THREAD_MESSAGE_INVALID');
+            throw error;
+        }
+        return { id: message.id, interactionId: message.interactionId, role: message.role, payload, references: this.references(message) };
+    }
+    private requireInline(payload: StoredValue) {
+        if (payload.kind !== 'inline')
+            return;
+        let size: number;
+        try {
+            size = jsonByteBound(payload.value, this.options.bodyInlineBytes);
+        }
+        catch (error) {
+            if ((error as { code?: string }).code === 'PAYLOAD_JSON_VALUE')
+                return fail('THREAD_MESSAGE_INVALID');
+            throw error;
+        }
+        if (size > this.options.bodyInlineBytes)
+            return fail('THREAD_PREPARE_REQUIRED');
+    }
     private references(message: Message) { return [message.content, message.originalProviderFields].filter((value): value is import('../artifacts-local/store.js').ArtifactRef => !!value && typeof value === 'object' && !Array.isArray(value) && 'id' in value && 'bytes' in value && 'mediaType' in value); }
     private async address(thread: string, reader: SqliteReadView | SqliteTransaction) { const [row] = await reader.query({ sql: 'SELECT actor_id,moment_id,interaction_id FROM threads WHERE id=?', parameters: [thread] }, queryBounds); if (row)
         return { actor: String(row.actor_id), moment: String(row.moment_id), interaction: String(row.interaction_id) }; const value = JSON.parse(thread); if (!Array.isArray(value) || value.length !== 3 || value.some(x => typeof x !== 'string'))
@@ -36,8 +66,7 @@ export class Threads extends Service {
         if (message.interactionId !== interaction)
             return fail('THREAD_INTERACTION');
         const payload: StoredValue = 'payload' in message ? message.payload : { kind: 'inline', value: message as unknown as Json };
-        if (payload.kind === 'inline' && bytes(payload.value) > this.options.bodyInlineBytes)
-            return fail('THREAD_PREPARE_REQUIRED');
+        this.requireInline(payload);
         await attachValue(tx, payload, this.ctx.artifacts);
         for (const ref of ('payload' in message ? message.references ?? [] : this.references(message)))
             await this.ctx.artifacts.reference(tx, ref);
