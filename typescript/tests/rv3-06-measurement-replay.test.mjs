@@ -137,13 +137,14 @@ test('RV3-06-T02 observation at maxResultBytes-10 replays outside the envelope w
 });
 
 test('RV3-06-T03 failed interviews replay the verbatim original failure text', async () => {
-    const body = '完整原始失败响应'.repeat(12000);
+    const body = '完整原始失败响应'.repeat(12000), large = 'f'.repeat(1048578);
     const cases = [
         {
-            name: '3a', error: () => Object.assign(Error('HTTP_INTERVIEW_503'), { original: { status: 503, body } }), text: 'Error: HTTP_INTERVIEW_503', reference: true
+            name: '3a', error: () => Object.assign(Error('HTTP_INTERVIEW_503'), { original: { status: 503, body } }), text: 'Error: HTTP_INTERVIEW_503', original: { kind: 'reference', value: { status: 503, body } }
         },
-        { name: '3b', error: () => new TypeError('bad'), text: 'TypeError: bad', reference: false },
-        { name: '3c', error: () => 'plain', text: 'plain', reference: false }
+        { name: '3b', error: () => new TypeError('bad'), text: 'TypeError: bad', original: { kind: 'inline', value: null } },
+        { name: '3c', error: () => 'plain', text: 'plain', original: { kind: 'inline', value: null } },
+        { name: '3d', error: () => large, text: large, original: { kind: 'inline', value: null }, failureReference: true }
     ];
     for (const item of cases) {
         const calls = { n: 0 };
@@ -159,14 +160,16 @@ test('RV3-06-T03 failed interviews replay the verbatim original failure text', a
             const second = (await s.c.measurements.collect(s.context)).value[0];
             assert.equal(first.status, 'incomplete', item.name);
             assert.equal(second.status, 'incomplete', item.name);
-            assert.equal(first.failure, item.text, item.name + ' first');
-            assert.equal(second.failure, item.text, item.name + ' replay verbatim');
+            assert.ok(first.failure === item.text, item.name + ' first verbatim');
+            assert.ok(second.failure === item.text, item.name + ' replay verbatim');
             assert.equal(calls.n, 1, item.name + ' observe once');
             const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
             assert.equal(probe.record.status, 'settled');
             assert.equal(probe.record.result.ok, false);
-            assert.equal(probe.record.result.original.kind, item.reference ? 'reference' : 'inline');
-            if (item.reference) assert.deepEqual(await load(s.c, probe.record.result.original), { status: 503, body });
+            assert.equal(probe.record.result.original.kind, item.original.kind);
+            if (item.original.kind === 'reference') assert.deepEqual(await load(s.c, probe.record.result.original), item.original.value);
+            assert.equal(probe.record.result.failure.kind, item.failureReference ? 'reference' : 'inline');
+            if (item.failureReference) assert.ok((await readArtifact(s.c, probe.record.result.failure.ref.object)).toString() === item.text, item.name + ' failure artifact verbatim');
             assert.equal((await page(s.c)).total, '0');
         } finally { await s.close(); }
     }
@@ -248,6 +251,36 @@ test('RV3-06-T05 low ledger record budget stores the envelope by reference and s
         assert.equal(second.failure, 'MEASUREMENT_ATTEMPT_UNKNOWN');
         assert.equal((await page(t.c)).total, '0');
     } finally { await t.close(); }
+});
+
+test('RV3-06-T05 default inline fields keep a 48KB envelope readable above four ledger budgets', async () => {
+    const field = 'x'.repeat(16000);
+    const observation = { value: { answer: field }, original: { response: field }, source: { provider: field } };
+    assert.ok(Buffer.byteLength(JSON.stringify(observation)) <= 49152);
+    const calls = { n: 0 };
+    const spec = {
+        id: 'wide-inline', kind: 'interview', required: true, async observe() {
+            calls.n++;
+            return observation;
+        }
+    };
+    const s = await environment({ id: 'rv3-06-t05c', specs: [spec], attempts: { maxRecordBytes: 1024 } });
+    try {
+        failAppendOnce(s.c);
+        const first = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(first.status, 'incomplete');
+        assert.match(String(first.failure), /MEASUREMENT_APPEND_FAILED/);
+        const record = (await s.c.attempts.probe(identity(s.c, s.context, spec.id))).record;
+        assert.equal(record.status, 'settled');
+        assert.equal(record.result.observation, undefined);
+        assert.ok(Number(record.result.envelope.bytes) > 4096, 'envelope exceeds the old maxRecordBytes*4 cap');
+        const envelope = JSON.parse((await readArtifact(s.c, record.result.envelope)).toString());
+        assert.equal(envelope.ok, true);
+        const second = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(second.status, 'completed', String(second.failure));
+        assert.equal(calls.n, 1);
+        assert.equal((await page(s.c)).total, '1');
+    } finally { await s.close(); }
 });
 
 test('RV3-06-T06 shared Json observations are accepted while Date and BigInt are invalid', async () => {
