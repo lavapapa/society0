@@ -18,15 +18,20 @@ export interface ActionRegistration {
 }
 type Reader = SqliteReadView | SqliteTransaction;
 function references(value: StoredValue) { return value.kind === 'reference' ? [value.ref.object] : []; }
+function failureCode(cause: unknown, code?: string): string {
+    if (code) return code;
+    const value = (cause as { code?: string } | null)?.code;
+    return value ?? 'ACTION_ERROR';
+}
+function failureArtifacts(cause: unknown): readonly ArtifactRef[] {
+    const artifacts = (cause as { artifacts?: readonly ArtifactRef[] } | null)?.artifacts;
+    return Array.isArray(artifacts) ? artifacts : [];
+}
 export class ActionExecutionFailure extends Error {
     readonly code: string;
     readonly requiredOperations: readonly string[];
     readonly artifacts: readonly ArtifactRef[];
-    constructor(cause: unknown, operations: Iterable<string>, code?: string) { super(String(cause), { cause }); this.name = 'ActionExecutionFailure'; this.code = code ?? (cause as {
-        code?: string;
-    } | null)?.code ?? 'ACTION_ERROR'; this.requiredOperations = Object.freeze([...operations]); const artifacts = (cause as {
-        artifacts?: readonly ArtifactRef[];
-    } | null)?.artifacts; this.artifacts = Array.isArray(artifacts) ? artifacts : []; }
+    constructor(cause: unknown, operations: Iterable<string>, code?: string) { super(String(cause), { cause }); this.name = 'ActionExecutionFailure'; this.code = failureCode(cause, code); this.requiredOperations = Object.freeze([...operations]); this.artifacts = failureArtifacts(cause); }
 }
 /** 一次行动持有注册租约；快照筛查、外部执行与最终事务边界分别落实。 */
 export class ActionCall {
@@ -70,7 +75,7 @@ export class ActionCall {
         if (claim.status === 'send-permitted')
             return;
         if (claim.status === 'unknown')
-            return fail('ACTION_ATTEMPT_UNKNOWN');
+            throw Object.assign(new Error('ACTION_ATTEMPT_UNKNOWN'), { code: 'ACTION_ATTEMPT_UNKNOWN', storage: true, reason: claim.reason });
         if (claim.record.status === 'unknown')
             return this.unknownAttempt(claim.record, this.entry.definition.effect === 'external');
         if (this.entry.definition.effect === 'external')
