@@ -62,3 +62,14 @@ embedding provider 抛错可附带 `physical: not_dispatched|failed|response`；
 补充 inputs/society0_next_refactor_v3/docs/15-next-lessons.md §2.2、docs/07-storage.md:76,112、docs/16-domain-design.md:37。
 
 Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBoundedJson` 走 `jsonByteBound` 的迭代计数（与 `JSON.stringify` 字节数一致），超过 `maxMessageBytes` 时由 `Thread.append`/`Thread.appendInput` 以 `THREAD_MESSAGE_BYTES` 拒绝；顶层 undefined/function/symbol 不是可编码 Json，抛 `PAYLOAD_JSON_VALUE`（对象中同类属性跳过，数组中同类元素按 `null` 计数，保持原生 stringify 语义）。通过后用原生 `JSON.stringify` 生成字节，再经 `textChunks` 按 `artifacts.chunkBytes` 分块、可取消地 stage；`chunkBytes` 小于 6 时以 `PAYLOAD_CHUNK_BUDGET` 拒绝。同步 stringify 与预检不可抢占，峰值由 `maxMessageBytes` 约束；取消只在 stage 分块边界生效。`prepareValue` 语义不变，现有调用方不受影响。
+
+## RV3-05：driver 错误的阶段分类与持久未知
+
+补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四（driver 部分）、prs/PR08.md。
+
+`driver-llm` 的 activation 对全部抛错源只分类一次，统一为 `LlmActivationError{reason,code,stage,cause}`；已分类错误原样传递，cause 保留内层错误对象。reason 取 `InferenceStopReason` 并新增 `setup_error`、`perception_error`、`thread_error`、`internal_error`；stage 标识触发阶段（`db.snapshot`、`db.close`、`thread.open`、`thread.history|prepare|append|appendInput|consumer`、`prompts`、`context.freeze`、`artifact.stage`、`perception.collect|material|commit`、`attempts.probe|undispatched`、`actions.receipts`、`model.prepare`、`actor-tools`、`runtime.acquire`、`runtime.run`、`transaction:<label>`、`unclassified` 仅限未分类的内部不变量）。ActivationResult 的 incomplete evidence 增加 `code`、`stage`、`committed`、`receipt`；`error` 保留 cause 文本。
+
+- 事务按 B §1.3a 的调用方处置表：`SQLITE_COMMIT_UNKNOWN`、`SQLITE_SEGMENT_FAILED` 为 `persistence_unknown`（SEGMENT_FAILED 带 `committed:true` 与真实 receipt，且该 operationId 不进入 requiredOperations；COMMIT_UNKNOWN 的 `committed`/`receipt` 为 null），`SQLITE_TX_OUTCOME_MISSING` 为 `internal_error`，其余确定未提交或 body 错误为 `persistence_error`。
+- `view.close` 只在主体成功时上抛 `persistence_error/db.close`；已有主错误时 close 失败不覆盖主错误。
+- 取消只在 signal 已中止时按同一 reason 对象、cause 链或原生 `AbortError` 名称识别；`transport_unknown`、`persistence_unknown` 与 `context_limit` 优先于 `cancelled`。lease release 失败保留 `transport_unknown` 与 `persistence_unknown`，其余改写为 `persistence_error`。
+- `actor-tools` 的工具动作或回执保存以 `SQLITE_COMMIT_UNKNOWN`/`SQLITE_SEGMENT_FAILED` 失败时上抛 `INFERENCE_PERSISTENCE_UNKNOWN`，经 runtime 得到 `persistence_unknown`；`ACTION_ATTEMPT_UNKNOWN`（外部动作结果未知）仍为 `transport_unknown`。失败回执的 value 增加 `persistenceUnknown`。
