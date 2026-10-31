@@ -31,7 +31,8 @@ export class ActionExecutionFailure extends Error {
     readonly code: string;
     readonly requiredOperations: readonly string[];
     readonly artifacts: readonly ArtifactRef[];
-    constructor(cause: unknown, operations: Iterable<string>, code?: string) { super(String(cause), { cause }); this.name = 'ActionExecutionFailure'; this.code = failureCode(cause, code); this.requiredOperations = Object.freeze([...operations]); this.artifacts = failureArtifacts(cause); }
+    readonly storage: boolean;
+    constructor(cause: unknown, operations: Iterable<string>, code?: string) { super(String(cause), { cause }); this.name = 'ActionExecutionFailure'; this.code = failureCode(cause, code); this.requiredOperations = Object.freeze([...operations]); this.artifacts = failureArtifacts(cause); this.storage = (cause as { storage?: boolean } | null)?.storage === true; }
 }
 /** 一次行动持有注册租约；快照筛查、外部执行与最终事务边界分别落实。 */
 export class ActionCall {

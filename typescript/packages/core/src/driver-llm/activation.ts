@@ -138,7 +138,9 @@ export class LlmActivation {
   await this.step('persistence_error','attempts.undispatched',async()=>{
    const identity={lineage:this.ctx.attempts.authority().lineage,operationId:this.context.operationId+'/undispatched/'+receipt.toolCallId,attempt:0};
    const claim=await this.ctx.attempts.claim(identity,{kind:'not_dispatched',threadId:this.thread.id,interactionId:this.thread.interactionId,receipt});
-   if(claim.status==='send-permitted')await this.ctx.attempts.settle(identity,{status:'not_dispatched',receipt});
+   if(claim.status==='unknown')throw Object.assign(Error('ATTEMPT_LEDGER_UNKNOWN '+claim.reason),{code:'ATTEMPT_LEDGER_UNKNOWN',reason:claim.reason});
+   if(claim.status==='send-permitted'){await this.ctx.attempts.settle(identity,{status:'not_dispatched',receipt});return}
+   if(claim.record.status!=='settled')throw Object.assign(Error('ATTEMPT_LEDGER_INCOMPLETE '+claim.record.status),{code:'ATTEMPT_LEDGER_INCOMPLETE',reason:claim.record.reason??claim.record.status});
   });
  }
  private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.context.momentId,view)))}
