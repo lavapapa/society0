@@ -169,7 +169,7 @@ test('RV3-06-T03 failed interviews replay the verbatim original failure text', a
             assert.equal(probe.record.result.original.kind, item.original.kind);
             if (item.original.kind === 'reference') assert.deepEqual(await load(s.c, probe.record.result.original), item.original.value);
             assert.equal(probe.record.result.failure.kind, item.failureReference ? 'reference' : 'inline');
-            if (item.failureReference) assert.ok((await readArtifact(s.c, probe.record.result.failure.ref.object)).toString() === item.text, item.name + ' failure artifact verbatim');
+            if (item.failureReference) assert.ok(JSON.parse((await readArtifact(s.c, probe.record.result.failure.ref.object)).toString()) === item.text, item.name + ' failure artifact verbatim');
             assert.equal((await page(s.c)).total, '0');
         } finally { await s.close(); }
     }
@@ -331,7 +331,7 @@ test('RV3-06-T06 shared Json observations are accepted while Date and BigInt are
         assert.equal((await page(s.c, { specId: 'date' })).total, '0');
         assert.equal((await page(s.c, { specId: 'bigint' })).total, '0');
         await assert.rejects(s.c.database.transaction(s.held.lease, request('rv3-06-prepare'), tx => s.c.measurementRepository.append(tx, {
-            id: 'unprepared', specId: 'shared', kind: 'measurement', actorId: 'a', logicalTime: '1', value: { body: 'x'.repeat(20000) }, original: null, source: null, required: false
+            id: 'unprepared', specId: 'shared', kind: 'measurement', actorId: 'a', logicalTime: '1', value: { kind: 'inline', value: { body: 'x'.repeat(20000) } }, original: { kind: 'inline', value: null }, source: { kind: 'inline', value: null }, required: false
         })), /MEASUREMENT_PREPARE_REQUIRED/, 'append rejects unprepared inline fields');
     } finally { await s.close(); }
 });
