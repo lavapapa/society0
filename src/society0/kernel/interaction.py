@@ -616,8 +616,10 @@ class Actions:
             return ActionResult('rejected', {'reason': 'unavailable'})
         if action.strict:
             arguments = _normalize_strict_value(arguments, action.parameters)
-        if not registered[1].is_valid(arguments):
-            return ActionResult('rejected', {'reason': 'invalid_arguments'})
+        if errors := list(registered[1].iter_errors(arguments)):
+            return ActionResult('rejected', {'reason': 'invalid_arguments', 'details': [
+                {'path': list(error.absolute_path), 'message': error.message,
+                 'validator': error.validator, 'expected': error.validator_value} for error in errors]})
         scope.check_active()
         try:
             result = await _resolve(action.handler(scope, target, arguments))
