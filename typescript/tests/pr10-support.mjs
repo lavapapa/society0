@@ -44,7 +44,7 @@ export async function fixture(options = {}) {
             directory, runId, generation: 'g', controlSequence: '0'
         });
         await c.plugin(Attempts.default, {
-            directory: attemptDirectory, lineage
+            directory: attemptDirectory, lineage, ...(options.attempts ?? {})
         });
         if (options.restore)
             await c.attempts.verifyAuthority();
