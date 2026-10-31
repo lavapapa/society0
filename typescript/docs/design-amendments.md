@@ -75,3 +75,24 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 - `actor-tools` 的工具动作或回执保存以 `SQLITE_COMMIT_UNKNOWN`/`SQLITE_SEGMENT_FAILED` 失败时上抛 `INFERENCE_PERSISTENCE_UNKNOWN`，经 runtime 得到 `persistence_unknown`；`ACTION_ATTEMPT_UNKNOWN`（外部动作结果未知）仍为 `transport_unknown`。失败回执的 value 增加 `persistenceUnknown`。
 - undispatched 回调按真实 claim 结果处理：`{status:'unknown'}` 抛 `ATTEMPT_LEDGER_UNKNOWN`，`existing` 且记录非 settled（pending/unknown）抛 `ATTEMPT_LEDGER_INCOMPLETE`，两者都归 `persistence_error/attempts.undispatched`，不伪造 not_dispatched 结算；`existing` 已 settled 时视为已有耐久事实、不重写记录；只有 `send-permitted` 才写结算。
 - 行动 claim 的存储不确定（`ACTION_ATTEMPT_UNKNOWN{storage:true}`）经 `ActionExecutionFailure.storage` 与 binding 判定报 `INFERENCE_PERSISTENCE_UNKNOWN`/`persistence_unknown`，失败回执 `persistenceUnknown:true`、`externalUnknown:false`；无 storage 的外部动作结果未知仍为 `transport_unknown`。
+
+
+## RV3-06：大访谈结果、ledger 记录上限与重放一致性
+
+补充 inputs/society0_next_refactor_v3/docs/07-storage.md:112、prs/PR10.md:15、PR10-T04。
+
+`AttemptLedger` 与 `Attempts` 新增公开只读 `maxRecordBytes`。Social 测量合同改为 `MeasurementObservation{value,original,source:Json}` 与 `PreparedMeasurement{value,original,source:StoredValue}`，`MeasurementRecord extends PreparedMeasurement`；`StoredValue` 直接使用 `@society0/core/contracts/data` 的导出，DDL 不变，不保留旧 shape 或迁移。
+
+`measurementRepository` 新增 `inlineBytes`（`Schema.natural().min(1).max(16384).default(16384)`，`new-run`/`affectsResults`）、`prepare`（逐字段调用现有 `prepareValue`）与 `readPayload`（`readValue`）。`append` 要求字段已是 StoredValue，内联字段超过 `inlineBytes` 时以 `MEASUREMENT_PREPARE_REQUIRED` 拒绝；同一事务内 `attachValue` 三字段后写入 JSON，`page` 按 StoredValue 解析。`measurements` 在 observe 后先用 `jsonByteBound` 检查：超过 `maxResultBytes` 得 `MEASUREMENT_RESULT_BYTES`，非 Json（toJSON/Date、BigInt、循环）得 `MEASUREMENT_RESULT_INVALID`；非循环共享引用按原生 JSON 展开语义计数，不误判超限。
+
+访谈 attempt：观察失败时以 `MeasurementFailure` 保留原始文本（`toString` 返回该文本，Error/TypeError/plain string 首次与重放逐字一致），failure 一律存为 StoredValue（4096 内联阈）；成功保存 `PreparedMeasurement`。信封包含 observation/failure/original/evidence 的全部引用；`bytes(envelope)+256` 超过 `attempts.maxRecordBytes` 时把信封整体 stage 为 evidence，再 settle `{envelope:ref}` 并携带其内部全部 refs。重放用 `attempts.readArtifact` 读取信封与 failure，正文引用先 `materialize` 再随仓库引用，避免为读信封制造未引用对象。结果持久化的单一失败边界（`repository.prepare`、`storeOne`、`storeFailure`、`stageEvidence`、`stageOversize`、`attempts.settle` 的实际失败）统一抛 `MEASUREMENT_ATTEMPT_UNKNOWN`（原 cause 保留）且不写仓库；成功 settle 后按原始失败文本、`MEASUREMENT_RESULT_BYTES` 或 `MEASUREMENT_RESULT_INVALID` 报告，不被该边界改写。删除 `saved.evidence` 一律抛错与 `MEASUREMENT_ATTEMPT_PENDING`。
+
+超硬上限的 observation 在 `ARTIFACT_LIMIT=67108864` 内完整 stage 为 evidence 并 settle `{ok:false,failure:{kind:'inline',value:'MEASUREMENT_RESULT_BYTES'},evidence,bytes}`；超过该上限时 `evidence=null`、`bytes='>67108864'` 如实披露，不虚称保存。
+
+**读取上限反例（原生 JSON 实测）**：§4.4 原文的信封上限 `maxRecordBytes*4` 与 failure 上限 1MiB 同合法配置冲突。`attempts.maxRecordBytes=1024` 加 `inlineBytes=16384`（默认）时，三字段各 1400B 的合法观测生成 4102B 信封（大于 4096）；三字段各 16000B 时观测 48116B（≤`maxResultBytes` 49152）、信封 48142B。failure 文本 1048578 字符存为引用时 `rawBytes=1048580`（大于 1048576）。两者都会让已成功 settle 的 attempt 在重放改抛 budget，首次与重放不同事实。现合同把信封与 failure 引用读取统一到既有 `ARTIFACT_LIMIT`（即 `stageEvidence`/artifacts 的原生 `maxObjectBytes`），不新增 quota/config：成功 stage 且不超过该上限的值必须可读；超过该上限的值无法 stage，首轮即为 `MEASUREMENT_ATTEMPT_UNKNOWN`，下次 pending/unknown 同码。`MeasurementFailure('MEASUREMENT_ENVELOPE_BUDGET')` 仅保留为 artifact ref 元数据超过 64MiB 的完整性守卫。
+
+**消费者 shape 变化**：completed outcome 的 value/original/source 与仓库 page 行为 StoredValue；完整正文经 `measurementRepository.readPayload` 分块读取。`pr10-runtime`、`pr10-runtime-activation` 读 `.value.value`；`pr10-query-boundaries` 在 append 前 `prepare`；`pr10-observation-boundaries` 读 `.original.value.body`。PR10-T04 的 attempt evidence 现在是 observation 本体，不再是 `{ok:true,observation}` 信封。
+
+**行为变化**：Date 等带 toJSON 的值过去能被 stringify 并写入仓库，现在按测量合同报 `MEASUREMENT_RESULT_INVALID`；重放不再报 `MEASUREMENT_ATTEMPT_PENDING` 或 25 字节窗口的 `MEASUREMENT_RESULT_BYTES`，ledger 结果未知时按真实事实报 `MEASUREMENT_ATTEMPT_UNKNOWN`。
+
+**未引用对象**：`LocalArtifacts.collect(retained)` 只在 `packages/core/src/artifacts-local/store.ts:28` 定义，`packages/core/src/artifacts-local` 与 `packages/core/src/sqlite-history` 内无调用者（全包 grep 亦无）；完整点/GC 不回收事务前 stage 的未引用 artifact。登记为后续 GC 事项，本 PR 不扩实现。

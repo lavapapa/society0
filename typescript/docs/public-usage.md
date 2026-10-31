@@ -106,6 +106,10 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 [{"id":"target-event-2","offset":"2","time":"2","payload":{"handler":"plain.update","actorId":"alice","attributes":{"name":"Alice","message":"target event only"}}}]
 ```
 
+## 测量结果
+
+`measurements` 的 completed outcome 与 `measurementRepository.page` 行的 value/original/source 是 StoredValue（`{kind:'inline',value}` 或 `{kind:'reference',ref}`）。引用字段用 `measurementRepository.readPayload(ref,{offset,length,maxBytes})` 读取完整正文；分页响应只含引用元数据。超过 `maxResultBytes` 的回答以 attempt 证据保存并使测量 incomplete；失败、超限与未知分别报原始失败文本、`MEASUREMENT_RESULT_BYTES` 与 `MEASUREMENT_ATTEMPT_UNKNOWN`，重放不重新观察。
+
 ## 驱动错误分类
 
 `driver-llm` 的 `activate` 失败时返回 `status:"incomplete"`，`value.reason` 取推理原因或调用阶段原因：`setup_error`、`perception_error`、`thread_error`、`internal_error`，以及既有 `provider_error`、`context_limit`、`cancelled`、`persistence_error`、`persistence_unknown`、`transport_unknown`。`evidence` 同时带 `code`、`stage`、`committed`、`receipt` 与 cause 文本；`stage` 指出失败调用（如 `thread.appendInput`、`transaction:input`、`actions.receipts`）。

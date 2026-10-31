@@ -38,8 +38,8 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 
 ## 四、测量
 
-[Measurements](measurements/index.ts) 登记测量和访谈，采样由独立策略决定。成功结果进入[MeasurementRepository](measurement-repository/index.ts)，保留主体、逻辑时间、原始回答、来源与 required 标记。required 失败使当前推进保持 incomplete。
+[Measurements](measurements/index.ts) 登记测量和访谈，采样由独立策略决定。成功结果进入[MeasurementRepository](measurement-repository/index.ts)，保留主体、逻辑时间、原始回答、来源与 required 标记；记录的 value/original/source 是 StoredValue，小值内联、大字段按引用保存，完整正文用 `measurementRepository.readPayload` 读取。required 失败使当前推进保持 incomplete。
 
-访谈通过 run 目录之外的 Attempts authority 留存外部事实。超过结果预算的原始响应保存在该 authority 的 artifact 中，并由已结算 Attempt 引用；世界事务的失败与恢复保留这些证据。[排名比较](social-measurement/index.ts) 使用同一份准备输入及已接纳写租约，通过 Core Results 保存策略配置和全部分数组成。
+访谈通过 run 目录之外的 Attempts authority 留存外部事实。大字段按引用保存；超过结果预算的完整 observation 保存在该 authority 的 artifact 中，并由已结算 Attempt 引用；世界事务的失败与恢复保留这些证据。重放不重新观察；ledger 结果未知（含 pending）时报 `MEASUREMENT_ATTEMPT_UNKNOWN`。[排名比较](social-measurement/index.ts) 使用同一份准备输入及已接纳写租约，通过 Core Results 保存策略配置和全部分数组成。
 
 组合者可替换传播、拓扑、来源、排名和采样贡献；其数据归属与完整点规则保持一致。
