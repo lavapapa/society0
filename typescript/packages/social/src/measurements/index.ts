@@ -344,7 +344,7 @@ export class Measurements extends Service {
     private async failure(value: StoredValue) {
         if (value.kind === 'inline')
             return String(value.value);
-        return (await this.read(value.ref.object, ARTIFACT_LIMIT)).toString();
+        return String(JSON.parse((await this.read(value.ref.object, ARTIFACT_LIMIT)).toString()));
     }
     private async read(ref: ArtifactRef, limit: number) {
         const bytes = Number(ref.bytes);
