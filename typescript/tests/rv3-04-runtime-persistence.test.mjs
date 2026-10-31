@@ -74,11 +74,29 @@ test('RV3-04-T01 settlement write failure is attempted once without settlement',
     prepared=await provider.prepare({provider:'pi/v1',model:'offline'},context);
     const stream=await prepared.value.streamFn(prepared.value.model,{messages:[{role:'user',content:'x',timestamp:0}]},{});
     await consume(stream);
-    await assert.rejects(prepared.value.drain(),error=>error.code==='NATIVE_STREAM_DOWN');
+    await assert.rejects(prepared.value.drain(),error=>error.code==='MODEL_SETTLEMENT_ERROR'&&(error.errors??[]).some(item=>item.code==='NATIVE_STREAM_DOWN')&&(error.errors??[]).some(item=>item.code==='LEDGER_DOWN'));
     assert.equal(unknowns,1);
     assert.equal(settles,0);
     assert.equal(prepared.value.attemptSettlements?.length??0,0);
     const pending=await actual.probe({lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
     assert.equal(pending.record.status,'pending');
+  } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
+});
+
+test('RV3-04-T01 native rejection plus ledger failure classifies as persistence_error',async()=>{
+  const run=await fixture();let provider,prepared;
+  try {
+    const actual=run.ctx.attempts;
+    const ledger={evidenceChunkBytes:actual.evidenceChunkBytes,authority:()=>actual.authority(),claim:(...args)=>actual.claim(...args),settle:(...args)=>actual.settle(...args),stageEvidence:(...args)=>actual.stageEvidence(...args),markUnknown:async()=>{throw Object.assign(Error('LEDGER_DOWN'),{code:'LEDGER_DOWN'})}};
+    provider=fakeProvider(run,ledger);
+    const context=run.context('rv304-settlement-runtime');
+    prepared=await provider.prepare({provider:'pi/v1',model:'offline'},context);
+    const runtime=new PiRuntime();
+    const outcome=await runtime.run(body(prepared.value),context,sinkOf(),extensions());
+    assert.equal(outcome.reason,'persistence_error');
+    assert.deepEqual(outcome.modelAttempts,[]);
+    const pending=await actual.probe({lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0});
+    assert.equal(pending.record.status,'pending');
+    await runtime.drain('done');
   } finally {await prepared?.release().catch(()=>{});await provider?.close();await run.close()}
 });

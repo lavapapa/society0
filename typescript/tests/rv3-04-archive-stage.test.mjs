@@ -78,3 +78,28 @@ test('RV3-04-T01 payload archive failure does not dispatch and leaves ledger pen
     await run.close();
   }
 });
+
+test('RV3-04-T01 payload archive failure keeps evidence wrapper in drain chain',async()=>{
+  const run=await fixture();let requests=0,jsonStages=0,provider,prepared,server;
+  try {
+    server=await withServer((req,res)=>{requests++;sse(req,res)});
+    const actual=run.ctx.attempts;
+    const ledger={evidenceChunkBytes:actual.evidenceChunkBytes,authority:()=>actual.authority(),claim:(...args)=>actual.claim(...args),settle:(...args)=>actual.settle(...args),markUnknown:(...args)=>actual.markUnknown(...args),stageEvidence:(input,mediaType)=>{if(mediaType==='application/json'){jsonStages++;if(jsonStages===2)return Promise.reject(Object.assign(Error('PAYLOAD_ARCHIVE_DOWN'),{code:'PAYLOAD_ARCHIVE_DOWN'}))}return actual.stageEvidence(input,mediaType)}};
+    provider=await connect(server.port,ledger);
+    const context=run.context('rv304-payload-chain');
+    prepared=await provider.prepare({provider:'pi/v1',model:'offline'},context);
+    const stream=await prepared.value.streamFn(prepared.value.model,{messages:[{role:'user',content:'payload',timestamp:0}]},{});
+    try { for await (const _ of stream) {} } catch {}
+    await assert.rejects(prepared.value.drain(),error=>error.code==='MODEL_EVIDENCE_ERROR'&&(error.errors??[]).some(item=>item.code==='PAYLOAD_ARCHIVE_DOWN'));
+    assert.equal(requests,0);
+    assert.equal(prepared.value.attemptSettlements?.length??0,0);
+    const identity={lineage:actual.authority().lineage,operationId:context.operationId+'/model/1',attempt:0};
+    const probe=await actual.probe(identity);
+    assert.equal(probe.record.status,'pending');
+  } finally {
+    await prepared?.release().catch(()=>{});
+    await provider?.close();
+    await server?.close();
+    await run.close();
+  }
+});
