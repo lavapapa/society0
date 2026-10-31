@@ -34,7 +34,7 @@ export async function fixture(options = {}) {
             directory, runId, generation: 'g', maxTransactionMs: 20000
         });
         await c.plugin(Artifacts.default, {
-            directory: join(directory, 'artifacts')
+            directory: join(directory, 'artifacts'), ...(options.artifacts ?? {})
         });
         await c.plugin(Initializers.default);
         await c.plugin(Bootstrap.default, {

@@ -175,6 +175,31 @@ test('RV3-06-T03 failed interviews replay the verbatim original failure text', a
     }
 });
 
+test('RV3-06-T03 toString-throwing observed error normalizes to unknown', async () => {
+    class Hostile extends Error {
+        toString() { throw Error('STRINGIFY_FAILED'); }
+    }
+    const calls = { n: 0 };
+    const spec = {
+        id: 'hostile-error', kind: 'interview', required: true, async observe() {
+            calls.n++;
+            throw new Hostile('hostile');
+        }
+    };
+    const s = await environment({ id: 'rv3-06-t03-hostile', specs: [spec] });
+    try {
+        const first = (await s.c.measurements.collect(s.context)).value[0];
+        const second = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(first.status, 'incomplete');
+        assert.ok(first.failure === 'MEASUREMENT_ATTEMPT_UNKNOWN', 'first unknown');
+        assert.ok(second.failure === 'MEASUREMENT_ATTEMPT_UNKNOWN', 'replay unknown');
+        assert.equal(calls.n, 1);
+        const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
+        assert.equal(probe.record.status, 'pending');
+        assert.equal((await page(s.c)).total, '0');
+    } finally { await s.close(); }
+});
+
 test('RV3-06-T04 oversized interview keeps the full observation as attempt evidence', async () => {
     const observation = { value: { answer: '完整答案' }, original: { response: '完整原始响应'.repeat(400) }, source: { provider: 'native-oversize' } };
     assert.ok(Buffer.byteLength(JSON.stringify(observation)) > 1024);
@@ -281,6 +306,32 @@ test('RV3-06-T05 default inline fields keep a 48KB envelope readable above four 
         assert.equal(second.status, 'completed', String(second.failure));
         assert.equal(calls.n, 1);
         assert.equal((await page(s.c)).total, '1');
+    } finally { await s.close(); }
+});
+
+test('RV3-06-T05 failure text above ARTIFACT_LIMIT is never staged', async () => {
+    const text = 'x'.repeat(67108864);
+    const calls = { n: 0 };
+    let stageCalls = 0;
+    const spec = {
+        id: 'oversize-failure', kind: 'interview', required: true, async observe() {
+            calls.n++;
+            throw new Error(text);
+        }
+    };
+    const s = await environment({ id: 'rv3-06-t05-huge-failure', specs: [spec], artifacts: { maxObjectBytes: 134217728 } });
+    try {
+        s.c.artifacts.stage = async () => { stageCalls++; throw Error('ARTIFACT_STAGE_INTERCEPTED'); };
+        const first = (await s.c.measurements.collect(s.context)).value[0];
+        const second = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(first.status, 'incomplete');
+        assert.ok(first.failure === 'MEASUREMENT_ATTEMPT_UNKNOWN', 'first unknown');
+        assert.ok(second.failure === 'MEASUREMENT_ATTEMPT_UNKNOWN', 'replay unknown');
+        assert.equal(stageCalls, 0, 'failure write precheck must skip staging');
+        assert.equal(calls.n, 1);
+        const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
+        assert.equal(probe.record.status, 'pending');
+        assert.equal((await page(s.c)).total, '0');
     } finally { await s.close(); }
 });
 
