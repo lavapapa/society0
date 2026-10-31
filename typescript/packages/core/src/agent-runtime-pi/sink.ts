@@ -7,7 +7,7 @@ export class OrderedInferenceSink implements InferenceEventSink {
  private fail(cause:unknown){this.failure??=cause instanceof Error?cause:Error(String(cause));this.abort(this.failure);return this.failure}
  append(event:AgentEvent,context:Invocation):Promise<void>{
   let snapshot:AgentEvent,size:number;try{snapshot=structuredClone(event);size=Buffer.byteLength(JSON.stringify(snapshot))}catch(error){return this.reject(this.fail(error))}
-  if(!this.accepting||this.failure||this.pending>=this.limits.maxPendingEvents||this.bytes+size>this.limits.maxPendingBytes)return this.reject(this.fail(Error('INFERENCE_SINK_BUDGET')));
+  if(!this.accepting||this.failure||this.pending>=this.limits.maxPendingEvents||this.bytes+size>this.limits.maxPendingBytes)return this.reject(this.fail(Object.assign(Error('INFERENCE_SINK_BUDGET'),{code:'INFERENCE_SINK_BUDGET'})));
   const frame={sequence:++this.sequence,event:snapshot};this.pending++;this.bytes+=size;
   const work=this.tail.then(()=>this.persist(frame,context)).finally(()=>{this.pending--;this.bytes-=size});void work.catch(error=>this.fail(error));this.tail=work;return work;
  }

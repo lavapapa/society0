@@ -44,3 +44,15 @@
 - 世界中已存在 `(source,id,offset)` 事件行，表示该事件的业务处理及其激活已在产生该行的推进中完成或被有意放弃。
 - 重投只在推进 evidence 中记录 `duplicateEventIds`，不再执行 handler，也不再激活。
 - seed 或迁移如果只登记“已见”，即表示接受不激活的后果。
+
+## RV3-04：模型请求的物理相位与结果分类
+
+补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四第 3 段。
+
+只有完整收到 400/401/403/404/422 响应（响应体读到 EOF）才判确定失败；能证明请求未发出的判 `not_dispatched`（`create()` 同步失败、abort 在底层 fetch 之前、连接阶段被拒的 code 链）；其余一律 `unknown`。observer 只统计目标端点调用，不读响应体；Codex 的 OAuth refresh 不经 `options.fetch`，不计入 `calls`；`maxRetries:0` 下无库内重试，`calls>1` 的非成功结局记 `unknown` 并记录 `physicalCalls`。ActivationResult 只在 ledger 写入成功后登记 `modelAttempts`；存在 unknown settlement 时原因为 `transport_unknown`；claim 为 `unknown` 时不登记 settlement，原因为 `persistence_error`。
+
+## NEW-3：embedding 的物理结局与 ledger 写入
+
+补充 inputs/society0_next_refactor_v3/docs/18-inference-and-reuse.md §四、prs/PR08.md。
+
+embedding provider 抛错可附带 `physical: not_dispatched|failed|response`；缺省视为 `unknown`。确定失败只拒绝本批，队列继续服务；`unknown`、ledger 写入失败、未取得 claim 的情况毒化队列并停止后续发送。ledger 写入失败以 `EMBEDDING_LEDGER_ERROR` 上抛，不得吞掉；claim 返回 `existing`/`unknown` 时不写 ledger。

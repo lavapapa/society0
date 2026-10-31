@@ -33,7 +33,7 @@ export interface EmbeddingLimits {
 }
 export interface EmbeddingProvider {
   readonly identity: EmbeddingIdentity;
-  /** 物理输入已合批，itemIndex 对应物理批次位置；成本写入该 attempt。 */
+  /** 物理输入已合批，itemIndex 对应物理批次位置；成本写入该 attempt。抛错可附带 physical:'not_dispatched'|'failed'|'response'；缺省视为unknown。 */
   embed(texts: readonly string[], attempt: AttemptIdentity, signal: AbortSignal): Promise<{ readonly items: readonly { readonly itemIndex: number; readonly vector: readonly number[] }[]; readonly usage: Json; readonly original: Json | ArtifactRef }>;
   close(): Promise<void>;
 }

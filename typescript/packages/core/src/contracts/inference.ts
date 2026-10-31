@@ -5,6 +5,7 @@ import type { Disposer, Invocation, Lease } from './common.js';
 import type { ActionReceipt } from './domain.js';
 import type { SelectionLease } from '@society0/host/slots';
 import { slotKey } from '@society0/host/slots';
+import type { PhysicalStatus } from '../attempts/transport.js';
 
 /** 由模型provider准备并绑定的快照；外层Lease覆盖请求、工具及持久化结算。 */
 export interface ResolvedModelSelection {
@@ -17,7 +18,16 @@ export interface ResolvedModelSelection {
   /** 直接连接Models.streamSimple；保持原生事件及签名，避免经过ModelEvent往返转换。 */
   readonly streamFn: StreamFn;
   readonly attemptIds?: readonly string[];
+  /** 本selection已结算的物理请求；登记发生在ledger写入成功之后。 */
+  readonly attemptSettlements?: readonly ModelAttemptSettlement[];
   drain?():Promise<void>;
+}
+/** 物理模型请求的持久结论；仅在attempt ledger写入成功后登记。非pi provider（如replay）不登记，空数组不表示没有物理请求。 */
+export interface ModelAttemptSettlement {
+  readonly physicalRequestId: string;
+  readonly status: PhysicalStatus;
+  readonly httpStatus: number | null;
+  readonly cause: string | null;
 }
 export interface ModelSelectionRequest {
   readonly provider: string;
@@ -59,7 +69,7 @@ export interface UndispatchedToolReceipt {
 export type InferenceStopReason =
   | 'success' | 'context_limit' | 'output_limit' | 'budget_exhausted'
   | 'required_action_failed' | 'tool_failed' | 'cancelled' | 'provider_error'
-  | 'transport_unknown' | 'persistence_error';
+  | 'transport_unknown' | 'persistence_unknown' | 'persistence_error';
 export interface InferenceOutcome {
   readonly status: 'completed' | 'incomplete';
   readonly reason: InferenceStopReason;
@@ -67,6 +77,8 @@ export interface InferenceOutcome {
   readonly actionReceipts: readonly InferenceActionReceipt[];
   readonly undispatched: readonly UndispatchedToolReceipt[];
   readonly attemptIds: readonly string[];
+  /** 与selection登记一致；unknown表示物理请求已有未知外部后果。 */
+  readonly modelAttempts: readonly ModelAttemptSettlement[];
 }
 export interface InferenceEventSink {
   readonly limits: InferenceSinkLimits;
