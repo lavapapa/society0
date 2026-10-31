@@ -73,3 +73,5 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 - `view.close` 只在主体成功时上抛 `persistence_error/db.close`；已有主错误时 close 失败不覆盖主错误。
 - 取消只在 signal 已中止时按同一 reason 对象、cause 链或原生 `AbortError` 名称识别；`transport_unknown`、`persistence_unknown` 与 `context_limit` 优先于 `cancelled`。lease release 失败保留 `transport_unknown` 与 `persistence_unknown`，其余改写为 `persistence_error`。
 - `actor-tools` 的工具动作或回执保存以 `SQLITE_COMMIT_UNKNOWN`/`SQLITE_SEGMENT_FAILED` 失败时上抛 `INFERENCE_PERSISTENCE_UNKNOWN`，经 runtime 得到 `persistence_unknown`；`ACTION_ATTEMPT_UNKNOWN`（外部动作结果未知）仍为 `transport_unknown`。失败回执的 value 增加 `persistenceUnknown`。
+- undispatched 回调按真实 claim 结果处理：`{status:'unknown'}` 抛 `ATTEMPT_LEDGER_UNKNOWN`，`existing` 且记录非 settled（pending/unknown）抛 `ATTEMPT_LEDGER_INCOMPLETE`，两者都归 `persistence_error/attempts.undispatched`，不伪造 not_dispatched 结算；`existing` 已 settled 时视为已有耐久事实、不重写记录；只有 `send-permitted` 才写结算。
+- 行动 claim 的存储不确定（`ACTION_ATTEMPT_UNKNOWN{storage:true}`）经 `ActionExecutionFailure.storage` 与 binding 判定报 `INFERENCE_PERSISTENCE_UNKNOWN`/`persistence_unknown`，失败回执 `persistenceUnknown:true`、`externalUnknown:false`；无 storage 的外部动作结果未知仍为 `transport_unknown`。

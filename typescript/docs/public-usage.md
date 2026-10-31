@@ -110,7 +110,7 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 
 `driver-llm` 的 `activate` 失败时返回 `status:"incomplete"`，`value.reason` 取推理原因或调用阶段原因：`setup_error`、`perception_error`、`thread_error`、`internal_error`，以及既有 `provider_error`、`context_limit`、`cancelled`、`persistence_error`、`persistence_unknown`、`transport_unknown`。`evidence` 同时带 `code`、`stage`、`committed`、`receipt` 与 cause 文本；`stage` 指出失败调用（如 `thread.appendInput`、`transaction:input`、`actions.receipts`）。
 
-调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`；外部动作结果未知（`ACTION_ATTEMPT_UNKNOWN`）仍为 `transport_unknown`。
+调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`；外部动作结果未知（`ACTION_ATTEMPT_UNKNOWN`，无 storage 标志）仍为 `transport_unknown`。工具调用前的 ledger claim 若返回 unknown 或已有未结算记录，驱动报 `persistence_error/attempts.undispatched`（`ATTEMPT_LEDGER_UNKNOWN`/`ATTEMPT_LEDGER_INCOMPLETE`），不伪造 not_dispatched 结算；已 settled 的记录保留不重写。行动 claim 返回 `ACTION_ATTEMPT_UNKNOWN{storage:true}` 属存储不确定，报 `persistence_unknown`（回执 `persistenceUnknown:true`、`externalUnknown:false`）。
 
 ## 事务结果合同
 
