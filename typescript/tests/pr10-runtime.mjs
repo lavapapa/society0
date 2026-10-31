@@ -211,7 +211,7 @@ test('PR10-T04 oversized interview response remains original evidence while fina
         for await (const chunk of c.attempts.readArtifact(record.result.evidence))
             chunks.push(Buffer.from(chunk));
         const saved = JSON.parse(Buffer.concat(chunks));
-        assert.equal(saved.observation.original.response, original);
+        assert.equal(saved.original.response, original);
     }
     finally {
         await f.host.close();
