@@ -89,6 +89,10 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 
 超硬上限的 observation 在 `ARTIFACT_LIMIT=67108864` 内完整 stage 为 evidence 并 settle `{ok:false,failure:{kind:'inline',value:'MEASUREMENT_RESULT_BYTES'},evidence,bytes}`；超过该上限时 `evidence=null`、`bytes='>67108864'` 如实披露，不虚称保存。
 
+**失败原文归一化的边界**：`failedInterview` 的 `String(error)` 求值放在同一持久化 try 内；若观测错误的 `toString` 自身抛错，转换失败进入 `raiseUnknown`，首次与 pending 重放都报 `MEASUREMENT_ATTEMPT_UNKNOWN`，不写仓库、不重新 observe。settle 成功后仍按原始失败文本抛 `MeasurementFailure`，转换成功的原文语义不变。
+
+**failure 写入预检**：`storeFailure` 在 `prepareValue` 前用 `jsonByteBound(text, ARTIFACT_LIMIT)` 检查；超过 64MiB 时直接进入实际持久化 unknown 边界，不写出读取侧会拒绝的引用。写入与读取共用 `ARTIFACT_LIMIT`，不超过该上限的 failure 仍可写可读；不新增 quota、配置或跨模块常量。测试用 `toString` 抛错的 Error 子类与 64MiB+2 字符失败文本（拦截 `artifacts.stage`，不落大对象）覆盖这两个边界。
+
 **读取上限反例（原生 JSON 实测）**：§4.4 原文的信封上限 `maxRecordBytes*4` 与 failure 上限 1MiB 同合法配置冲突。`attempts.maxRecordBytes=1024` 加 `inlineBytes=16384`（默认）时，三字段各 1400B 的合法观测生成 4102B 信封（大于 4096）；三字段各 16000B 时观测 48116B（≤`maxResultBytes` 49152）、信封 48142B。failure 文本 1048578 字符存为引用时 `rawBytes=1048580`（大于 1048576）。两者都会让已成功 settle 的 attempt 在重放改抛 budget，首次与重放不同事实。现合同把信封与 failure 引用读取统一到既有 `ARTIFACT_LIMIT`（即 `stageEvidence`/artifacts 的原生 `maxObjectBytes`），不新增 quota/config：成功 stage 且不超过该上限的值必须可读；超过该上限的值无法 stage，首轮即为 `MEASUREMENT_ATTEMPT_UNKNOWN`，下次 pending/unknown 同码。`MeasurementFailure('MEASUREMENT_ENVELOPE_BUDGET')` 仅保留为 artifact ref 元数据超过 64MiB 的完整性守卫。
 
 **消费者 shape 变化**：completed outcome 的 value/original/source 与仓库 page 行为 StoredValue；完整正文经 `measurementRepository.readPayload` 分块读取。`pr10-runtime`、`pr10-runtime-activation` 读 `.value.value`；`pr10-query-boundaries` 在 append 前 `prepare`；`pr10-observation-boundaries` 读 `.original.value.body`。PR10-T04 的 attempt evidence 现在是 observation 本体，不再是 `{ok:true,observation}` 信封。

@@ -275,8 +275,9 @@ export class Measurements extends Service {
         return persisted.measurement;
     }
     private async failedInterview(identity: AttemptIdentity, error: unknown, signal?: AbortSignal): Promise<never> {
-        const text = failureText(error);
+        let text: string;
         try {
+            text = failureText(error);
             const original = await this.storeOne((error as {
                 original?: Json;
             })?.original ?? null, signal);
@@ -286,7 +287,7 @@ export class Measurements extends Service {
             }, signal);
         }
         catch (cause) {
-            this.raiseUnknown(cause);
+            return this.raiseUnknown(cause);
         }
         throw new MeasurementFailure(text, {
             cause: error
@@ -392,6 +393,9 @@ export class Measurements extends Service {
         }, signal)).original;
     }
     private storeFailure(text: string, signal?: AbortSignal) {
+        // 写入与 failure 引用读取共用 ARTIFACT_LIMIT，避免写出不可读的引用。
+        if (jsonByteBound(text, ARTIFACT_LIMIT) > ARTIFACT_LIMIT)
+            throw new Error('MEASUREMENT_FAILURE_BYTES');
         return prepareValue(text, FAILURE_INLINE, this.ctx.artifacts, signal);
     }
 }
