@@ -414,6 +414,7 @@ class LLMDriver:
         ledger = _Ledger(self, session, thread_id)
         shell = None
         status, reason, structured = 'incomplete', 'driver_error', None
+        prepared = False
         reasoning=[]
         timings={}
         from .activation import ActivationContext, activation_scope
@@ -431,9 +432,6 @@ class LLMDriver:
                 else:
                     for message in inputs:
                         self.threads.append_message(thread_id, message)
-            await context.prepare()
-            for message in context.messages:
-                self.threads.append_message(thread_id,message)
             with _timed(timings,'setup_s'):
                 if self.policy.reasoning_stages and self.policy.result_schema is None:
                     guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
@@ -545,6 +543,12 @@ class LLMDriver:
             # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
             agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
             try:
+                # 准备阶段与模型循环共用同一收束边界：明确模型协议错误按 incomplete 记录，
+                # 其他异常仍按原类型向外传播，不在准备阶段扩大捕获面。
+                await context.prepare()
+                prepared = True
+                for message in context.messages:
+                    self.threads.append_message(thread_id,message)
                 # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
                 with _timed(timings, 'decode_s'):
                     initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
@@ -633,7 +637,9 @@ class LLMDriver:
                                 break
                     else:
                         status, reason = 'completed', 'natural_completion'
-            except ProviderFailure as error: reason = error.reason
+            except ProviderFailure as error:
+                if not prepared: raise
+                reason = error.reason
             except _BudgetReached as error: reason = str(error)
             except UsageLimitExceeded: reason = 'max_turns'
             except UnexpectedModelBehavior as error:
