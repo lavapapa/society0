@@ -95,4 +95,6 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 
 **行为变化**：Date 等带 toJSON 的值过去能被 stringify 并写入仓库，现在按测量合同报 `MEASUREMENT_RESULT_INVALID`；重放不再报 `MEASUREMENT_ATTEMPT_PENDING` 或 25 字节窗口的 `MEASUREMENT_RESULT_BYTES`，ledger 结果未知时按真实事实报 `MEASUREMENT_ATTEMPT_UNKNOWN`。
 
+**T02 口径（主裁定）**：append 真失败一次时，首次 `runOne` 为 incomplete（事务真实回滚，仓库无行），但 observation 在 append 之前已 settle 到 attempts；第二次重放 completed 且不重新 observe。不能把事务失败记为 completed；“两次 completed”只适用于没有事务失败的配置。测试 T02 以 observe 计数、attempt settled 与空仓库行证明这三个事实。
+
 **未引用对象**：`LocalArtifacts.collect(retained)` 只在 `packages/core/src/artifacts-local/store.ts:28` 定义，`packages/core/src/artifacts-local` 与 `packages/core/src/sqlite-history` 内无调用者（全包 grep 亦无）；完整点/GC 不回收事务前 stage 的未引用 artifact。登记为后续 GC 事项，本 PR 不扩实现。
