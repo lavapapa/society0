@@ -321,7 +321,7 @@ test('RV3-06-T05 failure text above configured object limit is never staged', as
     };
     const s = await environment({ id: 'rv3-06-t05-huge-failure', specs: [spec], artifacts: { maxObjectBytes: 65536 } });
     try {
-        assert.equal(s.c.artifacts.maxObjectBytes, 65536, 'fixture applies the actual configured limit');
+        assert.equal(s.c.artifacts.store.maxObjectBytes, 65536, 'fixture applies the actual configured store limit');
         const stage = s.c.artifacts.stage.bind(s.c.artifacts);
         s.c.artifacts.stage = (...args) => { stageCalls++; return stage(...args); };
         const first = (await s.c.measurements.collect(s.context)).value[0];
@@ -396,7 +396,7 @@ test('RV3-06-T07 configured failure text and evidence envelope replay within the
     const spec = { id: 'configured-failure', kind: 'interview', required: true, async observe() { calls++; throw failure; } };
     const s = await environment({ id: 'h02-configured-failure', specs: [spec], artifacts: { maxObjectBytes: 65536 }, attempts: { maxRecordBytes: 1024 } });
     try {
-        assert.equal(s.c.artifacts.maxObjectBytes, 65536);
+        assert.equal(s.c.artifacts.store.maxObjectBytes, 65536);
         const first = (await s.c.measurements.collect(s.context)).value[0];
         const second = (await s.c.measurements.collect(s.context)).value[0];
         assert.equal(first.failure, String(failure));
@@ -407,9 +407,9 @@ test('RV3-06-T07 configured failure text and evidence envelope replay within the
         assert.ok(probe.record.result.envelope, 'small ledger record stores the real envelope as evidence');
         const saved = JSON.parse((await readArtifact(s.c, probe.record.result.envelope)).toString());
         assert.equal(saved.failure.kind, 'reference');
-        assert.ok(Number(saved.failure.ref.object.bytes) <= s.c.artifacts.maxObjectBytes);
+        assert.ok(Number(saved.failure.ref.object.bytes) <= s.c.artifacts.store.maxObjectBytes);
         assert.equal(JSON.parse((await readArtifact(s.c, saved.failure.ref.object)).toString()), String(failure));
-        assert.equal(s.c.attempts.evidenceMaxObjectBytes, s.c.attempts.ledger.objects.maxObjectBytes, 'public getter reflects the actual independent evidence store');
+        assert.deepEqual({ artifacts: s.c.artifacts.maxObjectBytes, evidence: s.c.attempts.evidenceMaxObjectBytes }, { artifacts: s.c.artifacts.store.maxObjectBytes, evidence: s.c.attempts.ledger.objects.maxObjectBytes }, 'public getters reflect both actual stores');
         assert.ok(s.c.attempts.evidenceMaxObjectBytes > s.c.artifacts.maxObjectBytes, 'the two configured stores retain their distinct bounds');
         assert.equal((await page(s.c)).total, '0');
     } finally { await s.close(); }
