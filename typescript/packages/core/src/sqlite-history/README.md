@@ -46,3 +46,5 @@ compressPipeline/decompressPipeline包含编解码与管线读写等待；native
 
 
 暂存段 `segments/<revision>.changeset` 在所属完整点描述符耐久发布后由 publish/publishRoot 删除；晚于最新点的段属于 live 后缀，close/重开/GC 保留。发布失败遗留的 `history/segments/*.zst`、`*.pending` 与 `history/roots/*.pending` 只由显式 `history.gc()` 清理；gc 在本实例内与 publish/fork/compact/export 互斥并持有发布锁，发布标记 owner 可能存活时拒绝（`HISTORY_GC_UNKNOWN`）。调用前应确保没有其他进程打开该 run 目录。`diagnostics().rawPendingCount/rawPendingBytes` 是最近一次 collectRaw/gc 的快照；`rawCollected/rawBytesCollected/orphanFilesCollected/lastGcError` 为累计/最近错误。`history/staging/` 残留与未引用 root 文件留待后续 retention。
+
+`history.gc()` 命令入口为后续待办；目前由调用方通过服务 API 显式发起清理。
