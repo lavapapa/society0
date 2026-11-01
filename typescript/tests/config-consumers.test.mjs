@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const roots = [fileURLToPath(new URL('../packages/', import.meta.url)), fileURLToPath(new URL('../apps/', import.meta.url))];
+// 9 个整对象字段有真实读取点：driver-llm 的 provider/model/reasoning 经 activation.ts:19 modelProviders.prepare(this.config)；
+// codex 4 字段经 PiModelProvider 由 model-pi 读取；generation-binding 2 字段经 generation-views/index.ts:45 读取。
 const wholeObject = new Set([
     'packages/core/src/driver-llm/index.ts#provider',
     'packages/core/src/driver-llm/index.ts#model',
