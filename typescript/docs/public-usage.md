@@ -51,6 +51,8 @@ node run-profile.mjs --profile profiles/rule-sqlite.json \
 
 配置字段和更新策略以安装包 `Config`、`plugin.meta.json` 与 `--inspect` 的有效配置为准。会影响结果的配置变化使用新 run／显式分支；保留原 run 的锁和 profile。
 
+profile 的生效配置和 `createHost` 的 boot 配置在 Schema validate 前检查未知键；嵌套 object 也递归拒绝，`dict` 的键开放但每个值按 `inner` 继续检查，`any` 与原始类型分支开放。错误码为 `UNKNOWN_CONFIG_FIELD`，带入口标识（`entryId` 或 boot specifier）、首条 JSON Pointer 以及完整 `paths` 列表；按该路径修正或删除误键。具体结构规则、union/intersect 选择与 `direct Cordis ctx.plugin` 不在 host 合同内的边界见 [NEW-D1：插件 Config 未知键的 host 单点严格检查](design-amendments.md#new-d1插件-config-未知键的-host-单点严格检查)。
+
 遇到 `SOURCE_LOCK` 或缺少 export，检查该候选是否包含所选 profile 的完整公开入口，并重新生成与该安装一致的锁。遇到 `BOOTSTRAP_UNKNOWN`、`HISTORY_UNKNOWN` 或关闭失败，保存完整错误、run 目录及 operationId；通过对应 bootstrap/history/branch 的 `probe` 查询操作结果，依完整点恢复。已有可验证完整点时，可用 `--reopen --observe` 读取源完整点、live revision 与 clean/dirty/unknown 状态，保持业务推进关闭。对 unknown 操作重新发送前先完成事实核实。
 
 Codex 订阅使用独立 provider 与 pi runtime。真实账号登录需要额外授权；离线配置检查与真实订阅调用分别记录。该例子的订阅配置执行门返回 `CODEX_NOT_AUTHORIZED`，`--inspect` 核对配置；`--offline` 验证原生装配和根点消费，真实订阅门仍需单独验收。
