@@ -90,3 +90,38 @@ test('PR10-T09 notification uniqueness fault rolls back content delivery and act
         await f.host.close();
     }
 });
+
+test('G12 native notification consumption and neighbor directions', async () => {
+    const f = await fixture();
+    let reservation;
+    try {
+        reservation = await f.ctx.executionFence.reserve({ id: 'g12-notify' });
+        const act = operationId => activation(f, reservation, operationId, 'b');
+        await f.ctx.database.transaction(reservation.lease, request('seed-notifications'), async tx => {
+            await f.ctx.socialRepository.notify(tx, { id: 'n1', actorId: 'b', kind: 'test', time: '0', data: { value: 1 } });
+            await f.ctx.socialRepository.notify(tx, { id: 'n2', actorId: 'b', kind: 'test', time: '0', data: { value: 2 } });
+        });
+        const consumed = await f.ctx.actions.execute('social.consumeNotifications', { ids: ['n1', 'n1', 'n2'] }, act('consume'));
+        assert.equal(consumed.status, 'completed');
+        const view = await f.ctx.database.snapshot({ maxAgeMs: 30000 });
+        try {
+            const rows = await view.query({ sql: 'SELECT id,consumed FROM social_notifications WHERE actor=? ORDER BY id', parameters: ['b'] }, { maxRows: 10, maxBytes: 4096 });
+            assert.deepEqual(rows.map(row => [String(row.id), Number(row.consumed)]), [['n1', 1], ['n2', 1]]);
+            const again = await f.ctx.actions.execute('social.consumeNotifications', { ids: ['n1'] }, act('consume-again'));
+            assert.equal(again.status, 'completed');
+            const followers = await f.ctx.socialRepository.neighbors('a', view, bounds, 'followers');
+            assert.equal(followers.total, '2');
+            assert.deepEqual(followers.items.map(row => [row.from, row.to]), [['b', 'a'], ['c', 'a']]);
+            const following = await f.ctx.socialRepository.neighbors('b', view, bounds, 'following');
+            assert.equal(following.total, '1');
+            assert.deepEqual(following.items.map(row => [row.from, row.to]), [['b', 'a']]);
+        }
+        finally {
+            await view.close();
+        }
+    }
+    finally {
+        await reservation?.release();
+        await f.host.close();
+    }
+});

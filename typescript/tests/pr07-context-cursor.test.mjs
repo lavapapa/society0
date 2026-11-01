@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ContextMount } from '../.build/core/dist/mount-context/index.js';
+import { setup } from './pr07-support.mjs';
 
 test('NEW-1-T02 /context pages are complete, unique and code-point ordered', async () => {
     const mount = Object.create(ContextMount.prototype);
@@ -45,4 +46,37 @@ test('NEW-1-T02 /context pages are complete, unique and code-point ordered', asy
     await lease.release();
     assert.equal(mount.files.has('/context/release-0.txt'), false);
     assert.equal(mount.bytes, bytesBefore);
+});
+
+test('G12 native ContextMount open/stat/referencedFile behavior', async () => {
+    const env = await setup();
+    const { ctx } = env;
+    const scope = { actorId: 'a', momentId: 'm', logicalTime: 1, query: null };
+    try {
+        let mount;
+        await ctx.plugin(ContextMount, {});
+        await ctx.plugin({ inject: ['contextMount'], apply(c) { mount = c.contextMount; } });
+        const activation = env.context('context-open');
+        const lease = mount.freeze(['hello'], activation);
+        const path = lease.value[0];
+        const node = await mount.stat(path, scope);
+        assert.equal(node.path, path);
+        assert.equal(node.kind, 'file');
+        const handle = await mount.open(node, scope);
+        const chunks = [];
+        for await (const chunk of handle.value.read({ offset: '0', length: 5, maxBytes: 5 }, activation.signal))
+            chunks.push(chunk);
+        assert.equal(Buffer.concat(chunks).toString(), 'hello');
+        await handle.release();
+        await assert.rejects((async () => {
+            for await (const chunk of handle.value.read({ offset: '0', length: 1, maxBytes: 1 }, activation.signal))
+                void chunk;
+        })(), /CONTEXT_HANDLE_RELEASED/);
+        await assert.rejects(mount.open({ ...node, objectId: 'stale' }, scope), /EXPLORATION_STALE/);
+        await assert.rejects(mount.stat('/context/missing.txt', scope), /EXPLORATION_NOT_VISIBLE/);
+        await lease.release();
+    }
+    finally {
+        await env.close();
+    }
 });
