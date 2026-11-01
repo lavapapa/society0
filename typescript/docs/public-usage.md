@@ -139,3 +139,8 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 所有 JS 侧排序和 keyset 分页统一使用 `@society0/host/order` 的 `compareCodePoints(a,b)`：按 Unicode 码点比较，与 SQLite `ORDER BY` 的 BINARY（UTF-8 字节序）一致，不读取 ICU 或 locale。context、information、action、exploration、social ranking/recommendations/repository 的排序与游标使用同一规则；分页游标必须与排序使用同一个比较函数。
 
 前提是输入为良构 UTF-16。`sqlite-native` 在文本入口拒绝孤立代理并报 `SQLITE_TEXT_NOT_WELL_FORMED`，因此从数据库读回的文本与排序前提一致。孤立代理不属于本比较函数的合同范围；其码元行为仅为观测记录。
+
+
+## 重演
+
+重演是入口装配选择，不是 replay 插件的配置枚举。需要读取既有外部结果时，profile 同时挂载 `@society0/core/replay`（仅 `onMissingExternalResult: const('fail')`）与目标记录/历史入口；需要真实重跑时改挂对应 provider 入口，不把 `mode:'record'|'replay'|'verify'` 写入配置。旧写法会被 host 严格检查拒绝为 `UNKNOWN_CONFIG_FIELD replay/mode`；`lookup`、`compare` 与 `readArtifact` 仍是读取 API，使用既有 attempt 证据。

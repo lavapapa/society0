@@ -7,8 +7,8 @@ import type {AttemptIdentity,AttemptRecord} from '../attempts/ledger.js';
 export type OperationAddress=AttemptIdentity;
 export type RecordedResult=AttemptRecord & {status:'settled'};
 export interface Divergence {readonly equal:boolean;readonly actual:unknown;readonly expected:unknown}
-export const Config=Schema.object({mode:Schema.union(['record','replay','verify']).default('record'),onMissingExternalResult:Schema.const('fail').default('fail')});
-export const metadata:PluginMetadata={title:'replay',summary:'Read authoritative recorded external results without network execution',configVersion:1,scope:'run',allowedScopes:['run'],hostAbi:'society0/host/1',configPolicy:[{path:'/mode',mode:'new-run',affectsResults:true},{path:'/onMissingExternalResult',mode:'boundary',affectsResults:true}]};
+export const Config=Schema.object({onMissingExternalResult:Schema.const('fail').default('fail')});
+export const metadata:PluginMetadata={title:'replay',summary:'Read authoritative recorded external results without network execution',configVersion:1,scope:'run',allowedScopes:['run'],hostAbi:'society0/host/1',configPolicy:[{path:'/onMissingExternalResult',mode:'boundary',affectsResults:true}]};
 export const api:ApiEntry={exportPath:'./replay',provides:[{key:'replay',protocol:'replay',major:1,capabilities:[]}],requires:['history','attempts','artifacts'].map(key=>({service:{key,protocol:key,major:1,capabilities:[]},optional:false,phase:'module'}))};
 declare module '@society0/host' {interface Context {replay:Replay}}
 export class Replay extends Service {

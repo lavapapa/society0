@@ -15,7 +15,7 @@ export async function fullProfile(home,runId,directory,generation,controlSequenc
   entry('bootstrap','@society0/core/sqlite-bootstrap',{maxTransactionMs:15000}),
   entry('history','@society0/core/sqlite-history',{directory,runId,generation,controlSequence}),
   entry('attempts','@society0/core/attempts',{directory:join(home,'lineage'),lineage:'lineage-1'}),
-  entry('replay','@society0/core/replay',{mode:'replay'}),entry('observation','@society0/core/observation',{pageSize:100,bufferSize:2,pollIntervalMs:10000}),
+  entry('replay','@society0/core/replay',{}),entry('observation','@society0/core/observation',{pageSize:100,bufferSize:2,pollIntervalMs:10000}),
   {id:'bootstrap-scope',name:'bootstrap',group:true,lifetime:'bootstrap',config:[random('bootstrap-random')]},
   {id:'generation-scope',name:'generation',group:true,lifetime:'generation',config:[random('generation-random'),entry('clock','@society0/core/clock-ticks')]}
  ]}]}],configSources:[],lockfile:pathToFileURL(lock).href};
