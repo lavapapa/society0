@@ -420,7 +420,7 @@ test('RV3-06-T08 small object limits preserve failures that fit the existing inl
     const failure = new Error('i'.repeat(2048));
     let calls = 0, stages = 0;
     const spec = { id: 'inline-failure', kind: 'interview', required: true, async observe() { calls++; throw failure; } };
-    const s = await environment({ id: 'h02-inline-failure', specs: [spec], artifacts: { maxObjectBytes: 1024 } });
+    const s = await environment({ id: 'h02-inline-failure', specs: [spec], artifacts: { maxObjectBytes: 1024 }, attempts: { maxRecordBytes: 1024 } });
     try {
         assert.equal(s.c.artifacts.maxObjectBytes, 1024);
         const stage = s.c.artifacts.stage.bind(s.c.artifacts);
@@ -433,9 +433,11 @@ test('RV3-06-T08 small object limits preserve failures that fit the existing inl
         assert.equal(stages, 0);
         const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
         assert.equal(probe.record.status, 'settled');
-        assert.equal(probe.record.result.failure.kind, 'inline');
-        assert.equal(probe.record.result.failure.value, String(failure));
-        assert.deepEqual(probe.record.artifacts, []);
+        assert.ok(Number(probe.record.result.envelope.bytes) > s.c.artifacts.maxObjectBytes, 'the evidence envelope belongs to the independent attempts store');
+        const saved = JSON.parse((await readArtifact(s.c, probe.record.result.envelope)).toString());
+        assert.equal(saved.failure.kind, 'inline');
+        assert.equal(saved.failure.value, String(failure));
+        assert.deepEqual(probe.record.artifacts, [probe.record.result.envelope]);
         assert.equal((await page(s.c)).total, '0');
     } finally { await s.close(); }
 });
