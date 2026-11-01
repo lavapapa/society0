@@ -9,7 +9,7 @@ import Every from '../.build/social/dist/measurement-every/index.js';
 const encoded = value => Buffer.from(JSON.stringify(value));
 
 async function environment(options) {
-    const f = await fixture({ migrations: [measurementMigration], attempts: options.attempts });
+    const f = await fixture({ migrations: [measurementMigration], attempts: options.attempts, artifacts: options.artifacts });
     const c = f.ctx;
     await c.plugin(Drivers);
     await c.plugin(Repository, options.repository ?? {});
@@ -309,8 +309,8 @@ test('RV3-06-T05 default inline fields keep a 48KB envelope readable above four 
     } finally { await s.close(); }
 });
 
-test('RV3-06-T05 failure text above ARTIFACT_LIMIT is never staged', async () => {
-    const text = 'x'.repeat(67108864);
+test('RV3-06-T05 failure text above configured object limit is never staged', async () => {
+    const text = 'x'.repeat(65536);
     const calls = { n: 0 };
     let stageCalls = 0;
     const spec = {
@@ -319,9 +319,11 @@ test('RV3-06-T05 failure text above ARTIFACT_LIMIT is never staged', async () =>
             throw new Error(text);
         }
     };
-    const s = await environment({ id: 'rv3-06-t05-huge-failure', specs: [spec], artifacts: { maxObjectBytes: 134217728 } });
+    const s = await environment({ id: 'rv3-06-t05-huge-failure', specs: [spec], artifacts: { maxObjectBytes: 65536 } });
     try {
-        s.c.artifacts.stage = async () => { stageCalls++; throw Error('ARTIFACT_STAGE_INTERCEPTED'); };
+        assert.equal(s.c.artifacts.maxObjectBytes, 65536, 'fixture applies the actual configured limit');
+        const stage = s.c.artifacts.stage.bind(s.c.artifacts);
+        s.c.artifacts.stage = (...args) => { stageCalls++; return stage(...args); };
         const first = (await s.c.measurements.collect(s.context)).value[0];
         const second = (await s.c.measurements.collect(s.context)).value[0];
         assert.equal(first.status, 'incomplete');
@@ -384,5 +386,31 @@ test('RV3-06-T06 shared Json observations are accepted while Date and BigInt are
         await assert.rejects(s.c.database.transaction(s.held.lease, request('rv3-06-prepare'), tx => s.c.measurementRepository.append(tx, {
             id: 'unprepared', specId: 'shared', kind: 'measurement', actorId: 'a', logicalTime: '1', value: { kind: 'inline', value: { body: 'x'.repeat(20000) } }, original: { kind: 'inline', value: null }, source: { kind: 'inline', value: null }, required: false
         })), /MEASUREMENT_PREPARE_REQUIRED/, 'append rejects unprepared inline fields');
+    } finally { await s.close(); }
+});
+
+
+test('RV3-06-T07 configured failure text and evidence envelope replay within their real stores', async () => {
+    const failure = Object.assign(new Error('f'.repeat(32768)), { original: { body: 'o'.repeat(8000) } });
+    let calls = 0;
+    const spec = { id: 'configured-failure', kind: 'interview', required: true, async observe() { calls++; throw failure; } };
+    const s = await environment({ id: 'h02-configured-failure', specs: [spec], artifacts: { maxObjectBytes: 65536 }, attempts: { maxRecordBytes: 1024 } });
+    try {
+        assert.equal(s.c.artifacts.maxObjectBytes, 65536);
+        const first = (await s.c.measurements.collect(s.context)).value[0];
+        const second = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(first.failure, String(failure));
+        assert.equal(second.failure, first.failure);
+        assert.equal(calls, 1);
+        const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
+        assert.equal(probe.record.status, 'settled');
+        assert.ok(probe.record.result.envelope, 'small ledger record stores the real envelope as evidence');
+        const saved = JSON.parse((await readArtifact(s.c, probe.record.result.envelope)).toString());
+        assert.equal(saved.failure.kind, 'reference');
+        assert.ok(Number(saved.failure.ref.object.bytes) <= s.c.artifacts.maxObjectBytes);
+        assert.equal(JSON.parse((await readArtifact(s.c, saved.failure.ref.object)).toString()), String(failure));
+        assert.equal(s.c.attempts.evidenceMaxObjectBytes, s.c.attempts.ledger.objects.maxObjectBytes, 'public getter reflects the actual independent evidence store');
+        assert.ok(s.c.attempts.evidenceMaxObjectBytes > s.c.artifacts.maxObjectBytes, 'the two configured stores retain their distinct bounds');
+        assert.equal((await page(s.c)).total, '0');
     } finally { await s.close(); }
 });
