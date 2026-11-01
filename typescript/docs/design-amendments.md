@@ -28,7 +28,7 @@
 
 ### B.2 操作 ID 唯一性与重用（补充 07 §2.2 第 46 行）
 - 在途重复由宿主拒绝。已提交重复由 worker 依据 `s0_operations` 返回 `OPERATION_EXISTS`。
-- 只有在 `transaction` 以确定未提交的结果结束，或 `probe` 返回 `not-committed` 之后，才可以用同一操作 ID 重试。取消后的重试必须等待该 ID 退出在途状态（`reservation.release()` 结束，或 `diagnostics().inflightOperations` 回落）；在途期间收到的 `OPERATION_EXISTS` 不表示已提交。
+- 排队且未 BEGIN 的事务取消时，在拒绝返回前释放操作 ID；持有有效执行租约的调用方可立即用同一 ID 重试。旧任务出队时跳过 BEGIN，其物理容量和 permit 保留至 settled；旧任务的结算保留新重试的身份。已 BEGIN 的事务须等待 `transaction` 确定未提交，或 `probe` 返回 `not-committed` 后再重试。在途期间的 `OPERATION_EXISTS` 表示并发重复；已提交重复由持久回执判定。
 - **重试会再次执行回调，回调必须幂等，或只包含同一事务内的 SQL。** 需要只执行一次的外部效果由 attempts 账本保证。
 - unknown 期间数据库已停止写接纳，不得重用。诊断按物理事务 ID（tx）区分同一操作 ID 的多次尝试。
 
