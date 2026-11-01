@@ -135,11 +135,11 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 
 实际 fork 的 `Schema.resolve` 在 strict 模式只移除顶层未知键，不递归清除嵌套对象未知键；本检查是 host 层递归合同，不把 strict 结果当嵌套 oracle。`dict`/`any` 的开放键保持不变。
 
-证据：`S1` 覆盖 top/topology/prompts 嵌套、model-pi array(any)、social union 正值 -1/10、createHost boot；`S2` 覆盖结构正反与 pointer 转义；`S3` 4 个 shipped profile 全部编译；`S5` 的 consumer audit 留待 G16 删除 replay.mode 后按既定顺序执行。
+证据：`S1` 覆盖 top/topology/prompts 嵌套、model-pi array(any)、social union 正值 -1/10、createHost boot；`S2` 覆盖结构正反与 pointer 转义；`S3` 4 个 shipped profile 全部编译；`S5` 源码启发式守卫见 [tests/config-consumers.test.mjs](../tests/config-consumers.test.mjs)，9 个整对象/3 个 const 例外与 missing-root 反例均在测试中现状。
 
 
 ## RV3-17：replay.mode 删除（重演由入口装配）
 
 `core/src/replay` 是读取服务：`lookup`/`compare`/`readArtifact` 读取既有 attempt 证据，不拦截外部副作用。`docs/06-runtime.md` §117 把恢复、确定性重执行和真实重跑定义为入口装配选择；profile 选择 `model-replay` 或 `model-pi` 决定模型路径，replay 插件本身不选择 record/replay/verify。
 
-删除 `Config.mode` 及 `/mode` configPolicy，`Config` 只剩常量合同 `onMissingExternalResult: const('fail')`，policy 只余 `/onMissingExternalResult`；`tests/pr11-support.mjs` 的 replay entry 改为 `{}`。旧作者配置 `mode:'replay'` 由 NEW-D1 报 `UNKNOWN_CONFIG_FIELD replay/mode`。生成 metadata 由 Core build 重新写出，不手改 JSON。`docs/public-usage.md` 增加重演入口说明；inputs 保持既有已确认内容，catalog 登记 `replay.mode` 为 dropped。
+删除 `Config.mode` 及 `/mode` configPolicy，`Config` 只剩常量合同 `onMissingExternalResult: const('fail')`，policy 只余 `/onMissingExternalResult`；`tests/pr11-support.mjs` 的 replay entry 改为 `{}`。旧作者配置 `mode:'replay'` 由 NEW-D1 报 `UNKNOWN_CONFIG_FIELD replay/mode`。生成 metadata 由 Core build 重新写出，不手改 JSON。公开操作指引见 [public-usage 重演](public-usage.md#重演)。

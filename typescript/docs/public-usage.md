@@ -143,4 +143,4 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 
 ## 重演
 
-重演是入口装配选择，不是 replay 插件的配置枚举。需要读取既有外部结果时，profile 同时挂载 `@society0/core/replay`（仅 `onMissingExternalResult: const('fail')`）与目标记录/历史入口；需要真实重跑时改挂对应 provider 入口，不把 `mode:'record'|'replay'|'verify'` 写入配置。旧写法会被 host 严格检查拒绝为 `UNKNOWN_CONFIG_FIELD replay/mode`；`lookup`、`compare` 与 `readArtifact` 仍是读取 API，使用既有 attempt 证据。
+按运行意图装配入口：读取既有外部结果时挂载 `@society0/core/replay` 与目标记录/历史入口；真实重跑选择对应 provider/profile 入口，配置中不写 `record`/`replay`/`verify` 枚举。旧写法会被 host 拒绝为 `UNKNOWN_CONFIG_FIELD replay/mode`。操作与合同细节见 [RV3-17](design-amendments.md#rv3-17replaymode-删除重演由入口装配)。

@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const roots = [fileURLToPath(new URL('../packages/', import.meta.url)), fileURLToPath(new URL('../apps/', import.meta.url))];
-// 9 个整对象字段有真实读取点：driver-llm 的 provider/model/reasoning 经 activation.ts:19 modelProviders.prepare(this.config)；
-// codex 4 字段经 PiModelProvider 由 model-pi 读取；generation-binding 2 字段经 generation-views/index.ts:45 读取。
+// 9 个整对象字段有真实读取点：driver-llm 的 provider/model/reasoning 经 packages/core/src/driver-llm/activation.ts:19 modelProviders.prepare(this.config)；
+// codex 4 字段经 packages/core/src/model-pi/index.ts 的 PiModelProvider 读取；generation-binding 2 字段经 packages/core/src/generation-views/index.ts:45 读取。
 const wholeObject = new Set([
     'packages/core/src/driver-llm/index.ts#provider',
     'packages/core/src/driver-llm/index.ts#model',
@@ -81,8 +81,8 @@ async function sources(directory) {
     return files;
 }
 
-test('RV3-17-T05 every non-const Config field has a read site', async () => {
-    const files = (await Promise.all(roots.map(async root => { try { return await sources(root); } catch { return []; } }))).flat();
+async function scan(rootList) {
+    const files = (await Promise.all(rootList.map(sources))).flat();
     const all = new Map();
     for (const file of files) all.set(file, await readFile(file, 'utf8'));
     const configs = [];
@@ -108,4 +108,12 @@ test('RV3-17-T05 every non-const Config field has a read site', async () => {
         }
     }
     assert.deepEqual(failures, []);
+}
+
+test('RV3-17-T05 source heuristic: non-const Config fields have no zero occurrences', async () => {
+    await scan(roots);
+});
+
+test('RV3-17-T05b missing source root fails closed', async () => {
+    await assert.rejects(scan([join(repo, 'packages-missing-g16')]), /ENOENT/);
 });

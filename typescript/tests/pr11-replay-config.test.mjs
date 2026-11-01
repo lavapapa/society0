@@ -11,6 +11,9 @@ const layer = { kind: 'profile', uri: 'replay-config.json', version: '1', patche
 test('RV3-17-T01 replay exposes no unconsumed mode field', async () => {
     assert.equal('mode' in (Config.dict ?? {}), false);
     assert.equal(Config.dict?.onMissingExternalResult?.type, 'const');
+    assert.equal(Config.dict?.onMissingExternalResult?.value, 'fail');
+    assert.deepEqual(Config({}), { onMissingExternalResult: 'fail' });
+    assert.throws(() => Config({ onMissingExternalResult: 'bad' }), /expected fail/);
     assert.deepEqual(metadata.configPolicy.map(item => item.path), ['/onMissingExternalResult']);
     const generated = JSON.parse(await readFile(fileURLToPath(new URL('../.build/core/generated/plugin.meta.json', import.meta.url)), 'utf8'));
     const replay = generated.entries.find(entry => entry.exportPath === './replay');
