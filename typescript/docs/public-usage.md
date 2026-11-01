@@ -120,6 +120,8 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 
 调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`；外部动作结果未知（`ACTION_ATTEMPT_UNKNOWN`，无 storage 标志）仍为 `transport_unknown`。工具调用前的 ledger claim 若返回 unknown 或已有未结算记录，驱动报 `persistence_error/attempts.undispatched`（`ATTEMPT_LEDGER_UNKNOWN`/`ATTEMPT_LEDGER_INCOMPLETE`），不伪造 not_dispatched 结算；已 settled 的记录保留不重写。行动 claim 返回 `ACTION_ATTEMPT_UNKNOWN{storage:true}` 属存储不确定，报 `persistence_unknown`（回执 `persistenceUnknown:true`、`externalUnknown:false`）。
 
+遇到 `INFERENCE_MODEL_TEXT_NOT_WELL_FORMED` 时，检查模型返回的工具调用 ID；修正生成源后再发起新的调用。`THREAD_TEXT_NOT_WELL_FORMED` 的 `field` 指明应修正的主体、时刻或消息标识。失败记录的 reason 可包含替换字符，完整原始消息从 JSON evidence 读取；具体边界见 [模型派生标识与失败原因文本](design-amendments.md#new-6模型派生标识与失败原因文本)。
+
 ## 事务结果合同
 
 `database.transaction` 成功 resolve 表示事务已提交；reject 的对象表示事务确定未提交，或结果未知：

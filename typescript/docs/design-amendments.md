@@ -150,3 +150,12 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 `social-perception.previewChars` 默认 `-1`，非负时只对 post 感知的展示正文按 Unicode 码点截短；超限加 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原始信息经 public `social/posts` 的可选 `{id}` 输入读取，SQL 加 `p.id=?`（`id` 为可选字符串，合法空串同样按精确 id 过滤；未提供才按 authorId/scope），保留既有 authorId/cursor/byte budget/BINARY 语义。information source 对 `social/posts` 声明 `properties.id` 与 `properties.authorId`。排名与测量继续读完整正文。
 
 用户裁决：B02/B03/B04 选 (b) 如实未承接；B05 选 (a) 承接。四份 `legacyScope-B02..B05.json` 记录准确 carried/notCarried；本文件承载稳定合同，具体证据见 `evidence/v3fix-d/G17-HANDOFF.md`。
+
+
+## NEW-6：模型派生标识与失败原因文本
+
+Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的文本。[Thread](../packages/core/src/thread/index.ts) 在查询前检查 `actorId`、`momentId`，在编码或暂存消息前检查 `message.id`，拒绝时报告 `THREAD_TEXT_NOT_WELL_FORMED` 并带 `field`。[ActorTools](../packages/core/src/actor-tools/binding.ts) 在拼接 operationId 前检查模型的 `toolCall.id`，拒绝时报告 `INFERENCE_MODEL_TEXT_NOT_WELL_FORMED`，推理结局归为 `provider_error`。标识保持原始值，调用方应修正其生成源。
+
+失败原因属于诊断文本：[ActionCall](../packages/core/src/actions/execution.ts) 向 attempts 写入 unknown 的 reason 前使用原生 `toWellFormed()`，原始 message 仍留在 JSON evidence 中，以 JSON 的代理码元转义形式保存，读取后可恢复原始字符串。该规则同时适用于外部行动结果未知与事务提交未知的失败记录。
+
+结局优先级保留外部结果未知、持久化未知、持久化失败这些已发生事实，再考虑模型文本错误。通用 `SQLITE_TEXT_NOT_WELL_FORMED` 沿用存储阶段分类；模型错误分类依赖明确的模型入口错误码。
