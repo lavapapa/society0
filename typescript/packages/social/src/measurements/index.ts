@@ -39,6 +39,10 @@ export const api: ApiEntry = {
             "service": {
                 "key": "attempts", "protocol": "attempts", "major": 1, "capabilities": []
             }, "optional": false, "phase": "module"
+        }, {
+            "service": {
+                "key": "artifacts", "protocol": "artifacts", "major": 1, "capabilities": []
+            }, "optional": false, "phase": "module"
         }]
 };
 import { slotKey } from '@society0/host/slots';
@@ -70,7 +74,6 @@ declare module '@society0/host' {
         measurements: Measurements;
     }
 }
-const ARTIFACT_LIMIT = 67108864;
 const FAILURE_INLINE = 4096;
 const ENVELOPE_SLACK = 256;
 interface InterviewEnvelope {
@@ -119,7 +122,7 @@ function refsOf(envelope: InterviewEnvelope) {
 }
 export class Measurements extends Service {
     static Config = Config;
-    static inject = ['measurementRepository', 'database', 'drivers', 'slots', 'tasks', 'attempts'];
+    static inject = ['measurementRepository', 'database', 'drivers', 'slots', 'tasks', 'attempts', 'artifacts'];
     private specs = new Map<string, {
         spec: MeasurementSpec;
         retention: Retention;
@@ -340,12 +343,12 @@ export class Measurements extends Service {
         const ref = (result as {
             envelope: ArtifactRef;
         }).envelope;
-        return JSON.parse((await this.read(ref, ARTIFACT_LIMIT)).toString()) as InterviewEnvelope;
+        return JSON.parse((await this.read(ref, this.ctx.attempts.evidenceMaxObjectBytes)).toString()) as InterviewEnvelope;
     }
     private async failure(value: StoredValue) {
         if (value.kind === 'inline')
             return String(value.value);
-        return String(JSON.parse((await this.read(value.ref.object, ARTIFACT_LIMIT)).toString()));
+        return String(JSON.parse((await this.read(value.ref.object, this.ctx.artifacts.maxObjectBytes)).toString()));
     }
     private async read(ref: ArtifactRef, limit: number) {
         const bytes = Number(ref.bytes);
@@ -373,10 +376,11 @@ export class Measurements extends Service {
         const failure: StoredValue = {
             kind: 'inline', value: 'MEASUREMENT_RESULT_BYTES'
         };
-        const bound = jsonByteBound(observation, ARTIFACT_LIMIT);
-        if (bound > ARTIFACT_LIMIT) {
+        const limit = this.ctx.attempts.evidenceMaxObjectBytes;
+        const bound = jsonByteBound(observation, limit);
+        if (bound > limit) {
             await this.settleEnvelope(identity, {
-                ok: false, failure, evidence: null, bytes: '>' + ARTIFACT_LIMIT
+                ok: false, failure, evidence: null, bytes: '>' + limit
             }, signal);
             return;
         }
@@ -393,8 +397,9 @@ export class Measurements extends Service {
         }, signal)).original;
     }
     private storeFailure(text: string, signal?: AbortSignal) {
-        // 写入与 failure 引用读取共用 ARTIFACT_LIMIT，避免写出不可读的引用。
-        if (jsonByteBound(text, ARTIFACT_LIMIT) > ARTIFACT_LIMIT)
+        // 失败原文的预检与读取采用主工件库的有效上限。
+        const limit = this.ctx.artifacts.maxObjectBytes;
+        if (jsonByteBound(text, limit) > limit)
             throw new Error('MEASUREMENT_FAILURE_BYTES');
         return prepareValue(text, FAILURE_INLINE, this.ctx.artifacts, signal);
     }

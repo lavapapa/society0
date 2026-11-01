@@ -27,6 +27,7 @@ export class AttemptLedger {
  probe(identity:AttemptIdentity):Promise<AttemptProbe>{this.identity(identity);return this.work(async()=>{try{return await this.call<AttemptProbe>('probe',{identity})}catch(error){return {status:'unknown',reason:String(error)}}})}
  get maxRecordBytes(){return this.config.maxRecordBytes}
  get evidenceChunkBytes(){return this.objects.chunkBytes}
+ get evidenceMaxObjectBytes(){return this.objects.maxObjectBytes}
  stageEvidence(source:AsyncIterable<Uint8Array>,mediaType:string,options?:{signal?:AbortSignal}){return this.objects.stage(source,mediaType,options)}
  readArtifact(ref:ArtifactRef,range?:{offset:string;length:number}){return this.objects.read(ref,range)}
  async materialize(ref:ArtifactRef){await this.source.materializeFrom(ref,this.objects);return ref}

@@ -14,6 +14,7 @@ export class Attempts extends Service {static Config=Config;static inject=['reso
  probe(identity:AttemptIdentity){return this.ledger.probe(identity)}
  get maxRecordBytes(){return this.ledger.maxRecordBytes}
  get evidenceChunkBytes(){return this.ledger.evidenceChunkBytes}
+ get evidenceMaxObjectBytes(){return this.ledger.evidenceMaxObjectBytes}
  stageEvidence(source:AsyncIterable<Uint8Array>,mediaType:string,options?:{signal?:AbortSignal}){return this.ledger.stageEvidence(source,mediaType,options)}
  readArtifact(ref:ArtifactRef,range?:{offset:string;length:number}){return this.ledger.readArtifact(ref,range)}
  materialize(ref:ArtifactRef){return this.ledger.materialize(ref)}

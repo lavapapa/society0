@@ -12,6 +12,7 @@ export class ArtifactsLocal extends Service {
  async [Service.init](){const resource=await this.ctx.resources.open(async()=>{const value=await LocalArtifacts.open(this.config);return {value,close:()=>value.close()}},'artifacts.local');this.store=resource.value;this.closeOwned=resource.close}
  get directory(){return this.store.directory}
  get chunkBytes(){return this.store.chunkBytes}
+ get maxObjectBytes(){return this.store.maxObjectBytes}
  stage(source:AsyncIterable<Uint8Array>,mediaType:string,options?:{signal?:AbortSignal}){return this.store.stage(source,mediaType,options)}
  read(ref:ArtifactRef,range?:{offset:string;length:number},options?:{signal?:AbortSignal}){return this.store.read(ref,range,options)}
  localFile(ref:ArtifactRef){return this.store.localFile(ref)}
