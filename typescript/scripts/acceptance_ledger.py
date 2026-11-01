@@ -74,9 +74,13 @@ def ledger_errors(ledger, W, plan_ids, final):
     pending = W / 'evidence/acceptance-pending'
     if final and pending.is_dir() and any(pending.rglob('*.json')): errors.append(('PENDING_FRAGMENTS', sorted(str(path) for path in pending.rglob('*.json'))[:5]))
     return errors
+def fragment_kind(name):
+    for kind in ('plugin-new', 'legacyScope', 'plugin', 'patch', 'case'):
+        if name.startswith(kind + '-'): return kind
+    return name.split('-', 1)[0]
 def read_fragments(W):
     pending = W / 'evidence/acceptance-pending'
-    return [(path, path.name.split('-', 1)[0], json.loads(path.read_text())) for path in sorted(pending.rglob('*.json'))] if pending.is_dir() else []
+    return [(path, fragment_kind(path.name), json.loads(path.read_text())) for path in sorted(pending.rglob('*.json'))] if pending.is_dir() else []
 def merge_case(ledger, name, payload):
     kind, ident = name.split('-', 1)
     ident = ident[:-5]
