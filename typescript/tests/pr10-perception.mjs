@@ -285,6 +285,10 @@ test('RV3-09-T01 previewChars bounds only rendered percept and fullRef reads ori
         assert.equal(full.items.length, 1);
         assert.equal(full.items[0].value.id, 'preview-long');
         assert.equal(full.items[0].value.content, long);
+        const other = await c.information.query('social/posts', { id: 'preview-short' }, { actorId: 'c', momentId: 'preview', query: null }, view, { maxItems: 1, maxResponseBytes: 65536 });
+        assert.equal(other.items.length, 1);
+        assert.equal(other.items[0].value.id, 'preview-short');
+        assert.equal(other.items[0].value.content, 'short');
         const short = batch.reads[0].page.items.find(value => value.material.value.id === 'preview-short');
         assert.equal(short.material.value.content, 'short');
         assert.equal(short.material.value.truncated, undefined);

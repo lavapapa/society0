@@ -176,6 +176,18 @@ function recommendationScope(scope: PerceptionScope) {
         }
     };
 }
+function recommendationPage(prefix: any, after: any, previewChars: number, bounds: PageBounds) {
+    const offset = after === null ? 0 : Number(after);
+    const items = prefix.ranked.slice(offset).map((ranked: any, index: number) => ({
+        cursor: offset + index + 1, percept: inline(ranked.id, 'social.recommendation', previewValue({
+            ...prefix.input.items.find((x: any) => x.id === ranked.id), ranking: ranked
+        } as Json, previewChars), {
+            source: 'social/recommendations', inputId: prefix.input.id, versions: prefix.input.versions, strategy: prefix.strategy
+        })
+    }));
+    const result = fit(items, offset, prefix, bounds);
+    return { ...result, nextCursor: result.hasMore ? result.nextCursor : true, through: result.hasMore ? prefix : true };
+}
 function recommendationsSource(ctx: Context, strategy: string, previewChars: number): PerceptionSource {
     return {
         id: 'social/recommendations', cursorScope: 'thread', schema: {
@@ -203,19 +215,7 @@ function recommendationsSource(ctx: Context, strategy: string, previewChars: num
                 };
             if (!prepared || prepared.material.kind !== 'inline')
                 throw Error('SOCIAL_RECOMMENDATION_PREPARED');
-            const prefix = (through ?? prepared.material.value) as any;
-            const offset = after === null ? 0 : Number(after);
-            const items = prefix.ranked.slice(offset).map((ranked: any, index: number) => ({
-                cursor: offset + index + 1, percept: inline(ranked.id, 'social.recommendation', previewValue({
-                    ...prefix.input.items.find((x: any) => x.id === ranked.id), ranking: ranked
-                } as Json, previewChars), {
-                    source: 'social/recommendations', inputId: prefix.input.id, versions: prefix.input.versions, strategy: prefix.strategy
-                })
-            }));
-            const result = fit(items, offset, prefix, bounds);
-            return {
-                ...result, nextCursor: result.hasMore ? result.nextCursor : true, through: result.hasMore ? prefix : true
-            };
+            return recommendationPage((through ?? prepared.material.value) as any, after, previewChars, bounds);
         }
     };
 }
