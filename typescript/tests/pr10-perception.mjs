@@ -261,3 +261,48 @@ test('PR10-T05/T20 independent fork resumes Social feed cursor and persisted con
         await f.host.close();
     }
 });
+test('RV3-09-T01 previewChars bounds only rendered percept and fullRef reads original by public id', async () => {
+    const f = await fixture({ migrations: [perceptionMigration({ package: '@society0/core', entry: 'perception' })] });
+    let reservation, lease, view;
+    try {
+        const c = f.ctx;
+        for (const plugin of [Perceptions, Rankings, Recommendations, SocialPerception]) await c.plugin(plugin, plugin === SocialPerception ? { previewChars: 300 } : undefined);
+        reservation = await c.executionFence.reserve({ id: 'preview' });
+        const long = '😀' + 'x'.repeat(999);
+        await c.actions.execute('social.publish', { id: 'preview-long', content: long }, activation(f, reservation, 'preview-long', 'a'));
+        await c.actions.execute('social.publish', { id: 'preview-short', content: 'short' }, activation(f, reservation, 'preview-short', 'a'));
+        view = await c.database.snapshot({ maxAgeMs: 30000 });
+        const thread = await c.threads.open('c', 'preview', view);
+        const context = activation(f, reservation, 'preview-read', 'c');
+        lease = await c.perceptions.acquire(['social/feed'], context);
+        const batch = await lease.value.collect({ actorId: 'c', momentId: 'preview', threadId: thread.id, reason: null }, { maxItems: 10, maxResponseBytes: 65536 }, context);
+        const item = batch.reads[0].page.items.find(value => value.material.value.id === 'preview-long');
+        assert.ok(item, 'long percept present');
+        assert.equal(item.material.value.content, '😀' + 'x'.repeat(299));
+        assert.equal(item.material.value.truncated, true);
+        assert.deepEqual(item.material.value.fullRef, { information: 'social/posts', input: { id: 'preview-long' } });
+        const full = await c.information.query('social/posts', { id: 'preview-long' }, { actorId: 'c', momentId: 'preview', query: null }, view, { maxItems: 1, maxResponseBytes: 65536 });
+        assert.equal(full.items.length, 1);
+        assert.equal(full.items[0].value.id, 'preview-long');
+        assert.equal(full.items[0].value.content, long);
+        const short = batch.reads[0].page.items.find(value => value.material.value.id === 'preview-short');
+        assert.equal(short.material.value.content, 'short');
+        assert.equal(short.material.value.truncated, undefined);
+        assert.equal(short.material.value.fullRef, undefined);
+        const recommendationContext = { ...context, logicalTime: '5', momentId: 'preview' };
+        const recommendationsLease = await c.perceptions.acquire(['social/recommendations'], recommendationContext);
+        try {
+            const recommendations = await recommendationsLease.value.collect({ actorId: 'c', momentId: 'preview', threadId: thread.id, reason: null, logicalTime: '5' }, { maxItems: 10, maxResponseBytes: 65536 }, recommendationContext);
+            assert.ok(Array.isArray(recommendations.reads[0].page.items));
+        }
+        finally {
+            await recommendationsLease.release();
+        }
+    }
+    finally {
+        await lease?.release();
+        await view?.close();
+        await reservation?.release();
+        await f.host.close();
+    }
+});
