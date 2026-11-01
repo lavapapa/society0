@@ -397,8 +397,8 @@ export class Measurements extends Service {
         }, signal)).original;
     }
     private storeFailure(text: string, signal?: AbortSignal) {
-        // 失败原文的预检与读取采用主工件库的有效上限。
-        const limit = this.ctx.artifacts.maxObjectBytes;
+        // 内联与主库引用分别沿用各自的有效容量。
+        const limit = Math.max(FAILURE_INLINE, this.ctx.artifacts.maxObjectBytes);
         if (jsonByteBound(text, limit) > limit)
             throw new Error('MEASUREMENT_FAILURE_BYTES');
         return prepareValue(text, FAILURE_INLINE, this.ctx.artifacts, signal);

@@ -91,7 +91,7 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 
 **失败原文归一化的边界**：`failedInterview` 的 `String(error)` 求值放在同一持久化 try 内；若观测错误的 `toString` 自身抛错，转换失败进入 `raiseUnknown`，首次与 pending 重放都报 `MEASUREMENT_ATTEMPT_UNKNOWN`，不写仓库、不重新 observe。settle 成功后仍按原始失败文本抛 `MeasurementFailure`，转换成功的原文语义不变。
 
-**failure 写入预检**：`storeFailure` 在 `prepareValue` 前用主工件服务的 `artifacts.maxObjectBytes` 检查 JSON 编码字节；failure 引用读取采用同一有效上限。超过该限时进入持久化 unknown 边界。真实 64KiB 配置下，超限失败原文首跑与重放均为 `MEASUREMENT_ATTEMPT_UNKNOWN`，observe 一次、stage 零调用；限内失败原文经真实引用和信封逐字重放。
+**failure 写入预检**：`storeFailure` 采用原有 `FAILURE_INLINE` 与主工件服务 `artifacts.maxObjectBytes` 中较大的容量作 JSON 字节预检；原生 `prepareValue` 随后选择内联或引用表示。failure 引用读取采用主工件库有效上限。编码字节 B 可保存的条件为 `B≤FAILURE_INLINE` 或 `B≤artifacts.maxObjectBytes`，超出两种表示容量才进入持久化 unknown。真实 64KiB 配置下，超限失败原文首跑与重放均为 `MEASUREMENT_ATTEMPT_UNKNOWN`、observe 一次、stage 零调用；主库和 ledger 行均设为 1KiB 时，约 2KiB 的内联失败仍由 attempts 证据信封保存并逐字重放。
 
 **读取上限反例（原生 JSON 实测）**：§4.4 原文的信封上限 `maxRecordBytes*4` 与 failure 上限 1MiB 同合法配置冲突。`attempts.maxRecordBytes=1024` 加 `inlineBytes=16384`（默认）时，三字段各 1400B 的合法观测生成 4102B 信封（大于 4096）；三字段各 16000B 时观测 48116B（≤`maxResultBytes` 49152）、信封 48142B。failure 文本 1048578 字符存为引用时 `rawBytes=1048580`（大于 1048576）。两者都会让已成功 settle 的 attempt 在重放改抛 budget，首次与重放不同事实。当前合同分别读取实际存储上限：failure 预检和引用读取使用 `artifacts.maxObjectBytes`；信封读取、超限观测 evidence 预检使用 `attempts.evidenceMaxObjectBytes`。ArtifactsLocal 服务透出底层主工件库上限；AttemptLedger 与 Attempts 透出自有证据库上限。两端默认值可以相同，调用点仍按正文归属取值。`MEASUREMENT_ENVELOPE_BUDGET` 保留为引用元数据超过对应有效上限的完整性守卫。
 
