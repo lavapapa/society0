@@ -243,7 +243,9 @@ export class Social extends Service {
         }, reader: SqliteReadView | SqliteTransaction) => !!await this.ctx.socialRepository.member(reader, scope.actorId);
         for (const id of ['feed', 'profile', 'network', 'notifications', 'posts', 'trending'])
             this.ctx.information.register({
-                id: 'social/' + id, schema: {
+                id: 'social/' + id, schema: id === 'posts' ? {
+                    type: 'object', properties: { id: { type: 'string' }, authorId: { type: 'string' } }
+                } : {
                     type: 'object'
                 }, capabilities: ['page', 'original'], available, query: async (input, scope, view, request) => {
                     const result = await this.queryInformation(id, input, scope, view, request);

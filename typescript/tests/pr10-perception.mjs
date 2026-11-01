@@ -271,7 +271,13 @@ test('RV3-09-T01 previewChars bounds only rendered percept and fullRef reads ori
         const long = '😀' + 'x'.repeat(999);
         await c.actions.execute('social.publish', { id: 'preview-long', content: long }, activation(f, reservation, 'preview-long', 'a'));
         await c.actions.execute('social.publish', { id: 'preview-short', content: 'short' }, activation(f, reservation, 'preview-short', 'a'));
+        await c.actions.execute('social.publish', { id: '', content: 'empty-id' }, activation(f, reservation, 'preview-empty', 'a'));
         view = await c.database.snapshot({ maxAgeMs: 30000 });
+        const previewScope = { actorId: 'c', momentId: 'preview', query: null };
+        const described = await c.information.describe('social/posts', previewScope, view);
+        assert.deepEqual(described.schema.properties, { id: { type: 'string' }, authorId: { type: 'string' } });
+        const discovered = await c.information.discover(previewScope, view, { maxItems: 10, maxResponseBytes: 65536 });
+        assert.deepEqual(discovered.items.find(item => item.id === 'social/posts').schema.properties, { id: { type: 'string' }, authorId: { type: 'string' } });
         const thread = await c.threads.open('c', 'preview', view);
         const context = activation(f, reservation, 'preview-read', 'c');
         lease = await c.perceptions.acquire(['social/feed'], context);
@@ -289,6 +295,10 @@ test('RV3-09-T01 previewChars bounds only rendered percept and fullRef reads ori
         assert.equal(other.items.length, 1);
         assert.equal(other.items[0].value.id, 'preview-short');
         assert.equal(other.items[0].value.content, 'short');
+        const empty = await c.information.query('social/posts', { id: '' }, { actorId: 'c', momentId: 'preview', query: null }, view, { maxItems: 10, maxResponseBytes: 65536 });
+        assert.equal(empty.items.length, 1);
+        assert.equal(empty.items[0].value.id, '');
+        assert.equal(empty.items[0].value.content, 'empty-id');
         const short = batch.reads[0].page.items.find(value => value.material.value.id === 'preview-short');
         assert.equal(short.material.value.content, 'short');
         assert.equal(short.material.value.truncated, undefined);
@@ -297,7 +307,11 @@ test('RV3-09-T01 previewChars bounds only rendered percept and fullRef reads ori
         const recommendationsLease = await c.perceptions.acquire(['social/recommendations'], recommendationContext);
         try {
             const recommendations = await recommendationsLease.value.collect({ actorId: 'c', momentId: 'preview', threadId: thread.id, reason: null, logicalTime: '5' }, { maxItems: 10, maxResponseBytes: 65536 }, recommendationContext);
-            assert.ok(Array.isArray(recommendations.reads[0].page.items));
+            const recommended = recommendations.reads[0].page.items.find(item => item.material.value.id === 'preview-long');
+            assert.ok(recommended, 'long recommendation percept present');
+            assert.equal(recommended.material.value.features.content, '😀' + 'x'.repeat(299));
+            assert.equal(recommended.material.value.truncated, true);
+            assert.deepEqual(recommended.material.value.fullRef, { information: 'social/posts', input: { id: 'preview-long' } });
         }
         finally {
             await recommendationsLease.release();

@@ -404,7 +404,7 @@ export class SocialRepository extends Service {
             conditions.push('(p.author_id=? OR EXISTS(SELECT 1 FROM social_deliveries d WHERE d.post=p.id AND d.recipient=?))');
             parameters.push(filter.actorId, filter.actorId);
         }
-        if (filter.id) {
+        if (filter.id !== undefined) {
             conditions.push('p.id=?');
             parameters.push(filter.id);
         }

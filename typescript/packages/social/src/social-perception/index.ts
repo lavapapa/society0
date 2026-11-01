@@ -24,10 +24,17 @@ function previewValue(value: Json, limit: number): Json {
     if (limit < 0 || value === null || typeof value !== 'object' || Array.isArray(value))
         return value;
     const object = value as Record<string, Json>;
-    if (typeof object.content !== 'string' || typeof object.id !== 'string')
+    if (typeof object.id !== 'string')
         return value;
-    const preview = previewContent(object.content, object.id, limit);
-    return preview.truncated ? { ...object, ...preview } : value;
+    if (typeof object.content === 'string') {
+        const preview = previewContent(object.content, object.id, limit);
+        return preview.truncated ? { ...object, ...preview } : value;
+    }
+    const features = object.features as Record<string, Json> | undefined;
+    if (!features || typeof features.content !== 'string')
+        return value;
+    const preview = previewContent(features.content, object.id, limit);
+    return preview.truncated ? { ...object, features: { ...features, content: preview.content }, truncated: true, fullRef: { information: 'social/posts', input: { id: object.id } } } : value;
 }
 export const metadata: PluginMetadata = {
     "title": "social-perception", "summary": "\u72ec\u7acbactor/thread\u6e38\u6807\u7684Social\u539f\u6587\u4e0e\u63a8\u8350\u611f\u77e5", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
