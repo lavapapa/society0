@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {setup,request} from './pr07-support.mjs';
+import {fixture} from './pr08-support.mjs';
 import {Prompts} from '../.build/core/dist/prompts/index.js';
 import {ContextMount} from '../.build/core/dist/mount-context/index.js';
 import {ExplorationShell} from '../.build/core/dist/exploration-shell/index.js';
@@ -21,3 +22,9 @@ test('NEW-6-T11 malformed model toolCall id ends as provider_error',async()=>{co
  const driver=await ctx.drivers.acquire('llm/v1',run.context('h01-t11'));let result;try{result=await driver.value.activate({id:'t11',actorId:run.context('x').actorId,momentId:run.context('x').momentId,source:'test',driver:'llm/v1',input:'bad id'},run.context('h01-t11'))}finally{await driver.release()}
  assert.equal(result.status,'incomplete',JSON.stringify(result));assert.equal(result.value.reason,'provider_error',JSON.stringify(result));
  }finally{await run.close()}});
+
+const high=String.fromCharCode(0xd800);
+function textError(code,field){return error=>{assert.equal(error.code,code);assert.equal(error.field,field);return true}}
+test('NEW-6-T12 thread open rejects malformed actor/moment before SQL',async()=>{const run=await fixture();let ctx;await run.host.ctx.plugin({inject:['threads'],apply(c){ctx=c}});const view=await ctx.database.snapshot({maxAgeMs:30000});try{await assert.rejects(ctx.threads.open('a'+high,'m',view),textError('THREAD_TEXT_NOT_WELL_FORMED','actorId'));await assert.rejects(ctx.threads.open('a','m'+high,view),textError('THREAD_TEXT_NOT_WELL_FORMED','momentId'))}finally{await view.close();await run.close()}});
+test('NEW-6-T13 thread prepare rejects malformed message.id before staging',async()=>{const run=await fixture();let ctx;await run.host.ctx.plugin({inject:['threads'],apply(c){ctx=c}});try{await assert.rejects(ctx.threads.prepare({id:'bad'+high,interactionId:'i',role:'user',content:'x',originalProviderFields:null}),textError('THREAD_TEXT_NOT_WELL_FORMED','message.id'))}finally{await run.close()}});
+test('NEW-6-T15 action failure reason is normalized while raw evidence stays readable',async()=>{const run=await fixture();try{run.ctx.actions.register({name:'bad.reason',effect:'external',inputSchema:{},outputSchema:{},available:async()=>true,execute:async()=>{throw Error('boom'+high+'reason')}});const context=run.context('h01-t15');await assert.rejects(run.ctx.actions.execute('bad.reason',null,context));const lineage=run.ctx.attempts.authority().lineage,probe=await run.ctx.attempts.probe({lineage,operationId:'action:'+context.operationId,attempt:0});assert.equal(probe.record.status,'unknown');assert.ok(!probe.record.reason.includes(high));assert.ok(probe.record.artifacts.length>=1,JSON.stringify(probe.record.artifacts));const raw=[];for(const ref of probe.record.artifacts){let text='';for await(const part of run.ctx.attempts.readArtifact(ref))text+=Buffer.from(part).toString();raw.push(text)}assert.ok(raw.some(text=>text.includes('\\ud800')),raw.join('|'))}finally{await run.close()}});
