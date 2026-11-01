@@ -140,6 +140,6 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 
 ## RV3-17：replay.mode 删除（重演由入口装配）
 
-`core/src/replay` 是读取服务：`lookup`/`compare`/`readArtifact` 读取既有 attempt 证据，不拦截外部副作用。`docs/06-runtime.md` §117 把恢复、确定性重执行和真实重跑定义为入口装配选择；profile 选择 `model-replay` 或 `model-pi` 决定模型路径，replay 插件本身不选择 record/replay/verify。
+`core/src/replay` 是读取服务（[replay/index.ts](../packages/core/src/replay/index.ts)）：`lookup`/`compare`/`readArtifact` 读取既有 attempt 证据，不拦截外部副作用。恢复、确定性重执行和真实重跑由入口装配选择；profile 通过 [model-replay](../packages/core/src/model-replay/index.ts) 或 [model-pi](../packages/core/src/model-pi/index.ts) 选择模型路径，replay 插件本身不选择 record/replay/verify。
 
 删除 `Config.mode` 及 `/mode` configPolicy，`Config` 只剩常量合同 `onMissingExternalResult: const('fail')`，policy 只余 `/onMissingExternalResult`；`tests/pr11-support.mjs` 的 replay entry 改为 `{}`。旧作者配置 `mode:'replay'` 由 NEW-D1 报 `UNKNOWN_CONFIG_FIELD replay/mode`。生成 metadata 由 Core build 重新写出，不手改 JSON。公开操作指引见 [public-usage 重演](public-usage.md#重演)。
