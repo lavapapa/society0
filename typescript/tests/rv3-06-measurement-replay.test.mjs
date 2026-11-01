@@ -414,3 +414,28 @@ test('RV3-06-T07 configured failure text and evidence envelope replay within the
         assert.equal((await page(s.c)).total, '0');
     } finally { await s.close(); }
 });
+
+
+test('RV3-06-T08 small object limits preserve failures that fit the existing inline representation', async () => {
+    const failure = new Error('i'.repeat(2048));
+    let calls = 0, stages = 0;
+    const spec = { id: 'inline-failure', kind: 'interview', required: true, async observe() { calls++; throw failure; } };
+    const s = await environment({ id: 'h02-inline-failure', specs: [spec], artifacts: { maxObjectBytes: 1024 } });
+    try {
+        assert.equal(s.c.artifacts.maxObjectBytes, 1024);
+        const stage = s.c.artifacts.stage.bind(s.c.artifacts);
+        s.c.artifacts.stage = (...args) => { stages++; return stage(...args); };
+        const first = (await s.c.measurements.collect(s.context)).value[0];
+        const second = (await s.c.measurements.collect(s.context)).value[0];
+        assert.equal(first.failure, String(failure), 'a valid inline failure does not consume an artifact object');
+        assert.equal(second.failure, first.failure);
+        assert.equal(calls, 1);
+        assert.equal(stages, 0);
+        const probe = await s.c.attempts.probe(identity(s.c, s.context, spec.id));
+        assert.equal(probe.record.status, 'settled');
+        assert.equal(probe.record.result.failure.kind, 'inline');
+        assert.equal(probe.record.result.failure.value, String(failure));
+        assert.deepEqual(probe.record.artifacts, []);
+        assert.equal((await page(s.c)).total, '0');
+    } finally { await s.close(); }
+});
