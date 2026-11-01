@@ -37,6 +37,8 @@ node run-profile.mjs --profile profiles/rule-sqlite.json \
 - [rule-sqlite](../profiles/rule-sqlite.json)：阶段调度、主体感知和 passive 规则基线。
 - [event-sqlite](../profiles/event-sqlite.json)：真实事件源与事件消费确认，例子提交一个事件并关闭输入。
 - [social-sqlite](../profiles/social-sqlite.json)：Social 主体、关系、传播、感知与推荐，使用 `driver-llm`、`model-pi` 和 `agent-runtime-pi`；显式选择本机 Qwen 网关。
+
+Social 的信息入口 `social/posts` 接受可选 `{id}`，返回该帖原始内容；`social-perception.previewChars` 仅截短展示感知，原文和排名/测量保持完整。B02–B05 的旧能力边界以 `acceptance.legacyScope` 与 [Social README](../packages/social/src/README.md) 为准。
 - [social-codex-sqlite](../profiles/social-codex-sqlite.json)：同一 LLM driver 与 pi runtime，provider 切换为 `model-codex-subscription`；默认关闭账号授权。
 
 结果包含完整点、观察页、历史计数、耗时、RSS/heap 与关闭报告。`advanceAndSaveMs` 是推进与保存的合计时间；`history.timings` 记录实际 JSON 编码、文件发布 IO、压缩/解压流水线与 publication/restore 等计时。嵌套阶段会重叠，应分别报告；压缩流水线包含流 IO，native 阶段包含 worker 启停。纯压缩 CPU、独立流读写和设备 IO 时延保持 `unknown`。

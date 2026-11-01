@@ -19,7 +19,7 @@ export interface CommandRequest {
     readonly maxOutputBytes?: number;
 }
 export const Config = Schema.object({ maxOutputBytes: Schema.natural().min(1).default(16777216), chunkBytes: Schema.natural().min(1).default(4096), killAfterMs: Schema.natural().min(1).default(1000) });
-export const metadata: PluginMetadata = { title: 'shell', summary: 'Explicit-cwd research process with immutable outputs and physical attempt settlement', configVersion: 1, configPolicy: [], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
+export const metadata: PluginMetadata = { title: 'shell', summary: 'Explicit-cwd research process with immutable outputs and physical attempt settlement', configVersion: 1, configPolicy: [{ path: '/maxOutputBytes', mode: 'new-run', affectsResults: true }, { path: '/chunkBytes', mode: 'new-run', affectsResults: true }, { path: '/killAfterMs', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './shell', provides: [{ key: 'shell', protocol: 'shell', major: 1, capabilities: [] }], requires: ['database', 'artifacts', 'attempts', 'tasks'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 function status(native: NativeProcessReceipt): ShellReceipt['status'] { if (native.spawnError)
     return 'spawn-error'; if (native.outputError)

@@ -3,11 +3,37 @@ import { Context } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
-    strategy: Schema.string().default('weighted/v1')
+    strategy: Schema.string().default('weighted/v1'),
+    previewChars: Schema.union([Schema.const(-1), Schema.natural()]).default(-1)
 });
+export interface ContentPreview { content: string; truncated?: true; fullRef?: { information: 'social/posts'; input: { id: string } } }
+export function previewContent(content: string, id: string, limit: number): ContentPreview {
+    if (limit < 0)
+        return { content };
+    let result = '';
+    let count = 0;
+    for (const char of content) {
+        if (count === limit)
+            return { content: result, truncated: true, fullRef: { information: 'social/posts', input: { id } } };
+        result += char;
+        count++;
+    }
+    return { content };
+}
+function previewValue(value: Json, limit: number): Json {
+    if (limit < 0 || value === null || typeof value !== 'object' || Array.isArray(value))
+        return value;
+    const object = value as Record<string, Json>;
+    if (typeof object.content !== 'string' || typeof object.id !== 'string')
+        return value;
+    const preview = previewContent(object.content, object.id, limit);
+    return preview.truncated ? { ...object, ...preview } : value;
+}
 export const metadata: PluginMetadata = {
     "title": "social-perception", "summary": "\u72ec\u7acbactor/thread\u6e38\u6807\u7684Social\u539f\u6587\u4e0e\u63a8\u8350\u611f\u77e5", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
             "path": "/strategy", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/previewChars", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -88,7 +114,7 @@ function notificationSource(ctx: Context): PerceptionSource {
         }
     };
 }
-function feedSource(ctx: Context): PerceptionSource {
+function feedSource(ctx: Context, previewChars: number): PerceptionSource {
     return {
         id: 'social/feed', cursorScope: 'actor', schema: {
             type: 'object'
@@ -110,7 +136,7 @@ function feedSource(ctx: Context): PerceptionSource {
                 if (!post)
                     throw Error('SOCIAL_DELIVERY_ORIGINAL_MISSING');
                 items.push({
-                    cursor: String(row.ordinal), percept: inline(String(row.ordinal), 'social.post', post as unknown as Json, {
+                    cursor: String(row.ordinal), percept: inline(String(row.ordinal), 'social.post', previewValue(post as unknown as Json, previewChars), {
                         source: 'social/feed', eventId: String(row.event_id), sender: String(row.sender), revision: reader.revision
                     })
                 });
@@ -150,7 +176,7 @@ function recommendationScope(scope: PerceptionScope) {
         }
     };
 }
-function recommendationsSource(ctx: Context, strategy: string): PerceptionSource {
+function recommendationsSource(ctx: Context, strategy: string, previewChars: number): PerceptionSource {
     return {
         id: 'social/recommendations', cursorScope: 'thread', schema: {
             type: 'object'
@@ -180,9 +206,9 @@ function recommendationsSource(ctx: Context, strategy: string): PerceptionSource
             const prefix = (through ?? prepared.material.value) as any;
             const offset = after === null ? 0 : Number(after);
             const items = prefix.ranked.slice(offset).map((ranked: any, index: number) => ({
-                cursor: offset + index + 1, percept: inline(ranked.id, 'social.recommendation', {
+                cursor: offset + index + 1, percept: inline(ranked.id, 'social.recommendation', previewValue({
                     ...prefix.input.items.find((x: any) => x.id === ranked.id), ranking: ranked
-                }, {
+                } as Json, previewChars), {
                     source: 'social/recommendations', inputId: prefix.input.id, versions: prefix.input.versions, strategy: prefix.strategy
                 })
             }));
@@ -196,7 +222,7 @@ function recommendationsSource(ctx: Context, strategy: string): PerceptionSource
 export default {
     Config, inject: ['perceptions', 'socialRepository', 'recommendations'], apply(ctx: Context, input = {}) {
         const config = Config(input);
-        for (const source of [profileSource(ctx), notificationSource(ctx), feedSource(ctx), recommendationsSource(ctx, config.strategy)])
+        for (const source of [profileSource(ctx), notificationSource(ctx), feedSource(ctx, config.previewChars), recommendationsSource(ctx, config.strategy, config.previewChars)])
             ctx.perceptions.register(source);
     }
 };

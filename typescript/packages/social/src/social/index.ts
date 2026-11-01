@@ -279,9 +279,10 @@ export class Social extends Service {
         return this.ctx.socialRepository.notifications(scope.actorId, view, request, !!(input as any)?.unread);
     }
     private postInformation(input: Json, scope: DiscoveryScope, view: SqliteReadView, request: PageRequest) {
-        return this.ctx.socialRepository.posts(view, request, {
+        const id = (input as any)?.id;
+        return this.ctx.socialRepository.posts(view, request, id === undefined ? {
             authorId: (input as any)?.authorId ?? scope.actorId
-        });
+        } : { id: String(id) });
     }
     private trendingInformation(input: Json, view: SqliteReadView, request: PageRequest) {
         return this.ctx.socialRepository.trending(view, request, {

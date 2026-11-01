@@ -10,7 +10,7 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 - [Social 初始化](social-init/index.ts) 选择拓扑贡献，校验全部主体引用，再分批创建成员和关系。恢复已有 run 使用 Core 历史激活路径。
 - [拓扑配置](topology-edges/index.ts) 与[生成算法](topology-edges/algorithms.ts) 提供显式边、随机、小世界、无标度、完全图和目标变异系数网络。随机算法使用 Core 的具名随机地址；显式边与完全图可独立装配。
 - [Social](social/index.ts) 登记行动和信息查询；[邻居传播](propagation-neighbors/index.ts) 是独立具名策略。第三方策略通过 `SocialReadPort` 选择收件人，领域仓库执行跨表写入。
-- [轮流来源](round-robin/index.ts) 使用持久 ProposalSource 游标决定下一主体；推进、完整点和分支由 Core 运行器负责。
+- [轮流来源](round-robin/index.ts) 使用持久 ProposalSource 游标决定下一主体；推进、完整点和分支由 Core 运行器负责。仅单主体轮转；不含旧版配对计划、伙伴消息、组广播与消息保留/FoV（B02 部分承接）。
 
 业务组件注入 `eventHandlers`，通过 `ctx.eventHandlers.register(handler)` 注册事件贡献；注册按原生调用方作用域退役。[事件运行时](../../core/src/runtime-events/index.ts) 在事件 SQL 提交后调用处理器的 `activations(event)`，通过 Core Activation 执行主体并等待物理完成。每个主体的副作用地址由提案、主体、Moment、driver 和 intent 身份共同确定，分支重演沿用相同逻辑地址。Social 行动从事件时钟的 `time` 读取精确十进制时间。 推荐感知要求 `PerceptionScope.logicalTime`，并转换为推荐输入的 `query.time`；直接调用 weighted 策略时显式提供 `query.time`。Social支持非负整数tick及事件 `time`，数字要求安全整数，超大整数使用十进制字符串，其它时标返回明确诊断。衰减先计算BigInt时间差，再按配置计算浮点分数。
 
@@ -34,7 +34,7 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 
 `syncIndex` 将有界 SQL 变更流应用到后端，再写入独立的投影进度。SQL 数据足以重建空后端；索引写入后、进度提交前的中断可重放。准备阶段核对完整投影前缀、向量身份和文本版本，过期状态显式返回 `stale`。
 
-[Social 感知](social-perception/index.ts) 把个人资料、投递动态、通知和推荐注册为普通 Core 感知来源。Core 负责原文材料、Thread 关联与游标的共同提交。通知消费和业务呈现使用各自明确的行动入口。 `driver-rule` 通过 `sources` 选择这些来源，`driver-llm` 通过 `perceptions` 选择；两者把当前逻辑时钟传入感知。LLM 使用原生 ActorTools 的 `actions_execute` 调用社会行动，可用 `requiredActions` 声明完成条件，运行器按真实行动回执决定完整点。
+[Social 感知](social-perception/index.ts) 把个人资料、投递动态、通知和推荐注册为普通 Core 感知来源。`previewChars` 默认 `-1`；非负时按 Unicode 码点截短 post 感知的展示正文，超限附 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原文经 public `social/posts` 的 `{id}` 输入按原字节读取。排名、测量和存储正文保留完整内容。Core 负责原文材料、Thread 关联与游标的共同提交。通知消费和业务呈现使用各自明确的行动入口。 `driver-rule` 通过 `sources` 选择这些来源，`driver-llm` 通过 `perceptions` 选择；两者把当前逻辑时钟传入感知。LLM 使用原生 ActorTools 的 `actions_execute` 调用社会行动，可用 `requiredActions` 声明完成条件，运行器按真实行动回执决定完整点。
 
 ## 四、测量
 
@@ -43,3 +43,8 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 访谈通过 run 目录之外的 Attempts authority 留存外部事实。大字段按引用保存；超过结果预算的完整 observation 保存在该 authority 的 artifact 中，并由已结算 Attempt 引用；世界事务的失败与恢复保留这些证据。重放不重新观察；ledger 结果未知（含 pending）时报 `MEASUREMENT_ATTEMPT_UNKNOWN`。[排名比较](social-measurement/index.ts) 使用同一份准备输入及已接纳写租约，通过 Core Results 保存策略配置和全部分数组成。
 
 组合者可替换传播、拓扑、来源、排名和采样贡献；其数据归属与完整点规则保持一致。
+
+
+## 五、旧 B02–B05 范围
+
+当前 v3 Social 的准确边界见 `evidence/acceptance-pending/D/legacyScope-B02..B05.json`：B02 部分承接（单主体轮转/持久 cursor）；B03 部分承接（基础行动，无内置规则干预）；B04 未承接（active pool/after_tick 批量）；B05 承接（previewChars/fullRef）。

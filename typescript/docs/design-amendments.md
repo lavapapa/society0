@@ -143,3 +143,10 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 `core/src/replay` 是读取服务（[replay/index.ts](../packages/core/src/replay/index.ts)）：`lookup`/`compare`/`readArtifact` 读取既有 attempt 证据，不拦截外部副作用。恢复、确定性重执行和真实重跑由入口装配选择；profile 通过 [model-replay](../packages/core/src/model-replay/index.ts) 或 [model-pi](../packages/core/src/model-pi/index.ts) 选择模型路径，replay 插件本身不选择 record/replay/verify。
 
 删除 `Config.mode` 及 `/mode` configPolicy，`Config` 只剩常量合同 `onMissingExternalResult: const('fail')`，policy 只余 `/onMissingExternalResult`；`tests/pr11-support.mjs` 的 replay entry 改为 `{}`。旧作者配置 `mode:'replay'` 由 NEW-D1 报 `UNKNOWN_CONFIG_FIELD replay/mode`。生成 metadata 由 Core build 重新写出，不手改 JSON。公开操作指引见 [public-usage 重演](public-usage.md#重演)。
+
+
+## RV3-09：B05 preview/fullRef 与 B02–B05 legacyScope
+
+`social-perception.previewChars` 默认 `-1`，非负时只对 post 感知的展示正文按 Unicode 码点截短；超限加 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原始信息经 public `social/posts` 的可选 `{id}` 输入读取，SQL 加 `p.id=?`，保留既有 authorId/cursor/byte budget/BINARY 语义。排名与测量继续读完整正文。
+
+用户裁决：B02/B03/B04 选 (b) 如实未承接；B05 选 (a) 承接。四份 `legacyScope-B02..B05.json` 记录准确 carried/notCarried；本文件承载稳定合同，具体证据见 `evidence/v3fix-d/G17-HANDOFF.md`。

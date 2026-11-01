@@ -390,18 +390,23 @@ export class SocialRepository extends Service {
             changed: true
         };
     }
-    async posts(reader: SocialReader, request: PageRequest, filter: {
+    private postFilter(filter: {
         actorId?: string;
+        id?: string;
         authorId?: string;
         excludeAuthor?: string;
         parentId?: string;
         tag?: string;
         through?: string;
-    } = {}) {
+    }) {
         const conditions: string[] = [], parameters: (string | bigint | number)[] = [];
         if (filter.actorId) {
             conditions.push('(p.author_id=? OR EXISTS(SELECT 1 FROM social_deliveries d WHERE d.post=p.id AND d.recipient=?))');
             parameters.push(filter.actorId, filter.actorId);
+        }
+        if (filter.id) {
+            conditions.push('p.id=?');
+            parameters.push(filter.id);
         }
         if (filter.authorId) {
             conditions.push('p.author_id=?');
@@ -419,6 +424,19 @@ export class SocialRepository extends Service {
             conditions.push('EXISTS(SELECT 1 FROM social_tags t WHERE t.post=p.id AND t.tag=?)');
             parameters.push(filter.tag);
         }
+        return { conditions, parameters };
+    }
+
+    async posts(reader: SocialReader, request: PageRequest, filter: {
+        actorId?: string;
+        id?: string;
+        authorId?: string;
+        excludeAuthor?: string;
+        parentId?: string;
+        tag?: string;
+        through?: string;
+    } = {}) {
+        const { conditions, parameters } = this.postFilter(filter);
         const where = conditions.length ? conditions.join(' AND ') : '1';
         const identity = {
             kind: 'posts', runId: reader.runId, filter, versions: await this.versions(reader, ['social/content', 'social/relations', 'social/exposure'])

@@ -11,7 +11,7 @@ import { bytes, fail } from '@society0/core/information/page';
 import '@society0/core/thread';
 import '@society0/host/slots';
 export const Config = Schema.object({ pageItems: Schema.natural().min(1).default(16), maxMessages: Schema.natural().min(1).default(512), maxMessageBytes: Schema.natural().min(1).default(65536), maxOutputBytes: Schema.natural().min(1).default(65536) });
-export const metadata: PluginMetadata = { title: 'memory-write-experience', summary: 'Extract explicitly marked experience messages while preserving complete Thread history', configVersion: 1, configPolicy: [], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
+export const metadata: PluginMetadata = { title: 'memory-write-experience', summary: 'Extract explicitly marked experience messages while preserving complete Thread history', configVersion: 1, configPolicy: [{ path: '/pageItems', mode: 'new-run', affectsResults: true }, { path: '/maxMessages', mode: 'new-run', affectsResults: true }, { path: '/maxMessageBytes', mode: 'new-run', affectsResults: true }, { path: '/maxOutputBytes', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './memory-write-experience', provides: [], requires: ['slots', 'threads'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 const Message = Schema.object({ id: Schema.string().required(), content: Schema.any<Json>().required(), originalProviderFields: Schema.any<Json>() });
 function artifact(value: Json | undefined): ArtifactRef | undefined { if (!value || typeof value !== 'object' || Array.isArray(value))

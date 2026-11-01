@@ -13,7 +13,7 @@ import { memoryWrite, memoryRecall, validateWrite, validateRecall, type MemoryQu
 import { memoryActions } from './tools.js';
 export * from './policies.js';
 export const Config = Schema.object({ write: Schema.boolean().default(true), recall: Schema.boolean().default(true), tools: Schema.boolean().default(true), writePolicy: Schema.string().default('explicit-experience/v1'), recallPolicy: Schema.string().default('sql/v1'), maxExtractedBytes: Schema.natural().min(1).default(65536) });
-export const metadata: PluginMetadata = { title: 'memory', summary: 'Independent optional experience extraction, recall and active memory actions', configVersion: 1, configPolicy: [], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
+export const metadata: PluginMetadata = { title: 'memory', summary: 'Independent optional experience extraction, recall and active memory actions', configVersion: 1, configPolicy: [{ path: '/write', mode: 'new-run', affectsResults: true }, { path: '/recall', mode: 'new-run', affectsResults: true }, { path: '/tools', mode: 'new-run', affectsResults: true }, { path: '/writePolicy', mode: 'new-run', affectsResults: true }, { path: '/recallPolicy', mode: 'new-run', affectsResults: true }, { path: '/maxExtractedBytes', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './memory', provides: [{ key: 'memory', protocol: 'memory', major: 1, capabilities: [] }], requires: ['memoryRepository', 'slots', 'actions'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 declare module '@society0/cordis' {
     interface Context {
