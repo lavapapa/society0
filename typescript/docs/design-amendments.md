@@ -102,3 +102,14 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 **T02 口径（主裁定）**：append 真失败一次时，首次 `runOne` 为 incomplete（事务真实回滚，仓库无行），但 observation 在 append 之前已 settle 到 attempts；第二次重放 completed 且不重新 observe。不能把事务失败记为 completed；“两次 completed”只适用于没有事务失败的配置。测试 T02 以 observe 计数、attempt settled 与空仓库行证明这三个事实。
 
 **未引用对象**：`LocalArtifacts.collect(retained)` 只在 `packages/core/src/artifacts-local/store.ts:28` 定义，`packages/core/src/artifacts-local` 与 `packages/core/src/sqlite-history` 内无调用者（全包 grep 亦无）；完整点/GC 不回收事务前 stage 的未引用 artifact。登记为后续 GC 事项，本 PR 不扩实现。
+
+
+## NEW-1：JS 排序与游标统一为码点序
+
+补充 inputs/society0_next_refactor_v3/docs/10-builtin-plugins.md 的 slot-strategies 表、docs/16-domain-design.md §4.2、docs/07-storage.md §50。
+
+`@society0/host/order` 导出 `compareCodePoints(a,b)`：以 UTF-16 码元折叠为 Unicode 码点序，不读取 ICU/locale。`host` 不依赖 `core`，`core`、`extras`、`social` 以 peer 方式引用该子路径；`build_entries` 从 `package.json` 的 `./order` 导出自动纳入编译，`sidecars.mjs` 跳过无 metadata/api 的导出，插件数不变。
+
+JS 侧的排序与 keyset 游标全部改用该函数：`mount-context` 的 context 文件页、`slot-strategies` 的 tie-break、`social-ranking` 的平局 id、`social-recommendations` 的 owner、`social-repository` 的 owner/presentation versions、`social/registry` 的 dependencies，以及 `information`、`actions`、`exploration/root`、`mount-world`、`perception/selection`。SQLite 原生 `ORDER BY` 保持 BINARY；`addon.cc` 以 UTF-8 绑定文本且全仓无 `COLLATE`，故良构字符串下三者同序。
+
+设计中的 slot-strategies `tieBreak` 不新增 Config：只有 `id-codepoint` 一个取值，由 `@society0/host/order` 固定，catalog 登记为 dropped。排序前提是良构 UTF-16；孤立代理由 `sqlite-native` 入口的 NEW-6 检查拒绝（`SQLITE_TEXT_NOT_WELL_FORMED`），比较函数本身不对孤立代理作合同承诺。

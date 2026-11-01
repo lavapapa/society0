@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({});
@@ -48,7 +49,7 @@ export default { Config, inject: ['exploration', 'information', 'actors', 'actio
                 if (path === '/world') {
                     const id = identity(scope, reader, registration), last = after(request.cursor, id) ?? '';
                     const entries = await Promise.all(['/world/actions', '/world/information', '/world/self'].map(path => mount.stat(path, scope, reader)));
-                    return page(entries.filter(node => node.path > last), '3', reader.revision, request, id, node => node.path);
+                    return page(entries.filter(node => compareCodePoints(node.path, last) > 0), '3', reader.revision, request, id, node => node.path);
                 }
                 if (path === '/world/information') {
                     const result = await ctx.information.discover(scope, reader, { ...request, maxResponseBytes: Math.floor(request.maxResponseBytes / 2) });

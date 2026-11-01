@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import type { Context } from '@society0/host';
 import { slotKey } from '@society0/host/slots';
 export function registerNamed<T>(ctx: Context, prefix: string, id: string, value: T, validate: (value: unknown) => T) {
@@ -30,7 +31,7 @@ export async function acquireNamed<T>(ctx: Context, prefix: string, id: string, 
 export function sourceVersion(source: Pick<import('./contracts.js').RecommendationSource, 'id' | 'version' | 'dependencies'>): import('./contracts.js').DomainVersion {
     return {
         owner: 'recommendation-source/' + source.id, version: JSON.stringify({
-            version: source.version, dependencies: [...source.dependencies].sort()
+            version: source.version, dependencies: [...source.dependencies].sort(compareCodePoints)
         })
     };
 }

@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
@@ -94,7 +95,7 @@ export class SocialRepository extends Service {
     }
     async versions(reader: SocialReader, owners: readonly string[] = ['social/content', 'social/relations', 'social/preferences']): Promise<DomainVersion[]> {
         const result: DomainVersion[] = [];
-        for (const owner of [...new Set(owners)].sort()) {
+        for (const owner of [...new Set(owners)].sort(compareCodePoints)) {
             const [row] = await reader.query({
                 sql: 'SELECT version FROM social_versions WHERE owner=?', parameters: [owner]
             }, {
@@ -486,7 +487,7 @@ export class SocialRepository extends Service {
         if (new Set(request.itemIds).size !== request.itemIds.length)
             throw Error('SOCIAL_PRESENTATION_DUPLICATE_ITEM');
         const encoded = JSON.stringify({
-            presentationId: request.presentationId, actorId: request.actorId, momentId: request.momentId, inputId: request.inputId, versions: [...request.versions].sort((a, b) => a.owner.localeCompare(b.owner)), itemIds: request.itemIds
+            presentationId: request.presentationId, actorId: request.actorId, momentId: request.momentId, inputId: request.inputId, versions: [...request.versions].sort((a, b) => compareCodePoints(a.owner, b.owner)), itemIds: request.itemIds
         });
         const [previous] = await tx.query({
             sql: 'SELECT request FROM social_presentations WHERE id=?', parameters: [request.presentationId]

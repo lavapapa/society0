@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import { socialTime } from '../clock.js';
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
@@ -52,7 +53,7 @@ function chronology(a: Item, b: Item) {
         return -1;
     if (time(a) < time(b))
         return 1;
-    return a.id.localeCompare(b.id);
+    return compareCodePoints(a.id, b.id);
 }
 function chronological(input: RecommendationInput) {
     const sorted = [...input.items].sort(chronology);

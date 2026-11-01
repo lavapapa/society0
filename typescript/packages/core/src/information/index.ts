@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({ pageSize: Schema.natural().min(1).default(100) });
@@ -59,12 +60,12 @@ export class Information extends Service {
             const last = after(request.cursor, id);
             const available = [];
             let total = 0;
-            for (const entry of [...selected.items].sort((a, b) => a.id < b.id ? -1 : 1)) {
+            for (const entry of [...selected.items].sort((a, b) => compareCodePoints(a.id, b.id))) {
                 this.metrics.availabilityScans++;
                 if (!await entry.value.source.available(scope, view))
                     continue;
                 total++;
-                if (last !== undefined && entry.id <= last)
+                if (last !== undefined && compareCodePoints(entry.id, String(last)) <= 0)
                     continue;
                 this.metrics.keysetCandidates++;
                 if (available.length <= request.maxItems) {

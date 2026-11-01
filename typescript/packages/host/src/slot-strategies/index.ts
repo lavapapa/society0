@@ -1,3 +1,4 @@
+import {compareCodePoints} from '../order.js';
 import Schema from '@society0/schemastery';
 import { hostMetadata, hostApi } from '../module-resolver/metadata.js';
 import type { Context } from '@society0/cordis';
@@ -30,7 +31,7 @@ class CandidateOrder {
         this.edges.get(from)!.add(to);
         this.incoming.set(to, this.incoming.get(to)! + 1);
     }
-    private compare(a: string, b: string): number { return (this.nodes.get(a)!.order ?? 0) - (this.nodes.get(b)!.order ?? 0) || a.localeCompare(b); }
+    private compare(a: string, b: string): number { return (this.nodes.get(a)!.order ?? 0) - (this.nodes.get(b)!.order ?? 0) || compareCodePoints(a, b); }
     result(): readonly string[] {
         const result: string[] = [];
         const ready = [...this.incoming].filter(([, count]) => !count).map(([id]) => id).sort((a, b) => this.compare(a, b));

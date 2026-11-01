@@ -130,3 +130,10 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 | 其他 `SQLITE_*` / body 错误 | 确定未提交 | 原样处理或按 body 阶段分类 |
 
 取消按对象身份（`error===signal.reason`）或 `name==='AbortError'` 识别。完整设计说明见 `docs/design-amendments.md` 的 B 节。
+
+
+## 排序与游标
+
+所有 JS 侧排序和 keyset 分页统一使用 `@society0/host/order` 的 `compareCodePoints(a,b)`：按 Unicode 码点比较，与 SQLite `ORDER BY` 的 BINARY（UTF-8 字节序）一致，不读取 ICU 或 locale。context、information、action、exploration、social ranking/recommendations/repository 的排序与游标使用同一规则；分页游标必须与排序使用同一个比较函数。
+
+前提是输入为良构 UTF-16。`sqlite-native` 在文本入口拒绝孤立代理并报 `SQLITE_TEXT_NOT_WELL_FORMED`，因此从数据库读回的文本与排序前提一致。孤立代理不属于本比较函数的合同范围；其码元行为仅为观测记录。

@@ -22,7 +22,7 @@ python3 scripts/acceptance.py /absolute/path/outside-repository/new-evidence-dir
 
 ## 二、使用
 
-插件以[宿主 ABI](<packages/host/src/abi.ts>)导出的真实 Context、Service 和 native required inject 为入口。`@society0/host/abi` 与主入口共享框架身份；`@society0/host/source` 提供框架来源。增强示例见[服务插件](<tests/fixtures/provider/service.ts>)，两个独立贡献者见[TS 插件](<tests/fixtures/consumer/index.ts>)与[JSDoc 插件](<tests/fixtures/jsdoc/index.js>)。
+插件以[宿主 ABI](<packages/host/src/abi.ts>)导出的真实 Context、Service 和 native required inject 为入口。`@society0/host/abi` 与主入口共享框架身份；`@society0/host/source` 提供框架来源；`@society0/host/order` 提供与 SQLite BINARY 一致的码点比较。增强示例见[服务插件](<tests/fixtures/provider/service.ts>)，两个独立贡献者见[TS 插件](<tests/fixtures/consumer/index.ts>)与[JSDoc 插件](<tests/fixtures/jsdoc/index.js>)。
 
 ```ts
 import { createHost } from '@society0/host'

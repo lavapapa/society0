@@ -24,6 +24,10 @@
       "types": "./dist/source.d.ts",
       "default": "./dist/source.js"
     },
+    "./order": {
+      "types": "./dist/order.d.ts",
+      "default": "./dist/order.js"
+    },
     "./package.json": "./package.json",
     "./resources": {
       "types": "./dist/resources/index.d.ts",

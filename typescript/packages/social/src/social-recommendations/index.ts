@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
@@ -197,7 +198,7 @@ export class Recommendations extends Service {
             }
         return [...owners].map(([owner, version]) => ({
             owner, version
-        })).sort((a, b) => a.owner.localeCompare(b.owner));
+        })).sort((a, b) => compareCodePoints(a.owner, b.owner));
     }
     private async collectInput(held: readonly Lease<RecommendationSource>[], scope: DiscoveryScope, view: import('../contracts.js').SqliteReadView, bounds: PreparationBounds) {
         const items: RecommendationInput['items'][number][] = [], sourcePages: {

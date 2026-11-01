@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import type { Context } from '@society0/cordis';
 import type { SelectionLease } from '@society0/host/slots';
 import { randomUUID } from 'node:crypto';
@@ -133,7 +134,7 @@ export class PerceptionSession implements PerceptionSelection {
     }
     private inputs(read: PerceptionRead, inputs: readonly PerceptionInput[]) {
         const selected = inputs.filter(input => input.sourceId === read.sourceId), mapped = selected.flatMap(input => input.perceptIds), expected = read.page.items.map(item => item.id);
-        if (new Set(expected).size !== expected.length || new Set(mapped).size !== mapped.length || !equal([...mapped].sort(), [...expected].sort()))
+        if (new Set(expected).size !== expected.length || new Set(mapped).size !== mapped.length || !equal([...mapped].sort(compareCodePoints), [...expected].sort(compareCodePoints)))
             return fail('PERCEPTION_INPUT_MAPPING');
         return selected;
     }

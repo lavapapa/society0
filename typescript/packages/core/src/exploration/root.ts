@@ -1,3 +1,4 @@
+import {compareCodePoints} from '@society0/host/order';
 import { posix } from 'node:path';
 import type { ExplorationMount, ExplorationNode } from '../contracts/exploration.js';
 import type { DiscoveryScope, PageRequest } from '../contracts/data.js';
@@ -20,8 +21,8 @@ export class MountedRoot implements ExplorationMount {
             if (await mount.visible(mount.prefix, scope, view))
                 nodes.push(await mount.stat(mount.prefix, scope, view));
         }
-        nodes.sort((a, b) => a.path < b.path ? -1 : 1);
-        return page(nodes.filter(node => node.path > last), String(nodes.length), view.revision, request, id, node => node.path);
+        nodes.sort((a, b) => compareCodePoints(a.path, b.path));
+        return page(nodes.filter(node => compareCodePoints(node.path, last) > 0), String(nodes.length), view.revision, request, id, node => node.path);
     }
     async open(): Promise<never> { return fail('EXPLORATION_NOT_FILE'); }
     async collect(): Promise<never> { return fail('EXPLORATION_NOT_COLLECTION'); }
