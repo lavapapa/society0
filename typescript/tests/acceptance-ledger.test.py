@@ -30,7 +30,7 @@ def case(**overrides):
     return value
 def ledger(cases=None):
     entries = cases if cases is not None else [case(), case(id='PR02-T02', executions=[execution('typescript/tests/pr02.test.mjs', 'build-integration')])]
-    return {'source': 's', 'updatedAt': 't', 'completionRule': 'c', 'cases': entries, 'plugins': [{'id': 'p', 'pr': 'PR01', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'x'}], 'profiles': [], 'legacyScope': [{'id': 'B0' + str(number), 'status': 'not-carried', 'carried': [], 'notCarried': ['x'], 'reason': 'r'} for number in range(2, 6)]}
+    return {'source': 's', 'updatedAt': 't', 'completionRule': 'c', 'cases': entries, 'plugins': [{'id': 'p', 'pr': 'PR01', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'x'}, {'id': 'slot-strategies', 'pr': 'PR03', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'x'}], 'profiles': [], 'legacyScope': [{'id': 'B0' + str(number), 'status': 'not-carried', 'carried': [], 'notCarried': ['x'], 'reason': 'r'} for number in range(2, 6)]}
 def run(world, value, *args):
     (world / EVIDENCE / 'acceptance.json').write_text(json.dumps(value))
     return subprocess.run([sys.executable, '-B', str(cli), args[0], str(world), *args[1:]], text=True, capture_output=True)
@@ -69,4 +69,17 @@ with tempfile.TemporaryDirectory() as temporary:
     assert 'FRAGMENT_KEY' in codes(run(world, merged, 'apply'))
     assert json.loads((world / EVIDENCE / 'acceptance.json').read_text())['cases'][0]['reason'] == 'merged'
     assert (pending / 'patch-PR01-T01.json').is_file()
+    (pending / 'patch-PR01-T01.json').unlink()
+    (pending / 'plugin-slot-strategies.json').write_text(json.dumps({'id': 'slot-strategies', 'appendEvidence': [CANDIDATE + '/manifest.json'], 'setValidationScope': 'merged-scope'}))
+    assert codes(run(world, ledger(), 'apply')) == []
+    merged = json.loads((world / EVIDENCE / 'acceptance.json').read_text())
+    slots = next(plugin for plugin in merged['plugins'] if plugin['id'] == 'slot-strategies')
+    base = next(plugin for plugin in merged['plugins'] if plugin['id'] == 'p')
+    assert slots['validationScope'] == 'merged-scope', slots
+    assert CANDIDATE + '/manifest.json' in slots['evidence'], slots
+    assert base['evidence'] == [LOG] and base['validationScope'] == 'x', base
+    (pending / 'plugin-slot-strategies.json').write_text(json.dumps({'id': 'not-a-plugin', 'appendEvidence': []}))
+    assert 'PLUGIN_MISSING' in codes(run(world, merged, 'apply'))
+    (pending / 'plugin-slot-strategies.json').write_text(json.dumps({'id': 'slot-strategies', 'setNothing': 'x'}))
+    assert 'FRAGMENT_KEY' in codes(run(world, merged, 'apply'))
 print(json.dumps({'case': 'RV3-12-T01', 'status': 'passed'}))

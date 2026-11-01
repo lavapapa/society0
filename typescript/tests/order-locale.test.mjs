@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { compareCodePoints } from '../.build/host/dist/order.js';
 
 const child = fileURLToPath(new URL('./order-locale-child.mjs', import.meta.url));
 const locales = ['en_US.UTF-8', 'et_EE.UTF-8', 'da_DK.UTF-8'];
 const expectedCollators = ['en-US', 'et-EE', 'da-DK'];
 
 function preconditions() {
+    assert.deepEqual(['a', 'B', '_x'].sort(compareCodePoints), ['B', '_x', 'a']);
     assert.notEqual(process.config.variables.icu_small, true);
     assert.deepEqual(Intl.Collator.supportedLocalesOf(['da-DK', 'et-EE']), ['da-DK', 'et-EE']);
 }

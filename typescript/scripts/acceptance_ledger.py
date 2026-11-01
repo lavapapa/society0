@@ -98,7 +98,7 @@ def merge_case(ledger, name, payload):
 def merge_plugin(ledger, name, payload):
     plugins = {plugin['id']: plugin for plugin in ledger.get('plugins', [])}
     if name == 'plugin':
-        ident = next((key for key in payload if key == 'id'), None)
+        ident = payload.get('id')
         if ident is None or ident not in plugins: return [('PLUGIN_MISSING', ident)], {}
         unknown = sorted(set(payload) - PLUGIN_KEYS - {'id'})
         if unknown: return [('FRAGMENT_KEY', ident, unknown)], {}
