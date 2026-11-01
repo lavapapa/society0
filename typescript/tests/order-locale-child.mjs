@@ -30,10 +30,10 @@ else if (mode === 'ranking') {
             versions: [], maxBytes: 65536,
             items: ids.map(id => ({ id, authorId: 'a', features: { createdTime: '5', likes: 0, replies: 0, reposts: 0 } }))
         });
-        const rank = async (id, ids) => {
+        const rank = async (id, ids, features = () => ({ createdTime: '5', likes: 0, replies: 0, reposts: 0 })) => {
             const lease = await host.ctx.socialRankings.acquire(id);
             try {
-                return lease.value.rank(input(ids)).map(item => item.id);
+                return lease.value.rank({ ...input(ids), items: ids.map(id => ({ id, authorId: 'a', features: features(id) })) }).map(item => item.id);
             }
             finally {
                 await lease.release();
@@ -43,6 +43,7 @@ else if (mode === 'ranking') {
         output.chronological = await rank('chronological/v1', ids);
         output.weighted = await rank('weighted/v1', ids);
         output.crossRanking = await rank('chronological/v1', ['t', 'z', 'aa', 'b']);
+        output.sparse = await rank('weighted/v1', ['a', 'B', '_x'], () => ({}));
     }
     finally {
         await host.close();

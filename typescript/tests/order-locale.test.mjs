@@ -47,5 +47,6 @@ test('NEW-1-T04 chronological and weighted ties use code-point ids', () => {
         assert.deepEqual(output.chronological, ['B', '_x', 'a', 'é']);
         assert.deepEqual(output.weighted, ['B', '_x', 'a', 'é']);
         assert.deepEqual(output.crossRanking, ['aa', 'b', 't', 'z']);
+        assert.deepEqual(output.sparse, ['B', '_x', 'a']);
     }
 });
