@@ -113,3 +113,12 @@ Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBound
 JS 侧的排序与 keyset 游标全部改用该函数：`mount-context` 的 context 文件页、`slot-strategies` 的 tie-break、`social-ranking` 的平局 id、`social-recommendations` 的 owner、`social-repository` 的 owner/presentation versions、`social/registry` 的 dependencies，以及 `information`、`actions`、`exploration/root`、`mount-world`、`perception/selection`。SQLite 原生 `ORDER BY` 保持 BINARY；`addon.cc` 以 UTF-8 绑定文本且全仓无 `COLLATE`，故良构字符串下三者同序。
 
 设计中的 slot-strategies `tieBreak` 不新增 Config：只有 `id-codepoint` 一个取值，由 `@society0/host/order` 固定，catalog 登记为 dropped。排序前提是良构 UTF-16；孤立代理由 `sqlite-native` 入口的 NEW-6 检查拒绝（`SQLITE_TEXT_NOT_WELL_FORMED`），比较函数本身不对孤立代理作合同承诺。
+
+
+## RV3-14：workspace rename 源父版本（撤回，保留特征测试）
+
+补充 inputs/society0_next_refactor_v3/docs/10-builtin-plugins.md 的 workspace 条目、docs/17-actor-foundations.md §1.2。
+
+RV3-14 撤回：`extras/src/workspace/index.ts` 的 `mutate` 在 rename/create 后无条件 `await this.touch(tx, scope, parent.path)`，`parent` 取自 `mutationParent(from)`，即源父目录；`renameNode` 在目标父与源父不同时额外 touch 目标父。跨目录 rename 两个父各 +1，同目录 rename 只 +1，`/workspace` 祖先不增。生产源码无需修改。
+
+保留 `tests/pr09-workspace-rename.test.mjs` / `RV3-14-T01` 作为特征测试，锁定源父 touch 的唯一语义：跨目录 a/x→b/x、同目录 b/x→b/y、目录子树 b/d→a/d 的版本、objectId、可见性与 list 结果。mutation 只删除编译副本 `workspace/index.js` 的 mutate 末尾源父 touch，跨目录 `a0+1` 断言真实失败；恢复字节后 green。该测试不宣称修复生产 bug，也不新增 workspace 模块 quality scope。
