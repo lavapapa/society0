@@ -147,6 +147,6 @@ host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前�
 
 ## RV3-09：B05 preview/fullRef 与 B02–B05 legacyScope
 
-`social-perception.previewChars` 默认 `-1`，非负时只对 post 感知的展示正文按 Unicode 码点截短；超限加 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原始信息经 public `social/posts` 的可选 `{id}` 输入读取，SQL 加 `p.id=?`，保留既有 authorId/cursor/byte budget/BINARY 语义。排名与测量继续读完整正文。
+`social-perception.previewChars` 默认 `-1`，非负时只对 post 感知的展示正文按 Unicode 码点截短；超限加 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原始信息经 public `social/posts` 的可选 `{id}` 输入读取，SQL 加 `p.id=?`（`id` 为可选字符串，合法空串同样按精确 id 过滤；未提供才按 authorId/scope），保留既有 authorId/cursor/byte budget/BINARY 语义。information source 对 `social/posts` 声明 `properties.id` 与 `properties.authorId`。排名与测量继续读完整正文。
 
 用户裁决：B02/B03/B04 选 (b) 如实未承接；B05 选 (a) 承接。四份 `legacyScope-B02..B05.json` 记录准确 carried/notCarried；本文件承载稳定合同，具体证据见 `evidence/v3fix-d/G17-HANDOFF.md`。
