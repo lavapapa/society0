@@ -1,0 +1,1 @@
+export function assertWellFormed(value:string,field:string,code:string):string{if(!value.isWellFormed())throw Object.assign(Error(code+': '+field+' contains a lone surrogate'),{code,field});return value}

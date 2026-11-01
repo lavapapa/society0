@@ -23,7 +23,7 @@ const codeOf=(error:unknown)=>String((error as {code?:unknown})?.code??'');
 const runtimeSetup=new Set(['INFERENCE_RUNTIME_CLOSED','INFERENCE_COMPLETION_REQUIRED','INFERENCE_BUDGET','INFERENCE_HISTORY_FIDELITY']);
 const storageUnknown=new Set(['SQLITE_COMMIT_UNKNOWN','SQLITE_SEGMENT_FAILED']);
 /** 事务结果合同：提交未知与段缺失归持久未知，内部不变量归内部错误，其余确定未提交。 */
-function storage(error:unknown):LlmActivationReason{const code=codeOf(error);if(storageUnknown.has(code))return 'persistence_unknown';return code==='SQLITE_TX_OUTCOME_MISSING'?'internal_error':'persistence_error'}
+function storage(error:unknown):LlmActivationReason{const code=codeOf(error);if(code==='SQLITE_TEXT_NOT_WELL_FORMED')return 'provider_error';if(storageUnknown.has(code))return 'persistence_unknown';return code==='SQLITE_TX_OUTCOME_MISSING'?'internal_error':'persistence_error'}
 function classified(reason:LlmActivationReason,stage:string,error:unknown):LlmActivationError{return error instanceof LlmActivationError?error:new LlmActivationError(reason,codeOf(error)||'LLM_'+reason.toUpperCase(),stage,{cause:error})}
 const contextLimit=()=>new LlmActivationError('context_limit','INFERENCE_CONTEXT_LIMIT','history');
 /** 仅在signal确实中止时按同一reason对象、cause链或原生AbortError识别取消。 */

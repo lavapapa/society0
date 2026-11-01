@@ -9,6 +9,7 @@ import type { Json } from '../contracts/common.js';
 import type { StoredValue, PayloadRef, PayloadRange, DiscoveryScope, PageRequest } from '../contracts/data.js';
 import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
 import { attachValue, readValue, prepareBoundedJson, jsonByteBound } from '../results/payload.js';
+import { assertWellFormed } from '../contracts/text.js';
 import { after, identity, page, fail, equal, bounds, sqlPageBudget, assertSqlPagePrefix } from '../information/page.js';
 import '../artifacts-local/index.js';
 export * from './schema.js';
@@ -26,8 +27,9 @@ export class Threads extends Service {
         bodyInlineBytes: number;
         maxMessageBytes: number;
     }) { super(ctx, 'threads'); }
-    async open(actor: string, moment: string, view: SqliteReadView) { const [row] = await view.query({ sql: 'SELECT id,head,interaction_id FROM threads WHERE actor_id=? AND moment_id=?', parameters: [actor, moment] }, queryBounds); const id = row ? String(row.id) : JSON.stringify([view.runId, actor, moment]); return { id, actorId: actor, momentId: moment, interactionId: row ? String(row.interaction_id) : id, headSeq: String(row?.head ?? 0), messageCount: String(row?.head ?? 0) }; }
+    async open(actor: string, moment: string, view: SqliteReadView) { assertWellFormed(actor,'actorId','THREAD_TEXT_NOT_WELL_FORMED');assertWellFormed(moment,'momentId','THREAD_TEXT_NOT_WELL_FORMED'); const [row] = await view.query({ sql: 'SELECT id,head,interaction_id FROM threads WHERE actor_id=? AND moment_id=?', parameters: [actor, moment] }, queryBounds); const id = row ? String(row.id) : JSON.stringify([view.runId, actor, moment]); return { id, actorId: actor, momentId: moment, interactionId: row ? String(row.interaction_id) : id, headSeq: String(row?.head ?? 0), messageCount: String(row?.head ?? 0) }; }
     async prepare(message: Message, signal?: AbortSignal): Promise<PreparedMessage> {
+        assertWellFormed(message.id,'message.id','THREAD_TEXT_NOT_WELL_FORMED');
         let payload: StoredValue;
         try {
             payload = await prepareBoundedJson(message as unknown as Json, { inline: this.options.bodyInlineBytes, maxBytes: this.options.maxMessageBytes }, this.ctx.artifacts, signal);

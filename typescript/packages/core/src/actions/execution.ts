@@ -93,12 +93,12 @@ export class ActionCall {
     private async failed(error: ActionExecutionFailure): Promise<'external-unknown' | 'storage-unknown' | 'settled' | 'absent'> { const existing = await this.ctx.attempts.probe(this.attempt); if (existing.status !== 'found' || existing.record.status !== 'pending')
         return 'absent'; const facts = { code: error.code, message: error.message, requiredOperations: error.requiredOperations }; if (this.entry.definition.effect === 'external') {
         const raw = await prepareValue(facts as unknown as Json, 0, this.ctx.artifacts);
-        await this.ctx.attempts.markUnknown(this.attempt, error.message, [...references(raw), ...error.artifacts]);
+        await this.ctx.attempts.markUnknown(this.attempt, error.message.toWellFormed(), [...references(raw), ...error.artifacts]);
         return 'external-unknown';
     } if (error.code === 'SQLITE_COMMIT_UNKNOWN' || error.code === 'SQLITE_SEGMENT_FAILED') {
         const cause = error.cause as { committed?: boolean; receipt?: unknown } | undefined;
         const result = { ...facts, ...(error.code === 'SQLITE_SEGMENT_FAILED' ? { commit: { committed: true, receipt: cause?.receipt } } : {}) };
-        await this.ctx.attempts.markUnknown(this.attempt, error.message, error.artifacts, result);
+        await this.ctx.attempts.markUnknown(this.attempt, error.message.toWellFormed(), error.artifacts, result);
         return 'storage-unknown';
     } await this.ctx.attempts.settle(this.attempt, { status: 'failed', ...facts }, error.artifacts); return 'settled'; }
     private async rejected(error: unknown): Promise<never> { const failure = new ActionExecutionFailure(error, this.committed); let kind: 'external-unknown' | 'storage-unknown' | 'settled' | 'absent'; try {
