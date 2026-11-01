@@ -16,6 +16,14 @@ function record<R>(stage:Stage<R>,work:Promise<R>):Promise<R>{return work.then(r
 function settle<R>(stage:Stage<R>):R{if(!stage.done)throw fault('SQLITE_TX_OUTCOME_MISSING','internal invariant: physical settled without outcome');if('result' in stage)return stage.result as R;throw stage.error}
 function abortIdle(stage:Stage<unknown>,signal:AbortSignal):()=>void{const abort=()=>{if(!stage.begun)stage.early.reject(signal.reason)};signal.addEventListener('abort',abort,{once:true});if(signal.aborted)abort();return()=>signal.removeEventListener('abort',abort)}
 
+function operationRelease(inflight:Set<string>,operationId:string):()=>void{
+ let owned=true;
+ return()=>{if(owned){owned=false;inflight.delete(operationId)}};
+}
+function earlyOutcome<R>(stage:Stage<R>,release:()=>void):Promise<never>{
+ return stage.early.promise.catch((error:unknown)=>{if(!stage.begun)release();throw error});
+}
+
 export class Database {
  readonly runId:string;readonly metadata:SqliteRuntimeMetadata;
  readonly options:Required<DatabaseOptions>;
@@ -67,15 +75,15 @@ export class Database {
  transaction<T>(lease:WriteLease,request:TransactionRequest,body:(tx:SqliteTransaction)=>Promise<T>):Promise<{value:T;receipt:CommitReceipt}>{
   try{
    this.transactionAdmission(lease,request);
-   const permit=this.fence.enter(lease);this.inflight.add(request.operationId);this.pendingBytes+=request.maxInputBytes;
+   const permit=this.fence.enter(lease);this.inflight.add(request.operationId);const releaseId=operationRelease(this.inflight,request.operationId);this.pendingBytes+=request.maxInputBytes;
    const stage=stageOf<{value:T;receipt:CommitReceipt}>();const stops=[abortIdle(stage,permit.signal)];let settled:Promise<void>;
    const physical=(signal:AbortSignal)=>{stage.dispatched=true;stops.push(abortIdle(stage,signal));return record(stage,this.writer(()=>this.perform(permit,request,body,signal,stage)))};
    try{
     if(this.tasks){const task=this.tasks.run('sqlite.transaction',physical,{signal:permit.signal,bytes:request.maxInputBytes});void task.catch(error=>{if(!stage.dispatched){finish(stage,{error});stage.early.reject(error)}});settled=task.settled}
     else settled=physical(permit.signal).then(()=>{},()=>{});
-   }catch(error){for(const stop of stops)stop();permit.release();this.inflight.delete(request.operationId);this.pendingBytes-=request.maxInputBytes;throw error}
-   this.transactions.add(settled);void settled.then(()=>{for(const stop of stops)stop();this.pendingBytes-=request.maxInputBytes;this.inflight.delete(request.operationId);permit.release();this.transactions.delete(settled)});
-   return Promise.race([settled.then(()=>settle(stage)),stage.early.promise]);
+   }catch(error){for(const stop of stops)stop();permit.release();releaseId();this.pendingBytes-=request.maxInputBytes;throw error}
+   this.transactions.add(settled);void settled.then(()=>{for(const stop of stops)stop();this.pendingBytes-=request.maxInputBytes;releaseId();permit.release();this.transactions.delete(settled)});
+   return Promise.race([settled.then(()=>settle(stage)),earlyOutcome(stage,releaseId)]);
   }catch(error){return Promise.reject(error)}
  }
  private forgetTransaction(tx:SqliteTransaction|undefined):void{if(tx){this.transactionIds.delete(tx);this.txCalls.delete(tx)}}
