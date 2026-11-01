@@ -1,6 +1,7 @@
 import { ValidationError } from '@society0/cordis';
 import { assertLiteral, leaves, redact, type Json, type OriginStep, type ConfigOrigin } from '../config-resolvers/types.js';
 import type { Resolution } from '../config-resolvers/index.js';
+import { unknownConfigPaths } from '../config-resolvers/strict.js';
 import type { PluginEntry, ModuleBinding, ConfigEvidence } from './types.js';
 type Resolver = (value: Json) => Promise<Resolution>;
 function version(binding: ModuleBinding | undefined): number { return binding?.metadata.configVersion ?? 1; }
@@ -27,6 +28,9 @@ function validateConfig(entry: PluginEntry, binding: ModuleBinding | undefined, 
     const schema = binding?.plugin.Config;
     if (!schema)
         return config;
+    const unknown = unknownConfigPaths(schema as never, config);
+    if (unknown.length)
+        throw Object.assign(Error(`UNKNOWN_CONFIG_FIELD ${entry.id}${unknown[0]}${unknown.length > 1 ? ` (+${unknown.length - 1})` : ''}`), { code: 'UNKNOWN_CONFIG_FIELD', entryId: entry.id, paths: unknown });
     const checked = schema['~standard'].validate(config);
     if ('then' in checked)
         throw Error(`ASYNC_SCHEMA ${entry.id}`);

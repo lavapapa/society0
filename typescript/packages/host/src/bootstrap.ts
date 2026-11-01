@@ -2,6 +2,8 @@ import { Context, FiberState, type Fiber, type Plugin } from '@society0/cordis';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { preflight } from './packages.js';
+import { unknownConfigPaths } from './config-resolvers/strict.js';
+import type { Json } from './config-resolvers/types.js';
 import { DiagnosticSink, errorMessage, type DiagnosticPage } from './diagnostics/index.js';
 import type { OwnedResources, ResourceReport } from './resources/index.js';
 import type { TaskSupervisor, TaskSnapshot } from './tasks/index.js';
@@ -83,7 +85,16 @@ class NativeHost implements Host {
   }
 }
 async function boot(host: NativeHost, plugins: readonly Plugin[], entries: readonly BootEntry[]): Promise<void> {
-  for (let index = 0; index < plugins.length; index++) host.fibers.push(await host.ctx.plugin(plugins[index]!, entries[index]!.config));
+  for (let index = 0; index < plugins.length; index++) {
+    const schema = (plugins[index] as { Config?: never }).Config;
+    const config = entries[index]!.config;
+    if (schema && config !== undefined) {
+      const unknown = unknownConfigPaths(schema, config as Json);
+      if (unknown.length)
+        throw Object.assign(Error(`UNKNOWN_CONFIG_FIELD ${entries[index]!.specifier}${unknown[0]}`), { code: 'UNKNOWN_CONFIG_FIELD', paths: unknown });
+    }
+    host.fibers.push(await host.ctx.plugin(plugins[index]!, config));
+  }
   await Promise.all(host.fibers.map(fiber => fiber.await()));
   for (let index = 0; index < host.fibers.length; index++) {
     const fiber = host.fibers[index]!;

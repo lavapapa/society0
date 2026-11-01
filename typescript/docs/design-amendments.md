@@ -122,3 +122,17 @@ JS 侧的排序与 keyset 游标全部改用该函数：`mount-context` 的 cont
 RV3-14 撤回：`extras/src/workspace/index.ts` 的 `mutate` 在 rename/create 后无条件 `await this.touch(tx, scope, parent.path)`，`parent` 取自 `mutationParent(from)`，即源父目录；`renameNode` 在目标父与源父不同时额外 touch 目标父。跨目录 rename 两个父各 +1，同目录 rename 只 +1，`/workspace` 祖先不增。生产源码无需修改。
 
 保留 `tests/pr09-workspace-rename.test.mjs` / `RV3-14-T01` 作为特征测试，锁定源父 touch 的唯一语义：跨目录 a/x→b/x、同目录 b/x→b/y、目录子树 b/d→a/d 的版本、objectId、可见性与 list 结果。mutation 只删除编译副本 `workspace/index.js` 的 mutate 末尾源父 touch，跨目录 `a0+1` 断言真实失败；恢复字节后 green。该测试不宣称修复生产 bug，也不新增 workspace 模块 quality scope。
+
+
+## NEW-D1：插件 Config 未知键的 host 单点严格检查
+
+补充 inputs/society0_next_refactor_v3/docs/04-configuration.md 的未知字段合同。
+
+host 在 profile resolver 之后的 `resolution.value`、Schema validate 之前，以及 `createHost` boot 的 `ctx.plugin` 之前，统一按实际 Schema 结构检查未知键：
+- `packages/host/src/config-resolvers/strict.ts` 的 `unknownConfigPaths` 递归 object（仅声明键）、array、tuple（额外元素）、dict（键开放、值递归）、union（取能通过且未知键最少的分支）、intersect（声明键组合）与 wrapper inner；`any`/const/原始类型开放。
+- 错误统一 `UNKNOWN_CONFIG_FIELD`，带 `entryId`/specifier、JSON Pointer `paths`；错误信息首路径。
+- profile 检查落在 `profile-loader/effective.ts` 的 `validateConfig`；boot 检查在 `bootstrap.ts` 的 `boot` 循环实际 `ctx.plugin` 前。Cordis `ctx.plugin` 合同本身不变，文档只描述 host 入口的额外检查。
+
+实际 fork 的 `Schema.resolve` 在 strict 模式只移除顶层未知键，不递归清除嵌套对象未知键；本检查是 host 层递归合同，不把 strict 结果当嵌套 oracle。`dict`/`any` 的开放键保持不变。
+
+证据：`S1` 覆盖 top/topology/prompts 嵌套、model-pi array(any)、social union 正值 -1/10、createHost boot；`S2` 覆盖结构正反与 pointer 转义；`S3` 4 个 shipped profile 全部编译；`S5` 的 consumer audit 留待 G16 删除 replay.mode 后按既定顺序执行。
