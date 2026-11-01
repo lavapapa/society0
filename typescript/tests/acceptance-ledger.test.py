@@ -82,4 +82,18 @@ with tempfile.TemporaryDirectory() as temporary:
     assert 'PLUGIN_MISSING' in codes(run(world, merged, 'apply'))
     (pending / 'plugin-slot-strategies.json').write_text(json.dumps({'id': 'slot-strategies', 'setNothing': 'x'}))
     assert 'FRAGMENT_KEY' in codes(run(world, merged, 'apply'))
+    (pending / 'plugin-slot-strategies.json').unlink()
+    (pending / 'plugin-new-memory.json').write_text(json.dumps({'id': 'memory', 'pr': 'PR07', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'new'}))
+    assert codes(run(world, merged, 'apply')) == []
+    extended = json.loads((world / EVIDENCE / 'acceptance.json').read_text())
+    memory = next(plugin for plugin in extended['plugins'] if plugin['id'] == 'memory')
+    assert memory['validationScope'] == 'new' and memory['evidence'] == [LOG], memory
+    assert not list(pending.rglob('*.json'))
+    (pending / 'plugin-new-dup.json').write_text(json.dumps({'id': 'p', 'pr': 'PR01', 'entry': 'typescript/tests/good.test.mjs', 'status': 'passed', 'evidence': [LOG], 'validationScope': 'dup'}))
+    prior = (world / EVIDENCE / 'acceptance.json').read_bytes()
+    duplicate = subprocess.run([sys.executable, '-B', str(cli), 'apply', str(world)], text=True, capture_output=True)
+    assert 'DUPLICATE_PLUGIN' in codes(duplicate), duplicate.stdout
+    unchanged = json.loads((world / EVIDENCE / 'acceptance.json').read_text())
+    assert [plugin['id'] for plugin in unchanged['plugins']].count('p') == 1
+    assert (world / EVIDENCE / 'acceptance.json').read_bytes() == prior
 print(json.dumps({'case': 'RV3-12-T01', 'status': 'passed'}))
