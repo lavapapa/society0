@@ -17,7 +17,7 @@ node profile-lock.mjs module-lock.json @society0/host @society0/core @society0/e
 node run-profile.mjs --help
 ```
 
-原生二进制由发行包携带；平台和架构须与候选证据一致。[profile-lock.mjs](../examples/profile-lock.mjs) 从已安装包的公开 metadata export 记录版本、源身份和 patch 顺序。保存生成的锁和安装 lockfile，后续加载使用同一候选。
+原生二进制由发行包携带；平台和架构须与候选证据一致。[profile-lock.mjs](../examples/profile-lock.mjs) 从已安装包的公开 metadata export 记录版本、源身份和 patch 顺序。锁和 `plugin.meta.json.source` 都包含布尔 `dirty`；发行候选要求 `false`。锁定工具默认拒绝 dirty 包，开发时可显式传入 `--allow-dirty`，所选状态会写入锁并传递到运行身份。保存生成的锁和安装 lockfile，后续加载使用同一候选。
 
 ## 二、运行
 
