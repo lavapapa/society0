@@ -536,6 +536,7 @@ class Memory:
 
     @_operation
     async def before_activation(self,session,thread_id):
+        """准备阶段注入主动工具入口与召回结果；召回回调由装配提供，Core 不预判驱动种类。"""
         self._check()
         from ..async_utils import invoke_maybe_async
         selection=self._selected(session=session)

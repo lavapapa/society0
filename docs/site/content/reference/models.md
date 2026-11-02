@@ -16,6 +16,10 @@
 
 ModelResolver 依次看本次 override、主体配置、类型配置，最后才是默认配置。构造时出现未知的静态引用会抛 ValueError；未知的 override 要等到查表时才抛 KeyError。选择出来的提供方复用已有的连接池，在同一个 Moment 里换提供方也仍然沿用完整 Thread。
 
+端点的解析只发生在一处：`endpoints_for(route)` 把抽样点映射到端点，`endpoint_for(thread_id)` 取该 Thread 已持久化的路由，`workload(thread_id)` 给出激活租约与工作池分组共用的稳定标识。请求与租约使用同一判定，不会各自重新抽样。
+
+提供方作用域 `bind_scope(scope)` 是一个非空字符串身份：`model_plugin` 按 `models.profile` 绑定，独立构造的实例可以自己声明，未声明时用空串，表示该 Thread 只有一个未具名提供方。端点亲和证据按这个作用域保存在 Thread 的当前投影里，`verify_route(thread_id)` 只核对本作用域；同一 Thread 被另一 profile 追加响应或同 Moment 显式换提供方都不算漂移，旧端点被删除时仍然明确报告。
+
 物理请求先取得许可，然后按固定的水位把完整消息加载出来并留证。SDK 自带的重试关闭，适配器按 max_attempts 重试可以重试的连接错误、超时、限流和服务端错误；每一次尝试都有独立的身份。授权这类不可重试的故障变成 ProviderFailure，正文留证失败则直接传播。加载完整历史、传输和保存响应都有实际开销。
 
 ## 认证方式与会话身份

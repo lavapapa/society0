@@ -20,7 +20,8 @@ async def test_filtered_discovery_visits_each_template_once_and_has_small_versio
         actions.register(Action(f'act{index}',('world','entity'),'action',{'type':'object'},
             lambda *a:ActionResult('completed'),available=available,tags=('selected',)))
     scope=InteractionScope('a',Moment(1,'p'))
-    session=SimpleNamespace(actions=actions.bound(scope),actor=SimpleNamespace(id='a'),moment=scope.moment)
+    # 真实 Session 始终带 cursors；激活账本把本次完整读取事实写在这里。
+    session=SimpleNamespace(actions=actions.bound(scope),actor=SimpleNamespace(id='a'),moment=scope.moment,cursors={})
     ledger=_Ledger(SimpleNamespace(policy=LLMPolicy(allowed_tags=('selected',))),session,'thread')
     page=await ledger.find(Ref('world','entity','one'),limit=1)
     assert calls==count

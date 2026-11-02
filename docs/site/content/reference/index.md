@@ -22,12 +22,13 @@
 | 能力 | 公开入口 |
 |---|---|
 | 认知输入与各来源的独立位置 | [CognitiveInput、SourceSpec](cognition.md) |
-| 决定与访谈两种策略 | [LLMDriver、LLMPolicy](llm.md) |
+| 决定与访谈两种策略 | [LLMDriver、LLMPolicy、DecisionScope](llm.md) |
+| 专用动作进入请求的工具暴露 | [ToolExposure](llm.md) |
 | 模型实际收到的工具声明 | [Agent工具参数](tools.md) |
 | 提供方、模型选择与嵌入 | [ModelProvider、EmbeddingProvider](models.md) |
 | 写入、召回、主动工具与提取 | [Memory、MemoryPolicy、MemoryExtension](memory.md) |
 | Thread 与记忆服务的装配 | [服务工厂](services.md) |
-| 完整会话与调用原文 | [ThreadStore](thread.md) |
+| 完整会话、输入引用与端点亲和 | [ThreadStore](thread.md) |
 
 ## 信息、文件与行动
 
@@ -51,7 +52,7 @@
 | 恢复、只读分析、导出与清理 | [存储生命周期](storage-lifecycle.md) |
 | 大规模不可变数据 | [Datasets](cold-datasets.md) |
 | JSON 与压缩编码 | [原生编码](native-json.md) |
-| 模型服务的请求许可 | [共享请求限制](request-limit.md) |
+| 物理请求许可、可选总量与激活槽 | [共享请求限制](request-limit.md) |
 | 独立进程上的 CPU 计算 | [ProcessCompute](compute.md) |
 
 ## 内置机制、结果与观察

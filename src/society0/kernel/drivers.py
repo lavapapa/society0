@@ -28,10 +28,14 @@ def rule_driver_plugin(run,*,extensions=(),name='rule_driver',requires=()):
 
 
 def llm_driver_plugin(*,provider,threads=('threads','threads'),input_builder,policy=None,
-                      extensions=(),shell_factory=None,provider_selector=None,name='llm_driver',requires=()):
+                      extensions=(),shell_factory=None,provider_selector=None,tool_exposure=None,
+                      activation_slots=None,name='llm_driver',requires=()):
     """共享服务在安装期取得；模型驱动在主体实际激活时创建。"""
     extensions=tuple(extensions)
-    references=(provider,threads,*((input_builder,) if isinstance(input_builder,tuple) else ()),*(item for item in extensions if isinstance(item,tuple)))
+    references=(provider,threads,*((input_builder,) if isinstance(input_builder,tuple) else ()),
+        *(item for item in extensions if isinstance(item,tuple)),
+        *((tool_exposure,) if isinstance(tool_exposure,tuple) else ()),
+        *((activation_slots,) if isinstance(activation_slots,tuple) else ()))
     def install(context):
         from .llm import LLMDriver
         selected=context.require(*provider[:2])
@@ -39,6 +43,9 @@ def llm_driver_plugin(*,provider,threads=('threads','threads'),input_builder,pol
         thread_store=context.require(*threads)
         builder=context.require(*input_builder) if isinstance(input_builder,tuple) else input_builder
         configured=tuple(context.require(*item) if isinstance(item,tuple) else item for item in extensions)
+        exposure=context.require(*tool_exposure) if isinstance(tool_exposure,tuple) else tool_exposure
+        slots=context.require(*activation_slots) if isinstance(activation_slots,tuple) else activation_slots
         context.provide('factory',lambda record:LLMDriver(selected,thread_store,input_builder=builder,
-            policy=policy,extensions=configured,shell_factory=shell_factory,provider_selector=provider_selector))
+            policy=policy,extensions=configured,shell_factory=shell_factory,provider_selector=provider_selector,
+            tool_exposure=exposure,activation_slots=slots))
     return Plugin(name,tuple(dict.fromkeys((*requires,*(item[0] for item in references)))),install)

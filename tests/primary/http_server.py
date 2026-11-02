@@ -17,12 +17,15 @@ def running(server):
         finally:state['active']-=1
     server.config.app=observed
     thread=threading.Thread(target=lambda:server.run(sockets=[listener]),daemon=True);thread.start()
-    deadline=time.monotonic()+5
+    # 启动等待用真实事件加宽裕上限：共享主机上 5 秒会把正常启动判成失败，
+    # 而“线程已死”仍立即失败，契约不变。
+    deadline=time.monotonic()+60
     try:
         while not server.started:
-            assert thread.is_alive() and time.monotonic()<deadline
+            assert thread.is_alive(), '服务器线程在启动前退出'
+            assert time.monotonic()<deadline, '服务器启动超过 60 秒'
             time.sleep(.005)
         yield port,state
     finally:
-        server.should_exit=True;thread.join(5);listener.close()
+        server.should_exit=True;thread.join(30);listener.close()
         assert not thread.is_alive()

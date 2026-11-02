@@ -27,6 +27,9 @@ THREAD_SCHEMA = (
     'CREATE INDEX thread_messages ON thread_events(thread_id,seq) WHERE kind=\'message\'',
     '''CREATE TABLE thread_chunks(thread_id TEXT NOT NULL,seq INTEGER NOT NULL,chunk INTEGER NOT NULL,
         raw_bytes INTEGER NOT NULL,payload BLOB NOT NULL,PRIMARY KEY(thread_id,seq,chunk))''',
+    # 提供方作用域的端点亲和投影：与响应事实同一次规范写入维护，读取有界。
+    '''CREATE TABLE thread_provider_endpoints(thread_id TEXT NOT NULL,provider TEXT NOT NULL,
+        endpoint TEXT NOT NULL,PRIMARY KEY(thread_id,provider))''',
 )+usage.schema("thread")+action_stats.SCHEMA
 
 
@@ -40,6 +43,25 @@ def _head(view, thread_id):
     if not rows:
         raise KeyError(thread_id)
     return dict(zip(('actor','kind','provider_session_id','status','last_seq','message_count','ordinal','model_route'), rows[0]), id=thread_id)
+
+
+def _range_ref(writer, reference, *, actor):
+    """请求输入范围：同主体已持久化消息的地址，正文仍只有一份。"""
+    if reference is None:
+        return None
+    if not isinstance(reference, dict) or set(reference) - {'thread_id', 'after', 'through'}:
+        raise ValueError('input reference requires thread_id, after and through')
+    thread_id, after, through = reference.get('thread_id'), reference.get('after', 0), reference.get('through')
+    if not isinstance(thread_id, str) or not thread_id:
+        raise ValueError('input reference requires a thread id')
+    if type(after) is not int or after < 0:
+        raise ValueError('input reference after must be a nonnegative integer')
+    head = _head(writer, thread_id)
+    if head['actor'] != actor:
+        raise PermissionError('input reference belongs to another actor')
+    if type(through) is not int or not 0 <= after <= through <= head['last_seq']:
+        raise ValueError('input reference range is outside the persisted Thread')
+    return {'thread_id': thread_id, 'after': after, 'through': through}
 
 
 def _jsonable(value):
@@ -93,9 +115,14 @@ class ThreadStore:
     def __init__(self, store):
         self.store = store
 
-    def open(self, actor, moment, kind, metadata=None, *, provider_session_id=None):
+    def open(self, actor, moment, kind, metadata=None, *, provider_session_id=None, model_route=None):
+        """新 Thread 的模型路由可显式给定；省略时才在本次抽样点生成。"""
         thread_id = uuid.uuid4().hex
         provider_session_id = provider_session_id or uuid.uuid4().hex
+        if model_route is None:
+            model_route = random.random()
+        if type(model_route) not in (int, float) or not 0 <= float(model_route) < 1:
+            raise ValueError('model_route must be a real number in [0, 1)')
         if is_dataclass(moment):
             moment = asdict(moment)
         def write(writer):
@@ -103,10 +130,27 @@ class ThreadStore:
                 writer.execute('INSERT INTO thread_counts VALUES(?,1) ON CONFLICT(scope) DO UPDATE SET total=total+1', (scope,))
             ordinal = writer.query("SELECT total FROM thread_counts WHERE scope='all'")[0][0]
             # 一次抽样随 Thread 持久化，关闭、重开和恢复均沿用；不保存历史绑定表。
-            writer.execute('INSERT INTO thread_heads VALUES(?,?,?,?,?,0,0,?,?,?)', (thread_id,actor,kind,provider_session_id,'open',ordinal,json.dumps(moment,sort_keys=True,allow_nan=False),random.random()))
+            writer.execute('INSERT INTO thread_heads VALUES(?,?,?,?,?,0,0,?,?,?)', (thread_id,actor,kind,provider_session_id,'open',ordinal,json.dumps(moment,sort_keys=True,allow_nan=False),float(model_route)))
             _append(writer, thread_id, 'opened', {'moment': moment, 'metadata': metadata})
         self.store.transaction(write)
         return thread_id
+
+    def last_provider_endpoint(self, thread_id, *, provider=''):
+        """该 Thread 上某提供方最近一次物理响应的端点标识；恢复时证明路由亲和。
+
+        同一 Thread 可能被别的提供方追加响应（记忆提取使用的另一 profile、同 Moment
+        显式换上的提供方）。亲和证据按提供方作用域分开保存，读取是一行主键查找，
+        不扫描响应历史。空串作用域表示该 Thread 只有一个未具名提供方。
+        """
+        def read(view):
+            rows = view.query("SELECT endpoint FROM thread_provider_endpoints WHERE thread_id=? AND provider=?",
+                              (thread_id, provider))
+            return rows[0][0] if rows else None
+        return self.store.read(read)
+
+    def model_route(self, thread_id):
+        """已持久化的路由抽样点；请求与激活租约共用同一端点判定。"""
+        return self.store.read(lambda view: _head(view, thread_id)['model_route'])
 
     def find(self, actor, moment, kind='decision'):
         if is_dataclass(moment):
@@ -265,12 +309,16 @@ class ThreadStore:
             return sequence
         return self.store.transaction(write)
 
-    def record_model_response(self, thread_id, physical, endpoint, message, summary):
-        """正文仅保存一份 typed 消息；物理响应事实引用它，并同事务维护用量。"""
+    def record_model_response(self, thread_id, physical, endpoint, message, summary, *, provider=''):
+        """正文仅保存一份 typed 消息；物理响应事实引用它，并同事务维护用量与端点投影。"""
         def write(writer):
             sequence = _append(writer, thread_id, 'message', {'model_message': message})
             _append(writer, thread_id, 'provider_response', {'physical_request_id': physical,
                 'endpoint': endpoint, 'message_seq': sequence, 'payload': summary})
+            # 与响应事实同一事务写入当前投影；查询只读这一行，不扫描响应历史。
+            writer.execute('INSERT INTO thread_provider_endpoints VALUES(?,?,?) '
+                           'ON CONFLICT(thread_id,provider) DO UPDATE SET endpoint=excluded.endpoint',
+                           (thread_id, provider, endpoint))
             usage.finish(writer, 'thread', json.dumps([thread_id, physical]), outcome='response',
                          body=summary['response'], timing=summary['timing'])
             return sequence
@@ -282,7 +330,8 @@ class ThreadStore:
     def record_request(self,thread_id,**options):
         return self._record_request(thread_id,track_usage=False,**options)
 
-    def _record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None, through=None,track_usage,tool_choice_resolution=None):
+    def _record_request(self, thread_id, *, provider_options, physical_request_id, message_seqs=None, retry_of=None,
+                        through=None, prefix=None, suffix=None, track_usage, tool_choice_resolution=None):
         def write(writer):
             head = _head(writer, thread_id)
             watermark = head['last_seq'] if through is None else through
@@ -292,9 +341,14 @@ class ThreadStore:
                 for sequence in message_seqs:
                     if type(sequence) is not int or sequence > watermark or not writer.query("SELECT 1 FROM thread_events WHERE thread_id=? AND seq=? AND kind='message'", (thread_id,sequence)):
                         raise ValueError('request references a missing message')
+            # 输入引用：只记录已持久化消息范围的地址，物理请求获批后才展开正文。
             payload = {'through': watermark, 'message_seqs': message_seqs, 'provider_options': provider_options,
                        'physical_request_id': physical_request_id, 'retry_of': retry_of,
                        'provider_session_id': head['provider_session_id']}
+            if prefix is not None:
+                payload['prefix'] = _range_ref(writer, prefix, actor=head['actor'])
+            if suffix is not None:
+                payload['suffix'] = _range_ref(writer, suffix, actor=head['actor'])
             if tool_choice_resolution is not None:
                 payload['tool_choice_resolution']=tool_choice_resolution
             sequence=_append(writer, thread_id, 'request', payload)
@@ -308,10 +362,35 @@ class ThreadStore:
                 raise KeyError(seq)
             payload = _load(view, thread_id, seq)
             refs = payload.pop('message_seqs')
+            # prefix/suffix 保留在请求事件里，正文按引用展开后仍可原样核对。
+            prefix = payload.get('prefix')
+            suffix = payload.get('suffix')
             through = payload['through']
-            payload['messages'] = (_messages(view, thread_id, through=through, raw=True) if refs is None else
-                                   [_load(view, thread_id, item) for item in refs])
+            if refs is not None:
+                messages = [_load(view, thread_id, item) for item in refs]
+            elif prefix is not None or suffix is not None:
+                messages = []
+                for reference in (prefix, suffix):
+                    if reference is None: continue
+                    messages.extend(_messages(view, reference['thread_id'], after_seq=reference['after'],
+                                              through=reference['through'], raw=True))
+            else:
+                messages = _messages(view, thread_id, through=through, raw=True)
+            payload['messages'] = messages
             return payload
+        return self.store.read(read)
+
+    def read_messages_by_reference(self, prefix=None, suffix=None):
+        """按已持久化的消息范围引用展开正文；引用之外的正文不进入请求。"""
+        def read(view):
+            output = []
+            for reference in (prefix, suffix):
+                if reference is None:
+                    continue
+                thread_id, after = reference['thread_id'], reference.get('after', 0)
+                _head(view, thread_id)
+                output.extend(_messages(view, thread_id, after_seq=after, through=reference['through'], raw=True))
+            return output
         return self.store.read(read)
 
     def snapshot_messages(self, thread_id, *, through=None, raw=False):

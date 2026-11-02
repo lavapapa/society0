@@ -88,7 +88,7 @@ def _operation(method):
 
 
 class _Provider:
-    def __init__(self, endpoints, *, max_attempts=2, retry_delay=.1, request_limit=None,
+    def __init__(self, endpoints, *, max_attempts=2, retry_delay=.1, request_limit=None, total_limit=None,
                  global_concurrency=None, http_connections=None, request_jitter=0, embedding=False):
         if type(max_attempts) is not int or max_attempts < 1: raise ValueError('max_attempts must be positive')
         if retry_delay < 0: raise ValueError('retry_delay must be nonnegative')
@@ -102,6 +102,8 @@ class _Provider:
         self._startup_error = None
         self.max_attempts, self.retry_delay = max_attempts, retry_delay
         self._profile_limit = asyncio.Semaphore(global_concurrency) if global_concurrency is not None else None
+        # 三类额度：物理请求许可(按服务)、可选总量许可、端点并发；不与其他配置共用。
+        self._total_limit = total_limit
         self.endpoints = [_Endpoint(item, request_limit, http_connections, request_jitter, embedding) for item in endpoints]
         if not self.endpoints: raise ValueError('at least one endpoint is required')
         if len({endpoint.model_name for endpoint in self.endpoints}) != 1:
@@ -352,19 +354,59 @@ def _output_event(event):
 class ModelProvider(_Provider):
     def __init__(self, endpoints, threads, *, request_options=None, session_transport=None,
                  max_attempts=2, retry_delay=.1, global_concurrency=None, http_connections=None,
-                 request_jitter=0, request_limit=None):
+                 request_jitter=0, request_limit=None, total_limit=None):
         super().__init__(endpoints, max_attempts=max_attempts, retry_delay=retry_delay,
             global_concurrency=global_concurrency, http_connections=http_connections,
-            request_jitter=request_jitter, request_limit=request_limit)
+            request_jitter=request_jitter, request_limit=request_limit, total_limit=total_limit)
         if session_transport not in (None, 'metadata'): raise ValueError('unsupported session transport')
         if session_transport and any(endpoint.kind in ('siwc', 'openai-codex') for endpoint in self.endpoints):
             raise ValueError('subscription provider does not accept session metadata')
+        # 提供方作用域身份：端点亲和投影按它分开保存，不能用对象身份或哈希。
+        # 具名装配由 model_plugin 传入 models.profile；未声明时用空串表示
+        # “该 Thread 只有一个提供方”，独立构造的单提供方调用方沿用原合同。
+        self.scope = ''
         self.threads, self.request_options, self.session_transport = threads, dict(request_options or {}), session_transport
         for endpoint in self.endpoints: _parameters(endpoint, self.request_options)
         self._route_weights = list(accumulate(endpoint.weight for endpoint in self.endpoints))
 
     def validate_options(self, options):
         for endpoint in self.endpoints: _parameters(endpoint, {**self.request_options, **options})
+
+    def endpoints_for(self, route):
+        """路由抽样点唯一确定端点；请求与激活租约使用同一判定。"""
+        if type(route) not in (int, float) or not 0 <= float(route) < 1:
+            raise ValueError('model route must be a real number in [0, 1)')
+        return self.endpoints[bisect_right(self._route_weights, float(route) * self._route_weights[-1],
+                                           hi=len(self.endpoints) - 1)]
+
+    def endpoint_for(self, thread_id):
+        """Thread 的持久化路由决定实际端点；请求与租约共用同一判定。"""
+        return self.endpoints_for(self.threads.model_route(thread_id))
+
+    def bind_scope(self, scope):
+        """声明本提供方的稳定身份；具名 profile 或显式装配身份，二者都是字符串。"""
+        if not isinstance(scope, str) or not scope:
+            raise ValueError('provider scope requires a nonempty string identity')
+        self.scope = scope
+
+    def verify_route(self, thread_id):
+        """恢复/续会时核对端点亲和；冻结配置改变导致映射变化时明确报告。
+
+        证据按提供方作用域保存：同一 Thread 上记忆提取使用的另一 profile 或同
+        Moment 显式换上的提供方都是合法追加，不构成决策路由漂移。旧端点被当前
+        配置删除时投影仍保留旧 id，因此同样明确报告，不会静默改投。
+        """
+        endpoint = self.endpoint_for(thread_id)
+        recorded = self.threads.last_provider_endpoint(thread_id, provider=self.scope)
+        if recorded is not None and recorded != endpoint.id:
+            raise ProviderFailure('model_route_unavailable',
+                f'Thread 已记录的端点 {recorded} 与当前路由映射 {endpoint.id} 不一致；请核对冻结模型配置')
+        return endpoint
+
+    def workload(self, thread_id):
+        """激活租约按端点分组使用的稳定标识。"""
+        endpoint = self.endpoint_for(thread_id)
+        return endpoint.id, endpoint.model_name
 
     async def request(self, thread_id, options):
         response, sequence, incomplete = await self.request_model(thread_id, options)
@@ -374,13 +416,16 @@ class ModelProvider(_Provider):
         return semantic
 
     @_operation
-    async def request_model(self, thread_id, options, *, model_messages=None):
-        """显式 SDK 历史可为列表或同步 loader；loader 在既有请求许可内执行。"""
+    async def request_model(self, thread_id, options, *, model_messages=None, prefix=None, suffix=None):
+        """显式 SDK 历史可为列表或同步 loader；loader 在既有请求许可内执行。
+
+        ``prefix``/``suffix`` 是已持久化消息范围引用；给出时请求只记录引用，
+        正文在取得许可后按引用展开，被引用消息的用量不重复累计。
+        """
         selected = {**self.request_options, **options}
         head = self.threads.describe(thread_id)
-        # 固定抽样点落在端点的累计权重区间；相同配置下每轮选择保持一致。
-        endpoint = self.endpoints[bisect_right(self._route_weights,
-            head['model_route'] * self._route_weights[-1], hi=len(self.endpoints) - 1)]
+        # 路由由 Thread 持久化的抽样点决定；召回与决策共用同一实例与端点。
+        endpoint = self.endpoint_for(thread_id)
         if self.session_transport:
             selected['extra_body'] = {**selected.get('extra_body', {}), 'metadata': {
                 **selected.get('extra_body', {}).get('metadata', {}), 'session_id': head['provider_session_id']}}
@@ -394,20 +439,37 @@ class ModelProvider(_Provider):
             try:
                 async with AsyncExitStack() as stack:
                     if self._profile_limit is not None: await stack.enter_async_context(self._profile_limit)
-                    profile_wait = time.perf_counter() - started
+                    wait = time.perf_counter() - started
                     timing = await stack.enter_async_context(endpoint.resources.acquire())
-                    timing['queue_s'] += profile_wait
+                    timing['queue_s'] += wait
+                    if self._total_limit is not None:
+                        total_wait = time.perf_counter() - started
+                        await stack.enter_async_context(self._total_limit)
+                        timing['queue_s'] += time.perf_counter() - started - total_wait
                     # 同水位完整重建；没有额度的请求不物化历史，也不产生物理事实。
                     assembling = time.perf_counter()
                     if endpoint.auth is not None: endpoint.client.api_key = await endpoint.auth.access_token()
-                    messages = model_messages() if callable(model_messages) else model_messages if model_messages is not None else history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
+                    if model_messages is not None:
+                        messages = model_messages() if callable(model_messages) else model_messages
+                    elif prefix is not None or suffix is not None:
+                        messages = history(self.threads.read_messages_by_reference(prefix, suffix))
+                    else:
+                        messages = history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
                     physical = uuid.uuid4().hex
                     evidence = redact_credentials({**selected, 'model': endpoint.model_name}, secrets=(endpoint.secret,))
                     timing['prepare_s'] = time.perf_counter() - assembling
                     recording = time.perf_counter()
                     try:
                         sequence = self.threads.record_provider_request(thread_id, provider_options=evidence,
-                            physical_request_id=physical, retry_of=retry_of, through=through, tool_choice_resolution=resolution)
+                            physical_request_id=physical, retry_of=retry_of, through=through,
+                            prefix=prefix if model_messages is None else None,
+                            suffix=suffix if model_messages is None else None,
+                            tool_choice_resolution=resolution)
+                    except (ValueError, KeyError, PermissionError):
+                        # 引用越界或不属于本主体是调用方输入错误，不能报成留证失败；
+                        # 请求事件没有落库，也就不存在可写的物理请求事实。
+                        physical = None
+                        raise
                     except Exception as error: raise ThreadWriteError('required Thread request could not be saved') from error
                     timing['record_s'] = time.perf_counter() - recording
                     if retry_of is None: retry_of = sequence
@@ -430,7 +492,7 @@ class ModelProvider(_Provider):
                     typed = encode(result)
                     try:
                         message_seq = self.threads.record_model_response(thread_id, physical, endpoint.id, typed,
-                            {'response': {'usage': _usage(result)}, 'timing': timing})
+                            {'response': {'usage': _usage(result)}, 'timing': timing}, provider=self.scope)
                     except Exception as error: raise ThreadWriteError('required typed response could not be saved') from error
                     incomplete = None
                     if result.finish_reason not in ('stop', 'tool_call'):
@@ -463,13 +525,16 @@ class ModelProvider(_Provider):
         except Exception as error: raise ThreadWriteError('required Thread response could not be saved') from error
 
 
-def model_plugin(profiles, *, threads=('threads', 'threads'), name='models', request_limit=None):
+def model_plugin(profiles, *, threads=('threads', 'threads'), name='models', request_limit=None, total_limit=None):
+    """模型物理请求许可与可选总量许可分别注入，端点并发保持各自配置。"""
     from .plugins import Plugin
     def install(context):
         store = context.require(*threads)
         providers = {}
         for profile, options in profiles.items():
-            provider = ModelProvider(threads=store, request_limit=request_limit, **options)
+            provider = ModelProvider(threads=store, request_limit=request_limit, total_limit=total_limit, **options)
+            # 具名 profile 就是端点亲和的作用域；同一 profile 的不同实例共享证据。
+            provider.bind_scope(name + '.' + profile)
             context.on_close(provider.close)
             providers[profile] = provider
         context.provide('models', providers)
@@ -544,9 +609,10 @@ class EmbeddingProvider(_Provider):
     def __init__(self, endpoints, store, threads=None, *, dimensions=None, max_attempts=2,
                  retry_delay=.1, cache_max_items=5000, cache_max_bytes=64*1024*1024,
                  http_connections=None, batch_texts=50, batch_chars=100000, batch_wait_ms=5,
-                 request_limit=None):
+                 request_limit=None, total_limit=None):
         super().__init__(endpoints, max_attempts=max_attempts, retry_delay=retry_delay,
-                         request_limit=request_limit, http_connections=http_connections, embedding=True)
+                         request_limit=request_limit, total_limit=total_limit,
+                         http_connections=http_connections, embedding=True)
         if batch_texts < 1 or batch_chars < 1 or batch_wait_ms < 0: raise ValueError('invalid microbatch limits')
         if cache_max_items < 0 or cache_max_bytes < 0: raise ValueError('invalid cache limits')
         self.calls, self.threads = ResourceCalls(store), threads
@@ -630,7 +696,10 @@ class EmbeddingProvider(_Provider):
             timing = {}
             started = time.perf_counter()
             try:
-                async with endpoint.resources.acquire() as timing:
+                async with AsyncExitStack() as stack:
+                    timing = await stack.enter_async_context(endpoint.resources.acquire())
+                    if self._total_limit is not None:
+                        await stack.enter_async_context(self._total_limit)
                     settings = {'truncate': False}
                     if dimensions is not None and endpoint.send_dimensions: settings['dimensions'] = dimensions
                     try:
@@ -695,14 +764,16 @@ class EmbeddingProvider(_Provider):
     __call__ = embed
 
 
-def embedding_plugin(profiles, *, storage=('storage', 'store'), threads=('threads', 'threads'), name='embeddings', request_limit=None):
+def embedding_plugin(profiles, *, storage=('storage', 'store'), threads=('threads', 'threads'), name='embeddings', request_limit=None, total_limit=None):
+    """嵌入请求使用自己的许可；与模型许可分开配置，总量许可只在明确总上限时启用。"""
     from .plugins import Plugin
     def install(context):
         store = context.require(*storage)
         thread_store = context.require(*threads) if threads is not None else None
         providers = {}
         for profile, options in profiles.items():
-            provider = EmbeddingProvider(store=store, threads=thread_store, request_limit=request_limit, **options)
+            provider = EmbeddingProvider(store=store, threads=thread_store, request_limit=request_limit,
+                                         total_limit=total_limit, **options)
             context.on_close(provider.close)
             providers[profile] = provider
         context.provide('embeddings', providers)

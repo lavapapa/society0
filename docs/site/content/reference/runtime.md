@@ -17,6 +17,8 @@ Schedule 决定业务时点，Runtime 按顺序执行阶段并发布完整步骤
 
 默认的 serial 按提交顺序执行，不同主体能看到前一项已经提交的即时状态。independent 是你对业务彼此独立的声明，容量先取 Phase.capacity，没有再取 Runtime.capacity；serial 的容量固定为 1，容量不合法在配置阶段就抛错。提供方的请求额度另外限制物理请求，它管不了阶段的业务先后。
 
+`runtime_plugin` 还可以接受激活槽与工作负载服务：`activation_slots` 与 `activation_workload` 各可以是直接对象或 `(插件名, 服务名)` 引用。给出时，主体入场先按已持久化的模型路由归组，同组满员就在邮箱里等待，另一组继续使用工作者；入场所选的抽样点写进该主体的会话游标，驱动用它显式打开新 Thread，续会沿用已保存的值。工作池容量仍是同时执行的工作者数量，分组容量是另一回事。没有配置这些服务时，行为与原来相同。
+
 `prepare` 每个阶段执行一次，返回同一个对象引用给所有 Session.prepared。这个对象被共享、只读，由调用者保证；准备阶段读完数据库的短快照之后再去等外部服务。传入 Mapping 形式的主体集合时，Runtime 保留原引用，等 worker 真正执行时才取出 Actor，避免初始化时给每个主体都创建 Driver。
 
 ## 一次激活的范围与结果
@@ -40,6 +42,8 @@ async def decide(ctx):
 等待中的同主体信号会合并，执行期间新到的信号留到下一轮。Session.signals 保留每个载荷，需要显式去重时传 dedupe_token。drain 返回还没被消费的 ActorResult 元组，先按主体第一次提交的顺序排，同一主体再按 round 排；没有新执行时再 drain 得到空元组，context.results 里保留本阶段所有成功返回的结果。
 
 Session.step 是整数形式的完整步骤编号，moment.time 是业务时间。Session 上的交互门面绑定到具体主体，激活结束后 scope 关闭，之前存下来的门面再调用会被拒绝。同一 Moment 里连续激活会复用临时的 cursors，需要跨步骤保留的感知位置由 Thread 保存。Runtime 不会复制整个环境。
+
+LLMDriver 管理的 `session.cursors['read_facts']` 按单次 activation 重置；其来源、版本、字节覆盖及领域成功消费边界见[本次激活的完整读取事实](<llm.md#本次激活的完整读取事实>)。其他游标继续遵守各自所有者的生命周期。
 
 ## 未完成、异常与恢复
 

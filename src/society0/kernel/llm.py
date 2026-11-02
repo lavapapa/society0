@@ -21,10 +21,28 @@ from ..async_utils import invoke_maybe_async
 from ..function_registry import normalize_strict_function_parameters
 from .interaction import ActionResult, Page, Query, Ref, Unavailable
 from .cognition import InputBatch
+from .tool_exposure import ToolExposure
 from .models import ProviderFailure
 from .runtime import DriverResult
 
 current_action_call_id = ContextVar('kernel_action_call_id', default=None)
+
+
+@dataclass(frozen=True)
+class DecisionScope:
+    """context.prepare() 之前确定的本次决策输入与资源，供召回等辅助请求原样复用。"""
+    thread_id: str
+    through: int
+    provider: Any
+    model_route: float
+    endpoint: str
+    tools: tuple
+    exposed: dict = field(default_factory=dict)
+    lease: Any = None
+
+    @property
+    def tool_names(self):
+        return tuple(tool['function']['name'] for tool in self.tools)
 
 
 def _json(value):
@@ -144,6 +162,9 @@ class _Ledger:
         self.tags = set()
         self.terminal = False
         self.facts = set()
+        # 本次激活已完整读取的事实；业务写入清空重复读取提示时仍保留消费凭据。
+        session.cursors['read_facts'] = set()
+        self.read_ranges = {}
         self.turn_repeated_read = False
         self.turn_progress = False
         self.feedback = None
@@ -185,6 +206,10 @@ class _Ledger:
             raise Unavailable('action outside activation selection')
         return description
 
+    async def describe_exposed(self, name, target):
+        """显式暴露入口：动作选择来自配置，注册表权限与对象可用性照常校验。"""
+        return await self.base.describe(name, target)
+
     def preflight(self, names):
         policy = self.driver.policy
         extra = Counter(names)
@@ -195,7 +220,7 @@ class _Ledger:
             if maximum is not None and self.counts[name] + amount > maximum:
                 raise _BudgetReached('per_action_budget_exhausted')
 
-    async def invoke(self, name, target, arguments):
+    async def invoke(self, name, target, arguments, *, exposed=False):
         if self.terminal and self.requirements_met():
             return ActionResult('rejected', {'reason': 'activation_completed'})
         self.preflight([name])
@@ -213,7 +238,8 @@ class _Ledger:
                           'target': asdict(target), 'arguments': arguments})
             try:
                 try:
-                    description = await self.describe(name, target)
+                    description = (await self.describe_exposed(name, target) if exposed
+                                    else await self.describe(name, target))
                 except Unavailable:
                     description = None
                 if description is None:
@@ -259,12 +285,33 @@ class _Ledger:
             if refs:
                 self.turn_repeated_read = not self.turn_progress
             self.facts.update(refs)
+            self.session.cursors['read_facts'].update(refs)
             self.feedback = {'known_facts': [asdict(ref) for ref in sorted(self.facts, key=lambda r: (r.namespace, r.kind, r.key))],
                              'repeated_facts': [asdict(ref) for ref in sorted(repeated, key=lambda r: (r.namespace, r.kind, r.key))]}
         elif effect['changed']:
             self.turn_progress = True
             self.facts.clear()
             self.turn_repeated_read = False
+
+    def read_effect(self, result, offset):
+        """原生 read 的实际呈现区间；同一来源、版本全文覆盖后发布事实。"""
+        source = result.get('source')
+        if not isinstance(source, Ref):
+            return
+        identity = (source, _json(result['revision']), result['total_bytes'])
+        end = result['next_offset']
+        if end is None:
+            end = result['total_bytes']
+        ranges = sorted((*self.read_ranges.get(identity, ()), (offset, end)))
+        merged = []
+        for start, stop in ranges:
+            if merged and start <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], stop))
+            else:
+                merged.append((start, stop))
+        self.read_ranges[identity] = merged
+        if merged == [(0, result['total_bytes'])]:
+            self.session.cursors['read_facts'].add(source)
 
     def replay(self, identifier, metadata):
         if identifier in self.applied_receipts:
@@ -316,15 +363,20 @@ def _stage_segments(content, stages):
 
 
 class LLMDriver:
-    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, extensions=(), provider_selector=None):
+    def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, extensions=(),
+                 provider_selector=None, tool_exposure=None, activation_slots=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
         self.provider_selector = provider_selector
+        self.tool_exposure = (tool_exposure if tool_exposure is None or isinstance(tool_exposure, ToolExposure)
+                              else ToolExposure(tool_exposure))
+        self.activation_slots = activation_slots
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
         self.extensions = tuple(extensions)
 
-    def _tools(self):
+    def _tools(self, exposed=None):
+        """固定工具与本次激活选定的专用动作按声明顺序进入同一提供方工具数组。"""
         dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
         cursor = {**dynamic, 'type': [dynamic['type'], 'null']}
         schemas = {
@@ -351,11 +403,29 @@ class LLMDriver:
             schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
         if self.policy.direct_json:
             schemas = {}
-        return [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
+        tools = [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
                 'strict': self.policy.strict_tools}} for name, schema in schemas.items()]
+        if not self.policy.direct_json and self.policy.mode != 'interview':
+            reserved = {tool['function']['name'] for tool in tools}
+            for alias, item in (exposed or {}).items():
+                if alias in reserved:
+                    raise ValueError('专用动作别名与固定工具重名：' + alias)
+                # 专用动作按其自身 strict 声明进入提供方；未声明 strict 的 schema 原样发送。
+                strict = bool(self.policy.strict_tools and item.strict)
+                tools.append({'type': 'function', 'function': {
+                    'name': alias,
+                    'description': item.description + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
+                    'parameters': normalize_strict_function_parameters(item.parameters) if strict else item.parameters,
+                    'strict': strict}})
+        return tools
 
-    async def _dispatch(self, name, arguments, session, ledger, shell):
+    async def _dispatch(self, name, arguments, session, ledger, shell, exposed=None):
+        item = (exposed or {}).get(name)
+        if item is not None:
+            # 专用动作与 action_invoke 共用 ledger：预算、回执、strict 归一与成功记账一致。
+            return {'result': asdict(await ledger.invoke(item.action, item.target, arguments, exposed=True)),
+                    'observation': ledger.feedback}
         field = {'action_invoke': 'arguments', 'action_find': 'cursor', 'ls': 'cursor', 'find': 'cursor'}.get(name)
         if self.policy.strict_tools and field and arguments.get(field) is not None:
             arguments = dict(arguments)
@@ -378,7 +448,10 @@ class LLMDriver:
             if files is None:
                 files=ActorFiles(session,self.threads,shell=shell)
                 session.cursors['files']=files
-            return await _read_tool(getattr(files,name),**{key:value for key,value in arguments.items() if value is not None})
+            result = await _read_tool(getattr(files,name),**{key:value for key,value in arguments.items() if value is not None})
+            if name == 'read' and 'error' not in result:
+                ledger.read_effect(result, arguments.get('offset') or 0)
+            return result
         if name == 'bash':
             result = await shell.execute(arguments['script'])
             for reference in (result.stdout_ref, result.stderr_ref, *result.receipts):
@@ -405,10 +478,16 @@ class LLMDriver:
         activation_started=time.perf_counter()
         thread_id = self.threads.find(session.actor.id, session.moment, kind=self.policy.mode)
         if thread_id is None:
-            thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode)
+            # 新 Thread 显式继承本次激活的抽样点；同 Moment 续会沿用已持久化路由。
+            thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode,
+                                          model_route=session.cursors.get('model_route'))
         else:
             if self.threads.describe(thread_id)['status'] not in ('completed', 'waiting'):
                 raise RuntimeError('unfinished Thread requires explicit recovery; budgets are not reset')
+            verify = getattr(self.provider, 'verify_route', None)
+            if verify is not None:
+                # 续会与恢复沿用已持久化路由；端点配置变化时明确失败，不静默改投。
+                verify(thread_id)
             self.threads.reopen(thread_id)
         session.cursors['thread_id'] = thread_id
         ledger = _Ledger(self, session, thread_id)
@@ -436,18 +515,11 @@ class LLMDriver:
             # 准备阶段先于设施与工具装配，生命周期顺序与原先一致；协议错误与模型循环共用
             # 同一收束边界，其他异常仍按原类型向外传播，不在准备阶段扩大捕获面。
             try:
-                await context.prepare()
-                prepared = True
-                for message in context.messages:
-                    self.threads.append_message(thread_id,message)
                 with _timed(timings,'setup_s'):
-                    if self.policy.reasoning_stages and self.policy.result_schema is None:
-                        guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
-                            '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
-                            '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
-                        if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
-                            self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
-                    tools = self._tools()
+                    # prepare() 之前确定决策 Thread、输入水位、提供方、有序工具与激活租约；
+                    # 召回等辅助请求据此复用同一实例、同一路由与同一前缀，不重建经营输入。
+                    exposed = {} if self.tool_exposure is None else await self.tool_exposure.actions(session, ledger)
+                    tools = self._tools(exposed)
                     schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
                     options = dict(self.policy.request_options)
                     options['tools'] = tools
@@ -457,6 +529,30 @@ class LLMDriver:
                         options.pop('parallel_tool_calls')
                         options['response_format'] = {'type': 'json_schema', 'json_schema': {
                             'name': 'result', 'strict': True, 'schema': self.policy.result_schema}}
+                    route = self.threads.model_route(thread_id)
+                    endpoint = provider.endpoints_for(route).id if hasattr(provider,'endpoints_for') else ''
+                    lease = session.cursors.get('activation_lease')
+                    if lease is None and self.activation_slots is not None and endpoint:
+                        # 未由工作池入场时，在路由确定后申请激活租约；已入场则不重复占用同一槽位。
+                        lease_stack = AsyncExitStack()
+                        lease = await lease_stack.enter_async_context(self.activation_slots.lease(endpoint))
+                        session.cursors['activation_lease_stack'] = lease_stack
+                        session.cursors['activation_lease'] = lease
+                    context.decision = DecisionScope(thread_id=thread_id,
+                        through=self.threads.describe(thread_id)['last_seq'], provider=provider,
+                        model_route=route, endpoint=endpoint, tools=tuple(tools), exposed=dict(exposed),
+                        lease=session.cursors.get('activation_lease'))
+                await context.prepare()
+                prepared = True
+                for message in context.messages:
+                    self.threads.append_message(thread_id,message)
+                with _timed(timings,'setup_s2'):
+                    if self.policy.reasoning_stages and self.policy.result_schema is None:
+                        guidance={'role':'user','content':'按任务需要思考并行动，可参考以下阶段：\n'+
+                            '\n'.join(stage['name']+': '+stage.get('desc','') for stage in self.policy.reasoning_stages)+
+                            '\n若按阶段组织正文，每段以单独一行 -> stage_begin: 阶段名 开始；直接工具调用仍使用工具接口。'}
+                        if self.threads.input_context(thread_id,'reasoning_stages')!=guidance:
+                            self.threads.append_input(thread_id,[],'reasoning_stages',None,context=guidance)
                     if self.shell_factory is not None:
                         shell = await invoke_maybe_async(self.shell_factory, session, ledger)
                     from .actor_files import ActorFiles
@@ -530,7 +626,7 @@ class LLMDriver:
                         ledger.call_id, ledger.shell_call = identifier, name == 'bash'
                         try:
                             with _timed(timings, 'tools_s'):
-                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell, exposed))
                         except _ToolInputError as error:
                             feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
                     with _timed(timings, 'tool_save_s'):
@@ -663,6 +759,9 @@ class LLMDriver:
         finally:
             try:
                 with _timed(timings,'cleanup_s'):
+                    lease_stack=session.cursors.pop('activation_lease_stack',None)
+                    session.cursors.pop('activation_lease',None)
+                    if lease_stack is not None:await lease_stack.aclose()
                     files=session.cursors.pop('files',None)
                     if files is not None:await files.close()
                     if shell is not None:

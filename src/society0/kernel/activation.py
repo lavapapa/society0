@@ -13,6 +13,7 @@ class ActivationContext:
     mounts: dict = field(default_factory=dict)
     experience: object = None
     through: int | None = None
+    decision: object = None
     result: object = None
     timings: dict = field(default_factory=dict)
 

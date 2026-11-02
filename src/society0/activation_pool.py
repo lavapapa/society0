@@ -113,14 +113,38 @@ class _PendingActivation:
     serial_key: Hashable | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ActivationGroup:
+    """一类可并发资源的入场额度；同组容量满时排队不占工作者。"""
+    key: Hashable
+    capacity: int
+
+    def __post_init__(self):
+        hash(self.key)
+        if type(self.capacity) is not int or self.capacity < 1:
+            raise ValueError('activation group capacity must be a positive integer')
+
+
 @dataclass(slots=True)
 class _ActivationState:
     serial_key: Hashable | None = None
     handler_id: Hashable | None = None
+    group: ActivationGroup | None = None
     pending: _PendingActivation | None = None
     follow_up: _PendingActivation | None = None
     running: bool = False
     round_count: int = 0
+
+
+def _group(key, capacity, configured):
+    """显式组容量优先；未给容量时取池配置，未声明组则不受组限制。"""
+    if key is None:
+        return None
+    if capacity is None:
+        capacity = configured.get(key)
+    if capacity is None:
+        raise ValueError('activation group requires an explicit capacity')
+    return ActivationGroup(key, int(capacity))
 
 
 class ActivationPool:
@@ -132,6 +156,8 @@ class ActivationPool:
         capacity: int,
         concurrency_source: str,
         max_activations: int | None = DEFAULT_MAX_ACTIVATIONS,
+        groups: "dict[Hashable, int] | None" = None,
+        total_capacity: int | None = None,
     ) -> None:
         try:
             parsed_capacity = int(capacity)
@@ -141,6 +167,8 @@ class ActivationPool:
             raise ValueError("capacity must be a positive integer")
         self.capacity = parsed_capacity
         self.concurrency_source = str(concurrency_source)
+        self.groups = {key: self._positive(value, 'group capacity') for key, value in (groups or {}).items()}
+        self.total_capacity = None if total_capacity is None else self._positive(total_capacity, 'total capacity')
         if max_activations is None:
             parsed_max_activations = None
         else:
@@ -159,6 +187,9 @@ class ActivationPool:
         self._states: dict[ActivationKey, _ActivationState] = {}
         self._seen_tokens: set[tuple[ActivationKey, Hashable]] = set()
         self._serial_active = set()
+        self._group_active: dict[Hashable, int] = {}
+        self._routes: dict[ActivationKey, float] = {}
+        self._total_active = 0
         self._workers = []
         self._failure = None
         self._changed = asyncio.Event()
@@ -174,6 +205,12 @@ class ActivationPool:
                          for i in range(self.capacity)]
         return self
 
+    @staticmethod
+    def _positive(value, label):
+        if type(value) is not int or value < 1:
+            raise ValueError(f'{label} must be a positive integer')
+        return value
+
     def submit(
         self,
         key: ActivationKey,
@@ -183,6 +220,8 @@ class ActivationPool:
         dedupe_token: Hashable | None = None,
         serial_key: Hashable | None = None,
         handler_id: Hashable | None = None,
+        group: Hashable | None = None,
+        group_capacity: int | None = None,
     ) -> ActivationSubmission:
         """Submit a keyed closure and merge duplicate requests into one round.
 
@@ -199,6 +238,7 @@ class ActivationPool:
             signal,
             serial_key=serial_key,
             handler_id=task if handler_id is None else handler_id,
+            group=_group(group, group_capacity, self.groups),
         )
 
     def submit_agent(
@@ -210,17 +250,27 @@ class ActivationPool:
         payload: Any = None,
         dedupe_token: Hashable | None = None,
         handler_id: Hashable | None = None,
+        group: Hashable | None = None,
+        group_capacity: int | None = None,
+        route: float | None = None,
     ) -> ActivationSubmission:
-        """Submit agent-related closure work in that agent's serial domain."""
+        """Submit agent-related closure work in that agent's serial domain.
 
-        return self.submit(
+        ``route`` 是本次入场所选的模型抽样点；排队期间随任务保留，供驱动显式打开 Thread。
+        """
+        submission = self.submit(
             key,
             task,
             payload=payload,
             dedupe_token=dedupe_token,
             serial_key=self.agent_serial_key(agent_id),
             handler_id=handler_id,
+            group=group,
+            group_capacity=group_capacity,
         )
+        if route is not None:
+            self._routes[submission.key] = route
+        return submission
 
 
     @staticmethod
@@ -236,6 +286,7 @@ class ActivationPool:
         *,
         serial_key: Hashable | None,
         handler_id: Hashable,
+        group: ActivationGroup | None = None,
     ) -> ActivationSubmission:
         if self.closed:
             raise RuntimeError("Activation pool is closed")
@@ -252,6 +303,8 @@ class ActivationPool:
             raise ValueError("serial_key must stay the same for one activation key")
         if state is not None and state.handler_id != handler_id:
             raise ValueError("handler_id must stay the same for one activation key")
+        if state is not None and state.group != group:
+            raise ValueError("group must stay the same for one activation key")
         dedupe_token = signal.dedupe_token
         if dedupe_token is not None:
             hash(dedupe_token)
@@ -264,6 +317,7 @@ class ActivationPool:
             state = _ActivationState(
                 serial_key=serial_key,
                 handler_id=handler_id,
+                group=group,
             )
             self._states[key] = state
         if state.running:
@@ -290,6 +344,36 @@ class ActivationPool:
         return self._accepted_submission(key, "queued")
 
     enqueue = submit
+
+    def route_for(self, key):
+        """本次入场所选的模型抽样点；未配置分组时为 None。"""
+        return self._routes.get(key)
+
+    def group_of(self, key):
+        """该任务入场时所属的资源分组；未分组时为 None。"""
+        state = self._states.get(key)
+        return None if state is None or state.group is None else state.group.key
+
+    @property
+    def total_active(self) -> int:
+        """当前带资源分组且正在执行的激活数。"""
+        return self._total_active
+
+    @property
+    def active_groups(self) -> dict:
+        """当前占用中的组容量与并发数，用于观测端点阻塞。"""
+        return {key: dict(capacity=self.groups.get(key), active=amount)
+                for key, amount in self._group_active.items()}
+
+    @property
+    def waiting_by_group(self) -> dict:
+        """排队中的组分布；同组阻塞的任务不占工作者，另一组可以继续入场。"""
+        counts = {}
+        for key in self._queue:
+            state = self._states[key]
+            if state.group is not None:
+                counts[state.group.key] = counts.get(state.group.key, 0) + 1
+        return counts
 
     @property
     def results(self) -> tuple[ActivationResult, ...]:
@@ -359,6 +443,14 @@ class ActivationPool:
             if state.serial_key is not None and state.serial_key in self._serial_active:
                 self._queue.append(key)
                 continue
+            if state.group is not None and self._group_active.get(state.group.key, 0) >= state.group.capacity:
+                self._queue.append(key)
+                continue
+            # 总量只约束带资源分组的模型激活；无分组规则任务不受其限制。
+            if (state.group is not None and self.total_capacity is not None
+                    and self._total_active >= self.total_capacity):
+                self._queue.append(key)
+                continue
             if self.max_activations is not None and self._activation_count >= self.max_activations:
                 self._queue.appendleft(key)
                 self._activation_limit_reached = True
@@ -371,6 +463,9 @@ class ActivationPool:
             self._activation_count += 1
             if state.serial_key is not None:
                 self._serial_active.add(state.serial_key)
+            if state.group is not None:
+                self._group_active[state.group.key] = self._group_active.get(state.group.key, 0) + 1
+                self._total_active += 1
             return key, state, pending
         return None
 
@@ -399,6 +494,13 @@ class ActivationPool:
             finally:
                 state.running = False
                 self._serial_active.discard(state.serial_key)
+                if state.group is not None:
+                    remaining = self._group_active.get(state.group.key, 0) - 1
+                    if remaining > 0:
+                        self._group_active[state.group.key] = remaining
+                    else:
+                        self._group_active.pop(state.group.key, None)
+                    self._total_active = max(0, self._total_active - 1)
                 if state.follow_up is not None and not self.closed:
                     state.pending, state.follow_up = state.follow_up, None
                     self._queue.append(key)

@@ -13,6 +13,7 @@ from contextvars import ContextVar
 _running_runtime = ContextVar("society0_running_runtime", default=None)
 
 from ..activation_pool import ActivationPool, ActivationLimitError, DEFAULT_MAX_ACTIVATIONS
+from .activation_slots import AdmissionLease
 from ..async_utils import invoke_maybe_async
 from .interaction import InteractionScope, Moment
 from .plugins import Plugin
@@ -117,6 +118,7 @@ class PhaseContext:
         self._pool = ActivationPool(
             capacity=self.capacity,
             concurrency_source=self.concurrency_source, max_activations=1 if self._exhausted else remaining,
+            groups=runtime.activation_groups, total_capacity=runtime.activation_total,
         )
 
     def prepare_artifact(self, chunks):
@@ -149,9 +151,18 @@ class PhaseContext:
                 def action_failed(error):
                     if not self._failure.done():self._failure.set_result(error)
                 scope = InteractionScope(actor.id,self.moment,on_fault=action_failed,_faults=self._runtime._action_faults)
+                cursors = self._runtime._cursors.setdefault(actor.id, {})
+                route, group = self._pool.route_for(actor_id), None
+                if route is not None:
+                    group = self._pool.group_of(actor_id)
+                    # 入场所选抽样点交给驱动：新 Thread 显式继承，续会沿用已持久化路由；
+                    # 同一次入场已占用的端点槽位作为租约交给驱动，避免再次申请同一许可。
+                    cursors['model_route'] = route
+                    cursors['activation_lease'] = AdmissionLease(
+                        group, route, self._pool.groups.get(group), self._pool)
                 session = Session(
                     actor, scope, self._runtime.information.bound(scope), self._runtime.actions.bound(scope),
-                    self._runtime._cursors.setdefault(actor.id, {}), self.prepared, batch.payloads, self, step=self._runtime._step,
+                    cursors, self.prepared, batch.payloads, self, step=self._runtime._step,
                 )
                 result = await actor.driver.run(session)
                 scope.check_active()
@@ -165,6 +176,8 @@ class PhaseContext:
                     self._failure.set_result(error)
                 raise
             finally:
+                # 租约句柄只在本次激活内有效；槽位本身由工作池在 worker 收尾时归还。
+                self._runtime._cursors.get(actor_id,{}).pop('activation_lease',None)
                 self._elapsed[(actor_id,batch.round)]=time_module.perf_counter()-started
                 self._runtime._active_count-=1
                 self._runtime._finished_count+=1
@@ -172,8 +185,27 @@ class PhaseContext:
                 if scope is not None:
                     scope.close()
 
+        group, capacity, route = self._admission(actor_id)
         return self._pool.submit_agent(actor_id, actor_id, execute, payload=payload,
-                                       dedupe_token=dedupe_token, handler_id=actor_id)
+                                       dedupe_token=dedupe_token, handler_id=actor_id,
+                                       group=group, group_capacity=capacity, route=route)
+
+    def _admission(self, actor_id):
+        """入场按已持久化路由分组；同组容量满时排队，不占工作者。
+
+        返回值固定为 (workload, capacity, route)：route 为该主体本 Moment 的
+        模型抽样点，驱动用它显式打开新 Thread，续会复用已持久化值。
+        """
+        selector = self._runtime.activation_workload
+        if selector is None:
+            return None, None, None
+        selected = selector(actor_id, self.moment)
+        if selected is None:
+            return None, None, None
+        if len(selected) != 3:
+            raise ValueError('activation workload must return (workload, capacity, route)')
+        workload, capacity, route = selected
+        return workload, capacity, route
 
     @property
     def results(self):
@@ -194,7 +226,8 @@ class PhaseContext:
 class Runtime:
     def __init__(self, actors: Iterable[Actor], *, information, actions, store,
                  capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS,results=None,progress=None,
-                 before=(),after=(),step_hooks=None):
+                 before=(),after=(),step_hooks=None, activation_groups=None, activation_workload=None,
+                 activation_total=None):
         if type(capacity) is not int or capacity < 1:
             raise ValueError('runtime capacity must be a positive integer')
         if isinstance(actors, Mapping):
@@ -221,6 +254,9 @@ class Runtime:
         self.store = store
         self.capacity = capacity
         self.max_activations = max_activations
+        self.activation_groups = dict(activation_groups or {})
+        self.activation_total = activation_total
+        self.activation_workload = activation_workload
         self.last_completed = store.complete_step
         self._state = 'ready'
         self._task = None
@@ -393,22 +429,46 @@ class Runtime:
 
 
 
+def _group_limits(slots):
+    """工作池分组额度与激活租约共用同一容量来源，避免两处计数不一致。"""
+    if slots is None:
+        return {}
+    policy = getattr(slots, 'policy', None)
+    if policy is None:
+        return {}
+    return {route: policy.capacity(route) for route in getattr(slots, 'routes', ())}
+
+
+def _total_limit(slots):
+    """跨端点激活总量；未配置时为空，无分组任务始终不受限。"""
+    if slots is None:
+        return None
+    policy = getattr(slots, 'policy', None)
+    return None if policy is None else policy.total
+
+
 def runtime_plugin(actors=(), *, information, actions, store, name='runtime',
                    capacity=1, max_activations=DEFAULT_MAX_ACTIVATIONS,
-                   actor_service=None,results=None,progress=None):
+                   actor_service=None,results=None,progress=None,
+                   activation_slots=None, activation_workload=None):
     """服务依赖以 (插件名, 服务名) 声明，主体可按需从服务加载。"""
     actors = actors if isinstance(actors, Mapping) else tuple(actors)
     dependencies=[information,actions,store]
     dependencies.extend(item for item in (actor_service,results,progress) if item is not None)
+    dependencies.extend(item for item in (activation_slots, activation_workload) if isinstance(item, tuple))
 
     def install(context):
+        slots = context.require(*activation_slots) if isinstance(activation_slots, tuple) else activation_slots
+        workload = context.require(*activation_workload) if isinstance(activation_workload, tuple) else activation_workload
         runtime = Runtime(context.require(*actor_service) if actor_service else actors,
                           information=context.require(*information),
                           actions=context.require(*actions), store=context.require(*store),
                           capacity=capacity, max_activations=max_activations,
                           results=context.require(*results) if results else None,
                           progress=context.require(*progress) if progress else None,
-                          step_hooks=context.step_hooks)
+                          step_hooks=context.step_hooks,
+                          activation_groups=_group_limits(slots), activation_workload=workload,
+                          activation_total=_total_limit(slots))
         context.on_quiesce(runtime.close, stage='runtime')
         context.provide('runtime', runtime)
 
