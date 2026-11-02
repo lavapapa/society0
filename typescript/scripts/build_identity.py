@@ -1,6 +1,6 @@
 """只读采集构建身份，保留Git原生差异与未跟踪输入的实际内容。"""
 from pathlib import Path
-import os, subprocess
+import json, os, shutil, subprocess
 
 INPUTS = ['packages', 'apps', 'scripts', 'vendor', 'vendor-baseline', 'patches', 'package-lock.json', 'package.json']
 
@@ -47,3 +47,27 @@ def validate_release(worktree, packages, reuse, bytecode_disabled):
     assert not packages and not reuse, 'RELEASE_REQUIRES_FULL_BUILD'
     assert not worktree['dirty'], 'RELEASE_DIRTY_WORKTREE ' + ' '.join(worktree['dirtyPaths'][:20])
     assert not worktree['ignoredInputs'], 'RELEASE_IGNORED_INPUT ' + ' '.join(worktree['ignoredInputs'][:20])
+
+
+def save_untracked(directory, entries):
+    records = []
+    for entry in entries:
+        record = {'path': entry['path']}
+        if 'content' in entry:
+            target = directory / 'untracked' / entry['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(entry['content']); record['bytes'] = len(entry['content'])
+        else: record['symlink'] = entry['symlink']
+        records.append(record)
+    return records
+
+
+def save_worktree_evidence(build, worktree):
+    directory = build / 'worktree-evidence'
+    assert directory.resolve() == build.resolve() / 'worktree-evidence'
+    if directory.exists(): shutil.rmtree(directory)
+    directory.mkdir(parents=True)
+    (directory / 'tracked.patch').write_bytes(worktree['diff'])
+    record = {key: worktree[key] for key in ['gitCommit', 'dirty', 'dirtyPaths', 'ignoredInputs']}
+    record.update(format='society-build-worktree/v1', diff='tracked.patch', untracked=save_untracked(directory, worktree['untracked']))
+    (directory / 'identity.json').write_text(json.dumps(record, indent=2) + '\n')

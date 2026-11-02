@@ -1,18 +1,18 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
-import {resolve,join} from 'node:path';import {pathToFileURL} from 'node:url';import {execFileSync} from 'node:child_process';
+import {resolve,join} from 'node:path';import {pathToFileURL} from 'node:url';
 const root=resolve(process.argv[2]);const directory=resolve(process.argv[3]);const enforce=process.argv.includes('--enforce-config-policy');
 const read=async path=>JSON.parse(await readFile(path,'utf8'));
 const save=(path,value)=>writeFile(path,JSON.stringify(value,null,2)+'\n');
 const pkg=await read(join(directory,'package.json'));
 const series=await read(join(root,'patches/series.json'));
-const gitCommit=execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim();
-const dirty=execFileSync('git',['status','--porcelain','--untracked-files=normal'],{cwd:root,encoding:'utf8'}).trim();
+const provenance=await read(join(directory,'SOURCE.json'));const impl=provenance.implementation;
+if(!impl||!/^[0-9a-f]{40}$/.test(impl.gitCommit)||typeof impl.dirty!=='boolean'||impl.package!==pkg.name||impl.version!==pkg.version)throw Error(`SIDECAR_IMPLEMENTATION ${pkg.name}`);
 const {hostAbi}=await import(pathToFileURL(resolve(root,'.build/host/dist/abi.js')).href);
-const source={package:pkg.name,version:pkg.version,gitCommit,lockfile:'BUILD-LOCK.json',patches:series.patches.map(item=>item.file),hostAbi};
+const source={package:pkg.name,version:pkg.version,gitCommit:impl.gitCommit,dirty:impl.dirty,lockfile:'BUILD-LOCK.json',patches:series.patches.map(item=>item.file),hostAbi};
 const policyHits=[];
 const objectKeys=(schema,uid,seen=new Set())=>{if(seen.has(uid))return [];seen.add(uid);const node=schema.refs[uid];if(!node)return null;if(node.type==='object')return Object.keys(node.dict??{});if(node.type==='intersect'||node.type==='union'){const parts=(node.list??[]).map(item=>objectKeys(schema,item,seen));return parts.some(part=>part===null)?null:[...new Set(parts.flat())];}return null;};
 const entries=[],schemas=[],apis=[],limitations=[{code:'SCHEMA_DIALECT',dialect:'schemastery',detail:'Schema.toJSON exports declared validation structure. Runtime transforms, custom validators and constructor checks still require plugin loading.'}];
-if(dirty)limitations.push({code:'DIRTY_WORKTREE',detail:'Built from the named commit plus current working tree changes.',paths:dirty.split('\n')});
+if(impl.dirty)limitations.push({code:'DIRTY_WORKTREE',detail:'Built from the named commit plus working changes retained in the build worktree evidence.',paths:impl.dirtyPaths});
 for(const [exportPath,target] of Object.entries(pkg.exports)){
  const file=typeof target==='string'?target:target.default;
  if(!file?.endsWith('.js'))continue;
@@ -39,6 +39,6 @@ await save(join(directory,'generated/plugin.api.json'),{format:'society-plugin-a
 pkg.society={...pkg.society,plugin:{metadata:'./plugin.meta.json',configSchema:'./plugin.schema.json',api:'./plugin.api.json'}};
 for(const name of ['meta','schema','api'])pkg.exports[`./plugin.${name}.json`]=`./generated/plugin.${name}.json`;
 pkg.files=[...new Set([...pkg.files,'generated'])];await save(join(directory,'package.json'),pkg);
-const provenance=await read(join(directory,'SOURCE.json'));provenance.implementation={...source,dirty:!!dirty};await save(join(directory,'SOURCE.json'),provenance);
+provenance.implementation={...impl,hostAbi};await save(join(directory,'SOURCE.json'),provenance);
 console.log(`sidecars ${pkg.name}: ${entries.length} actual plugin exports`);
 console.log(JSON.stringify({configPolicy:policyHits}));

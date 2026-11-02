@@ -4,7 +4,7 @@ import argparse, json, shutil, subprocess, sys
 from build_entries import capture_acceptance
 from build_compile import compile_package
 from build_native import assemble_native
-from build_identity import worktree_identity, validate_release
+from build_identity import worktree_identity, validate_release, save_worktree_evidence
 root=Path(__file__).resolve().parents[1]
 build=root/'.build'
 cohort=['cosmokit','schemastery','cordis','loader','include','group']
@@ -43,6 +43,7 @@ if args.reuse_built_dependencies:
     selected=requested
 assert build.resolve()==root/'.build'
 build.mkdir(exist_ok=True)
+save_worktree_evidence(build,worktree)
 def reset(folder):
     target=build/folder
     assert folder in [*order,'vendor','acceptance'] and target.resolve()==build/folder, 'unexpected build target'
@@ -107,6 +108,8 @@ for folder in order:
     shutil.copyfile(root/'package-lock.json',dest/'BUILD-LOCK.json')
     shutil.copytree(root/'patches',dest/'PATCHES')
     identity=dict(source)
+    identity['implementation']={'package':package['name'],'version':package['version'],'gitCommit':worktree['gitCommit'],'dirty':worktree['dirty'],'release':args.release,'lockfile':'BUILD-LOCK.json','patches':[item['file'] for item in series['patches']]}
+    if worktree['dirty']: identity['implementation']['dirtyPaths']=worktree['dirtyPaths']
     if folder in native: identity['native']={'source':json.loads((dest/'vendor/SOURCE.json').read_text()),'build':json.loads((dest/'NATIVE-BUILD.json').read_text())}
     (dest/'SOURCE.json').write_text(json.dumps(identity,indent=2)+'\n')
     if folder in native:
@@ -116,4 +119,8 @@ for folder in order:
     if folder in ['host','core','extras','social']:
         subprocess.run(['node',str(root/'scripts/sidecars.mjs'),str(root),str(dest)],check=True)
     print('compiled',folder,flush=True)
-(build/'release.json').write_text(json.dumps({'source':source,'packages':[folder for folder in order if folder in selected],'selection':args.package or ['all'],'reusedDependencies':[folder for folder in order if folder in reused]},indent=2)+'\n')
+(build/'release.json').write_text(json.dumps({'source':source,'implementation':{key:worktree[key] for key in ['gitCommit','dirty']},'release':args.release,'implementationEvidence':'worktree-evidence/identity.json','packages':[folder for folder in order if folder in selected],'selection':args.package or ['all'],'reusedDependencies':[folder for folder in order if folder in reused]},indent=2)+'\n')
+
+if args.release:
+    after=worktree_identity(root)
+    assert after==worktree, 'RELEASE_BUILD_MUTATED_SOURCE '+json.dumps({name:{key:value[key] for key in ['gitCommit','dirty','dirtyPaths','ignoredInputs']} for name,value in [('before',worktree),('after',after)]})
