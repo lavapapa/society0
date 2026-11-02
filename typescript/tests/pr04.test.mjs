@@ -1,4 +1,5 @@
 import {test} from 'node:test';
+import {waitForPhase} from './history-phase-support.mjs';
 import assert from 'node:assert/strict';
 import {mkdtemp} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -81,7 +82,12 @@ test('PR04-T05 deadline invalidates callback and native progress cancellation re
  try{
   const view=await db.snapshot({maxAgeMs:30000});const started=performance.now();let readClose;const reading=view.query({sql:'WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000000) SELECT sum(x) FROM n'},{maxRows:1,maxBytes:100});setTimeout(()=>{readClose=view.close()},20);await assert.rejects(reading,/interrupt/i);await readClose;assert.ok(performance.now()-started<2000,'snapshot close must interrupt native progress');assert.equal(await db.readRevision(),'0');
 
-  await assert.rejects(db.transaction(r.lease,{...request('timeout'),maxDurationMs:10},async tx=>{late=tx;await new Promise(resolve=>setTimeout(resolve,60));await tx.execute({sql:'INSERT INTO notes VALUES (1,?)',parameters:['late']})}),/TIMEOUT|EXPIRED|interrupt/);
+  await assert.rejects(db.transaction(r.lease,{...request('timeout'),maxDurationMs:10},async tx=>{await new Promise(resolve=>setTimeout(resolve,60));await tx.execute({sql:'INSERT INTO notes VALUES (1,?)',parameters:['late']})}),/TIMEOUT|EXPIRED|interrupt/);
+  // 短期限包含BEGIN准备；句柄失效另用正常请求预算并确认回调已进入。
+  const callbackRequest=request('timeout-callback'),entered=Promise.withResolvers();
+  const expiring=db.transaction(r.lease,callbackRequest,async tx=>{late=tx;entered.resolve();await new Promise(resolve=>setTimeout(resolve,callbackRequest.maxDurationMs+1));await tx.execute({sql:'INSERT INTO notes VALUES (1,?)',parameters:['late-callback']})});
+  await waitForPhase(entered.promise,expiring,'deadline callback');
+  await assert.rejects(expiring,/TIMEOUT|EXPIRED|interrupt/);
   await assert.rejects(late.execute({sql:'DELETE FROM notes'}),/EXPIRED/);
   await assert.rejects(db.transaction(r.lease,{...request('statements'),maxStatements:1},async tx=>{await tx.query({sql:'SELECT 1'},{maxRows:1,maxBytes:100});await tx.execute({sql:'INSERT INTO notes VALUES (1,?)',parameters:['over']})}),/BUDGET/);
   await assert.rejects(db.transaction(r.lease,request('nested'),()=>db.transaction(r.lease,request('inner'),async()=>{})),/NESTED/);
