@@ -20,9 +20,11 @@
     "build/random_native.node",
     "build.py",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "native_build.py",
+    "NATIVE-BUILD.json"
   ],
   "scripts": {
-    "build": "python3 build.py"
+    "build": "python3 -B build.py"
   }
 }

@@ -4,13 +4,13 @@
 
 ## 一、构建
 
-已验证Linux x86_64/glibc。源码构建需要gcc、g++、Python3及包含headers的Node24发行版。在包目录执行：
+已验证Linux x86_64/glibc。源码构建需要gcc、g++、Python3及包含headers的Node24发行版。在源码仓库的包目录执行：
 
 ```bash
-python3 build.py
+python3 -B build.py --out-dir ../../.build/native-work/sqlite-native
 ```
 
-[构建器](build.py)使用随包提供的[官方SQLite源码](vendor/source/sqlite3.c)和[编译配方](vendor/BUILD.json)，离线重建SQLite共享库及N-API模块；原始来源为[SQLite 3.49.1公开发布](https://www.sqlite.org/2025/sqlite-amalgamation-3490100.zip)。Node headers默认按当前node安装位置查找，可显式设置NODE_INCLUDE_DIR。两个二进制均原子替换，既有worker保留已加载工件。实际编译选项与来源身份记录在[来源声明](vendor/SOURCE.json)。官方amalgamation的可选UPDATE/DELETE LIMIT语法未纳入本构建，其余SQL功能以该声明为准。macOS、Windows和其他ABI尚未验收。
+[构建器](build.py)使用随包提供的[官方SQLite源码](vendor/source/sqlite3.c)和[编译配方](vendor/BUILD.json)，离线重建SQLite共享库及N-API模块；原始来源为[SQLite 3.49.1公开发布](https://www.sqlite.org/2025/sqlite-amalgamation-3490100.zip)。Node headers默认按当前node安装位置查找，可显式设置NODE_INCLUDE_DIR。输出目录位于源包之外，包含 `build/sqlite_native.node`、`vendor/libsqlite3.so` 和 `NATIVE-BUILD.json`；两个二进制在该目录内原子替换。原始[来源声明](vendor/SOURCE.json)保持不变，本次实际编译选项、编译器、Node版本与输出清单写入输出目录的构建记录。可消费包由仓库根构建器装配；复用校验使用留存参考输出的实际字节。官方amalgamation的可选UPDATE/DELETE LIMIT语法未纳入本构建，其余SQL功能以本次构建记录的实际编译选项为准。macOS、Windows和其他ABI尚未验收。
 
 ## 二、使用
 

@@ -18,6 +18,7 @@ def source_fixture(package):
     source = fixture / 'source' / 'packages' / package
     shutil.copytree(ROOT / 'packages' / package, source)
     shutil.copytree(ROOT / 'scripts', fixture / 'source/scripts', ignore=shutil.ignore_patterns('__pycache__'))
+    print(json.dumps({'case': 'NEW-2-T01', 'package': package, 'fixture': str(fixture)}), flush=True)
     return fixture, source
 
 
@@ -58,11 +59,11 @@ class NativeBuild(unittest.TestCase):
             text = probe.read_text()
             probe.write_text(text + '\nextern "C" { const char* society0_build_path_probe = __FILE__; }\n')
         before = snapshot(fixture / 'source')
-        print(json.dumps({'case': 'NEW-2-T01', 'package': package, 'fixture': str(fixture)}), flush=True)
         for side in ['a', 'b']:
             output = fixture / side
             process = subprocess.run([sys.executable, '-B', str(source / 'build.py'), '--out-dir', str(output)],
                                      cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            (fixture / (side + '.build.log')).write_text(process.stdout)
             self.assertEqual(process.returncode, 0, process.stdout)
             for relative in OUTPUTS[package]:
                 self.assertTrue((output / relative).is_file(), 'missing output ' + relative)
@@ -82,6 +83,7 @@ class NativeBuild(unittest.TestCase):
             before = snapshot(fixture / 'source')
             process = subprocess.run([sys.executable, '-B', str(source / 'build.py'), '--out-dir', str(source / 'rejected-output')],
                                      cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            (fixture / 'rejected.build.log').write_text(process.stdout)
             self.assertNotEqual(process.returncode, 0, package + ' accepted output inside its source tree')
             self.assertEqual(snapshot(fixture / 'source'), before, 'rejected build wrote source files/directories')
 

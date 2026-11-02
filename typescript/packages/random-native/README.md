@@ -22,10 +22,10 @@
 
 ## 三、重建
 
-归档、完整官方头文件、原始测试向量和 LICENSE 随包分发。Node 24、Node C API headers、Python 3 和 C++17 编译器就绪后，在包目录执行：
+归档、完整官方头文件、原始测试向量和 LICENSE 随包分发。Node 24、Node C API headers、Python 3 和 C++17 编译器就绪后，在源码仓库的包目录执行：
 
 ```sh
-python3 build.py
+python3 -B build.py --out-dir ../../.build/native-work/random-native
 ```
 
-Node headers 默认来自当前 Node 安装的 `include/node`，可显式设置 `NODE_INCLUDE_DIR`。重建无需网络。发行原生二进制的平台以实际构建环境为准，其他平台须本地重建验证。
+Node headers 默认来自当前 Node 安装的 `include/node`，可显式设置 `NODE_INCLUDE_DIR`。输出目录位于源包之外，包含 `build/random_native.node` 和 `NATIVE-BUILD.json`。构建记录声明实际编译器、Node版本与输出清单，原始来源声明保持不变。可消费包由仓库根构建器装配，参考产物保留用于直接字节校验。重建无需网络。发行原生二进制的平台以实际构建环境为准，其他平台须本地重建验证。

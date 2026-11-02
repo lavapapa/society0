@@ -27,10 +27,12 @@
     "LICENSE",
     "README.md",
     "SPEC.md",
-    "INTEGRATION.md"
+    "INTEGRATION.md",
+    "native_build.py",
+    "NATIVE-BUILD.json"
   ],
   "scripts": {
-    "build": "python3 build.py"
+    "build": "python3 -B build.py"
   },
   "libc": [
     "glibc"

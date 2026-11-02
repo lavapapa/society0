@@ -1,12 +1,20 @@
 from pathlib import Path
-import subprocess, os, argparse
-p=Path(__file__).resolve().parent
-parser=argparse.ArgumentParser(description="Offline Random123 N-API build")
-parser.add_argument('--out-dir',type=Path,default=p/'build')
-a=parser.parse_args(); out=a.out_dir.resolve(); out.mkdir(parents=True,exist_ok=True)
-node=Path(subprocess.check_output(['node','-p','process.execPath'],text=True).strip())
-headers=Path(os.environ.get('NODE_INCLUDE_DIR',str(node.parent.parent/'include/node')))
-if not (headers/'node_api.h').is_file():raise SystemExit('Node headers required; set NODE_INCLUDE_DIR')
-upstream=p/'vendor/random123-726a093cd9a73f3ec3c8d7a70ff10ed8efec8d13'
-cmd=[os.environ.get('CXX','g++'),'-std=c++17','-shared','-fPIC','-O2','-Wall','-Wextra','-DNAPI_VERSION=8','-I'+str(headers),'-I'+str(upstream/'include'),str(p/'source/addon.cc'),'-o',str(out/'random_native.node')]
-print(' '.join(cmd),flush=True);subprocess.run(cmd,check=True)
+import json, os
+from native_build import compile_atomic, node_headers, output_directory, prefix_maps, write_record
+
+
+def main():
+    package = Path(__file__).resolve().parent
+    output = output_directory(package)
+    headers = node_headers(); maps = prefix_maps(package, output, headers)
+    source = json.loads((package / 'vendor/SOURCE.json').read_text())
+    upstream = package / ('vendor/random123-' + source['commit'])
+    cxx = os.environ.get('CXX', 'g++')
+    compile_atomic([cxx, '-std=c++17', '-shared', '-fPIC', '-O2', '-Wall', '-Wextra', '-DNAPI_VERSION=8',
+                    '-frandom-seed=random_native', *maps, '-I' + str(headers), '-I' + str(upstream / 'include'),
+                    str(package / 'source/addon.cc')], output, 'build/random_native.node')
+    write_record(output, ['build/random_native.node'], {'cxx': cxx}, {'sourceIdentity': source})
+
+
+if __name__ == '__main__':
+    main()
