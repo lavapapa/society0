@@ -22,12 +22,15 @@ class BuildIdentity(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(['git', *args], cwd=self.repo)
 
-    def collect(self):
+    def collector(self):
         path = ROOT / 'scripts/build_identity.py'
         self.assertTrue(path.is_file(), 'worktree identity collector is missing')
         spec = importlib.util.spec_from_file_location('build_identity', path)
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
-        return module.worktree_identity(self.project)
+        return module
+
+    def collect(self):
+        return self.collector().worktree_identity(self.project)
 
     def test_clean_commit_and_ignored_dependency_link(self):
         dependencies = self.fixture / 'dependencies'; dependencies.mkdir()
@@ -67,6 +70,27 @@ class BuildIdentity(unittest.TestCase):
         (self.project / 'packages/demo/链接 文件').symlink_to('原 名.txt')
         value = self.collect()
         self.assertEqual(value['untracked'], [{'path':'typescript/packages/demo/链接 文件','symlink':'原 名.txt'}])
+
+    def test_saved_evidence_retains_actual_diff_bytes_and_links(self):
+        (self.project / 'scripts/input.py').write_text('VALUE = 3\n')
+        data = self.project / 'packages/demo/新 文件.bin'; data.write_bytes(b'actual\0bytes\xff')
+        (self.project / 'packages/demo/链接 文件').symlink_to('原 名.txt')
+        value = self.collect(); before = self.git('status', '--porcelain=v1', '-z')
+        build = self.fixture / 'build'
+        self.collector().save_worktree_evidence(build, value)
+        evidence = build / 'worktree-evidence'
+        self.assertEqual((evidence / 'tracked.patch').read_bytes(), value['diff'])
+        self.assertEqual((evidence / 'untracked/typescript/packages/demo/新 文件.bin').read_bytes(), data.read_bytes())
+        manifest = json.loads((evidence / 'identity.json').read_text())
+        self.assertEqual(manifest['gitCommit'], value['gitCommit'])
+        self.assertTrue(manifest['dirty'])
+        self.assertEqual(manifest['dirtyPaths'], value['dirtyPaths'])
+        link = next(row for row in manifest['untracked'] if row['path'].endswith('链接 文件'))
+        self.assertEqual(link['symlink'], '原 名.txt')
+        stale = evidence / 'stale.txt'; stale.write_text('old evidence')
+        self.collector().save_worktree_evidence(build, value)
+        self.assertFalse(stale.exists())
+        self.assertEqual(self.git('status', '--porcelain=v1', '-z'), before)
 
 
 if __name__ == '__main__':
