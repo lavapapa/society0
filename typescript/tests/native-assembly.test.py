@@ -45,6 +45,14 @@ class NativeAssembly(unittest.TestCase):
                                  cwd=probe, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (fixture / 'producer.log').write_text(process.stdout)
         self.assertEqual(process.returncode, 0, process.stdout)
+        sqlite_outputs = {name: (probe / '.build/sqlite-native' / name).read_bytes()
+                          for name in OUTPUTS['sqlite-native'] + ['NATIVE-BUILD.json', 'SOURCE.json']}
+        repeated = subprocess.run([sys.executable, '-B', 'scripts/build.py', '--package', 'random-native'],
+                                  cwd=probe, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        (fixture / 'incremental.log').write_text(repeated.stdout)
+        self.assertEqual(repeated.returncode, 0, repeated.stdout)
+        for name, content in sqlite_outputs.items():
+            self.assertTrue((probe / '.build/sqlite-native' / name).read_bytes() == content, name)
         self.assertEqual(source_bytes(probe), before)
         self.assertEqual(subprocess.check_output(['git', 'status', '--porcelain'], cwd=probe), b'')
         for package in PACKAGES:
