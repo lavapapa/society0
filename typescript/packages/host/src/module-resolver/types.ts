@@ -65,6 +65,7 @@ export interface ModuleLock {
     readonly packages: Readonly<Record<string, {
         readonly version: string;
         readonly gitCommit: string;
+        readonly dirty: boolean;
         readonly patches: readonly string[];
         readonly hostAbi: string;
     }>>;

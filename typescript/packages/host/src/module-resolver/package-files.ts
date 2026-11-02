@@ -30,18 +30,18 @@ export function exported(manifest: PackageManifest, entry: string, directory: st
 export function readManifest(directory: string): PackageManifest { return JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')); }
 export function lockedModule(specifier: string, name: string, directory: string, manifest: PackageManifest, lock: ModuleLock) {
     const selected = lock.packages[name];
-    if (!selected || !semver.valid(selected.version) || manifest.version !== selected.version || !selected.gitCommit || !Array.isArray(selected.patches) || selected.hostAbi !== 'society0/host/1')
+    if (!selected || !semver.valid(selected.version) || manifest.version !== selected.version || !selected.gitCommit || typeof selected.dirty !== 'boolean' || !Array.isArray(selected.patches) || selected.hostAbi !== 'society0/host/1')
         throw Error(`SOURCE_LOCK ${specifier} at ${directory}`);
     return selected;
 }
 export function lockedBundle(specifier: string, name: string, version: string, manifest: PackageManifest, lock: ModuleLock): void {
     const selected = lock.packages[name];
-    if (!selected || selected.version !== manifest.version || version !== manifest.version || !selected.gitCommit || !Array.isArray(selected.patches))
+    if (!selected || selected.version !== manifest.version || version !== manifest.version || !selected.gitCommit || typeof selected.dirty !== 'boolean' || !Array.isArray(selected.patches))
         throw Error(`BUNDLE_LOCK ${specifier}`);
 }
 function sidecar(manifest: PackageManifest, path: string, directory: string): unknown { const value: unknown = JSON.parse(readFileSync(exported(manifest, path, directory), 'utf8')); assertLiteral(value); return value; }
 function metadataIdentity(metadata: MetadataSidecar, identity: ModuleIdentity): void {
-    if (metadata.format !== 'society-plugin-metadata/v1' || metadata.package?.name !== identity.package || metadata.package.version !== identity.version || !Array.isArray(metadata.entries) || metadata.source?.gitCommit !== identity.source.gitCommit || JSON.stringify(metadata.source.patches) !== JSON.stringify(identity.source.patches))
+    if (metadata.format !== 'society-plugin-metadata/v1' || metadata.package?.name !== identity.package || metadata.package.version !== identity.version || !Array.isArray(metadata.entries) || metadata.source?.gitCommit !== identity.source.gitCommit || metadata.source?.dirty !== identity.source.dirty || JSON.stringify(metadata.source.patches) !== JSON.stringify(identity.source.patches))
         throw Error(`METADATA_IDENTITY ${identity.specifier}`);
 }
 function sidecarFormats(configSchema: NonNullable<StaticInspection['configSchema']>, api: NonNullable<StaticInspection['api']>, identity: ModuleIdentity): void {

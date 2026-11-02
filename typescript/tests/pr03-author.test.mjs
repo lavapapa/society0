@@ -3,7 +3,7 @@ import Schema from '../.build/schemastery/dist/index.js';
 import {createTestHost} from '../.build/host/dist/testkit.js';
 import {pluginFiles} from '../.build/host/dist/scaffold/index.js';
 import {slotKey} from '../.build/host/dist/slots/index.js';
-const source={package:'@author/generated',version:'0.1.0',gitCommit:'f70aaacdc9559ebb5f43f5ad760d75a3c9eecabb',lockfile:'fixture.lock',patches:[],hostAbi:'society0/host/1'};
+const source={package:'@author/generated',version:'0.1.0',gitCommit:'f70aaacdc9559ebb5f43f5ad760d75a3c9eecabb',dirty:false,lockfile:'fixture.lock',patches:[],hostAbi:'society0/host/1'};
 test('PR03-T05 scaffold emits literal metadata build inputs and a real consumer test',()=>{
  for(const template of ['service-slot','sqlite-domain','config-bundle']){const files=pluginFiles({name:'@author/generated',template,directory:'unused',source});const manifest=JSON.parse(files['package.json']);assert.equal(manifest.name,'@author/generated');assert.equal(manifest.society.plugin.metadata,'./metadata');assert.match(files['test/consumer.mjs'],/node:test/);assert.match(files['scripts/metadata.mjs'],/plugin.meta.json/);assert(files['src/index.ts'].includes('\n'));}
 });

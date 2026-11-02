@@ -4,7 +4,7 @@ const require=createRequire(import.meta.url);
 const pointer=(value,path)=>path.slice(2).split('/').reduce((node,key)=>node[key.replaceAll('~1','/').replaceAll('~0','~')],value);
 test('published Host and Core sidecars resolve and import their actual declared plugin contracts',async()=>{
  const packages=await Promise.all(['@society0/host','@society0/core'].map(async name=>JSON.parse(await readFile(require.resolve(name+'/plugin.meta.json'),'utf8'))));
- const lock={lockfile:'outside-package-lock',packages:Object.fromEntries(packages.map(meta=>[meta.package.name,{version:meta.package.version,gitCommit:meta.source.gitCommit,patches:meta.source.patches,hostAbi}]))};
+ const lock={lockfile:'outside-package-lock',packages:Object.fromEntries(packages.map(meta=>[meta.package.name,{version:meta.package.version,gitCommit:meta.source.gitCommit,dirty:meta.source.dirty,patches:meta.source.patches,hostAbi}]))};
  const host=await createHost({boot:[],baseURL:import.meta.url});let inspected=0;
  try{
   await host.ctx.plugin(ModuleResolver,{baseURL:import.meta.url});

@@ -41,7 +41,7 @@ export class ModuleResolver extends Service {
         const [checked] = session ? session.preflight([specifier], baseURL) : preflight([specifier], baseURL);
         if (checked !== pathToFileURL(file).href)
             throw Error(`EXPORT_RESOLUTION_MISMATCH ${specifier}`);
-        const identity = Object.freeze({ specifier, package: name, version: manifest.version, exportPath, url: pathToFileURL(file).href, directory, source: Object.freeze({ package: name, version: manifest.version, gitCommit: selected.gitCommit, lockfile: lock.lockfile, patches: Object.freeze([...selected.patches]), hostAbi: selected.hostAbi }) });
+        const identity = Object.freeze({ specifier, package: name, version: manifest.version, exportPath, url: pathToFileURL(file).href, directory, source: Object.freeze({ package: name, version: manifest.version, gitCommit: selected.gitCommit, dirty: selected.dirty, lockfile: lock.lockfile, patches: Object.freeze([...selected.patches]), hostAbi: selected.hostAbi }) });
         this.verified.add(identity);
         return identity;
     }

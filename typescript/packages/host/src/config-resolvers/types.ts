@@ -5,6 +5,7 @@ export interface ProgramSource {
     readonly package: string;
     readonly version: string;
     readonly gitCommit: string;
+    readonly dirty: boolean;
     readonly lockfile: string;
     readonly patches: readonly string[];
     readonly hostAbi: string;

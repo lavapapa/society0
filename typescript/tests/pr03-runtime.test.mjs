@@ -23,7 +23,7 @@ test('prepared schema transform runs once and dump equals mounted effective conf
 });
 test('PR03-T06 static sidecars stay import-free and runtime validation names import failures',async()=>{
  const packageURL=new URL('../.build/host/package.json',import.meta.url);const host=await createTestHost({baseURL:packageURL.href});const dir=fileURLToPath(new URL('../node_modules/@author/static',packageURL));await mkdir(dir,{recursive:true});
- const source={package:'@author/static',version:'1.0.0',gitCommit:'f70aaacdc9559ebb5f43f5ad760d75a3c9eecabb',lockfile:'fixture.lock',patches:[],hostAbi:'society0/host/1'};
+ const source={package:'@author/static',version:'1.0.0',gitCommit:'f70aaacdc9559ebb5f43f5ad760d75a3c9eecabb',dirty:false,lockfile:'fixture.lock',patches:[],hostAbi:'society0/host/1'};
  const manifest={name:source.package,version:source.version,type:'module',exports:{'.':'./index.js','./metadata':'./meta.json','./config-schema':'./schema.json','./api':'./api.json'},peerDependencies:{'@society0/host':'0.1.0'},society:{plugin:{metadata:'./metadata',configSchema:'./config-schema',api:'./api'}}};
  await writeFile(dir+'/package.json',JSON.stringify(manifest));await writeFile(dir+'/index.js',`throw new Error('TOPLEVEL_SENTINEL');export function apply(){}`);
  await writeFile(dir+'/meta.json',JSON.stringify({format:'society-plugin-metadata/v1',package:{name:source.package,version:source.version},source,entries:[{exportPath:'.',metadata:{...metadata,scope:'host'},configSchemaPointer:'#/schema',apiPointer:'#/entries/0'}]}));
