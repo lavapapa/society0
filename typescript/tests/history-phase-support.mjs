@@ -1,3 +1,3 @@
 export function waitForPhase(phase,operation,label){
- return Promise.race([phase,new Promise((_,reject)=>setTimeout(()=>reject(Error(`${label} timeout`)),10000))]);
+ return Promise.race([phase,operation.then(()=>{throw Error(`${label}: operation completed before phase`)})]);
 }
