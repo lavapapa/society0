@@ -47,3 +47,5 @@ dist/
 !.env.example
 
 .scratch/
+
+/typescript/node_modules

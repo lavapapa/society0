@@ -3,8 +3,8 @@ from pathlib import Path
 import argparse, json, shutil, subprocess, sys
 from build_entries import capture_acceptance
 from build_compile import compile_package
-from build_native import assemble_native
-from build_identity import worktree_identity, validate_release, save_worktree_evidence
+from build_native import assemble_native, verify_native, copy_inputs
+from build_identity import worktree_identity, validate_release, save_worktree_evidence, validate_dependency
 root=Path(__file__).resolve().parents[1]
 build=root/'.build'
 cohort=['cosmokit','schemastery','cordis','loader','include','group']
@@ -39,7 +39,8 @@ if args.reuse_built_dependencies:
     for folder in reused:
         package=json.loads((build/folder/'package.json').read_text())
         provenance=json.loads((build/folder/'SOURCE.json').read_text())
-        assert package['name']=='@society0/'+folder and provenance['commit']==manifest['commit'], f'built dependency identity mismatch: {folder}'
+        validate_dependency(package,provenance,folder,manifest['commit'],worktree)
+        if folder in native: verify_native(build,folder)
     selected=requested
 assert build.resolve()==root/'.build'
 build.mkdir(exist_ok=True)
@@ -96,7 +97,8 @@ for folder,original in [('sqlite-native','packages/sqlite-native'),('random-nati
     if folder in native:
         assemble_native(root,build,folder,original)
     else:
-        shutil.copytree(root/original,dest)
+        dest.mkdir()
+        copy_inputs(root,original,['.'],dest)
         shutil.copyfile(root.parent/'LICENSE',dest/'LICENSE')
     link('@society0/'+folder,dest)
 for folder in order:

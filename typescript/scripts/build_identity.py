@@ -71,3 +71,11 @@ def save_worktree_evidence(build, worktree):
     record = {key: worktree[key] for key in ['gitCommit', 'dirty', 'dirtyPaths', 'ignoredInputs']}
     record.update(format='society-build-worktree/v1', diff='tracked.patch', untracked=save_untracked(directory, worktree['untracked']))
     (directory / 'identity.json').write_text(json.dumps(record, indent=2) + '\n')
+
+
+def validate_dependency(package, provenance, folder, upstream, worktree):
+    message = 'built dependency identity mismatch: ' + folder
+    assert package['name'] == '@society0/' + folder and provenance['commit'] == upstream, message
+    implementation = provenance.get('implementation', {})
+    assert implementation.get('gitCommit') == worktree['gitCommit'], message
+    assert implementation.get('dirty') is worktree['dirty'], message
