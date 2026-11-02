@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse, json, shutil, subprocess
 from build_entries import capture_acceptance
 from build_compile import compile_package
+from build_native import assemble_native
 root=Path(__file__).resolve().parents[1]
 build=root/'.build'
 cohort=['cosmokit','schemastery','cordis','loader','include','group']
@@ -88,17 +89,7 @@ for folder,original in [('sqlite-native','packages/sqlite-native'),('random-nati
     reset(folder)
     dest=build/folder
     if folder in native:
-        declaration=json.loads((root/original/'package.json').read_text())
-        dest.mkdir()
-        shutil.copyfile(root/original/'package.json',dest/'package.json')
-        for name in declaration['files']:
-            source_path=root/original/name
-            assert source_path.exists(), f'native declared input missing: {source_path}; run its build.py first'
-            target=dest/name
-            if source_path.is_dir(): shutil.copytree(source_path,target)
-            else:
-                target.parent.mkdir(parents=True,exist_ok=True)
-                shutil.copyfile(source_path,target)
+        assemble_native(root,build,folder,original)
     else:
         shutil.copytree(root/original,dest)
         shutil.copyfile(root.parent/'LICENSE',dest/'LICENSE')
@@ -112,7 +103,7 @@ for folder in order:
     shutil.copyfile(root/'package-lock.json',dest/'BUILD-LOCK.json')
     shutil.copytree(root/'patches',dest/'PATCHES')
     identity=dict(source)
-    if folder in native: identity['native']=json.loads((dest/'vendor/SOURCE.json').read_text())
+    if folder in native: identity['native']={'source':json.loads((dest/'vendor/SOURCE.json').read_text()),'build':json.loads((dest/'NATIVE-BUILD.json').read_text())}
     (dest/'SOURCE.json').write_text(json.dumps(identity,indent=2)+'\n')
     if folder in native:
         print('assembled native',folder,flush=True)
