@@ -14,9 +14,10 @@ test('sidecars consume stamped implementation and preserve its evidence fields',
  await mkdir(join(probe,'.build'),{recursive:true});
  await cp(resolve(root,'.build/host'),directory,{recursive:true});
  await symlink(resolve(root,'.build/node_modules'),join(probe,'.build/node_modules'),'dir');
+ await symlink(resolve(root,'node_modules'),join(probe,'node_modules'),'dir');
  await mkdir(join(probe,'patches'));
  await cp(resolve(root,'patches/series.json'),join(probe,'patches/series.json'));
- await writeFile(join(probe,'.gitignore'),'.build/\n');
+ await writeFile(join(probe,'.gitignore'),'.build/\nnode_modules\n');
  const git=(...args)=>execFileSync('git',args,{cwd:probe,encoding:'utf8'}).trim();
  git('init','-q');git('add','.');git('-c','user.name=Sidecar probe','-c','user.email=probe@invalid','-c','commit.gpgsign=false','commit','-qm','sidecar context');
  const provenance=JSON.parse(await readFile(join(directory,'SOURCE.json'),'utf8'));
