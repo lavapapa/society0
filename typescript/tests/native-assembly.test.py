@@ -53,6 +53,12 @@ class NativeAssembly(unittest.TestCase):
             for relative in OUTPUTS[package] + ['NATIVE-BUILD.json']:
                 self.assertTrue((built / relative).read_bytes() == (reference / relative).read_bytes(), package + '/' + relative)
             identity = json.loads((built / 'SOURCE.json').read_text())
+            implementation = identity['implementation']
+            self.assertEqual(implementation['gitCommit'], subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=probe, text=True).strip())
+            self.assertIs(implementation['dirty'], False)
+            self.assertIs(implementation['release'], False)
+            self.assertEqual(implementation['package'], '@society0/' + package)
+            self.assertEqual(implementation['lockfile'], 'BUILD-LOCK.json')
             self.assertEqual(identity['native']['build'], json.loads((built / 'NATIVE-BUILD.json').read_text()))
         consumer = fixture / 'consumer'; shutil.copytree(probe / '.build/random-native', consumer)
         result = subprocess.run([sys.executable, '-B', str(consumer / 'build.py'), '--out-dir', str(fixture / 'rebuilt')],
