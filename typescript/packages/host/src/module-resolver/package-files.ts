@@ -40,8 +40,13 @@ export function lockedBundle(specifier: string, name: string, version: string, m
         throw Error(`BUNDLE_LOCK ${specifier}`);
 }
 function sidecar(manifest: PackageManifest, path: string, directory: string): unknown { const value: unknown = JSON.parse(readFileSync(exported(manifest, path, directory), 'utf8')); assertLiteral(value); return value; }
+function lockedSourceMatches(metadata: MetadataSidecar, identity: ModuleIdentity): boolean {
+    return metadata.source?.gitCommit === identity.source.gitCommit
+        && metadata.source?.dirty === identity.source.dirty
+        && JSON.stringify(metadata.source.patches) === JSON.stringify(identity.source.patches);
+}
 function metadataIdentity(metadata: MetadataSidecar, identity: ModuleIdentity): void {
-    if (metadata.format !== 'society-plugin-metadata/v1' || metadata.package?.name !== identity.package || metadata.package.version !== identity.version || !Array.isArray(metadata.entries) || metadata.source?.gitCommit !== identity.source.gitCommit || metadata.source?.dirty !== identity.source.dirty || JSON.stringify(metadata.source.patches) !== JSON.stringify(identity.source.patches))
+    if (metadata.format !== 'society-plugin-metadata/v1' || metadata.package?.name !== identity.package || metadata.package.version !== identity.version || !Array.isArray(metadata.entries) || !lockedSourceMatches(metadata, identity))
         throw Error(`METADATA_IDENTITY ${identity.specifier}`);
 }
 function sidecarFormats(configSchema: NonNullable<StaticInspection['configSchema']>, api: NonNullable<StaticInspection['api']>, identity: ModuleIdentity): void {
