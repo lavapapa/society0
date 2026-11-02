@@ -9,8 +9,16 @@ OUTPUTS = {'sqlite-native': ['build/sqlite_native.node', 'vendor/libsqlite3.so']
 
 
 def snapshot(directory):
-    return {str(p.relative_to(directory)): (p.stat().st_mtime_ns, p.read_bytes())
-            for p in sorted(directory.rglob('*')) if p.is_file()}
+    return {str(p.relative_to(directory)): (p.stat().st_mtime_ns, p.read_bytes() if p.is_file() else None)
+            for p in [directory, *sorted(directory.rglob('*'))]}
+
+
+def source_fixture(package):
+    fixture = Path(tempfile.mkdtemp(prefix='g18-native-' + package + '-', dir=os.environ['TMPDIR']))
+    source = fixture / 'source' / 'packages' / package
+    shutil.copytree(ROOT / 'packages' / package, source)
+    shutil.copytree(ROOT / 'scripts', fixture / 'source/scripts', ignore=shutil.ignore_patterns('__pycache__'))
+    return fixture, source
 
 
 def git_state(package):
@@ -44,10 +52,7 @@ class NativeBuild(unittest.TestCase):
         original = ROOT / 'packages' / package
         original_bytes, original_git = snapshot(original), git_state(package)
         header = node_header(); header_bytes = header.read_bytes()
-        fixture = Path(tempfile.mkdtemp(prefix='g18-native-' + package + '-', dir=os.environ['TMPDIR']))
-        source = fixture / 'source' / 'packages' / package
-        shutil.copytree(original, source)
-        shutil.copytree(ROOT / 'scripts', fixture / 'source/scripts', ignore=shutil.ignore_patterns('__pycache__'))
+        fixture, source = source_fixture(package)
         if package == 'random-native':
             probe = source / 'source/addon.cc'
             text = probe.read_text()
@@ -70,6 +75,15 @@ class NativeBuild(unittest.TestCase):
         self.assertEqual(snapshot(original), original_bytes)
         self.assertEqual(git_state(package), original_git)
         self.assertEqual(header.read_bytes(), header_bytes)
+
+    def test_source_output_is_rejected(self):
+        for package in OUTPUTS:
+            fixture, source = source_fixture(package)
+            before = snapshot(fixture / 'source')
+            process = subprocess.run([sys.executable, '-B', str(source / 'build.py'), '--out-dir', str(source / 'rejected-output')],
+                                     cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            self.assertNotEqual(process.returncode, 0, package + ' accepted output inside its source tree')
+            self.assertEqual(snapshot(fixture / 'source'), before, 'rejected build wrote source files/directories')
 
     def test_random(self):
         self.check_package('random-native')
