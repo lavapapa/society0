@@ -40,3 +40,10 @@ def worktree_identity(root):
     return {'gitCommit': commit, 'dirty': bool(entries), 'dirtyPaths': sorted({path for _, path in entries}),
             'ignoredInputs': [path for status, path in ignored if status == '!!'],
             'diff': git(top, 'diff', 'HEAD', '--binary'), 'untracked': untracked_evidence(top, entries)}
+
+
+def validate_release(worktree, packages, reuse, bytecode_disabled):
+    assert bytecode_disabled, 'RELEASE_BYTECODE_WRITES run build.py with python3 -B'
+    assert not packages and not reuse, 'RELEASE_REQUIRES_FULL_BUILD'
+    assert not worktree['dirty'], 'RELEASE_DIRTY_WORKTREE ' + ' '.join(worktree['dirtyPaths'][:20])
+    assert not worktree['ignoredInputs'], 'RELEASE_IGNORED_INPUT ' + ' '.join(worktree['ignoredInputs'][:20])

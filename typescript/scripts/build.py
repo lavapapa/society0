@@ -1,9 +1,10 @@
 """构建真实cohort与生产包；--package选择依赖闭包并保留无关产物。"""
 from pathlib import Path
-import argparse, json, shutil, subprocess
+import argparse, json, shutil, subprocess, sys
 from build_entries import capture_acceptance
 from build_compile import compile_package
 from build_native import assemble_native
+from build_identity import worktree_identity, validate_release
 root=Path(__file__).resolve().parents[1]
 build=root/'.build'
 cohort=['cosmokit','schemastery','cordis','loader','include','group']
@@ -12,6 +13,7 @@ order=[*cohort,*native,'host','core','extras','social','cli']
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--package',action='append',choices=order,help='可重复指定；省略时构建全部生产包')
 parser.add_argument('--reuse-built-dependencies',action='store_true',help='仅读取显式选择包的源码，复用已构建依赖')
+parser.add_argument('--release',action='store_true',help='发行构建：要求-B、干净提交、无忽略输入、全量、不复用')
 args=parser.parse_args()
 selected=set(args.package or order)
 if 'social' in selected: selected.add('extras')
@@ -27,6 +29,8 @@ assert series.get('patches'), 'ordered patch series missing'
 for i,item in enumerate(series['patches'],1):
     assert item['order']==i and item['purpose'] and (root/'patches'/item['file']).is_file(), 'invalid patch order/source'
 assert (root/'package-lock.json').is_file(), 'dependency lock missing'
+worktree=worktree_identity(root)
+if args.release: validate_release(worktree,args.package,args.reuse_built_dependencies,sys.flags.dont_write_bytecode)
 reused=set()
 if args.reuse_built_dependencies:
     assert args.package, 'reuse requires an explicit package selection'
