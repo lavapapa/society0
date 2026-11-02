@@ -92,6 +92,39 @@ class BuildIdentity(unittest.TestCase):
         self.assertFalse(stale.exists())
         self.assertEqual(self.git('status', '--porcelain=v1', '-z'), before)
 
+    def test_reuse_requires_current_commit_and_dirty_state(self):
+        package = json.loads((ROOT / 'packages/core/package.json').read_text())
+        upstream = json.loads((ROOT / 'vendor/source-manifest.json').read_text())['commit']
+        state = self.collect()
+        provenance = {'commit': upstream, 'implementation': {'gitCommit': state['gitCommit'], 'dirty': False}}
+        validate = self.collector().validate_dependency
+        validate(package, provenance, 'core', upstream, state)
+        (self.project / 'scripts/input.py').write_text('VALUE = 2\n')
+        with self.assertRaisesRegex(AssertionError, 'built dependency identity mismatch'):
+            validate(package, provenance, 'core', upstream, self.collect())
+        provenance['implementation']['dirty'] = True
+        validate(package, provenance, 'core', upstream, self.collect())
+        # 同为dirty的内容变化遵循既定合同，不增加内容新鲜度门禁。
+        (self.project / 'scripts/input.py').write_text('VALUE = 3\n')
+        validate(package, provenance, 'core', upstream, self.collect())
+        self.git('add', '.'); self.git('-c', 'user.name=Identity probe', '-c', 'user.email=probe@invalid', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'new identity')
+        provenance['implementation']['dirty'] = False
+        with self.assertRaisesRegex(AssertionError, 'built dependency identity mismatch'):
+            validate(package, provenance, 'core', upstream, self.collect())
+
+    def test_reuse_rejects_missing_identity_and_wrong_package(self):
+        package = json.loads((ROOT / 'packages/core/package.json').read_text())
+        upstream = json.loads((ROOT / 'vendor/source-manifest.json').read_text())['commit']
+        state = self.collect(); validate = self.collector().validate_dependency
+        with self.assertRaisesRegex(AssertionError, 'built dependency identity mismatch'):
+            validate(package, {'commit': upstream}, 'core', upstream, state)
+        provenance = {'commit': upstream, 'implementation': {'gitCommit': state['gitCommit'], 'dirty': False}}
+        with self.assertRaisesRegex(AssertionError, 'built dependency identity mismatch'):
+            validate(package, provenance, 'host', upstream, state)
+        provenance['implementation']['dirty'] = 'false'
+        with self.assertRaisesRegex(AssertionError, 'built dependency identity mismatch'):
+            validate(package, provenance, 'core', upstream, state)
+
 
 if __name__ == '__main__':
     unittest.main()
