@@ -43,5 +43,5 @@ class CognitiveInput:
             messages.append({'role':'user','content':'本次激活信号\n'+_text(list(session.signals))})
         if self.reminders is not None:
             reminders=await invoke_maybe_async(self.reminders,session) if callable(self.reminders) else self.reminders
-            messages.append({'role':'user','content':'本次提醒\n'+_text(reminders)})
+            messages.append({'role':'user','content':'本次说明\n'+_text(reminders)})
         return InputBatch(messages,self.consumer,{'position':position},context)

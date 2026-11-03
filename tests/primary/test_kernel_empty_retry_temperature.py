@@ -76,7 +76,7 @@ async def test_actual_provider_default_temperature_and_physical_retry_keep_full_
     policy=LLMPolicy(empty_retries=1,empty_retry_temperature_delta=.2)
     store,threads,unused,driver,session,calls=setup(tmp_path,[],policy=policy)
     provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'http://unused.invalid/v1','model':'fake','concurrency':1,'trust_env':False}],threads,
-                           request_options={'temperature':.7},retry_delay=0,max_attempts=2)
+                           request_options={'temperature':.7},backoff_initial_s=0,max_attempts=2)
     received=[]
     async def create(**options):
         received.append(options)

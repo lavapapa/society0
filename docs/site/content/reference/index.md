@@ -23,7 +23,6 @@
 |---|---|
 | 认知输入与各来源的独立位置 | [CognitiveInput、SourceSpec](cognition.md) |
 | 决定与访谈两种策略 | [LLMDriver、LLMPolicy、DecisionScope](llm.md) |
-| 专用动作进入请求的工具暴露 | [ToolExposure](llm.md) |
 | 模型实际收到的工具声明 | [Agent工具参数](tools.md) |
 | 提供方、模型选择与嵌入 | [ModelProvider、EmbeddingProvider](models.md) |
 | 写入、召回、主动工具与提取 | [Memory、MemoryPolicy、MemoryExtension](memory.md) |

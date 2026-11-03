@@ -14,7 +14,7 @@ async def test_review_session_transport_preserves_custom_fields_retry_and_config
     store,threads,_,driver,session,_=setup(tmp_path,[])
     supplied={'extra_body':{'metadata':{'study':'unchanged'},'custom':'kept'}} if transport=='metadata' else {'temperature':0.25}
     original=copy.deepcopy(supplied)
-    provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'https://provider.invalid/v1','model':'m','concurrency':1,'trust_env':False}],threads,max_attempts=2,retry_delay=0,request_options=supplied,session_transport=transport)
+    provider=ModelProvider([{'id':'p','api_key':'unused','base_url':'https://provider.invalid/v1','model':'m','concurrency':1,'trust_env':False}],threads,max_attempts=2,backoff_initial_s=0,request_options=supplied,session_transport=transport)
     sent=[]
     async def respond(request):
         sent.append(json.loads(request.content))

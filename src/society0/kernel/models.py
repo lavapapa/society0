@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from functools import wraps
 import json
+import math
 import random
 import time
 import traceback
@@ -88,10 +89,12 @@ def _operation(method):
 
 
 class _Provider:
-    def __init__(self, endpoints, *, max_attempts=2, retry_delay=.1, request_limit=None, total_limit=None,
+    def __init__(self, endpoints, *, max_attempts=6, backoff_initial_s=1, backoff_max_s=30, jitter=.1, request_limit=None, total_limit=None,
                  global_concurrency=None, http_connections=None, request_jitter=0, embedding=False):
         if type(max_attempts) is not int or max_attempts < 1: raise ValueError('max_attempts must be positive')
-        if retry_delay < 0: raise ValueError('retry_delay must be nonnegative')
+        for name, value in (('backoff_initial_s', backoff_initial_s), ('backoff_max_s', backoff_max_s), ('jitter', jitter)):
+            if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
+                raise ValueError(name + ' must be finite and nonnegative')
         if global_concurrency is not None and (type(global_concurrency) is not int or global_concurrency < 1):
             raise ValueError('global_concurrency must be positive')
         if http_connections is not None and (type(http_connections) is not int or http_connections < 1):
@@ -100,7 +103,8 @@ class _Provider:
         self._owner = self._group = None
         self._ready, self._stopped = asyncio.Event(), asyncio.Event()
         self._startup_error = None
-        self.max_attempts, self.retry_delay = max_attempts, retry_delay
+        self.max_attempts = max_attempts
+        self.backoff_initial_s, self.backoff_max_s, self.jitter = backoff_initial_s, backoff_max_s, jitter
         self._profile_limit = asyncio.Semaphore(global_concurrency) if global_concurrency is not None else None
         # 三类额度：物理请求许可(按服务)、可选总量许可、端点并发；不与其他配置共用。
         self._total_limit = total_limit
@@ -108,6 +112,11 @@ class _Provider:
         if not self.endpoints: raise ValueError('at least one endpoint is required')
         if len({endpoint.model_name for endpoint in self.endpoints}) != 1:
             raise ValueError('one profile must use one model; select other profiles explicitly')
+
+    def retry_backoff(self, attempt):
+        """attempt从零计数；jitter为名义退避的附加随机比例，最终时长受上限约束。"""
+        nominal = min(self.backoff_max_s, self.backoff_initial_s * 2 ** attempt)
+        return min(self.backoff_max_s, nominal * (1 + random.uniform(0, self.jitter)))
 
     async def _start(self):
         if self._closed: raise RuntimeError('provider is closed')
@@ -351,11 +360,19 @@ def _output_event(event):
     return bool(getattr(delta, 'content_delta', None) or getattr(delta, 'args_delta', None))
 
 
+def _service_request_error(error, kind):
+    """提供方异常按原瞬时判据重试；程序错误保留原异常类型。"""
+    from openai import APIError
+    from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
+    return _transient(error, kind) or isinstance(error, (APIError, httpx2.HTTPError,
+        ModelHTTPError, UnexpectedModelBehavior, ProviderFailure))
+
+
 class ModelProvider(_Provider):
     def __init__(self, endpoints, threads, *, request_options=None, session_transport=None,
-                 max_attempts=2, retry_delay=.1, global_concurrency=None, http_connections=None,
+                 max_attempts=6, backoff_initial_s=1, backoff_max_s=30, jitter=.1, global_concurrency=None, http_connections=None,
                  request_jitter=0, request_limit=None, total_limit=None):
-        super().__init__(endpoints, max_attempts=max_attempts, retry_delay=retry_delay,
+        super().__init__(endpoints, max_attempts=max_attempts, backoff_initial_s=backoff_initial_s, backoff_max_s=backoff_max_s, jitter=jitter,
             global_concurrency=global_concurrency, http_connections=http_connections,
             request_jitter=request_jitter, request_limit=request_limit, total_limit=total_limit)
         if session_transport not in (None, 'metadata'): raise ValueError('unsupported session transport')
@@ -509,14 +526,16 @@ class ModelProvider(_Provider):
             except Exception as error:
                 if physical is not None:
                     timing['duration_s'] = time.perf_counter() - started
-                    self._event(thread_id, physical, endpoint, 'error', {'error': redact_credentials(str(error), secrets=(endpoint.secret,)), 'timing': timing, 'partial_response': partial})
-                if physical is None: raise
+                    self._event(thread_id, physical, endpoint, 'error', {'error': redact_credentials(str(error), secrets=(endpoint.secret,)), 'timing': timing, 'partial_response': partial,
+                        'attempt': attempt + 1, 'max_attempts': self.max_attempts,
+                        'will_retry': _transient(error, endpoint.kind) and attempt + 1 < self.max_attempts})
+                if physical is None or not _service_request_error(error, endpoint.kind): raise
                 if not _transient(error, endpoint.kind) or attempt + 1 == self.max_attempts:
                     reason = 'context_limit' if 'context' in str(error).lower() and getattr(error, 'status_code', None) == 400 else 'provider_request_error'
                     raise ProviderFailure(reason, redact_credentials(str(error), secrets=(endpoint.secret,))) from error
                 traceback.clear_frames(error.__traceback__)
             finally: messages = result = partial = None
-            await asyncio.sleep(self.retry_delay)
+            await asyncio.sleep(self.retry_backoff(attempt))
 
     def _event(self, thread_id, physical, endpoint, kind, payload):
         try:
@@ -606,11 +625,11 @@ class _Vector:
 
 class EmbeddingProvider(_Provider):
     """待办按原文去重与有界微批；向量始终按各逻辑原文位置返还。"""
-    def __init__(self, endpoints, store, threads=None, *, dimensions=None, max_attempts=2,
-                 retry_delay=.1, cache_max_items=5000, cache_max_bytes=64*1024*1024,
+    def __init__(self, endpoints, store, threads=None, *, dimensions=None, max_attempts=6,
+                 backoff_initial_s=1, backoff_max_s=30, jitter=.1, cache_max_items=5000, cache_max_bytes=64*1024*1024,
                  http_connections=None, batch_texts=50, batch_chars=100000, batch_wait_ms=5,
                  request_limit=None, total_limit=None):
-        super().__init__(endpoints, max_attempts=max_attempts, retry_delay=retry_delay,
+        super().__init__(endpoints, max_attempts=max_attempts, backoff_initial_s=backoff_initial_s, backoff_max_s=backoff_max_s, jitter=jitter,
                          request_limit=request_limit, total_limit=total_limit,
                          http_connections=http_connections, embedding=True)
         if batch_texts < 1 or batch_chars < 1 or batch_wait_ms < 0: raise ValueError('invalid microbatch limits')
@@ -716,7 +735,7 @@ class EmbeddingProvider(_Provider):
                     vectors = [list(vector) for vector in result.embeddings]
                     self._embedding_event(identifier, 'response', {'response': {'vectors': vectors, 'usage': _usage(result), 'provider_details': result.provider_details, 'provider_response_id': result.provider_response_id, 'model_name': result.model_name, 'provider_name': result.provider_name}, 'timing': timing})
                     if len(vectors) != len(texts) or (dimensions is not None and any(len(vector) != dimensions for vector in vectors)):
-                        raise ValueError('embedding response count or dimensions differ from request')
+                        raise ProviderFailure('embedding_response_error','embedding response count or dimensions differ from request')
                     return [_Vector(vector, (identifier, index), tuple((call, index) for call in attempts))
                             for index, vector in enumerate(vectors)]
             except ThreadWriteError: raise
@@ -725,14 +744,18 @@ class EmbeddingProvider(_Provider):
                     timing['duration_s'] = time.perf_counter() - started
                     self._embedding_event(identifier, 'cancelled' if isinstance(error, asyncio.CancelledError) else 'error',
                         {'error': redact_credentials(str(error), secrets=(endpoint.secret,)), 'timing': timing,
+                         'attempt':attempt+1,'max_attempts':self.max_attempts,
+                         'will_retry':not isinstance(error,asyncio.CancelledError) and _transient(error,endpoint.kind) and attempt+1<self.max_attempts,
                          **({'partial_response': error.body} if isinstance(error, APIResponseValidationError) else {})})
                 if isinstance(error, asyncio.CancelledError): raise
-                if identifier is None or not _transient(error, endpoint.kind) or attempt + 1 == self.max_attempts:
-                    failure = ProviderFailure('embedding_error', redact_credentials(str(error), secrets=(endpoint.secret,)))
+                if identifier is None or not _service_request_error(error, endpoint.kind): raise
+                if not _transient(error, endpoint.kind) or attempt + 1 == self.max_attempts:
+                    failure = error if isinstance(error,ProviderFailure) else ProviderFailure('embedding_error', redact_credentials(str(error), secrets=(endpoint.secret,)))
                     failure.embedding_attempts = tuple(attempts)
+                    if failure is error:raise
                     raise failure from error
                 traceback.clear_frames(error.__traceback__)
-            await asyncio.sleep(self.retry_delay)
+            await asyncio.sleep(self.retry_backoff(attempt))
 
     def _embedding_event(self, identifier, kind, payload):
         try: self.calls.event(identifier, kind, payload)

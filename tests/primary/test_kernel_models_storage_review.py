@@ -38,7 +38,7 @@ async def test_review_closed_embedding_provider_rejects_cached_work_without_new_
 @pytest.mark.parametrize('status',[400,401,402])
 async def test_review_nonretryable_embedding_status_keeps_one_complete_original_request(tmp_path,status):
     with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
-        resource=provider(store,max_attempts=3,retry_delay=0)
+        resource=provider(store,max_attempts=3,backoff_initial_s=0)
         calls=[]
         async def create(**kwargs):
             calls.append(kwargs)
@@ -139,7 +139,7 @@ async def test_review_retry_and_cached_consumer_retain_each_physical_attempt_aft
         second = threads.open('b', 0, 'decision')
         resource = EmbeddingProvider([{'id':'e','api_key':'unused','base_url':'http://unused.invalid/v1',
             'model':'e','concurrency':1,'dimensions':2,'trust_env':False}], store, threads,
-            dimensions=2, max_attempts=2, retry_delay=0, batch_wait_ms=0)
+            dimensions=2, max_attempts=2, backoff_initial_s=0, batch_wait_ms=0)
         physical = []
         async def create(**kwargs):
             physical.append(kwargs['input'])

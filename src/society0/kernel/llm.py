@@ -21,7 +21,6 @@ from ..async_utils import invoke_maybe_async
 from ..function_registry import normalize_strict_function_parameters
 from .interaction import ActionResult, Page, Query, Ref, Unavailable
 from .cognition import InputBatch
-from .tool_exposure import ToolExposure
 from .models import ProviderFailure
 from .runtime import DriverResult
 
@@ -37,7 +36,6 @@ class DecisionScope:
     model_route: float
     endpoint: str
     tools: tuple
-    exposed: dict = field(default_factory=dict)
     lease: Any = None
 
     @property
@@ -206,10 +204,6 @@ class _Ledger:
             raise Unavailable('action outside activation selection')
         return description
 
-    async def describe_exposed(self, name, target):
-        """显式暴露入口：动作选择来自配置，注册表权限与对象可用性照常校验。"""
-        return await self.base.describe(name, target)
-
     def preflight(self, names):
         policy = self.driver.policy
         extra = Counter(names)
@@ -220,7 +214,7 @@ class _Ledger:
             if maximum is not None and self.counts[name] + amount > maximum:
                 raise _BudgetReached('per_action_budget_exhausted')
 
-    async def invoke(self, name, target, arguments, *, exposed=False):
+    async def invoke(self, name, target, arguments):
         if self.terminal and self.requirements_met():
             return ActionResult('rejected', {'reason': 'activation_completed'})
         self.preflight([name])
@@ -238,8 +232,7 @@ class _Ledger:
                           'target': asdict(target), 'arguments': arguments})
             try:
                 try:
-                    description = (await self.describe_exposed(name, target) if exposed
-                                    else await self.describe(name, target))
+                    description = await self.describe(name, target)
                 except Unavailable:
                     description = None
                 if description is None:
@@ -364,19 +357,17 @@ def _stage_segments(content, stages):
 
 class LLMDriver:
     def __init__(self, provider, threads, *, input_builder, policy=None, shell_factory=None, extensions=(),
-                 provider_selector=None, tool_exposure=None, activation_slots=None):
+                 provider_selector=None, activation_slots=None):
         self.provider, self.threads = provider, threads
         self.input_builder = input_builder
         self.provider_selector = provider_selector
-        self.tool_exposure = (tool_exposure if tool_exposure is None or isinstance(tool_exposure, ToolExposure)
-                              else ToolExposure(tool_exposure))
         self.activation_slots = activation_slots
         self.policy = policy or LLMPolicy()
         self.shell_factory = shell_factory
         self.extensions = tuple(extensions)
 
-    def _tools(self, exposed=None):
-        """固定工具与本次激活选定的专用动作按声明顺序进入同一提供方工具数组。"""
+    def _tools(self):
+        """元工具与文件工具按固定顺序声明，业务行动经注册表发现和执行。"""
         dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
         cursor = {**dynamic, 'type': [dynamic['type'], 'null']}
         schemas = {
@@ -406,26 +397,9 @@ class LLMDriver:
         tools = [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
                 'strict': self.policy.strict_tools}} for name, schema in schemas.items()]
-        if not self.policy.direct_json and self.policy.mode != 'interview':
-            reserved = {tool['function']['name'] for tool in tools}
-            for alias, item in (exposed or {}).items():
-                if alias in reserved:
-                    raise ValueError('专用动作别名与固定工具重名：' + alias)
-                # 专用动作按其自身 strict 声明进入提供方；未声明 strict 的 schema 原样发送。
-                strict = bool(self.policy.strict_tools and item.strict)
-                tools.append({'type': 'function', 'function': {
-                    'name': alias,
-                    'description': item.description + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
-                    'parameters': normalize_strict_function_parameters(item.parameters) if strict else item.parameters,
-                    'strict': strict}})
         return tools
 
-    async def _dispatch(self, name, arguments, session, ledger, shell, exposed=None):
-        item = (exposed or {}).get(name)
-        if item is not None:
-            # 专用动作与 action_invoke 共用 ledger：预算、回执、strict 归一与成功记账一致。
-            return {'result': asdict(await ledger.invoke(item.action, item.target, arguments, exposed=True)),
-                    'observation': ledger.feedback}
+    async def _dispatch(self, name, arguments, session, ledger, shell):
         field = {'action_invoke': 'arguments', 'action_find': 'cursor', 'ls': 'cursor', 'find': 'cursor'}.get(name)
         if self.policy.strict_tools and field and arguments.get(field) is not None:
             arguments = dict(arguments)
@@ -518,8 +492,7 @@ class LLMDriver:
                 with _timed(timings,'setup_s'):
                     # prepare() 之前确定决策 Thread、输入水位、提供方、有序工具与激活租约；
                     # 召回等辅助请求据此复用同一实例、同一路由与同一前缀，不重建经营输入。
-                    exposed = {} if self.tool_exposure is None else await self.tool_exposure.actions(session, ledger)
-                    tools = self._tools(exposed)
+                    tools = self._tools()
                     schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
                     options = dict(self.policy.request_options)
                     options['tools'] = tools
@@ -540,7 +513,7 @@ class LLMDriver:
                         session.cursors['activation_lease'] = lease
                     context.decision = DecisionScope(thread_id=thread_id,
                         through=self.threads.describe(thread_id)['last_seq'], provider=provider,
-                        model_route=route, endpoint=endpoint, tools=tuple(tools), exposed=dict(exposed),
+                        model_route=route, endpoint=endpoint, tools=tuple(tools),
                         lease=session.cursors.get('activation_lease'))
                 await context.prepare()
                 prepared = True
@@ -626,7 +599,7 @@ class LLMDriver:
                         ledger.call_id, ledger.shell_call = identifier, name == 'bash'
                         try:
                             with _timed(timings, 'tools_s'):
-                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell, exposed))
+                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
                         except _ToolInputError as error:
                             feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
                     with _timed(timings, 'tool_save_s'):
@@ -745,6 +718,7 @@ class LLMDriver:
                 # 记忆阶段会重新读取完整 Thread；进入前释放 Agent 的激活历史。
                 run = node = initial = None
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
+                                  'content':content if reason=='natural_completion' else None,
                                  'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings}, reason)
             context.through=self.threads.describe(thread_id)['last_seq']
             context.result=result

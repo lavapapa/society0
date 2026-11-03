@@ -22,6 +22,10 @@ ModelResolver 依次看本次 override、主体配置、类型配置，最后才
 
 物理请求先取得许可，然后按固定的水位把完整消息加载出来并留证。SDK 自带的重试关闭，适配器按 max_attempts 重试可以重试的连接错误、超时、限流和服务端错误；每一次尝试都有独立的身份。授权这类不可重试的故障变成 ProviderFailure，正文留证失败则直接传播。加载完整历史、传输和保存响应都有实际开销。
 
+模型与嵌入 profile 共用退避参数：`max_attempts=6`、`backoff_initial_s=1`、`backoff_max_s=30`、`jitter=0.1`。六次总尝试之间最多等待五次，名义间隔为 1、2、4、8、16 秒；附加比例抖动之后再取 30 秒上界。`jitter=0` 可获得确定间隔。参数经原生 profile 工厂直接传给提供方。
+
+重试保持既有可重试错误分类；协议参数错误、程序错误和取消各按原语义处理。每次物理尝试保留请求、响应或错误及用量关联。LLM 的 `retry_of` 指向本 Thread 内该次调用的首个 request 序号，嵌入的 `retry_of` 使用物理调用 ID；错误事件的 `will_retry` 表示重试意向，实际尝试应按持久请求链计数。
+
 ## 认证方式与会话身份
 
 普通 API 端点用显式的 api_key 等配置接入。Codex 订阅有两条认证入口：`provider_type="openai-codex"` 读取 Codex CLI 的凭据，CODEX_HOME 可以指定它的目录；`provider_type="siwc"` 使用 Society0 应用单独授权的具名 account。两者都走 Responses 通路，原生 Codex 不提供 embedding，也没有付费 API 回退。

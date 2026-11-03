@@ -1,4 +1,4 @@
-"""驱动装配入口：默认无暴露、直接对象与二元服务引用都走同一条公共装配路径。"""
+"""驱动装配保留七个工具及prepare之前的稳定决策作用域。"""
 import asyncio
 
 import pytest
@@ -6,7 +6,6 @@ import pytest
 from society0.kernel.drivers import llm_driver_plugin
 from society0.kernel.plugins import Plugin
 from society0.kernel.services import thread_plugin
-from society0.kernel.tool_exposure import ToolExposure
 
 
 class FakeModels:
@@ -28,24 +27,15 @@ def _models_plugin():
     return Plugin('models', (), install)
 
 
-def _exposure_plugin():
-    def install(context):
-        context.provide('decision_tools', ToolExposure(lambda session: []))
-
-    return Plugin('decision_tools_double', (), install)
-
-
 @pytest.mark.asyncio
-@pytest.mark.parametrize('exposure', [None, ToolExposure(lambda session: []), ('decision_tools_double', 'decision_tools')])
-async def test_driver_plugin_accepts_absent_object_and_service_reference(tmp_path, exposure):
+async def test_driver_plugin_declares_seven_tools(tmp_path):
     from society0.kernel.composition import compose
-    plugins = [thread_plugin(), _models_plugin(), _exposure_plugin(),
-               llm_driver_plugin(provider=('models', 'models', 'm'), input_builder=lambda session: [],
-                                 tool_exposure=exposure)]
+    plugins = [thread_plugin(), _models_plugin(),
+               llm_driver_plugin(provider=('models', 'models', 'm'), input_builder=lambda session: [])]
     async with compose(tmp_path / 'run', plugins) as host:
-        factory = host.service('llm_driver', 'factory')
-        driver = factory(None)
-        assert driver.tool_exposure is None or isinstance(driver.tool_exposure, ToolExposure)
+        driver = host.service('llm_driver', 'factory')(None)
+        assert {item['function']['name'] for item in driver._tools()} == {
+            'action_find', 'action_describe', 'action_invoke', 'read', 'ls', 'find', 'grep'}
 
 
 @pytest.mark.asyncio

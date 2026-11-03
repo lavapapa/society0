@@ -271,7 +271,7 @@ class Memory:
             if not rows:raise KeyError(memory_id)
             owner,kind,timestamp,importance,state=rows[0]
             if owner!=actor:raise PermissionError('memory owner differs')
-            if state=='deleted':raise KeyError(memory_id)
+            if state in ('deleted','failed'):raise KeyError(memory_id)
             result=_payload(view,memory_id)
             vector=view.query('SELECT dimension,vector FROM memory_vectors WHERE id=?',(memory_id,))
             result.update(id=memory_id,actor=owner,type=kind,timestamp=timestamp,importance=importance,state=state,
@@ -320,9 +320,22 @@ class Memory:
         try:return await task
         finally:self._flights.pop(job_id,None)
 
+    def fail_job(self, job_id):
+        """终止已耗尽的技术失败作业，保留原文并撤下本作业的未成功发布内容。"""
+        self._check()
+        job = self.job(job_id)
+        if job['state'] == 'complete':raise ValueError('completed memory job cannot be failed')
+        if job['state'] == 'failed':return
+        def fail(writer):
+            for identifier in job['memory_ids']:
+                writer.execute("UPDATE memory_rows SET state='failed',revision=? WHERE id=?", (_next_revision(writer), identifier))
+            writer.execute("UPDATE memory_jobs SET state='failed' WHERE id=?", (job_id,))
+        self.store.transaction(fail)
+
     async def _finish_job(self,job_id):
         job=self.job(job_id)
         if job['state']=='complete':return job['memory_ids']
+        if job['state']=='failed':raise ValueError('failed memory job requires a new extraction')
         if job['state']=='prepared':
             records=[self.get(identifier,actor=job['actor']) for identifier in job['memory_ids']]
             texts=[record['content'] for record in records]
@@ -421,7 +434,7 @@ class Memory:
             rows=self.store.read(read)
             if not rows:break
             ready=[row for row in rows if row[5]=='ready']
-            deleted=[row[0] for row in rows if row[5]=='deleted']
+            deleted=[row[0] for row in rows if row[5] in ('deleted','failed')]
             if ready:
                 self._collection.upsert(ids=[row[0] for row in ready],
                     embeddings=[list(struct.unpack('<'+str(row[7])+'d',row[8])) for row in ready],
@@ -545,10 +558,20 @@ class Memory:
             messages.append({'role':'user','content':json.dumps({'memory_actions_target':{'namespace':'memory','kind':'actor','key':session.actor.id}},ensure_ascii=False)})
         if selection.policy.auto_recall:
             if self.recall_query is None:raise ValueError('automatic memory recall requires recall_query')
-            query=await invoke_maybe_async(self.recall_query,session)
-            hits=await self.recall(session.actor.id,query,top_k=selection.recall_top_k,current_step=self._step(session=session),thread_id=thread_id)
-            if hits:
-                messages.append({'role':'user','content':json.dumps({'recalled_memories':[item['content'] for item in hits]},ensure_ascii=False)})
+            phase='query'
+            try:
+                query=await invoke_maybe_async(self.recall_query,session)
+                phase='retrieval'
+                hits=await self.recall(session.actor.id,query,top_k=selection.recall_top_k,current_step=self._step(session=session),thread_id=thread_id)
+            except Exception as error:
+                if not service_failure(error):raise
+                if thread_id is not None:
+                    self.threads.event(thread_id,'memory_recall_failed',dict(actor_id=session.actor.id,phase=phase,
+                        error=type(error).__name__,message=str(error)))
+                messages.append({'role':'user','content':'本次未取得记忆召回。'})
+            else:
+                if hits:
+                    messages.append({'role':'user','content':json.dumps({'recalled_memories':[item['content'] for item in hits]},ensure_ascii=False)})
         return messages
 
     @_operation
@@ -600,6 +623,20 @@ class Memory:
         )
 
 
+def service_failure(error):
+    """识别记忆模型、协议与外部服务失败；规范写入错误始终传播。"""
+    from .models import ProviderFailure, ThreadWriteError
+    from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior, UsageLimitExceeded
+    from openai import APIError
+    from httpx2 import HTTPError
+    chain = []
+    while error is not None:
+        chain.append(error);error = error.__cause__
+    if any(isinstance(item, ThreadWriteError) for item in chain):return False
+    known = (ProviderFailure, TimeoutError, ConnectionError, APIError, HTTPError, ModelHTTPError, UnexpectedModelBehavior, UsageLimitExceeded)
+    return any(isinstance(item, known) for item in chain)
+
+
 class ThreadMemoryExtractor:
     """在原 Thread 上追加提取回合，复用标准模型提供方的物理留证。"""
     def __init__(self,threads,provider,*,request_options=None):
@@ -610,7 +647,7 @@ class ThreadMemoryExtractor:
     async def __call__(self,actor,thread_id,messages,*,metadata):
         from pydantic_ai import Agent, ToolOutput, StructuredDict, ModelRetry, capture_run_messages
         from pydantic_ai.usage import UsageLimits
-        from .models import ThreadModel
+        from .models import ThreadModel, ProviderFailure
         from .model_messages import history, display_response
         from ..memory_extraction_protocol import _extraction_prompt,_extraction_tool,_parse_memories_from_response,EXTRACT_MEMORIES_SCHEMA
         if self.threads.describe(thread_id)['actor']!=actor:raise PermissionError('Thread owner differs')
@@ -629,14 +666,20 @@ class ThreadMemoryExtractor:
                 self.threads.append_message(thread_id,message)
 
         first=True
+        logical_requests=0
         last_response=None
         async def request(model_messages):
-            nonlocal first,last_response
+            nonlocal first,last_response,logical_requests
             last_response=None
             initialize=first
             if not first:
                 # SDK 生成校验反馈；完整写入原 Thread 后再取得下一次物理请求。
                 append_request(model_messages[-1])
+                self.threads.event(thread_id,'memory_extraction_protocol_retry',dict(actor_id=actor,
+                    operation='memory_extraction',source_thread_id=thread_id,through=metadata.get('through'),
+                    request_number=logical_requests+1,protocol_retry_index=logical_requests,
+                    feedback_seq=self.threads.describe(thread_id)['last_seq']))
+            logical_requests+=1
             first=False
             loaded=False
             def load_messages():
@@ -653,11 +696,11 @@ class ThreadMemoryExtractor:
                 'parallel_tool_calls':False,**self.request_options},model_messages=load_messages)
             last_response=response
             if incomplete or response.finish_reason=='length':
-                raise RuntimeError('memory extraction incomplete: '+('length' if response.finish_reason=='length' else incomplete))
+                raise ProviderFailure('memory_extraction_incomplete', 'memory extraction incomplete: '+('length' if response.finish_reason=='length' else incomplete))
             return response
 
-        # 重试与输出结构由成熟 Agent 管理；两次逻辑请求保持原提取预算。
-        agent=Agent(ThreadModel(request),output_type=ToolOutput(StructuredDict(EXTRACT_MEMORIES_SCHEMA,name='MemoryExtraction'),name='extract_memories',strict=True,max_retries=1),retries=1)
+        # 重试与输出结构由成熟 Agent 管理；最多两次纠正重问；每次保留原提取预算与严格schema。
+        agent=Agent(ThreadModel(request),output_type=ToolOutput(StructuredDict(EXTRACT_MEMORIES_SCHEMA,name='MemoryExtraction'),name='extract_memories',strict=True,max_retries=2),retries=2)
         @agent.output_validator
         async def validate_output(ctx,value):
             # schema 是唯一结构合同；工具数量与空白正文是额外的经历提取语义。
@@ -666,14 +709,15 @@ class ThreadMemoryExtractor:
             return entries
         try:
             with capture_run_messages() as actual_history:
-                result=await agent.run(user_prompt='',usage_limits=UsageLimits(request_limit=2))
+                result=await agent.run(user_prompt='',usage_limits=UsageLimits(request_limit=3))
         except Exception as error:
+            if not service_failure(error):raise
             if last_response is not None and last_response.finish_reason!='length':
                 raw=display_response(last_response)
                 for call in raw.get('tool_calls',()):
                     self.threads.append_message(thread_id,{'role':'tool','tool_call_id':call['id'],
                         'content':json.dumps({'accepted':False,'error':str(error)},ensure_ascii=False)})
-            raise RuntimeError('memory extraction failed: '+str(error)) from error
+            raise ProviderFailure('memory_extraction_error', 'memory extraction failed: '+str(error)) from error
         # 成功输出工具的回执也留在尚未关闭的同一 Thread 中。
         new=result.new_messages()
         if new and getattr(new[-1],'kind',None)=='request':

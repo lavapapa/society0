@@ -22,31 +22,11 @@
 
 `interview` 模式为结构化测量提供 `submit_result`；声明 result_schema 后会校验输出，direct_json 显式启用提供方的 JSON schema 响应模式。决定类的动作不会自动加进访谈工具集。
 
-## 专用动作的工具暴露
+## 决策工具与领域行动
 
-默认工具集是固定的。要让某次激活额外暴露配置选定的领域专用动作，装配时给驱动一个选择器，由它在激活开始时给出`(动作名, 目标 Ref)`的有序序列或单项。
+决策模式声明 `action_find`、`action_describe`、`action_invoke`、`read`、`ls`、`find`、`grep` 七项工具。领域行动由 Actions 注册表提供，发现、描述与执行均核验当前主体权限和目标可用性。未声明工具继续按 `model_protocol_error` 结束本次激活。
 
-<!-- api: society0.kernel.tool_exposure.ToolExposure -->
-<!-- api: society0.kernel.tool_exposure.ExposedAction -->
-<!-- api: society0.kernel.tool_exposure.selection_items -->
-<!-- api: society0.kernel.tool_exposure.tool_alias -->
-
-选择器只声明身份，不携带 schema：驱动通过活动注册表取得这些动作的授权描述，并把参数 schema 原样追加在固定工具之后，顺序与选择器给出的顺序一致。选定但当前不可用的动作让这次激活失败，不会悄悄从工具数组消失；注册表里的权限、对象可用性和标签校验照常生效。别名把动作名转写为合法的提供方函数名（`industry.set_price` 变成 `industry_set_price`），与固定工具重名直接报错。
-
-专用动作的调用与 `action_invoke` 走同一本账：行动预算、per-action 限制、strict 归一、回执复用和成功/失败记法完全一致，驱动不会为它们另建执行路径。`action_find`、`action_describe`、`action_invoke` 三个通用入口保持原样，仍然可以发现和调用全部可用动作。`direct_json` 与 `interview` 模式不注入这些工具。
-
-选择器可以是同步或异步回调，也可以装配成具名服务再由驱动的 `tool_exposure` 参数引用。这段代码只展示接线，动作本身仍由领域插件注册：
-
-```python
-from society0.kernel.interaction import Ref
-from society0.kernel.tool_exposure import ToolExposure
-
-def select(session):
-    return [("industry.set_price", Ref("industry", "actor", session.actor.id)),
-            ("industry.set_production", Ref("industry", "actor", session.actor.id))]
-
-tool_exposure = ToolExposure(select)
-```
+业务引用中的 `action` 是注册行动名；调用时映射到 `action_invoke.name`，复制 `target`，并按本次工具声明编码 `arguments`。严格模式将行动参数编码为 JSON 文本，非严格模式使用 JSON 对象。
 
 ## 准备阶段可用的决策作用域
 
@@ -82,3 +62,6 @@ def make_driver(provider, threads, input_builder):
 ```
 
 继续阅读[模型指南](../guide/models.md)、[完整认知](../concepts/cognition.md)和[工具 schema](tools.md)。实现入口为 [LLMDriver.run](https://github.com/lavapapa/society0/blob/@COMMIT@/src/society0/kernel/llm.py#L381)。
+
+
+自然语言成功结束时，DriverResult.value.content 保存该次最终回答原文；其他结束原因该字段为空。完成后的扩展消费者可直接使用此结果，无需重新请求模型或读取累计 Thread 历史。

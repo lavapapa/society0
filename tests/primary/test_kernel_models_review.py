@@ -17,7 +17,7 @@ async def test_review_retry_evidence_preserves_actual_request_when_thread_advanc
         original = {'role': 'user', 'content': 'original'}
         threads.append_message(tid, original)
         provider = ModelProvider([{'id': 'test', 'api_key': 'unused', 'base_url': 'http://unused.invalid/v1',
-            'model': 'fake', 'concurrency': 1, 'trust_env': False}], threads, retry_delay=0)
+            'model': 'fake', 'concurrency': 1, 'trust_env': False}], threads, backoff_initial_s=0)
         actual = []
         async def create(**kwargs):
             actual.append(kwargs['messages'])

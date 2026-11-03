@@ -216,7 +216,7 @@ async def test_retry_backoff_releases_full_history_and_rebuilds_same_watermark(t
             result=read(*a,**kw);result['messages']=Messages(result['messages'])
             references.append(weakref.ref(result['messages']));return result
         monkeypatch.setattr(threads,'snapshot_messages',snapshot)
-        provider=ModelProvider([endpoint('m')],threads,retry_delay=7.123)
+        provider=ModelProvider([endpoint('m')],threads,backoff_initial_s=7.123)
         async def create(**kw):
             contents.append(kw['messages'][0]['content'])
             if len(contents)==1:

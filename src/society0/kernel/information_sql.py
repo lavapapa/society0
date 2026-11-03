@@ -110,6 +110,12 @@ class SQLInformation:
                 if column in self._order_fields[route]:
                     raise ValueError('document body cannot be an ordering field')
 
+    def _table(self,route):
+        return _quote(self._routes[route].table)
+
+    def _sql_column(self,route,field):
+        return _quote(field)
+
     def _projection(self,route,selected):
         spec=self._routes[route]
         documents=dict(spec.documents) if isinstance(spec,DatasetSpec) else {}
@@ -219,11 +225,11 @@ class SQLInformation:
             if cursor is None:
                 if isinstance(spec,DatasetSpec) and spec.base_count:
                     sql,bindings=spec.base_count(scope);counts=view.query(sql,bindings,max_rows=1);total=counts[0][0] if counts else 0
-                else:total=view.query('SELECT COUNT(*) FROM '+_quote(spec.table)+' WHERE '+where,values,max_rows=1)[0][0]
+                else:total=view.query('SELECT COUNT(*) FROM '+self._table(route)+' WHERE '+where,values,max_rows=1)[0][0]
             else:total=cursor['total']
-            suffix='' if cursor is None else ' AND '+_quote(spec.key)+'>?'
+            suffix='' if cursor is None else ' AND '+self._sql_column(route,spec.key)+'>?'
             bindings=values if cursor is None else (*values,cursor['after'])
-            rows=view.query('SELECT '+_quote(spec.key)+' FROM '+_quote(spec.table)+' WHERE '+where+suffix+' ORDER BY '+_quote(spec.key)+' LIMIT ?',(*bindings,limit+1),max_rows=limit+1)
+            rows=view.query('SELECT '+self._sql_column(route,spec.key)+' FROM '+self._table(route)+' WHERE '+where+suffix+' ORDER BY '+self._sql_column(route,spec.key)+' LIMIT ?',(*bindings,limit+1),max_rows=limit+1)
             selected=rows[:limit]
             continuation={'identity':identity,'run_id':view.run_id,'revision':revision,'total':total,'after':selected[-1][0]} if len(rows)>limit else None
             return Page([{'path':path+'/'+quote(str(row[0]),safe=''),'ref':Ref(self.namespace,route,str(row[0])),'kind':'file'} for row in selected],total,continuation,revision)
@@ -358,10 +364,10 @@ class SQLInformation:
         where, values = self._where(scope, spec, query.filters)
         shape = json.dumps([scope.actor, asdict(scope.moment), path, fields, query.filters, order,
                             query.sample_seed, where, values], sort_keys=True)
-        table = _quote(spec.table)
+        table = self._table(route)
         selected = tuple(dict.fromkeys((*fields, spec.key, *(field for field, _ in order))))
         selected,columns=self._projection(route,selected)
-        ordering = ','.join(_quote(field) + ' ' + direction for field, direction in order)
+        ordering = ','.join(self._sql_column(route,field) + ' ' + direction for field, direction in order)
 
         def read(view):
             revision=view.revision_for((spec.table,*spec.dependencies,*self._access_dependencies(scope)))
@@ -379,7 +385,7 @@ class SQLInformation:
                     raise ValueError('sample has no continuation cursor')
                 rng = random.Random(query.sample_seed)
                 keys = []
-                for number, (value,) in enumerate(view.iter_query('SELECT ' + _quote(spec.key) + ' FROM ' + table + ' WHERE ' + where + ' ORDER BY ' + _quote(spec.key), values)):
+                for number, (value,) in enumerate(view.iter_query('SELECT ' + self._sql_column(route,spec.key) + ' FROM ' + table + ' WHERE ' + where + ' ORDER BY ' + self._sql_column(route,spec.key), values)):
                     if number < query.limit:
                         keys.append(value)
                     else:
@@ -388,7 +394,7 @@ class SQLInformation:
                 rows = []
                 if keys:
                     picked = view.query('SELECT ' + columns + ' FROM ' + table + ' WHERE ' + where
-                                        + ' AND ' + _quote(spec.key) + ' IN (' + ','.join('?' for _ in keys) + ')',
+                                        + ' AND ' + self._sql_column(route,spec.key) + ' IN (' + ','.join('?' for _ in keys) + ')',
                                         (*values, *keys), max_rows=len(keys))
                     by_key = {row[selected.index(spec.key)]: row for row in picked}
                     rows = [by_key[key] for key in keys]
@@ -405,12 +411,12 @@ class SQLInformation:
                 # 互斥键范围各取一页；原生 UNION ALL 合并有界候选。
                 branches, bindings = [], []
                 for index, (field, direction) in enumerate(order):
-                    equal = [_quote(order[i][0]) + '=?' for i in range(index)]
-                    greater = _quote(field) + ('>?' if direction == 'asc' else '<?')
+                    equal = [self._sql_column(route,order[i][0]) + '=?' for i in range(index)]
+                    greater = self._sql_column(route,field) + ('>?' if direction == 'asc' else '<?')
                     predicate = ' AND '.join((*equal, greater))
                     branches.append('SELECT * FROM (' + select + ' AND ' + predicate + ending + ')')
                     bindings.extend((*values, *last[:index + 1], query.limit + 1))
-                sql = ' UNION ALL '.join(branches) + ending
+                sql = ' UNION ALL '.join(branches) + ' ORDER BY ' + ','.join(_quote(field)+' '+direction for field,direction in order) + ' LIMIT ?'
                 bindings.append(query.limit + 1)
             items=[];last=None;used=0;more=False
             def continuation(tail):

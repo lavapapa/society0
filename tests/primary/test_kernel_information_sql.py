@@ -228,3 +228,31 @@ async def test_mixed_indexed_seek_does_not_scan_prior_equal_rank(tmp_path):
             assert page.items[0]['id']==position
             measured.append(count[0])
         assert measured[1] < measured[0]*2, measured
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('order',[(('id','asc'),),(('id','desc'),),(('price','desc'),('id','asc')),(('price','asc'),('created','desc'),('id','desc'))])
+async def test_default_sql_hooks_keep_filter_multifield_cursor_and_file_order(tmp_path,order):
+    store,provider=setup(tmp_path,count=35)
+    try:
+        assert provider._table('orders')=='"orders"'
+        assert provider._sql_column('orders','id')=='"id"'
+        with InteractionScope('alice',Moment(0,'read')) as scope:
+            expected=[dict(id=i,price=i%3,created=i//3) for i in range(0,35,2) if i%3>=1]
+            for field,direction in reversed(order):expected.sort(key=lambda row:row[field],reverse=direction=='desc')
+            rows=[];cursor=None
+            while True:
+                page=await provider.query(scope,'/market/orders',Query(fields=('id','price','created'),filters=(('price','ge',1),),order=order,limit=2,cursor=cursor))
+                assert page.total==len(expected);rows.extend(page.items);cursor=page.next_cursor
+                if cursor is None:break
+                assert cursor['last']==[page.items[-1][field] for field,_ in order]
+            assert [row['id'] for row in rows]==[row['id'] for row in expected]
+            ids=[];cursor=None
+            while True:
+                page=await provider.list_files(scope,'/market/orders',limit=2,cursor=cursor)
+                ids.extend(int(item['ref'].key) for item in page.items);cursor=page.next_cursor
+                if cursor is None:break
+                assert cursor['after']==ids[-1]
+            assert ids==list(range(0,35,2))
+    finally:
+        provider.close();provider.reader.close();store.close()

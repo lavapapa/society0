@@ -15,7 +15,7 @@ async def test_review_embedding_retry_timings_do_not_recount_previous_attempt(pr
     clock=[100.];sent=[];original_sleep=asyncio.sleep
     async def pause(seconds):clock[0]+=seconds;await original_sleep(0)
     with StageStore.create(tmp_path/'run',models.RESOURCE_SCHEMA) as store:
-        provider=models.EmbeddingProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type,'trust_env':False}],store,dimensions=2,retry_delay=.1,batch_wait_ms=0)
+        provider=models.EmbeddingProvider([{'id':'m','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','concurrency':1,'provider_type':provider_type,'trust_env':False}],store,dimensions=2,backoff_initial_s=.1,batch_wait_ms=0)
         async def create(**wire):
             sent.append(wire);clock[0]+=2.
             if len(sent)==1:return httpx2.Response(503,json={'error':{'message':'transient'}})

@@ -242,7 +242,7 @@ def real_provider(tmp_path, **options):
     threads.append_message(tid, {'role': 'user', 'content': 'complete original'})
     provider = ModelProvider([{'id': 'test', 'api_key': 'unused-test-value', 'base_url': 'http://unused.invalid/v1',
                                'model': 'fake', 'concurrency': 2, 'trust_env': False}], threads,
-                             retry_delay=0, **options)
+                             backoff_initial_s=0, **options)
     return store, threads, tid, provider
 
 

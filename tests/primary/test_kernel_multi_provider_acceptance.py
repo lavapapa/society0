@@ -17,7 +17,7 @@ TOOLS=[{'type':'function','function':{'name':'read','parameters':{'type':'object
 async def test_chat_compatible_actual_sdk_tool_receipt_retry_and_full_wire(tmp_path,kind):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store);tid=threads.open('a',1,'decision');threads.append_message(tid,{'role':'user','content':'完整材料🙂'})
-        provider=ModelProvider([{'id':'p','model':'compatible-test','provider_type':kind,'api_key':'unused','base_url':'http://unused.invalid/v1','api_version':'2024-02-15-preview','trust_env':False}],threads,max_attempts=2,retry_delay=0)
+        provider=ModelProvider([{'id':'p','model':'compatible-test','provider_type':kind,'api_key':'unused','base_url':'http://unused.invalid/v1','api_version':'2024-02-15-preview','trust_env':False}],threads,max_attempts=2,backoff_initial_s=0)
         sent=[]
         async def create(**wire):
             sent.append(wire)
@@ -56,7 +56,7 @@ def anthropic_response():
 async def test_anthropic_actual_sdk_signature_tool_result_and_single_retry(tmp_path):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store);tid=threads.open('a',1,'decision');threads.append_message(tid,{'role':'user','content':'完整材料🙂'})
-        provider=ModelProvider([{'id':'p','model':'claude-sonnet-4-6','provider_type':'anthropic','api_key':'unused','base_url':'http://unused.invalid','trust_env':False}],threads,max_attempts=2,retry_delay=0)
+        provider=ModelProvider([{'id':'p','model':'claude-sonnet-4-6','provider_type':'anthropic','api_key':'unused','base_url':'http://unused.invalid','trust_env':False}],threads,max_attempts=2,backoff_initial_s=0)
         await provider._start();sent=[]
         def transport(request):
             sent.append(json.loads(request.content))
@@ -102,7 +102,7 @@ async def test_google_actual_sdk_signature_embedding_retry_and_both_pools_close(
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA+RESOURCE_SCHEMA) as store:
         threads=ThreadStore(store);tid=threads.open('a',1,'decision');threads.append_message(tid,{'role':'user','content':'完整材料🙂'})
         config={'id':'p','model':'gemini-2.5-pro','provider_type':'google','api_key':'unused','concurrency':1}
-        provider=ModelProvider([config],threads,max_attempts=2,retry_delay=0)
+        provider=ModelProvider([config],threads,max_attempts=2,backoff_initial_s=0)
         try:
             result=await provider.request(tid,{'tools':TOOLS})
             assert calls==2 and sent[0][1]==sent[1][1]

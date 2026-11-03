@@ -147,7 +147,7 @@ async def test_llm_manager_enforces_hard_timeout_and_logs_failure(tmp_path):
 async def test_llm_manager_retries_after_first_connection_failure(tmp_path):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA) as store:
         threads=ThreadStore(store);tid=threads.open('a',1,'retry');threads.append_message(tid,{'role':'user','content':'retry'})
-        provider=ModelProvider([endpoint()],threads,max_attempts=2,retry_delay=0);attempts=0
+        provider=ModelProvider([endpoint()],threads,max_attempts=2,backoff_initial_s=0);attempts=0
         async def create(**wire):
             nonlocal attempts
             attempts+=1

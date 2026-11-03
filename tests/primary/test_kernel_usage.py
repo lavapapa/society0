@@ -90,7 +90,7 @@ async def test_real_adapters_project_retry_response_and_shared_cache(tmp_path):
     with StageStore.create(tmp_path/'run',THREAD_SCHEMA+RESOURCE_SCHEMA) as store:
         threads=ThreadStore(store);tid=threads.open('a',0,'decision')
         threads.append_message(tid,{'role':'user','content':'full input'})
-        model=ModelProvider([config],threads,max_attempts=2,retry_delay=0)
+        model=ModelProvider([config],threads,max_attempts=2,backoff_initial_s=0)
         attempted=[]
         async def create(**kwargs):
             attempted.append(kwargs)

@@ -157,7 +157,7 @@ async def test_lazy_agent_history_survives_physical_retry_and_output_correction(
         if kwargs.get('raw'):snapshots.append(args[0])
         return native(*args,**kwargs)
     monkeypatch.setattr(threads,'snapshot_messages',snapshot)
-    provider=ModelProvider([{'id':'offline','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','trust_env':False,'concurrency':1}],threads,max_attempts=2,retry_delay=0,request_jitter=0,request_limit=__import__('asyncio').Semaphore(1))
+    provider=ModelProvider([{'id':'offline','model':'m','api_key':'unused','base_url':'http://unused.invalid/v1','trust_env':False,'concurrency':1}],threads,max_attempts=2,backoff_initial_s=0,request_jitter=0,request_limit=__import__('asyncio').Semaphore(1))
     wire=[]
     async def answer(**request):
         wire.append(request)
