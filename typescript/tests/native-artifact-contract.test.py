@@ -48,4 +48,20 @@ class NativeArtifact(unittest.TestCase):
     def test_missing_binary_is_rejected(self):
         changed=self.changed('missing-binary.tgz',removed='package/build/random_native.node')
         with self.assertRaisesRegex(AssertionError,'ARTIFACT_NATIVE_MEMBER'):self.validate(changed)
+    def sqlite_archive(self,corrupt=False):
+        package=ROOT/'.build/sqlite-native';data=io.BytesIO()
+        record=json.loads((package/'NATIVE-BUILD.json').read_text())
+        with tarfile.open(fileobj=data,mode='w') as archive:
+            for relative in record['outputs']+['NATIVE-BUILD.json']:
+                content=(package/relative).read_bytes()
+                if corrupt and relative=='vendor/libsqlite3.so':content=content[:-1]+bytes([content[-1]^1])
+                member=tarfile.TarInfo('package/'+relative);member.size=len(content);archive.addfile(member,io.BytesIO(content))
+        data.seek(0);return data,json.loads((package/'package.json').read_text())
+    def test_sqlite_actual_packaged_outputs_match_reference(self):
+        data,package=self.sqlite_archive()
+        with tarfile.open(fileobj=data) as archive:checker.native_outputs(archive,package,ROOT/'.build/native-work')
+    def test_sqlite_shared_library_corruption_is_rejected(self):
+        data,package=self.sqlite_archive(corrupt=True)
+        with tarfile.open(fileobj=data) as archive:
+            with self.assertRaisesRegex(AssertionError,'ARTIFACT_NATIVE_BYTES.*libsqlite3.so'):checker.native_outputs(archive,package,ROOT/'.build/native-work')
 if __name__=='__main__':unittest.main()
