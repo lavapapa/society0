@@ -1,16 +1,17 @@
 """仓外安装验收：acceptance.py [--candidate <发行目录>] <全新输出目录>。"""
 from pathlib import Path
-import argparse, json, re, subprocess, shutil, sys
+import argparse, json, subprocess, shutil, sys
 root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'scripts'))
-from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY
+from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY, INSTALLED_SUPPORT
+from acceptance_copy import rewrite_installed
 from acceptance_pack import dependencies, pack
 from acceptance_candidate import load_candidate, prepare_installed_assets, profile_lock_command, artifact_command
 from acceptance_execution import run_command, write_test_receipt
 from acceptance_ledger_bridge import preflight, write_installed_fragments
 command_records = []
 from check_tests import assert_clean
-REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native'}
+REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native', 'pr11-random-order.test.mjs': 'random-native'}
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--candidate', type=Path, help='安装已冻结的发行包和验收输入；不重打当前.build生产包')
 parser.add_argument('output', type=Path, help='仓外全新消费者输出目录')
@@ -79,28 +80,15 @@ shutil.copytree(test_root / 'pr02', consumer / 'pr02')
 write(consumer / 'empty-boot.json', '[]\n')
 shutil.copytree(test_root / 'native', consumer / 'native-tests')
 extra_tests = []
-def installed_copy(name):
-    rules = INSTALLED_COPIES[name]
-    text = (test_root / name).read_text()
-    if rules == 'regex-host-core':
-        text = text.replace('../.build/host/dist/profile-loader/compiler.js', '@society0/host/profile-loader')
-        text = text.replace('../.build/core/dist/sqlite-history/history.js', '@society0/core/sqlite-history')
-        text = re.sub(r"\.\./\.build/(host|core)/dist/([^\"']+)\.js", lambda match: '@society0/' + match[1] + ('' if match[2] == 'index' else '/' + match[2].removesuffix('/index')), text)
-    elif rules == 'random-native':
-        text = text.replace("fileURLToPath(new URL('../.build',import.meta.url))", "resolve('.')")
-        text = re.sub(r"new URL\('\.\./\.build/random-native/([^']+)',import.meta.url\)", lambda match: "new URL('./" + match[1] + "',pathToFileURL(require.resolve('@society0/random-native/package.json')))", text)
-    else:
-        for source, target in rules.items():
-            assert source in text, (name, source)
-            text = text.replace(source, target)
-    assert '../.build/' not in text, name
-    write(consumer / name, text)
+def installed_copy(name, rules):
+    write(consumer / name, rewrite_installed(name, (test_root / name).read_text(), rules))
     return name
 for name in INSTALLED_COPIES:
     required = REQUIRED.get(name)
     if required and required not in release['packages']: continue
     if name == 'pr03-config.test.mjs' and 'host' not in release['packages']: continue
-    extra_tests.append(installed_copy(name))
+    extra_tests.append(installed_copy(name, INSTALLED_COPIES[name]))
+for name, rules in INSTALLED_SUPPORT.items(): installed_copy(name, rules)
 if 'core' in release['packages']:
     shutil.copyfile(test_root / 'module-sidecars.test.mjs', consumer / 'module-sidecars.test.mjs')
     extra_tests.extend(['module-sidecars.test.mjs', 'ajv-consumer.ts', 'ripgrep-consumer.ts'])
