@@ -29,7 +29,8 @@ def capture_acceptance(root,output):
     bad=list(violations(root/'tests'))
     assert not bad, f'TEST_BASELINE {bad[:5]}'
     output.mkdir()
-    shutil.copytree(root/'tests',output/'tests')
+    for name in ['tests','examples','profiles']:
+        shutil.copytree(root/name,output/name)
 
 
 def compile_groups(folder, patterns):

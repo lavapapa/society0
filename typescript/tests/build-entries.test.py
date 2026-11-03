@@ -12,7 +12,9 @@ from build_entries import capture_acceptance
 import tempfile,os
 with tempfile.TemporaryDirectory(dir=os.environ['TMPDIR']) as directory:
     base=Path(directory);assert base.resolve().is_relative_to(Path(os.environ['TMPDIR']).resolve())
-    root=base/'source';(root/'tests').mkdir(parents=True);(root/'tests/fixtures').mkdir()
+    root=base/'source'
+    for name in ['tests','examples','profiles']:(root/name).mkdir(parents=True)
+    (root/'tests/fixtures').mkdir()
     (root/'tests/gate.mjs').write_text('frozen gate');(root/'tests/fixtures/input.ts').write_text('frozen fixture')
     capture_acceptance(root,base/'snapshot')
     (root/'tests/gate.mjs').write_text('next phase gate')
