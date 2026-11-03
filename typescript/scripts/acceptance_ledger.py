@@ -81,6 +81,12 @@ def fragment_kind(name):
 def read_fragments(W):
     pending = W / 'evidence/acceptance-pending'
     return [(path, fragment_kind(path.name), json.loads(path.read_text())) for path in sorted(pending.rglob('*.json'))] if pending.is_dir() else []
+def execution_slot(execution):
+    return execution.get('path'), execution.get('layer')
+def completed_executions(existing, incoming):
+    completed = {execution_slot(execution) for execution in incoming if execution.get('log')}
+    return [execution for execution in existing if execution.get('log') or execution_slot(execution) not in completed] + incoming
+
 def merge_case(ledger, name, payload):
     kind, ident = name.split('-', 1)
     ident = ident[:-5]
@@ -93,7 +99,7 @@ def merge_case(ledger, name, payload):
         if unknown: return [('FRAGMENT_KEY', ident, unknown)], {}
         target = cases[ident]
         target['evidence'] = [*target.get('evidence', []), *payload.get('appendEvidence', [])]
-        target['executions'] = [*target.get('executions', []), *payload.get('appendExecutions', [])]
+        target['executions'] = completed_executions(target.get('executions', []), payload.get('appendExecutions', []))
         if 'setReason' in payload: target['reason'] = payload['setReason']
         if 'setStatus' in payload: target['status'] = payload['setStatus']
         if 'setValidationLevel' in payload: target['validationLevel'] = payload['setValidationLevel']
