@@ -17,6 +17,7 @@ INSTALLED_COPIES = {
     'pr08-slow-persistence.test.mjs': 'regex-public',
     'pr08-recorded-result.test.mjs': 'regex-public',
     'pr07-exploration.test.mjs': 'regex-public',
+    'pr11-policy-history.test.mjs': 'regex-public',
 
 }
 # 需要已安装 @society0/host 才能解析第三方包 peer 的测试；在 build 层运行会写共享 node_modules。
@@ -24,4 +25,4 @@ BUILD_EXCLUDED = {'exports.test.mjs'}
 LIVE = {'pr08-real.mjs', 'rv3-04-litellm.mjs'}
 PERFORMANCE = {'pr05-scale.test.mjs'}
 
-INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public'}
+INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public', 'pr11-support.mjs': 'random-native'}
