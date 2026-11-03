@@ -44,5 +44,11 @@ class LedgerBridge(unittest.TestCase):
   self.case['evidence']=['missing-real-proof.log'];self.save()
   with self.assertRaisesRegex(AssertionError,'ACCEPTANCE_LEDGER_NOT_READY'):preflight(self.world,self.candidate,self.output,set(self.targets))
   self.assertFalse(self.output.exists())
+ def test_final_legacy_scope_gap_blocks_before_business(self):
+  self.ledger['legacyScope']=[];self.save()
+  with self.assertRaisesRegex(AssertionError,'ACCEPTANCE_LEDGER_NOT_READY'):preflight(self.world,self.candidate,self.output,set(self.targets))
+  self.assertFalse(self.output.exists())
+ def test_valid_pending_is_checked_then_reserved_for_actual_apply(self):
+  pending=self.EVIDENCE/'acceptance-pending/owned';pending.mkdir(parents=True);path=pending/('patch-'+CID+'.json');path.write_text(json.dumps({'appendEvidence':[]}));before=path.read_bytes();ready=preflight(self.world,self.candidate,self.output,set(self.targets));self.assertEqual(len(ready['remainingErrors']),2);self.assertEqual(path.read_bytes(),before);self.assertFalse(self.output.exists())
 if __name__=='__main__':unittest.main()
 # cases: RV3-12-T01
