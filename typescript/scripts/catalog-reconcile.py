@@ -19,9 +19,9 @@ def runtime_plugins(build):
             identity = package if export == '.' else package + '/' + export[2:]
             plugins[identity] = {'fields': object_keys(schemas.get(export)), 'policy': [item['path'].split('/')[1] for item in entry['metadata']['configPolicy']]}
     return plugins
-def consumer_line(W, entry, field):
+def consumer_line(repo, entry, field):
     path, _, line = str(entry.get('consumer', '')).rpartition(':')
-    file = W / 'repo' / path
+    file = repo / path
     if not line.isdigit() or not file.is_file(): return False
     lines = file.read_text().splitlines()
     index = int(line) - 1
@@ -31,18 +31,18 @@ def consumer_line(W, entry, field):
     match = re.search(r'(?:^|[\s{;(])(?:readonly\s+)?' + re.escape(field) + r'\??\s*:(.*)$', text)
     if match and '.' not in match.group(1) and re.fullmatch(r"[\s\w<>\[\]|&?'.;]*", match.group(1)): return False
     return field in text and 'Schema.' not in text and 'configPolicy' not in text
-def missing_errors(W, plugin, plan_fields, runtime_fields, registry):
+def missing_errors(repo, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
     for field in sorted(set(plan_fields) - set(runtime_fields)):
         entry = entries.get(plugin + '/' + field) or {}
         accepted = (entry.get('state') == 'renamed' and entry.get('runtime') in runtime_fields) or (entry.get('state') == 'deferred' and entry.get('limitation')) or (entry.get('state') == 'dropped' and entry.get('reason') and entry.get('design'))
         if not accepted: errors.append(('UNRECONCILED', plugin, field))
     return errors
-def added_errors(W, plugin, plan_fields, runtime_fields, registry):
+def added_errors(repo, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
     for field in sorted(set(runtime_fields) - set(plan_fields)):
         entry = entries.get(plugin + '/' + field) or {}
-        if entry.get('state') != 'added' or not consumer_line(W, entry, field): errors.append(('UNRECONCILED', plugin, field))
+        if entry.get('state') != 'added' or not consumer_line(repo, entry, field): errors.append(('UNRECONCILED', plugin, field))
     return errors
 def plugin_errors(plan_plugins, runtime, registry):
     errors, entries = [], registry.get('plugins', {})
@@ -69,14 +69,14 @@ def skeleton(plan_plugins, runtime, registry):
     return {'fields': fields, 'plugins': plugins}
 def main():
     plan_path = Path(sys.argv[1]).resolve()
-    W = plan_path.parents[3]
+    repo = Path(__file__).resolve().parents[2]
     plan = {plugin.get('package') or plugin['id']: plugin for plugin in read(plan_path)['plugins']}
-    runtime = runtime_plugins(W / 'repo/typescript/.build')
-    registry = read(W / 'repo/typescript' / REGISTRY)
+    runtime = runtime_plugins(repo / 'typescript/.build')
+    registry = read(repo / 'typescript' / REGISTRY)
     errors = plugin_errors(plan, runtime, registry)
     for identity in sorted(set(plan) & set(runtime)):
-        errors += missing_errors(W, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
-        errors += added_errors(W, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
+        errors += missing_errors(repo, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
+        errors += added_errors(repo, identity, plan_fields(plan[identity]), runtime[identity]['fields'], registry)
     output = {'errors': errors}
     if '--skeleton' in sys.argv[1:]: output['skeleton'] = skeleton(plan, runtime, registry)
     print(json.dumps(output, ensure_ascii=False, indent=1))

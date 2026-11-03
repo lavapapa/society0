@@ -1,6 +1,6 @@
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,join} from 'node:path';import {pathToFileURL} from 'node:url';
-const root=resolve(process.argv[2]);const directory=resolve(process.argv[3]);const enforce=process.argv.includes('--enforce-config-policy');
+const root=resolve(process.argv[2]);const directory=resolve(process.argv[3]);
 const read=async path=>JSON.parse(await readFile(path,'utf8'));
 const save=(path,value)=>writeFile(path,JSON.stringify(value,null,2)+'\n');
 const pkg=await read(join(directory,'package.json'));
@@ -28,7 +28,7 @@ for(const [exportPath,target] of Object.entries(pkg.exports)){
  const configPolicy=[...new Set(namespace.metadata.configPolicy.map(item=>item.path.split('/')[1]))].sort();
  const configKeys=schema?objectKeys(schema,schema.uid):null;
  const violation=configKeys===null?`SIDECAR_CONFIG_UNANALYZABLE ${pkg.name}${exportPath} ${schema?.refs?.[schema.uid]?.type??'runtime-only'}`:JSON.stringify([...configKeys].sort())===JSON.stringify(configPolicy)?null:`SIDECAR_CONFIG_POLICY ${pkg.name}${exportPath} config=${configKeys} policy=${configPolicy}`;
- if(violation){policyHits.push(violation);if(enforce)throw Error(violation);}
+ if(violation)throw Error(violation);
  entries.push({exportPath,metadata:namespace.metadata,configSchemaPointer:`#/schema/entries/${index}/schema`,apiPointer:`#/entries/${index}`});
  schemas.push({exportPath,schema});apis.push(namespace.api);
 }
