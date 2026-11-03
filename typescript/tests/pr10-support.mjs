@@ -28,7 +28,8 @@ export async function fixture(options = {}) {
     const attemptDirectory = options.attemptDirectory ?? await mkdtemp(join(tmpdir(), 'pr10-evidence-'));
     const lineage = options.lineage ?? 'social';
     try {
-        for (const plugin of [OwnedResources, TaskSupervisor, CompositionStrategies, SlotStrategies, Slots, Fence.default])
+        await c.plugin(OwnedResources, { closeTimeoutMs: 120000 });
+        for (const plugin of [TaskSupervisor, CompositionStrategies, SlotStrategies, Slots, Fence.default])
             await c.plugin(plugin);
         await c.plugin(Database.default, {
             directory, runId, generation: 'g', maxTransactionMs: 20000
