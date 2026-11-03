@@ -32,9 +32,9 @@ class Completion(unittest.TestCase):
    W=Path(directory).resolve();self.assertEqual(W.parent,Path(tempfile.gettempdir()).resolve())
    test=W/'repo'/PENDING['path'];test.parent.mkdir(parents=True);test.write_text('// PR01-T01 unit fixture for ledger classification\n')
    plan=W/'inputs/society0_next_refactor_v3/catalog/tests.json';plan.parent.mkdir(parents=True);plan.write_text(json.dumps([{'id':'PR01-T01'}]))
-   evidence=W/'evidence';evidence.mkdir();(evidence/'new.log').write_text('unit fixture for metadata merge, not a real candidate execution\n')
-   current=evidence/'acceptance.json';current.write_text(json.dumps({'cases':[case([PENDING])],'plugins':[]}));before=current.read_bytes()
-   pending=evidence/'acceptance-pending/E';pending.mkdir(parents=True);fragment=pending/'patch-PR01-T01.json';fragment.write_text(json.dumps({'appendExecutions':[ACTUAL],'setStatus':'passed'}))
+   records=W/EVIDENCE;records.mkdir();(records/'new.log').write_text('unit fixture for metadata merge, not a real candidate execution\n')
+   current=records/'acceptance.json';current.write_text(json.dumps({'cases':[case([PENDING])],'plugins':[]}));before=current.read_bytes()
+   pending=records/'acceptance-pending/E';pending.mkdir(parents=True);fragment=pending/'patch-PR01-T01.json';fragment.write_text(json.dumps({'appendExecutions':[ACTUAL],'setStatus':'passed'}))
    if valid:
     manifest=W/ACTUAL['candidate']/'manifest.json';manifest.parent.mkdir(parents=True);manifest.write_text('{}')
    result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/acceptance_ledger.py'),'apply',str(W)],capture_output=True,text=True)
@@ -47,3 +47,5 @@ class Completion(unittest.TestCase):
  def test_actual_apply_completes_and_archives(self):self.exercise_cli(True)
  def test_actual_apply_rejects_missing_manifest_without_write(self):self.exercise_cli(False)
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-12-T01
