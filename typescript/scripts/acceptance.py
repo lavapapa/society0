@@ -6,6 +6,8 @@ sys.path.insert(0, str(root / 'scripts'))
 from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY
 from acceptance_pack import dependencies, pack
 from acceptance_candidate import load_candidate
+from acceptance_execution import run_command, write_test_receipt
+command_records = []
 from check_tests import assert_clean
 REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native'}
 parser = argparse.ArgumentParser(description=__doc__)
@@ -24,7 +26,7 @@ def write(path, value):
     path.write_text(value if isinstance(value, str) else json.dumps(value, indent=2) + '\n')
 def run(args, cwd=consumer):
     print('+', *map(str, args), flush=True)
-    subprocess.run(list(map(str, args)), cwd=cwd, check=True)
+    return run_command(args, cwd, out, command_records)
 release = selected['release'] if selected is not None else json.loads((root / '.build/release.json').read_text())
 mode = 'candidate' if selected is not None else ('dirty-development' if release['implementation']['dirty'] else 'development')
 write(out / 'release.json', release)
@@ -91,7 +93,7 @@ if 'core' in release['packages']:
     extra_tests.extend(['module-sidecars.test.mjs', 'ajv-consumer.ts', 'ripgrep-consumer.ts'])
 run(['node', '--test', '--test-concurrency=1', *base_tests, *extra_tests, *[str(path.relative_to(consumer)) for path in (consumer / 'native-tests').glob('*.test.ts')]])
 run(['node', 'node_modules/@society0/cli/dist/main.js', '--boot', 'empty-boot.json'])
-write(out / 'result.json', {'status': 'passed', 'node': subprocess.check_output(['node', '--version'], text=True).strip(), 'consumer': str(consumer), 'release': release, 'plugins': ['@fixtures/provider', '@fixtures/consumer', '@fixtures/jsdoc'], 'mode': mode, 'candidate': str(selected['candidate']) if selected is not None else None})
+write_test_receipt(out, {'scope': 'installed-tests', 'node': subprocess.check_output(['node', '--version'], text=True).strip(), 'consumer': str(consumer), 'release': release, 'plugins': ['@fixtures/provider', '@fixtures/consumer', '@fixtures/jsdoc'], 'mode': mode, 'candidate': str(selected['candidate']) if selected is not None else None}, command_records)
 
 if selected is not None:
     run(['python3', '-B', root / 'scripts/acceptance_ledger.py', 'check', root.parents[1], '--final'])
