@@ -1,5 +1,6 @@
 from pathlib import Path
 import json, subprocess, tempfile, shutil, os, sys
+os.environ['GIT_CONFIG_GLOBAL']='/dev/null'
 root=Path(__file__).resolve().parents[1]
 directory=tempfile.mkdtemp(prefix='pr01-provenance-', dir=os.environ['TMPDIR'])
 probe=Path(directory)

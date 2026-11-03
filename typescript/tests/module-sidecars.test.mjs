@@ -18,5 +18,9 @@ test('published Host and Core sidecars resolve and import their actual declared 
   assert.equal(inspected,packages.reduce((count,meta)=>count+meta.entries.length,0));assert.ok(inspected>=17);
   const wrong={...lock,packages:{...lock.packages,'@society0/core':{...lock.packages['@society0/core'],gitCommit:'wrong-source'}}};
   const identity=host.ctx.moduleResolver.resolve('@society0/core/sqlite',wrong);assert.throws(()=>host.ctx.moduleResolver.inspect(identity),/METADATA_IDENTITY/);
+  const wrongDirty=structuredClone(lock);wrongDirty.packages['@society0/core'].dirty=!lock.packages['@society0/core'].dirty;
+  const dirtyIdentity=host.ctx.moduleResolver.resolve('@society0/core/sqlite',wrongDirty);assert.throws(()=>host.ctx.moduleResolver.inspect(dirtyIdentity),/METADATA_IDENTITY/);
+  const missingDirty=structuredClone(lock);delete missingDirty.packages['@society0/core'].dirty;
+  assert.throws(()=>host.ctx.moduleResolver.resolve('@society0/core/sqlite',missingDirty),/SOURCE_LOCK/);
  }finally{await host.close()}
 });
