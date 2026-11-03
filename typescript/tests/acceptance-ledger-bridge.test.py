@@ -37,5 +37,12 @@ class LedgerBridge(unittest.TestCase):
   ready=preflight(self.world,self.candidate,self.output,set(self.targets));record=self.execute_tests();self.receipt();other=self.evidence/'release/other'
   with self.assertRaisesRegex(AssertionError,'ACCEPTANCE_RECEIPT_CANDIDATE'):write_installed_fragments(self.world,other,self.output,ready['ledger'],record,self.targets)
   self.assertFalse(pending_owner(self.world,self.output).exists())
+ def test_unplanned_installed_slot_blocks(self):
+  with self.assertRaisesRegex(AssertionError,'ACCEPTANCE_LEDGER_NOT_READY'):preflight(self.world,self.candidate,self.output,set())
+  self.assertFalse(self.output.exists())
+ def test_other_missing_evidence_blocks(self):
+  self.case['evidence']=['missing-real-proof.log'];self.save()
+  with self.assertRaisesRegex(AssertionError,'ACCEPTANCE_LEDGER_NOT_READY'):preflight(self.world,self.candidate,self.output,set(self.targets))
+  self.assertFalse(self.output.exists())
 if __name__=='__main__':unittest.main()
 # cases: RV3-12-T01
