@@ -16,5 +16,10 @@ class InstalledAssets(unittest.TestCase):
   self.assertIn('--allow-dirty',profile_lock_command(self.consumer,'dirty-development'));self.assertNotIn('--allow-dirty',profile_lock_command(self.consumer,'development'));self.assertEqual(installed_plugin_names(self.consumer),[])
  def test_frozen_checker_receives_explicit_consumer(self):
   selected={'candidate':self.base/'candidate','release':{'implementation':{'gitCommit':self.head}}};command=artifact_command(selected,self.inputs,self.consumer);self.assertIn('--consumer-root',command);result=subprocess.run(command,capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('ARTIFACT_CONSUMER_ROOT',result.stderr);self.assertNotIn('ModuleNotFoundError',result.stderr);self.assertNotIn('--consumer-root',artifact_command(selected,self.inputs))
+ def test_release_contract_examples_live_at_consumer_root(self):
+  for name in ['run-profile.mjs','run-profile-branch.mjs']:shutil.copyfile(ROOT/'examples'/name,self.inputs/'examples'/name)
+  prepare_installed_assets(self.inputs,self.consumer)
+  for name in ['run-profile.mjs','run-profile-branch.mjs','profile-lock.mjs']:self.assertTrue((self.consumer/name).is_file(),name)
+  self.assertEqual(profile_lock_command(self.consumer,'candidate')[1],str(self.consumer/'profile-lock.mjs'))
 if __name__=='__main__':unittest.main()
 # cases: RV3-01-T02
