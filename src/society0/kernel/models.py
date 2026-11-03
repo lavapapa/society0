@@ -363,9 +363,9 @@ def _output_event(event):
 def _service_request_error(error, kind):
     """提供方异常按原瞬时判据重试；程序错误保留原异常类型。"""
     from openai import APIError
-    from pydantic_ai.exceptions import ModelHTTPError, UnexpectedModelBehavior
+    from pydantic_ai.exceptions import ModelAPIError, UnexpectedModelBehavior
     return _transient(error, kind) or isinstance(error, (APIError, httpx2.HTTPError,
-        ModelHTTPError, UnexpectedModelBehavior, ProviderFailure))
+        ModelAPIError, UnexpectedModelBehavior, ProviderFailure))
 
 
 class ModelProvider(_Provider):
