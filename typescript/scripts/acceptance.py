@@ -7,6 +7,7 @@ from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY
 from acceptance_pack import dependencies, pack
 from acceptance_candidate import load_candidate
 from acceptance_execution import run_command, write_test_receipt
+from acceptance_ledger_bridge import preflight, write_installed_fragments
 command_records = []
 from check_tests import assert_clean
 REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native'}
@@ -19,6 +20,12 @@ out = args.output.resolve()
 assert not out.is_relative_to(root), 'consumer must be outside repository'
 assert not out.exists(), 'use a fresh evidence directory'
 assert_clean(selected['inputs'] / 'tests' if selected is not None else root / 'tests')
+ledger_readiness = None
+if selected is not None:
+    planned_names = INSTALLED_ONLY | set(INSTALLED_COPIES) | {'ajv-consumer.ts', 'ripgrep-consumer.ts'}
+    planned_paths = {'typescript/tests/' + name for name in planned_names}
+    planned_paths.update('typescript/tests/native/' + path.name for path in (selected['inputs'] / 'tests/native').glob('*.test.ts'))
+    ledger_readiness = preflight(root.parents[1], selected['candidate'], out, planned_paths)
 out.mkdir(parents=True)
 tar = out / 'tarballs'; tar.mkdir()
 consumer = out / 'consumer'; consumer.mkdir()
@@ -30,6 +37,8 @@ def run(args, cwd=consumer):
 release = selected['release'] if selected is not None else json.loads((root / '.build/release.json').read_text())
 mode = 'candidate' if selected is not None else ('dirty-development' if release['implementation']['dirty'] else 'development')
 write(out / 'release.json', release)
+if ledger_readiness is not None:
+    write(out / 'ledger-preflight.json', {'status': 'ready', 'remainingInstalledTemplateErrors': ledger_readiness['remainingErrors']})
 shutil.copytree(selected['inputs'] if selected is not None else root / '.build/acceptance', out / 'inputs')
 test_root = out / 'inputs/tests'
 fixture_root = test_root / 'fixtures'
@@ -91,9 +100,14 @@ for name in INSTALLED_COPIES:
 if 'core' in release['packages']:
     shutil.copyfile(test_root / 'module-sidecars.test.mjs', consumer / 'module-sidecars.test.mjs')
     extra_tests.extend(['module-sidecars.test.mjs', 'ajv-consumer.ts', 'ripgrep-consumer.ts'])
-run(['node', '--test', '--test-concurrency=1', *base_tests, *extra_tests, *[str(path.relative_to(consumer)) for path in (consumer / 'native-tests').glob('*.test.ts')]])
+native_test_targets = [str(path.relative_to(consumer)) for path in (consumer / 'native-tests').glob('*.test.ts')]
+installed_test_command = run(['node', '--test', '--test-concurrency=1', *base_tests, *extra_tests, *native_test_targets])
+executed_targets = {'typescript/tests/' + name: name for name in [*base_tests, *extra_tests]}
+executed_targets.update({'typescript/tests/native/' + Path(name).name: name for name in native_test_targets})
 run(['node', 'node_modules/@society0/cli/dist/main.js', '--boot', 'empty-boot.json'])
 write_test_receipt(out, {'scope': 'installed-tests', 'node': subprocess.check_output(['node', '--version'], text=True).strip(), 'consumer': str(consumer), 'release': release, 'plugins': ['@fixtures/provider', '@fixtures/consumer', '@fixtures/jsdoc'], 'mode': mode, 'candidate': str(selected['candidate']) if selected is not None else None}, command_records)
 
 if selected is not None:
+    write_installed_fragments(root.parents[1], selected['candidate'], out, ledger_readiness['ledger'], installed_test_command, executed_targets)
+    run(['python3', '-B', root / 'scripts/acceptance_ledger.py', 'apply', root.parents[1]])
     run(['python3', '-B', root / 'scripts/acceptance_ledger.py', 'check', root.parents[1], '--final'])
