@@ -36,5 +36,7 @@ class CandidateInputs(unittest.TestCase):
   with self.assertRaisesRegex(AssertionError,'CANDIDATE_INPUTS'):load_candidate(self.candidate)
  def test_actual_cli_rejects_missing_candidate_before_output(self):
   output=self.base/'outside-consumer';result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/acceptance.py'),'--candidate',str(self.base/'missing-candidate'),str(output)],capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('CANDIDATE_MANIFEST',result.stderr);self.assertFalse(output.exists())
+ def test_actual_cli_blocks_other_ledger_work_before_output(self):
+  output=self.base/'not-ready-consumer';result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/acceptance.py'),'--candidate',str(self.candidate),str(output)],capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('ACCEPTANCE_LEDGER_NOT_READY',result.stderr);self.assertFalse(output.exists())
 if __name__=='__main__':unittest.main()
 # cases: RV3-01-T02
