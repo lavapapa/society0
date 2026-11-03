@@ -22,3 +22,28 @@ def load_candidate(candidate):
         assert (inputs / name).is_dir(), 'CANDIDATE_INPUTS ' + str(inputs / name)
     assert (inputs / 'scripts/release_compare.py').is_file(), 'CANDIDATE_INPUTS ' + str(inputs / 'scripts/release_compare.py')
     return {'candidate': candidate, 'manifest': manifest, 'release': release, 'inputs': inputs, 'packages': [candidate / 'tarballs' / record['filename'] for record in records], 'mode': 'candidate'}
+
+
+def installed_plugin_names(consumer):
+    names = []
+    for path in sorted((consumer / 'node_modules/@society0').glob('*/package.json')):
+        package = json.loads(path.read_text())
+        if package.get('society', {}).get('plugin', {}).get('metadata'): names.append(package['name'])
+    return names
+
+
+def prepare_installed_assets(inputs, consumer):
+    import shutil
+    # import.meta.resolve从脚本位置寻找包，示例须置于消费者目录内。
+    for folder in ['examples', 'profiles']: shutil.copytree(inputs / folder, consumer / folder)
+
+
+def profile_lock_command(consumer, mode):
+    flags = ['--allow-dirty'] if mode == 'dirty-development' else []
+    return ['node', str(consumer / 'examples/profile-lock.mjs'), *flags, str(consumer / 'module-lock.json'), *installed_plugin_names(consumer)]
+
+
+def artifact_command(selected, inputs, consumer=None):
+    command = ['python3', '-B', str(inputs / 'tests/artifacts.test.py'), str(selected['candidate']), selected['release']['implementation']['gitCommit']]
+    if consumer is not None: command += ['--consumer-root', str(consumer)]
+    return command

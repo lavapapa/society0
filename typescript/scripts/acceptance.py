@@ -5,7 +5,7 @@ root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(root / 'scripts'))
 from acceptance_tests import INSTALLED_COPIES, INSTALLED_ONLY
 from acceptance_pack import dependencies, pack
-from acceptance_candidate import load_candidate
+from acceptance_candidate import load_candidate, prepare_installed_assets, profile_lock_command, artifact_command
 from acceptance_execution import run_command, write_test_receipt
 from acceptance_ledger_bridge import preflight, write_installed_fragments
 command_records = []
@@ -43,6 +43,8 @@ shutil.copytree(selected['inputs'] if selected is not None else root / '.build/a
 test_root = out / 'inputs/tests'
 fixture_root = test_root / 'fixtures'
 assert test_root.is_dir() and fixture_root.is_dir(), 'build first to freeze acceptance inputs'
+prepare_installed_assets(out / 'inputs', consumer)
+if selected is not None: run(artifact_command(selected, out / 'inputs'))
 packages = list(selected['packages']) if selected is not None else [pack(root, root / '.build' / folder, tar) for folder in release['packages']]
 packages += dependencies(root, tar)
 write(consumer / 'package.json', {'name': 'society0-outside-consumer', 'version': '1.0.0', 'private': True, 'type': 'module'})
@@ -58,6 +60,8 @@ for name in ['provider', 'consumer', 'jsdoc']:
     run(['node', root / 'node_modules/typescript/bin/tsc', '-p', folder / 'tsconfig.json'])
     run(['npm', 'install', '--offline', '--ignore-scripts', pack(root, folder, tar)])
 run(['npm', 'ls', '--all'])
+run(profile_lock_command(consumer, mode))
+if selected is not None: run(artifact_command(selected, out / 'inputs', consumer))
 shutil.copyfile(test_root / 'consumer-types.ts', consumer / 'consumer-types.ts')
 shutil.copyfile(test_root / 'pr02-types.ts', consumer / 'pr02-types.ts')
 shutil.copyfile(test_root / 'include-types.ts', consumer / 'include-types.ts')

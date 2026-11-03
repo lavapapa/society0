@@ -39,5 +39,8 @@ class CandidateInputs(unittest.TestCase):
   output=self.base/'outside-consumer';result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/acceptance.py'),'--candidate',str(self.base/'missing-candidate'),str(output)],capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('CANDIDATE_MANIFEST',result.stderr);self.assertFalse(output.exists())
  def test_actual_cli_blocks_other_ledger_work_before_output(self):
   output=self.base/'not-ready-consumer';result=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/acceptance.py'),'--candidate',str(self.candidate),str(output)],capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('ACCEPTANCE_LEDGER_NOT_READY',result.stderr);self.assertFalse(output.exists())
+ def test_missing_frozen_artifact_support_rejected(self):
+  (self.candidate/'acceptance-inputs/scripts/release_compare.py').unlink()
+  with self.assertRaisesRegex(AssertionError,'CANDIDATE_INPUTS'):load_candidate(self.candidate)
 if __name__=='__main__':unittest.main()
 # cases: RV3-01-T02
