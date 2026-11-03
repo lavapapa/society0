@@ -16,6 +16,7 @@ INSTALLED_COPIES = {
     'pr08-public-display-error.test.mjs': 'regex-public',
     'pr08-slow-persistence.test.mjs': 'regex-public',
     'pr08-recorded-result.test.mjs': 'regex-public',
+    'pr07-exploration.test.mjs': 'regex-public',
 
 }
 # 需要已安装 @society0/host 才能解析第三方包 peer 的测试；在 build 层运行会写共享 node_modules。
