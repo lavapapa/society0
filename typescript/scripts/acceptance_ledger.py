@@ -20,7 +20,7 @@ def derived_layers(path, text):
     layers = set()
     if name in LIVE: layers.add('live-model')
     if name in INSTALLED_ONLY | INSTALLED_PY or name.startswith(INSTALLED_SCRIPTS_PREFIX) or name in INSTALLED_COPIES: layers.add('installed-e2e')
-    if '../.build/' in text and name not in BUILD_EXCLUDED: layers.add('build-integration')
+    if re.search(r"\.\./\.build(?:/|['\"])", text) and name not in BUILD_EXCLUDED: layers.add('build-integration')
     return layers or {'unit'}
 def installed_execution_errors(cid, execution, file, text, W):
     path = execution.get('path', '')

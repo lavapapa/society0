@@ -11,7 +11,7 @@ from acceptance_execution import run_command, write_test_receipt
 from acceptance_ledger_bridge import preflight, write_installed_fragments
 command_records = []
 from check_tests import assert_clean
-REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native', 'pr11-random-order.test.mjs': 'random-native'}
+REQUIRED = {'pr03-config.test.mjs': 'host', 'pr04.test.mjs': 'core', 'execution-fence.test.mjs': 'core', 'pr04-cordis.test.mjs': 'core', 'pr04-directory.test.mjs': 'core', 'pr11-random.test.mjs': 'random-native', 'pr11-random-bootstrap.test.mjs': 'random-native', 'pr11-random-order.test.mjs': 'random-native', 'pr08-public-display-error.test.mjs': 'core', 'pr08-slow-persistence.test.mjs': 'core', 'pr08-recorded-result.test.mjs': 'core'}
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--candidate', type=Path, help='安装已冻结的发行包和验收输入；不重打当前.build生产包')
 parser.add_argument('output', type=Path, help='仓外全新消费者输出目录')
