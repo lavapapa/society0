@@ -19,24 +19,30 @@ def runtime_plugins(build):
             identity = package if export == '.' else package + '/' + export[2:]
             plugins[identity] = {'fields': object_keys(schemas.get(export)), 'policy': [item['path'].split('/')[1] for item in entry['metadata']['configPolicy']]}
     return plugins
-def consumer_line(repo, entry, field):
+def consumer_text(repo, entry):
     path, _, line = str(entry.get('consumer', '')).rpartition(':')
     file = repo / path
-    if not line.isdigit() or not file.is_file(): return False
+    if not line.isdigit() or int(line) < 1 or not file.is_file(): return None
     lines = file.read_text().splitlines()
     index = int(line) - 1
-    if index >= len(lines): return False
-    text = lines[index]
+    return lines[index] if index < len(lines) else None
+def consumer_line(repo, entry, field):
+    text = consumer_text(repo, entry)
+    if text is None: return False
     if re.match(r'\s*(?:export\s+)?(?:interface|type|declare|readonly)\b', text): return False
     match = re.search(r'(?:^|[\s{;(])(?:readonly\s+)?' + re.escape(field) + r'\??\s*:(.*)$', text)
     if match and '.' not in match.group(1) and re.fullmatch(r"[\s\w<>\[\]|&?'.;]*", match.group(1)): return False
     return field in text and 'Schema.' not in text and 'configPolicy' not in text
+def reconciled_missing(entry, runtime_fields):
+    state = entry.get('state')
+    if state == 'renamed': return entry.get('runtime') in runtime_fields
+    if state == 'deferred': return bool(entry.get('limitation'))
+    return state == 'dropped' and bool(entry.get('reason')) and bool(entry.get('design'))
 def missing_errors(repo, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
     for field in sorted(set(plan_fields) - set(runtime_fields)):
         entry = entries.get(plugin + '/' + field) or {}
-        accepted = (entry.get('state') == 'renamed' and entry.get('runtime') in runtime_fields) or (entry.get('state') == 'deferred' and entry.get('limitation')) or (entry.get('state') == 'dropped' and entry.get('reason') and entry.get('design'))
-        if not accepted: errors.append(('UNRECONCILED', plugin, field))
+        if not reconciled_missing(entry, runtime_fields): errors.append(('UNRECONCILED', plugin, field))
     return errors
 def added_errors(repo, plugin, plan_fields, runtime_fields, registry):
     errors, entries = [], registry.get('fields', {})
