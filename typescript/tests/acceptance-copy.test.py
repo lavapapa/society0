@@ -37,5 +37,13 @@ class InstalledCopy(unittest.TestCase):
    text=rewrite_installed(file,(ROOT/'tests'/file).read_text(),rules);self.assertNotIn('../.build',text)
    for package,entry in re.findall(r'@society0/(host|core|social)/([a-z-]+)',text):self.assertIn('./'+entry,json.loads((ROOT/'.build'/package/'package.json').read_text())['exports'])
   self.assertIn("import('@society0/core/' + name)",text);self.assertIn("import('@society0/social/' + name)",text)
+ def test_platform_faults_keep_actual_installed_worker_publish_and_cli(self):
+  from acceptance_tests import INSTALLED_ONLY
+  self.assertIn('cli.test.mjs',INSTALLED_ONLY)
+  for name in ['platform-worker-loss.test.mjs','pr05-history-gates.test.mjs']:
+   self.assertEqual(INSTALLED_COPIES[name],'regex-public');self.assertIn('PR12-T04',(ROOT/'tests'/name).read_text())
+  self.assertIn('PR12-T04',(ROOT/'tests/cli.test.mjs').read_text())
+  for name in ['public-fault-support.mjs','platform-worker-fault.mjs','pr05-support.mjs','pr05-crash-child.mjs']:
+   self.assertNotIn('../.build',rewrite_installed(name,(ROOT/'tests'/name).read_text(),INSTALLED_SUPPORT[name]))
 if __name__=='__main__':unittest.main()
 # cases: PR11-T03
