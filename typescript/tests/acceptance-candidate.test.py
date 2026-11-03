@@ -13,6 +13,7 @@ class CandidateInputs(unittest.TestCase):
     data=json.dumps(source).encode();info=tarfile.TarInfo('package/SOURCE.json');info.size=len(data);archive.addfile(info,io.BytesIO(data))
   self.release={'release':True,'implementation':{'gitCommit':self.head,'dirty':False},'packages':[str(n) for n in range(13)]};self.manifest={'format':'society-release/v1','release':True,'implementation':self.release['implementation'].copy(),'tarballs':archive_records(tar,self.head)};self.save()
   for name in ['tests','examples','profiles']:(self.candidate/'acceptance-inputs'/name).mkdir(parents=True)
+  support=self.candidate/'acceptance-inputs/scripts';support.mkdir();(support/'release_compare.py').write_bytes((ROOT/'scripts/release_compare.py').read_bytes())
  def save(self):
   (self.candidate/'manifest.json').write_text(json.dumps(self.manifest));(self.candidate/'release.json').write_text(json.dumps(self.release))
  def test_actual_candidate_paths_are_selected(self):

@@ -20,4 +20,5 @@ def load_candidate(candidate):
     inputs = candidate / 'acceptance-inputs'
     for name in ['tests', 'examples', 'profiles']:
         assert (inputs / name).is_dir(), 'CANDIDATE_INPUTS ' + str(inputs / name)
+    assert (inputs / 'scripts/release_compare.py').is_file(), 'CANDIDATE_INPUTS ' + str(inputs / 'scripts/release_compare.py')
     return {'candidate': candidate, 'manifest': manifest, 'release': release, 'inputs': inputs, 'packages': [candidate / 'tarballs' / record['filename'] for record in records], 'mode': 'candidate'}
