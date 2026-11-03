@@ -2,12 +2,17 @@
 import json,re,tarfile
 HOST_ROOT=re.compile(r'^/(mnt|home|tmp|private|Users|root|opt|var|srv|data|nfs|scratch)(/|$)')
 
-def json_strings(value):
-    if isinstance(value,str):yield value
+def config_pointer(trail):
+    # 该字段声明配置项的JSON pointer，值中的/root指向配置键。
+    return len(trail)==6 and trail[0]=='entries' and trail[2:4]==('metadata','configPolicy') and trail[5]=='path'
+
+def json_strings(value,trail=()):
+    if isinstance(value,str):
+        if not config_pointer(trail):yield value
     elif isinstance(value,dict):
-        for item in value.values():yield from json_strings(item)
+        for key,item in value.items():yield from json_strings(item,trail+(key,))
     elif isinstance(value,list):
-        for item in value:yield from json_strings(item)
+        for index,item in enumerate(value):yield from json_strings(item,trail+(index,))
 
 def metadata_member(name):
     return name in ['package/SOURCE.json','package/NATIVE-BUILD.json','package/package.json'] or (name.startswith('package/generated/') and name.endswith('.json'))
