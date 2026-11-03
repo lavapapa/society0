@@ -1,5 +1,5 @@
 from pathlib import Path
-import os,sys,tempfile,unittest
+import os,sys,tempfile,unittest,shutil,subprocess
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from build_entries import capture_acceptance
 
@@ -15,11 +15,12 @@ class FrozenAssets(unittest.TestCase):
   (root/'tests/gate.mjs').write_bytes(b'// frozen gate\n')
   (root/'tests/fixtures').mkdir();(root/'tests/fixtures/value.json').write_bytes(b'{"value":1}\n')
   (root/'examples/run-profile.mjs').write_bytes(b'export const version=1;\n')
+  (root/'scripts').mkdir();(root/'scripts/release_compare.py').write_text('# frozen comparator support\n')
   if profiles:(root/'profiles/rule-sqlite.json').write_text('{"label":"雪","actors":1000}\n')
   return root
  def test_all_assets_are_frozen_by_bytes(self):
   base=self.temporary();root=self.source(base)
-  names=['tests/gate.mjs','tests/fixtures/value.json','examples/run-profile.mjs','profiles/rule-sqlite.json']
+  names=['tests/gate.mjs','tests/fixtures/value.json','examples/run-profile.mjs','profiles/rule-sqlite.json','scripts/release_compare.py']
   before={name:(root/name).read_bytes() for name in names};output=base/'frozen'
   capture_acceptance(root,output)
   for name in names:
@@ -34,5 +35,9 @@ class FrozenAssets(unittest.TestCase):
   (root/'tests/bad.mjs').write_text("import '../pack"+"ages/core/src/index.js';\n")
   with self.assertRaisesRegex(AssertionError,'TEST_BASELINE'):capture_acceptance(root,base/'frozen')
   self.assertFalse((base/'frozen').exists())
+
+ def test_frozen_artifact_checker_resolves_frozen_support(self):
+  base=self.temporary();root=self.source(base);current=Path(__file__).resolve().parents[1];shutil.copyfile(current/'tests/artifacts.test.py',root/'tests/artifacts.test.py');shutil.copyfile(current/'scripts/release_compare.py',root/'scripts/release_compare.py');output=base/'frozen';capture_acceptance(root,output)
+  result=subprocess.run([sys.executable,'-B',str(output/'tests/artifacts.test.py'),str(base/'artifacts'),'expected-commit','--consumer-root',str(base/'missing-consumer')],capture_output=True,text=True);self.assertNotEqual(result.returncode,0);self.assertIn('ARTIFACT_CONSUMER_ROOT',result.stderr);self.assertNotIn('ModuleNotFoundError',result.stderr)
 
 if __name__=='__main__':unittest.main()
