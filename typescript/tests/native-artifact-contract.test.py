@@ -7,10 +7,13 @@ checker=importlib.util.module_from_spec(spec);spec.loader.exec_module(checker)
 class NativeArtifact(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.fixture=Path(tempfile.mkdtemp(prefix='g18-artifact-native-',dir=os.environ['TMPDIR']))
-        result=subprocess.run(['npm','pack','--ignore-scripts','--json','--pack-destination',str(cls.fixture)],cwd=ROOT/'.build/random-native',text=True,capture_output=True,check=True)
-        (cls.fixture/'npm-pack.json').write_text(result.stdout)
-        cls.original=cls.fixture/json.loads(result.stdout)[0]['filename']
+        retained=os.environ.get('ARTIFACT_NATIVE_FIXTURE')
+        cls.fixture=Path(retained) if retained else Path(tempfile.mkdtemp(prefix='g18-artifact-native-',dir=os.environ['TMPDIR']))
+        if retained:packed=(cls.fixture/'npm-pack.json').read_text()
+        else:
+            result=subprocess.run(['npm','pack','--ignore-scripts','--json','--pack-destination',str(cls.fixture)],cwd=ROOT/'.build/random-native',text=True,capture_output=True,check=True)
+            packed=result.stdout;(cls.fixture/'npm-pack.json').write_text(packed)
+        cls.original=cls.fixture/json.loads(packed)[0]['filename']
         with tarfile.open(cls.original) as archive:cls.package=json.load(archive.extractfile('package/package.json'))
         print(json.dumps({'fixture':str(cls.fixture),'tarball':str(cls.original),'reference':str(ROOT/'.build/native-work')}),flush=True)
     def changed(self,name,removed=None,changed=None):
@@ -33,8 +36,8 @@ class NativeArtifact(unittest.TestCase):
         changed=self.changed('corrupt.tgz',changed='package/build/random_native.node')
         with self.assertRaisesRegex(AssertionError,'ARTIFACT_NATIVE_BYTES'):self.validate(changed)
     def test_missing_reference_is_rejected(self):
-        reference=self.fixture/'reference';shutil.copytree(ROOT/'.build/native-work/random-native',reference/'random-native')
-        p=reference/'random-native/build/random_native.node';assert p.resolve()==self.fixture.resolve()/'reference/random-native/build/random_native.node';p.unlink()
+        reference=Path(tempfile.mkdtemp(prefix='reference-',dir=self.fixture));shutil.copytree(ROOT/'.build/native-work/random-native',reference/'random-native')
+        p=reference/'random-native/build/random_native.node';assert reference.parent==self.fixture and p.resolve()==reference.resolve()/'random-native/build/random_native.node';p.unlink()
         with self.assertRaisesRegex(AssertionError,'ARTIFACT_NATIVE_REFERENCE'):self.validate(self.original,reference)
     def test_wrong_output_declaration_is_rejected(self):
         changed=self.changed('declaration.tgz',changed='package/NATIVE-BUILD.json')
