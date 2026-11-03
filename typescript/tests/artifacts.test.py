@@ -1,5 +1,7 @@
 from pathlib import Path
-import json,sys,tarfile
+import json,os,sys,tarfile
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+from release_compare import path_leaks
 
 def implementation_identity(package, source, expected_commit):
     implementation=source.get('implementation')
@@ -73,6 +75,8 @@ def check_archive(file,artifacts,expected_commit):
         declared_targets(package,members)
         declarations(archive,members)
         installed_location(artifacts,package)
+        leaks=path_leaks(file,[str(Path(__file__).resolve().parents[1]),str(artifacts),os.environ['HOME'],os.environ['TMPDIR']])
+        assert not leaks,leaks
         return package['name']
 
 def main(artifacts,expected_commit):
