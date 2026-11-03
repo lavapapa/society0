@@ -1,5 +1,5 @@
 // cases: PR10-T03
-import test from 'node:test';import assert from 'node:assert/strict';import {join,dirname} from 'node:path';
+import test from 'node:test';import assert from 'node:assert/strict';import {join,dirname,basename} from 'node:path';
 import {fixture,activation,request} from './pr10-support.mjs';
 import Perceptions,{perceptionMigration} from '../.build/core/dist/perception/index.js';
 import Rankings from '../.build/social/dist/social-ranking/index.js';
@@ -18,9 +18,9 @@ async function consume(f,reservation,label,expected){const c=f.ctx,context=activ
  const message=await c.threads.prepare({id:label+'-message',interactionId:thread.interactionId,role:'user',content:batch.reads[0].page.items,originalProviderFields:{source:'historical-social',untouched:true}},context.signal);
  await c.database.transaction(reservation.lease,request(label),tx=>selection.value.commit(tx,batch,[{sourceId:'social/feed',perceptIds:batch.reads[0].page.items.map(item=>item.id),message,contexts:batch.reads[0].page.items.map(item=>item.material)}]));
 }finally{await selection.release()}}
-async function publish(f,id,parent,operations){const c=f.ctx;c.history.bindQuiescence(()=>c.tasks.drain());const lease=await c.executionFence.seal();const point=await c.history.publish(lease,{operationId:'publish-'+id,id,parentId:parent,expectedRevision:await c.database.readRevision(),requiredOperations:operations});if(c.executionFence.snapshot().state==='sealed')c.executionFence.resume(lease);return point}
+async function publish(f,id,parent,operations){const c=f.ctx;const lease=await c.executionFence.seal();const point=await c.history.publish(lease,{operationId:'publish-'+id,id,parentId:parent,expectedRevision:await c.database.readRevision(),requiredOperations:operations});if(c.executionFence.snapshot().state==='sealed')c.executionFence.resume(lease);return point}
 test('PR10-T03 multipage originals neighbors and perception Thread restore at an older complete point',{timeout:600000},async()=>{
- const migration=perceptionMigration({consumer:'public-social-history'});const f=await fixture({migrations:[migration]});let branch,reservation;
+ const migration=perceptionMigration({consumer:'public-social-history'});const f=await fixture({migrations:[migration]});f.ctx.history.bindQuiescence(()=>f.ctx.tasks.drain());let branch,reservation;
  try{await install(f);reservation=await f.ctx.executionFence.reserve({id:'seed-history'});const receipts=[];
  for(let i=0;i<3;i++)receipts.push(await f.ctx.actions.execute('social.publish',{id:'history-post-'+i,content:'完整原始正文😀-'+i,tags:['history','tag-'+i],metadata:{original:{ordinal:i,retained:true}}},{...activation(f,reservation,'history-post-'+i),logicalTime:String(i+1)}));
  await consume(f,reservation,'consume-first','history-post-0');await reservation.release();reservation=undefined;
@@ -28,7 +28,7 @@ test('PR10-T03 multipage originals neighbors and perception Thread restore at an
  assert.equal(before.feed.total,'3');assert.equal(before.feed.pages,3);assert.equal(before.neighbors.total,'2');assert.equal(before.neighbors.pages,2);assert.deepEqual(before.feed.items.map(item=>item.metadata.original.ordinal),[0,1,2]);assert.equal(before.tables.perception_material.length,1);assert.equal(before.tables.perception_links.length,1);
  reservation=await f.ctx.executionFence.reserve({id:'advance-source'});const late=await f.ctx.actions.execute('social.publish',{id:'after-selected-point',content:'新点数据不能进入旧点'}, {...activation(f,reservation,'late-post'),logicalTime:'99'});await consume(f,reservation,'consume-second','history-post-1');await reservation.release();reservation=undefined;
  const latest=await publish(f,'latest-history',point.id,[late.operationId,'consume-second']);const advanced=await snapshot(f);assert.equal(advanced.feed.total,'4');assert.equal(advanced.tables.perception_material.length,2);
- const target=join(dirname(f.directory),'pr10-historical-pages');await f.ctx.history.fork({operationId:'historical-pages-fork',pointId:point.id,targetRunId:'historical-pages',targetDirectory:target});
+ const target=join(dirname(f.directory),basename(f.directory)+'-historical-pages');await f.ctx.history.fork({operationId:'historical-pages-fork',pointId:point.id,targetRunId:'historical-pages',targetDirectory:target});
  branch=await fixture({restore:true,directory:target,runId:'historical-pages',attemptDirectory:f.attemptDirectory,migrations:[migration]});await install(branch);const restored=await snapshot(branch);assert.deepEqual(restored,before);assert.equal((await f.ctx.history.current()).id,latest.id);
  reservation=await branch.ctx.executionFence.reserve({id:'continue-restored-cursor'});await consume(branch,reservation,'restored-second','history-post-1');await reservation.release();reservation=undefined;const continued=await snapshot(branch);assert.equal(continued.tables.perception_material.length,2);assert.equal(continued.tables.perception_links.length,2);assert.equal(continued.threadId,before.threadId);assert.equal(continued.feed.total,'3');
  console.log(JSON.stringify({gate:'PR10-T03-public-history',selected:point.id,latest:latest.id,feedPages:before.feed.pages,neighborPages:before.neighbors.pages,restoredMaterials:restored.tables.perception_material.length,continuedMaterials:continued.tables.perception_material.length,target}));
