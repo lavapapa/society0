@@ -21,9 +21,9 @@ class CandidateInputs(unittest.TestCase):
   (self.candidate/'manifest.json').unlink()
   with self.assertRaisesRegex(AssertionError,'CANDIDATE_MANIFEST'):load_candidate(self.candidate)
  def test_dirty_or_nonrelease_metadata_fails(self):
-  self.manifest['implementation']['dirty']=True;self.save()
+  self.manifest['implementation']['dirty']=True;self.release['implementation']['dirty']=True;self.save()
   with self.assertRaisesRegex(AssertionError,'CANDIDATE_IDENTITY'):load_candidate(self.candidate)
-  self.manifest['implementation']['dirty']=False;self.release['release']=False;self.save()
+  self.manifest['implementation']['dirty']=False;self.release['implementation']['dirty']=False;self.release['release']=False;self.save()
   with self.assertRaisesRegex(AssertionError,'CANDIDATE_IDENTITY'):load_candidate(self.candidate)
  def test_mismatched_implementation_fails(self):
   self.release['implementation']['gitCommit']='different';self.save()
