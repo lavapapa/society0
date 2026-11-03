@@ -1,5 +1,5 @@
 from pathlib import Path
-import json,os,sys,tarfile
+import argparse,json,os,sys,tarfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from release_compare import path_leaks
 
@@ -64,14 +64,20 @@ def declarations(archive,members):
         if member.endswith('.d.ts'):
             assert 'const enum ' not in archive.extractfile(member).read().decode(),member
 
-def installed_location(artifacts,package):
-    root=artifacts/'consumer/node_modules'
+def consumer_modules(artifacts,consumer_root=None):
+    if consumer_root is None:return artifacts/'consumer/node_modules'
+    modules=consumer_root.resolve()/'node_modules'
+    assert modules.is_dir(),'ARTIFACT_CONSUMER_ROOT '+str(consumer_root)
+    return modules
+
+def installed_location(artifacts,package,consumer_root=None):
+    root=consumer_modules(artifacts,consumer_root)
     if root.is_dir():
         installed=root/package['name']
         assert installed.is_dir() and not installed.is_symlink(),installed
         assert installed.resolve().is_relative_to(root),installed
 
-def check_archive(file,artifacts,expected_commit):
+def check_archive(file,artifacts,expected_commit,consumer_root=None):
     with tarfile.open(file) as archive:
         members=set(archive.getnames())
         package=json.load(archive.extractfile('package/package.json'))
@@ -82,17 +88,27 @@ def check_archive(file,artifacts,expected_commit):
         provenance_files(archive,members)
         declared_targets(package,members)
         declarations(archive,members)
-        installed_location(artifacts,package)
+        installed_location(artifacts,package,consumer_root)
         leaks=path_leaks(file,[str(Path(__file__).resolve().parents[1]),str(artifacts),os.environ['HOME'],os.environ['TMPDIR']])
         assert not leaks,leaks
         return package['name']
 
-def main(artifacts,expected_commit):
-    checked=[check_archive(file,artifacts,expected_commit) for file in sorted((artifacts/'tarballs').glob('society0-*.tgz'))]
+def main(artifacts,expected_commit,consumer_root=None):
+    modules=consumer_modules(artifacts,consumer_root)
+    checked=[check_archive(file,artifacts,expected_commit,consumer_root) for file in sorted((artifacts/'tarballs').glob('society0-*.tgz'))]
     expected=json.loads((artifacts/'release.json').read_text())['packages']
     assert len(checked)==len(expected),(checked,expected)
-    print(json.dumps({'tarballChecks':'passed','packages':checked,'checks':['expected clean release implementation','exports and bins exist','JS and declaration distribution','no workspace protocol','physical consumer packages when consumer exists','runtime enum declarations','licenses, source, lock and ordered patches']},indent=2))
+    print(json.dumps({'tarballChecks':'passed','installationChecks':'required' if consumer_root is not None else ('colocated' if modules.is_dir() else 'not-requested'),'consumerRoot':str(modules.parent),'packages':checked,'checks':['expected clean release implementation','exports and bins exist','JS and declaration distribution','no workspace protocol','physical consumer packages when consumer exists','runtime enum declarations','licenses, source, lock and ordered patches']},indent=2))
 
-if __name__=='__main__':main(Path(sys.argv[1]).resolve(),sys.argv[2])
+def arguments(argv):
+    parser=argparse.ArgumentParser(description='核验发行归档；安装后使用显式消费者目录检查物理包。')
+    parser.add_argument('artifacts',type=Path)
+    parser.add_argument('expected_commit')
+    parser.add_argument('--consumer-root',type=Path,help='实际安装目录，必须包含node_modules；指定后执行安装态检查')
+    return parser.parse_args(argv)
+
+if __name__=='__main__':
+    args=arguments(sys.argv[1:])
+    main(args.artifacts.resolve(),args.expected_commit,args.consumer_root)
 
 # cases: RV3-01-T02
