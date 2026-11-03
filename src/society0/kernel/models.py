@@ -677,11 +677,14 @@ class EmbeddingProvider(_Provider):
                     future = self._pending.pop(key)
                     if not future.done():
                         if isinstance(error, asyncio.CancelledError): future.cancel()
-                        elif isinstance(error, ThreadWriteError): future.set_exception(error)
-                        else:
-                            failed = ProviderFailure('embedding_error', str(error))
-                            failed.embedding_sources = tuple((call, index) for call in getattr(error, 'embedding_attempts', ()))
+                        elif isinstance(error, ProviderFailure):
+                            # 每个原文保留自己的物理位置，共享失败的原因和尝试链。
+                            failed = ProviderFailure(error.reason, str(error))
+                            failed.embedding_attempts = error.embedding_attempts
+                            failed.embedding_sources = tuple((call, index) for call in error.embedding_attempts)
+                            failed.__cause__ = error
                             future.set_exception(failed)
+                        else: future.set_exception(error)
                 if isinstance(error, asyncio.CancelledError): raise
             else:
                 for key, value in zip(batch, values, strict=True):

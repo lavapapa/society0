@@ -71,7 +71,7 @@ def test_programming_and_storage_errors_are_not_provider_failures():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('kind,error_type',[(kind,error) for kind in ('model','embedding') for error in (TypeError,asyncio.CancelledError)]+[('embedding',ProviderFailure)])
+@pytest.mark.parametrize('kind,error_type',[(kind,error) for kind in ('model','embedding') for error in (TypeError,ValueError,models.ThreadWriteError,asyncio.CancelledError)]+[('embedding',ProviderFailure)])
 async def test_provider_preserves_programming_errors_and_cancellation(tmp_path,monkeypatch,kind,error_type):
     from contextlib import asynccontextmanager
     endpoint=dict(id='direct',api_key='unused',base_url='http://unused.invalid/v1',model='fake',concurrency=1,trust_env=False)
@@ -80,16 +80,15 @@ async def test_provider_preserves_programming_errors_and_cancellation(tmp_path,m
         threads.append_message(thread,dict(role='user',content='原文'))
         provider=ModelProvider([endpoint],threads) if kind=='model' else EmbeddingProvider([endpoint],store,threads,batch_wait_ms=0)
         await provider._start();calls=[]
+        failure=ProviderFailure('fixture_reason','fixture failure') if error_type is ProviderFailure else error_type('fixture failure')
         @asynccontextmanager
         async def broken_stream(*args,**kwargs):
             calls.append(1)
-            if error_type is ProviderFailure:raise ProviderFailure('fixture_reason','fixture failure')
-            raise error_type('fixture failure')
+            raise failure
             yield  # 保持原生异步上下文管理器协议。
         async def broken_embed(*args,**kwargs):
             calls.append(1)
-            if error_type is ProviderFailure:raise ProviderFailure('fixture_reason','fixture failure')
-            raise error_type('fixture failure')
+            raise failure
         monkeypatch.setattr(provider.endpoints[0].model,'request_stream' if kind=='model' else 'embed',broken_stream if kind=='model' else broken_embed)
         try:
             with pytest.raises(error_type) as caught:
@@ -98,4 +97,46 @@ async def test_provider_preserves_programming_errors_and_cancellation(tmp_path,m
             assert len(calls)==1
             if error_type is ProviderFailure:
                 assert caught.value.reason=='fixture_reason' and len(caught.value.embedding_attempts)==1
+                assert caught.value.embedding_attempts==failure.embedding_attempts and caught.value.__cause__ is failure
+            elif error_type is not asyncio.CancelledError:assert caught.value is failure
+        finally:await provider.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_microbatch_preserves_each_item_source_and_other_batch_success(tmp_path,monkeypatch):
+    endpoint=dict(id='mixed',api_key='unused',base_url='http://unused.invalid/v1',model='fake',concurrency=2,trust_env=False)
+    with StageStore.create(tmp_path/'run',RESOURCE_SCHEMA) as store:
+        provider=EmbeddingProvider([endpoint],store,batch_texts=2,batch_wait_ms=0)
+        async def respond(**wire):
+            return CreateEmbeddingResponse(model='fake',object='list',usage={'prompt_tokens':1,'total_tokens':1},
+                data=[{'index':index,'object':'embedding','embedding':[.1,.2]} for index,_ in enumerate(wire['input'])])
+        await bind_embedding(provider,respond)
+        original=provider.endpoints[0].model.embed
+        async def mixed(texts,**kwargs):
+            if any(text.startswith('bad-') for text in texts):raise ProviderFailure('fixture_reason','batch unavailable')
+            return await original(texts,**kwargs)
+        monkeypatch.setattr(provider.endpoints[0].model,'embed',mixed)
+        inputs={'a':['bad-a','bad-b'],'b':['bad-b'],'c':['good']}
+        try:
+            results=await asyncio.gather(*(provider.embed(texts,metadata={'actor':actor}) for actor,texts in inputs.items()),return_exceptions=True)
+            assert all(isinstance(result,ProviderFailure) and result.reason=='fixture_reason' for result in results[:2])
+            assert results[0].embedding_attempts==results[1].embedding_attempts
+            assert len(results[0].embedding_attempts)==1
+            assert results[0].embedding_sources[0][1]==0 and results[1].embedding_sources[0][1]==1
+            assert results[2]==[[.1,.2]] and provider._pending=={}
+            assert (None,'bad-a') not in provider._cache and (None,'bad-b') not in provider._cache
+            physical_ids=store.read(lambda view:view.query("SELECT id FROM resource_calls WHERE kind='embedding'"))
+            physical={identifier:provider.calls.read(identifier)[0]['payload']['texts'] for identifier, in physical_ids}
+            assert sorted(physical.values())==[['bad-a','bad-b'],['good']]
+            use_ids=store.read(lambda view:view.query("SELECT id FROM resource_calls WHERE kind='embedding_use'"))
+            uses=[provider.calls.read(identifier)[0]['payload'] for identifier, in use_ids]
+            assert len(uses)==3
+            for use in uses:
+                actor=use['metadata']['actor']
+                assert use['status']==('completed' if actor=='c' else 'failed')
+                assert len(use['sources'])==len(inputs[actor])
+                for source in use['sources']:
+                    assert physical[source['call_id']][source['item_index']]==inputs[actor][source['input_index']]
+            assert await provider.embed(['good'],metadata={'actor':'cached'})==[[.1,.2]]
+            assert store.read(lambda view:view.query("SELECT count(*) FROM resource_calls WHERE kind='embedding'"))==[(2,)]
         finally:await provider.close()

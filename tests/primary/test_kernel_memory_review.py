@@ -5,7 +5,7 @@ from tests.primary.test_kernel_memory import setup
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('mode',['length','invalid_twice'])
+@pytest.mark.parametrize('mode',['length','invalid_protocol'])
 async def test_review_failed_extraction_keeps_full_thread_without_success_job(tmp_path,mode):
     from society0.kernel.memory import ThreadMemoryExtractor
     store,threads,tid,memory,embed,client=setup(tmp_path)
@@ -23,7 +23,7 @@ async def test_review_failed_extraction_keeps_full_thread_without_success_job(tm
         memory.extract=ThreadMemoryExtractor(threads,TypedScriptProvider(Provider(),threads))
         with pytest.raises(RuntimeError):
             await memory.extract_job('a',tid,through=through,timestamp=1)
-        assert len(calls)==(1 if mode=='length' else 2)
+        assert len(calls)==(1 if mode=='length' else 3)
         assert all(messages[:2]==original for messages in calls)
         assert threads.read_messages(tid)[:2]==original
         assert embed.calls==[]

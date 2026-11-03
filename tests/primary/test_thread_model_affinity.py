@@ -59,7 +59,7 @@ async def test_failure_retry_and_next_request_keep_same_endpoint(tmp_path, monke
         threads = ThreadStore(store)
         tid = threads.open('a', 0, 'decision')
         threads.append_message(tid, {'role': 'user', 'content': 'complete'})
-        provider = ModelProvider([endpoint(id='left'), endpoint(id='right')], threads, backoff_initial_s=0)
+        provider = ModelProvider([endpoint(id='left'), endpoint(id='right')], threads, max_attempts=2, backoff_initial_s=0)
         seen = []
         async def left(**wire): raise AssertionError('unexpected failover')
         async def right(**wire):

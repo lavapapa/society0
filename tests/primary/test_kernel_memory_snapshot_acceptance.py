@@ -97,7 +97,7 @@ async def test_agent_invalid_memory_output_never_creates_success_job(tmp_path,ar
     memory.extract=ThreadMemoryExtractor(threads,TypedScriptProvider(Provider(),threads))
     try:
         with pytest.raises(RuntimeError):await memory.extract_job('a',thread,through=threads.describe(thread)['last_seq'],timestamp=1)
-        assert len(calls)==2 and embed.calls==[]
+        assert len(calls)==3 and embed.calls==[]
         assert store.read(lambda view:view.query('SELECT count(*) FROM memory_jobs'))==[(0,)]
     finally:await memory.close();store.close()
 
