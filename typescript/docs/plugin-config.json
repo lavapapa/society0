@@ -1,0 +1,2518 @@
+{
+  "format": "society-plugin-config/v1",
+  "packages": [
+    {
+      "package": "@society0/host",
+      "entries": [
+        {
+          "exportPath": "./resources",
+          "title": "resources",
+          "fields": [
+            {
+              "name": "closeTimeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./diagnostics",
+          "title": "diagnostics",
+          "fields": []
+        },
+        {
+          "exportPath": "./tasks",
+          "title": "tasks",
+          "fields": [
+            {
+              "name": "concurrency",
+              "type": "number",
+              "default": 4,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxPending",
+              "type": "number",
+              "default": 1024,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./module-resolver",
+          "title": "module-resolver",
+          "fields": [
+            {
+              "name": "baseURL",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./config-resolvers",
+          "title": "config-resolvers",
+          "fields": []
+        },
+        {
+          "exportPath": "./profile-loader",
+          "title": "profile-loader",
+          "fields": []
+        },
+        {
+          "exportPath": "./inspector",
+          "title": "inspector",
+          "fields": []
+        },
+        {
+          "exportPath": "./composition-strategies",
+          "title": "composition-strategies",
+          "fields": []
+        },
+        {
+          "exportPath": "./slot-strategies",
+          "title": "slot-strategies",
+          "fields": []
+        },
+        {
+          "exportPath": "./slots",
+          "title": "slots",
+          "fields": []
+        },
+        {
+          "exportPath": "./commands",
+          "title": "commands",
+          "fields": []
+        },
+        {
+          "exportPath": "./scaffold",
+          "title": "scaffold",
+          "fields": []
+        },
+        {
+          "exportPath": "./run-directory",
+          "title": "run-directory",
+          "fields": [
+            {
+              "name": "maxOpenRuns",
+              "type": "number",
+              "default": 16,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./observation-gateway",
+          "title": "observation-gateway",
+          "fields": [
+            {
+              "name": "maxPageSize",
+              "type": "number",
+              "default": 100,
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxRequestBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./run-branch",
+          "title": "run-branch",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "onUnknown",
+              "type": "const",
+              "default": "halt",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "@society0/core",
+      "entries": [
+        {
+          "exportPath": "./sqlite",
+          "title": "sqlite",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "runId",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "generation",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "busyTimeoutMs",
+              "type": "number",
+              "default": 5000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxQueuedBytes",
+              "type": "number",
+              "default": 33554432,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPending",
+              "type": "number",
+              "default": 128,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxQueryBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxQueryRows",
+              "type": "number",
+              "default": 10000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSnapshots",
+              "type": "number",
+              "default": 16,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSnapshotAgeMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxInputBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxInlineBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./execution-fence",
+          "title": "执行租约",
+          "fields": [
+            {
+              "name": "maxAcceptedCommits",
+              "type": "number",
+              "default": 128,
+              "mode": "boundary",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./initializers",
+          "title": "initializers",
+          "fields": [
+            {
+              "name": "maxInitialBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./sqlite-bootstrap",
+          "title": "sqlite-bootstrap",
+          "fields": [
+            {
+              "name": "schemaFailure",
+              "type": "const",
+              "default": "abort-create",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 15000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxInputBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxCapturedBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./artifacts-local",
+          "title": "本地不可变对象",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxObjectBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxActive",
+              "type": "number",
+              "default": 8,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./sqlite-history",
+          "title": "SQLite历史",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "runId",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "generation",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "controlSequence",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxSegmentBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxRootBytes",
+              "type": "number",
+              "default": 268435456,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxManifestBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxDependencies",
+              "type": "number",
+              "default": 10000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./actors",
+          "title": "actors",
+          "fields": []
+        },
+        {
+          "exportPath": "./drivers",
+          "title": "drivers",
+          "fields": []
+        },
+        {
+          "exportPath": "./actor-eligibility",
+          "title": "actor-eligibility",
+          "fields": []
+        },
+        {
+          "exportPath": "./activation",
+          "title": "activation",
+          "fields": [
+            {
+              "name": "capacity",
+              "type": "number",
+              "default": 4,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxActivations",
+              "type": "number",
+              "default": 1024,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxQueuedBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./activation-mailbox",
+          "title": "activation-mailbox",
+          "fields": []
+        },
+        {
+          "exportPath": "./clock-ticks",
+          "title": "clock-ticks",
+          "fields": []
+        },
+        {
+          "exportPath": "./clock-event",
+          "title": "clock-event",
+          "fields": []
+        },
+        {
+          "exportPath": "./proposal-sequence",
+          "title": "proposal-sequence",
+          "fields": [
+            {
+              "name": "proposals",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./proposal-events",
+          "title": "proposal-events",
+          "fields": [
+            {
+              "name": "source",
+              "type": "string",
+              "default": "events",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxPending",
+              "type": "number",
+              "default": 1024,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./runtime-staged",
+          "title": "runtime-staged",
+          "fields": []
+        },
+        {
+          "exportPath": "./runtime-events",
+          "title": "runtime-events",
+          "fields": []
+        },
+        {
+          "exportPath": "./completion-strict",
+          "title": "completion-strict",
+          "fields": []
+        },
+        {
+          "exportPath": "./checkpoint-policy",
+          "title": "checkpoint-policy",
+          "fields": [
+            {
+              "name": "every",
+              "type": "number",
+              "default": 1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./termination",
+          "title": "termination",
+          "fields": []
+        },
+        {
+          "exportPath": "./generation-views",
+          "title": "generation-views",
+          "fields": []
+        },
+        {
+          "exportPath": "./generation-binding",
+          "title": "generation-binding",
+          "fields": [
+            {
+              "name": "generation",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "controlSequence",
+              "type": "string",
+              "default": "0",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./run-controller",
+          "title": "run-controller",
+          "fields": [
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 15000,
+              "mode": "new-run",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxPendingAcknowledgements",
+              "type": "number",
+              "default": 1024,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./random",
+          "title": "random",
+          "fields": [
+            {
+              "name": "algorithm",
+              "type": "const",
+              "default": "philox4x32-10/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "seed",
+              "type": "string",
+              "default": "study-1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./attempts",
+          "title": "外部尝试证据",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "lineage",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxRecordBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxPending",
+              "type": "number",
+              "default": 64,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxSnapshotBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxEvidenceObjects",
+              "type": "number",
+              "default": 10000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./actions",
+          "title": "actions",
+          "fields": [
+            {
+              "name": "maxDiscovered",
+              "type": "number",
+              "default": 100,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "defaultTimeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./thread",
+          "title": "thread",
+          "fields": [
+            {
+              "name": "bodyInlineBytes",
+              "type": "number",
+              "default": 16384,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxMessageBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./information",
+          "title": "information",
+          "fields": [
+            {
+              "name": "pageSize",
+              "type": "number",
+              "default": 100,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./results",
+          "title": "results",
+          "fields": [
+            {
+              "name": "batchRows",
+              "type": "number",
+              "default": 64,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "batchBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./exploration",
+          "title": "exploration",
+          "fields": [
+            {
+              "name": "maxInlineFileBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSearchBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSearchOutputBytes",
+              "type": "number",
+              "default": 4194304,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSearchMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./mount-world",
+          "title": "mount-world",
+          "fields": []
+        },
+        {
+          "exportPath": "./mount-workspace",
+          "title": "mount-workspace",
+          "fields": []
+        },
+        {
+          "exportPath": "./mount-results",
+          "title": "mount-results",
+          "fields": []
+        },
+        {
+          "exportPath": "./perception",
+          "title": "perception",
+          "fields": []
+        },
+        {
+          "exportPath": "./perception-actor",
+          "title": "perception-actor",
+          "fields": []
+        },
+        {
+          "exportPath": "./driver-rule",
+          "title": "driver-rule",
+          "fields": [
+            {
+              "name": "handler",
+              "type": "string",
+              "default": "rule/passive/v1",
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "sources",
+              "type": "array",
+              "default": [
+                "actor/v1"
+              ],
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./rule-passive",
+          "title": "rule-passive",
+          "fields": [
+            {
+              "name": "resultTag",
+              "type": "string",
+              "default": "passive",
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./plain",
+          "title": "plain",
+          "fields": []
+        },
+        {
+          "exportPath": "./plain-init",
+          "title": "plain-init",
+          "fields": [
+            {
+              "name": "initialActors",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./replay",
+          "title": "replay",
+          "fields": [
+            {
+              "name": "onMissingExternalResult",
+              "type": "const",
+              "default": "fail",
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./observation",
+          "title": "observation",
+          "fields": [
+            {
+              "name": "pageSize",
+              "type": "number",
+              "default": 100,
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "includeRawProvider",
+              "type": "const",
+              "default": false,
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxPageBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxSnapshots",
+              "type": "number",
+              "default": 16,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "snapshotAgeMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "bufferSize",
+              "type": "number",
+              "default": 16,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "maxSubscribers",
+              "type": "number",
+              "default": 32,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "pollIntervalMs",
+              "type": "number",
+              "default": 100,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./model-providers",
+          "title": "model-providers",
+          "fields": []
+        },
+        {
+          "exportPath": "./prompts",
+          "title": "prompts",
+          "fields": [
+            {
+              "name": "sections",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "contexts",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "tools",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxAssemblyBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./driver-llm",
+          "title": "driver-llm",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "default": "llm/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "provider",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "model",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "reasoning",
+              "type": "union",
+              "default": "off",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "runtime",
+              "type": "string",
+              "default": "pi/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "perceptions",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "requiredActions",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRequests",
+              "type": "number",
+              "default": 4,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxToolCalls",
+              "type": "number",
+              "default": 8,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxHistoryBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxHistoryMessages",
+              "type": "number",
+              "default": 10000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPerceptionPages",
+              "type": "number",
+              "default": 32,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPageBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPageItems",
+              "type": "number",
+              "default": 64,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPendingEvents",
+              "type": "number",
+              "default": 128,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPendingBytes",
+              "type": "number",
+              "default": 4194304,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 15000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxInputBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxStatements",
+              "type": "number",
+              "default": 2048,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./model-replay",
+          "title": "model-replay",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "default": "replay/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "fixtures",
+              "type": "dict",
+              "default": {},
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./embedding",
+          "title": "embedding",
+          "fields": []
+        },
+        {
+          "exportPath": "./embedding-http",
+          "title": "embedding-http",
+          "fields": [
+            {
+              "name": "provider",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "configId",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "model",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "dimensions",
+              "type": "number",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "url",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "credential",
+              "type": "string",
+              "default": "",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "credentialProvider",
+              "type": "string",
+              "default": "",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "timeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxResponseBytes",
+              "type": "number",
+              "default": 4194304,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRequestBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "limits",
+              "type": "object",
+              "default": {},
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./model-pi",
+          "title": "model-pi",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "default": "pi/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "providerId",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "credential",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "models",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTokens",
+              "type": "number",
+              "default": 256,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "temperature",
+              "type": "number",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxEventBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRawBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRequestBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "timeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./mount-context",
+          "title": "mount-context",
+          "fields": [
+            {
+              "name": "maxBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxFiles",
+              "type": "number",
+              "default": 128,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./exploration-shell",
+          "title": "exploration-shell",
+          "fields": [
+            {
+              "name": "maxCommandBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxOutputBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxFileBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxDirectoryEntries",
+              "type": "number",
+              "default": 128,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRpcBytes",
+              "type": "number",
+              "default": 2097152,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPendingRpc",
+              "type": "number",
+              "default": 16,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "timeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxWorkerMb",
+              "type": "number",
+              "default": 128,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./actor-tools",
+          "title": "actor-tools",
+          "fields": [
+            {
+              "name": "maxReadBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxPageItems",
+              "type": "number",
+              "default": 64,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxReceiptBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxToolCalls",
+              "type": "number",
+              "default": 128,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTransactionMs",
+              "type": "number",
+              "default": 15000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./agent-runtimes",
+          "title": "agent-runtimes",
+          "fields": []
+        },
+        {
+          "exportPath": "./agent-runtime-pi",
+          "title": "agent-runtime-pi",
+          "fields": []
+        },
+        {
+          "exportPath": "./inference-defaults",
+          "title": "inference-defaults",
+          "fields": []
+        },
+        {
+          "exportPath": "./model-credentials",
+          "title": "model-credentials",
+          "fields": [
+            {
+              "name": "stores",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./model-codex-subscription",
+          "title": "model-codex-subscription",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "default": "codex/subscription/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "credential",
+              "type": "string",
+              "default": null,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "allowAuthorize",
+              "type": "boolean",
+              "default": false,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": false
+            },
+            {
+              "name": "installationId",
+              "type": "string",
+              "default": "",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTokens",
+              "type": "number",
+              "default": 256,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxEventBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRawBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxRequestBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "timeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "@society0/extras",
+      "entries": [
+        {
+          "exportPath": "./datasets",
+          "title": "datasets",
+          "fields": [
+            {
+              "name": "directory",
+              "type": "string",
+              "default": "run.datasets",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "codec",
+              "type": "string",
+              "default": "jsonl/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 4096,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxFrameBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxPageItems",
+              "type": "number",
+              "default": 256,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxReadBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./dataset-jsonl",
+          "title": "dataset-jsonl",
+          "fields": [
+            {
+              "name": "maxRecordBytes",
+              "type": "number",
+              "default": 1048576,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./shell",
+          "title": "shell",
+          "fields": [
+            {
+              "name": "maxOutputBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "chunkBytes",
+              "type": "number",
+              "default": 4096,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "killAfterMs",
+              "type": "number",
+              "default": 1000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./memory",
+          "title": "memory",
+          "fields": [
+            {
+              "name": "write",
+              "type": "boolean",
+              "default": true,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "recall",
+              "type": "boolean",
+              "default": true,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "tools",
+              "type": "boolean",
+              "default": true,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "writePolicy",
+              "type": "string",
+              "default": "explicit-experience/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "recallPolicy",
+              "type": "string",
+              "default": "sql/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxExtractedBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./memory-repository",
+          "title": "memory-repository",
+          "fields": [
+            {
+              "name": "maxExperienceBytes",
+              "type": "number",
+              "default": 16384,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxVectorBytes",
+              "type": "number",
+              "default": 131072,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxPageItems",
+              "type": "number",
+              "default": 256,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./memory-write-experience",
+          "title": "memory-write-experience",
+          "fields": [
+            {
+              "name": "pageItems",
+              "type": "number",
+              "default": 16,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxMessages",
+              "type": "number",
+              "default": 512,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxMessageBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxOutputBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./vector-index",
+          "title": "vector-index",
+          "fields": [
+            {
+              "name": "provider",
+              "type": "string",
+              "default": "memory-exact",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "batchRows",
+              "type": "number",
+              "default": 32,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "batchBytes",
+              "type": "number",
+              "default": 262144,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "snapshotMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "queryLimit",
+              "type": "number",
+              "default": 10,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./vector-providers",
+          "title": "vector-providers",
+          "fields": [
+            {
+              "name": "runId",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
+          "exportPath": "./vector-exact",
+          "title": "vector-exact",
+          "fields": [
+            {
+              "name": "name",
+              "type": "string",
+              "default": "memory-exact",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "generation",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "space",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "identity",
+              "type": "object",
+              "default": {},
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "distance",
+              "type": "union",
+              "default": "cosine",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxItems",
+              "type": "number",
+              "default": 10000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxBatchItems",
+              "type": "number",
+              "default": 256,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxQueryItems",
+              "type": "number",
+              "default": 100,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./workspace",
+          "title": "workspace",
+          "fields": [
+            {
+              "name": "root",
+              "type": "string",
+              "default": "run.workspace",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxObjectBytes",
+              "type": "number",
+              "default": 67108864,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "@society0/social",
+      "entries": [
+        {
+          "exportPath": "./social-repository",
+          "title": "social-repository",
+          "fields": [
+            {
+              "name": "maxContentBytes",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxRecipients",
+              "type": "number",
+              "default": 1024,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-init",
+          "title": "social-init",
+          "fields": [
+            {
+              "name": "topology",
+              "type": "string",
+              "default": "provided-edges/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "batchSize",
+              "type": "number",
+              "default": 32,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./topology-edges",
+          "title": "topology-edges",
+          "fields": [
+            {
+              "name": "actors",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "edges",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "algorithm",
+              "type": "union",
+              "default": "provided",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "directed",
+              "type": "boolean",
+              "default": true,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "probability",
+              "type": "number",
+              "default": 0.1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "kNeighbors",
+              "type": "number",
+              "default": 4,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mEdges",
+              "type": "number",
+              "default": 2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "targetCV",
+              "type": "number",
+              "default": 0.5,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "convergenceThreshold",
+              "type": "number",
+              "default": 0.01,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxIterations",
+              "type": "number",
+              "default": 1000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "baseAlgorithm",
+              "type": "union",
+              "default": "small-world",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxActors",
+              "type": "number",
+              "default": 1024,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxEdges",
+              "type": "number",
+              "default": 65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social",
+          "title": "social",
+          "fields": [
+            {
+              "name": "propagation",
+              "type": "string",
+              "default": "neighbor-broadcast/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mediaEnabled",
+              "type": "boolean",
+              "default": true,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "contentLengthLimit",
+              "type": "union",
+              "default": 250,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./propagation-neighbors",
+          "title": "propagation-neighbors",
+          "fields": []
+        },
+        {
+          "exportPath": "./measurement-repository",
+          "title": "measurement-repository",
+          "fields": [
+            {
+              "name": "inlineBytes",
+              "type": "number",
+              "default": 16384,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./measurements",
+          "title": "measurements",
+          "fields": [
+            {
+              "name": "sampling",
+              "type": "string",
+              "default": "every-advance/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxResultBytes",
+              "type": "number",
+              "default": 49152,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./measurement-every",
+          "title": "measurement-every",
+          "fields": []
+        },
+        {
+          "exportPath": "./round-robin",
+          "title": "round-robin",
+          "fields": [
+            {
+              "name": "actors",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "rounds",
+              "type": "number",
+              "default": 1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "driver",
+              "type": "string",
+              "default": "rule",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-recommendations",
+          "title": "social-recommendations",
+          "fields": [
+            {
+              "name": "sources",
+              "type": "array",
+              "default": [
+                "social/posts/v1"
+              ],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "cacheBytes",
+              "type": "number",
+              "default": 4194304,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-ranking",
+          "title": "social-ranking",
+          "fields": [
+            {
+              "name": "chronologicalWeight",
+              "type": "number",
+              "default": 0.3,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "engagementWeight",
+              "type": "number",
+              "default": 0.3,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "similarityWeight",
+              "type": "number",
+              "default": 0.2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "networkWeight",
+              "type": "number",
+              "default": 0.2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "followBonus",
+              "type": "number",
+              "default": 0.2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "likeScore",
+              "type": "number",
+              "default": 1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "replyScore",
+              "type": "number",
+              "default": 1.5,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "repostScore",
+              "type": "number",
+              "default": 2,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "timeDecay",
+              "type": "number",
+              "default": 12,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-semantic",
+          "title": "social-semantic",
+          "fields": [
+            {
+              "name": "embeddingProvider",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "vectorProvider",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "space",
+              "type": "string",
+              "default": "social",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "batchSize",
+              "type": "number",
+              "default": 32,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "maxIndexedPosts",
+              "type": "number",
+              "default": 100,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-measurement",
+          "title": "social-measurement",
+          "fields": [
+            {
+              "name": "maxRecordBytes",
+              "type": "number",
+              "default": 16777216,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        },
+        {
+          "exportPath": "./social-perception",
+          "title": "social-perception",
+          "fields": [
+            {
+              "name": "strategy",
+              "type": "string",
+              "default": "weighted/v1",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "previewChars",
+              "type": "union",
+              "default": -1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

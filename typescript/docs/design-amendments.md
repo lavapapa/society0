@@ -61,7 +61,7 @@ embedding provider 抛错可附带 `physical: not_dispatched|failed|response`；
 
 补充 inputs/society0_next_refactor_v3/docs/15-next-lessons.md §2.2、docs/07-storage.md:76,112、docs/16-domain-design.md:37。
 
-Thread 消息在 stringify 前用有界预检核对 UTF-8 字节：`prepareBoundedJson` 走 `jsonByteBound` 的迭代计数（与 `JSON.stringify` 字节数一致），超过 `maxMessageBytes` 时由 `Thread.append`/`Thread.appendInput` 以 `THREAD_MESSAGE_BYTES` 拒绝；顶层 undefined/function/symbol 不是可编码 Json，抛 `PAYLOAD_JSON_VALUE`（对象中同类属性跳过，数组中同类元素按 `null` 计数，保持原生 stringify 语义）。通过后用原生 `JSON.stringify` 生成字节，再经 `textChunks` 按 `artifacts.chunkBytes` 分块、可取消地 stage；`chunkBytes` 小于 6 时以 `PAYLOAD_CHUNK_BUDGET` 拒绝。同步 stringify 与预检不可抢占，峰值由 `maxMessageBytes` 约束；取消只在 stage 分块边界生效。`prepareValue` 语义不变，现有调用方不受影响。
+Thread 消息的字节预算覆盖整个 Message 对象的 JSON（包括原始 provider 字段），在 stringify 前用有界预检核对 UTF-8 字节：`prepareBoundedJson` 走 `jsonByteBound` 的迭代计数（与 `JSON.stringify` 字节数一致），超过 `maxMessageBytes` 时由 `Thread.append`/`Thread.appendInput` 以 `THREAD_MESSAGE_BYTES` 拒绝；顶层 undefined/function/symbol 不是可编码 Json，抛 `PAYLOAD_JSON_VALUE`（对象中同类属性跳过，数组中同类元素按 `null` 计数，保持原生 stringify 语义）。通过后用原生 `JSON.stringify` 生成字节，再经 `textChunks` 按 `artifacts.chunkBytes` 分块、可取消地 stage；`chunkBytes` 小于 6 时以 `PAYLOAD_CHUNK_BUDGET` 拒绝。同步 stringify 与预检不可抢占，峰值由 `maxMessageBytes` 约束；取消只在 stage 分块边界生效。`prepareValue` 语义不变，现有调用方不受影响。
 
 ## RV3-05：driver 错误的阶段分类与持久未知
 
@@ -159,3 +159,26 @@ Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的�
 失败原因属于诊断文本：[ActionCall](../packages/core/src/actions/execution.ts) 向 attempts 写入 unknown 的 reason 前使用原生 `toWellFormed()`，原始 message 仍留在 JSON evidence 中，以 JSON 的代理码元转义形式保存，读取后可恢复原始字符串。该规则同时适用于外部行动结果未知与事务提交未知的失败记录。
 
 结局优先级保留外部结果未知、持久化未知、持久化失败这些已发生事实，再考虑模型文本错误。通用 `SQLITE_TEXT_NOT_WELL_FORMED` 沿用存储阶段分类；模型错误分类依赖明确的模型入口错误码。
+
+## CR-02：批准的配置缺口
+
+以下差异按批准范围保留，并在[配置对账](config-reconciliation.json)登记。`deferred` 表示延期实现；`dropped` 表示本轮接口已取消，当前行为及其限制见表；`renamed` 同时记录改名与语义差异。
+
+| 计划字段 | 处理 | 当前行为与限制 | 后续 |
+|---|---|---|---|
+| `host/tasks/shutdownTimeoutMs` | `deferred` | 物理任务不响应abort时关闭等待无上限 | 会无限等待，下一轮必做 |
+| `core/run-controller/pauseTimeoutMs` | `deferred` | 安全暂停等待当前推进无超时 | 会无限等待，下一轮必做 |
+| `core/proposal-events/leaseTimeoutMs` | `deferred` | reservation无租约回收，仅显式release/ack | 会无限等待，下一轮必做 |
+| `core/termination/maxAdvances` | `deferred` | 无推进次数上限 | 后续排期另定 |
+| `host/slots/maxDepth` | `deferred` | 嵌套slot无深度上限 | 后续排期另定 |
+| `extras/shell/timeoutMs` | `dropped` | shell自身无超时，依赖invocation.signal；是否所有调用均有期限仍未核实 | 后续排期另定 |
+| `core/exploration-shell/maxCommandCount` | `dropped` | 无命令数上限，依赖总超时 | 后续排期另定 |
+| `host/diagnostics/historyLimit` | `dropped` | 诊断记录上限固定1000 | 后续排期另定 |
+| `core/driver-llm/maxTurns` | `dropped` | 无独立turn上限，依赖maxRequests/maxToolCalls | 后续排期另定 |
+| `core/run-controller/onUnknownCommit` | `dropped` | 策略固定stop | 后续排期另定 |
+| `core/termination/onIncomplete` | `dropped` | 策略固定pause | 后续排期另定 |
+| `core/prompts/maxContextBytes` | `renamed` | 改为maxAssemblyBytes，但proposed incomplete行为缺失，保留语义差异 | 后续排期另定 |
+| `host/scaffold/language` | `deferred` | JS+JSDoc模板未支持 | 后续排期另定 |
+| `extras/vector-index/maxLag` | `dropped` | 滞后读取未支持 | 后续排期另定 |
+
+其他已知限制按原条目保留：`core/sqlite-history/maxBufferedBytes` 的统一跨阶段在途预算、`host/profile-loader/requiredReadyTimeoutMs` 的 required 服务就绪期限、`LocalArtifacts.collect` 的生产调用接入，以及 Codex 真实订阅验证。对应范围和原有处置继续以配置对账及验收记录为准。

@@ -1,5 +1,1298 @@
 {
-  "source": "inputs/society0_next_refactor_v3/catalog/plan.json",
-  "fields": {},
-  "plugins": {}
+  "fields": {
+    "@society0/core/runtime-events/maxEventsPerAdvance": {
+      "state": "dropped",
+      "reason": "事件批次由 proposal payload 的 events 决定，事件源逐 proposal 推进，没有全局配置消费者。",
+      "design": "docs/design-amendments.md#b-存储与事务"
+    },
+    "@society0/core/runtime-events/ordering": {
+      "state": "dropped",
+      "reason": "顺序由 validateOrder 强制 offset 递增，不设可配置排序。",
+      "design": "docs/design-amendments.md#b-存储与事务"
+    },
+    "@society0/core/sqlite-history/directory": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:27"
+    },
+    "@society0/core/sqlite-history/runId": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:63"
+    },
+    "@society0/core/sqlite-history/generation": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:63"
+    },
+    "@society0/core/sqlite-history/controlSequence": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:77"
+    },
+    "@society0/core/sqlite-history/maxSegmentBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:72"
+    },
+    "@society0/core/sqlite-history/maxRootBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:34"
+    },
+    "@society0/core/sqlite-history/maxManifestBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:32"
+    },
+    "@society0/core/sqlite-history/maxDependencies": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:64"
+    },
+    "@society0/core/sqlite-history/maxBufferedBytes": {
+      "state": "deferred",
+      "limitation": "统一跨阶段在途字节上限尚未实现；当前仅有 chunkBytes/maxSegmentBytes/maxRootBytes/maxManifestBytes 等分阶段预算，后续 retention/GC 设计补上。"
+    },
+    "@society0/core/sqlite-history/maintenance": {
+      "state": "dropped",
+      "reason": "维护由调用方显式 compact()/export()/gc() 触发，manual 语义已由显式方法表达，不设配置。",
+      "design": "docs/design-amendments.md#b-存储与事务；packages/core/src/sqlite-history/README.md"
+    },
+    "@society0/core/sqlite/generation": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/index.ts:27"
+    },
+    "@society0/core/sqlite/maxInlineBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/worker.ts:11"
+    },
+    "@society0/core/sqlite/maxInputBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/worker.ts:11"
+    },
+    "@society0/core/sqlite/maxPending": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:73"
+    },
+    "@society0/core/sqlite/maxQueryRows": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/worker.ts:31"
+    },
+    "@society0/core/sqlite/maxSnapshotAgeMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:150"
+    },
+    "@society0/core/sqlite/maxSnapshots": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:150"
+    },
+    "@society0/core/sqlite/runId": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
+    },
+    "@society0/core/attempts/chunkBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:13"
+    },
+    "@society0/core/attempts/lineage": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:16"
+    },
+    "@society0/core/attempts/maxEvidenceObjects": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:34"
+    },
+    "@society0/core/attempts/maxPending": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:18"
+    },
+    "@society0/core/attempts/maxRecordBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:17"
+    },
+    "@society0/core/attempts/maxSnapshotBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/attempts/ledger.ts:34"
+    },
+    "@society0/core/attempts/unknownResult": {
+      "state": "dropped",
+      "reason": "未知结局由 driver/fence 固定分类与停机处理；U-6 的 not-committed 重用由 attempts 账本与调用方控制，无配置消费者。",
+      "design": "docs/18-inference-and-reuse.md §四；B §3.2/U-6"
+    },
+    "@society0/core/thread/maxMessageBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/thread/index.ts:35"
+    },
+    "@society0/core/driver-llm/maxHistoryBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:70"
+    },
+    "@society0/core/driver-llm/maxHistoryMessages": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:70"
+    },
+    "@society0/core/driver-llm/maxInputBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:56"
+    },
+    "@society0/core/driver-llm/maxPageBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:84"
+    },
+    "@society0/core/driver-llm/maxPageItems": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:84"
+    },
+    "@society0/core/driver-llm/maxPendingBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:166"
+    },
+    "@society0/core/driver-llm/maxPendingEvents": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:166"
+    },
+    "@society0/core/driver-llm/maxPerceptionPages": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:102"
+    },
+    "@society0/core/driver-llm/maxRequests": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"
+    },
+    "@society0/core/driver-llm/maxStatements": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:56"
+    },
+    "@society0/core/driver-llm/maxTransactionMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:56"
+    },
+    "@society0/core/driver-llm/model": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/provider.ts:14",
+      "reason": "首方 driver-llm/activation.ts:19 的 modelProviders.prepare(this.config,...) 整对象转交；下游真实读取在 model-pi/provider.ts:14。"
+    },
+    "@society0/core/driver-llm/name": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:122"
+    },
+    "@society0/core/driver-llm/perceptions": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:100"
+    },
+    "@society0/core/driver-llm/reasoning": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/selection.ts:9",
+      "reason": "首方 driver-llm/activation.ts:19 的 modelProviders.prepare(this.config,...) 整对象转交；下游真实读取在 model-pi/selection.ts:9。"
+    },
+    "@society0/core/driver-llm/completionPolicy": {
+      "state": "dropped",
+      "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
+      "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
+    },
+    "@society0/core/driver-llm/contextHooks": {
+      "state": "dropped",
+      "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
+      "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
+    },
+    "@society0/core/driver-llm/maxTurns": {
+      "state": "dropped",
+      "reason": "逻辑轮次由 maxRequests/maxToolCalls 与 pi 循环终止控制，无独立 maxTurns 消费者。",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "无独立turn上限，依赖maxRequests/maxToolCalls；后续排期另定"
+    },
+    "@society0/core/driver-llm/observers": {
+      "state": "dropped",
+      "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
+      "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
+    },
+    "@society0/core/driver-llm/requestHooks": {
+      "state": "dropped",
+      "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
+      "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
+    },
+    "@society0/core/driver-llm/sources": {
+      "state": "renamed",
+      "runtime": "perceptions"
+    },
+    "@society0/core/driver-llm/toolPolicies": {
+      "state": "dropped",
+      "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
+      "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
+    },
+    "@society0/core/embedding-http/configId": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/index.ts:8"
+    },
+    "@society0/core/embedding-http/credential": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/index.ts:8"
+    },
+    "@society0/core/embedding-http/credentialProvider": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/provider.ts:11"
+    },
+    "@society0/core/embedding-http/limits": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/index.ts:8"
+    },
+    "@society0/core/embedding-http/maxRequestBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/provider.ts:15"
+    },
+    "@society0/core/embedding-http/maxResponseBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/provider.ts:18"
+    },
+    "@society0/core/embedding-http/provider": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/index.ts:8"
+    },
+    "@society0/core/embedding-http/timeoutMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/provider.ts:22"
+    },
+    "@society0/core/embedding-http/url": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/embedding-http/provider.ts:22"
+    },
+    "@society0/core/embedding-http/credentials": {
+      "state": "dropped",
+      "reason": "凭据引用拆分为 credential 与 credentialProvider；两者分别 added。",
+      "design": "docs/18-inference-and-reuse.md §四；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/endpoint": {
+      "state": "renamed",
+      "runtime": "url"
+    },
+    "@society0/core/embedding-http/id": {
+      "state": "dropped",
+      "reason": "登记名拆分为 provider 与 configId；两者分别 added，不再保留单一 id 字段。",
+      "design": "docs/18-inference-and-reuse.md §四；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxBatchBytes": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxBatchBytes；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxBatchItems": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxBatchItems；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxCacheBytes": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxCacheBytes；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxCacheItems": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxCacheItems；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxPendingBytes": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxPendingBytes；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxTextBytes": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxTextBytes；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/maxWaitMs": {
+      "state": "dropped",
+      "reason": "能力移至 limits.maxWaitMs；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/embedding-http/scheduling": {
+      "state": "dropped",
+      "reason": "能力移至 limits.scheduling；运行时以 limits 容器承载，避免 8 对 1 冒充一对一。",
+      "design": "docs/design-amendments.md RV3-16；C CATALOG-FIELDS-PREP"
+    },
+    "@society0/core/model-codex-subscription/allowAuthorize": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:22"
+    },
+    "@society0/core/model-codex-subscription/credential": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:25"
+    },
+    "@society0/core/model-codex-subscription/installationId": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:22"
+    },
+    "@society0/core/model-codex-subscription/maxEventBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
+      "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:19。"
+    },
+    "@society0/core/model-codex-subscription/maxRawBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
+      "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:17。"
+    },
+    "@society0/core/model-codex-subscription/maxRequestBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:17",
+      "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:15。"
+    },
+    "@society0/core/model-codex-subscription/maxTokens": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:25"
+    },
+    "@society0/core/model-codex-subscription/name": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-codex-subscription/index.ts:20"
+    },
+    "@society0/core/model-codex-subscription/timeoutMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:26",
+      "reason": "首方 model-codex-subscription/index.ts:25 的 {...this.config} 转交 PiModelProvider；下游真实读取在 model-pi/request.ts:20。"
+    },
+    "@society0/core/model-codex-subscription/credentialRef": {
+      "state": "renamed",
+      "runtime": "credential"
+    },
+    "@society0/core/model-codex-subscription/maxRetries": {
+      "state": "dropped",
+      "reason": "物理尝试显式记录，固定 maxRetries:0，无配置消费者。",
+      "design": "docs/18-inference-and-reuse.md §四；C §1.3/§1.1-V"
+    },
+    "@society0/core/model-codex-subscription/model": {
+      "state": "dropped",
+      "reason": "模型由 ModelSelectionRequest 选择，provider 不持有 model 配置。",
+      "design": "docs/18-inference-and-reuse.md §四；C §1.3/§1.1-V"
+    },
+    "@society0/core/model-codex-subscription/transport": {
+      "state": "dropped",
+      "reason": "首期固定 SSE，selection 固定 transport:'sse'，无配置消费者。",
+      "design": "docs/18-inference-and-reuse.md §四；C §1.3/§1.1-V"
+    },
+    "@society0/core/model-credentials/stores": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-credentials/index.ts:9"
+    },
+    "@society0/core/model-pi/credential": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:17"
+    },
+    "@society0/core/model-pi/maxEventBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:25"
+    },
+    "@society0/core/model-pi/maxRawBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:25"
+    },
+    "@society0/core/model-pi/maxRequestBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:17"
+    },
+    "@society0/core/model-pi/maxTokens": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:18"
+    },
+    "@society0/core/model-pi/models": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:14"
+    },
+    "@society0/core/model-pi/name": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:14"
+    },
+    "@society0/core/model-pi/providerId": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:14"
+    },
+    "@society0/core/model-pi/temperature": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:18"
+    },
+    "@society0/core/model-pi/timeoutMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:26"
+    },
+    "@society0/core/model-pi/credentials": {
+      "state": "renamed",
+      "runtime": "credential"
+    },
+    "@society0/core/model-pi/endpoint": {
+      "state": "dropped",
+      "reason": "端点由 models 中每个 model.baseUrl 显式提供，provider 不另设 endpoint。",
+      "design": "docs/18-inference-and-reuse.md §四"
+    },
+    "@society0/core/model-pi/maxRetries": {
+      "state": "dropped",
+      "reason": "物理尝试显式记录，固定 maxRetries:0，无配置消费者。",
+      "design": "docs/18-inference-and-reuse.md §四；C §1.3 V2"
+    },
+    "@society0/core/model-pi/model": {
+      "state": "renamed",
+      "runtime": "models"
+    },
+    "@society0/core/model-pi/provider": {
+      "state": "renamed",
+      "runtime": "providerId"
+    },
+    "@society0/core/model-providers/maxRequests": {
+      "state": "dropped",
+      "reason": "model-providers 是注册表，Config 为空；物理请求并发由 tasks/driver 预算控制，无该字段消费者。",
+      "design": "docs/18-inference-and-reuse.md §3.3"
+    },
+    "@society0/core/model-replay/fixtures": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-replay/index.ts:5"
+    },
+    "@society0/core/model-replay/name": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-replay/index.ts:5"
+    },
+    "@society0/core/model-replay/responses": {
+      "state": "renamed",
+      "runtime": "fixtures"
+    },
+    "@society0/social/measurements/maxResultBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/measurements/index.ts:241"
+    },
+    "@society0/social/measurements/sampling": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/measurements/index.ts:165"
+    },
+    "@society0/social/measurements/required": {
+      "state": "dropped",
+      "reason": "required 属于 MeasurementSpec 注册字段，每个 spec 自带，不是 driver 配置。",
+      "design": "prs/PR10.md"
+    },
+    "@society0/social/measurements/samplePolicy": {
+      "state": "renamed",
+      "runtime": "sampling"
+    },
+    "@society0/social/measurement-repository/inlineBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/measurement-repository/index.ts:51"
+    },
+    "@society0/core/replay/mode": {
+      "state": "dropped",
+      "reason": "G16 RV3-17 删除无消费者 record/replay/verify mode；重演由入口 profile 装配选择，旧 mode 写入由 NEW-D1 报 UNKNOWN_CONFIG_FIELD",
+      "design": "docs/design-amendments.md#rv3-17replaymode-删除重演由入口装配"
+    },
+    "@society0/extras/datasets/directory": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/datasets/index.ts:46"
+    },
+    "@society0/extras/datasets/chunkBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/datasets/index.ts:46"
+    },
+    "@society0/extras/datasets/maxFrameBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/datasets/index.ts:37"
+    },
+    "@society0/extras/datasets/maxPageItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/datasets/index.ts:65"
+    },
+    "@society0/extras/datasets/maxReadBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/datasets/index.ts:76"
+    },
+    "@society0/extras/datasets/pageRows": {
+      "state": "renamed",
+      "runtime": "maxPageItems"
+    },
+    "@society0/extras/datasets/maxPageBytes": {
+      "state": "dropped",
+      "reason": "分页预算由 PageRequest.maxResponseBytes 与 maxReadBytes 共同约束，无独立解码累计字节字段",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/extras/dataset-jsonl/maxRecordBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/dataset-jsonl/index.ts:12"
+    },
+    "@society0/extras/dataset-jsonl/chunkBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/dataset-jsonl/index.ts:12"
+    },
+    "@society0/extras/dataset-jsonl/maxRowBytes": {
+      "state": "renamed",
+      "runtime": "maxRecordBytes"
+    },
+    "@society0/extras/shell/chunkBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/shell/index.ts:52"
+    },
+    "@society0/extras/shell/killAfterMs": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/shell/index.ts:83"
+    },
+    "@society0/extras/shell/timeoutMs": {
+      "state": "dropped",
+      "reason": "命令预算由 Invocation.signal 控制；killAfterMs 只控制取消后的终止宽限",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "shell自身无超时，依赖invocation.signal；是否所有调用均有期限仍未核实；后续排期另定"
+    },
+    "@society0/extras/memory/write": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory/index.ts:31"
+    },
+    "@society0/extras/memory/recall": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory/index.ts:51"
+    },
+    "@society0/extras/memory/tools": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory/index.ts:28"
+    },
+    "@society0/extras/memory/recallPolicy": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory/index.ts:55"
+    },
+    "@society0/extras/memory/maxExtractedBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory/index.ts:42"
+    },
+    "@society0/extras/memory/writeEnabled": {
+      "state": "renamed",
+      "runtime": "write"
+    },
+    "@society0/extras/memory/recallEnabled": {
+      "state": "renamed",
+      "runtime": "recall"
+    },
+    "@society0/extras/memory/toolsEnabled": {
+      "state": "renamed",
+      "runtime": "tools"
+    },
+    "@society0/extras/memory/recallLimit": {
+      "state": "dropped",
+      "reason": "回忆条数由 MemoryQuery.limit/policy 提供，不在插件 Config",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/extras/memory-repository/maxExperienceBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-repository/index.ts:43"
+    },
+    "@society0/extras/memory-repository/maxVectorBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-repository/index.ts:43"
+    },
+    "@society0/extras/memory-repository/maxPageItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-repository/index.ts:41"
+    },
+    "@society0/extras/memory-write-experience/pageItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-write-experience/index.ts:43"
+    },
+    "@society0/extras/memory-write-experience/maxMessages": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-write-experience/index.ts:45"
+    },
+    "@society0/extras/memory-write-experience/maxMessageBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-write-experience/index.ts:26"
+    },
+    "@society0/extras/memory-write-experience/maxOutputBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/memory-write-experience/index.ts:53"
+    },
+    "@society0/extras/memory-write-experience/maxExperiences": {
+      "state": "dropped",
+      "reason": "提取数量由 maxMessages/maxOutputBytes 预算约束，无独立条数字段",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/extras/vector-index/batchRows": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-index/index.ts:101"
+    },
+    "@society0/extras/vector-index/batchBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-index/index.ts:35"
+    },
+    "@society0/extras/vector-index/snapshotMs": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-index/index.ts:71"
+    },
+    "@society0/extras/vector-index/queryLimit": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-index/index.ts:142"
+    },
+    "@society0/extras/vector-index/maxLag": {
+      "state": "dropped",
+      "reason": "索引查询要求 progress.throughRevision===revision，不支持滞后读取",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "滞后读取未支持；后续排期另定"
+    },
+    "@society0/extras/vector-exact/name": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:170"
+    },
+    "@society0/extras/vector-exact/generation": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:43"
+    },
+    "@society0/extras/vector-exact/space": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:44"
+    },
+    "@society0/extras/vector-exact/identity": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:39"
+    },
+    "@society0/extras/vector-exact/distance": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:46"
+    },
+    "@society0/extras/vector-exact/maxItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:39"
+    },
+    "@society0/extras/vector-exact/maxBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:39"
+    },
+    "@society0/extras/vector-exact/maxBatchItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:39"
+    },
+    "@society0/extras/vector-exact/maxQueryItems": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-exact/index.ts:39"
+    },
+    "@society0/extras/vector-exact/maxVectors": {
+      "state": "renamed",
+      "runtime": "maxItems"
+    },
+    "@society0/extras/vector-exact/maxVectorBytes": {
+      "state": "renamed",
+      "runtime": "maxBytes"
+    },
+    "@society0/host/slot-strategies/tieBreak": {
+      "state": "dropped",
+      "reason": "G12 已实现：tie-break 使用 @society0/host/order 的 compareCodePoints（id-codepoint）；不再使用 localeCompare，也不提供 tieBreak Config",
+      "design": "docs/design-amendments.md#new-1js-排序与游标统一为码点序"
+    },
+    "@society0/social/social-repository/maxContentBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-repository/index.ts:69"
+    },
+    "@society0/social/social-repository/maxRecipients": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-repository/index.ts:232"
+    },
+    "@society0/social/social-repository/pageSize": {
+      "state": "dropped",
+      "reason": "分页大小由调用方 PageRequest 决定，服务端只校验上限",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-init/batchSize": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-init/index.ts:81"
+    },
+    "@society0/social/topology-edges/algorithm": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:169"
+    },
+    "@society0/social/topology-edges/directed": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:83"
+    },
+    "@society0/social/topology-edges/probability": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:102"
+    },
+    "@society0/social/topology-edges/kNeighbors": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:111"
+    },
+    "@society0/social/topology-edges/mEdges": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:148"
+    },
+    "@society0/social/topology-edges/targetCV": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:206"
+    },
+    "@society0/social/topology-edges/convergenceThreshold": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:206"
+    },
+    "@society0/social/topology-edges/maxIterations": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:202"
+    },
+    "@society0/social/topology-edges/baseAlgorithm": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/algorithms.ts:200"
+    },
+    "@society0/social/topology-edges/maxActors": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/index.ts:70"
+    },
+    "@society0/social/topology-edges/maxEdges": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/topology-edges/index.ts:70"
+    },
+    "@society0/social/social/mediaEnabled": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:223"
+    },
+    "@society0/social/social/contentLengthLimit": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:304"
+    },
+    "@society0/social/propagation-neighbors/includeSelf": {
+      "state": "dropped",
+      "reason": "neighbor-broadcast/v1 只向关注者传播；作者自身可见性由 Social 作者路径提供",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/measurement-every/includeInitial": {
+      "state": "dropped",
+      "reason": "every-advance/v1 的 shouldSample 恒 true；初态采样由推进生命周期决定",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/round-robin/actors": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/round-robin/index.ts:33"
+    },
+    "@society0/social/round-robin/rounds": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/round-robin/index.ts:41"
+    },
+    "@society0/social/round-robin/driver": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/round-robin/index.ts:52"
+    },
+    "@society0/social/round-robin/order": {
+      "state": "renamed",
+      "runtime": "actors"
+    },
+    "@society0/social/round-robin/repeat": {
+      "state": "dropped",
+      "reason": "轮次由 rounds 表达，repeat 布尔不再存在",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-recommendations/cacheBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:296"
+    },
+    "@society0/social/social-recommendations/maxCacheBytes": {
+      "state": "renamed",
+      "runtime": "cacheBytes"
+    },
+    "@society0/social/social-recommendations/maxInputItems": {
+      "state": "dropped",
+      "reason": "输入预算由 prepare 的 maxItems/maxBytes 与调用 bounds 提供，不在插件 Config",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-recommendations/maxInputBytes": {
+      "state": "dropped",
+      "reason": "输入预算由 prepare 的 maxItems/maxBytes 与调用 bounds 提供，不在插件 Config",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-ranking/chronologicalWeight": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:78"
+    },
+    "@society0/social/social-ranking/engagementWeight": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:78"
+    },
+    "@society0/social/social-ranking/similarityWeight": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:78"
+    },
+    "@society0/social/social-ranking/networkWeight": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:78"
+    },
+    "@society0/social/social-ranking/followBonus": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:76"
+    },
+    "@society0/social/social-ranking/likeScore": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:73"
+    },
+    "@society0/social/social-ranking/replyScore": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:73"
+    },
+    "@society0/social/social-ranking/repostScore": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:73"
+    },
+    "@society0/social/social-ranking/timeDecay": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-ranking/index.ts:76"
+    },
+    "@society0/social/social-ranking/weights": {
+      "state": "dropped",
+      "reason": "拆分为 9 个具名权重字段；对象字段 weights 不再存在",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-semantic/embeddingProvider": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:85"
+    },
+    "@society0/social/social-semantic/vectorProvider": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+    },
+    "@society0/social/social-semantic/space": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+    },
+    "@society0/social/social-semantic/batchSize": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+    },
+    "@society0/social/social-semantic/maxIndexedPosts": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:245"
+    },
+    "@society0/social/social-semantic/provider": {
+      "state": "dropped",
+      "reason": "拆分为 embeddingProvider 与 vectorProvider 两个具名 provider",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-semantic/maxBatchBytes": {
+      "state": "dropped",
+      "reason": "批预算由 batchSize 与调用 bounds 约束，无独立字节字段",
+      "design": "docs/design-amendments.md"
+    },
+    "@society0/social/social-measurement/maxRecordBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-measurement/index.ts:69"
+    },
+    "@society0/social/social-perception/strategy": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-perception/index.ts:235"
+    },
+    "@society0/social/social-perception/previewChars": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social-perception/index.ts:235",
+      "reason": "G17 B05 previewChars 在 apply 中实际读取并驱动 feed/recommendation percept 截短；默认 -1 保持原文。"
+    },
+    "@society0/core/activation/maxActivations": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation/index.ts:153"
+    },
+    "@society0/core/activation/maxQueuedBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation/index.ts:97"
+    },
+    "@society0/core/actor-tools/maxPageItems": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/index.ts:11"
+    },
+    "@society0/core/actor-tools/maxReadBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/index.ts:14"
+    },
+    "@society0/core/actor-tools/maxReceiptBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/receipts.ts:7"
+    },
+    "@society0/core/actor-tools/maxToolCalls": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/binding.ts:17"
+    },
+    "@society0/core/actor-tools/maxTransactionMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/receipts.ts:6"
+    },
+    "@society0/core/artifacts-local/directory": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/artifacts-local/store.ts:14"
+    },
+    "@society0/core/artifacts-local/maxActive": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/artifacts-local/store.ts:18"
+    },
+    "@society0/core/artifacts-local/maxObjectBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/artifacts-local/store.ts:19"
+    },
+    "@society0/core/checkpoint-policy/every": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/checkpoint-policy/index.ts:22"
+    },
+    "@society0/core/exploration/maxSearchBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration/session.ts:172"
+    },
+    "@society0/core/exploration/maxSearchMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration/search.ts:71"
+    },
+    "@society0/core/exploration/maxSearchOutputBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration/search.ts:58"
+    },
+    "@society0/core/exploration-shell/maxCommandBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/index.ts:8"
+    },
+    "@society0/core/exploration-shell/maxDirectoryEntries": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/filesystem.ts:8"
+    },
+    "@society0/core/exploration-shell/maxPendingRpc": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/invocation.ts:12"
+    },
+    "@society0/core/exploration-shell/maxRpcBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/invocation.ts:12"
+    },
+    "@society0/core/exploration-shell/maxWorkerMb": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/invocation.ts:7"
+    },
+    "@society0/core/exploration-shell/timeoutMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/invocation.ts:16"
+    },
+    "@society0/core/generation-binding/controlSequence": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/generation-views/index.ts:45",
+      "reason": "跨模块转交：generation-binding/index.ts:17 用 Config(input) 后把结果整体 spread 进 generationViews.register，字段随 GenerationView 值转交，此处是消费端真实读取边界。"
+    },
+    "@society0/core/generation-binding/generation": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/generation-views/index.ts:45",
+      "reason": "跨模块转交：generation-binding/index.ts:17 用 Config(input) 后把结果整体 spread 进 generationViews.register，字段随 GenerationView 值转交，此处是消费端真实读取边界。"
+    },
+    "@society0/core/mount-context/maxBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/mount-context/index.ts:10"
+    },
+    "@society0/core/mount-context/maxFiles": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/mount-context/index.ts:10"
+    },
+    "@society0/core/observation/bufferSize": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:78"
+    },
+    "@society0/core/observation/maxPageBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:52"
+    },
+    "@society0/core/observation/maxSnapshots": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:44"
+    },
+    "@society0/core/observation/maxSubscribers": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:97"
+    },
+    "@society0/core/observation/pollIntervalMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:100"
+    },
+    "@society0/core/observation/snapshotAgeMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/observation/index.ts:46"
+    },
+    "@society0/core/prompts/contexts": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
+    },
+    "@society0/core/prompts/maxAssemblyBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:12"
+    },
+    "@society0/core/prompts/sections": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
+    },
+    "@society0/core/prompts/tools": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
+    },
+    "@society0/core/proposal-events/maxBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/proposal-events/index.ts:51"
+    },
+    "@society0/core/proposal-events/maxPending": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/proposal-events/index.ts:51"
+    },
+    "@society0/core/proposal-events/source": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/proposal-events/index.ts:84"
+    },
+    "@society0/core/proposal-sequence/proposals": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/proposal-sequence/index.ts:19"
+    },
+    "@society0/core/run-controller/maxPendingAcknowledgements": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/run-controller/index.ts:237"
+    },
+    "@society0/core/run-controller/maxTransactionMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/run-controller/index.ts:314"
+    },
+    "@society0/core/sqlite-bootstrap/maxCapturedBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-bootstrap/index.ts:33"
+    },
+    "@society0/core/sqlite-bootstrap/maxInputBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-bootstrap/index.ts:33"
+    },
+    "@society0/core/sqlite-bootstrap/maxTransactionMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-bootstrap/index.ts:33"
+    },
+    "@society0/extras/vector-providers/runId": {
+      "state": "added",
+      "consumer": "typescript/packages/extras/src/vector-providers/index.ts:31"
+    },
+    "@society0/host/module-resolver/baseURL": {
+      "state": "added",
+      "consumer": "typescript/packages/host/src/module-resolver/index.ts:32"
+    },
+    "@society0/host/observation-gateway/maxRequestBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/host/src/observation-gateway/index.ts:33"
+    },
+    "@society0/host/run-branch/directory": {
+      "state": "added",
+      "consumer": "typescript/packages/host/src/run-branch/index.ts:22"
+    },
+    "@society0/host/tasks/concurrency": {
+      "state": "added",
+      "consumer": "typescript/packages/host/src/tasks/index.ts:104"
+    },
+    "@society0/host/tasks/maxBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/host/src/tasks/index.ts:106"
+    },
+    "@society0/core/activation/maxActivationsPerAdvance": {
+      "state": "renamed",
+      "runtime": "maxActivations"
+    },
+    "@society0/core/artifacts-local/root": {
+      "state": "renamed",
+      "runtime": "directory"
+    },
+    "@society0/core/checkpoint-policy/everyAdvances": {
+      "state": "renamed",
+      "runtime": "every"
+    },
+    "@society0/core/prompts/maxContextBytes": {
+      "state": "renamed",
+      "runtime": "maxAssemblyBytes",
+      "limitation": "改为maxAssemblyBytes，但proposed incomplete行为缺失，保留语义差异；后续排期另定",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/core/proposal-sequence/items": {
+      "state": "renamed",
+      "runtime": "proposals"
+    },
+    "@society0/core/activation-mailbox/maxSignalsPerActor": {
+      "state": "dropped",
+      "reason": "整合：超量接纳由 activation 的每键最多两次跟进（ACTIVATION_FOLLOWUP_LIMIT）与全局 maxActivations/maxQueuedBytes 拒绝；mailbox 只做同键合并与异 driver 拒绝，没有每主体信号数上限。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/activation-mailbox；运行时固定：typescript/packages/core/src/activation-mailbox/index.ts:17-23"
+    },
+    "@society0/core/activation-mailbox/merge": {
+      "state": "dropped",
+      "reason": "原生固定：admit 对同激活键同 driver 合并输入、异 driver 返回 ACTIVATION_IDENTITY_CONFLICT，合并算法不设枚举。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/activation-mailbox；运行时固定：typescript/packages/core/src/activation-mailbox/index.ts:20-22"
+    },
+    "@society0/core/actors/idCodec": {
+      "state": "dropped",
+      "reason": "原生固定：主体身份以 TEXT 主键直接存取，编码固定为不透明字符串，没有 codec 版本配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/actors；运行时固定：typescript/packages/core/src/actors/schema.ts:3"
+    },
+    "@society0/core/checkpoint-policy/onStop": {
+      "state": "dropped",
+      "reason": "原生固定：sourceBoundary 在 stop/pause 返回前先 publish 最新完整点，结束与换装都产出干净 cut，无需策略开关。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/checkpoint-policy；运行时固定：typescript/packages/core/src/run-controller/index.ts:222-225"
+    },
+    "@society0/core/clock-event/lateEvent": {
+      "state": "dropped",
+      "reason": "原生固定：advance 对逻辑时间倒退抛 CLOCK_REGRESSION，迟到事件只能是拒绝。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/clock-event；运行时固定：typescript/packages/core/src/clock-event/index.ts:24-28"
+    },
+    "@society0/core/clock-event/unit": {
+      "state": "dropped",
+      "reason": "原生固定：时钟以逻辑整数串表示，codec 固定 event-time/1 与 ticks/1，没有物理时间单位配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/clock-event；运行时固定：typescript/packages/core/src/clock-event/index.ts:20"
+    },
+    "@society0/core/clock-ticks/delta": {
+      "state": "dropped",
+      "reason": "原生固定：advance 恒为 previous+1，增量不设配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/clock-ticks；运行时固定：typescript/packages/core/src/clock-ticks/index.ts:24"
+    },
+    "@society0/core/clock-ticks/start": {
+      "state": "dropped",
+      "reason": "原生固定：initial() 恒返回 '0'，起始刻度不设配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/clock-ticks；运行时固定：typescript/packages/core/src/clock-ticks/index.ts:22"
+    },
+    "@society0/core/drivers/missingDriver": {
+      "state": "dropped",
+      "reason": "原生固定：未知 driver 在 slots.acquire 取不到声明即抛 SLOT_PENDING，接纳前失败，不设 missingDriver 策略。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/drivers；运行时固定：typescript/packages/core/src/drivers/index.ts:41"
+    },
+    "@society0/core/exploration-shell/maxCommandCount": {
+      "state": "dropped",
+      "reason": "整合：解释器命令数不设上限，超量执行由 timeoutMs 的 SHELL_TIMEOUT 终止。",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "无命令数上限，依赖总超时；后续排期另定"
+    },
+    "@society0/core/generation-views/maxRetiringViews": {
+      "state": "dropped",
+      "reason": "原生固定：注册表只保留一个 selected view，新代注册在旧代释放前抛 GENERATION_ALREADY_BOUND，不存在多代并存需要上限。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/generation-views；运行时固定：typescript/packages/core/src/generation-views/index.ts:24-40"
+    },
+    "@society0/core/prompts/sectionOrder": {
+      "state": "dropped",
+      "reason": "整合：顺序由每项 order 数值加 slots 的 ordered 策略决定，未列出项按稳定 id 排序，没有独立排序数组。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/prompts；运行时固定：typescript/packages/core/src/prompts/index.ts:2"
+    },
+    "@society0/core/proposal-events/events": {
+      "state": "dropped",
+      "reason": "整合：plan 已注明实际适配器另行绑定；运行时事件由适配器调用 push(event) 注入，插件没有示例事件数组配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/proposal-events；运行时固定：typescript/packages/core/src/proposal-events/index.ts:35"
+    },
+    "@society0/core/proposal-events/maxReserved": {
+      "state": "dropped",
+      "reason": "原生固定：同一时刻只保留一个未确认 reservation（reservedThrough），没有未确认输入队列需要上限。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/proposal-events；运行时固定：typescript/packages/core/src/proposal-events/index.ts:24"
+    },
+    "@society0/core/proposal-sequence/planKind": {
+      "state": "dropped",
+      "reason": "原生固定：运行时只实现 staged/1 计划 codec（RuntimeDriver.planKinds），run-controller 对不支持的计划抛 RUN_PLAN_KIND，没有 kind 配置位。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/proposal-sequence；运行时固定：typescript/packages/core/src/runtime-staged/index.ts:36"
+    },
+    "@society0/core/run-controller/onUnknownCommit": {
+      "state": "dropped",
+      "reason": "原生固定：提案执行异常一律 reservation.cancel 后 fence.halt，未知提交按 persistence_unknown 停机，不设可选策略。",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "策略固定stop；后续排期另定"
+    },
+    "@society0/core/runtime-staged/defaultCapacity": {
+      "state": "dropped",
+      "reason": "原生固定：phase 内激活按 plan.phases 串行提交并逐段 drain，串行是唯一形态，没有独立/并发声明。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/runtime-staged；运行时固定：typescript/packages/core/src/runtime-staged/index.ts:75-77"
+    },
+    "@society0/core/runtime-staged/phaseFailure": {
+      "state": "dropped",
+      "reason": "原生固定：phase 抛错时 catch 中先 activation.cancel(context) 排空已接收工作再抛出，失败即中止推进。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/runtime-staged；运行时固定：typescript/packages/core/src/runtime-staged/index.ts:86-89"
+    },
+    "@society0/core/termination/onIncomplete": {
+      "state": "dropped",
+      "reason": "原生固定：未 settled 或 completion 不完整一律 pause 并保留证据（incompleteProposal），不设策略开关。",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "策略固定pause；后续排期另定"
+    },
+    "@society0/extras/vector-providers/duplicate": {
+      "state": "dropped",
+      "reason": "原生固定：同名 provider 注册抛 VECTOR_PROVIDER_DUPLICATE，冲突即错误。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/extras/vector-providers；运行时固定：typescript/packages/extras/src/vector-providers/index.ts:33-34"
+    },
+    "@society0/host/commands/maxOutputBytes": {
+      "state": "dropped",
+      "reason": "原生固定：命令是进程内 schema 校验调用，返回值直接返回，没有序列化响应通道，字节上限无对应语义。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/commands；运行时固定：typescript/packages/host/src/commands/index.ts:97-98"
+    },
+    "@society0/host/commands/unknownOption": {
+      "state": "dropped",
+      "reason": "整合：输入由 input schema 校验，未知字段被 StandardSchema 拒绝为 ValidationError，没有独立 unknownOption 策略。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/commands；运行时固定：typescript/packages/host/src/commands/index.ts:44-52"
+    },
+    "@society0/host/composition-strategies/onMissingRelation": {
+      "state": "dropped",
+      "reason": "原生固定：before/after 是候选元数据，缺失目标在 slot-strategies 的 CandidateOrder.edge 抛 ORDER_TARGET_MISSING。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/composition-strategies；运行时固定：typescript/packages/host/src/slot-strategies/index.ts:26-27"
+    },
+    "@society0/host/config-resolvers/maxDepth": {
+      "state": "dropped",
+      "reason": "原生固定：resolver 返回值经 assertLiteral 保证为字面值且不再递归展开，引用链不存在，无需深度上限。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/config-resolvers；运行时固定：typescript/packages/host/src/config-resolvers/index.ts:64"
+    },
+    "@society0/host/config-resolvers/unknownResolver": {
+      "state": "dropped",
+      "reason": "原生固定：未注册的引用类型抛 RESOLVER_PENDING。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/config-resolvers；运行时固定：typescript/packages/host/src/config-resolvers/index.ts:61-62"
+    },
+    "@society0/host/diagnostics/historyLimit": {
+      "state": "dropped",
+      "reason": "原生固定：记录超过 1000 条时 shift 截断，容量写死在服务内。",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
+      "limitation": "诊断记录上限固定1000；后续排期另定"
+    },
+    "@society0/host/diagnostics/level": {
+      "state": "dropped",
+      "reason": "原生固定：sink 只接收 logger 的 error 记录，展示级别不设配置。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/diagnostics；运行时固定：typescript/packages/host/src/diagnostics/index.ts:42-45"
+    },
+    "@society0/host/inspector/pageSize": {
+      "state": "dropped",
+      "reason": "整合：对外分页由 observation-gateway.maxPageSize 约束，inspector 面向本地诊断返回完整列表，没有分页参数。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/inspector；运行时固定：typescript/packages/host/src/observation-gateway/index.ts:22"
+    },
+    "@society0/host/inspector/redactSecrets": {
+      "state": "dropped",
+      "reason": "原生固定：effective 证据恒用 redact(config, secretPointers+policySecrets) 生成 redactedEffective，秘密值不进入 inspect 输出。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/inspector；运行时固定：typescript/packages/host/src/profile-loader/effective.ts:58"
+    },
+    "@society0/host/profile-loader/strictPatchTargets": {
+      "state": "dropped",
+      "reason": "原生固定：applyEntryPatches 对缺失目标抛 PATCH_ERROR，严格语义写死。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/profile-loader；运行时固定：typescript/packages/host/src/profile-loader/layers.ts:93"
+    },
+    "@society0/host/scaffold/template": {
+      "state": "dropped",
+      "reason": "整合：模板由 create-plugin 命令 input.template 显式选择（service-slot/sqlite-domain/config-bundle），插件 Config 不提供默认模板。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/scaffold；运行时固定：typescript/packages/host/src/scaffold/index.ts:59"
+    },
+    "@society0/host/slots/traceSelections": {
+      "state": "dropped",
+      "reason": "整合：选中来源由 slots.inspect()/inspector.explain({slot}) 常驻返回 selections，无需记录开关。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/slots；运行时固定：typescript/packages/host/src/slots/index.ts:255-266"
+    },
+    "@society0/host/module-resolver/allowLinkedPackages": {
+      "state": "dropped",
+      "reason": "原生固定：包解析经 createRequire(baseURL).resolve.paths 找包并用 realpathSync 归一，可解析的 linked 目标照常接受；准入由 lock 的版本、gitCommit、patches、hostAbi 与 sidecar 身份负责，本轮没有按路径形态另设许可开关的需求。",
+      "design": "reviews/claude-fix-plan-20261029/A-release-evidence.md §6.3（运行时为准，plan 提出的字段按原生能力固定登记）；typescript/packages/host/src/module-resolver/package-files.ts:13-20（locate + realpathSync）、31-35（lockedModule 身份准入）"
+    },
+    "@society0/core/proposal-events/leaseTimeoutMs": {
+      "state": "deferred",
+      "limitation": "reservation无租约回收，仅显式release/ack；会无限等待，下一轮必做",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/core/run-controller/pauseTimeoutMs": {
+      "state": "deferred",
+      "limitation": "安全暂停等待当前推进无超时；会无限等待，下一轮必做",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/core/termination/maxAdvances": {
+      "state": "deferred",
+      "limitation": "无推进次数上限；后续排期另定",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/host/profile-loader/requiredReadyTimeoutMs": {
+      "state": "deferred",
+      "limitation": "没有可配置的就绪超时：必需服务缺失在 checkGraph 立即抛 SERVICE_MISSING（graph.ts:24-29），条目未达 ACTIVE 时在 mount 的 active() 抛 ENTRY_PENDING（mount-session.ts:71-76），等待过程没有时间预算开关；缺失依赖不是一直 pending。"
+    },
+    "@society0/host/scaffold/language": {
+      "state": "deferred",
+      "limitation": "JS+JSDoc模板未支持；后续排期另定",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/host/slots/maxDepth": {
+      "state": "deferred",
+      "limitation": "嵌套slot无深度上限；后续排期另定",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/host/tasks/shutdownTimeoutMs": {
+      "state": "deferred",
+      "limitation": "物理任务不响应abort时关闭等待无上限；会无限等待，下一轮必做",
+      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    }
+  },
+  "plugins": {},
+  "source": "inputs/society0_next_refactor_v3/catalog/plan.json"
 }

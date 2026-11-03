@@ -51,7 +51,7 @@ Social 的信息入口 `social/posts` 接受可选 `{id}`（空串也是合法�
 [{"id":"rule-passive","config":{"resultTag":"experiment-a"}}]
 ```
 
-配置字段和更新策略以安装包 `Config`、`plugin.meta.json` 与 `--inspect` 的有效配置为准。会影响结果的配置变化使用新 run／显式分支；保留原 run 的锁和 profile。
+配置字段和更新策略以安装包 `Config`、`plugin.meta.json` 与 `--inspect` 的有效配置为准。 字段目录见[插件配置](plugin-config.md)，计划与实现差异见[配置对账](config-reconciliation.json)。会影响结果的配置变化使用新 run／显式分支；保留原 run 的锁和 profile。
 
 profile 的生效配置和 `createHost` 的 boot 配置在 Schema validate 前检查未知键；嵌套 object 也递归拒绝，`dict` 的键开放但每个值按 `inner` 继续检查，`any` 与原始类型分支开放。错误码为 `UNKNOWN_CONFIG_FIELD`，带入口标识（`entryId` 或 boot specifier）、首条 JSON Pointer 以及完整 `paths` 列表；按该路径修正或删除误键。具体结构规则、union/intersect 选择与 `direct Cordis ctx.plugin` 不在 host 合同内的边界见 [NEW-D1：插件 Config 未知键的 host 单点严格检查](design-amendments.md#new-d1插件-config-未知键的-host-单点严格检查)。
 
@@ -121,6 +121,10 @@ Event目标使用 `--advance-target --target-events target-events.json`，或传
 调用方按 `persistence_unknown` 处理存储提交未知：停止对该 operationId 的写入，用 `probe` 核实后再决定恢复或 fork；`SQLITE_SEGMENT_FAILED` 的 `evidence.committed` 为 `true` 且 `evidence.receipt` 为真实提交回执，但该 operationId 不会出现在 `requiredOperations`。取消只在 signal 已中止且错误链命中同一 reason 对象或原生 `AbortError` 时为 `cancelled`，存储未知与 `context_limit` 不会被取消覆盖。工具路径的存储未知经 `INFERENCE_PERSISTENCE_UNKNOWN` 报为 `persistence_unknown`；外部动作结果未知（`ACTION_ATTEMPT_UNKNOWN`，无 storage 标志）仍为 `transport_unknown`。工具调用前的 ledger claim 若返回 unknown 或已有未结算记录，驱动报 `persistence_error/attempts.undispatched`（`ATTEMPT_LEDGER_UNKNOWN`/`ATTEMPT_LEDGER_INCOMPLETE`），不伪造 not_dispatched 结算；已 settled 的记录保留不重写。行动 claim 返回 `ACTION_ATTEMPT_UNKNOWN{storage:true}` 属存储不确定，报 `persistence_unknown`（回执 `persistenceUnknown:true`、`externalUnknown:false`）。
 
 遇到 `INFERENCE_MODEL_TEXT_NOT_WELL_FORMED` 时，检查模型返回的工具调用 ID；修正生成源后再发起新的调用。`THREAD_TEXT_NOT_WELL_FORMED` 的 `field` 指明应修正的主体、时刻或消息标识。失败记录的 reason 可包含替换字符，完整原始消息从 JSON evidence 读取；具体边界见 [模型派生标识与失败原因文本](design-amendments.md#new-6模型派生标识与失败原因文本)。
+
+## 线程消息限制
+
+`THREAD_MESSAGE_BYTES` 表示整条消息的 JSON UTF-8 字节数超过 `maxMessageBytes`；调整消息或显式配置后重新提交。`THREAD_MESSAGE_INVALID` 表示消息无法编码为 Json。追加失败应保留原始输入和错误；消息预检、同步编码与分块取消边界见[Thread 大消息合同](design-amendments.md#rv3-08thread-大消息的精确字节预检与分块写入)。
 
 ## 事务结果合同
 
