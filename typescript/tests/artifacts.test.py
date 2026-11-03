@@ -94,3 +94,5 @@ def main(artifacts,expected_commit):
     print(json.dumps({'tarballChecks':'passed','packages':checked,'checks':['expected clean release implementation','exports and bins exist','JS and declaration distribution','no workspace protocol','physical consumer packages when consumer exists','runtime enum declarations','licenses, source, lock and ordered patches']},indent=2))
 
 if __name__=='__main__':main(Path(sys.argv[1]).resolve(),sys.argv[2])
+
+# cases: RV3-01-T02

@@ -38,3 +38,5 @@ class ArtifactPaths(unittest.TestCase):
         data={'nested':{'configPolicy':[{'path':'/root'}]}}
         self.assertEqual(self.scan('generated/plugin.meta.json',json.dumps(data).encode())[0]['code'],'ABSOLUTE_PATH_IN_METADATA')
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-01-T02

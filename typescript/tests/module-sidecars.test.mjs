@@ -24,3 +24,5 @@ test('published Host and Core sidecars resolve and import their actual declared 
   assert.throws(()=>host.ctx.moduleResolver.resolve('@society0/core/sqlite',missingDirty),/SOURCE_LOCK/);
  }finally{await host.close()}
 });
+
+// cases: RV3-01-T04

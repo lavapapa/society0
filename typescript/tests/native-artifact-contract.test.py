@@ -65,3 +65,5 @@ class NativeArtifact(unittest.TestCase):
         with tarfile.open(fileobj=data) as archive:
             with self.assertRaisesRegex(AssertionError,'ARTIFACT_NATIVE_BYTES.*libsqlite3.so'):checker.native_outputs(archive,package,ROOT/'.build/native-work')
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-01-T02

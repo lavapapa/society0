@@ -36,3 +36,5 @@ class ArtifactLayout(unittest.TestCase):
             root=Path(directory);(root/'outside').mkdir();(root/'consumer/node_modules/@society0').mkdir(parents=True);(root/'consumer/node_modules/@society0/demo').symlink_to(root/'outside',target_is_directory=True)
             with self.assertRaises(AssertionError):checker.installed_location(root,{'name':'@society0/demo'})
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-01-T02

@@ -8,3 +8,5 @@ class ArtifactContract(unittest.TestCase):
         self.assertNotEqual(result.returncode,0,'old checker falsely accepts a different or absent clean-release identity')
         self.assertIn('ARTIFACT_IMPLEMENTATION',result.stderr)
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-01-T02

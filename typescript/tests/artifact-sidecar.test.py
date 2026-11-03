@@ -22,3 +22,5 @@ class ArtifactSidecar(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError,'ARTIFACT_SIDECAR_IDENTITY'):self.check(lambda source:source.update(gitCommit='different'))
     def test_package_without_sidecar(self):self.check(include=False)
 if __name__=='__main__':unittest.main()
+
+# cases: RV3-01-T02
