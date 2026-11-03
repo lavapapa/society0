@@ -19,6 +19,8 @@ INSTALLED_COPIES = {
     'pr07-exploration.test.mjs': 'regex-public',
     'pr11-policy-history.test.mjs': 'regex-public',
     'pr10-history-pages.test.mjs': 'regex-public',
+    'platform-worker-loss.test.mjs': 'regex-public',
+    'pr05-history-gates.test.mjs': 'regex-public',
 
 }
 # 需要已安装 @society0/host 才能解析第三方包 peer 的测试；在 build 层运行会写共享 node_modules。
@@ -33,4 +35,8 @@ INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public',
                       '../.build/host/dist/slot-strategies/index.js': '@society0/host/slot-strategies',
                       '../.build/host/dist/slots/index.js': '@society0/host/slots',
                       "import('../.build/core/dist/' + name + '/index.js')": "import('@society0/core/' + name)",
-                      "import('../.build/social/dist/' + name + '/index.js')": "import('@society0/social/' + name)"}}
+                      "import('../.build/social/dist/' + name + '/index.js')": "import('@society0/social/' + name)"},
+ 'public-fault-support.mjs': {},
+ 'platform-worker-fault.mjs': {},
+ 'pr05-support.mjs': 'regex-public',
+ 'pr05-crash-child.mjs': 'regex-public'}
