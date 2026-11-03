@@ -26,5 +26,9 @@ class InstalledCopy(unittest.TestCase):
   self.assertEqual(INSTALLED_COPIES[name],'regex-public');self.assertIn('PR07-T24',text)
   self.assertNotIn('../.build/',rewrite_installed(name,text,INSTALLED_COPIES[name]))
   self.assertEqual(INSTALLED_SUPPORT['pr07-support.mjs'],'regex-public')
+ def test_pr11_real_policy_history_is_public_installed(self):
+  name='pr11-policy-history.test.mjs';self.assertEqual(INSTALLED_COPIES[name],'regex-public')
+  self.assertEqual(INSTALLED_SUPPORT['pr11-support.mjs'],'random-native')
+  for name,rules in [(name,INSTALLED_COPIES[name]),('pr11-support.mjs',INSTALLED_SUPPORT['pr11-support.mjs'])]:self.assertNotIn('../.build',rewrite_installed(name,(ROOT/'tests'/name).read_text(),rules))
 if __name__=='__main__':unittest.main()
 # cases: PR11-T03
