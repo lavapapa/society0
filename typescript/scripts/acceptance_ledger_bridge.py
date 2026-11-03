@@ -32,7 +32,8 @@ def preflight(W, candidate, output, paths):
     assert not os.path.lexists(pending_owner(W, output)), 'ACCEPTANCE_PENDING_EXISTS ' + str(pending_owner(W, output))
     ledger = merged_ledger(W)
     slots, log_ids = installed_templates(ledger, paths)
-    errors = ledger_errors(ledger, W, plan_ids(W), False)
+    # pending已真实合并并校验，由随后actual apply消费；其余final约束立即执行。
+    errors = [error for error in ledger_errors(ledger, W, plan_ids(W), True) if error[0] != 'PENDING_FRAGMENTS']
     blocked = [error for error in errors if not deferred_error(error, slots, log_ids)]
     assert not blocked, 'ACCEPTANCE_LEDGER_NOT_READY ' + json.dumps(blocked)
     return {'ledger': ledger, 'remainingErrors': errors}
