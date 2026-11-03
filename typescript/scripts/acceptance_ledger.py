@@ -22,6 +22,13 @@ def derived_layers(path, text):
     if name in INSTALLED_ONLY | INSTALLED_PY or name.startswith(INSTALLED_SCRIPTS_PREFIX) or name in INSTALLED_COPIES: layers.add('installed-e2e')
     if '../.build/' in text and name not in BUILD_EXCLUDED: layers.add('build-integration')
     return layers or {'unit'}
+def installed_execution_errors(cid, execution, file, text, W):
+    path = execution.get('path', '')
+    errors = []
+    if file.name in INSTALLED_COPIES and execution.get('rewrittenBy') != REWRITER: errors.append(('REWRITE_UNDECLARED', cid, path))
+    if file.name not in INSTALLED_COPIES and '../.build/' in text: errors.append(('INSTALLED_USES_BUILD', cid, path))
+    if not execution.get('candidate') or not (W / execution['candidate'] / 'manifest.json').is_file(): errors.append(('CANDIDATE_REQUIRED', cid, path))
+    return errors
 def execution_errors(cid, case, execution, W):
     layer = execution.get('layer')
     if layer not in LAYERS: return [('LAYER_ENUM', cid, execution)]
@@ -32,42 +39,49 @@ def execution_errors(cid, case, execution, W):
     layers = derived_layers(path, text)
     errors = [('LAYER_MISMATCH', cid, path, sorted(layers))] if layer not in layers else []
     if cid not in text: errors.append(('CASE_NOT_IN_FILE', cid, path))
-    if layer == 'installed-e2e':
-        if file.name in INSTALLED_COPIES and execution.get('rewrittenBy') != REWRITER: errors.append(('REWRITE_UNDECLARED', cid, path))
-        if file.name not in INSTALLED_COPIES and '../.build/' in text: errors.append(('INSTALLED_USES_BUILD', cid, path))
-        if not execution.get('candidate') or not (W / execution['candidate'] / 'manifest.json').is_file(): errors.append(('CANDIDATE_REQUIRED', cid, path))
+    if layer == 'installed-e2e': errors += installed_execution_errors(cid, execution, file, text, W)
     if case.get('status') == 'passed' and not (execution.get('log') and (W / execution['log']).is_file()): errors.append(('LOG_MISSING', cid, execution.get('log')))
     return errors
-def case_errors(case, W, plan_ids, final):
-    cid = case.get('id')
+def case_identity_errors(cid, case, plan_ids):
     errors = []
     if not (PLAN_ID.match(cid or '') and cid in plan_ids) and not FIX_ID.match(cid or ''): errors.append(('UNKNOWN_CASE', cid))
     if 'path' in case: errors.append(('LEGACY_PATH', cid))
-    if case.get('status') not in STATUSES: errors.append(('STATUS_ENUM', cid))
-    if case.get('tier') not in TIERS: errors.append(('TIER_ENUM', cid))
-    if case.get('validationLevel') not in LEVELS: errors.append(('LEVEL_ENUM', cid))
+    return errors
+def case_shape_errors(cid, case):
+    errors = []
+    for field, allowed, code in [('status', STATUSES, 'STATUS_ENUM'), ('tier', TIERS, 'TIER_ENUM'), ('validationLevel', LEVELS, 'LEVEL_ENUM')]:
+        if case.get(field) not in allowed: errors.append((code, cid))
     if FIX_ID.match(cid or '') and not case.get('origin', {}).get('finding'): errors.append(('ORIGIN_MISSING', cid))
+    return errors
+def passed_case_errors(cid, case, layers):
+    errors = []
+    if case.get('validationLevel') in CONSUMER and 'installed-e2e' not in layers: errors.append(('CONSUMER_LEVEL_WITHOUT_INSTALLED', cid))
+    if case.get('tier') == 'live-endpoint' and 'live-model' not in layers: errors.append(('LIVE_WITHOUT_LIVE_MODEL', cid))
+    if case.get('validationLevel') == 'implementation-build' and layers <= {'unit'}: errors.append(('BUILD_LEVEL_UNIT_ONLY', cid))
+    return errors
+def case_errors(case, W, plan_ids, final):
+    cid = case.get('id')
+    errors = case_identity_errors(cid, case, plan_ids) + case_shape_errors(cid, case)
     executions = case.get('executions') or []
     if case.get('status') == 'passed' and not executions: errors.append(('NO_EXECUTION', cid))
     for execution in executions: errors += execution_errors(cid, case, execution, W)
     errors += [('EVIDENCE_MISSING', cid, path) for path in case.get('evidence', []) if not (W / path).exists()]
     layers = {execution.get('layer') for execution in executions}
-    if case.get('status') == 'passed':
-        if case.get('validationLevel') in CONSUMER and 'installed-e2e' not in layers: errors.append(('CONSUMER_LEVEL_WITHOUT_INSTALLED', cid))
-        if case.get('tier') == 'live-endpoint' and 'live-model' not in layers: errors.append(('LIVE_WITHOUT_LIVE_MODEL', cid))
-        if case.get('validationLevel') == 'implementation-build' and layers <= {'unit'}: errors.append(('BUILD_LEVEL_UNIT_ONLY', cid))
+    if case.get('status') == 'passed': errors += passed_case_errors(cid, case, layers)
     return errors
 def plugin_errors(plugin, W):
     errors = [('PLUGIN_ENTRY_MISSING', plugin.get('id'))] if not (W / 'repo' / plugin.get('entry', '')).is_file() else []
     return errors + [('EVIDENCE_MISSING', plugin.get('id'), path) for path in plugin.get('evidence', []) if not (W / path).exists()]
+def duplicate_errors(identifiers, code):
+    return [(code, value) for value in sorted({value for value in identifiers if identifiers.count(value) > 1})]
 def ledger_errors(ledger, W, plan_ids, final):
     errors = [('UNKNOWN_TOP_KEY', key) for key in ledger if key not in TOP]
     ids = [case.get('id') for case in ledger.get('cases', [])]
-    errors += [('DUPLICATE_CASE', cid) for cid in sorted({cid for cid in ids if ids.count(cid) > 1})]
+    errors += duplicate_errors(ids, 'DUPLICATE_CASE')
     errors += [('PLAN_CASE_MISSING', cid) for cid in sorted(set(plan_ids) - set(ids))]
     for case in ledger.get('cases', []): errors += case_errors(case, W, plan_ids, final)
     plugins = [plugin.get('id') for plugin in ledger.get('plugins', [])]
-    errors += [('DUPLICATE_PLUGIN', pid) for pid in sorted({pid for pid in plugins if plugins.count(pid) > 1})]
+    errors += duplicate_errors(plugins, 'DUPLICATE_PLUGIN')
     for plugin in ledger.get('plugins', []): errors += plugin_errors(plugin, W)
     scopes = {scope.get('id') for scope in ledger.get('legacyScope', [])}
     if final and scopes != SCOPES: errors.append(('LEGACY_SCOPE_MISSING', sorted(scopes)))
@@ -170,17 +184,25 @@ def command(W, kind):
         print(json.dumps({'errors': [], 'applied': [path.name for path, kind, payload in fragments], 'movedTo': f'evidence/acceptance-applied/{mtime}'}, ensure_ascii=False, indent=1))
         return 0
     return migrate(W, ledger)
+def migration_execution(path, tests, layer):
+    relative = 'typescript/tests/' + path.relative_to(tests).as_posix()
+    record = {'path': relative, 'layer': layer, 'command': 'python3 -B tests/' + path.name if layer == 'unit' and path.suffix == '.py' else 'node --test --test-concurrency=1 tests/' + path.name}
+    if layer == 'installed-e2e' and path.name in INSTALLED_COPIES: record['rewrittenBy'] = REWRITER
+    return record
+def migration_executions(cid, texts, tests):
+    executions = []
+    for path, text in texts.items():
+        if cid not in text: continue
+        relative = 'typescript/tests/' + path.relative_to(tests).as_posix()
+        executions += [migration_execution(path, tests, layer) for layer in sorted(derived_layers(relative, text))]
+    return executions
 def migrate(W, ledger):
     tests = W / 'repo/typescript/tests'
     texts = {path: path.read_text(errors='ignore') for path in sorted(tests.rglob('*')) if path.is_file() and path.suffix in {'.mjs', '.js', '.ts', '.py'}}
     report_data = {}
     for case in ledger['cases']:
         cid = case['id']
-        executions = []
-        for path, text in texts.items():
-            if cid not in text: continue
-            relative = 'typescript/tests/' + path.relative_to(tests).as_posix()
-            executions += [dict({'path': relative, 'layer': layer, 'command': 'python3 -B tests/' + path.name if layer == 'unit' and path.suffix == '.py' else 'node --test --test-concurrency=1 tests/' + path.name}, **({'rewrittenBy': REWRITER} if layer == 'installed-e2e' and path.name in INSTALLED_COPIES else {})) for layer in sorted(derived_layers(relative, text))]
+        executions = migration_executions(cid, texts, tests)
         case.pop('path', None)
         report_data[cid] = sorted({execution['path'] for execution in executions})
         if executions: case['executions'] = executions
