@@ -35,12 +35,13 @@ def installed_plugin_names(consumer):
 def prepare_installed_assets(inputs, consumer):
     import shutil
     # import.meta.resolve从脚本位置寻找包，示例须置于消费者目录内。
-    for folder in ['examples', 'profiles']: shutil.copytree(inputs / folder, consumer / folder)
+    shutil.copytree(inputs / 'examples', consumer, dirs_exist_ok=True)
+    shutil.copytree(inputs / 'profiles', consumer / 'profiles')
 
 
 def profile_lock_command(consumer, mode):
     flags = ['--allow-dirty'] if mode == 'dirty-development' else []
-    return ['node', str(consumer / 'examples/profile-lock.mjs'), *flags, str(consumer / 'module-lock.json'), *installed_plugin_names(consumer)]
+    return ['node', str(consumer / 'profile-lock.mjs'), *flags, str(consumer / 'module-lock.json'), *installed_plugin_names(consumer)]
 
 
 def artifact_command(selected, inputs, consumer=None):

@@ -26,7 +26,7 @@ for(const [world,steps,bodyBytes] of [[100,1,128],[1000,1,128],[5000,1,128],[100
  const proposals=Array.from({length:steps},(_,i)=>({id:'p'+i,planKind:'staged/1',payload:{phases:[{id:'act',activations:[{id:'a'+i,actorId:'alice',momentId:'m'+i,source:'agenda',driver:'rule',input:null}]}],nextCursor:String(i+1)}}));
  const profile=JSON.parse(await readFile(join(consumer,'profiles/rule-sqlite.json'),'utf8'));profile.lockfile=pathToFileURL(join(consumer,'module-lock.json')).href;profile.patches.push({id:'plain-init',config:{initialActors}},{id:'proposal-sequence',config:{proposals}});
  await writeFile(patches,JSON.stringify(profile));
- const args=['examples/run-profile.mjs','--profile',patches,'--lock','module-lock.json','--directory',directory,'--run-id',id];
+ const args=['run-profile.mjs','--profile',patches,'--lock','module-lock.json','--directory',directory,'--run-id',id];
  const selectedPoint=mode==='historical'?prior.measurements.find(item=>item.id===id).create.point.parentId:undefined;
  const caseStarted=performance.now();const result={id,world,steps,bodyBytes,selectedPoint};
  try{
@@ -37,7 +37,7 @@ for(const [world,steps,bodyBytes] of [[100,1,128],[1000,1,128],[5000,1,128],[100
    assert.equal(data.actorCount.integer,String(world));assert.equal(data.cut.frontier.completedCount,String(steps));assert.equal(data.close.drained,true);
    result[reopen?'reopen':'create']={processWallMs:performance.now()-processStarted,actorCount:data.actorCount,metrics:data.metrics,history:data.history,point:data.cut,status:data.status.state,close:data.close.status,stderr};
   }
-  const forkStarted=performance.now();const fork=await exec(process.execPath,['examples/run-profile-branch.mjs','--profile',patches,'--directory',directory,'--run-id',id,'--lock','module-lock.json','--target-profile',join(consumer,'profiles/rule-sqlite.json'),'--target-directory',join(output,id+'-fork'),'--target-run-id',id+'-'+basename(output),...(selectedPoint?['--point-id',selectedPoint]:[])],{cwd:consumer,maxBuffer:32*1024*1024,timeout:timeoutMs});
+  const forkStarted=performance.now();const fork=await exec(process.execPath,['run-profile-branch.mjs','--profile',patches,'--directory',directory,'--run-id',id,'--lock','module-lock.json','--target-profile',join(consumer,'profiles/rule-sqlite.json'),'--target-directory',join(output,id+'-fork'),'--target-run-id',id+'-'+basename(output),...(selectedPoint?['--point-id',selectedPoint]:[])],{cwd:consumer,maxBuffer:32*1024*1024,timeout:timeoutMs});
   const branched=JSON.parse(fork.stdout);assert.equal(branched.close.drained,true);assert.equal(branched.branch.closed,true);assert.equal(branched.branch.actorCount.integer,String(world));assert.equal(branched.branch.threadCount.integer,String(steps-(selectedPoint?1:0)));assert.equal(branched.branch.targetPoint.frontier.completedCount,String(steps-(selectedPoint?1:0)));if(prior){const original=prior.measurements.find(item=>item.id===id);assert.equal(branched.branch.sourcePoint.id,selectedPoint??original.create.point.id);assert.equal(branched.cut.id,original.create.point.id);result.source={directory,currentPoint:branched.cut,selectedPoint:branched.branch.sourcePoint};}
   result.fork={processWallMs:performance.now()-forkStarted,threadCount:branched.branch.threadCount,metrics:branched.branch.timings,history:branched.history,targetHistory:branched.branch.history,point:branched.branch.targetPoint};
   result.status='measured';

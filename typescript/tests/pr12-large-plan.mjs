@@ -26,8 +26,8 @@ export async function largeProfile(consumer){
 }
 export function sameProcessCode(source,target){
  return `const source=${JSON.stringify(source)},target=${JSON.stringify(target)};
-const {runProfile}=await import('./examples/run-profile.mjs');
-const {forkProfile}=await import('./examples/run-profile-branch.mjs');
+const {runProfile}=await import('./run-profile.mjs');
+const {forkProfile}=await import('./run-profile-branch.mjs');
 const create=await runProfile(source);
 const forked=await forkProfile({...source,...target});
 console.log(JSON.stringify({create,forked,entry:{pid:process.pid,inputType:process.execArgv.filter(x=>x.startsWith('--input-type='))}}));`;
@@ -38,8 +38,8 @@ async function execute(options,args){
 }
 async function fileEntry(options,source,target){
  const common=['--profile',source.profile,'--directory',source.directory,'--run-id',source.runId,'--lock',source.lock];
- const create=await execute(options,['examples/run-profile.mjs',...common]);
- const forked=await execute(options,['examples/run-profile-branch.mjs',...common,'--target-profile',target.targetProfile,'--target-directory',target.targetDirectory,'--target-run-id',target.targetRunId]);
+ const create=await execute(options,['run-profile.mjs',...common]);
+ const forked=await execute(options,['run-profile-branch.mjs',...common,'--target-profile',target.targetProfile,'--target-directory',target.targetDirectory,'--target-run-id',target.targetRunId]);
  return {create,forked,entry:{kind:'file'}};
 }
 async function evaluateEntry(options,source,target){
