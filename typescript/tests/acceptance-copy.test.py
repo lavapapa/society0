@@ -21,5 +21,10 @@ class InstalledCopy(unittest.TestCase):
  def test_pr08_public_scenarios_are_registered_for_real_installed_execution(self):
   for name in ['pr08-public-display-error.test.mjs','pr08-slow-persistence.test.mjs','pr08-recorded-result.test.mjs']:
    self.assertEqual(INSTALLED_COPIES[name],'regex-public');text=rewrite_installed(name,(ROOT/'tests'/name).read_text(),INSTALLED_COPIES[name]);self.assertNotIn('../.build/',text)
+ def test_existing_pr07_t24_public_scenarios_are_installed(self):
+  name='pr07-exploration.test.mjs';text=(ROOT/'tests'/name).read_text()
+  self.assertEqual(INSTALLED_COPIES[name],'regex-public');self.assertIn('PR07-T24',text)
+  self.assertNotIn('../.build/',rewrite_installed(name,text,INSTALLED_COPIES[name]))
+  self.assertEqual(INSTALLED_SUPPORT['pr07-support.mjs'],'regex-public')
 if __name__=='__main__':unittest.main()
 # cases: PR11-T03
