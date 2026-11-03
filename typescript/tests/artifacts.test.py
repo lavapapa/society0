@@ -12,6 +12,20 @@ def implementation_identity(package, source, expected_commit):
     assert implementation.get('lockfile')=='BUILD-LOCK.json',message
 
 
+def native_outputs(archive,package,references):
+    outputs={'@society0/sqlite-native':['build/sqlite_native.node','vendor/libsqlite3.so'],
+             '@society0/random-native':['build/random_native.node']}.get(package['name'])
+    if outputs is None:return
+    folder=package['name'].split('/')[-1];members=set(archive.getnames())
+    assert 'package/NATIVE-BUILD.json' in members,'ARTIFACT_NATIVE_RECORD '+folder
+    record=json.load(archive.extractfile('package/NATIVE-BUILD.json'))
+    assert record['outputs']==outputs,'ARTIFACT_NATIVE_OUTPUTS '+folder
+    for relative in outputs+['NATIVE-BUILD.json']:
+        member='package/'+relative;reference=references/folder/relative
+        assert member in members,'ARTIFACT_NATIVE_MEMBER '+member
+        assert reference.is_file(),'ARTIFACT_NATIVE_REFERENCE '+str(reference)
+        assert archive.extractfile(member).read()==reference.read_bytes(),'ARTIFACT_NATIVE_BYTES '+member
+
 def targets(value):
     if isinstance(value,str):yield value
     elif isinstance(value,dict):
@@ -53,6 +67,7 @@ def check_archive(file,artifacts,expected_commit):
         members=set(archive.getnames())
         package=json.load(archive.extractfile('package/package.json'))
         implementation_identity(package,json.load(archive.extractfile('package/SOURCE.json')),expected_commit)
+        native_outputs(archive,package,artifacts/'native-reference')
         source_distribution(package,members)
         provenance_files(archive,members)
         declared_targets(package,members)
