@@ -57,6 +57,28 @@ with tempfile.TemporaryDirectory() as temporary:
     skeleton = run(make_world(base / 'skeleton', runtime_fields=('closeTimeoutMs', 'inlineBytes')), '--skeleton')
     assert skeleton.returncode == 0, skeleton.stderr
     assert '@society0/host/resources/inlineBytes' in skeleton.stdout
+    invalid_consumers = []
+    for label,reference,consumer in [
+        ('zero-line','typescript/packages/host/src/resources.ts:0','const closeTimeoutMs = 1;\nconst inlineBytes = 2;\n'),
+        ('non-number','typescript/packages/host/src/resources.ts:no','const inlineBytes = 2;\n'),
+        ('missing-file','typescript/packages/host/src/missing.ts:1','const inlineBytes = 2;\n'),
+        ('past-end','typescript/packages/host/src/resources.ts:99','const inlineBytes = 2;\n'),
+        ('bare-type','typescript/packages/host/src/resources.ts:2','const closeTimeoutMs = 1;\ninlineBytes: number;\n'),
+    ]:
+        registry = {'fields': {'@society0/host/resources/inlineBytes': {'state':'added','consumer':reference}},'plugins':{}}
+        result = run(make_world(base / ('invalid-' + label), runtime_fields=('closeTimeoutMs','inlineBytes'), registry=registry, consumer=consumer))
+        invalid_consumers.append({'case':label,'errors':errors(result)})
+    print(json.dumps({'invalidConsumers':invalid_consumers}),flush=True)
+    assert all('UNRECONCILED' in item['errors'] for item in invalid_consumers),invalid_consumers
+    removed_registry = {'fields':{},'plugins':{'@society0/host/resources':{'state':'removed-plugin','reason':'fixture removal'},'@society0/host/memory':{'state':'added-plugin','design':'fixture design'}}}
+    assert errors(run(make_world(base/'removed-plugin',runtime_plugins=('memory',),registry=removed_registry)))==[]
+    removed_registry['plugins']['@society0/host/resources'].pop('reason')
+    assert 'UNRECONCILED' in errors(run(make_world(base/'removed-no-reason',runtime_plugins=('memory',),registry=removed_registry)))
+    expanded = run(make_world(base/'expanded-skeleton',plan_fields=('closeTimeoutMs','removedField'),runtime_fields=('closeTimeoutMs','inlineBytes'),runtime_plugins=('resources','memory')),'--skeleton')
+    assert expanded.returncode==0,expanded.stderr
+    skeleton_data=json.loads(expanded.stdout)['skeleton']
+    assert skeleton_data['fields']['@society0/host/resources/removedField']['state']=='unclassified'
+    assert skeleton_data['plugins']['@society0/host/memory']['state']=='unclassified'
     outcomes = []
     world = make_world(base / 'worktree-schema')
     candidate = base / 'candidate-schema'
