@@ -18,6 +18,7 @@ INSTALLED_COPIES = {
     'pr08-recorded-result.test.mjs': 'regex-public',
     'pr07-exploration.test.mjs': 'regex-public',
     'pr11-policy-history.test.mjs': 'regex-public',
+    'pr10-history-pages.test.mjs': 'regex-public',
 
 }
 # 需要已安装 @society0/host 才能解析第三方包 peer 的测试；在 build 层运行会写共享 node_modules。
@@ -25,4 +26,11 @@ BUILD_EXCLUDED = {'exports.test.mjs'}
 LIVE = {'pr08-real.mjs', 'rv3-04-litellm.mjs'}
 PERFORMANCE = {'pr05-scale.test.mjs'}
 
-INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public', 'pr11-support.mjs': 'random-native'}
+INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public',
+ 'pr11-support.mjs': 'random-native',
+ 'pr10-support.mjs': {'../.build/host/dist/index.js': '@society0/host',
+                      '../.build/host/dist/composition-strategies/index.js': '@society0/host/composition-strategies',
+                      '../.build/host/dist/slot-strategies/index.js': '@society0/host/slot-strategies',
+                      '../.build/host/dist/slots/index.js': '@society0/host/slots',
+                      "import('../.build/core/dist/' + name + '/index.js')": "import('@society0/core/' + name)",
+                      "import('../.build/social/dist/' + name + '/index.js')": "import('@society0/social/' + name)"}}
