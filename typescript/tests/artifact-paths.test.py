@@ -1,5 +1,5 @@
 from pathlib import Path
-import io,json,sys,tarfile,tempfile,unittest
+import io,json,os,sys,tarfile,tempfile,unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from release_compare import path_leaks
 class ArtifactPaths(unittest.TestCase):
@@ -27,4 +27,14 @@ class ArtifactPaths(unittest.TestCase):
                     self.assertEqual(self.scan(file,json.dumps({'path':value}).encode())[0]['code'],'ABSOLUTE_PATH_IN_METADATA')
     def test_runtime_literal_is_not_metadata(self):
         self.assertEqual(self.scan('index.js',b'const virtualPath="/tmp";'),[])
+    def test_real_extras_config_policy_root_is_a_pointer(self):
+        content=(Path(os.environ['ARTIFACT_SOURCE_ROOT'])/'.build/extras/generated/plugin.meta.json').read_bytes()
+        self.assertEqual(self.scan('generated/plugin.meta.json',content),[])
+    def test_pointer_exclusion_retains_exact_byte_scan(self):
+        data={'entries':[{'metadata':{'configPolicy':[{'path':'/mnt/data/project'}]}}]}
+        result=self.scan('generated/plugin.meta.json',json.dumps(data).encode())
+        self.assertIn('ABSOLUTE_PATH_LEAK',[item['code'] for item in result])
+    def test_unrelated_path_field_still_rejects_host_root(self):
+        data={'nested':{'configPolicy':[{'path':'/root'}]}}
+        self.assertEqual(self.scan('generated/plugin.meta.json',json.dumps(data).encode())[0]['code'],'ABSOLUTE_PATH_IN_METADATA')
 if __name__=='__main__':unittest.main()
