@@ -39,6 +39,7 @@ class ReleaseProducer(unittest.TestCase):
   self.assertTrue(context['worktrees']['a'].is_dir());self.assertFalse(context['worktrees']['b'].exists());self.assertFalse((self.output/'manifest.json').exists());self.assertFalse((self.output/'a/tarballs').exists());self.assertEqual(json.loads((self.output/'a/catalog-config.log.json').read_text())['exitCode'],1);self.assertIn('owned stale catalog',(self.output/'a/catalog-config.log').read_text())
  def cohorts(self,different=False,dirty=False):
   context=self.context_for_output()
+  (self.output/'release.json').write_text(json.dumps({'release':True,'implementation':{'gitCommit':self.head,'dirty':False}}))
   for side in ['a','b']:
    folder=self.output/side/'tarballs';folder.mkdir(parents=True)
    for n in range(13):
