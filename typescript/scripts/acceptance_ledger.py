@@ -15,12 +15,24 @@ REWRITER = 'typescript/scripts/acceptance.py'
 PATCH_KEYS = {'appendEvidence', 'appendExecutions', 'setReason', 'setStatus', 'setValidationLevel'}
 PLUGIN_KEYS = {'appendEvidence', 'setValidationScope'}
 SCOPES = {'B02', 'B03', 'B04', 'B05'}
+def build_dependency(path, text):
+    pending, visited = [(Path(path).resolve(), text)], set()
+    while pending:
+        file, source = pending.pop()
+        if file in visited: continue
+        visited.add(file)
+        if re.search(r"\.\./\.build(?:/|['\"])", source): return True
+        for name in re.findall(r"(?:from\s*|import\s*\(\s*|import\s*)['\"](\.{1,2}/[^'\"]+\.(?:mjs|js))['\"]", source):
+            target = file.parent / name
+            if target.is_file(): pending.append((target.resolve(), target.read_text()))
+    return False
+
 def derived_layers(path, text):
     name = Path(path).name
     layers = set()
     if name in LIVE: layers.add('live-model')
     if name in INSTALLED_ONLY | INSTALLED_PY or name.startswith(INSTALLED_SCRIPTS_PREFIX) or name in INSTALLED_COPIES: layers.add('installed-e2e')
-    if re.search(r"\.\./\.build(?:/|['\"])", text) and name not in BUILD_EXCLUDED: layers.add('build-integration')
+    if name not in BUILD_EXCLUDED and build_dependency(path, text): layers.add('build-integration')
     return layers or {'unit'}
 def installed_execution_errors(cid, execution, file, text, W):
     path = execution.get('path', '')
@@ -36,7 +48,7 @@ def execution_errors(cid, case, execution, W):
     file = W / 'repo' / path
     if not file.is_file(): return [('PATH_MISSING', cid, path)]
     text = file.read_text()
-    layers = derived_layers(path, text)
+    layers = derived_layers(file, text)
     errors = [('LAYER_MISMATCH', cid, path, sorted(layers))] if layer not in layers else []
     if cid not in text: errors.append(('CASE_NOT_IN_FILE', cid, path))
     if layer == 'installed-e2e': errors += installed_execution_errors(cid, execution, file, text, W)
@@ -194,7 +206,7 @@ def migration_executions(cid, texts, tests):
     for path, text in texts.items():
         if cid not in text: continue
         relative = 'typescript/tests/' + path.relative_to(tests).as_posix()
-        executions += [migration_execution(path, tests, layer) for layer in sorted(derived_layers(relative, text))]
+        executions += [migration_execution(path, tests, layer) for layer in sorted(derived_layers(path, text))]
     return executions
 def migrate(W, ledger):
     tests = W / 'repo/typescript/tests'
