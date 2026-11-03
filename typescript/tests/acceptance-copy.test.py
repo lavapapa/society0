@@ -30,5 +30,12 @@ class InstalledCopy(unittest.TestCase):
   name='pr11-policy-history.test.mjs';self.assertEqual(INSTALLED_COPIES[name],'regex-public')
   self.assertEqual(INSTALLED_SUPPORT['pr11-support.mjs'],'random-native')
   for name,rules in [(name,INSTALLED_COPIES[name]),('pr11-support.mjs',INSTALLED_SUPPORT['pr11-support.mjs'])]:self.assertNotIn('../.build',rewrite_installed(name,(ROOT/'tests'/name).read_text(),rules))
+ def test_pr10_historical_pages_use_public_social_and_dynamic_support(self):
+  import json,re
+  name='pr10-history-pages.test.mjs';self.assertEqual(INSTALLED_COPIES[name],'regex-public')
+  for file,rules in [(name,INSTALLED_COPIES[name]),('pr10-support.mjs',INSTALLED_SUPPORT['pr10-support.mjs'])]:
+   text=rewrite_installed(file,(ROOT/'tests'/file).read_text(),rules);self.assertNotIn('../.build',text)
+   for package,entry in re.findall(r'@society0/(host|core|social)/([a-z-]+)',text):self.assertIn('./'+entry,json.loads((ROOT/'.build'/package/'package.json').read_text())['exports'])
+  self.assertIn("import('@society0/core/' + name)",text);self.assertIn("import('@society0/social/' + name)",text)
 if __name__=='__main__':unittest.main()
 # cases: PR11-T03
