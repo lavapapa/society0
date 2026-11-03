@@ -18,20 +18,17 @@ export default {Config};
  await writeFile(join(directory,'SOURCE.json'),JSON.stringify({package:'@society0/schema-probe',version:'0.1.0',implementation:{...producer,package:'@society0/schema-probe',version:'0.1.0'}}));
  return directory;
 }
-async function sidecars(directory,enforce){return exec(process.execPath,[join(root,'scripts/sidecars.mjs'),root,directory,...(enforce?['--enforce-config-policy']:[])],{cwd:root}).catch(error=>error)}
+async function sidecars(directory){return exec(process.execPath,[join(root,'scripts/sidecars.mjs'),root,directory],{cwd:root}).catch(error=>error)}
 function hits(result){return JSON.parse(result.stdout.split('\n').find(line=>line.startsWith('{"configPolicy"'))).configPolicy}
 test('RV3-16-T01 Config 字段与 configPolicy 一致，未声明字段或不可分析时拒绝',async()=>{
  const mismatch=await authoredPlugin('Schema.object({a: Schema.number()})',[]);
- const enforced=await sidecars(mismatch,true);
- assert.notEqual(enforced.code,0);assert.match(enforced.stderr,/SIDECAR_CONFIG_POLICY/);
- const reported=await sidecars(mismatch,false);
- assert.equal(reported.code??0,0,String(reported.stderr));
- assert.ok(hits(reported).some(item=>item.startsWith('SIDECAR_CONFIG_POLICY')));
+ const enforced=await sidecars(mismatch);
+ assert.notEqual(enforced.code??0,0);assert.match(enforced.stderr,/SIDECAR_CONFIG_POLICY/);
  const unanalyzable=await authoredPlugin('{}',[]);
- const failed=await sidecars(unanalyzable,true);
- assert.notEqual(failed.code,0);assert.match(failed.stderr,/SIDECAR_CONFIG_UNANALYZABLE/);
+ const failed=await sidecars(unanalyzable);
+ assert.notEqual(failed.code??0,0);assert.match(failed.stderr,/SIDECAR_CONFIG_UNANALYZABLE/);
  const consistent=await authoredPlugin('Schema.intersect([Schema.object({a: Schema.number()}), Schema.object({b: Schema.number()})])',policy('a','b'));
- const passed=await sidecars(consistent,true);
+ const passed=await sidecars(consistent);
  assert.equal(passed.code??0,0,String(passed.stderr));
  assert.equal(hits(passed).length,0);
 });
@@ -43,7 +40,7 @@ for(const [name,expression,fields,expected] of [
  ['scalar schema','Schema.string()',[],'SIDECAR_CONFIG_UNANALYZABLE'],
  ['empty object','Schema.object({})',[],null],
 ])test('RV3-16-T01 native '+name,async()=>{
- const directory=await authoredPlugin(expression,policy(...fields)),result=await sidecars(directory,true);
+ const directory=await authoredPlugin(expression,policy(...fields)),result=await sidecars(directory);
  if(expected){assert.notEqual(result.code??0,0);assert.match(result.stderr,new RegExp(expected))}
  else{assert.equal(result.code??0,0,String(result.stderr));assert.deepEqual(hits(result),[])}
 });
