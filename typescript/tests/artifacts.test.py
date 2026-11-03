@@ -28,6 +28,13 @@ def native_outputs(archive,package,references):
         assert reference.is_file(),'ARTIFACT_NATIVE_REFERENCE '+str(reference)
         assert archive.extractfile(member).read()==reference.read_bytes(),'ARTIFACT_NATIVE_BYTES '+member
 
+def sidecar_identity(archive,expected_commit):
+    member='package/generated/plugin.meta.json'
+    if member not in archive.getnames():return
+    source=json.load(archive.extractfile(member))['source']
+    assert source.get('gitCommit')==expected_commit,'ARTIFACT_SIDECAR_IDENTITY commit'
+    assert source.get('dirty') is False,'ARTIFACT_SIDECAR_IDENTITY dirty'
+
 def targets(value):
     if isinstance(value,str):yield value
     elif isinstance(value,dict):
@@ -70,6 +77,7 @@ def check_archive(file,artifacts,expected_commit):
         package=json.load(archive.extractfile('package/package.json'))
         implementation_identity(package,json.load(archive.extractfile('package/SOURCE.json')),expected_commit)
         native_outputs(archive,package,artifacts/'native-reference')
+        sidecar_identity(archive,expected_commit)
         source_distribution(package,members)
         provenance_files(archive,members)
         declared_targets(package,members)
