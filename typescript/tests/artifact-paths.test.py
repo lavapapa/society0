@@ -13,7 +13,7 @@ class ArtifactPaths(unittest.TestCase):
         result=self.scan('index.js',b'const source="/work/clone-a/input";',['/work/clone-a'])
         self.assertEqual(result[0]['code'],'ABSOLUTE_PATH_LEAK')
     def test_mnt_data_byte_prefix(self):
-        self.assertEqual(self.scan('native.node',b'\x00/mnt/data/project\x00')[0]['code'],'ABSOLUTE_PATH_LEAK')
+        self.assertEqual(self.scan('native.node',b'\x00/mnt/'+b'data/project\x00')[0]['code'],'ABSOLUTE_PATH_LEAK')
     def test_nested_metadata_absolute_value(self):
         result=self.scan('NATIVE-BUILD.json',json.dumps({'nested':[{'path':'/private/build/source'}]}).encode())
         self.assertEqual(result[0]['code'],'ABSOLUTE_PATH_IN_METADATA')
@@ -31,7 +31,7 @@ class ArtifactPaths(unittest.TestCase):
         content=(Path(os.environ['ARTIFACT_SOURCE_ROOT'])/'.build/extras/generated/plugin.meta.json').read_bytes()
         self.assertEqual(self.scan('generated/plugin.meta.json',content),[])
     def test_pointer_exclusion_retains_exact_byte_scan(self):
-        data={'entries':[{'metadata':{'configPolicy':[{'path':'/mnt/data/project'}]}}]}
+        data={'entries':[{'metadata':{'configPolicy':[{'path':'/mnt/'+'data/project'}]}}]}
         result=self.scan('generated/plugin.meta.json',json.dumps(data).encode())
         self.assertIn('ABSOLUTE_PATH_LEAK',[item['code'] for item in result])
     def test_unrelated_path_field_still_rejects_host_root(self):
