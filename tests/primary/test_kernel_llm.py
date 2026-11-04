@@ -319,7 +319,7 @@ async def test_empty_retry_then_exhaustion_without_domain_calls(tmp_path):
 
 @pytest.mark.asyncio
 async def test_undeclared_tool_is_protocol_failure_without_domain_effect(tmp_path):
-    store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke()), reply(text='done')],
+    store, _, provider, driver, session, calls = setup(tmp_path, [reply(invoke(f'c{index}')) for index in range(3)],
                                                     policy=LLMPolicy(allowed_names=()))
     try:
         result = await driver.run(session)

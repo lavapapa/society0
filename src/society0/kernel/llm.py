@@ -82,6 +82,8 @@ def _text_range(data, offset, total, encoding):
     return {'data': text, 'encoding': encoding, 'total_bytes': total, 'next_offset': end if end < total else None}
 
 
+_TOOL_CALL_RETRIES = 2
+
 _TOOL_DESCRIPTIONS = {
     'action_find': '查找当前目标可用的业务行动，返回行动名、用途和必填参数名及类型。query 按名称和说明做忽略大小写的字面子串搜索，空字符串分页列出全部；不支持语义搜索或通配符。按 next_cursor 续读。选定行动后先 action_describe，再 action_invoke；业务行动名仅放进 name 参数，勿当作直接工具名。',
     'action_describe': '查看一个或多个业务行动的完整参数 schema、说明和示例。批量形式 actions:["industry.resolve_agenda", "industry.update_plan"]，target 省略时使用当前主体上下文；也支持原单个 {name,target} 形式。调用任何行动之前，必须先用 action_describe 查看该行动的参数，再按返回的参数名调用 action_invoke；不要凭行动名猜参数。',
@@ -574,7 +576,7 @@ class LLMDriver:
                     session.cursors['files']=files
                     if shell is not None:shell.bind_files(files)
                 from pydantic_ai import Agent, Tool, ModelRequestNode
-                from pydantic_ai.messages import ModelRequest, UserPromptPart, ToolReturnPart
+                from pydantic_ai.messages import ModelRequest, RetryPromptPart, UserPromptPart, ToolReturnPart
                 from .models import ThreadModel
                 from pydantic_ai.usage import UsageLimits
                 from .model_messages import history, display_response
@@ -672,8 +674,9 @@ class LLMDriver:
 
                 agent_tools = [Tool.from_schema(execute, item['function']['name'], item['function']['description'],
                                 execution_schemas[item['function']['name']], takes_ctx=True, sequential=True) for item in tools]
-                # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
-                agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
+                # 畸形工具调用（JSON 残缺、未声明工具）是模型的正常失误，交给 SDK 带错误说明重试；
+            # 重试同样经过 request_model，计入本次激活的请求预算。业务纠正仍走普通反馈。
+                agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=_TOOL_CALL_RETRIES)
                 # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
                 with _timed(timings, 'decode_s'):
                     initial = history(self.threads.snapshot_messages(thread_id, raw=True)['messages'])
@@ -757,6 +760,12 @@ class LLMDriver:
                         executing_tools = Agent.is_call_tools_node(node)
                         node = await run.next(node)
                         if executing_tools and Agent.is_model_request_node(node):
+                            # SDK 的重试提示要进线程，模型才能在下一轮看到错误说明。
+                            for part in node.request.parts:
+                                if isinstance(part, RetryPromptPart):
+                                    self.threads.append_message(thread_id, (
+                                        {'role': 'tool', 'tool_call_id': part.tool_call_id, 'content': part.model_response()}
+                                        if part.tool_name else {'role': 'user', 'content': part.model_response()}))
                             repeated_read_streak = repeated_read_streak + 1 if ledger.turn_repeated_read else 0
                             if ledger.ended:
                                 status, reason = 'completed', 'end_activation'
