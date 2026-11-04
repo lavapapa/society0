@@ -22,6 +22,7 @@ from pydantic_ai.output import OutputObjectDefinition
 from pydantic_ai.tools import ToolDefinition
 
 from ..resource_managers import RequestResources, redact_credentials
+from .request_budget import current_request_budget, ActivationBudgetExhausted
 from . import usage
 from .model_messages import encode, display, display_response, history
 
@@ -448,7 +449,10 @@ class ModelProvider(_Provider):
                 **selected.get('extra_body', {}).get('metadata', {}), 'session_id': head['provider_session_id']}}
         settings, params, resolution = _parameters(endpoint, selected)
         through, retry_of = head['last_seq'], None
+        budget = current_request_budget.get()
         for attempt in range(self.max_attempts):
+            if budget is not None:
+                budget.check()
             messages = result = partial = None
             physical = None
             started = time.perf_counter()
@@ -472,6 +476,8 @@ class ModelProvider(_Provider):
                         messages = history(self.threads.read_messages_by_reference(prefix, suffix))
                     else:
                         messages = history(self.threads.snapshot_messages(thread_id, through=through, raw=True)['messages'])
+                    if budget is not None:
+                        budget.take()
                     physical = uuid.uuid4().hex
                     evidence = redact_credentials({**selected, 'model': endpoint.model_name}, secrets=(endpoint.secret,))
                     timing['prepare_s'] = time.perf_counter() - assembling
@@ -517,7 +523,7 @@ class ModelProvider(_Provider):
                     if endpoint.kind == 'siwc' and (result.provider_details or {}).get('finish_reason') != 'completed':
                         incomplete = incomplete or 'provider_incomplete'
                     return result, message_seq, incomplete
-            except ThreadWriteError: raise
+            except (ThreadWriteError, ActivationBudgetExhausted): raise
             except asyncio.CancelledError:
                 if physical is not None:
                     timing['duration_s'] = time.perf_counter() - started
@@ -528,8 +534,11 @@ class ModelProvider(_Provider):
                     timing['duration_s'] = time.perf_counter() - started
                     self._event(thread_id, physical, endpoint, 'error', {'error': redact_credentials(str(error), secrets=(endpoint.secret,)), 'timing': timing, 'partial_response': partial,
                         'attempt': attempt + 1, 'max_attempts': self.max_attempts,
-                        'will_retry': _transient(error, endpoint.kind) and attempt + 1 < self.max_attempts})
+                        'will_retry': _transient(error, endpoint.kind) and attempt + 1 < self.max_attempts
+                            and (budget is None or budget.remaining is None or budget.remaining > 0)})
                 if physical is None or not _service_request_error(error, endpoint.kind): raise
+                if budget is not None and _transient(error, endpoint.kind):
+                    budget.check()
                 if not _transient(error, endpoint.kind) or attempt + 1 == self.max_attempts:
                     reason = 'context_limit' if 'context' in str(error).lower() and getattr(error, 'status_code', None) == 400 else 'provider_request_error'
                     raise ProviderFailure(reason, redact_credentials(str(error), secrets=(endpoint.secret,))) from error

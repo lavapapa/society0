@@ -16,7 +16,11 @@
 
 `decision` 模式下，驱动使用行动发现、行动描述、行动执行和文件这几类工具。`action_find` 对名称和描述做忽略大小写的字面子串匹配，传空字符串则分页枚举。名称许可和标签许可一起限制哪些动作可用；required 条件按成功完成来核对。`accepted` 保留已受理的含义，只有 `completed` 才计入成功条件；成功终止动作会触发结束。
 
-轮次、行动总次数和每个动作的次数分别计量，失败的尝试同样消耗行动预算。达到硬上限、上下文超出限制，或者提供方返回的结束原因是 `length` 时，驱动返回 `incomplete`；被截断的响应里的工具调用不会执行。领域处理器抛异常、任务被取消、必需的留证失败，都会向 Runtime 传播。同一个 call_id 已经保存过的回执会直接复用，同一个 ID 配上不同调用会被拒绝。
+请求、行动总次数和每个动作的次数分别计量，失败的尝试同样消耗对应预算。`LLMPolicy.max_turns` 限制单次激活的 LLM 请求数；达到请求额度时以 `incomplete/budget_exhausted` 收束，保留已生效写入，Runtime 继续当前运行，同一 Moment 的该 Thread 后续激活直接返回额度耗尽结果。上下文超出限制，或者提供方返回的结束原因是 `length` 时，驱动同样返回 `incomplete`；被截断的响应里的工具调用不会执行。领域处理器抛异常、任务被取消、必需的留证失败，都会向 Runtime 传播。同一个 call_id 已经保存过的回执会直接复用，同一个 ID 配上不同调用会被拒绝。
+
+`ModelProvider` 在每次真实物理尝试前扣减激活请求额度，包含提供方适配器的瞬时故障重试，以及激活准备期间共享作用域中的辅助 LLM 请求。SDK 自动重试和 Agent 协议重试均关闭；额度用尽后停止派发下一次请求。非 `ModelProvider` 的自定义提供方按驱动实际调用次数计量。剩余五次时，下一个工具结果的 `message` 追加剩余额度提示。`activation_budget` 事件记录计量层次、上限、已用、剩余及终态，DriverResult.value 同时提供 `requests` 与 `request_limit`；记忆收尾位于预算作用域之外。该请求预算不附带累计 token 上限。
+
+工具执行校验和 SDK 工具绑定保留声明中的必填字段；提供方 strict 传输层附加的 required nullable 可选项，在执行层仍可省略或传 null。该约定同样适用于嵌套参数。
 
 `strict_tools=False` 时动态参数用原生 JSON 对象；严格模式把动态参数声明为 JSON 文本，在分派边界解码，领域 schema 和权限始终校验。空响应和重复读取的调温是显式开启的可选策略，仍受原来的轮次预算约束。reasoning_stages 提供文字指导和原文分段位置，阶段之间没有强制请求。
 
@@ -24,7 +28,13 @@
 
 ## 决策工具与领域行动
 
-决策模式声明 `action_find`、`action_describe`、`action_invoke`、`read`、`ls`、`find`、`grep` 七项工具。领域行动由 Actions 注册表提供，发现、描述与执行均核验当前主体权限和目标可用性。未声明工具继续按 `model_protocol_error` 结束本次激活。
+决策模式声明 `action_find`、`action_describe`、`action_invoke`、`read`、`ls`、`find`、`grep`、`end_activation` 八项工具。领域行动由 Actions 注册表提供，发现、描述与执行均核验当前主体权限和目标可用性。未声明工具继续按 `model_protocol_error` 结束本次激活。
+
+八项工具的回执均提供中文 message；行动执行沿用 `result.message` 的领域说明，发现与文件工具在原返回结构上补充摘要，保留完整分页、字节续读和错误字段。
+
+`action_find` 的结果包含各行动的 `required` 参数名与类型。调用业务行动前先用 `action_describe` 取得完整 schema，再按参数名调用 `action_invoke`。批量描述使用 `{"actions":["行动名一","行动名二"]}`，返回 `actions` 数组；原有单个 `{name,target}` 形式继续有效。省略 target 时，注册表按该行动的 namespace、actor 类型和当前主体 ID 构造目标；其他资源类型须显式传 target。
+
+`end_activation` 接受可选 note，成功后以 `completed/end_activation` 结束；同一回复中的其他工具先执行。note 保存到专用 `end_activation` 审计事件，工具回执与 Thread 消息中的结束参数不携带 note，因此后续决策历史、简报和记忆提取均无法从消息读到该备注。纯文字回复仍以 `natural_completion` 自然结束。
 
 业务引用中的 `action` 是注册行动名；调用时映射到 `action_invoke.name`，复制 `target`，并按本次工具声明编码 `arguments`。严格模式将行动参数编码为 JSON 文本，非严格模式使用 JSON 对象。
 
@@ -47,7 +57,7 @@
 
 ## 历史、保存与开销
 
-同一主体在同一个 Moment、同一个 mode 下复用 Thread 和 provider_session_id；completed 与 waiting 可以继续，未完成的 Thread 需要显式恢复。此前保存的完整消息会继续进入请求，历史分页不用于裁剪上下文。每次激活的 typed 历史在等待模型和工具期间一直驻留，开销随完整上下文增长。
+同一主体在同一个 Moment、同一个 mode 下复用 Thread 和 provider_session_id；completed 与 waiting 可以继续；请求额度耗尽的 Thread 在同 Moment 内抑制重试，其余未完成的 Thread 需要显式恢复。此前保存的完整消息会继续进入请求，历史分页不用于裁剪上下文。每次激活的 typed 历史在等待模型和工具期间一直驻留，开销随完整上下文增长。
 
 返回值的 value 里有 thread_id、结构化结果和行动计数，reason 说明为什么结束。以成功或 waiting 退出时会保存工作区并收束扩展；保存失败会让这次激活变成未完成，并阻止步骤发布。记忆提取在 Thread 最终关闭之前执行。
 

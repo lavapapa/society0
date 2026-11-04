@@ -24,6 +24,8 @@ ModelResolver 依次看本次 override、主体配置、类型配置，最后才
 
 模型与嵌入 profile 共用退避参数：`max_attempts=6`、`backoff_initial_s=1`、`backoff_max_s=30`、`jitter=0.1`。六次总尝试之间最多等待五次，名义间隔为 1、2、4、8、16 秒；附加比例抖动之后再取 30 秒上界。`jitter=0` 可获得确定间隔。参数经原生 profile 工厂直接传给提供方。
 
+激活内的请求预算在 `ModelProvider.request_model` 每个物理尝试开始前扣减，`max_attempts` 受剩余额度约束；耗尽后不再派发请求。额度作用域、结束状态与计量事件见 [LLMDriver 的请求预算](llm.md#一次决定里的行动状态与上限)。
+
 重试保持既有可重试错误分类；协议参数错误、程序错误和取消各按原语义处理。每次物理尝试保留请求、响应或错误及用量关联。LLM 的 `retry_of` 指向本 Thread 内该次调用的首个 request 序号，嵌入的 `retry_of` 使用物理调用 ID；错误事件的 `will_retry` 表示重试意向，实际尝试应按持久请求链计数。
 
 ## 认证方式与会话身份

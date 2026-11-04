@@ -111,6 +111,22 @@ def _messages(view, thread_id, *, after_seq=0, max_messages=None, through=None, 
     return output
 
 
+def _audit_only_end_note(message):
+    """结束备注留在审计事件，消息正文供后续决策与记忆读取。"""
+    if 'model_message' in message:
+        typed = message['model_message']
+        parts = typed.get('parts', ())
+        if any(part.get('part_kind') == 'tool-call' and part.get('tool_name') == 'end_activation' for part in parts):
+            return {**message, 'model_message': {**typed, 'parts': [
+                {**part, 'args': {}} if part.get('part_kind') == 'tool-call' and part.get('tool_name') == 'end_activation' else part
+                for part in parts]}}
+    if message.get('role') == 'assistant' and any(call['function']['name'] == 'end_activation' for call in message.get('tool_calls', ())):
+        return {**message, 'tool_calls': [
+            {**call, 'function': {**call['function'], 'arguments': '{}'}} if call['function']['name'] == 'end_activation' else call
+            for call in message['tool_calls']]}
+    return message
+
+
 class ThreadStore:
     def __init__(self, store):
         self.store = store
@@ -275,7 +291,7 @@ class ThreadStore:
     def append_message(self, thread_id, message):
         if type(message) is not dict:
             raise TypeError('message must be a JSON object')
-        return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', message))
+        return self.store.transaction(lambda writer:_append(writer, thread_id, 'message', _audit_only_end_note(message)))
 
     def event(self, thread_id, kind, payload):
         if kind in ('message','opened','closed','reopened','request','tool_receipt','input_cursor'):
@@ -312,7 +328,7 @@ class ThreadStore:
     def record_model_response(self, thread_id, physical, endpoint, message, summary, *, provider=''):
         """正文仅保存一份 typed 消息；物理响应事实引用它，并同事务维护用量与端点投影。"""
         def write(writer):
-            sequence = _append(writer, thread_id, 'message', {'model_message': message})
+            sequence = _append(writer, thread_id, 'message', _audit_only_end_note({'model_message': message}))
             _append(writer, thread_id, 'provider_response', {'physical_request_id': physical,
                 'endpoint': endpoint, 'message_seq': sequence, 'payload': summary})
             # 与响应事实同一事务写入当前投影；查询只读这一行，不扫描响应历史。
@@ -409,6 +425,12 @@ class ThreadStore:
 
     def describe(self, thread_id):
         return self.store.read(lambda view:_head(view, thread_id))
+
+    def close_reason(self, thread_id):
+        def read(view):
+            head = _head(view, thread_id)
+            return _load(view, thread_id, head['last_seq']).get('reason') if head['status'] != 'open' else None
+        return self.store.read(read)
 
     def close(self, thread_id, outcome, *, reason=None, elapsed_s=0.,phase_timings=None):
         if outcome not in ('completed','waiting','incomplete'):

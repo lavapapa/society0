@@ -168,7 +168,7 @@ class PhaseContext:
                 scope.check_active()
                 if not isinstance(result, DriverResult):
                     raise TypeError('driver must return DriverResult')
-                if result.status == 'incomplete' and self._incomplete == 'fail_step':
+                if result.status == 'incomplete' and result.reason != 'budget_exhausted' and self._incomplete == 'fail_step':
                     raise IncompleteActivation(result.reason or 'driver incomplete')
                 return result
             except BaseException as error:

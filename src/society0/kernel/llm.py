@@ -21,7 +21,9 @@ from ..async_utils import invoke_maybe_async
 from ..function_registry import normalize_strict_function_parameters
 from .interaction import ActionResult, Page, Query, Ref, Unavailable
 from .cognition import InputBatch
-from .models import ProviderFailure
+from .models import ProviderFailure, ModelProvider
+from .action_feedback import rejection_feedback, tool_feedback
+from .request_budget import RequestBudget, current_request_budget, ActivationBudgetExhausted
 from .runtime import DriverResult
 
 current_action_call_id = ContextVar('kernel_action_call_id', default=None)
@@ -81,13 +83,14 @@ def _text_range(data, offset, total, encoding):
 
 
 _TOOL_DESCRIPTIONS = {
-    'action_find': 'Find available actions by case-insensitive literal substring of the action name and description. Use the empty string to list all available actions with pagination; wildcard and semantic searches are not supported. Returns exact total and continuation cursor; pass the returned cursor to continue.',
-    'action_describe': 'Read the full parameter schema, tags and completion metadata for one action before invoking it. Eligibility is checked again when the action runs.',
-    'action_invoke': 'Execute one domain action. arguments follows the described action schema; accepted is not completed. Every attempt uses the domain action budget.',
-    'read': 'Read an original file by absolute path, with byte offset and size. Start at /context, /world, /workspace or /results. Defaults to UTF-8; base64 preserves binary bytes. Follow next_offset until null and keep expected_revision when continuing.',
-    'ls': 'List authorized immediate directory children. Returns exact total, revision and next_cursor; pass that cursor to continue. Listing does not read large bodies.',
-    'find': 'Find original logical file paths using a glob pattern under path. Returns total and next_cursor; pass the cursor to continue. Transmission parts and metadata are not duplicate search targets.',
-    'grep': 'Search original text files by line using ripgrep regex, or literal text when literal=true. Returns line and byte locations, exact completed total and a persistent JSONL result_path; read that file to obtain all matches. glob selects file paths. Source changes invalidate the search.',
+    'action_find': '查找当前目标可用的业务行动，返回行动名、用途和必填参数名及类型。query 按名称和说明做忽略大小写的字面子串搜索，空字符串分页列出全部；不支持语义搜索或通配符。按 next_cursor 续读。选定行动后先 action_describe，再 action_invoke；业务行动名仅放进 name 参数，勿当作直接工具名。',
+    'action_describe': '查看一个或多个业务行动的完整参数 schema、说明和示例。批量形式 actions:["industry.resolve_agenda", "industry.update_plan"]，target 省略时使用当前主体上下文；也支持原单个 {name,target} 形式。调用任何行动之前，必须先用 action_describe 查看该行动的参数，再按返回的参数名调用 action_invoke；不要凭行动名猜参数。',
+    'action_invoke': '执行一个业务行动，name 使用发现或描述返回的行动名，target 使用对应目标，arguments 严格按该行动 schema 填写。调用任何行动之前，必须先用 action_describe 查看该行动的参数，再按返回的参数名调用 action_invoke；不要凭行动名猜参数。返回 message 说明结果；accepted 为已受理、completed 为已完成。已保存的状态无需反复确认，判断完成后用 end_activation 或纯文字结束。',
+    'read': '按绝对路径读取原始文件；先从 /context、/world、/workspace 或 /results 定位资料。offset 和 size 按字节计，默认 UTF-8，二进制用 base64。next_offset 非空时可继续读取，并沿用 expected_revision；读完所需事实后再决定是否调用业务行动。',
+    'ls': '列出授权目录的直接子项，用于定位 read 要读取的文件；不读取文件正文。返回 total、revision 和 next_cursor，按该游标续读可取得全部子项。',
+    'find': '在 path 下按 glob 模式查找原始逻辑文件路径，适合已知文件命名规律时使用；找到路径后用 read 读取。返回 total 和 next_cursor，按游标续读。传输分块和元数据不会重复计入原文件。',
+    'grep': '按正则逐行搜索原始文本，literal=true 时按字面文本搜索，glob 用于筛选文件路径。返回行号、字节位置、完整匹配总数及持久 JSONL result_path；用 read 读取该结果文件可取得全部匹配。源文件改变时重新搜索。',
+    'end_activation': '判断完成后结束本次激活，状态为 completed；也可直接以纯文字回复、不调用工具自然结束。可选 note 是本次小结，仅供审计，不进入记忆和后续简报。已保存的计划会自动执行，无需再次确认或保存；同一回复有其他工具调用时，先执行其他工具，再结束。',
     'bash': 'Run shell text with read-only /world, /context and /results files, data/action commands, and private /workspace files. With persistent workspace enabled, cwd is /workspace. Shell commands may materialize whole selected files; use read for byte ranges. Domain actions share the action budget. Complete outputs have persistent /results paths.',
     'submit_result': 'Submit the final structured result matching this schema. Success completes this measurement or decision.',
 }
@@ -171,6 +174,7 @@ class _Ledger:
         self.shell_index = 0
         self.effects = []
         self.applied_receipts = set()
+        self.ended = False
 
     @property
     def used(self):
@@ -198,7 +202,7 @@ class _Ledger:
         continuation=None if page.next_cursor is None else {'identity':identity,'cursor':page.next_cursor}
         return Page(page.items,page.total,continuation,page.revision)
 
-    async def describe(self, name, target):
+    async def describe(self, name, target=None):
         description = await self.base.describe(name, target)
         if not self.allowed(description):
             raise Unavailable('action outside activation selection')
@@ -216,7 +220,7 @@ class _Ledger:
 
     async def invoke(self, name, target, arguments):
         if self.terminal and self.requirements_met():
-            return ActionResult('rejected', {'reason': 'activation_completed'})
+            return ActionResult('rejected', {'reason': 'activation_completed'}, message='本次激活已完成，无需继续调用行动。')
         self.preflight([name])
         self.counts[name] += 1
         identifier = self.call_id
@@ -236,9 +240,9 @@ class _Ledger:
                 except Unavailable:
                     description = None
                 if description is None:
-                    result = ActionResult('rejected', {'reason': 'unavailable'})
-                elif not isinstance(arguments, dict):
-                    result = ActionResult('rejected', {'reason': 'invalid_arguments'})
+                    value = {'reason': 'unavailable'}
+                    result = ActionResult('rejected', value, message=rejection_feedback(name, {}, arguments, value,
+                        f'行动 {name} 或目标当前不可用；请先用 action_find 查询可用行动。'))
                 else:
                     result = await self.base.invoke(name, target, arguments)
             except BaseException as error:
@@ -366,21 +370,23 @@ class LLMDriver:
         self.shell_factory = shell_factory
         self.extensions = tuple(extensions)
 
-    def _tools(self):
-        """元工具与文件工具按固定顺序声明，业务行动经注册表发现和执行。"""
+    def _tool_schemas(self):
+        """工具实际参数合同；提供方 strict 传输约束在声明边界附加。"""
         dynamic = {'type': 'string'} if self.policy.strict_tools else {'type': 'object', 'additionalProperties': True}
         cursor = {**dynamic, 'type': [dynamic['type'], 'null']}
         schemas = {
             'action_find': {**_schema({'target': _REF, 'query': {'type': 'string', 'description': 'Case-insensitive literal substring of name and description; use the empty string to list all available actions. No wildcard or semantic matching.'}, 'limit': {'type': 'integer'},
                                     'cursor': {**cursor, 'description': _ACTION_CURSOR_HELP} if self.policy.strict_tools else _ACTION_CURSOR_SCHEMA}),
                             'required': ['target', 'query', 'limit']},
-            'action_describe': _schema({'name': {'type': 'string'}, 'target': _REF}),
+            'action_describe': {**_schema({'name': {'type': 'string'}, 'target': _REF,
+                'actions': {'type': 'array', 'items': {'type': 'string'}, 'minItems': 1}}), 'required': []},
             'action_invoke': _schema({'name': {'type': 'string'}, 'target': _REF, 'arguments': dynamic}),
             'ls': {**_schema({'path': {'type':'string'}, 'limit': {'type':'integer'}, 'cursor': cursor if self.policy.strict_tools else {}}), 'required':['path']},
             'read': {**_schema({'path': {'type':'string'}, 'offset': {'type':'integer'}, 'size': {'type':'integer'},
                 'encoding': {'type':'string','enum':['utf-8','base64']}, 'expected_revision': {}}), 'required':['path']},
             'find': {**_schema({'pattern': {'type':'string'}, 'path': {'type':'string'}, 'limit': {'type':'integer'},
                 'cursor': cursor if self.policy.strict_tools else {}}), 'required':['pattern','path']},
+            'end_activation': {**_schema({'note': {'type': 'string'}}), 'required': []},
             'grep': {**_schema({'pattern': {'type':'string'}, 'path': {'type':'string'}, 'glob': {'type':['string','null']},
                 'literal': {'type':'boolean'}, 'ignore_case': {'type':'boolean'}}), 'required':['pattern','path']},
         }
@@ -394,9 +400,12 @@ class LLMDriver:
             schemas = {name: schema for name, schema in schemas.items() if name == 'submit_result'}
         if self.policy.direct_json:
             schemas = {}
-        tools = [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' Submit at most one tool call per response.'),
+        return schemas
+
+    def _tools(self):
+        tools = [{'type': 'function', 'function': {'name': name, 'description': _TOOL_DESCRIPTIONS[name] + (' Dynamic objects use JSON-encoded strings in this strict tool protocol.' if self.policy.strict_tools and name in ('action_invoke', 'action_find', 'ls', 'find') else '') + ('' if self.policy.parallel_tool_calls else ' 每次回复至多调用一个工具；若同时提交 end_activation 与其他工具，其他工具先执行。'),
                 'parameters': normalize_strict_function_parameters(schema) if self.policy.strict_tools else schema,
-                'strict': self.policy.strict_tools}} for name, schema in schemas.items()]
+                'strict': self.policy.strict_tools}} for name, schema in self._tool_schemas().items()]
         return tools
 
     async def _dispatch(self, name, arguments, session, ledger, shell):
@@ -415,7 +424,16 @@ class LLMDriver:
             return await _read_tool(ledger.find, Ref(**arguments['target']), query=arguments['query'], limit=arguments['limit'],
                                     cursor=arguments.get('cursor'))
         if name == 'action_describe':
-            return await _read_tool(ledger.describe, arguments['name'], Ref(**arguments['target']))
+            target = Ref(**arguments['target']) if arguments.get('target') is not None else None
+            if arguments.get('actions') is not None:
+                return {'actions': [await _read_tool(ledger.describe, action, target) for action in arguments['actions']]}
+            if not arguments.get('name'):
+                raise _ToolInputError('请传 actions:[行动名]，或传 name 和 target 查看单个行动。')
+            return await _read_tool(ledger.describe, arguments['name'], target)
+        if name == 'end_activation':
+            self.threads.event(ledger.thread_id, 'end_activation', {'call_id': ledger.call_id, 'note': arguments.get('note')})
+            ledger.ended = True
+            return {'status': 'completed', 'message': '本次激活已结束，已生效的行动和现有状态保留。'}
         if name in ('read','ls','find','grep'):
             from .actor_files import ActorFiles
             files=session.cursors.get('files')
@@ -456,7 +474,10 @@ class LLMDriver:
             thread_id = self.threads.open(session.actor.id, session.moment, self.policy.mode,
                                           model_route=session.cursors.get('model_route'))
         else:
-            if self.threads.describe(thread_id)['status'] not in ('completed', 'waiting'):
+            head = self.threads.describe(thread_id)
+            if head['status'] == 'incomplete' and self.threads.close_reason(thread_id) == 'budget_exhausted':
+                return DriverResult('incomplete', {'thread_id': thread_id, 'requests': 0, 'retry_suppressed': True}, 'budget_exhausted')
+            if head['status'] not in ('completed', 'waiting'):
                 raise RuntimeError('unfinished Thread requires explicit recovery; budgets are not reset')
             verify = getattr(self.provider, 'verify_route', None)
             if verify is not None:
@@ -470,6 +491,8 @@ class LLMDriver:
         prepared = False
         reasoning=[]
         timings={}
+        budget = RequestBudget(self.policy.max_turns)
+        budget_token = None
         from .activation import ActivationContext, activation_scope
         context=ActivationContext(session,thread_id,self.policy.mode,timings=timings)
         extension_scope=AsyncExitStack()
@@ -493,7 +516,24 @@ class LLMDriver:
                     # prepare() 之前确定决策 Thread、输入水位、提供方、有序工具与激活租约；
                     # 召回等辅助请求据此复用同一实例、同一路由与同一前缀，不重建经营输入。
                     tools = self._tools()
-                    schemas = {tool['function']['name']: validator_for(tool['function']['parameters'])(tool['function']['parameters']) for tool in tools}
+                    semantic_schemas = self._tool_schemas()
+                    def execution_schema(semantic, transport):
+                        # strict wire 将可选项变成 required nullable；执行层保留可省略语义。
+                        schema = dict(transport)
+                        if 'properties' in semantic:
+                            schema['required'] = semantic.get('required', [])
+                            schema['properties'] = {key: execution_schema(child, transport['properties'][key])
+                                for key, child in semantic['properties'].items()}
+                        if isinstance(semantic.get('items'), dict):
+                            schema['items'] = execution_schema(semantic['items'], transport['items'])
+                        for keyword in ('anyOf', 'oneOf', 'allOf'):
+                            if keyword in semantic:
+                                schema[keyword] = [execution_schema(child, transport[keyword][index])
+                                    for index, child in enumerate(semantic[keyword])] + transport[keyword][len(semantic[keyword]):]
+                        return schema
+                    execution_schemas = {tool['function']['name']: execution_schema(
+                        semantic_schemas[tool['function']['name']], tool['function']['parameters']) for tool in tools}
+                    schemas = {name: validator_for(schema)(schema) for name, schema in execution_schemas.items()}
                     options = dict(self.policy.request_options)
                     options['tools'] = tools
                     options['parallel_tool_calls'] = self.policy.parallel_tool_calls
@@ -515,6 +555,7 @@ class LLMDriver:
                         through=self.threads.describe(thread_id)['last_seq'], provider=provider,
                         model_route=route, endpoint=endpoint, tools=tuple(tools),
                         lease=session.cursors.get('activation_lease'))
+                budget_token = current_request_budget.set(budget)
                 await context.prepare()
                 prepared = True
                 for message in context.messages:
@@ -546,6 +587,9 @@ class LLMDriver:
                 async def request_model(messages):
                     nonlocal empty_retry_attempt, incomplete
                     session.scope.check_active()
+                    budget.check()
+                    if not isinstance(provider, ModelProvider):
+                        budget.take()
                     turn_options = dict(options)
                     adjustments = (
                         (empty_retry_attempt, self.policy.empty_retry_temperature_delta, self.policy.empty_retry_temperature_max,
@@ -575,23 +619,26 @@ class LLMDriver:
                     session.scope.check_active()
                     identifier, name = ctx.tool_call_id, ctx.tool_name
                     item = pending_calls[identifier]
+                    receipt_item = {**item, 'function': {**item['function'], 'arguments': '{}'}} if name == 'end_activation' else item
                     receipt = self.threads.get_tool_result(thread_id, identifier)
                     ledger.effects = []
                     if receipt is not None:
-                        if receipt['call'] != item: raise ValueError('one tool call id has conflicting payloads')
+                        if receipt['call'] != receipt_item: raise ValueError('one tool call id has conflicting payloads')
                         ledger.replay(identifier, receipt['metadata'])
+                        ledger.ended |= bool(receipt['metadata'].get('ended'))
                         if receipt['metadata'].get('structured') is not None: structured = receipt['metadata']['structured']
                         feedback = receipt['content']
                         self.threads.append_message(thread_id, {'role': 'tool', 'tool_call_id': identifier, 'content': feedback})
                         return feedback
-                    if structured is not None or (ledger.terminal and ledger.requirements_met()):
-                        feedback = _json({'status': 'not_executed', 'reason': 'activation_completed'})
+                    if name != 'end_activation' and (structured is not None or (ledger.terminal and ledger.requirements_met())):
+                        feedback = _json({'status': 'not_executed', 'reason': 'activation_completed', 'message': '本次激活已完成，该工具未执行，无需继续提交。'})
                     elif errors := list(schemas[name].iter_errors(arguments)):
                         feedback = _json({'error': 'invalid_tool_arguments', 'details': [
                             {'path': list(error.absolute_path), 'message': error.message,
                              'validator': error.validator, 'expected': error.validator_value} for error in errors],
-                            **({'message': _ACTION_CURSOR_HELP} if name == 'action_find' and
-                               any(list(error.absolute_path)[:1] == ['cursor'] for error in errors) else {})})
+                            'message': rejection_feedback(name, schemas[name].schema, arguments, {'reason': 'invalid_tool_arguments',
+                                'details': [{'path': list(error.absolute_path), 'message': error.message} for error in errors]}) +
+                                (_ACTION_CURSOR_HELP if name == 'action_find' and any(list(error.absolute_path)[:1] == ['cursor'] for error in errors) else '')})
                     elif name == 'submit_result':
                         structured = arguments
                         feedback = _json({'status': 'completed', 'result': arguments})
@@ -599,12 +646,21 @@ class LLMDriver:
                         ledger.call_id, ledger.shell_call = identifier, name == 'bash'
                         try:
                             with _timed(timings, 'tools_s'):
-                                feedback = _json(await self._dispatch(name, arguments, session, ledger, shell))
+                                feedback = _json(tool_feedback(name, await self._dispatch(name, arguments, session, ledger, shell), arguments))
                         except _ToolInputError as error:
-                            feedback = _json({'error': 'invalid_tool_input', 'message': str(error)})
+                            feedback = _json({'error': 'invalid_tool_input', 'message': f'工具 {name} 的输入无法处理：{error}；请核对工具参数后重试。'})
+                    if budget.warning_pending and not budget.warning_sent:
+                        payload = json.loads(feedback)
+                        message_target = payload.get('result', payload) if isinstance(payload, dict) else None
+                        if isinstance(message_target, dict):
+                            remaining = budget.remaining
+                            message_target['message'] = message_target.get('message', '') + f'本次激活还剩 {remaining} 次调用机会，请尽快完成并调用 end_activation。'
+                            feedback = _json(payload)
+                            budget.warning_sent, budget.warning_pending = True, False
                     with _timed(timings, 'tool_save_s'):
-                        self.threads.save_tool_result(thread_id, item, feedback,
-                            metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None})
+                        self.threads.save_tool_result(thread_id, receipt_item, feedback,
+                            metadata={'actions': ledger.effects, 'structured': structured if name == 'submit_result' else None,
+                                      'ended': name == 'end_activation' and ledger.ended})
                     ledger.applied_receipts.add(identifier)
                     return feedback
 
@@ -615,7 +671,7 @@ class LLMDriver:
                     return ModelRequestNode(ModelRequest(parts=[UserPromptPart(content)]))
 
                 agent_tools = [Tool.from_schema(execute, item['function']['name'], item['function']['description'],
-                                item['function']['parameters'], takes_ctx=True, sequential=True) for item in tools]
+                                execution_schemas[item['function']['name']], takes_ctx=True, sequential=True) for item in tools]
                 # 协议错误直接失败；业务纠正使用普通反馈，不额外消耗 SDK 的独立重试预算。
                 agent = Agent(ThreadModel(request_model), tools=agent_tools, retries=0)
                 # 全历史仅在激活入口解码一次，后续模型请求直接借用 Agent 持有的同一消息列表。
@@ -625,7 +681,7 @@ class LLMDriver:
                         self.threads.append_message(thread_id, {'role': 'user', 'content': ''})
                         initial = [ModelRequest(parts=[UserPromptPart('')])]
                 async with agent.iter(message_history=initial, conversation_id=thread_id,
-                                      usage_limits=UsageLimits(request_limit=self.policy.max_turns)) as run:
+                                      usage_limits=UsageLimits(request_limit=None)) as run:
                     del initial
                     node = ModelRequestNode(ModelRequest(parts=[]))
                     while not Agent.is_end_node(node):
@@ -645,6 +701,8 @@ class LLMDriver:
                                 reason='repeated_response'
                                 break
                             pending_calls = {item['id']: item for item in calls}
+                            # SDK 的 sequential 工具按响应顺序执行；结束调用放到本回复最后。
+                            node.model_response.parts.sort(key=lambda part: getattr(part, 'tool_name', None) == 'end_activation')
                             if self.policy.direct_json:
                                 try:
                                     candidate = json.loads(content)
@@ -677,7 +735,7 @@ class LLMDriver:
                                         valid = function['name'] in schemas and schemas[function['name']].is_valid(arguments)
                                     except (ValueError, TypeError): arguments, valid = None, False
                                     parsed.append((item, arguments, valid))
-                                if not self.policy.parallel_tool_calls and len(calls) > 1:
+                                if not self.policy.parallel_tool_calls and len(calls) > 1 and not any(item['function']['name'] == 'end_activation' for item in calls):
                                     parallel_errors += 1
                                     if parallel_errors > 1 or not all(valid for _, _, valid in parsed):
                                         reason = 'parallel_tool_contract'
@@ -694,10 +752,15 @@ class LLMDriver:
                                     if valid and item['function']['name'] == 'action_invoke'
                                     and self.threads.get_tool_result(thread_id, item['id']) is None)
                                 ledger.turn_repeated_read = ledger.turn_progress = False
+                        if Agent.is_model_request_node(node):
+                            budget.check()
                         executing_tools = Agent.is_call_tools_node(node)
                         node = await run.next(node)
                         if executing_tools and Agent.is_model_request_node(node):
                             repeated_read_streak = repeated_read_streak + 1 if ledger.turn_repeated_read else 0
+                            if ledger.ended:
+                                status, reason = 'completed', 'end_activation'
+                                break
                             if (structured is not None or (ledger.terminal and self.policy.result_schema is None)) and ledger.requirements_met():
                                 status, reason = 'completed', 'structured_result' if structured is not None else 'terminal_action'
                                 break
@@ -710,16 +773,22 @@ class LLMDriver:
                 if not prepared: raise
                 reason = error.reason
             except _BudgetReached as error: reason = str(error)
-            except UsageLimitExceeded: reason = 'max_turns'
+            except (UsageLimitExceeded, ActivationBudgetExhausted): reason = 'budget_exhausted'
             except UnexpectedModelBehavior as error:
                 reason = 'model_protocol_error'
                 self.threads.event(thread_id, reason, {'error': str(error)})
             finally:
                 # 记忆阶段会重新读取完整 Thread；进入前释放 Agent 的激活历史。
                 run = node = initial = None
+                if budget_token is not None:
+                    current_request_budget.reset(budget_token)
+                    budget_token = None
+                self.threads.event(thread_id, 'activation_budget', {'limit': budget.limit,
+                    'requests': budget.requests, 'remaining': budget.remaining, 'status': status, 'reason': reason,
+                    'counting': 'physical_attempts' if isinstance(provider, ModelProvider) else 'provider_calls'})
             result = DriverResult(status, {'thread_id': thread_id, 'result': structured,
                                   'content':content if reason=='natural_completion' else None,
-                                 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings}, reason)
+                                 'requests': budget.requests, 'request_limit': budget.limit, 'action_counts': dict(ledger.counts), 'reasoning_stages':reasoning,'phase_timings':timings}, reason)
             context.through=self.threads.describe(thread_id)['last_seq']
             context.result=result
             await extension_scope.aclose()

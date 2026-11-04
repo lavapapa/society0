@@ -12,6 +12,7 @@ from typing import Any, Callable
 
 from jsonschema.validators import validator_for
 
+from .action_feedback import required_parameters, call_example, rejection_feedback, result_message
 from ..function_registry import validate_strict_function_parameters
 
 
@@ -347,6 +348,7 @@ class ActionSummary:
     description: str
     terminal: bool
     tags: tuple[str, ...] = ()
+    required: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -359,6 +361,7 @@ class ActionDescription:
     tags: tuple[str, ...] = ()
     strict: bool = False
     read_only: bool = False
+    example: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -367,6 +370,7 @@ class ActionResult:
     value: Any = None
     process: Ref | None = None
     terminal: bool = False
+    message: str | None = None
 
     def __post_init__(self):
         if self.status not in ('completed', 'accepted', 'rejected'):
@@ -509,7 +513,7 @@ class Actions:
     @staticmethod
     def _description(action):
         return ActionDescription(action.name, action.target_kind, action.description,
-                                 deepcopy(action.parameters), action.terminal, action.tags, action.strict, action.read_only)
+                                 deepcopy(action.parameters), action.terminal, action.tags, action.strict, action.read_only, call_example(action.parameters))
 
     def _matching_names(self, target, query, names, tags):
         # 三元字符索引保留字面子串语义；短中文等不足三字符的查询按类型扫描。
@@ -582,7 +586,7 @@ class Actions:
                     if revision is None:
                         candidates.append(name)
                     if offset <= total < offset + limit:
-                        selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags))
+                        selected.append(ActionSummary(action.name, action.description, action.terminal, action.tags, required_parameters(action.parameters)))
                     total += 1
         finally:
             matching.close()
@@ -612,12 +616,15 @@ class Actions:
     async def invoke(self, scope, name, target, arguments):
         registered = self._actions.get(name)
         action = registered[0] if registered else None
+        schema = action.parameters if action is not None else {'type': 'object', 'properties': {}}
+        def rejected(value, message=None):
+            return ActionResult('rejected', value, message=rejection_feedback(name, schema, arguments, value, message))
         if not await self._eligible(scope, action, target):
-            return ActionResult('rejected', {'reason': 'unavailable'})
+            return rejected({'reason': 'unavailable'}, f'行动 {name} 或目标当前不可用；请用 action_find 查询当前目标的可用行动。')
         if action.strict:
-            arguments = _normalize_strict_value(arguments, action.parameters)
+            arguments = _normalize_strict_value(arguments, schema)
         if errors := list(registered[1].iter_errors(arguments)):
-            return ActionResult('rejected', {'reason': 'invalid_arguments', 'details': [
+            return rejected({'reason': 'invalid_arguments', 'details': [
                 {'path': list(error.absolute_path), 'message': error.message,
                  'validator': error.validator, 'expected': error.validator_value} for error in errors]})
         scope.check_active()
@@ -628,7 +635,11 @@ class Actions:
         except BaseException as error:
             scope.fail(error)
             raise
-        return replace(result, terminal=action.terminal and result.status == 'completed')
+        message = result_message(name, result, read_only=action.read_only, arguments=arguments)
+        if result.status == 'rejected':
+            message = rejection_feedback(name, schema, arguments, result.value,
+                result.message or (result.value.get('message') if isinstance(result.value, dict) else None))
+        return replace(result, terminal=action.terminal and result.status == 'completed', message=message)
 
     def bound(self, scope):
         return _BoundActions(self, scope)
@@ -642,7 +653,15 @@ class _BoundActions:
     async def find(self, target, *, query='', limit=100, cursor=None, names=None, tags=None):
         return await self.actions.find(self.scope, target, query=query, limit=limit, cursor=cursor, names=names, tags=tags)
 
-    async def describe(self, name, target):
+    async def describe(self, name, target=None):
+        if target is None:
+            registered = self.actions._actions.get(name)
+            if registered is None:
+                raise Unavailable('action unavailable')
+            namespace, kind = registered[0].target_kind
+            if kind != 'actor':
+                raise ValueError('该行动需要显式 target；当前主体上下文仅默认 actor 目标。')
+            target = Ref(namespace, kind, self.scope.actor)
         return await self.actions.describe(self.scope, name, target)
 
     async def invoke(self, name, target, arguments):
