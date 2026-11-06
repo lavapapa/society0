@@ -4,7 +4,9 @@ import { StringDecoder } from 'node:string_decoder';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ExplorationOptions } from './registry.js';
-type Match = (offset: number, text: string) => void;
+type Match = (offset: number, text: string, line: number, column: number) => void;
+/** rg 进程计数：基准与度量读取（DESIGN §12.3），不参与行为。 */
+export const searchProcesses = { started: 0 };
 /** rg的JSON行跨stdout块解码，原文则连续流入stdin。 */
 class SearchOutput {
     private decoder = new StringDecoder('utf8');
@@ -28,7 +30,7 @@ class SearchOutput {
             return;
         for (const sub of event.data.submatches) {
             const text = sub.match.text ?? Buffer.from(sub.match.bytes, 'base64').toString('utf8');
-            this.match(event.data.absolute_offset + sub.start, text);
+            this.match(event.data.absolute_offset + sub.start, text, Number(event.data.line_number ?? 1), sub.start + 1);
         }
     }
 }
@@ -38,7 +40,7 @@ export class NativeSearch {
     private exited: Promise<number | null>;
     private failure: unknown;
     private stderr = '';
-    constructor(pattern: string, mode: 'literal' | 'regex', private options: ExplorationOptions) { this.child = spawn(rgPath, ['--json', '--no-config', '--regexp', pattern, ...(mode === 'literal' ? ['--fixed-strings'] : []), '--regex-size-limit', '1M', '--dfa-size-limit', '1M', '-'], { stdio: 'pipe' }); this.exited = new Promise((resolve, reject) => { this.child.once('error', reject); this.child.once('close', resolve); }); void this.exited.catch(() => { }); this.child.stderr.on('data', chunk => this.diagnostic(chunk)); }
+    constructor(pattern: string, mode: 'literal' | 'regex', private options: ExplorationOptions) { searchProcesses.started++; this.child = spawn(rgPath, ['--json', '--no-config', '--regexp', pattern, ...(mode === 'literal' ? ['--fixed-strings'] : []), '--regex-size-limit', '1M', '--dfa-size-limit', '1M', '-'], { stdio: 'pipe' }); this.exited = new Promise((resolve, reject) => { this.child.once('error', reject); this.child.once('close', resolve); }); void this.exited.catch(() => { }); this.child.stderr.on('data', chunk => this.diagnostic(chunk)); }
     private stop(reason: unknown) { this.failure ??= reason; this.child.kill('SIGKILL'); }
     private diagnostic(chunk: Buffer) {
         this.stderr += chunk.toString();
