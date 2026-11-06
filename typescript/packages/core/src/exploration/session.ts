@@ -6,7 +6,7 @@ import type { Invocation, Lease, Json } from '../contracts/common.js';
 import type { DiscoveryScope, PageRequest } from '../contracts/data.js';
 import type { ExplorationNode, ExplorationMount, WritableExplorationMount, ExplorationSession, ExplorationMatch, ExplorationMutation, ExplorationContent } from '../contracts/exploration.js';
 import type { ActionExecutionContext } from '../contracts/domain.js';
-import type { SqliteReadView } from '../sqlite/contracts.js';
+import type { SqliteReadView, SqliteSnapshot } from '../sqlite/contracts.js';
 import { after, identity, page, fail, equal } from '../information/page.js';
 import { canonical, type MountRegistration, type ExplorationOptions, type FindRequest, type GrepRequest } from './registry.js';
 import { MountedRoot } from './root.js';
@@ -27,13 +27,16 @@ class MatchPage {
     private items: ExplorationMatch[] = [];
     private positions = new WeakMap<ExplorationMatch, number>();
     constructor(private request: GrepRequest, private last: unknown, private id: unknown, private revision: string) { }
-    append(node: ExplorationNode, offset: number, text: string) {
+    append(node: ExplorationNode, offset: number, text: string, line: number, column: number) {
+        this.admit({ path: node.path, objectId: node.objectId, versions: node.versions, rawOffset: String(offset), text, line, column });
+    }
+    appendMatch(match: ExplorationMatch) { this.admit(match); }
+    private admit(value: ExplorationMatch) {
         this.total++;
         if (this.last !== undefined && this.total <= Number(this.last))
             return;
         if (this.items.length > this.request.page.maxItems)
             return;
-        const value = { path: node.path, objectId: node.objectId, versions: node.versions, rawOffset: String(offset), text };
         this.positions.set(value, this.total);
         this.items.push(value);
     }
@@ -63,16 +66,49 @@ export class ExplorationView implements ExplorationSession {
         }
     }
     release() { return this.closed ??= (async () => { this.closing = true; await Promise.allSettled([...this.active]); await this.selected.release(); })(); }
+    private leased?: SqliteSnapshot;
     private read<T>(body: (view: SqliteReadView) => Promise<T>) {
         return this.track(async () => {
-            const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+            const borrowed = this.leased;
+            const view = borrowed ?? await this.ctx.database.snapshot({ maxAgeMs: 30000 });
             try {
                 return await body(view);
             }
             finally {
+                if (!borrowed)
+                    await view.close();
+            }
+        });
+    }
+    withView<T>(body: (session: ExplorationSession) => Promise<T>): Promise<T> {
+        return this.track(async () => {
+            if (this.leased)
+                return body(this);
+            const view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+            this.leased = view;
+            try {
+                return await body(this);
+            }
+            finally {
+                const current = this.leased;
+                this.leased = undefined;
+                if (current && current !== view)
+                    await current.close();
                 await view.close();
             }
         });
+    }
+    /** 本会话自己的写提交后换一份快照，保证命令内的 read-your-writes。 */
+    private async advanceLease() {
+        const previous = this.leased;
+        if (!previous)
+            return;
+        try {
+            this.leased = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+        }
+        finally {
+            await previous.close();
+        }
     }
     private mount(path: string): ExplorationMount {
         canonical(path);
@@ -108,21 +144,27 @@ export class ExplorationView implements ExplorationSession {
     }
     find(request: FindRequest) { return this.read(view => this.findInView(request, view)); }
     private async findInView(request: FindRequest, view: SqliteReadView) {
+        const direct = this.mount(request.root);
+        if (direct.find)
+            return direct.find(request.root, request.glob, this.scope, view, request.page);
         const id = identity(this.scope, view, { registry: this.registry, root: request.root, glob: request.glob }), last = after(request.page.cursor, id);
-        let total = 0;
-        const positions = new WeakMap<ExplorationNode, number>(), items: ExplorationNode[] = [];
+        let total = 0, seen = last === undefined;
+        const items: ExplorationNode[] = [];
         for await (const node of this.walk(request.root, view)) {
             if (!this.matches(node, request.glob))
                 continue;
             total++;
-            if (last !== undefined && total <= Number(last))
+            // 游标记录上一次返回的最后一个路径；遍历顺序是深度优先，按“走到该路径之后”继续，
+            // 不能用字典序比较（'/x/a.txt' 与 '/x/a/z' 的字典序和遍历序不同）。
+            if (!seen) {
+                if (node.path === String(last))
+                    seen = true;
                 continue;
-            if (items.length <= request.page.maxItems) {
-                positions.set(node, total);
-                items.push(node);
             }
+            if (items.length <= request.page.maxItems)
+                items.push(node);
         }
-        return page(items, String(total), view.revision, request.page, id, node => positions.get(node));
+        return page(items, String(total), view.revision, request.page, id, node => node.path);
     }
     private matches(node: ExplorationNode, glob: string) { return matchesGlob(node.path, glob) || matchesGlob(posix.basename(node.path), glob); }
     private async *walk(root: string, view: SqliteReadView, depth = 0): AsyncGenerator<ExplorationNode> {
@@ -145,7 +187,7 @@ export class ExplorationView implements ExplorationSession {
     }
     async grep(request: GrepRequest) {
         this.check();
-        const task = this.tasks.run('exploration.grep', signal => this.grepFiles(request, signal), { signal: this.invocation.signal, bytes: this.options.maxSearchOutputBytes });
+        const task = this.tasks.run('exploration.grep', signal => this.withView(() => this.read(view => this.grepInView(request, view, signal))), { signal: this.invocation.signal, bytes: this.options.maxSearchOutputBytes });
         this.active.add(task.settled);
         try {
             return await task;
@@ -155,44 +197,39 @@ export class ExplorationView implements ExplorationSession {
             this.active.delete(task.settled);
         }
     }
-    private async *files(root: string, revision: string) {
-        let cursor: string | undefined;
-        do {
-            const found = await this.find({ root, glob: '**', page: { maxItems: 32, maxResponseBytes: 65536, cursor } });
-            if (found.revision !== revision)
-                return fail('EXPLORATION_STALE');
-            for (const node of found.items)
-                if (node.kind === 'file')
-                    yield node;
-            cursor = found.next;
-        } while (cursor);
+    private async grepInView(request: GrepRequest, view: SqliteReadView, signal: AbortSignal) {
+        const id = identity(this.scope, view, { registry: this.registry, root: request.root, pattern: request.pattern, mode: request.mode });
+        const found = new MatchPage(request, after(request.page.cursor, id), id, view.revision);
+        const provider = this.mount(request.root);
+        if (provider.search) {
+            await provider.search({ root: request.root, pattern: request.pattern, mode: request.mode, ...(request.ignoreCase ? { ignoreCase: true } : {}) }, this.scope, view, signal, match => { found.appendMatch(match); return true; });
+            return found.finish();
+        }
+        let scanned = 0;
+        for await (const node of this.files(request.root, view)) {
+            const size = this.fileBytes(node, scanned);
+            scanned += size;
+            const handle = this.pin(await this.mount(node.path).open(node, this.scope, view));
+            try {
+                const search = new NativeSearch(request.pattern, request.mode, this.options);
+                await search.run(handle.value.read({ offset: '0', length: size, maxBytes: this.options.maxSearchBytes }, signal), signal, (offset, text, line, column) => found.append(node, offset, text, line, column));
+            }
+            finally {
+                await handle.release();
+            }
+        }
+        return found.finish();
+    }
+    private async *files(root: string, view: SqliteReadView) {
+        for await (const node of this.walk(root, view))
+            if (node.kind === 'file')
+                yield node;
     }
     private fileBytes(node: ExplorationNode, scanned: number) {
         const size = Number(node.rawBytes);
         if (!Number.isSafeInteger(size) || size < 0 || scanned + size > this.options.maxSearchBytes)
             return fail('EXPLORATION_SEARCH_BUDGET');
         return size;
-    }
-    private async grepFiles(request: GrepRequest, signal: AbortSignal) {
-        const base = await this.read(view => Promise.resolve({ revision: view.revision, id: identity(this.scope, view, { registry: this.registry, root: request.root, pattern: request.pattern, mode: request.mode }) }));
-        const found = new MatchPage(request, after(request.page.cursor, base.id), base.id, base.revision);
-        let scanned = 0;
-        for await (const node of this.files(request.root, base.revision)) {
-            const size = this.fileBytes(node, scanned);
-            scanned += size;
-            await this.searchFile(node, size, request, signal, found);
-        }
-        return found.finish();
-    }
-    private async searchFile(node: ExplorationNode, size: number, request: GrepRequest, signal: AbortSignal, found: MatchPage) {
-        const handle = await this.open(node);
-        try {
-            const search = new NativeSearch(request.pattern, request.mode, this.options);
-            await search.run(handle.value.read({ offset: '0', length: size, maxBytes: this.options.maxSearchBytes }, signal), signal, (offset, text) => found.append(node, offset, text));
-        }
-        finally {
-            await handle.release();
-        }
     }
     private writable(path: string) {
         const mount = this.mount(path) as WritableExplorationMount;
@@ -202,13 +239,20 @@ export class ExplorationView implements ExplorationSession {
             return fail('EXPLORATION_READ_ONLY');
         return mount;
     }
-    writeFile(path: string, bytes: AsyncIterable<Uint8Array>, expected: ExplorationNode | null, context: ActionExecutionContext) { return this.track(() => this.writable(path).writeFile(path, bytes, expected, this.scope, context)); }
+    writeFile(path: string, bytes: AsyncIterable<Uint8Array>, expected: ExplorationNode | null, context: ActionExecutionContext) {
+        return this.track(async () => {
+            const node = await this.writable(path).writeFile(path, bytes, expected, this.scope, context);
+            await this.advanceLease();
+            return node;
+        });
+    }
     mutate(request: ExplorationMutation, context: ActionExecutionContext) {
-        return this.track(() => {
+        return this.track(async () => {
             const path = request.kind === 'rename' ? request.from : request.path, mount = this.writable(path);
             if (request.kind === 'rename' && this.mount(request.to) !== mount)
                 return fail('EXPLORATION_CROSS_MOUNT');
-            return mount.mutate(request, this.scope, context);
+            await mount.mutate(request, this.scope, context);
+            await this.advanceLease();
         });
     }
     saveResult(name: string, rows: AsyncIterable<Json>, context: ActionExecutionContext, provenance?: Json) {

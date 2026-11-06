@@ -17,7 +17,10 @@ export interface ExplorationMatch {
     readonly objectId: string;
     readonly versions: readonly DomainVersion[];
     readonly rawOffset: string;
+    /** 命中的原文片段（不一定是整行）。 */
     readonly text: string;
+    readonly line: number;
+    readonly column: number;
 }
 export interface ExplorationMount {
     readonly id: string;
@@ -29,6 +32,15 @@ export interface ExplorationMount {
     /** 返回pin后的原文读取句柄；调用方关闭SQL快照后再流式读取。 */
     open(node: ExplorationNode, scope: DiscoveryScope, reader: SqliteReadView): Promise<Lease<ExplorationContent>>;
     collect(path: string, query: Json, scope: DiscoveryScope, reader: SqliteReadView, request: PageRequest): Promise<Page<StoredValue>>;
+    /** 可选：一次返回 root 下所有匹配节点（已按可见性过滤、code point 排序）。 */
+    find?(root: string, glob: string, scope: DiscoveryScope, view: SqliteReadView, request: PageRequest): Promise<Page<ExplorationNode>>;
+    /** 可选：挂载自带搜索；返回带行列号的匹配。 */
+    search?(request: {
+        readonly root: string;
+        readonly pattern: string;
+        readonly mode: 'literal' | 'regex';
+        readonly ignoreCase?: boolean;
+    }, scope: DiscoveryScope, view: SqliteReadView, signal: AbortSignal, emit: (match: ExplorationMatch) => boolean): Promise<void>;
 }
 export type ExplorationMutation = {
     readonly kind: 'mkdir';
@@ -59,6 +71,8 @@ export interface ExplorationContent {
 }
 export interface ExplorationSession {
     readonly scope: DiscoveryScope;
+    /** 在一次工具调用或一个 bash 命令内复用同一个读视图；期间外部提交的写不改变该视图。 */
+    withView<T>(body: (session: ExplorationSession) => Promise<T>): Promise<T>;
     stat(path: string): Promise<ExplorationNode>;
     list(path: string, request: PageRequest): Promise<Page<ExplorationNode>>;
     find(request: {
@@ -72,6 +86,7 @@ export interface ExplorationSession {
         readonly root: string;
         readonly pattern: string;
         readonly mode: 'literal' | 'regex';
+        readonly ignoreCase?: boolean;
         readonly page: PageRequest;
     }): Promise<Page<ExplorationMatch>>;
     collect(path: string, query: Json, request: PageRequest): Promise<Page<StoredValue>>;

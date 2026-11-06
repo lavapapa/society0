@@ -4,7 +4,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ExplorationOptions } from './registry.js';
-type Match = (offset: number, text: string) => void;
+type Match = (offset: number, text: string, line: number, column: number) => void;
 /** rg 进程计数：基准与度量读取（DESIGN §12.3），不参与行为。 */
 export const searchProcesses = { started: 0 };
 /** rg的JSON行跨stdout块解码，原文则连续流入stdin。 */
@@ -30,7 +30,7 @@ class SearchOutput {
             return;
         for (const sub of event.data.submatches) {
             const text = sub.match.text ?? Buffer.from(sub.match.bytes, 'base64').toString('utf8');
-            this.match(event.data.absolute_offset + sub.start, text);
+            this.match(event.data.absolute_offset + sub.start, text, Number(event.data.line_number ?? 1), sub.start + 1);
         }
     }
 }
