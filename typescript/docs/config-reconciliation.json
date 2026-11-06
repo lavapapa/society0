@@ -1071,6 +1071,22 @@
       "reason": "原生固定：admit 对同激活键同 driver 合并输入、异 driver 返回 ACTIVATION_IDENTITY_CONFLICT，合并算法不设枚举。",
       "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/activation-mailbox；运行时固定：typescript/packages/core/src/activation-mailbox/index.ts:20-22"
     },
+    "@society0/core/activation-policy-default/maxWakesPerTick": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation-policy-default/index.ts:8"
+    },
+    "@society0/core/activation-policy-default/maxTurnsPerPair": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation-policy-default/index.ts:9"
+    },
+    "@society0/core/activation-policy-default/decisionEvery": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation-policy-default/index.ts:10"
+    },
+    "@society0/core/activation-policy-default/schedule": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation-policy-default/index.ts:11"
+    },
     "@society0/core/actors/idCodec": {
       "state": "dropped",
       "reason": "原生固定：主体身份以 TEXT 主键直接存取，编码固定为不透明字符串，没有 codec 版本配置。",
@@ -1262,6 +1278,10 @@
     "@society0/social/social/offerPosts": {
       "state": "added",
       "consumer": "typescript/packages/social/src/social/index.ts:8"
+    },
+    "@society0/social/social/wakeDriver": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:9"
     }
   },
   "plugins": {},

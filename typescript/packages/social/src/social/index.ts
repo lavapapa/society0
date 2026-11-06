@@ -4,7 +4,7 @@ import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
     propagation: Schema.string().default('neighbor-broadcast/v1'), mediaEnabled: Schema.boolean().default(true), contentLengthLimit: Schema.union([Schema.const(-1), Schema.natural()]).default(250),
     pairingGroups: Schema.array(Schema.array(Schema.string())).default([]), pairingSessionMinutes: Schema.natural().min(1).max(120).default(10),
-    offerPosts: Schema.natural().min(1).default(16)
+    offerPosts: Schema.natural().min(1).default(16), wakeDriver: Schema.string().default('llm/v1')
 });
 export const metadata: PluginMetadata = {
     "title": "social", "summary": "social", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
@@ -19,6 +19,8 @@ export const metadata: PluginMetadata = {
             "path": "/pairingSessionMinutes", "mode": "new-run", "affectsResults": true
         }, {
             "path": "/offerPosts", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/wakeDriver", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -417,6 +419,23 @@ export class Social extends Service {
     private async pairingActive(reader: SqliteReadView | SqliteTransaction, actorId: string) {
         return !!(await this.pairing(reader, actorId))?.canConverse;
     }
+    private async emitWake(delivered: readonly { receiver: string; messageId: string }[], context: ActionExecutionContext, kind: 'dm' | 'broadcast') {
+        const activation = this.ctx.get('activation') as { wake?: (signals: readonly unknown[], context: unknown) => Promise<unknown> } | undefined;
+        if (!activation?.wake || !delivered.length)
+            return;
+        const signals = delivered.map(item => ({
+            kind,
+            actor: item.receiver,
+            moment: context.momentId,
+            source: 'social/' + kind,
+            id: context.operationId + '/wake/' + item.receiver,
+            from: context.actorId,
+            driver: this.config.wakeDriver,
+            requiresResponse: kind === 'dm',
+            input: { messageId: item.messageId, sender: context.actorId },
+        }));
+        await activation.wake(signals, { ...context, lease: context.writeLease, selections: [] });
+    }
     private installPairingActions() {
         if (!this.config.pairingGroups.length)
             return;
@@ -432,6 +451,7 @@ export class Social extends Service {
                     this.assertText(properties, input);
                     const operationId = context.operationId + '/social/' + name;
                     const result = await context.transaction(transactionRequest(operationId), tx => this.message(tx, context, input, broadcast));
+                    await this.emitWake((result.value as { delivered: { receiver: string; messageId: string }[] }).delivered, context, broadcast ? 'broadcast' : 'dm');
                     return { operationId, status: 'completed', value: result.value as Json, original: input, artifacts: [] };
                 }
             });

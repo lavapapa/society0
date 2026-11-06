@@ -3,6 +3,9 @@ import Schema from '@society0/schemastery';
 import type { TaskScope } from '@society0/host/tasks';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 import type { ActivationIntent, ActivationAdmission, ActivationResult, ExecutionContext, Json } from '../contracts/runtime.js';
+import type { ActivationPolicy, WakeDecision, WakeLedger, WakeSignal } from '../contracts/activation-policy.js';
+import { compareCodePoints } from '@society0/host/order';
+import { slotKey } from '@society0/host/slots';
 import { activationKey } from '../activation-mailbox/index.js';
 import '../drivers/index.js';
 import '../actor-eligibility/index.js';
@@ -17,12 +20,18 @@ export const metadata: PluginMetadata = {
 export const api: ApiEntry = {
     exportPath: './activation', provides: [{
             key: 'activation', protocol: 'activation', major: 1, capabilities: []
-        }], requires: ['drivers', 'actors', 'tasks', 'activationPolicy', 'actorEligibility', 'database', 'executionFence'].map(key => ({
+        }], requires: ['drivers', 'actors', 'tasks', 'activationPolicy', 'actorEligibility', 'database', 'executionFence', 'slots'].map(key => ({
         service: {
             key, protocol: key, major: 1, capabilities: []
         }, optional: false, phase: 'module'
     }))
 };
+export const wakePolicySlot = slotKey<ActivationPolicy>('society/activation-policy');
+export interface WakeOutcome {
+    readonly signal: WakeSignal;
+    readonly decision: WakeDecision;
+    readonly admission?: ActivationAdmission;
+}
 interface Item {
     intent: ActivationIntent;
     signals: {
@@ -61,9 +70,13 @@ declare module '@society0/host' {
 }
 export class ActivationService extends Service {
     static Config = Config;
-    static inject = ['drivers', 'actors', 'tasks', 'activationPolicy', 'actorEligibility', 'database', 'executionFence'];
+    static inject = ['drivers', 'actors', 'tasks', 'activationPolicy', 'actorEligibility', 'database', 'executionFence', 'slots'];
     private batches = new Map<object, Batch>();
     private released = new WeakSet<object>();
+    private inboxes = new Map<string, WakeSignal[]>();
+    private wakes = new Map<string, number>();
+    private pairs = new Map<string, number>();
+    private wakeSequence = 0;
     private tasks: TaskScope;
     private closing = false;
     private config: ReturnType<typeof Config>;
@@ -71,6 +84,13 @@ export class ActivationService extends Service {
         super(ctx, 'activation');
         this.config = Config(input);
         this.tasks = ctx.tasks.bind();
+        ctx.slots.declare({
+            key: wakePolicySlot, strategy: 'keyed', required: false, validate: (value: unknown) => {
+                if (typeof (value as ActivationPolicy)?.decide !== 'function')
+                    throw Object.assign(new Error('ACTIVATION_POLICY_INVALID'), { code: 'ACTIVATION_POLICY_INVALID' });
+                return value as ActivationPolicy;
+            }
+        });
         ctx.effect(() => async () => {
             this.closing = true;
             for (const b of this.batches.values())
@@ -203,6 +223,83 @@ export class ActivationService extends Service {
         return {
             kind: 'accepted', key
         };
+    }
+    private async policy(): Promise<ActivationPolicy | undefined> {
+        const selection = await this.ctx.slots.acquire(wakePolicySlot, { generation: 'read' });
+        const item = [...selection.items].sort((left, right) => compareCodePoints(left.id, right.id))[0];
+        // 选择保留到本次调用结束；槽在唤醒期间不释放会让 release 与调用方耦合，因此立即复制引用。
+        const value = item?.value;
+        await selection.release();
+        return value;
+    }
+    private wakeKey(actor: string, moment: string) { return moment + '\u0000' + actor; }
+    private pairKey(from: string, actor: string, moment: string) {
+        const [left, right] = compareCodePoints(from, actor) <= 0 ? [from, actor] : [actor, from];
+        return moment + '\u0000' + left + '\u0000' + right;
+    }
+    private recordWake(signal: WakeSignal) {
+        const key = this.wakeKey(signal.actor, signal.moment);
+        this.wakes.set(key, (this.wakes.get(key) ?? 0) + 1);
+        if (signal.from) {
+            const pair = this.pairKey(signal.from, signal.actor, signal.moment);
+            this.pairs.set(pair, (this.pairs.get(pair) ?? 0) + 1);
+        }
+    }
+    inbox(actor: string, moment?: string): readonly WakeSignal[] {
+        if (moment)
+            return [...(this.inboxes.get(this.wakeKey(actor, moment)) ?? [])];
+        const values: WakeSignal[] = [];
+        for (const [key, items] of this.inboxes)
+            if (key.endsWith('\u0000' + actor))
+                values.push(...items);
+        return values;
+    }
+    inboxCount(moment?: string): number {
+        if (!moment)
+            return [...this.inboxes.values()].reduce((total, items) => total + items.length, 0);
+        let total = 0;
+        for (const [key, items] of this.inboxes)
+            if (key.startsWith(moment + '\u0000'))
+                total += items.length;
+        return total;
+    }
+    /**
+     * 按 ActivationPolicy 处理唤醒：wake 入队，notify 写入本 tick 收件箱，drop 丢弃。
+     * 每 tick 每主体与每对主体的计数只统计真正 wake 的信号。
+     */
+    async wake(signals: readonly WakeSignal[], context: ExecutionContext): Promise<readonly WakeOutcome[]> {
+        const policy = await this.policy();
+        const ledger: WakeLedger = {
+            wakeCount: (actor, moment) => this.wakes.get(this.wakeKey(actor, moment)) ?? 0,
+            pairTurns: (from, actor, moment) => this.pairs.get(this.pairKey(from, actor, moment)) ?? 0,
+        };
+        const outcomes: WakeOutcome[] = [];
+        for (const signal of signals) {
+            if (this.admissionClosed(this.batch(context)))
+                break;
+            const decision = policy ? policy.decide(signal, ledger) : 'wake';
+            if (decision === 'wake') {
+                this.recordWake(signal);
+                const intent: ActivationIntent = {
+                    id: signal.id ?? [signal.kind, signal.actor, signal.moment, signal.source, String(++this.wakeSequence)].join('/'),
+                    actorId: signal.actor,
+                    momentId: signal.moment,
+                    source: signal.source,
+                    driver: signal.driver ?? 'llm/v1',
+                    input: signal.input ?? { kind: signal.kind, source: signal.source, ...(signal.from !== undefined ? { from: signal.from } : {}) },
+                };
+                outcomes.push({ signal, decision, admission: await this.submit(intent, context) });
+                continue;
+            }
+            if (decision === 'notify') {
+                const key = this.wakeKey(signal.actor, signal.moment);
+                const items = this.inboxes.get(key) ?? [];
+                items.push(signal);
+                this.inboxes.set(key, items);
+            }
+            outcomes.push({ signal, decision });
+        }
+        return outcomes;
     }
     private pump(b: Batch) {
         while (!b.failure && !b.cancel.signal.aborted && !b.context.signal.aborted && b.active.size < this.config.capacity) {

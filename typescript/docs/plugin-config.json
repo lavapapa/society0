@@ -538,6 +538,44 @@
           "fields": []
         },
         {
+          "exportPath": "./activation-policy-default",
+          "title": "activation-policy-default",
+          "fields": [
+            {
+              "name": "maxWakesPerTick",
+              "type": "number",
+              "default": 3,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTurnsPerPair",
+              "type": "number",
+              "default": 4,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "decisionEvery",
+              "type": "number",
+              "default": 1,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "schedule",
+              "type": "union",
+              "default": "barrier",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
           "exportPath": "./clock-ticks",
           "title": "clock-ticks",
           "fields": []
@@ -2452,6 +2490,22 @@
               "name": "pairingSessionMinutes",
               "type": "number",
               "default": 10,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "offerPosts",
+              "type": "number",
+              "default": 16,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "wakeDriver",
+              "type": "string",
+              "default": "llm/v1",
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
