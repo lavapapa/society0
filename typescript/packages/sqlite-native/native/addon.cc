@@ -20,7 +20,7 @@
 // 所有句柄与分配器来自同一SQLite实例，避免Node内置引擎的符号抢占。
 #define APIS(X) \
 X(sqlite3_open_v2) X(sqlite3_close) X(sqlite3_close_v2) X(sqlite3_exec) X(sqlite3_errstr) X(sqlite3_errmsg) X(sqlite3_errcode) X(sqlite3_extended_errcode) X(sqlite3_extended_result_codes) \
-X(sqlite3_prepare_v2) X(sqlite3_step) X(sqlite3_finalize) X(sqlite3_reset) X(sqlite3_clear_bindings) X(sqlite3_stmt_readonly) \
+X(sqlite3_prepare_v2) X(sqlite3_step) X(sqlite3_finalize) X(sqlite3_reset) X(sqlite3_clear_bindings) X(sqlite3_stmt_readonly) X(sqlite3_stmt_status) \
 X(sqlite3_bind_parameter_count) X(sqlite3_bind_null) X(sqlite3_bind_double) X(sqlite3_bind_int64) X(sqlite3_bind_text) X(sqlite3_bind_blob) X(sqlite3_bind_zeroblob) \
 X(sqlite3_column_count) X(sqlite3_column_name) X(sqlite3_column_type) X(sqlite3_column_bytes) X(sqlite3_column_blob) X(sqlite3_column_text) X(sqlite3_column_int64) X(sqlite3_column_double) \
 X(sqlite3_changes64) X(sqlite3_last_insert_rowid) X(sqlite3_get_autocommit) X(sqlite3_limit) X(sqlite3_set_authorizer) X(sqlite3_progress_handler) X(sqlite3_db_config) \
@@ -33,6 +33,9 @@ APIS(DECL)
 using Clock=std::chrono::steady_clock;
 struct Failure:std::exception {std::string code,message;int sqliteCode;Failure(std::string c,std::string m,int s=0):code(c),message(m),sqliteCode(s){};};
 static void need(bool yes,const char* msg){if(!yes)throw Failure("SQLITE_ARGUMENT",msg);}
+// 只读运行统计：同一进程内所有连接共享，供C0按tick做差分。
+static int64_t gRowsRead=0;
+static void accumulateRows(sqlite3_stmt*s){gRowsRead+=p_sqlite3_stmt_status(s,SQLITE_STMTSTATUS_FULLSCAN_STEP,0);gRowsRead+=p_sqlite3_stmt_status(s,SQLITE_STMTSTATUS_VM_STEP,0);}
 static void js(napi_status rc){if(rc!=napi_ok)throw Failure("SQLITE_NAPI","N-API conversion failed");}
 static napi_value string(napi_env e,const std::string&s){napi_value v;js(napi_create_string_utf8(e,s.data(),s.size(),&v));return v;}
 static napi_value number(napi_env e,int64_t x){napi_value v;js(napi_create_int64(e,x,&v));return v;}
@@ -149,7 +152,7 @@ static napi_value rows(napi_env e,DB*d,sqlite3_stmt*s,int64_t maxRows,int64_t ma
   total+=bytes;
   js(napi_set_element(e,out,count++,rowObject(e,d,s,columns)));
  }
- check(d,rc);return out;
+ check(d,rc);accumulateRows(s);return out;
 }
 // 空表仍须由SQLite编译器解析父表和父键；只prepare，不执行INSERT。
 static void schemaForeignKeys(DB*d){Stmt tables;prepare(d,"SELECT s.name FROM sqlite_schema AS s WHERE s.type='table' AND EXISTS(SELECT 1 FROM pragma_foreign_key_list(s.name))",tables);int rc;while((rc=p_sqlite3_step(tables.p))==SQLITE_ROW){std::string name=(const char*)p_sqlite3_column_text(tables.p,0),quoted="\"";for(char c:name){quoted+=c;if(c=='\"')quoted+=c;}quoted+="\"";Stmt insertion;prepare(d,"INSERT INTO "+quoted+" DEFAULT VALUES",insertion);}check(d,rc);}
@@ -159,7 +162,7 @@ static int output(void*p,const void*data,int n){auto s=(Stream*)p;s->calls++;s->
 static int input(void*p,void*data,int*n){auto s=(Stream*)p;if(stopped(s->d))return SQLITE_INTERRUPT;int size=std::min(*n,s->chunk);ssize_t got;do{got=read(s->fd,data,size);}while(got<0&&errno==EINTR&&!stopped(s->d));if(got<0)return SQLITE_IOERR_READ;if(got>s->maxBytes-s->bytes)return SQLITE_TOOBIG;*n=got;s->bytes+=got;s->calls++;s->maxIoChunk=std::max(s->maxIoChunk,(int64_t)got);return SQLITE_OK;}
 static int conflict(void*,int,sqlite3_changeset_iter*){return SQLITE_CHANGESET_ABORT;}
 static napi_value streamResult(napi_env e,const Stream&s){auto r=object(e);put(e,r,"bytes",number(e,s.bytes));put(e,r,"calls",number(e,s.calls));put(e,r,"maxNativeChunk",number(e,s.maxNativeChunk));put(e,r,"maxIoChunk",number(e,s.maxIoChunk));return r;}
-static napi_value state(napi_env e,DB*d){auto r=object(e);put(e,r,"autocommit",boolean(e,p_sqlite3_get_autocommit(d->db)));put(e,r,"sessionBytes",number(e,d->session?p_sqlite3session_memory_used(d->session):0));put(e,r,"capturePeak",number(e,d->capturePeak));put(e,r,"stopReason",string(e,d->stopReason));put(e,r,"authorizationDenied",string(e,d->denied));put(e,r,"tableValidationCount",number(e,d->tableValidationCount));put(e,r,"schemaValidationSqlCount",number(e,d->schemaValidationSqlCount));put(e,r,"sessionAttachCount",number(e,d->sessionAttachCount));put(e,r,"sessionMetadataPrepareCount",number(e,d->sessionMetadataPrepareCount));return r;}
+static napi_value state(napi_env e,DB*d){auto r=object(e);put(e,r,"autocommit",boolean(e,p_sqlite3_get_autocommit(d->db)));put(e,r,"sessionBytes",number(e,d->session?p_sqlite3session_memory_used(d->session):0));put(e,r,"capturePeak",number(e,d->capturePeak));put(e,r,"stopReason",string(e,d->stopReason));put(e,r,"authorizationDenied",string(e,d->denied));put(e,r,"tableValidationCount",number(e,d->tableValidationCount));put(e,r,"schemaValidationSqlCount",number(e,d->schemaValidationSqlCount));put(e,r,"sessionAttachCount",number(e,d->sessionAttachCount));put(e,r,"sessionMetadataPrepareCount",number(e,d->sessionMetadataPrepareCount));put(e,r,"rowsRead",number(e,gRowsRead));put(e,r,"sqlRowsRead",number(e,gRowsRead));return r;}
 // 生命周期操作保持原先顺序：close允许重复，回滚不受预算/取消阻挡。
 static napi_value closeOperation(napi_env e,napi_value external) {
  void*p;js(napi_get_value_external(e,external,&p));auto d=(DB*)p;
@@ -210,6 +213,7 @@ static napi_value executeStatement(napi_env e,DB*d,sqlite3_stmt*s,napi_value val
   check(d,p_sqlite3_reset(s));check(d,p_sqlite3_clear_bindings(s));
  }
  if(stopped(d))check(d,SQLITE_INTERRUPT);
+ accumulateRows(s);
  auto r=object(e);put(e,r,"changes",bigint(e,changes));
  put(e,r,"lastInsertRowid",bigint(e,p_sqlite3_last_insert_rowid(d->db)));return r;
 }

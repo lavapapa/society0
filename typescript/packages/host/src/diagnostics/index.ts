@@ -4,6 +4,9 @@ export const Config=Schema.object({level:Schema.union(['debug','info','warn','er
 export const metadata:PluginMetadata={"title": "diagnostics", "summary": "记录原生所有者、错误和关闭残留", "configVersion": 1, "configPolicy": [{path:'/level',mode:'live',affectsResults:false},{path:'/historyLimit',mode:'live',affectsResults:false}], "scope": "host", "hostAbi": "society0/host/1"};
 export const api:ApiEntry={"exportPath": "./diagnostics", "provides": [{"key": "diagnostics", "protocol": "diagnostics", "major": 1, "capabilities": []}], "requires": []};
 import { Context, Service, type Fiber } from '@society0/cordis';
+import { MetricsAggregator } from './metrics.js';
+export { MetricsAggregator, MAX_METRICS_LINE_BYTES } from './metrics.js';
+export type { MetricsCounters, MetricsSnapshot, MetricsTickInput } from './metrics.js';
 
 export interface OwnerIdentity { readonly uid: number | null; readonly name: string }
 export interface ErrorRecord {
@@ -35,6 +38,7 @@ export class DiagnosticSink extends Service {
   private failures = 0;
   private readonly root: Context;
   private readonly options: ReturnType<typeof Config>;
+  private metricsAggregator?: MetricsAggregator;
   constructor(ctx: Context, input: Record<string, unknown> = {}) {
     super(ctx, 'diagnostics');
     this.options = Config(input);
@@ -53,6 +57,12 @@ export class DiagnosticSink extends Service {
     if (!owner) { owner = {uid:fiber.uid, name:fiber.name}; this.identities.set(fiber, owner); }
     return owner;
   }
+  /** 汇总器由运行侧插件接线；目录缺省时只累积、不落盘。 */
+  attachMetrics(directory?: string): MetricsAggregator {
+    this.metricsAggregator ??= new MetricsAggregator(directory);
+    return this.metricsAggregator;
+  }
+  get metrics(): MetricsAggregator | undefined { return this.metricsAggregator; }
   report(error: ErrorRecord, owner: OwnerIdentity = this.owner(this.ctx.fiber)): void {
     this.records.push({...error, owner:{...owner}, sequence:++this.sequence});
     if (error.affectsClose) this.failures++;

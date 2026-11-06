@@ -6,6 +6,7 @@ import type { ActivationIntent, ActivationAdmission, ActivationResult, Execution
 import type { ActivationPolicy, WakeDecision, WakeLedger, WakeSignal } from '../contracts/activation-policy.js';
 import { compareCodePoints } from '@society0/host/order';
 import { slotKey } from '@society0/host/slots';
+import { metricsOf } from '../contracts/metrics.js';
 import { activationKey } from '../activation-mailbox/index.js';
 import '../drivers/index.js';
 import '../actor-eligibility/index.js';
@@ -126,6 +127,11 @@ export class ActivationService extends Service {
         b.admission = next.catch(() => {
         });
         await next;
+        if (result.kind !== 'rejected') {
+            const metrics = metricsOf(this.ctx);
+            metrics?.count('activations.total');
+            metrics?.count('activations.bySource.' + intent.source);
+        }
         this.pump(b);
         return result;
     }

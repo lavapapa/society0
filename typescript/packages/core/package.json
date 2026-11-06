@@ -129,6 +129,14 @@
       "types": "./dist/termination/index.d.ts",
       "default": "./dist/termination/index.js"
     },
+    "./metrics": {
+      "types": "./dist/metrics/index.d.ts",
+      "default": "./dist/metrics/index.js"
+    },
+    "./contracts/metrics": {
+      "types": "./dist/contracts/metrics.d.ts",
+      "default": "./dist/contracts/metrics.js"
+    },
     "./generation-views": {
       "types": "./dist/generation-views/index.d.ts",
       "default": "./dist/generation-views/index.js"

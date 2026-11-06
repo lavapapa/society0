@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "note": "B1/B2 的本机基线；退化超过 10% 时 bench 失败。B5 不写入本文件。",
+  "modes": {
+    "rule-1k": {
+      "generatedAt": "2026-11-06T15:41:43.697Z",
+      "scale": {
+        "actors": 1000,
+        "ticks": 50,
+        "checkpointEvery": 1
+      },
+      "operations": {
+        "run": {
+          "p50Ms": 2179.568,
+          "p95Ms": 2496.263
+        },
+        "total": {
+          "wallMs": 111600.228503
+        }
+      },
+      "counters": {
+        "sqlRowsRead": 14235443,
+        "durationMs": 111600.330583
+      }
+    },
+    "fake-llm-1k": {
+      "generatedAt": "2026-11-06T15:42:32.859Z",
+      "scale": {
+        "actors": 1000,
+        "ticks": 20,
+        "provider": "fake",
+        "latencyBaseMs": 120,
+        "latencyPerTokenMs": 0.08,
+        "kvThreshold": 8192,
+        "kvPenalty": 2000,
+        "promptTokens": 1024
+      },
+      "operations": {
+        "run": {
+          "p50Ms": 1942.397,
+          "p95Ms": 2221.656
+        },
+        "total": {
+          "wallMs": 41164.859198
+        }
+      },
+      "counters": {
+        "durationMs": 41164.992137
+      }
+    },
+    "history": {
+      "generatedAt": "2026-11-06T15:42:50.422Z",
+      "scale": {
+        "lengths": [
+          200,
+          1000
+        ]
+      },
+      "operations": {},
+      "counters": {
+        "durationMs": 10332.307781
+      }
+    }
+  }
+}
