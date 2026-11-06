@@ -50,7 +50,7 @@ function deltaStream(text, {failAfter} = {}) {
     return stream;
 }
 
-export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe, prompts, driver = {}, metrics = false} = {}) {
+export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe, onPrepare, prompts, driver = {}, metrics = false} = {}) {
     const run = await setup({migrations: [actorToolsMigration({test: 'c1-batching'})]});
     for (const [plugin, config] of [
         [Prompts, prompts ?? {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
@@ -70,6 +70,7 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
     let calls = 0;
     const prepare = provider.prepare.bind(provider);
     provider.prepare = async (...args) => {
+        onPrepare?.(structuredClone(args[0]));
         const selected = await prepare(...args);
         calls++;
         if (messages !== undefined && crashAfter === undefined) {

@@ -237,7 +237,7 @@ export class LlmActivation {
   const runtimeHistory=appended.native?[...history,appended.native]:history;
   const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
-  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare(this.config,this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
+  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare({...this.config,sessionId:this.thread.id,metadata:{session_id:this.thread.id}},this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
   this.held.push(selected);
   const runtime=await this.step('setup_error','runtime.acquire',()=>this.ctx.agentRuntimes.acquire(this.config.runtime));
   this.held.push(runtime);

@@ -12,10 +12,17 @@ import { registerActionNotifier } from './notifier.js';
 import '../drivers/index.js';
 import '../actor-eligibility/index.js';
 export const Config = Schema.object({
-    capacity: Schema.natural().min(1).default(4), maxActivations: Schema.natural().min(1).default(1024), maxQueuedBytes: Schema.natural().min(1).default(1048576)
+    capacity: Schema.natural().min(1).default(4), maxActivations: Schema.natural().min(1).default(1024), maxQueuedBytes: Schema.natural().min(1).default(1048576),
+    admission: Schema.object({
+        kind: Schema.union(['count', 'kv']).default('count'),
+        replicas: Schema.natural().min(1).default(2),
+        tokensPerReplica: Schema.natural().min(1).default(288000),
+        utilization: Schema.number().min(0).max(1).default(0.6),
+        defaultTokens: Schema.natural().min(1).default(8192)
+    }).default({})
 });
 export const metadata: PluginMetadata = {
-    title: 'activation', summary: '主体串行邮箱与真实任务排空', configVersion: 1, configPolicy: ['capacity', 'maxActivations', 'maxQueuedBytes'].map(k => ({
+    title: 'activation', summary: '主体串行邮箱与真实任务排空', configVersion: 1, configPolicy: ['capacity', 'maxActivations', 'maxQueuedBytes', 'admission'].map(k => ({
         path: '/' + k, mode: 'new-run', affectsResults: true
     })), scope: 'generation', hostAbi: 'society0/host/1'
 };
@@ -43,6 +50,7 @@ interface Item {
     }[];
     inputs: Json[];
     bytes: number;
+    tokens: number;
     key: string;
     order: number;
 }
@@ -79,6 +87,7 @@ export class ActivationService extends Service {
     private wakes = new Map<string, number>();
     private pairs = new Map<string, number>();
     private wakeSequence = 0;
+    private inflightTokens = 0;
     private tasks: TaskScope;
     private closing = false;
     private config: ReturnType<typeof Config>;
@@ -213,20 +222,29 @@ export class ActivationService extends Service {
         batch.bytes += bytes;
         return this.enqueue(batch, intent, key, bytes, queued);
     }
+    private tokenBudget() { return Math.floor(this.config.admission.replicas * this.config.admission.tokensPerReplica * this.config.admission.utilization); }
+    private estimateTokens(intent: ActivationIntent) {
+        if (this.config.admission.kind !== 'kv') return 0;
+        if (typeof intent.estimatedTokens === 'number' && Number.isFinite(intent.estimatedTokens) && intent.estimatedTokens > 0) return Math.ceil(intent.estimatedTokens);
+        const bytes = Buffer.byteLength(JSON.stringify(intent.input ?? null));
+        return Math.max(1, Math.min(this.config.admission.defaultTokens, Math.ceil(bytes / 3.2)));
+    }
     private enqueue(batch: Batch, intent: ActivationIntent, key: string, bytes: number, queued: Item | undefined): ActivationAdmission {
         const signal = {
             id: intent.id, source: intent.source, input: intent.input
         };
+        const tokens = this.estimateTokens(intent);
         if (queued) {
             queued.inputs.push(intent.input);
             queued.signals.push(signal);
             queued.bytes += bytes;
+            queued.tokens = Math.max(queued.tokens, tokens);
             return {
                 kind: 'coalesced', into: queued.intent.id, mergedInput: structuredClone(queued.inputs)
             };
         }
         batch.queue.push({
-            intent, signals: [signal], inputs: [intent.input], bytes, key, order: batch.submitted++
+            intent, signals: [signal], inputs: [intent.input], bytes, tokens, key, order: batch.submitted++
         });
         return {
             kind: 'accepted', key
@@ -311,12 +329,14 @@ export class ActivationService extends Service {
     }
     private pump(b: Batch) {
         while (!b.failure && !b.cancel.signal.aborted && !b.context.signal.aborted && b.active.size < this.config.capacity) {
-            const index = b.queue.findIndex(i => !b.active.has(i.intent.actorId));
+            const kv = this.config.admission.kind === 'kv', budget = this.tokenBudget();
+            const index = b.queue.findIndex(i => !b.active.has(i.intent.actorId) && (!kv || b.active.size === 0 || this.inflightTokens + i.tokens <= budget));
             if (index < 0)
                 break;
             const item = b.queue.splice(index, 1)[0]!;
             b.bytes -= item.bytes;
             b.active.add(item.intent.actorId);
+            this.inflightTokens += item.tokens;
             b.count++;
             b.rounds.set(item.key, (b.rounds.get(item.key) ?? 0) + 1);
             const job = this.execute(b, item).catch(error => {
@@ -324,6 +344,7 @@ export class ActivationService extends Service {
                 this.ctx.executionFence.halt(String(b.failure));
                 b.cancel.abort(error);
             }).finally(() => {
+                this.inflightTokens -= item.tokens;
                 b.active.delete(item.intent.actorId);
                 b.jobs.delete(job);
                 this.pump(b);

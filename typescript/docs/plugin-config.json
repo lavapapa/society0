@@ -609,6 +609,14 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "admission",
+              "type": "object",
+              "default": {},
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },

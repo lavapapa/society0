@@ -67,6 +67,7 @@
 | ./activation | capacity | number | 4 | new-run | true | null |
 | ./activation | maxActivations | number | 1024 | new-run | true | null |
 | ./activation | maxQueuedBytes | number | 1048576 | new-run | true | null |
+| ./activation | admission | object | {} | new-run | true | null |
 | ./activation-policy-default | maxWakesPerTick | number | 3 | new-run | true | false |
 | ./activation-policy-default | maxTurnsPerPair | number | 4 | new-run | true | false |
 | ./activation-policy-default | decisionEvery | number | 1 | new-run | true | false |

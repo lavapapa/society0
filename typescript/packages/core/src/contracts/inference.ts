@@ -14,7 +14,7 @@ export interface ResolvedModelSelection {
   readonly registrationId: string;
   readonly contextWindow: number;
   /** 凭据由绑定的streamFn解析，配置与业务证据不携带凭据正文。 */
-  readonly options: Readonly<Pick<SimpleStreamOptions, 'reasoning' | 'maxTokens' | 'temperature' | 'transport' | 'maxRetries'>>;
+  readonly options: Readonly<Pick<SimpleStreamOptions, 'reasoning' | 'maxTokens' | 'temperature' | 'transport' | 'maxRetries' | 'sessionId' | 'metadata'>>;
   /** 直接连接Models.streamSimple；保持原生事件及签名，避免经过ModelEvent往返转换。 */
   readonly streamFn: StreamFn;
   readonly attemptIds?: readonly string[];
@@ -33,6 +33,10 @@ export interface ModelSelectionRequest {
   readonly provider: string;
   readonly model: string;
   readonly reasoning?: SimpleStreamOptions['reasoning'];
+  /** 线程策略给出的稳定标识；同一线程复用同一值。 */
+  readonly sessionId?: string;
+  /** 请求体 metadata；LiteLLM 用 session_id 做粘性路由。 */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 export interface InferenceModels {
   prepare(request: ModelSelectionRequest, context: Invocation): Promise<Lease<ResolvedModelSelection>>;

@@ -887,6 +887,10 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/activation/index.ts:97"
     },
+    "@society0/core/activation/admission": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation/index.ts:223"
+    },
     "@society0/core/actor-tools/maxPageItems": {
       "state": "added",
       "consumer": "typescript/packages/core/src/actor-tools/index.ts:11"
