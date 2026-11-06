@@ -138,11 +138,11 @@
     },
     "@society0/core/driver-llm/maxPendingBytes": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:166"
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:167"
     },
     "@society0/core/driver-llm/maxPendingEvents": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:166"
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:167"
     },
     "@society0/core/driver-llm/maxPerceptionPages": {
       "state": "added",
@@ -150,7 +150,7 @@
     },
     "@society0/core/driver-llm/maxRequests": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:177"
     },
     "@society0/core/driver-llm/maxStatements": {
       "state": "added",
@@ -187,12 +187,6 @@
       "state": "dropped",
       "reason": "由 Slots 的显式贡献与 acquireExtensions 选择（INFERENCE_REQUEST/CONTEXT/TOOL_POLICY/OBSERVER/COMPLETION），driver 不持有这些配置字段。",
       "design": "docs/18-inference-and-reuse.md §3.3；docs/16-domain-design.md"
-    },
-    "@society0/core/driver-llm/maxTurns": {
-      "state": "dropped",
-      "reason": "逻辑轮次由 maxRequests/maxToolCalls 与 pi 循环终止控制，无独立 maxTurns 消费者。",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "无独立turn上限，依赖maxRequests/maxToolCalls；后续排期另定"
     },
     "@society0/core/driver-llm/observers": {
       "state": "dropped",
@@ -514,17 +508,11 @@
     },
     "@society0/extras/shell/chunkBytes": {
       "state": "added",
-      "consumer": "typescript/packages/extras/src/shell/index.ts:52"
+      "consumer": "typescript/packages/extras/src/shell/index.ts:54"
     },
     "@society0/extras/shell/killAfterMs": {
       "state": "added",
-      "consumer": "typescript/packages/extras/src/shell/index.ts:83"
-    },
-    "@society0/extras/shell/timeoutMs": {
-      "state": "dropped",
-      "reason": "命令预算由 Invocation.signal 控制；killAfterMs 只控制取消后的终止宽限",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "shell自身无超时，依赖invocation.signal；是否所有调用均有期限仍未核实；后续排期另定"
+      "consumer": "typescript/packages/extras/src/shell/index.ts:87"
     },
     "@society0/extras/memory/write": {
       "state": "added",
@@ -610,13 +598,7 @@
     },
     "@society0/extras/vector-index/queryLimit": {
       "state": "added",
-      "consumer": "typescript/packages/extras/src/vector-index/index.ts:142"
-    },
-    "@society0/extras/vector-index/maxLag": {
-      "state": "dropped",
-      "reason": "索引查询要求 progress.throughRevision===revision，不支持滞后读取",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "滞后读取未支持；后续排期另定"
+      "consumer": "typescript/packages/extras/src/vector-index/index.ts:143"
     },
     "@society0/extras/vector-exact/name": {
       "state": "added",
@@ -993,19 +975,15 @@
     },
     "@society0/core/prompts/contexts": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
-    },
-    "@society0/core/prompts/maxAssemblyBytes": {
-      "state": "added",
       "consumer": "typescript/packages/core/src/prompts/index.ts:12"
     },
     "@society0/core/prompts/sections": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
+      "consumer": "typescript/packages/core/src/prompts/index.ts:12"
     },
     "@society0/core/prompts/tools": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/prompts/index.ts:10"
+      "consumer": "typescript/packages/core/src/prompts/index.ts:12"
     },
     "@society0/core/proposal-events/maxBytes": {
       "state": "added",
@@ -1025,11 +1003,11 @@
     },
     "@society0/core/run-controller/maxPendingAcknowledgements": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/run-controller/index.ts:237"
+      "consumer": "typescript/packages/core/src/run-controller/index.ts:240"
     },
     "@society0/core/run-controller/maxTransactionMs": {
       "state": "added",
-      "consumer": "typescript/packages/core/src/run-controller/index.ts:314"
+      "consumer": "typescript/packages/core/src/run-controller/index.ts:324"
     },
     "@society0/core/sqlite-bootstrap/maxCapturedBytes": {
       "state": "added",
@@ -1078,12 +1056,6 @@
     "@society0/core/checkpoint-policy/everyAdvances": {
       "state": "renamed",
       "runtime": "every"
-    },
-    "@society0/core/prompts/maxContextBytes": {
-      "state": "renamed",
-      "runtime": "maxAssemblyBytes",
-      "limitation": "改为maxAssemblyBytes，但proposed incomplete行为缺失，保留语义差异；后续排期另定",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口"
     },
     "@society0/core/proposal-sequence/items": {
       "state": "renamed",
@@ -1134,21 +1106,10 @@
       "reason": "原生固定：未知 driver 在 slots.acquire 取不到声明即抛 SLOT_PENDING，接纳前失败，不设 missingDriver 策略。",
       "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/drivers；运行时固定：typescript/packages/core/src/drivers/index.ts:41"
     },
-    "@society0/core/exploration-shell/maxCommandCount": {
-      "state": "dropped",
-      "reason": "整合：解释器命令数不设上限，超量执行由 timeoutMs 的 SHELL_TIMEOUT 终止。",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "无命令数上限，依赖总超时；后续排期另定"
-    },
     "@society0/core/generation-views/maxRetiringViews": {
       "state": "dropped",
       "reason": "原生固定：注册表只保留一个 selected view，新代注册在旧代释放前抛 GENERATION_ALREADY_BOUND，不存在多代并存需要上限。",
       "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/generation-views；运行时固定：typescript/packages/core/src/generation-views/index.ts:24-40"
-    },
-    "@society0/core/prompts/sectionOrder": {
-      "state": "dropped",
-      "reason": "整合：顺序由每项 order 数值加 slots 的 ordered 策略决定，未列出项按稳定 id 排序，没有独立排序数组。",
-      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/prompts；运行时固定：typescript/packages/core/src/prompts/index.ts:2"
     },
     "@society0/core/proposal-events/events": {
       "state": "dropped",
@@ -1167,9 +1128,8 @@
     },
     "@society0/core/run-controller/onUnknownCommit": {
       "state": "dropped",
-      "reason": "原生固定：提案执行异常一律 reservation.cancel 后 fence.halt，未知提交按 persistence_unknown 停机，不设可选策略。",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "策略固定stop；后续排期另定"
+      "reason": "设计要求唯一取值 halt（严格未知提交停机）；运行时对提案执行异常固定 reservation.cancel 后 fence.halt，未知提交按 persistence_unknown 停机，字段不承载第二个取值。",
+      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/run-controller；运行时固定：typescript/packages/core/src/run-controller/index.ts"
     },
     "@society0/core/runtime-staged/defaultCapacity": {
       "state": "dropped",
@@ -1180,12 +1140,6 @@
       "state": "dropped",
       "reason": "原生固定：phase 抛错时 catch 中先 activation.cancel(context) 排空已接收工作再抛出，失败即中止推进。",
       "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/core/runtime-staged；运行时固定：typescript/packages/core/src/runtime-staged/index.ts:86-89"
-    },
-    "@society0/core/termination/onIncomplete": {
-      "state": "dropped",
-      "reason": "原生固定：未 settled 或 completion 不完整一律 pause 并保留证据（incompleteProposal），不设策略开关。",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "策略固定pause；后续排期另定"
     },
     "@society0/extras/vector-providers/duplicate": {
       "state": "dropped",
@@ -1216,17 +1170,6 @@
       "state": "dropped",
       "reason": "原生固定：未注册的引用类型抛 RESOLVER_PENDING。",
       "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/config-resolvers；运行时固定：typescript/packages/host/src/config-resolvers/index.ts:61-62"
-    },
-    "@society0/host/diagnostics/historyLimit": {
-      "state": "dropped",
-      "reason": "原生固定：记录超过 1000 条时 shift 截断，容量写死在服务内。",
-      "design": "docs/design-amendments.md#cr-02批准的配置缺口",
-      "limitation": "诊断记录上限固定1000；后续排期另定"
-    },
-    "@society0/host/diagnostics/level": {
-      "state": "dropped",
-      "reason": "原生固定：sink 只接收 logger 的 error 记录，展示级别不设配置。",
-      "design": "inputs/society0_next_refactor_v3/catalog/plan.json#@society0/host/diagnostics；运行时固定：typescript/packages/host/src/diagnostics/index.ts:42-45"
     },
     "@society0/host/inspector/pageSize": {
       "state": "dropped",

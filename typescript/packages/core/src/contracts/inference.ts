@@ -40,6 +40,7 @@ export interface InferenceModels {
 export interface InferenceBudget {
   readonly maxRequests: number;
   readonly maxToolCalls: number;
+  readonly maxTurns?: number;
 }
 export interface RequiredAction { readonly name: string; readonly minimumCompleted: number }
 export interface InferenceActionReceipt {

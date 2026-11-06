@@ -1,7 +1,7 @@
 import Schema from '@society0/schemastery';
 import type {PluginMetadata,ApiEntry} from '../module-resolver/index.js';
-export const Config=Schema.object({});
-export const metadata:PluginMetadata={"title": "diagnostics", "summary": "记录原生所有者、错误和关闭残留", "configVersion": 1, "configPolicy": [], "scope": "host", "hostAbi": "society0/host/1"};
+export const Config=Schema.object({level:Schema.union(['debug','info','warn','error']).default('info'),historyLimit:Schema.natural().min(1).default(1000)});
+export const metadata:PluginMetadata={"title": "diagnostics", "summary": "记录原生所有者、错误和关闭残留", "configVersion": 1, "configPolicy": [{path:'/level',mode:'live',affectsResults:false},{path:'/historyLimit',mode:'live',affectsResults:false}], "scope": "host", "hostAbi": "society0/host/1"};
 export const api:ApiEntry={"exportPath": "./diagnostics", "provides": [{"key": "diagnostics", "protocol": "diagnostics", "major": 1, "capabilities": []}], "requires": []};
 import { Context, Service, type Fiber } from '@society0/cordis';
 
@@ -34,13 +34,16 @@ export class DiagnosticSink extends Service {
   private sequence = 0;
   private failures = 0;
   private readonly root: Context;
-  constructor(ctx: Context) {
+  private readonly options: ReturnType<typeof Config>;
+  constructor(ctx: Context, input: Record<string, unknown> = {}) {
     super(ctx, 'diagnostics');
+    this.options = Config(input);
     this.root = ctx.root;
     this.owner(ctx.fiber);
     ctx.on('internal/plugin', fiber => { this.owner(fiber); });
     ctx.logger.exporter({export: message => {
-      if (message.type !== 'error') return;
+      const ranks: Record<string, number> = {debug:10, info:20, warn:30, error:40};
+      if ((ranks[message.type] ?? 40) < ranks[this.options.level]) return;
       const fiber = message.fiber?.deref() ?? ctx.fiber;
       this.report({code:'CORDIS_LIFECYCLE_ERROR', message:message.args.map(errorMessage).join(' '), phase:'lifecycle', affectsClose:true}, this.owner(fiber));
     }});
@@ -53,7 +56,7 @@ export class DiagnosticSink extends Service {
   report(error: ErrorRecord, owner: OwnerIdentity = this.owner(this.ctx.fiber)): void {
     this.records.push({...error, owner:{...owner}, sequence:++this.sequence});
     if (error.affectsClose) this.failures++;
-    if (this.records.length > 1000) this.records.shift();
+    if (this.records.length > this.options.historyLimit) this.records.shift();
   }
   snapshot(): DiagnosticPage {
     const node = (fiber: Fiber): OwnerNode => ({...this.owner(fiber), state:fiber.state, effects:fiber.getEffects().map(effect=>effect.label), children:[...fiber.children].map(node)});

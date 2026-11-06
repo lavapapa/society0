@@ -171,14 +171,11 @@ Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的�
 | `core/proposal-events/leaseTimeoutMs` | `deferred` | reservation无租约回收，仅显式release/ack | 会无限等待，下一轮必做 |
 | `core/termination/maxAdvances` | `deferred` | 无推进次数上限 | 后续排期另定 |
 | `host/slots/maxDepth` | `deferred` | 嵌套slot无深度上限 | 后续排期另定 |
-| `extras/shell/timeoutMs` | `dropped` | shell自身无超时，依赖invocation.signal；是否所有调用均有期限仍未核实 | 后续排期另定 |
-| `core/exploration-shell/maxCommandCount` | `dropped` | 无命令数上限，依赖总超时 | 后续排期另定 |
-| `host/diagnostics/historyLimit` | `dropped` | 诊断记录上限固定1000 | 后续排期另定 |
-| `core/driver-llm/maxTurns` | `dropped` | 无独立turn上限，依赖maxRequests/maxToolCalls | 后续排期另定 |
-| `core/run-controller/onUnknownCommit` | `dropped` | 策略固定stop | 后续排期另定 |
-| `core/termination/onIncomplete` | `dropped` | 策略固定pause | 后续排期另定 |
-| `core/prompts/maxContextBytes` | `renamed` | 改为maxAssemblyBytes，但proposed incomplete行为缺失，保留语义差异 | 后续排期另定 |
+| `core/run-controller/onUnknownCommit` | `dropped` | 设计要求唯一取值 `halt`；运行时对提案异常固定 `reservation.cancel` 后 `fence.halt`，未知提交按 `persistence_unknown` 停机，字段没有第二个取值 | 无（唯一取值；改变停机语义需新设计） |
 | `host/scaffold/language` | `deferred` | JS+JSDoc模板未支持 | 后续排期另定 |
-| `extras/vector-index/maxLag` | `dropped` | 滞后读取未支持 | 后续排期另定 |
 
-其他已知限制按原条目保留：`core/sqlite-history/maxBufferedBytes` 的统一跨阶段在途预算、`host/profile-loader/requiredReadyTimeoutMs` 的 required 服务就绪期限、`LocalArtifacts.collect` 的生产调用接入，以及 Codex 真实订阅验证。对应范围和原有处置继续以配置对账及验收记录为准。
+`extras/shell/timeoutMs`、`core/exploration-shell/maxCommandCount`、`host/diagnostics/historyLimit`、`core/driver-llm/maxTurns`、`core/termination/onIncomplete`、`core/prompts/maxContextBytes`、`extras/vector-index/maxLag` 已按设计补回并有真实超限/超时测试，不再登记为缺口。`host/diagnostics/level` 与 `core/prompts/sectionOrder` 也按设计表恢复为可配置字段。
+
+`LocalArtifacts.collect` 已删除：设计 `catalog/plan.json` 的 ArtifactStore 操作只有 `stage/read/localFile/close`，设计包 `docs/07-storage.md` §4.3 把对象删除归显式 retention/GC 操作，仓库内没有调用入口。对象 GC 仍待独立维护操作实现，不在本插件公开合同中。
+
+其他已知限制按原条目保留：`core/sqlite-history/maxBufferedBytes` 的统一跨阶段在途预算、`host/profile-loader/requiredReadyTimeoutMs` 的 required 服务就绪期限，以及 Codex 真实订阅验证。对应范围和原有处置继续以配置对账及验收记录为准。

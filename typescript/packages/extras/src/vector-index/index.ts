@@ -10,8 +10,8 @@ import '@society0/core/execution-fence';
 import '../memory-repository/index.js';
 import '../vector-providers/index.js';
 import { vectorFault, sameProjection, type MemoryIndex, type MemoryIndexProgress, type MemoryChangeCursor } from '../vector-providers/types.js';
-export const Config = Schema.object({ provider: Schema.string().default('memory-exact'), batchRows: Schema.natural().min(1).default(32), batchBytes: Schema.natural().min(1).default(262144), snapshotMs: Schema.natural().min(1).default(30000), queryLimit: Schema.natural().min(1).default(10) });
-export const metadata: PluginMetadata = { title: 'vector-index', summary: 'Rebuildable vector projection with SQL source and explicit progress', configVersion: 1, configPolicy: [{ path: '/provider', mode: 'new-run', affectsResults: true }, { path: '/batchRows', mode: 'new-run', affectsResults: true }, { path: '/batchBytes', mode: 'new-run', affectsResults: true }, { path: '/snapshotMs', mode: 'new-run', affectsResults: true }, { path: '/queryLimit', mode: 'new-run', affectsResults: true }], scope: 'run', allowedScopes: ['run'], hostAbi: 'society0/host/1' };
+export const Config = Schema.object({ maxLag: Schema.natural().default(0), provider: Schema.string().default('memory-exact'), batchRows: Schema.natural().min(1).default(32), batchBytes: Schema.natural().min(1).default(262144), snapshotMs: Schema.natural().min(1).default(30000), queryLimit: Schema.natural().min(1).default(10) });
+export const metadata: PluginMetadata = { title: 'vector-index', summary: 'Rebuildable vector projection with SQL source and explicit progress', configVersion: 1, configPolicy: [{ path: '/maxLag', mode: 'new-run', affectsResults: true }, { path: '/provider', mode: 'new-run', affectsResults: true }, { path: '/batchRows', mode: 'new-run', affectsResults: true }, { path: '/batchBytes', mode: 'new-run', affectsResults: true }, { path: '/snapshotMs', mode: 'new-run', affectsResults: true }, { path: '/queryLimit', mode: 'new-run', affectsResults: true }], scope: 'run', allowedScopes: ['run'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './vector-index', provides: [{ key: 'vectorIndex', protocol: 'vectorIndex', major: 1, capabilities: [] }], requires: ['memoryRepository', 'tasks', 'vectorProviders', 'database', 'executionFence'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 declare module '@society0/cordis' {
     interface Context {
@@ -137,7 +137,8 @@ export class VectorIndex extends Service {
             const view = await this.owner.database.snapshot({ maxAgeMs: this.options.snapshotMs });
             try {
                 const progress = await this.owner.memoryRepository.progress(view, lease.value.generation);
-                if (!progress || progress.throughRevision !== revision)
+                const lag = progress ? BigInt(revision) - BigInt(progress.throughRevision) : -1n;
+                if (!progress || lag < 0n || lag > BigInt(this.options.maxLag))
                     vectorFault('VECTOR_INDEX_NOT_READY');
                 return await lease.value.query(vector, options.limit ?? this.options.queryLimit, progress, options.signal ?? new AbortController().signal);
             }

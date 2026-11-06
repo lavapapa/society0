@@ -197,7 +197,7 @@ export class RunController extends Service {
             }
             session.proposal = source.proposal;
             const advance = await this.executeProposal(session, view, signal);
-            if (advance.kind === 'paused')
+            if (advance.kind === 'paused' || advance.kind === 'failed')
                 return advance.result;
             const boundary = await this.advanceBoundary(session, view, advance.result);
             if (boundary)
@@ -230,6 +230,9 @@ export class RunController extends Service {
     } | {
         kind: 'advanced';
         result: AdvanceResult;
+    } | {
+        kind: 'failed';
+        result: RunResult;
     }> {
         const proposal = session.proposal!;
         if (!view.runtime.planKinds.includes(proposal.planKind))
@@ -245,10 +248,17 @@ export class RunController extends Service {
             const logicalTime = view.clock.advance(session.frontier.logicalTime as Json, trigger);
             const result = await this.executeRuntime(proposal, view, reservation, logicalTime, signal);
             const completion = view.completion.evaluate(result);
-            if (result.status !== 'settled' || !completion.complete)
-                return {
-                    kind: 'paused', result: await this.incompleteProposal(session, view, reservation, result)
-                };
+            if (result.status !== 'settled' || !completion.complete) {
+                const effective = result.status === 'incomplete' || !completion.complete ? { ...result, status: 'incomplete' as const } : result;
+                const termination = view.termination.evaluate({ kind: 'advance', result: effective, cut: session.cut, logicalTime });
+                const paused = await this.incompleteProposal(session, view, reservation, result);
+                if (termination.action === 'fail') {
+                    this.lastFailure ??= termination.reason;
+                    this.ctx.executionFence.halt(termination.reason);
+                    return { kind: 'failed', result: { ...paused, status: 'failed', reason: termination.reason } };
+                }
+                return { kind: 'paused', result: paused };
+            }
             await this.verifyRequired(result.requiredOperations, session.required);
             await this.completeProposal(session, proposal, reservation, logicalTime, result);
             return {

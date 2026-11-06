@@ -16,9 +16,12 @@ export interface ShellReceipt {
     readonly native: NativeProcessReceipt;
 }
 export class ShellExecutionError extends Error {
-    readonly code: string;
+    code: string;
     constructor(readonly receipt: ShellReceipt) { super('SHELL_' + receipt.status.toUpperCase().replaceAll('-', '_')); this.code = this.message; if (receipt.status === 'cancelled')
         this.name = 'AbortError'; }
+}
+export class ShellTimeoutError extends ShellExecutionError {
+    constructor(receipt: ShellReceipt) { super(receipt); this.name = 'ShellTimeoutError'; this.code = 'SHELL_TIMEOUT'; this.message = 'SHELL_TIMEOUT'; }
 }
 export function parseReceipt(value: unknown): ShellReceipt { const result = Schema.resolve(value, Receipt, {})[0]; if (result.native.exitCode === undefined || result.native.exitSignal === undefined)
     throw Error('SHELL_RECEIPT_EXIT_MISSING'); return result; }

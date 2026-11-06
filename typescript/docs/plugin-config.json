@@ -21,7 +21,24 @@
         {
           "exportPath": "./diagnostics",
           "title": "diagnostics",
-          "fields": []
+          "fields": [
+            {
+              "name": "level",
+              "type": "union",
+              "default": "info",
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            },
+            {
+              "name": "historyLimit",
+              "type": "number",
+              "default": 1000,
+              "mode": "live",
+              "affectsResults": false,
+              "secret": null
+            }
+          ]
         },
         {
           "exportPath": "./tasks",
@@ -598,7 +615,16 @@
         {
           "exportPath": "./termination",
           "title": "termination",
-          "fields": []
+          "fields": [
+            {
+              "name": "onIncomplete",
+              "type": "union",
+              "default": "pause",
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": null
+            }
+          ]
         },
         {
           "exportPath": "./generation-views",
@@ -1051,7 +1077,15 @@
               "secret": false
             },
             {
-              "name": "maxAssemblyBytes",
+              "name": "sectionOrder",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxContextBytes",
               "type": "number",
               "default": 1048576,
               "mode": "recreate",
@@ -1068,6 +1102,14 @@
               "name": "name",
               "type": "string",
               "default": "llm/v1",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxTurns",
+              "type": "number",
+              "default": 20,
               "mode": "recreate",
               "affectsResults": true,
               "secret": false
@@ -1452,6 +1494,14 @@
           "title": "exploration-shell",
           "fields": [
             {
+              "name": "maxCommandCount",
+              "type": "number",
+              "default": 10000,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "maxCommandBytes",
               "type": "number",
               "default": 65536,
@@ -1756,6 +1806,14 @@
           "title": "shell",
           "fields": [
             {
+              "name": "timeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
               "name": "maxOutputBytes",
               "type": "number",
               "default": 16777216,
@@ -1907,6 +1965,14 @@
           "exportPath": "./vector-index",
           "title": "vector-index",
           "fields": [
+            {
+              "name": "maxLag",
+              "type": "number",
+              "default": 0,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
             {
               "name": "provider",
               "type": "string",
