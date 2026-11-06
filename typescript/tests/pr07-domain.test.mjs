@@ -12,7 +12,10 @@ test('PR07-T01 third-party action rolls back actors and durable receipts with on
         await assert.rejects(ctx.actions.execute('notes.fail', { body: 'note' }, env.context('failed')), /required receipt failed/);
         assert.deepEqual(await read(ctx, v => ctx.actors.get('a', v)), { id: 'a', attributes: { score: 0, raw: { preserved: true } } });
         assert.equal((await read(ctx, v => v.query({ sql: 'SELECT count(*) AS n FROM action_receipts' }, { maxRows: 1, maxBytes: 1024 })))[0].n, 0n);
-        await assert.rejects(ctx.actions.execute('notes.fail', { body: 123 }, env.context('invalid')), /ACTION_INPUT/);
+        const invalid = await ctx.actions.execute('notes.fail', { body: 123 }, env.context('invalid'));
+        assert.equal(invalid.status, 'rejected');
+        assert.equal(invalid.value.code, 'ACTION_INPUT');
+        assert.equal(invalid.value.errors[0].path, '/body');
         const receipt = await ctx.actions.execute('plain.update', { attributes: { changed: true, raw: { vendor: 1 } } }, env.context('valid'));
         assert.equal(receipt.status, 'completed');
         assert.equal((await read(ctx, v => v.query({ sql: 'SELECT value FROM action_receipts WHERE operation_id=?', parameters: ['valid'] }, { maxRows: 1, maxBytes: 4096 })))[0].value, JSON.stringify({ id: 'a', attributes: { changed: true, raw: { vendor: 1 } } }));

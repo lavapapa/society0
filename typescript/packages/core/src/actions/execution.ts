@@ -27,6 +27,29 @@ function failureArtifacts(cause: unknown): readonly ArtifactRef[] {
     const artifacts = (cause as { artifacts?: readonly ArtifactRef[] } | null)?.artifacts;
     return Array.isArray(artifacts) ? artifacts : [];
 }
+const typeLabels: Readonly<Record<string, string>> = { integer: '整数', string: '字符串', number: '数字', boolean: '布尔', array: '数组', object: '对象' };
+function limitBytes(text: string, max: number): string {
+    const buffer = Buffer.from(text);
+    return buffer.length <= max ? text : buffer.subarray(0, max).toString('utf8').replace(/\uFFFD+$/u, '');
+}
+/** 该行动 input schema 的必填字段与类型摘要，用于 ACTION_INPUT 的 expected（≤1KB）。 */
+function expectedSummary(schema: Json): string {
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema))
+        return '无 schema';
+    const object = schema as Readonly<Record<string, Json>>;
+    const properties = object.properties;
+    const required = Array.isArray(object.required) ? object.required.filter((value): value is string => typeof value === 'string') : [];
+    if (!required.length)
+        return '无必填字段';
+    const fields = required.map((name) => {
+        const property = properties !== null && typeof properties === 'object' && !Array.isArray(properties) ? (properties as Readonly<Record<string, Json>>)[name] : undefined;
+        if (property === null || typeof property !== 'object' || Array.isArray(property))
+            return `${name}: 任意`;
+        const type = (property as Readonly<Record<string, Json>>).type;
+        return `${name}: ${typeof type === 'string' ? typeLabels[type] ?? type : '任意'}`;
+    });
+    return limitBytes(fields.join('; '), 1024);
+}
 export class ActionExecutionFailure extends Error {
     readonly code: string;
     readonly requiredOperations: readonly string[];
@@ -44,9 +67,15 @@ export class ActionCall {
         if (!await this.allowed(reader) || !await this.entry.definition.available(this.scope, reader))
             return fail('ACTION_INELIGIBLE');
     }
+    /** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
+    private inputRejection(): ActionReceipt | undefined {
+        if (this.entry.input(this.input))
+            return undefined;
+        const all = this.entry.input.errors ?? [];
+        const errors = all.slice(0, 5).map((error) => ({ path: typeof error.instancePath === 'string' ? error.instancePath : '', message: String(error.message ?? '') }));
+        return { operationId: this.activation.operationId, status: 'rejected', value: { code: 'ACTION_INPUT', errors, errorCount: all.length, expected: expectedSummary(this.entry.definition.inputSchema) }, original: null, artifacts: [], requiredOperations: [] };
+    }
     private async initial() {
-        if (!this.entry.input(this.input))
-            return fail('ACTION_INPUT');
         const view = await this.activation.database.snapshot({ maxAgeMs: 30000 });
         try {
             await this.qualify(view);
@@ -109,6 +138,9 @@ export class ActionCall {
     } if (kind === 'external-unknown')
         throw new ActionExecutionFailure(error, this.committed, 'ACTION_ATTEMPT_UNKNOWN'); throw failure; }
     async run() {
+        const invalid = this.inputRejection();
+        if (invalid)
+            return invalid;
         await this.initial();
         const input = await prepareValue(this.input, 16384, this.ctx.artifacts, this.activation.signal);
         await this.claim(input);
