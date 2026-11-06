@@ -199,6 +199,7 @@ export class ActivationService extends Service {
                 kind: 'rejected', reason: 'ACTIVATION_CLOSED'
             };
         const decision = await this.eligible(batch, intent);
+        const tokens = await this.estimateTokens(intent);
         if (this.admissionClosed(batch))
             return {
                 kind: 'rejected', reason: 'ACTIVATION_CLOSED'
@@ -221,7 +222,7 @@ export class ActivationService extends Service {
         batch.identities.set(key, intent.driver);
         batch.intentIds.set(intent.id, identity);
         batch.bytes += bytes;
-        return this.enqueue(batch, intent, key, bytes, queued, await this.estimateTokens(intent));
+        return this.enqueue(batch, intent, key, bytes, queued, tokens);
     }
     private tokenBudget() { return Math.floor(this.config.admission.replicas * this.config.admission.tokensPerReplica * this.config.admission.utilization); }
     private inputTokens(intent: ActivationIntent) { return Math.max(0, Math.ceil(Buffer.byteLength(JSON.stringify(intent.input ?? null)) / 3.2)); }
