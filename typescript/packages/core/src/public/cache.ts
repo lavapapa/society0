@@ -57,12 +57,12 @@ export class RenderCache {
             this.renders++;
             const value = await render();
             const copy = value instanceof Uint8Array ? value : new Uint8Array(value as ArrayBufferLike);
-            this.remember(etag, copy);
             const path = this.pathOf(etag);
             await mkdir(dirname(path), { recursive: true });
             const temporary = path + '.' + randomUUID() + '.tmp';
             await writeFile(temporary, copy);
             await rename(temporary, path);
+            this.remember(etag, copy);
             return copy;
         })();
         this.inflight.set(etag, work);
