@@ -26,8 +26,9 @@ CREATE INDEX public_rows_hist ON public_rows(file,rev_to);
 CREATE TABLE public_files(
   file TEXT NOT NULL,parent TEXT NOT NULL,rev_from INTEGER NOT NULL,rev_to INTEGER,
   table_path TEXT NOT NULL,rows INTEGER NOT NULL,bytes INTEGER NOT NULL,
-  audiences TEXT NOT NULL,
-  PRIMARY KEY(file,rev_from));`
+  audiences TEXT NOT NULL,basename TEXT NOT NULL,extension TEXT NOT NULL,
+  PRIMARY KEY(file,rev_from));
+CREATE INDEX public_files_name ON public_files(extension,file,rev_from,rev_to,audiences);`
         }]
     };
 }

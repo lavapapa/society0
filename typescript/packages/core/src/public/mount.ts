@@ -220,23 +220,26 @@ export class PublicMount implements ExplorationMount {
         const id = identity(scope, view, { mount: this.id, root, glob }), last = after(request.cursor, id);
         const simple = this.simpleGlob(glob);
         if (simple) {
-            const pattern = this.globLike(glob, true);
+            const pattern = this.globLike(glob, true), suffix = this.suffix(glob);
             const audience = agent.map(audience => 'audiences LIKE ?');
-            const fileFilter = `file>=? AND file<? AND ${AS_OF} AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND file LIKE ? ESCAPE '\\'`;
+            const fileMatch = suffix === undefined ? `file LIKE ? ESCAPE '\\'` : 'extension=?';
+            const fileMatchParameters = suffix === undefined ? [pattern] : [suffix];
+            const fileFilter = `file>=? AND file<? AND ${AS_OF} AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
             const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind<>'dir' AND path LIKE ? ESCAPE '\\'`;
-            const [fileTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE ${fileFilter}`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), pattern] }, { maxRows: 1, maxBytes: 65536 });
+            const [fileTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE ${fileFilter}`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
             const [nodeTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: 65536 });
-            const total = Number(fileTotal?.n ?? 0) + Number(nodeTotal?.n ?? 0);
             const bound = last === undefined ? '' : ' AND file>?';
             const nodeBound = last === undefined ? '' : ' AND path>?';
-            const files = await view.query({ sql: `SELECT file,rev_from,audiences FROM public_files WHERE ${fileFilter}${bound} ORDER BY file LIMIT ?`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
+            const [aggregate] = await view.query({ sql: `SELECT json_group_array(json_array(file,rev_from,audiences)) AS data FROM (SELECT file,rev_from,audiences FROM public_files WHERE ${fileFilter}${bound} ORDER BY file LIMIT ?)`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: 1, maxBytes: 4 * 1024 * 1024 });
+            const total = Number(fileTotal?.n ?? 0) + Number(nodeTotal?.n ?? 0);
+            const files = aggregate?.data === null || aggregate?.data === undefined ? [] : JSON.parse(String(aggregate.data)) as [string, number, string][];
             const nodes = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
             const matched: ExplorationNode[] = [];
             for (const row of files) {
-                const path = String(row.file), audiences = JSON.parse(String(row.audiences)) as Audience[];
+                const path = String(row[0]), audiences = JSON.parse(String(row[2])) as Audience[];
                 if (!intersects(audiences, agent))
                     continue;
-                matched.push(this.foundFile(path, String(row.rev_from), revision, effective(audiences, agent)));
+                matched.push(this.foundFile(path, String(row[1]), revision, effective(audiences, agent)));
             }
             for (const row of nodes) {
                 const path = String(row.path);
@@ -281,6 +284,7 @@ export class PublicMount implements ExplorationMount {
         };
     }
     private simpleGlob(glob: string) { return !glob.includes('/') && !glob.includes('?') && !glob.includes('[') && !glob.includes('**'); }
+    private suffix(glob: string) { const match = /^\*\\.([^*?\\[\\]]+)$/.exec(glob); return match ? match[1] : undefined; }
     private globLike(glob: string, basename: boolean) { const like = glob.replace(/[\\%_]/g, '\\$&').replace(/\*/g, '%'); return basename && !like.startsWith('%') ? '%/' + like : like; }
     private revisionValue(revision: string) { return BigInt(revision); }
     private match(path: string, glob: string) { return matchesGlob(path, glob) || matchesGlob(posix.basename(path), glob); }
