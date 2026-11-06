@@ -802,6 +802,46 @@
               "mode": "boundary",
               "affectsResults": true,
               "secret": false
+            },
+            {
+              "name": "maxOffers",
+              "type": "number",
+              "default": 64,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxOfferBytes",
+              "type": "number",
+              "default": 3072,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxSchemaBytes",
+              "type": "number",
+              "default": 4096,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "maxAlternatives",
+              "type": "number",
+              "default": 5,
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "labels",
+              "type": "object",
+              "default": {},
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
             }
           ]
         },

@@ -173,6 +173,14 @@
       "types": "./dist/contracts/domain.d.ts",
       "default": "./dist/contracts/domain.js"
     },
+    "./contracts/affordance": {
+      "types": "./dist/contracts/affordance.d.ts",
+      "default": "./dist/contracts/affordance.js"
+    },
+    "./contracts/delivery": {
+      "types": "./dist/contracts/delivery.d.ts",
+      "default": "./dist/contracts/delivery.js"
+    },
     "./exploration": {
       "types": "./dist/exploration/index.d.ts",
       "default": "./dist/exploration/index.js"

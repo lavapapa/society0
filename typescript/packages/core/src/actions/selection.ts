@@ -8,6 +8,6 @@ export class BoundActions implements ActionSelection {
  constructor(private discoverSelected:Discover,private executeSelected:Execute,private releaseSelected:()=>Promise<void>){}
  private async run<T>(body:()=>Promise<T>):Promise<T>{if(this.closing)return fail('ACTION_SELECTION_RELEASED');const work=body();this.active.add(work);try{return await work}finally{this.active.delete(work)}}
  discover(scope:DiscoveryScope,view:SqliteReadView,request:PageRequest){return this.run(()=>this.discoverSelected(scope,view,request))}
- execute(name:string,input:Json,context:ActivationContext):Promise<ActionReceipt>{return this.run(()=>this.executeSelected(name,input,context))}
+ execute(name:string,input:Json,context:ActivationContext,target?:Parameters<Execute>[3]):Promise<ActionReceipt>{return this.run(()=>this.executeSelected(name,input,context,target))}
  release(){return this.closed??=(async()=>{this.closing=true;await Promise.allSettled([...this.active]);await this.releaseSelected()})()}
 }

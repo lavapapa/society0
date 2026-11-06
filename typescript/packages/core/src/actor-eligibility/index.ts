@@ -34,6 +34,8 @@ export class ActorEligibility extends Service {
         rule: EligibilityRule;
         retention: Retention;
     }>();
+    /** 存在按目标评估的规则时，offers() 才对每个目标调用一次；否则沿用按行动名的结果。 */
+    get targetAware() { return [...this.rules.values()].some((record) => record.rule.targetAware === true); }
     constructor(ctx: Context) {
         super(ctx, 'actorEligibility');
     }

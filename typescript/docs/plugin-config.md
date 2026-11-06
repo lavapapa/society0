@@ -80,6 +80,11 @@
 | ./attempts | maxEvidenceObjects | number | 10000 | new-run | true | null |
 | ./actions | maxDiscovered | number | 100 | boundary | true | false |
 | ./actions | defaultTimeoutMs | number | 30000 | boundary | true | false |
+| ./actions | maxOffers | number | 64 | boundary | true | false |
+| ./actions | maxOfferBytes | number | 3072 | boundary | true | false |
+| ./actions | maxSchemaBytes | number | 4096 | boundary | true | false |
+| ./actions | maxAlternatives | number | 5 | boundary | true | false |
+| ./actions | labels | object | {} | recreate | true | false |
 | ./thread | bodyInlineBytes | number | 16384 | new-run | true | false |
 | ./thread | maxMessageBytes | number | 16777216 | new-run | true | false |
 | ./information | pageSize | number | 100 | boundary | true | false |

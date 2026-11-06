@@ -5,6 +5,7 @@ type SqliteReader = SqliteReadView | SqliteTransaction;
 /** 领域包拥有实际 SQLite 表、索引与 SQL。 */
 import type { Json, Disposer, Invocation, Lease } from './common.js';
 import type { ActivationContext, ActivationResult } from './runtime.js';
+import type { ActionExposure, ActionOffer, ActionRef, ActionSchemaCard, ActionTargets, OfferIdentity, OfferLimits, OfferProvider, OfferSet, TargetRef } from './affordance.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { CommitReceipt, SqliteReadView, SqliteTransaction, TransactionRequest } from '../sqlite/contracts.js';
 import type { DiscoveryScope, Page, PageRequest, PayloadReader, StoredValue } from './data.js';
@@ -22,8 +23,15 @@ export interface Information {
     discover(scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<Omit<InformationSource, 'query' | 'available'>>>;
     query(id: string, input: Json, scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<StoredValue>>;
 }
+export interface ActionScope extends DiscoveryScope {
+    readonly target?: TargetRef;
+}
 export interface ActionExecutionContext extends ActivationContext {
     readonly actionRegistrationId: string;
+    /** 本次执行的目标对象；无目标行动省略。 */
+    readonly target?: TargetRef;
+    /** 命中的 offer（来源 provider 和 key）；ambient 行动没有 offer。 */
+    readonly offer?: OfferIdentity;
     /** 同一原生写事务开头复查主体及动作资格，再执行全部领域写入。 */
     transaction<T>(request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>): Promise<{
         readonly value: T;
@@ -32,10 +40,17 @@ export interface ActionExecutionContext extends ActivationContext {
 }
 export interface ActionDefinition {
     readonly name: string;
+    /** 给模型看的一句话说明，计入 schema 摘要。 */
+    readonly description?: string;
     readonly inputSchema: Json;
     readonly outputSchema: Json;
     readonly effect: 'world' | 'external' | 'read';
-    available(scope: DiscoveryScope, reader: SqliteReader): Promise<boolean>;
+    /** offer：参与可供性（默认）；tool：固定工具的执行后端，不进入 offer；internal：只供插件或规则调用。 */
+    readonly exposure?: ActionExposure;
+    /** 缺省为 none：无目标。无目标行动 ambient 默认 true；有目标行动默认 false。 */
+    readonly targets?: ActionTargets;
+    readonly ambient?: boolean;
+    available(scope: ActionScope, reader: SqliteReader): Promise<boolean>;
     execute(input: Json, context: ActionExecutionContext): Promise<ActionReceipt>;
 }
 export interface ActionReceipt {
@@ -48,13 +63,17 @@ export interface ActionReceipt {
 }
 export interface ActionSelection {
  discover(scope:DiscoveryScope,view:SqliteReadView,request:PageRequest):Promise<Page<Omit<ActionDefinition,'execute'|'available'>>>;
- execute(name:string,input:Json,context:ActivationContext):Promise<ActionReceipt>;
+ execute(name:string,input:Json,context:ActivationContext,target?:TargetRef):Promise<ActionReceipt>;
 }
 export interface Actions {
     acquire(context:Invocation):Promise<Lease<ActionSelection>>;
     register(definition: ActionDefinition): Disposer;
     discover(scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<Omit<ActionDefinition, 'execute' | 'available'>>>;
-    execute(name: string, input: Json, context: ActivationContext): Promise<ActionReceipt>;
+    execute(name: string, input: Json, context: ActivationContext, target?: TargetRef): Promise<ActionReceipt>;
+    provide(provider: OfferProvider): Disposer;
+    offers(scope: DiscoveryScope, view: SqliteReadView, limits: OfferLimits): Promise<OfferSet>;
+    offersFor(scope: DiscoveryScope, view: SqliteReadView, filter: { readonly targets: readonly TargetRef[]; readonly actions?: readonly string[] }): Promise<readonly ActionRef[]>;
+    describe(name: string): Promise<ActionSchemaCard | undefined>;
 }
 export interface RuleHandler {
     activate(input: Json, context: ActivationContext): Promise<ActivationResult>;

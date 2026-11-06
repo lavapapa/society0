@@ -2,14 +2,17 @@ import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { Context } from '@society0/cordis';
 import type { ValidateFunction } from 'ajv';
 import type { ActionDefinition, ActionExecutionContext, ActionReceipt } from '../contracts/domain.js';
+import type { ActionRef, OfferIdentity, TargetRef } from '../contracts/affordance.js';
 import type { ActivationContext } from '../contracts/runtime.js';
 import type { Json } from '../contracts/common.js';
 import type { DiscoveryScope, StoredValue } from '../contracts/data.js';
 import type { SqliteReadView, SqliteTransaction, TransactionRequest } from '../sqlite/contracts.js';
+import { targetText } from '../contracts/affordance.js';
 import { fail, bytes } from '../information/page.js';
 import { prepareValue, attachValue } from '../results/payload.js';
 import '../attempts/index.js';
 import '../artifacts-local/index.js';
+
 export interface ActionRegistration {
     definition: ActionDefinition;
     registrationId: string;
@@ -17,6 +20,17 @@ export interface ActionRegistration {
     output: ValidateFunction;
 }
 type Reader = SqliteReadView | SqliteTransaction;
+export type OfferState = 'valid' | 'ineligible' | 'absent';
+/** 执行期对 offer 的复查、拒绝原因与替代项；由 Actions 绑定当前注册表、provider 与快照。 */
+export interface ActionAuthority {
+    readonly key: string;
+    readonly target?: TargetRef;
+    readonly offer?: OfferIdentity;
+    readonly delivered?: ReadonlySet<string>;
+    state(reader: Reader): Promise<OfferState>;
+    findings(reader: Reader): Promise<readonly { ruleId: string; reason: string }[]>;
+    alternatives(reader: Reader): Promise<readonly ActionRef[]>;
+}
 function references(value: StoredValue) { return value.kind === 'reference' ? [value.ref.object] : []; }
 function failureCode(cause: unknown, code?: string): string {
     if (code) return code;
@@ -26,6 +40,37 @@ function failureCode(cause: unknown, code?: string): string {
 function failureArtifacts(cause: unknown): readonly ArtifactRef[] {
     const artifacts = (cause as { artifacts?: readonly ArtifactRef[] } | null)?.artifacts;
     return Array.isArray(artifacts) ? artifacts : [];
+}
+const typeLabels: Readonly<Record<string, string>> = { integer: '整数', string: '字符串', number: '数字', boolean: '布尔', array: '数组', object: '对象' };
+function limitBytes(text: string, max: number): string {
+    const buffer = Buffer.from(text);
+    return buffer.length <= max ? text : buffer.subarray(0, max).toString('utf8').replace(/\uFFFD+$/u, '');
+}
+/** 该行动 input schema 的必填字段与类型摘要，用于 ACTION_INPUT 的 expected（≤1KB）。 */
+function expectedSummary(schema: Json): string {
+    if (schema === null || typeof schema !== 'object' || Array.isArray(schema))
+        return '无 schema';
+    const object = schema as Readonly<Record<string, Json>>;
+    const properties = object.properties;
+    const required = Array.isArray(object.required) ? object.required.filter((value): value is string => typeof value === 'string') : [];
+    if (!required.length)
+        return '无必填字段';
+    const fields = required.map((name) => {
+        const property = properties !== null && typeof properties === 'object' && !Array.isArray(properties) ? (properties as Readonly<Record<string, Json>>)[name] : undefined;
+        if (property === null || typeof property !== 'object' || Array.isArray(property))
+            return `${name}: 任意`;
+        const type = (property as Readonly<Record<string, Json>>).type;
+        return `${name}: ${typeof type === 'string' ? typeLabels[type] ?? type : '任意'}`;
+    });
+    return limitBytes(fields.join('; '), 1024);
+}
+/** 输入校验失败是业务拒绝：回执带字段路径、错误计数和 input schema 摘要，不 claim attempt。 */
+export function validateInput(entry: ActionRegistration, input: Json, operationId: string): ActionReceipt | undefined {
+    if (entry.input(input))
+        return undefined;
+    const all = entry.input.errors ?? [];
+    const errors = all.slice(0, 5).map((error) => ({ path: typeof error.instancePath === 'string' ? error.instancePath : '', message: String(error.message ?? '') }));
+    return { operationId, status: 'rejected', value: { code: 'ACTION_INPUT', errors, errorCount: all.length, expected: expectedSummary(entry.definition.inputSchema) }, original: null, artifacts: [], requiredOperations: [] };
 }
 export class ActionExecutionFailure extends Error {
     readonly code: string;
@@ -39,25 +84,51 @@ export class ActionCall {
     private attempt;
     private committed = new Set<string>();
     private scope: DiscoveryScope;
-    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private allowed: (reader: Reader) => Promise<boolean>) { this.attempt = { lineage: ctx.attempts.authority().lineage, operationId: entry.definition.effect === 'external' ? 'action:' + activation.operationId : 'action-run:' + JSON.stringify([activation.runId, activation.operationId]), attempt: 0 }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; }
+    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private authority: ActionAuthority) { this.attempt = { lineage: ctx.attempts.authority().lineage, operationId: entry.definition.effect === 'external' ? 'action:' + activation.operationId : 'action-run:' + JSON.stringify([activation.runId, activation.operationId]), attempt: 0 }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; }
+    private rejectedReceipt(code: string): ActionReceipt {
+        return {
+            operationId: this.activation.operationId,
+            status: 'rejected',
+            value: {
+                code,
+                action: this.entry.definition.name,
+                ...(this.authority.target ? { target: targetText(this.authority.target) } : {}),
+            },
+            original: null,
+            artifacts: [],
+            requiredOperations: [],
+        };
+    }
+    private async rejection(reader: Reader): Promise<ActionReceipt> {
+        const state = await this.authority.state(reader);
+        if (state === 'valid')
+            return fail('ACTION_INELIGIBLE');
+        if (state === 'ineligible') {
+            const receipt = this.rejectedReceipt('ACTION_INELIGIBLE');
+            return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), findings: [...await this.authority.findings(reader)] as unknown as Json } };
+        }
+        const code = this.authority.delivered?.has(this.authority.key) ? 'ACTION_EXPIRED' : 'ACTION_NOT_OFFERED';
+        const receipt = this.rejectedReceipt(code);
+        return { ...receipt, value: { ...(receipt.value as Readonly<Record<string, Json>>), alternatives: [...await this.authority.alternatives(reader)] as unknown as Json } };
+    }
     private async qualify(reader: Reader) {
-        if (!await this.allowed(reader) || !await this.entry.definition.available(this.scope, reader))
+        if (await this.authority.state(reader) !== 'valid')
             return fail('ACTION_INELIGIBLE');
     }
-    private async initial() {
-        if (!this.entry.input(this.input))
-            return fail('ACTION_INPUT');
+    private async initial(): Promise<ActionReceipt | undefined> {
         const view = await this.activation.database.snapshot({ maxAgeMs: 30000 });
         try {
-            await this.qualify(view);
+            if (await this.authority.state(view) !== 'valid')
+                return await this.rejection(view);
             if (this.entry.definition.effect !== 'external')
                 await this.assertUncommitted(view);
+            return undefined;
         }
         finally {
             await view.close();
         }
     }
-    private context(storedInput: StoredValue): ActionExecutionContext { return { ...this.activation, actionRegistrationId: this.entry.registrationId, transaction: <T>(request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>) => this.transaction(storedInput, request, body) }; }
+    private context(storedInput: StoredValue): ActionExecutionContext { return { ...this.activation, actionRegistrationId: this.entry.registrationId, ...(this.authority.target ? { target: this.authority.target } : {}), ...(this.authority.offer ? { offer: this.authority.offer } : {}), transaction: <T>(request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>) => this.transaction(storedInput, request, body) }; }
     private async assertUncommitted(reader: Reader) { const receipts = await reader.query({ sql: 'SELECT operation_id FROM action_receipts WHERE invocation_id=?', parameters: [this.activation.operationId] }, { maxRows: 1000, maxBytes: 65536 }); if (receipts.some(row => !this.committed.has(String(row.operation_id))))
         return fail('ACTION_ALREADY_COMMITTED'); }
     private async transaction<T>(input: StoredValue, request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>) { this.activation.signal.throwIfAborted(); if (this.entry.definition.effect === 'read')
@@ -68,7 +139,10 @@ export class ActionCall {
         if (Buffer.byteLength(encoded) > request.maxInputBytes)
             return fail('ACTION_RECEIPT_BUDGET');
         await attachValue(tx, input, this.ctx.artifacts);
-        await tx.execute({ sql: 'INSERT INTO action_receipts VALUES(?,?,?,?,?,?,?,?)', parameters: [request.operationId, this.activation.operationId, this.activation.actorId, this.activation.momentId, this.entry.definition.name, this.entry.registrationId, JSON.stringify(input), encoded] });
+        await tx.execute({
+            sql: 'INSERT INTO action_receipts(operation_id,invocation_id,actor_id,moment_id,action,registration_id,input,value,target,offer_key,provider) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+            parameters: [request.operationId, this.activation.operationId, this.activation.actorId, this.activation.momentId, this.entry.definition.name, this.entry.registrationId, JSON.stringify(input), encoded, this.authority.target ? targetText(this.authority.target) : null, this.authority.offer?.key ?? null, this.authority.offer?.provider ?? null],
+        });
     }
     private async claim(input: StoredValue) { while (true) {
         this.activation.signal.throwIfAborted();
@@ -109,7 +183,12 @@ export class ActionCall {
     } if (kind === 'external-unknown')
         throw new ActionExecutionFailure(error, this.committed, 'ACTION_ATTEMPT_UNKNOWN'); throw failure; }
     async run() {
-        await this.initial();
+        const invalid = validateInput(this.entry, this.input, this.activation.operationId);
+        if (invalid)
+            return invalid;
+        const early = await this.initial();
+        if (early)
+            return early;
         const input = await prepareValue(this.input, 16384, this.ctx.artifacts, this.activation.signal);
         await this.claim(input);
         try {
