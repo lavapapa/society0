@@ -23,6 +23,9 @@ export interface Information {
     discover(scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<Omit<InformationSource, 'query' | 'available'>>>;
     query(id: string, input: Json, scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<StoredValue>>;
 }
+export interface ActionScope extends DiscoveryScope {
+    readonly target?: TargetRef;
+}
 export interface ActionExecutionContext extends ActivationContext {
     readonly actionRegistrationId: string;
     /** 本次执行的目标对象；无目标行动省略。 */
@@ -47,7 +50,7 @@ export interface ActionDefinition {
     /** 缺省为 none：无目标。无目标行动 ambient 默认 true；有目标行动默认 false。 */
     readonly targets?: ActionTargets;
     readonly ambient?: boolean;
-    available(scope: DiscoveryScope, reader: SqliteReader): Promise<boolean>;
+    available(scope: ActionScope, reader: SqliteReader): Promise<boolean>;
     execute(input: Json, context: ActionExecutionContext): Promise<ActionReceipt>;
 }
 export interface ActionReceipt {

@@ -43,6 +43,8 @@ export interface EligibilityDecision {
     }[];
 }
 export interface ActorEligibility {
+    /** 可选：至少一条规则声明 targetAware 时为 true。 */
+    readonly targetAware?: boolean;
     register(rule: EligibilityRule): Disposer;
     evaluate(request: EligibilityRequest, reader: SqliteReader): Promise<EligibilityDecision>;
 }

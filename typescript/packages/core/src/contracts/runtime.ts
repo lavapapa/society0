@@ -35,6 +35,8 @@ export interface ActivationContext extends Invocation {
     readonly logicalTime: Json;
     readonly writeLease: WriteLease;
     readonly database: SqliteDatabase;
+    /** 本线程已送达的 offer key；由绑定 fold 后传入，用于区分 ACTION_EXPIRED 与 ACTION_NOT_OFFERED。 */
+    readonly deliveredOffers?: ReadonlySet<string>;
 }
 export interface ActivationResult {
     readonly requiredOperations?: readonly string[];
