@@ -4,7 +4,7 @@ type BootstrapPreparationContext = Pick<BootstrapContext, 'runId' | 'schema' | '
 type SqliteReader = SqliteReadView | SqliteTransaction;
 /** 领域包拥有实际 SQLite 表、索引与 SQL。 */
 import type { Json, Disposer, Invocation, Lease } from './common.js';
-import type { ActivationContext, ActivationResult } from './runtime.js';
+import type { ActivationContext, ActivationIntent, ActivationResult } from './runtime.js';
 import type { ActionExposure, ActionOffer, ActionRef, ActionSchemaCard, ActionTargets, OfferIdentity, OfferLimits, OfferProvider, OfferSet, TargetRef } from './affordance.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
 import type { CommitReceipt, SqliteReadView, SqliteTransaction, TransactionRequest } from '../sqlite/contracts.js';
@@ -53,6 +53,23 @@ export interface ActionDefinition {
     available(scope: ActionScope, reader: SqliteReader): Promise<boolean>;
     execute(input: Json, context: ActionExecutionContext): Promise<ActionReceipt>;
 }
+export interface ActionNotification {
+    readonly actorId: string;
+    readonly reason: 'message' | 'request' | 'mention';
+    readonly ref: Json;
+}
+export interface ActionDelivery {
+    readonly recipients: readonly {
+        readonly actorId: string;
+        readonly visibleRevision: string;
+    }[];
+    readonly wake: 'scheduled' | 'deferred' | 'none';
+}
+/** 唤醒策略钩子：C 的激活策略接入；未接入时 wake 保持 none。 */
+export interface ActionNotifier {
+    readonly id: string;
+    deliver(intent: ActivationIntent): Promise<'scheduled' | 'deferred' | 'none'>;
+}
 export interface ActionReceipt {
     readonly requiredOperations?: readonly string[];
     readonly operationId: string;
@@ -60,6 +77,10 @@ export interface ActionReceipt {
     readonly value: Json;
     readonly original: Json;
     readonly artifacts: readonly ArtifactRef[];
+    /** 领域行动在写事务内声明的唤醒对象；由框架在提交后转交策略。 */
+    readonly notify?: readonly ActionNotification[];
+    /** 框架填写的送达回执；wake 由策略给出，默认 none。 */
+    readonly delivery?: ActionDelivery;
 }
 export interface ActionSelection {
  discover(scope:DiscoveryScope,view:SqliteReadView,request:PageRequest):Promise<Page<Omit<ActionDefinition,'execute'|'available'>>>;
@@ -71,6 +92,7 @@ export interface Actions {
     discover(scope: DiscoveryScope, snapshot: SqliteReadView, request: PageRequest): Promise<Page<Omit<ActionDefinition, 'execute' | 'available'>>>;
     execute(name: string, input: Json, context: ActivationContext, target?: TargetRef): Promise<ActionReceipt>;
     provide(provider: OfferProvider): Disposer;
+    provideNotifier(notifier: ActionNotifier): Disposer;
     offers(scope: DiscoveryScope, view: SqliteReadView, limits: OfferLimits): Promise<OfferSet>;
     offersFor(scope: DiscoveryScope, view: SqliteReadView, filter: { readonly targets: readonly TargetRef[]; readonly actions?: readonly string[] }): Promise<readonly ActionRef[]>;
     describe(name: string): Promise<ActionSchemaCard | undefined>;

@@ -16,6 +16,8 @@ export interface ActivationIntent {
     readonly source: string;
     readonly driver: string;
     readonly input: Json;
+    /** 行动回执转交的唤醒意图；普通调度意图省略。 */
+    readonly cause?: 'notify';
 }
 export type ActivationAdmission = {
     readonly kind: 'accepted';
