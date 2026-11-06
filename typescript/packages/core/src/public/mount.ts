@@ -234,21 +234,21 @@ export class PublicMount implements ExplorationMount {
             const total = Number(fileTotal?.n ?? 0) + Number(nodeTotal?.n ?? 0);
             const files = aggregate?.data === null || aggregate?.data === undefined ? [] : JSON.parse(String(aggregate.data)) as [string, number, string][];
             const nodes = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
-            const matched: ExplorationNode[] = [];
+            const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
             for (const row of files) {
                 const path = String(row[0]), audiences = JSON.parse(String(row[2])) as Audience[];
                 if (!intersects(audiences, agent))
                     continue;
-                matched.push(this.foundFile(path, String(row[1]), revision, effective(audiences, agent)));
+                matchedFiles.push(this.foundFile(path, String(row[1]), revision, effective(audiences, agent)));
             }
             for (const row of nodes) {
                 const path = String(row.path);
                 if (!audienceOk(String(row.audience), agent))
                     continue;
-                matched.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
+                matchedNodes.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
             }
-            matched.sort((a, b) => compareCodePoints(a.path, b.path));
-            return page(matched, String(total), view.revision, request, id, node => node.path);
+            const merged = this.mergeByPath(matchedFiles, matchedNodes);
+            return page(merged, String(total), view.revision, request, id, node => node.path, false, merged.map(node => Buffer.byteLength(JSON.stringify(node), 'utf8')));
         }
         const files = await view.query({
             sql: `SELECT file,parent,rev_from,audiences FROM public_files WHERE file>=? AND file<? AND ${AS_OF} ORDER BY file LIMIT ?`,
@@ -258,22 +258,37 @@ export class PublicMount implements ExplorationMount {
             sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE path>=? AND path<? AND ${AS_OF} ORDER BY path LIMIT ?`,
             parameters: [lower, upper, at, at, 100000]
         }, { maxRows: 100000, maxBytes: 4 * 1024 * 1024 });
-        const matched: ExplorationNode[] = [];
+        const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
         for (const row of files) {
             const path = String(row.file), audiences = JSON.parse(String(row.audiences)) as Audience[];
             if (!intersects(audiences, agent) || !this.match(path, glob))
                 continue;
-            matched.push(this.foundFile(path, String(row.rev_from), revision, effective(audiences, agent)));
+            matchedFiles.push(this.foundFile(path, String(row.rev_from), revision, effective(audiences, agent)));
         }
         for (const row of nodes) {
             const path = String(row.path), kind = String(row.kind);
             if (kind === 'dir' || !audienceOk(String(row.audience), agent) || !this.match(path, glob))
                 continue;
-            matched.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
+            matchedNodes.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
         }
-        matched.sort((a, b) => compareCodePoints(a.path, b.path));
+        const matched = this.mergeByPath(matchedFiles, matchedNodes);
         const remaining = last === undefined ? matched : matched.filter(node => compareCodePoints(node.path, String(last)) > 0);
         return page(remaining, String(matched.length), view.revision, request, id, node => node.path);
+    }
+    private mergeByPath(left: readonly ExplorationNode[], right: readonly ExplorationNode[]): ExplorationNode[] {
+        const merged: ExplorationNode[] = [];
+        let a = 0, b = 0;
+        while (a < left.length && b < right.length) {
+            if (compareCodePoints(left[a]!.path, right[b]!.path) <= 0)
+                merged.push(left[a++]!);
+            else
+                merged.push(right[b++]!);
+        }
+        while (a < left.length)
+            merged.push(left[a++]!);
+        while (b < right.length)
+            merged.push(right[b++]!);
+        return merged;
     }
     private foundFile(path: string, revision: string, moment: string, audiences: readonly Audience[]): ExplorationNode {
         const etag = etagOf(path, revision, audiences);
