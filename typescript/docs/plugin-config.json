@@ -910,6 +910,20 @@
           ]
         },
         {
+          "exportPath": "./moment-views",
+          "title": "moment-views",
+          "fields": [
+            {
+              "name": "freeze",
+              "type": "union",
+              "default": "clock",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
           "exportPath": "./exploration",
           "title": "exploration",
           "fields": [
