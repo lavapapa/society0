@@ -223,6 +223,11 @@
                   "config": {}
                 },
                 {
+                  "id": "activation-policy-default",
+                  "name": "@society0/core/activation-policy-default",
+                  "config": {}
+                },
+                {
                   "id": "information",
                   "name": "@society0/core/information",
                   "config": {}
@@ -277,7 +282,15 @@
                 {
                   "id": "social",
                   "name": "@society0/social/social",
-                  "config": {}
+                  "config": {
+                    "pairingGroups": [
+                      [
+                        "alice",
+                        "bob"
+                      ]
+                    ],
+                    "wakeDriver": "llm/v1"
+                  }
                 },
                 {
                   "id": "propagation-neighbors",

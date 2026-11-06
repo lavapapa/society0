@@ -89,6 +89,10 @@
       "types": "./dist/activation-mailbox/index.d.ts",
       "default": "./dist/activation-mailbox/index.js"
     },
+    "./activation-policy-default": {
+      "types": "./dist/activation-policy-default/index.d.ts",
+      "default": "./dist/activation-policy-default/index.js"
+    },
     "./clock-ticks": {
       "types": "./dist/clock-ticks/index.d.ts",
       "default": "./dist/clock-ticks/index.js"

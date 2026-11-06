@@ -57,6 +57,10 @@
 | ./activation | capacity | number | 4 | new-run | true | null |
 | ./activation | maxActivations | number | 1024 | new-run | true | null |
 | ./activation | maxQueuedBytes | number | 1048576 | new-run | true | null |
+| ./activation-policy-default | maxWakesPerTick | number | 3 | new-run | true | false |
+| ./activation-policy-default | maxTurnsPerPair | number | 4 | new-run | true | false |
+| ./activation-policy-default | decisionEvery | number | 1 | new-run | true | false |
+| ./activation-policy-default | schedule | union | "barrier" | new-run | true | false |
 | ./proposal-sequence | proposals | array | [] | new-run | true | null |
 | ./proposal-events | source | string | "events" | new-run | true | null |
 | ./proposal-events | maxPending | number | 1024 | new-run | true | null |
@@ -264,6 +268,8 @@
 | ./social | contentLengthLimit | union | 250 | new-run | true | null |
 | ./social | pairingGroups | array | [] | new-run | true | null |
 | ./social | pairingSessionMinutes | number | 10 | new-run | true | null |
+| ./social | offerPosts | number | 16 | new-run | true | null |
+| ./social | wakeDriver | string | "llm/v1" | new-run | true | null |
 | ./measurement-repository | inlineBytes | number | 16384 | new-run | true | null |
 | ./measurements | sampling | string | "every-advance/v1" | new-run | true | null |
 | ./measurements | maxResultBytes | number | 49152 | new-run | true | null |
