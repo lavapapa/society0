@@ -1297,6 +1297,12 @@
     "@society0/core/exploration-shell/workers": {
       "state": "added",
       "consumer": "typescript/packages/core/src/exploration-shell/pool.ts:53"
+    },
+    "@society0/core/actor-tools/legacyTools": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/index.ts:32",
+      "reason": "试用与对照用的旧工具面开关；默认空，打开 information/exploration 会改变工具表。",
+      "design": "D-tools DESIGN §2.2、§8"
     }
   },
   "plugins": {},
