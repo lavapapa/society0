@@ -673,7 +673,7 @@
     },
     "@society0/social/social-repository/maxRecipients": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-repository/index.ts:232"
+      "consumer": "typescript/packages/social/src/social-repository/index.ts:254"
     },
     "@society0/social/social-repository/pageSize": {
       "state": "dropped",
@@ -730,11 +730,11 @@
     },
     "@society0/social/social/mediaEnabled": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social/index.ts:223"
+      "consumer": "typescript/packages/social/src/social/index.ts:575"
     },
     "@society0/social/social/contentLengthLimit": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social/index.ts:304"
+      "consumer": "typescript/packages/social/src/social/index.ts:661"
     },
     "@society0/social/propagation-neighbors/includeSelf": {
       "state": "dropped",
@@ -769,7 +769,7 @@
     },
     "@society0/social/social-recommendations/cacheBytes": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:296"
+      "consumer": "typescript/packages/social/src/social-recommendations/index.ts:317"
     },
     "@society0/social/social-recommendations/maxCacheBytes": {
       "state": "renamed",
@@ -828,23 +828,23 @@
     },
     "@society0/social/social-semantic/embeddingProvider": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-semantic/index.ts:85"
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:86"
     },
     "@society0/social/social-semantic/vectorProvider": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:81"
     },
     "@society0/social/social-semantic/space": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:81"
     },
     "@society0/social/social-semantic/batchSize": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-semantic/index.ts:80"
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:81"
     },
     "@society0/social/social-semantic/maxIndexedPosts": {
       "state": "added",
-      "consumer": "typescript/packages/social/src/social-semantic/index.ts:245"
+      "consumer": "typescript/packages/social/src/social-semantic/index.ts:256"
     },
     "@society0/social/social-semantic/provider": {
       "state": "dropped",
