@@ -84,7 +84,10 @@ export class ActionCall {
     private attempt;
     private committed = new Set<string>();
     private scope: DiscoveryScope;
-    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private authority: ActionAuthority) { this.attempt = { lineage: ctx.attempts.authority().lineage, operationId: entry.definition.effect === 'external' ? 'action:' + activation.operationId : 'action-run:' + JSON.stringify([activation.runId, activation.operationId]), attempt: 0 }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; }
+    /** 最近一次提交的 revision；没有写事务时退化为逻辑时间，供 delivery.visibleRevision 使用。 */
+    private revision: string;
+    constructor(private ctx: Context, private entry: ActionRegistration, private input: Json, private activation: ActivationContext, private authority: ActionAuthority) { this.attempt = { lineage: ctx.attempts.authority().lineage, operationId: entry.definition.effect === 'external' ? 'action:' + activation.operationId : 'action-run:' + JSON.stringify([activation.runId, activation.operationId]), attempt: 0 }; this.scope = { actorId: activation.actorId, momentId: activation.momentId, logicalTime: activation.logicalTime, query: null }; this.revision = String(activation.logicalTime); }
+    get deliveredRevision() { return this.revision; }
     private rejectedReceipt(code: string): ActionReceipt {
         return {
             operationId: this.activation.operationId,
@@ -132,7 +135,7 @@ export class ActionCall {
     private async assertUncommitted(reader: Reader) { const receipts = await reader.query({ sql: 'SELECT operation_id FROM action_receipts WHERE invocation_id=?', parameters: [this.activation.operationId] }, { maxRows: 1000, maxBytes: 65536 }); if (receipts.some(row => !this.committed.has(String(row.operation_id))))
         return fail('ACTION_ALREADY_COMMITTED'); }
     private async transaction<T>(input: StoredValue, request: TransactionRequest, body: (tx: SqliteTransaction) => Promise<T>) { this.activation.signal.throwIfAborted(); if (this.entry.definition.effect === 'read')
-        return fail('ACTION_READ_ONLY'); const result = await this.activation.database.transaction(this.activation.writeLease, request, async (tx) => { this.activation.signal.throwIfAborted(); await this.qualify(tx); await this.assertUncommitted(tx); const value = await body(tx); this.activation.signal.throwIfAborted(); await this.receipt(tx, input, request, value); return value; }); this.committed.add(result.receipt.operationId); return result; }
+        return fail('ACTION_READ_ONLY'); const result = await this.activation.database.transaction(this.activation.writeLease, request, async (tx) => { this.activation.signal.throwIfAborted(); await this.qualify(tx); await this.assertUncommitted(tx); const value = await body(tx); this.activation.signal.throwIfAborted(); await this.receipt(tx, input, request, value); return value; }); this.committed.add(result.receipt.operationId); this.revision = result.receipt.revision; return result; }
     private async receipt(tx: SqliteTransaction, input: StoredValue, request: TransactionRequest, result: unknown) {
         const value=result??null;
         const encoded=JSON.stringify(value,(_key,value)=>typeof value==='bigint'?value.toString():value);
