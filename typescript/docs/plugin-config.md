@@ -149,6 +149,8 @@
 | ./driver-llm | maxPageItems | number | 64 | recreate | true | false |
 | ./driver-llm | maxPendingEvents | number | 128 | recreate | true | false |
 | ./driver-llm | maxPendingBytes | number | 4194304 | recreate | true | false |
+| ./driver-llm | persistDeltas | union | "none" | recreate | true | false |
+| ./driver-llm | deltaSampleEvery | number | 32 | recreate | true | false |
 | ./driver-llm | maxTransactionMs | number | 15000 | recreate | true | false |
 | ./driver-llm | maxInputBytes | number | 1048576 | recreate | true | false |
 | ./driver-llm | maxStatements | number | 2048 | recreate | true | false |

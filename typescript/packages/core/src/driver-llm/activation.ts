@@ -40,6 +40,7 @@ interface PreparedContext {
 
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
+ private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;
  constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
  private async step<T>(reason:LlmActivationReason,stage:string,body:()=>T|Promise<T>):Promise<T>{try{return await body()}catch(error){throw classified(reason,stage,error)}}
@@ -126,13 +127,29 @@ export class LlmActivation {
   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native));
   await this.transaction('input',tx=>this.step('thread_error','thread.appendInput',()=>this.ctx.threads.appendInput(tx,{threadId:this.thread.id,expectedConsumer:previous??null,nextConsumer:{consumerId,cursor:{operationId:this.context.operationId}},message,contexts})));
  }
+ private retainsDelta(event:{type:string}):boolean{
+  if(this.config.persistDeltas==='none')return false;
+  if(this.config.persistDeltas==='all')return true;
+  this.deltaCount++;
+  return this.deltaCount%this.config.deltaSampleEvery===0;
+ }
+ private async flushEvents(){
+  if(!this.pendingFrames.length)return;
+  const frames=this.pendingFrames;
+  this.pendingFrames=[];this.pendingEventBytes=0;
+  const first=frames[0]!.frame.sequence,last=frames.at(-1)!.frame.sequence;
+  const prepared=await Promise.all(frames.map(item=>this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/event/'+item.frame.sequence,item.role,item.content,{activationId:this.context.operationId,sequence:item.frame.sequence,attemptIds:[...item.attemptIds]}))));
+  await this.transaction('events/'+(++this.flushSequence)+'/'+first+'-'+last,tx=>this.step('thread_error','thread.append',async()=>{for(const message of prepared)await this.ctx.threads.append(tx,this.thread.id,message)}));
+ }
+ private boundary(event:{type:string}){return event.type==='turn_end'||event.type==='tool_execution_start'}
  private async event(frame:SequencedInferenceEvent,attemptIds:readonly string[]){
-  const event=frame.event;let role='inference_event',content:unknown=event;
-  if(event.type==='message_end'){role=event.message.role;content=event.message}
-  else if(event.type==='message_update')content={type:event.type,nativeEventType:event.assistantMessageEvent.type,attemptIds};
-  const id=this.context.operationId+'/event/'+frame.sequence;
-  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(id,role,content as Json,{activationId:this.context.operationId,sequence:frame.sequence,attemptIds:[...attemptIds]}));
-  await this.transaction('event/'+frame.sequence,tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+  const event=frame.event;let role='inference_event',content:Json=event as unknown as Json;
+  if(event.type==='message_update'&&!this.retainsDelta(event))return;
+  if(event.type==='message_end'){role=event.message.role;content=event.message as unknown as Json}
+  else if(event.type==='message_update')content={type:event.type,nativeEventType:event.assistantMessageEvent.type,attemptIds} as Json;
+  this.pendingFrames.push({frame,role,content,attemptIds});
+  this.pendingEventBytes+=Buffer.byteLength(JSON.stringify(content));
+  if(this.pendingFrames.length>=this.config.maxPendingEvents||this.pendingEventBytes>=this.config.maxPendingBytes||this.boundary(event))await this.flushEvents();
  }
  private async undispatched(receipt:UndispatchedToolReceipt){
   await this.step('persistence_error','attempts.undispatched',async()=>{
@@ -175,6 +192,8 @@ export class LlmActivation {
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
   const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:selected.value,budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions},sink,extensions);
+  const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
+  if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
   return {status:outcome.status,value:{reason:outcome.reason},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }

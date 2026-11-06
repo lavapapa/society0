@@ -1482,6 +1482,22 @@
               "secret": false
             },
             {
+              "name": "persistDeltas",
+              "type": "union",
+              "default": "none",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "deltaSampleEvery",
+              "type": "number",
+              "default": 32,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "maxTransactionMs",
               "type": "number",
               "default": 15000,
