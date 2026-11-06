@@ -21,6 +21,8 @@ export interface ExplorationMatch {
     readonly rawOffset: string;
     /** 命中的原文片段（不一定是整行）。 */
     readonly text: string;
+    /** 命中所在的完整行（不含行尾换行），供 GNU 风格输出。 */
+    readonly lineText: string;
     readonly line: number;
     readonly column: number;
 }

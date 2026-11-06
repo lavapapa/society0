@@ -152,6 +152,7 @@
 | ./model-pi | timeoutMs | number | 30000 | recreate | true | false |
 | ./mount-context | maxBytes | number | 1048576 | recreate | true | false |
 | ./mount-context | maxFiles | number | 128 | recreate | true | false |
+| ./exploration-shell | workers | number | 8 | recreate | true | false |
 | ./exploration-shell | maxCommandCount | number | 10000 | recreate | true | false |
 | ./exploration-shell | maxCommandBytes | number | 65536 | recreate | true | false |
 | ./exploration-shell | maxOutputBytes | number | 65536 | recreate | true | false |

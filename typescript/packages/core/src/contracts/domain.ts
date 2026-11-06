@@ -34,7 +34,7 @@ export interface ActionDefinition {
     readonly name: string;
     readonly inputSchema: Json;
     readonly outputSchema: Json;
-    readonly effect: 'world' | 'external' | 'read';
+    readonly effect: 'world' | 'workspace' | 'external' | 'read';
     available(scope: DiscoveryScope, reader: SqliteReader): Promise<boolean>;
     execute(input: Json, context: ActionExecutionContext): Promise<ActionReceipt>;
 }

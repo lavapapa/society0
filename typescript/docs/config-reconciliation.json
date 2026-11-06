@@ -1234,6 +1234,10 @@
       "state": "deferred",
       "limitation": "物理任务不响应abort时关闭等待无上限；会无限等待，下一轮必做",
       "design": "docs/design-amendments.md#cr-02批准的配置缺口"
+    },
+    "@society0/core/exploration-shell/workers": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/pool.ts:53"
     }
   },
   "plugins": {},
