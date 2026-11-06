@@ -18,7 +18,8 @@ export const Config = Schema.object({
         replicas: Schema.natural().min(1).default(2),
         tokensPerReplica: Schema.natural().min(1).default(288000),
         utilization: Schema.number().min(0).max(1).default(0.6),
-        defaultTokens: Schema.natural().min(1).default(8192)
+        defaultTokens: Schema.natural().min(1).default(8192),
+        maxTokens: Schema.natural().min(0).default(512)
     }).default({})
 });
 export const metadata: PluginMetadata = {
@@ -198,6 +199,7 @@ export class ActivationService extends Service {
                 kind: 'rejected', reason: 'ACTIVATION_CLOSED'
             };
         const decision = await this.eligible(batch, intent);
+        const tokens = await this.estimateTokens(intent);
         if (this.admissionClosed(batch))
             return {
                 kind: 'rejected', reason: 'ACTIVATION_CLOSED'
@@ -220,20 +222,40 @@ export class ActivationService extends Service {
         batch.identities.set(key, intent.driver);
         batch.intentIds.set(intent.id, identity);
         batch.bytes += bytes;
-        return this.enqueue(batch, intent, key, bytes, queued);
+        return this.enqueue(batch, intent, key, bytes, queued, tokens);
     }
     private tokenBudget() { return Math.floor(this.config.admission.replicas * this.config.admission.tokensPerReplica * this.config.admission.utilization); }
-    private estimateTokens(intent: ActivationIntent) {
-        if (this.config.admission.kind !== 'kv') return 0;
-        if (typeof intent.estimatedTokens === 'number' && Number.isFinite(intent.estimatedTokens) && intent.estimatedTokens > 0) return Math.ceil(intent.estimatedTokens);
-        const bytes = Buffer.byteLength(JSON.stringify(intent.input ?? null));
-        return Math.max(1, Math.min(this.config.admission.defaultTokens, Math.ceil(bytes / 3.2)));
+    private inputTokens(intent: ActivationIntent) { return Math.max(0, Math.ceil(Buffer.byteLength(JSON.stringify(intent.input ?? null)) / 3.2)); }
+    /** 只读线程最近一条 assistant usage；不打开全量历史。 */
+    private async lastPromptTokens(intent: ActivationIntent): Promise<number | undefined> {
+        let view;
+        try {
+            view = await this.ctx.database.snapshot({ maxAgeMs: 30000 });
+            const [row] = await view.query({
+                sql: `SELECT tm.payload AS payload FROM thread_messages tm JOIN threads t ON t.id=tm.thread_id
+WHERE t.actor_id=? AND t.moment_id IN (?,?) AND tm.role='assistant' ORDER BY tm.seq DESC LIMIT 1`,
+                parameters: [intent.actorId, intent.momentId, 'thread/actor/' + intent.actorId]
+            }, { maxRows: 1, maxBytes: 1048576 });
+            if (!row) return undefined;
+            const stored = JSON.parse(String(row.payload));
+            const message = stored?.kind === 'inline' ? stored.value : undefined;
+            const input = Number(message?.usage?.input);
+            return Number.isFinite(input) && input >= 0 ? input : undefined;
+        }
+        catch { return undefined; }
+        finally { await view?.close(); }
     }
-    private enqueue(batch: Batch, intent: ActivationIntent, key: string, bytes: number, queued: Item | undefined): ActivationAdmission {
+    private async estimateTokens(intent: ActivationIntent): Promise<number> {
+        if (this.config.admission.kind !== 'kv') return 0;
+        const delta = this.inputTokens(intent), previous = await this.lastPromptTokens(intent);
+        if (previous !== undefined) return Math.max(1, previous + delta + this.config.admission.maxTokens);
+        if (typeof intent.estimatedTokens === 'number' && Number.isFinite(intent.estimatedTokens) && intent.estimatedTokens > 0) return Math.ceil(intent.estimatedTokens);
+        return Math.max(1, Math.min(this.config.admission.defaultTokens, delta));
+    }
+    private enqueue(batch: Batch, intent: ActivationIntent, key: string, bytes: number, queued: Item | undefined, tokens: number): ActivationAdmission {
         const signal = {
             id: intent.id, source: intent.source, input: intent.input
         };
-        const tokens = this.estimateTokens(intent);
         if (queued) {
             queued.inputs.push(intent.input);
             queued.signals.push(signal);
