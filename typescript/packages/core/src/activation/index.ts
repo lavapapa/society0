@@ -8,6 +8,7 @@ import { compareCodePoints } from '@society0/host/order';
 import { slotKey } from '@society0/host/slots';
 import { metricsOf } from '../contracts/metrics.js';
 import { activationKey } from '../activation-mailbox/index.js';
+import { registerActionNotifier } from './notifier.js';
 import '../drivers/index.js';
 import '../actor-eligibility/index.js';
 export const Config = Schema.object({
@@ -92,6 +93,7 @@ export class ActivationService extends Service {
                 return value as ActivationPolicy;
             }
         });
+        ctx.effect(() => registerActionNotifier(ctx, this), 'activation.action-notify');
         ctx.effect(() => async () => {
             this.closing = true;
             for (const b of this.batches.values())
