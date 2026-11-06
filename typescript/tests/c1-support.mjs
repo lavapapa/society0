@@ -49,7 +49,7 @@ function deltaStream(text, {failAfter} = {}) {
     return stream;
 }
 
-export async function driverFixture({text = 'x'.repeat(300), crashAfter} = {}) {
+export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register} = {}) {
     const run = await setup({migrations: [actorToolsMigration({test: 'c1-batching'})]});
     for (const [plugin, config] of [
         [Prompts, {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
@@ -64,17 +64,20 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter} = {}) {
     ]) await run.host.ctx.plugin(plugin, config);
     let ctx;
     await run.host.ctx.plugin({inject: ['actions', 'modelProviders', 'drivers', 'actorTools', 'threads', 'contextMount', 'prompts', 'database', 'perceptions', 'artifacts', 'attempts', 'agentRuntimes', 'slots'], apply(c) { ctx = c; }});
-    const provider = new ReplayProvider({driver: [assistant([{type: 'text', text}])]});
+    const fixture = messages ?? [assistant([{type: 'text', text}])];
+    const provider = new ReplayProvider({driver: fixture});
     let calls = 0;
     const prepare = provider.prepare.bind(provider);
     provider.prepare = async (...args) => {
         const selected = await prepare(...args);
         calls++;
+        if (messages !== undefined && crashAfter === undefined) return {value: selected.value, release: () => selected.release()};
         const fail = crashAfter !== undefined && calls === 1;
         return {value: {...selected.value, streamFn: () => deltaStream(text, {failAfter: fail ? crashAfter : undefined})}, release: () => selected.release()};
     };
     ctx.modelProviders.register('replay/v1', provider);
-    await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 2, maxToolCalls: 0});
+    await register?.(ctx);
+    await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 4, maxToolCalls: 2});
     return {run, ctx};
 }
 
