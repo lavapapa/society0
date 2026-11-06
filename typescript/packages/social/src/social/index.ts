@@ -3,7 +3,8 @@ import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
 export const Config = Schema.object({
     propagation: Schema.string().default('neighbor-broadcast/v1'), mediaEnabled: Schema.boolean().default(true), contentLengthLimit: Schema.union([Schema.const(-1), Schema.natural()]).default(250),
-    pairingGroups: Schema.array(Schema.array(Schema.string())).default([]), pairingSessionMinutes: Schema.natural().min(1).max(120).default(10)
+    pairingGroups: Schema.array(Schema.array(Schema.string())).default([]), pairingSessionMinutes: Schema.natural().min(1).max(120).default(10),
+    offerPosts: Schema.natural().min(1).default(16)
 });
 export const metadata: PluginMetadata = {
     "title": "social", "summary": "social", "scope": "generation", "hostAbi": "society0/host/1", "configVersion": 1, "configPolicy": [{
@@ -16,6 +17,8 @@ export const metadata: PluginMetadata = {
             "path": "/pairingGroups", "mode": "new-run", "affectsResults": true
         }, {
             "path": "/pairingSessionMinutes", "mode": "new-run", "affectsResults": true
+        }, {
+            "path": "/offerPosts", "mode": "new-run", "affectsResults": true
         }]
 };
 export const api: ApiEntry = {
@@ -56,6 +59,7 @@ import type { StoredValue } from '@society0/core/contracts/data';
 import type { PropagationStrategy, Json, PresentationRequest, SqliteTransaction, SqliteReadView, DiscoveryScope, PageRequest, Page, NewPost } from '../contracts.js';
 import { transactionRequest, page, sized, after } from '../paging.js';
 import { socialTime } from '../clock.js';
+import { SocialOffers } from '../social-offers/index.js';
 function socialTextFault(field: string) { return Object.assign(new Error(`SOCIAL_TEXT_NOT_WELL_FORMED: ${field} contains a lone surrogate`), { code: 'SOCIAL_TEXT_NOT_WELL_FORMED', field }); }
 export const propagationSlot = slotKey<PropagationStrategy>('society/social-propagation');
 declare module '@society0/host' {
@@ -125,6 +129,14 @@ export class Social extends Service {
         this.installActions();
         this.installPairingActions();
         this.installInformation();
+        this.installOffers();
+    }
+    private installOffers() {
+        const actions = ['publish', 'reply', 'repost', 'react', 'follow', 'unfollow', 'preferences', 'consumeNotifications', 'present']
+            .filter(name => this.config.mediaEnabled || !['publish', 'reply', 'repost', 'react'].includes(name))
+            .map(name => 'social.' + name);
+        const provider = new SocialOffers({ repository: this.ctx.socialRepository, posts: this.config.offerPosts, actions });
+        this.ctx.effect(() => this.ctx.actions.provide(provider));
     }
     present(tx: SqliteTransaction, request: PresentationRequest) {
         return this.ctx.socialRepository.present(tx, request);
@@ -458,6 +470,8 @@ export class Social extends Service {
         const definitions: Record<string, {
             properties: Record<string, Json>;
             required: string[];
+            targets?: { kinds: string[]; required: boolean };
+            exposure?: 'offer' | 'tool' | 'internal';
             execute: (input: any, context: ActionExecutionContext, tx: SqliteTransaction) => Promise<unknown>;
         }> = {
             publish: {
@@ -482,7 +496,9 @@ export class Social extends Service {
                     }, id: {
                         type: 'string'
                     }
-                }, required: ['postId', 'content'], execute: async (input, context, tx) => this.publish(input, context, tx, 'reply')
+                }, required: ['postId', 'content'], targets: {
+                    kinds: ['social/post'], required: true
+                }, execute: async (input, context, tx) => this.publish(input, context, tx, 'reply')
             },
             repost: {
                 properties: {
@@ -493,7 +509,9 @@ export class Social extends Service {
                     }, id: {
                         type: 'string'
                     }
-                }, required: ['postId'], execute: async (input, context, tx) => this.publish(input, context, tx, 'repost')
+                }, required: ['postId'], targets: {
+                    kinds: ['social/post'], required: true
+                }, execute: async (input, context, tx) => this.publish(input, context, tx, 'repost')
             },
             react: {
                 properties: {
@@ -504,7 +522,9 @@ export class Social extends Service {
                     }, remove: {
                         type: 'boolean'
                     }
-                }, required: ['postId', 'kind'], execute: (input, context, tx) => repository.react(tx, {
+                }, required: ['postId', 'kind'], targets: {
+                    kinds: ['social/post'], required: true
+                }, execute: (input, context, tx) => repository.react(tx, {
                     id: context.operationId, actorId: context.actorId, postId: input.postId, kind: input.kind, time: socialTime(context.logicalTime), remove: input.remove
                 })
             },
@@ -513,14 +533,18 @@ export class Social extends Service {
                     actorId: {
                         type: 'string'
                     }
-                }, required: ['actorId'], execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId)
+                }, required: ['actorId'], targets: {
+                    kinds: ['social/actor'], required: true
+                }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId)
             },
             unfollow: {
                 properties: {
                     actorId: {
                         type: 'string'
                     }
-                }, required: ['actorId'], execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId, false)
+                }, required: ['actorId'], targets: {
+                    kinds: ['social/actor'], required: true
+                }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId, false)
             },
             preferences: {
                 properties: {
@@ -539,7 +563,9 @@ export class Social extends Service {
                             type: 'string'
                         }
                     }
-                }, required: ['ids'], execute: async (input, context, tx) => {
+                }, required: ['ids'], targets: {
+                    kinds: ['social/notification'], required: true
+                }, execute: async (input, context, tx) => {
                     await repository.consumeNotifications(tx, context.actorId, input.ids);
                     return {
                         consumed: input.ids
@@ -547,6 +573,7 @@ export class Social extends Service {
                 }
             },
             present: {
+                exposure: 'internal',
                 properties: {
                     presentationId: {
                         type: 'string'
@@ -577,7 +604,7 @@ export class Social extends Service {
             const action: ActionDefinition = {
                 name: 'social.' + name, inputSchema: {
                     type: 'object', properties: definition.properties, required: definition.required, additionalProperties: false
-                }, outputSchema, effect: 'world', available, execute: async (input, context) => {
+                }, outputSchema, effect: 'world', ...(definition.targets ? { targets: definition.targets } : {}), ...(definition.exposure ? { exposure: definition.exposure } : {}), available, execute: async (input, context) => {
                     this.assertText(definition.properties, input);
                     const operationId = context.operationId + '/social/' + name;
                     const result = await context.transaction(transactionRequest(operationId), tx => definition.execute(input, context, tx));

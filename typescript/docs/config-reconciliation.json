@@ -1258,6 +1258,10 @@
     "@society0/social/social/pairingSessionMinutes": {
       "state": "added",
       "consumer": "typescript/packages/social/src/social/index.ts:210"
+    },
+    "@society0/social/social/offerPosts": {
+      "state": "added",
+      "consumer": "typescript/packages/social/src/social/index.ts:8"
     }
   },
   "plugins": {},
