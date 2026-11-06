@@ -15,6 +15,8 @@ import {diffDelivery,foldDelivery} from '../contracts/delivery.js';
 import {actionsDeliveryChannel, canonicalJson, emptyOfferFold, type OfferFoldState, type OfferLimits} from '../contracts/affordance.js';
 import {STATE_SOURCE, contextBudget, stateDeliveryChannel, type StateSource} from '../contracts/context.js';
 import {deliveredKeys, offerDelivery} from './offers.js';
+import {metricsOf} from '../contracts/metrics.js';
+import {performance} from 'node:perf_hooks';
 import type {LlmOptions} from './index.js';
 
 /** driver对外原因：推理原因之上增加调用阶段失败。 */
@@ -45,6 +47,7 @@ interface PreparedContext {
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
  private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
+ private requestStarted?:number;
  private readonly offerLimits:OfferLimits;
  constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
@@ -155,8 +158,19 @@ export class LlmActivation {
   await this.transaction('events/'+(++this.flushSequence)+'/'+first+'-'+last,tx=>this.step('thread_error','thread.append',async()=>{for(const message of prepared)await this.ctx.threads.append(tx,this.thread.id,message)}));
  }
  private boundary(event:{type:string}){return event.type==='turn_end'||event.type==='tool_execution_start'}
+ private measured<T extends {streamFn:(...args:any[])=>any}>(selection:T):T{
+  const metrics=metricsOf(this.ctx);if(!metrics)return selection;
+  return {...selection,streamFn:(...args:any[])=>{const started=performance.now();this.requestStarted=started;try{const result=selection.streamFn(...args);if(result&&typeof result.then==='function')return result.then((value:unknown)=>value,(error:unknown)=>{this.requestStarted=undefined;metrics.count('llm.requests');metrics.count('llm.failedRequests');metrics.observe('llm.requestLatencyMs',performance.now()-started);throw error});return result}catch(error){this.requestStarted=undefined;metrics.count('llm.requests');metrics.count('llm.failedRequests');metrics.observe('llm.requestLatencyMs',performance.now()-started);throw error}}};
+ }
+ private observeFrame(event:{type:string;message?:{role?:string;stopReason?:string}}){
+  if(event.type!=='message_end'||event.message?.role!=='assistant')return;
+  const metrics=metricsOf(this.ctx),started=this.requestStarted;this.requestStarted=undefined;
+  if(!metrics)return;
+  if(started!==undefined)metrics.observe('llm.requestLatencyMs',performance.now()-started);
+  if(event.message.stopReason==='error'||event.message.stopReason==='aborted')metrics.count('llm.failedRequests');
+ }
  private async event(frame:SequencedInferenceEvent,attemptIds:readonly string[]){
-  const event=frame.event;let role='inference_event',content:Json=event as unknown as Json;
+  const event=frame.event;this.observeFrame(event as {type:string;message?:{role?:string;stopReason?:string}});let role='inference_event',content:Json=event as unknown as Json;
   if(event.type==='message_update'&&!this.retainsDelta(event))return;
   if(event.type==='message_end'){role=event.message.role;content=event.message as unknown as Json}
   else if(event.type==='message_update')content={type:event.type,nativeEventType:event.assistantMessageEvent.type,attemptIds} as Json;
@@ -223,7 +237,7 @@ export class LlmActivation {
   const runtimeHistory=appended.native?[...history,appended.native]:history;
   const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
-  const selected=await this.step('provider_error','model.prepare',()=>this.ctx.modelProviders.prepare(this.config,this.context));
+  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare(this.config,this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
   this.held.push(selected);
   const runtime=await this.step('setup_error','runtime.acquire',()=>this.ctx.agentRuntimes.acquire(this.config.runtime));
   this.held.push(runtime);
@@ -239,7 +253,7 @@ export class LlmActivation {
  private async infer(prepared:PreparedContext):Promise<ActivationResult>{
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
-  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:selected.value,budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries},sink,extensions);
+  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:this.measured(selected.value),budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries},sink,extensions);
   const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
   if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);

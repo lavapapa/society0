@@ -10,6 +10,7 @@ import AgentRuntimePi from '../.build/core/dist/agent-runtime-pi/index.js';
 import InferenceDefaults from '../.build/core/dist/inference-defaults/index.js';
 import {DriverRegistry} from '../.build/core/dist/drivers/index.js';
 import {DriverLlm} from '../.build/core/dist/driver-llm/index.js';
+import {Metrics} from '../.build/core/dist/metrics/index.js';
 import {ReplayProvider} from '../.build/core/dist/model-replay/provider.js';
 
 const usage = {input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}};
@@ -49,7 +50,7 @@ function deltaStream(text, {failAfter} = {}) {
     return stream;
 }
 
-export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe, prompts, driver = {}} = {}) {
+export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe, prompts, driver = {}, metrics = false} = {}) {
     const run = await setup({migrations: [actorToolsMigration({test: 'c1-batching'})]});
     for (const [plugin, config] of [
         [Prompts, prompts ?? {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
@@ -81,6 +82,7 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
     };
     ctx.modelProviders.register('replay/v1', provider);
     await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 4, maxToolCalls: 2, ...driver});
+    if (metrics) await run.host.ctx.plugin(Metrics, {});
     await register?.(ctx);
     return {run, ctx};
 }
