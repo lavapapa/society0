@@ -46,6 +46,7 @@ import '@society0/core/actions';
 import '@society0/core/information';
 import '../social-repository/index.js';
 import type { ActionDefinition, ActionExecutionContext } from '@society0/core/contracts/domain';
+import type { Random } from '@society0/core/contracts/random';
 import type { StoredValue } from '@society0/core/contracts/data';
 import type { PropagationStrategy, Json, PresentationRequest, SqliteTransaction, SqliteReadView, DiscoveryScope, PageRequest, Page, NewPost } from '../contracts.js';
 import { transactionRequest, page, sized } from '../paging.js';
@@ -57,6 +58,22 @@ declare module '@society0/host' {
         social: Social;
         socialPresentation: Pick<Social, 'present'>;
     }
+}
+export interface InterventionRequest {
+    time: Json;
+    targetHashtag: string;
+    interventionRate: number;
+    tagToApply: string;
+}
+export interface InterventionReport {
+    ruleType: 'intervention';
+    targetHashtag: string;
+    interventionRate: number;
+    tagApplied: string;
+    totalPosts: string;
+    postsFlagged: number;
+    flaggedPostIds: readonly string[];
+    timestamp: string;
 }
 export class Social extends Service {
     static Config = Config;
@@ -80,6 +97,52 @@ export class Social extends Service {
     }
     present(tx: SqliteTransaction, request: PresentationRequest) {
         return this.ctx.socialRepository.present(tx, request);
+    }
+    /**
+     * 规则干预：对正文包含目标话题标签的帖子按研究随机流抽样施加标记标签。
+     * 事务由调用者提供，抽样地址固定为 (run, actor, operation, stream, post ordinal)，
+     * 因此重放、分叉和重复调用得到同一结果。
+     */
+    async intervene(tx: SqliteTransaction, request: InterventionRequest): Promise<InterventionReport> {
+        const time = socialTime(request.time);
+        if (typeof request.targetHashtag !== 'string' || !request.targetHashtag)
+            throw Error('SOCIAL_INTERVENTION_HASHTAG');
+        if (typeof request.tagToApply !== 'string' || !request.tagToApply)
+            throw Error('SOCIAL_INTERVENTION_TAG');
+        if (typeof request.interventionRate !== 'number' || !Number.isFinite(request.interventionRate) || request.interventionRate < 0 || request.interventionRate > 1)
+            throw Error('SOCIAL_INTERVENTION_RATE');
+        const random = this.ctx.get('random') as Random | undefined;
+        if (!random)
+            throw Error('SOCIAL_INTERVENTION_RANDOM_REQUIRED');
+        const database = this.ctx.get('database') as { runId?: string } | undefined;
+        const [all] = await tx.query({
+            sql: 'SELECT count(*) AS n FROM social_posts'
+        }, { maxRows: 1, maxBytes: 1024 });
+        const [count] = await tx.query({
+            sql: 'SELECT count(*) AS n FROM social_posts WHERE instr(content,?)>0', parameters: [request.targetHashtag]
+        }, { maxRows: 1, maxBytes: 1024 });
+        const matched = Number(count!.n), total = Number(all!.n), rows = await tx.query({
+            sql: 'SELECT ordinal,id FROM social_posts WHERE instr(content,?)>0 ORDER BY ordinal', parameters: [request.targetHashtag]
+        }, { maxRows: Math.max(1,matched), maxBytes: matched * 128 + 4096 });
+        const flagged: string[] = [];
+        for (const row of rows) {
+            const [tagged] = await tx.query({
+                sql: 'SELECT 1 AS present FROM social_tags WHERE post=? AND tag=?', parameters: [String(row.id), request.tagToApply]
+            }, { maxRows: 1, maxBytes: 1024 });
+            if (tagged) continue;
+            const draw = random.at({
+                run: database?.runId ?? '', actor: 'social/intervention', operation: 'intervention', stream: request.targetHashtag, index: String(row.ordinal)
+            }).uniform;
+            if (draw >= request.interventionRate) continue;
+            await tx.execute({ sql: 'INSERT INTO social_tags VALUES(?,?)', parameters: [String(row.id), request.tagToApply] });
+            flagged.push(String(row.id));
+        }
+        if (flagged.length) await this.ctx.socialRepository.bump(tx, 'social/content');
+        return {
+            ruleType: 'intervention', targetHashtag: request.targetHashtag, interventionRate: request.interventionRate,
+            tagApplied: request.tagToApply, totalPosts: String(total), postsFlagged: flagged.length,
+            flaggedPostIds: flagged, timestamp: time
+        };
     }
     private assertText(properties: Record<string, any>, input: any) {
         for (const [field, property] of Object.entries(properties)) {
