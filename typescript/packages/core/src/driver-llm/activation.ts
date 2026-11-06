@@ -11,6 +11,9 @@ import type {SqliteSnapshot,SqliteTransaction} from '../sqlite/contracts.js';
 import {OrderedInferenceSink} from '../agent-runtime-pi/sink.js';
 import {acquireExtensions} from '../agent-runtime-pi/index.js';
 import {prepareValue} from '../results/payload.js';
+import {foldDelivery} from '../contracts/delivery.js';
+import {actionsDeliveryChannel, emptyOfferFold, type OfferFoldState} from '../contracts/affordance.js';
+import {deliveredKeys, offerDelivery} from './offers.js';
 import type {LlmOptions} from './index.js';
 
 /** driver对外原因：推理原因之上增加调用阶段失败。 */
@@ -40,7 +43,7 @@ interface PreparedContext {
 
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
- private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;
+ private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
  constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
  private async step<T>(reason:LlmActivationReason,stage:string,body:()=>T|Promise<T>):Promise<T>{try{return await body()}catch(error){throw classified(reason,stage,error)}}
@@ -67,7 +70,7 @@ export class LlmActivation {
   for await(const chunk of this.ctx.threads.readPayload(value.ref,{offset:'0',length:size,maxBytes:this.config.maxHistoryBytes},this.context.signal))chunks.push(chunk);
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
  }
- private async decodeMessage(payload:StoredValue){const message=await this.readValue(payload) as Message,content=message.content as any;const native:AgentMessage=content&&typeof content==='object'&&['user','assistant','toolResult'].includes(content.role)?content:{role:'user',content:JSON.stringify(message),timestamp:0};return {native,bytes:Buffer.byteLength(JSON.stringify(native)),origin:(message.originalProviderFields as {activationId?:string}|undefined)?.activationId}}
+ private async decodeMessage(payload:StoredValue){const message=await this.readValue(payload) as Message,content=message.content as any;const native:AgentMessage=content&&typeof content==='object'&&['user','system','assistant','toolResult'].includes(content.role)?content:{role:'user',content:JSON.stringify(message),timestamp:0};const record={...native,originalProviderFields:(message.originalProviderFields??null) as Json} as unknown as Json;return {native,record,bytes:Buffer.byteLength(JSON.stringify(native)),origin:(message.originalProviderFields as {activationId?:string}|undefined)?.activationId}}
  private historyBudget(bytes:number,count:number){if(bytes>this.config.maxHistoryBytes||count>=this.config.maxHistoryMessages)throw contextLimit()}
  private returnedAfter(messages:AgentMessage[],index:number){const returned=new Set<string>();for(let next=index+1;next<messages.length&&messages[next]!.role!=='assistant';next++){const message=messages[next]!;if(message.role==='toolResult')returned.add(message.toolCallId)}return returned}
  private async recoverCall(message:AssistantMessage,call:ToolCall,origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage>{
@@ -78,7 +81,8 @@ export class LlmActivation {
   return {role:'toolResult',toolCallId:call.id,toolName:call.name,content:[{type:'text',text:JSON.stringify({status:'not_dispatched',reason:'cancelled'})}],details:{status:'not_dispatched'},isError:true,timestamp:0};
  }
  private async reconcile(messages:AgentMessage[],origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage[]>{const recovered:AgentMessage[]=[];for(let index=0;index<messages.length;index++){const message=messages[index]!;recovered.push(message);if(message.role!=='assistant')continue;const returned=this.returnedAfter(messages,index);for(const call of message.content){if(call.type!=='toolCall'||returned.has(call.id))continue;recovered.push(await this.recoverCall(message,call,origins))}}return recovered}
- private async history():Promise<AgentMessage[]>{
+ private async history():Promise<{messages:AgentMessage[];delivery:Awaited<ReturnType<typeof offerDelivery>>}>{
+  this.deliveryRecords=[];
   return this.withView(view=>this.step('thread_error','thread.history',async()=>{
    const messages:AgentMessage[]=[],origins=new Map<AgentMessage,string>();let cursor:string|undefined,bytes=0;
    do{
@@ -87,12 +91,14 @@ export class LlmActivation {
      if(row.role==='inference_event')continue;
      const decoded=await this.decodeMessage(row.payload);
      bytes+=decoded.bytes;this.historyBudget(bytes,messages.length);
-     messages.push(decoded.native);
+     messages.push(decoded.native);this.deliveryRecords.push(decoded.record);
      if(decoded.origin)origins.set(decoded.native,decoded.origin);
     }
     cursor=page.next;
    }while(cursor);
-   return this.reconcile(messages,origins);
+   const folded=foldDelivery(this.deliveryRecords,[actionsDeliveryChannel]).channels.get('actions') as OfferFoldState|undefined;
+   const delivery=await this.step('setup_error','offers',()=>offerDelivery(this.ctx.actions,this.scope(),view,folded??emptyOfferFold()));
+   return {messages:await this.reconcile(messages,origins),delivery};
   }));
  }
  private async percepts(contexts:readonly StoredValue[],paths:string[]){
@@ -119,13 +125,16 @@ export class LlmActivation {
   }
   throw new LlmActivationError('perception_error','PERCEPTION_PAGE_BUDGET','perception.collect');
  }
- private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[]){
+ private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[],deliveryText:string,deliveryRecord:Json|undefined):Promise<{appended:boolean;native?:AgentMessage}>{
   const consumerId='driver:'+this.config.name;
   const previous=await this.withView(view=>this.step('thread_error','thread.consumer',()=>this.ctx.threads.consumer(this.thread.id,consumerId,view)));
-  if((previous?.cursor as {operationId?:string})?.operationId===this.context.operationId)return;
-  const native={role:'user',content:[...sections,'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input)].join('\n'),timestamp:Date.now()};
-  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native));
+  if((previous?.cursor as {operationId?:string})?.operationId===this.context.operationId)return {appended:false};
+  const parts=[...sections,'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input),...(deliveryText?[deliveryText]:[])];
+  const native:AgentMessage={role:'user',content:parts.join('\n'),timestamp:Date.now()};
+  const original:Json={activationId:this.context.operationId,...(deliveryRecord?{offers:deliveryRecord}:{})};
+  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native as unknown as Json,original));
   await this.transaction('input',tx=>this.step('thread_error','thread.appendInput',()=>this.ctx.threads.appendInput(tx,{threadId:this.thread.id,expectedConsumer:previous??null,nextConsumer:{consumerId,cursor:{operationId:this.context.operationId}},message,contexts})));
+  return {appended:true,native};
  }
  private retainsDelta(event:{type:string}):boolean{
   if(this.config.persistDeltas==='none')return false;
@@ -171,9 +180,12 @@ export class LlmActivation {
   const contexts=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
   const paths=[...frozen.value];
   await this.percepts(contexts,paths);
-  await this.input(prompts.value.sections,paths,contexts);
-  const history=await this.history();
-  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind(this.context,prompts.value.tools));
+  let historyResult;
+  try{historyResult=await this.history()}catch(error){await this.input(prompts.value.sections,paths,contexts,'',undefined).catch(()=>{});throw error}
+  const {messages:history,delivery}=historyResult;
+  const appended=await this.input(prompts.value.sections,paths,contexts,delivery.text,delivery.record);
+  const runtimeHistory=appended.native?[...history,appended.native]:history;
+  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold));
   this.held.push(binding);
   const selected=await this.step('provider_error','model.prepare',()=>this.ctx.modelProviders.prepare(this.config,this.context));
   this.held.push(selected);
@@ -182,7 +194,7 @@ export class LlmActivation {
   const extensions=await this.step('setup_error','runtime.acquire',()=>acquireExtensions(this.ctx,this.context));
   this.held.push(extensions);
   const sink=new OrderedInferenceSink({maxPendingEvents:this.config.maxPendingEvents,maxPendingBytes:this.config.maxPendingBytes},frame=>this.event(frame,selected.value.attemptIds??[]),receipt=>this.undispatched(receipt),error=>this.controller.abort(error));
-  return {binding,selected,runtime,extensions,sink,history};
+  return {binding,selected,runtime,extensions,sink,history:runtimeHistory};
  }
  private async runRuntime(runtime:Lease<AgentRuntime>,request:InferenceRequest,sink:InferenceEventSink,extensions:InferenceExtensions):Promise<InferenceOutcome>{
   try{return await runtime.value.run(request,this.context,sink,extensions)}

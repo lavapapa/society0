@@ -3,6 +3,7 @@ import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { Lease } from './common.js';
 import type { ActivationContext } from './runtime.js';
 import type { ActionReceiptReader } from './inference.js';
+import type { OfferFoldState } from './affordance.js';
 export interface ActorToolBinding {
   readonly tools: readonly AgentTool[];
   /**
@@ -14,5 +15,5 @@ export interface ActorToolBinding {
 }
 export interface ActorTools {
   /** 保留主体范围、动作注册身份、探索会话及回执reader，runtime和持久化结算后释放。 */
-  bind(context: ActivationContext): Promise<Lease<ActorToolBinding>>;
+  bind(context: ActivationContext, offers?: OfferFoldState): Promise<Lease<ActorToolBinding>>;
 }

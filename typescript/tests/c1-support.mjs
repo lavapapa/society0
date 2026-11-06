@@ -49,7 +49,7 @@ function deltaStream(text, {failAfter} = {}) {
     return stream;
 }
 
-export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register} = {}) {
+export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe} = {}) {
     const run = await setup({migrations: [actorToolsMigration({test: 'c1-batching'})]});
     for (const [plugin, config] of [
         [Prompts, {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
@@ -71,9 +71,13 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
     provider.prepare = async (...args) => {
         const selected = await prepare(...args);
         calls++;
-        if (messages !== undefined && crashAfter === undefined) return {value: selected.value, release: () => selected.release()};
+        if (messages !== undefined && crashAfter === undefined) {
+            if (!observe) return {value: selected.value, release: () => selected.release()};
+            const stream = selected.value.streamFn;
+            return {value: {...selected.value, streamFn: (...input) => {observe(structuredClone(input[1].messages)); return stream(...input); }}, release: () => selected.release()};
+        }
         const fail = crashAfter !== undefined && calls === 1;
-        return {value: {...selected.value, streamFn: () => deltaStream(text, {failAfter: fail ? crashAfter : undefined})}, release: () => selected.release()};
+        return {value: {...selected.value, streamFn: (...input) => {observe?.(structuredClone(input[1].messages)); return deltaStream(text, {failAfter: fail ? crashAfter : undefined}); }}, release: () => selected.release()};
     };
     ctx.modelProviders.register('replay/v1', provider);
     await register?.(ctx);
