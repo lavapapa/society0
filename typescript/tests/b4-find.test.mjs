@@ -19,9 +19,9 @@ test('1万文件find下推：结果有序且<30ms',async()=>{
   const session=await run.ctx.exploration.acquire(run.scope('a','m'),run.acquisition('a','m','b4-find'));
   try{
    const started=performance.now();
-   const result=await session.value.find({root:'/public',glob:'*.jsonl',page:{maxItems:100,maxResponseBytes:64*1024*1024}});
+   const result=await session.value.find({root:'/public',glob:'*.jsonl',page:{maxItems:20000,maxResponseBytes:64*1024*1024}});
    const elapsed=performance.now()-started;
-   assert.equal(result.items.length,100);
+   assert.equal(result.items.length,total,'一次取全量1万条');
    assert.equal(result.total,String(total));
    const paths=result.items.map(node=>node.path);
    assert.deepEqual(paths,[...paths].sort((a,b)=>a<b?-1:a>b?1:0));

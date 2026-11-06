@@ -220,7 +220,7 @@ export class PublicMount implements ExplorationMount {
         const id = identity(scope, view, { mount: this.id, root, glob }), last = after(request.cursor, id);
         const simple = this.simpleGlob(glob);
         if (simple) {
-            const pattern = this.globLike(glob);
+            const pattern = this.globLike(glob, true);
             const audience = agent.map(audience => 'audiences LIKE ?');
             const fileFilter = `file>=? AND file<? AND ${AS_OF} AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND file LIKE ? ESCAPE '\\'`;
             const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind<>'dir' AND path LIKE ? ESCAPE '\\'`;
@@ -234,13 +234,13 @@ export class PublicMount implements ExplorationMount {
             const matched: ExplorationNode[] = [];
             for (const row of files) {
                 const path = String(row.file), audiences = JSON.parse(String(row.audiences)) as Audience[];
-                if (!intersects(audiences, agent) || !this.match(path, glob))
+                if (!intersects(audiences, agent))
                     continue;
                 matched.push(this.foundFile(path, String(row.rev_from), revision, effective(audiences, agent)));
             }
             for (const row of nodes) {
                 const path = String(row.path);
-                if (!audienceOk(String(row.audience), agent) || !this.match(path, glob))
+                if (!audienceOk(String(row.audience), agent))
                     continue;
                 matched.push({ path, objectId: 'public:doc:' + path, kind: 'file', versions: [{ owner: 'public', version: String(row.rev_from) }, { owner: 'moment', version: revision }] });
             }
@@ -281,7 +281,7 @@ export class PublicMount implements ExplorationMount {
         };
     }
     private simpleGlob(glob: string) { return !glob.includes('/') && !glob.includes('?') && !glob.includes('[') && !glob.includes('**'); }
-    private globLike(glob: string) { return glob.replace(/[\\%_]/g, '\\$&').replace(/\*/g, '%'); }
+    private globLike(glob: string, basename: boolean) { const like = glob.replace(/[\\%_]/g, '\\$&').replace(/\*/g, '%'); return basename && !like.startsWith('%') ? '%/' + like : like; }
     private revisionValue(revision: string) { return BigInt(revision); }
     private match(path: string, glob: string) { return matchesGlob(path, glob) || matchesGlob(posix.basename(path), glob); }
     async open(node: ExplorationNode, scope: DiscoveryScope, view: SqliteReadView): Promise<{ value: ExplorationContent; release: () => Promise<void> }> {

@@ -24,6 +24,7 @@ test('rawBytes等于受众过滤后的实际读取字节数',async()=>{
    const bytes=Buffer.concat(chunks);
    assert.equal(Number(node.rawBytes),bytes.length);
    const lines=bytes.toString('utf8').trim().split('\n').map(line=>JSON.parse(line).id);
+   // single 表声明 sort=[{field:'name'}] 为升序；规范排序按 code point：丙 U+4E19 < 甲 U+7532。
    assert.deepEqual(lines,['c','a']);
   });
  }finally{await run.close()}
