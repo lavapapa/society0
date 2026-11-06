@@ -517,7 +517,7 @@ export class Social extends Service {
                         type: 'string'
                     }
                 }, required: ['postId', 'content'], targets: {
-                    kinds: ['social/post'], required: true
+                    kinds: ['social/post'], required: false
                 }, execute: async (input, context, tx) => this.publish(input, context, tx, 'reply')
             },
             repost: {
@@ -530,7 +530,7 @@ export class Social extends Service {
                         type: 'string'
                     }
                 }, required: ['postId'], targets: {
-                    kinds: ['social/post'], required: true
+                    kinds: ['social/post'], required: false
                 }, execute: async (input, context, tx) => this.publish(input, context, tx, 'repost')
             },
             react: {
@@ -543,7 +543,7 @@ export class Social extends Service {
                         type: 'boolean'
                     }
                 }, required: ['postId', 'kind'], targets: {
-                    kinds: ['social/post'], required: true
+                    kinds: ['social/post'], required: false
                 }, execute: (input, context, tx) => repository.react(tx, {
                     id: context.operationId, actorId: context.actorId, postId: input.postId, kind: input.kind, time: socialTime(context.logicalTime), remove: input.remove
                 })
@@ -554,7 +554,7 @@ export class Social extends Service {
                         type: 'string'
                     }
                 }, required: ['actorId'], targets: {
-                    kinds: ['social/actor'], required: true
+                    kinds: ['social/actor'], required: false
                 }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId)
             },
             unfollow: {
@@ -563,7 +563,7 @@ export class Social extends Service {
                         type: 'string'
                     }
                 }, required: ['actorId'], targets: {
-                    kinds: ['social/actor'], required: true
+                    kinds: ['social/actor'], required: false
                 }, execute: (input, context, tx) => repository.follow(tx, context.actorId, input.actorId, socialTime(context.logicalTime), context.operationId, false)
             },
             preferences: {
@@ -584,7 +584,7 @@ export class Social extends Service {
                         }
                     }
                 }, required: ['ids'], targets: {
-                    kinds: ['social/notification'], required: true
+                    kinds: ['social/notification'], required: false
                 }, execute: async (input, context, tx) => {
                     await repository.consumeNotifications(tx, context.actorId, input.ids);
                     return {

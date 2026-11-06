@@ -155,6 +155,12 @@ export class Actions extends Service {
             return 'ineligible';
         if (!await entry.definition.available(scope, view))
             return 'ineligible';
+        // 内部行动只供插件/规则直接调用，不进入 discover/offers，因此无需 offer 复查。
+        if (entry.definition.exposure === 'internal')
+            return 'valid';
+        // 目标可选时，插件/规则可以沿用无目标的直接调用；目标一旦给出仍按 offer 复查。
+        if (!target && entry.definition.targets && !entry.definition.targets.required)
+            return 'valid';
         const set = await this.compute(selection, providers, scope, view, this.limits(1), { action: name, ...(target ? { targets: [target] } : {}) });
         return set.offers.some((offer) => offerKey(offer) === offerKey({ action: name, target })) ? 'valid' : 'absent';
     }
