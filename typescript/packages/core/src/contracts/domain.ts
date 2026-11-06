@@ -68,7 +68,8 @@ export interface ActionDelivery {
 /** 唤醒策略钩子：C 的激活策略接入；未接入时 wake 保持 none。 */
 export interface ActionNotifier {
     readonly id: string;
-    deliver(intent: ActivationIntent): Promise<'scheduled' | 'deferred' | 'none'>;
+    /** 第二个参数是通知产生时的激活上下文；旧实现只接收 intent 仍然可用。 */
+    deliver(intent: ActivationIntent, context?: ActivationContext): Promise<'scheduled' | 'deferred' | 'none'>;
 }
 export interface ActionReceipt {
     readonly requiredOperations?: readonly string[];

@@ -111,9 +111,9 @@ export class Actions extends Service {
                     seen.add(recipient);
                     recipients.push({ actorId: notification.actorId, visibleRevision: revision });
                 }
-                const intent: ActivationIntent = { id: `${context.operationId}/notify/${index}`, actorId: notification.actorId, momentId: context.momentId, source: 'action', driver: 'notify', input: notification.ref, cause: 'notify' };
+                const intent: ActivationIntent = { id: `${context.operationId}/notify/${index}`, actorId: notification.actorId, momentId: context.momentId, source: 'action', driver: 'notify', input: notification.ref, cause: 'notify', reason: notification.reason, from: context.actorId };
                 for (const notifier of notifiers) {
-                    const outcome = await notifier.deliver(intent);
+                    const outcome = await notifier.deliver(intent, context);
                     if (outcome === 'scheduled')
                         wake = 'scheduled';
                     else if (outcome === 'deferred' && wake === 'none')

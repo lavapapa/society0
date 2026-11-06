@@ -18,6 +18,10 @@ export interface ActivationIntent {
     readonly input: Json;
     /** 行动回执转交的唤醒意图；普通调度意图省略。 */
     readonly cause?: 'notify';
+    /** notify 通知的原因；由 D8 在转交时填入，普通调度意图省略。 */
+    readonly reason?: 'message' | 'request' | 'mention';
+    /** 发起行动的主体；notify 通知用于每对主体的轮次上限。 */
+    readonly from?: string;
 }
 export type ActivationAdmission = {
     readonly kind: 'accepted';
