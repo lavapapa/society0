@@ -49,10 +49,10 @@ function deltaStream(text, {failAfter} = {}) {
     return stream;
 }
 
-export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe} = {}) {
+export async function driverFixture({text = 'x'.repeat(300), crashAfter, messages, register, observe, prompts, driver = {}} = {}) {
     const run = await setup({migrations: [actorToolsMigration({test: 'c1-batching'})]});
     for (const [plugin, config] of [
-        [Prompts, {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
+        [Prompts, prompts ?? {sections: [{id: 'instructions', text: 'Answer with text.'}]}],
         [ContextMount, {}],
         [ExplorationShell, {}],
         [ActorTools, {}],
@@ -80,8 +80,8 @@ export async function driverFixture({text = 'x'.repeat(300), crashAfter, message
         return {value: {...selected.value, streamFn: (...input) => {observe?.(structuredClone(input[1].messages)); return deltaStream(text, {failAfter: fail ? crashAfter : undefined}); }}, release: () => selected.release()};
     };
     ctx.modelProviders.register('replay/v1', provider);
+    await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 4, maxToolCalls: 2, ...driver});
     await register?.(ctx);
-    await run.host.ctx.plugin(DriverLlm, {name: 'llm/c1', provider: 'replay/v1', model: 'driver', maxRequests: 4, maxToolCalls: 2});
     return {run, ctx};
 }
 

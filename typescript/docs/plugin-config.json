@@ -1332,6 +1332,14 @@
               "secret": false
             },
             {
+              "name": "systemSections",
+              "type": "boolean",
+              "default": true,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "maxContextBytes",
               "type": "number",
               "default": 1048576,
@@ -1477,6 +1485,22 @@
               "name": "maxPendingBytes",
               "type": "number",
               "default": 4194304,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "threadLifetime",
+              "type": "union",
+              "default": "moment",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "budget",
+              "type": "object",
+              "default": {},
               "mode": "recreate",
               "affectsResults": true,
               "secret": false

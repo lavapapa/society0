@@ -152,6 +152,18 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:134"
     },
+    "@society0/core/driver-llm/threadLifetime": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"
+    },
+    "@society0/core/driver-llm/budget": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:49"
+    },
+    "@society0/core/prompts/systemSections": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:20"
+    },
     "@society0/core/driver-llm/maxPerceptionPages": {
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:102"

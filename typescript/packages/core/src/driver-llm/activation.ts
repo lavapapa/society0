@@ -11,8 +11,9 @@ import type {SqliteSnapshot,SqliteTransaction} from '../sqlite/contracts.js';
 import {OrderedInferenceSink} from '../agent-runtime-pi/sink.js';
 import {acquireExtensions} from '../agent-runtime-pi/index.js';
 import {prepareValue} from '../results/payload.js';
-import {foldDelivery} from '../contracts/delivery.js';
-import {actionsDeliveryChannel, emptyOfferFold, type OfferFoldState} from '../contracts/affordance.js';
+import {diffDelivery,foldDelivery} from '../contracts/delivery.js';
+import {actionsDeliveryChannel, canonicalJson, emptyOfferFold, type OfferFoldState, type OfferLimits} from '../contracts/affordance.js';
+import {STATE_SOURCE, contextBudget, stateDeliveryChannel, type StateSource} from '../contracts/context.js';
 import {deliveredKeys, offerDelivery} from './offers.js';
 import type {LlmOptions} from './index.js';
 
@@ -44,7 +45,8 @@ interface PreparedContext {
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
  private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
- constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])}}
+ private readonly offerLimits:OfferLimits;
+ constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
  private async step<T>(reason:LlmActivationReason,stage:string,body:()=>T|Promise<T>):Promise<T>{try{return await body()}catch(error){throw classified(reason,stage,error)}}
  private async withView<T>(body:(view:SqliteSnapshot)=>Promise<T>):Promise<T>{
@@ -85,19 +87,21 @@ export class LlmActivation {
   this.deliveryRecords=[];
   return this.withView(view=>this.step('thread_error','thread.history',async()=>{
    const messages:AgentMessage[]=[],origins=new Map<AgentMessage,string>();let cursor:string|undefined,bytes=0;
-   do{
+   if(this.thread.messageCount!=='0')do{
     const page=await this.ctx.threads.page(this.thread.id,this.scope(),view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
     for(const row of page.items){
      if(row.role==='inference_event')continue;
      const decoded=await this.decodeMessage(row.payload);
      bytes+=decoded.bytes;this.historyBudget(bytes,messages.length);
-     messages.push(decoded.native);this.deliveryRecords.push(decoded.record);
-     if(decoded.origin)origins.set(decoded.native,decoded.origin);
+     let native=decoded.native;
+     if(native.role==='toolResult'&&decoded.bytes>contextBudget(this.config.budget).bytes('toolResultMax'))native={...native,content:[{type:'text',text:`工具结果过大，已折叠 ${decoded.bytes} 字节；完整内容见 /thread/${this.thread.id}/${row.id}`}]} as AgentMessage;
+     messages.push(native);this.deliveryRecords.push(decoded.record);
+     if(decoded.origin)origins.set(native,decoded.origin);
     }
     cursor=page.next;
    }while(cursor);
    const folded=foldDelivery(this.deliveryRecords,[actionsDeliveryChannel]).channels.get('actions') as OfferFoldState|undefined;
-   const delivery=await this.step('setup_error','offers',()=>offerDelivery(this.ctx.actions,this.scope(),view,folded??emptyOfferFold()));
+   const delivery=await this.step('setup_error','offers',()=>offerDelivery(this.ctx.actions,this.scope(),view,folded??emptyOfferFold(),this.offerLimits));
    return {messages:await this.reconcile(messages,origins),delivery};
   }));
  }
@@ -125,13 +129,13 @@ export class LlmActivation {
   }
   throw new LlmActivationError('perception_error','PERCEPTION_PAGE_BUDGET','perception.collect');
  }
- private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[],deliveryText:string,deliveryRecord:Json|undefined):Promise<{appended:boolean;native?:AgentMessage}>{
+ private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[],deliveryText:string,originalExtras:Json):Promise<{appended:boolean;native?:AgentMessage}>{
   const consumerId='driver:'+this.config.name;
   const previous=await this.withView(view=>this.step('thread_error','thread.consumer',()=>this.ctx.threads.consumer(this.thread.id,consumerId,view)));
   if((previous?.cursor as {operationId?:string})?.operationId===this.context.operationId)return {appended:false};
-  const parts=[...sections,'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input),...(deliveryText?[deliveryText]:[])];
+  const parts=[...sections.filter(text=>text.length),'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input),...(deliveryText?[deliveryText]:[])];
   const native:AgentMessage={role:'user',content:parts.join('\n'),timestamp:Date.now()};
-  const original:Json={activationId:this.context.operationId,...(deliveryRecord?{offers:deliveryRecord}:{})};
+  const original:Json={activationId:this.context.operationId,...(originalExtras as Readonly<Record<string,Json>>)};
   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native as unknown as Json,original));
   await this.transaction('input',tx=>this.step('thread_error','thread.appendInput',()=>this.ctx.threads.appendInput(tx,{threadId:this.thread.id,expectedConsumer:previous??null,nextConsumer:{consumerId,cursor:{operationId:this.context.operationId}},message,contexts})));
   return {appended:true,native};
@@ -169,8 +173,26 @@ export class LlmActivation {
    if(claim.record.status!=='settled')throw Object.assign(Error('ATTEMPT_LEDGER_INCOMPLETE '+claim.record.status),{code:'ATTEMPT_LEDGER_INCOMPLETE',reason:claim.record.reason??claim.record.status});
   });
  }
- private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.context.momentId,view)))}
+ private threadMoment(){return this.config.threadLifetime==='actor'?'thread/actor/'+this.context.actorId:this.context.momentId}
+ private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.threadMoment(),view)))}
  private async prompts(){try{return await this.ctx.prompts.acquire(this.context)}catch(error){if(codeOf(error)==='INFERENCE_CONTEXT_LIMIT')throw new LlmActivationError('context_limit','INFERENCE_CONTEXT_LIMIT','prompts',{cause:error});throw classified('setup_error','prompts',error)}}
+ private async state():Promise<{text:string;record:Json|undefined}>{
+  const lease=await this.ctx.slots.acquire(STATE_SOURCE,this.context);
+  this.held.push(lease);
+  if(!lease.items.length)return {text:'',record:undefined};
+  const budget=contextBudget(this.config.budget),limit=Math.floor(budget.bytes('stateDelta')/Math.max(1,lease.items.length));
+  const aggregate:Record<string,Json>={};
+  for(const item of lease.items){
+   const value=await item.value.snapshot(this.context.actorId,this.context.momentId),size=Buffer.byteLength(canonicalJson(value));
+   const folded=size>limit?{omittedBytes:size,path:'/self/state/'+item.value.id}:value;
+   if(folded!==null&&typeof folded==='object'&&!Array.isArray(folded)){
+    for(const [key,entry] of Object.entries(folded as Readonly<Record<string,Json>>))aggregate[key]=entry;
+   }else aggregate[item.id]=folded;
+  }
+  const folded=foldDelivery(this.deliveryRecords,[stateDeliveryChannel]);
+  const segment=diffDelivery(folded,[stateDeliveryChannel],new Map([['state',{valid:[aggregate as unknown as Json],deliver:[aggregate as unknown as Json]}]]))[0];
+  return {text:segment?.text??'',record:segment&&segment.text?segment.delta as Json:undefined};
+ }
  private async prepareContext():Promise<PreparedContext>{
   const prompts=await this.prompts();
   this.held.push(prompts);
@@ -180,12 +202,26 @@ export class LlmActivation {
   const contexts=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
   const paths=[...frozen.value];
   await this.percepts(contexts,paths);
+  const sections=prompts.value.systemSections?(prompts.value.baseline as string[]):([...prompts.value.header,...prompts.value.baseline] as string[]);
   let historyResult;
-  try{historyResult=await this.history()}catch(error){await this.input(prompts.value.sections,paths,contexts,'',undefined).catch(()=>{});throw error}
-  const {messages:history,delivery}=historyResult;
-  const appended=await this.input(prompts.value.sections,paths,contexts,delivery.text,delivery.record);
+  try{historyResult=await this.history()}catch(error){await this.input(sections,paths,contexts,'',{}).catch(()=>{});throw error}
+  const {messages:readHistory,delivery}=historyResult;
+  const history=[...readHistory];
+  const fresh=history.length===0;
+  if(fresh&&prompts.value.systemSections&&prompts.value.header.length){
+   const native:AgentMessage={role:'system',content:prompts.value.header.join('\n\n'),timestamp:Date.now()};
+   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
+   await this.transaction('system',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+   history.push(native);
+  }
+  const state=await this.state();
+  const extras:Record<string,Json>={};
+  if(state.record)extras.state=state.record;
+  if(delivery.record)extras.offers=delivery.record;
+  const deliveryText=[state.text,delivery.text].filter(text=>text.length>0).join('\n');
+  const appended=await this.input(!prompts.value.systemSections||fresh?sections:[],paths,contexts,deliveryText,extras);
   const runtimeHistory=appended.native?[...history,appended.native]:history;
-  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold));
+  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
   const selected=await this.step('provider_error','model.prepare',()=>this.ctx.modelProviders.prepare(this.config,this.context));
   this.held.push(selected);
