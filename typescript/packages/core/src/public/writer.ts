@@ -31,6 +31,11 @@ interface NodeSpec {
 interface Live { readonly rev: string; readonly sort: string; readonly audience: string; readonly line: Uint8Array }
 const states = new WeakMap<SqliteTransaction, State>();
 const BATCH = 8192;
+export function extensionOf(file: string): string {
+    const name = file.slice(file.lastIndexOf('/') + 1), dot = name.lastIndexOf('.');
+    return dot > 0 ? name.slice(dot + 1) : '';
+}
+export function basenameOf(file: string): string { return file.slice(file.lastIndexOf('/') + 1); }
 function same(line: Uint8Array, sort: string, audience: string, entry: Entry): boolean {
     return Buffer.from(line).toString('utf8') === entry.line && sort === entry.sort && audience === entry.audience;
 }
@@ -134,7 +139,7 @@ export class PublicWriterImpl implements PublicWriter {
         else {
             if (current)
                 await this.tx.execute({ sql: 'UPDATE public_files SET rev_to=? WHERE rowid=?', parameters: [at, current.id as bigint] });
-            await this.tx.execute({ sql: 'INSERT INTO public_files(file,parent,rev_from,rev_to,table_path,rows,bytes,audiences) VALUES(?,?,?,NULL,?,?,?,?)', parameters: [file, decl.path, at, decl.path, rows, bytes, audiences] });
+            await this.tx.execute({ sql: 'INSERT INTO public_files(file,parent,rev_from,rev_to,table_path,rows,bytes,audiences,basename,extension) VALUES(?,?,?,NULL,?,?,?,?,?,?)', parameters: [file, decl.path, at, decl.path, rows, bytes, audiences, basenameOf(file), extensionOf(file)] });
         }
         await this.ensureDir(decl);
         await this.versionNode(file, { kind: 'table', parent: decl.path, provider: 'public', nodeId: decl.path, media: 'application/jsonl', meta: canonicalJson({ table: decl.path, rows, bytes }), audience: 'all', bytes });

@@ -49,20 +49,108 @@ export function sized<T extends {
         fail('PAGE_RESPONSE_BUDGET');
     return value;
 }
-export function page<T>(items: readonly T[], total: string, revision: string, request: PageRequest, id: unknown, key: (v: T) => unknown, more = false): Page<T> {
+export function jsonStringBytes(value: string): number {
+    let size = 2;
+    for (let index = 0; index < value.length; index++) {
+        const code = value.charCodeAt(index);
+        if (code === 0x22 || code === 0x5c)
+            size += 2;
+        else if (code < 0x20) {
+            if (code === 0x08 || code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d)
+                size += 2;
+            else
+                size += 6;
+        }
+        else if (code < 0x80)
+            size += 1;
+        else if (code < 0x800)
+            size += 2;
+        else if (code >= 0xd800 && code <= 0xdbff) {
+            const next = index + 1 < value.length ? value.charCodeAt(index + 1) : 0;
+            if (next >= 0xdc00 && next <= 0xdfff) {
+                size += 4;
+                index++;
+            }
+            else
+                size += 6;
+        }
+        else if (code >= 0xdc00 && code <= 0xdfff)
+            size += 6;
+        else
+            size += 3;
+    }
+    return size;
+}
+/** 与 JSON.stringify 的 UTF-8 长度一致，但不构造整段字符串。 */
+export function jsonBytes(value: unknown): number {
+    if (value === null)
+        return 4;
+    switch (typeof value) {
+        case 'string': return jsonStringBytes(value);
+        case 'number': return String(value).length === 0 ? 4 : (Number.isFinite(value) ? String(value).length : 4);
+        case 'boolean': return value ? 4 : 5;
+        case 'bigint': return String(value).length;
+        case 'object': {
+            if (Array.isArray(value)) {
+                let size = 2;
+                for (let index = 0; index < value.length; index++) {
+                    if (index)
+                        size++;
+                    const item = value[index];
+                    size += item === undefined || typeof item === 'function' || typeof item === 'symbol' ? 4 : jsonBytes(item);
+                }
+                return size;
+            }
+            const record = value as { toJSON?: () => unknown };
+            if (typeof record.toJSON === 'function')
+                return jsonBytes(record.toJSON());
+            let size = 2, first = true;
+            for (const [name, item] of Object.entries(value)) {
+                if (item === undefined || typeof item === 'function' || typeof item === 'symbol')
+                    continue;
+                if (!first)
+                    size++;
+                first = false;
+                size += jsonStringBytes(name) + 1 + jsonBytes(item);
+            }
+            return size;
+        }
+        default: return 4;
+    }
+}
+/** 逐项累计字节数：语义与整页 JSON.stringify 相同，但只遍历一次条目。 */
+export function page<T>(items: readonly T[], total: string, revision: string, request: PageRequest, id: unknown, key: (v: T) => unknown, more = false, measured?: readonly number[]): Page<T> {
     bounds(request);
     const selected = items.slice(0, request.maxItems);
+    const sizes = measured ? measured.slice(0, selected.length) : selected.map(item => Buffer.byteLength(JSON.stringify(item), 'utf8'));
     while (true) {
         const hasMore = more || selected.length < items.length;
-        const result = { items: [...selected], total, revision, ...(hasMore && selected.length ? { next: cursor(id, key(selected[selected.length - 1]!)) } : {}), responseBytes: 0 };
-        try {
-            return sized(result, request.maxResponseBytes);
+        const next = hasMore && selected.length ? cursor(id, key(selected[selected.length - 1]!)) : undefined;
+        const envelope = Buffer.byteLength(JSON.stringify({ items: [], total, revision, ...(next === undefined ? {} : { next }), responseBytes: 0 }), 'utf8');
+        let content = envelope;
+        if (selected.length) {
+            let itemsBytes = 0;
+            for (let index = 0; index < selected.length; index++)
+                itemsBytes += sizes[index]!;
+            content += itemsBytes + selected.length - 1;
         }
-        catch (error) {
+        let responseBytes = 0;
+        while (true) {
+            const candidate = content + String(responseBytes).length - 1;
+            if (candidate === responseBytes)
+                break;
+            responseBytes = candidate;
+        }
+        if (responseBytes > request.maxResponseBytes) {
             if (selected.length <= 1)
-                throw error;
+                fail('PAGE_RESPONSE_BUDGET');
             selected.pop();
+            sizes.pop();
+            continue;
         }
+        return {
+            items: [...selected], total, revision, ...(next === undefined ? {} : { next }), responseBytes
+        };
     }
 }
 /** 注册变更使用实例身份和递增版本；游标大小与注册数量无关。 */

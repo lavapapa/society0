@@ -1,7 +1,8 @@
 /** 公开资料仓库：推式版本化文件、受众标签与写指令。 */
 import type { Disposer, Json } from './common.js';
-import type { SqliteTransaction } from '../sqlite/contracts.js';
+import type { SqliteReadView, SqliteTransaction } from '../sqlite/contracts.js';
 import type { ArtifactRef } from '../artifacts-local/store.js';
+import type { DiscoveryScope } from './data.js';
 
 /** 粗粒度受众：'all' | 'role:x' | 'region:y'；个体专属数据放 /self。 */
 export type Audience = string;
@@ -74,9 +75,27 @@ export interface PublicWriter {
     unpublish(path: string): Promise<void>;
     setMeta(path: string, patch: Json): Promise<void>;
 }
+export interface PublicAudienceProvider {
+    readonly id: string;
+    /** 每 actor 每 moment 调用一次；结果缓存在挂载内，必须返回粗粒度受众。 */
+    audiences(scope: DiscoveryScope, view: SqliteReadView): Promise<readonly Audience[]>;
+}
 export interface PublicRegistry {
     table(decl: PublicTableDecl): Disposer;
     doc(decl: PublicDocDecl): Disposer;
+    audience(provider: PublicAudienceProvider): Disposer;
+}
+export interface PublicCacheDiagnostics {
+    readonly renders: number;
+    readonly memoryHits: number;
+    readonly diskHits: number;
+    readonly misses: number;
+    readonly entries: number;
+    readonly bytes: number;
+}
+export interface PublicDiagnostics {
+    readonly cache: PublicCacheDiagnostics;
+    readonly audiences: number;
 }
 export interface Public {
     readonly registry: PublicRegistry;
