@@ -31,6 +31,7 @@ test('1000个actor共享只含all的文件：渲染计数=1',async()=>{
   });
   const after=run.ctx.public.diagnostics().cache.renders;
   assert.equal(after-before,1,'同一内容只应渲染一次');
+  console.log(JSON.stringify({case:'B4-share',actors:1000,renders:after-before,memoryHits:run.ctx.public.diagnostics().cache.memoryHits}));
   assert.equal(expected,'{"id":"a","role":"all","name":"A"}\n{"id":"b","role":"all","name":"B"}\n');
  }finally{await run.close()}
 });

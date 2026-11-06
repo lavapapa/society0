@@ -26,6 +26,7 @@ test('1万文件find下推：结果有序且<30ms',async()=>{
    const paths=result.items.map(node=>node.path);
    assert.deepEqual(paths,[...paths].sort((a,b)=>a<b?-1:a>b?1:0));
    assert.ok(elapsed<30,`find 耗时 ${elapsed.toFixed(2)} ms 超过 30 ms`);
+   console.log(JSON.stringify({case:'B4-find',files:total,page:result.items.length,elapsedMs:Number(elapsed.toFixed(2))}));
   }finally{await session.release()}
  }finally{await run.close()}
 });

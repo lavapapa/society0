@@ -30,5 +30,6 @@ test('200并发读取不出现SQLITE_SNAPSHOT_BUDGET且共享缓存',async()=>{
   const sizes=new Set(results.map(result=>result.value));
   assert.equal(sizes.size,1);
   assert.ok(run.ctx.public.diagnostics().cache.renders<=1,'并发命中同一 etag 只应渲染一次');
+  console.log(JSON.stringify({case:'B4-concurrency',tasks:200,renders:run.ctx.public.diagnostics().cache.renders,snapshots:run.ctx.database.diagnostics().snapshots,readerPool:run.ctx.database.diagnostics().readerPool}));
  }finally{await run.close()}
 });
