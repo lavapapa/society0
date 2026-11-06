@@ -1,10 +1,10 @@
 import type {FileHandle} from 'node:fs/promises';
 import {Config} from './config.js';
-import {mkdir,open,rename,chmod,stat,link,opendir} from 'node:fs/promises';
+import {mkdir,open,rename,chmod,stat,link} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import type {SqliteTransaction,SqliteMigration} from '../sqlite/contracts.js';
-import {atomicJson,bounded,copyBounded,exists,fault,fileChunks,id,jsonFile,removeOwned,syncDirectory} from './files.js';
+import {atomicJson,bounded,copyBounded,exists,fault,fileChunks,id,jsonFile,syncDirectory} from './files.js';
 export interface ArtifactRef {readonly id:string;readonly bytes:string;readonly mediaType:string}
 export interface ArtifactOptions {directory:string;chunkBytes?:number;maxObjectBytes?:number;maxActive?:number;onPhase?:(phase:string,ref:ArtifactRef)=>Promise<void>|void}
 export const artifactsMigration:SqliteMigration={owner:'artifacts-local',from:0,to:1,after:[],source:{package:'@society0/core',entry:'artifacts-local',version:1},statements:[{sql:'CREATE TABLE s0_artifacts(id TEXT PRIMARY KEY NOT NULL,bytes TEXT NOT NULL,media_type TEXT NOT NULL,revision INTEGER NOT NULL);CREATE INDEX s0_artifacts_revision ON s0_artifacts(revision,id)'}]};
@@ -25,7 +25,6 @@ export class LocalArtifacts {
  async localFile(ref:ArtifactRef){const release=this.pin(ref.id);try{const actual=await this.inspect(ref.id);if(actual.bytes!==ref.bytes||actual.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');return {path:join(this.directory,'objects',id(ref.id),'data'),release:async()=>release()}}catch(error){release();throw error}}
  async copyTo(ref:ArtifactRef,target:LocalArtifacts,options:{signal?:AbortSignal}={}):Promise<{mode:'reused'|'hardlink'|'copy';bytes:number}>{return target.track(async()=>{const folder=join(target.directory,'objects',id(ref.id));if(await exists(join(folder,'ref.json'))){const current=await target.inspect(ref.id);if(current.bytes!==ref.bytes||current.mediaType!==ref.mediaType)throw fault('ARTIFACT_REF');return {mode:'reused',bytes:0}}const borrowed=await this.localFile(ref);try{await mkdir(folder);await target.options.onPhase?.('copy-start',ref);options.signal?.throwIfAborted();const sourceInfo=await stat(borrowed.path),targetInfo=await stat(folder);let mode:'hardlink'|'copy';if(sourceInfo.dev===targetInfo.dev){await link(borrowed.path,join(folder,'data'));mode='hardlink'}else{await copyBounded(borrowed.path,join(folder,'data'),target.chunkBytes,options.signal);await chmod(join(folder,'data'),0o444);mode='copy'}options.signal?.throwIfAborted();await atomicJson(join(folder,'ref.json'),ref,16384);await syncDirectory(join(target.directory,'objects'));return {mode,bytes:mode==='copy'?Number(ref.bytes):0}}finally{await borrowed.release()}})}
  async materializeFrom(ref:ArtifactRef,source:LocalArtifacts){return source.copyTo(ref,this)}
- async collect(retained:ReadonlySet<string>){this.available();if(this.operations.size)throw fault('ARTIFACT_BUSY');const removed:string[]=[],pinned:string[]=[];for await(const entry of await opendir(join(this.directory,'objects'))){if(!entry.isDirectory()||retained.has(entry.name))continue;if(this.pins.has(entry.name)){pinned.push(entry.name);continue}await removeOwned(this.directory,join(this.directory,'objects',id(entry.name)));removed.push(entry.name)}return {removed,pinned}}
  diagnostics(){return {active:this.operations.size,pins:[...this.pins.entries()],closing:this.closing}}
  close():Promise<void>{return this.closed??=(async()=>{this.closing=true;await Promise.allSettled([...this.operations]);while(this.pins.size)await new Promise<void>(resolve=>this.waiters.add(resolve))})()}
 }

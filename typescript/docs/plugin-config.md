@@ -5,6 +5,8 @@
 | 导出 | 字段 | 类型 | 默认值 | 更新方式 | 影响结果 | 机密 |
 |---|---|---|---|---|---|---|
 | ./resources | closeTimeoutMs | number | 30000 | recreate | false | null |
+| ./diagnostics | level | union | "info" | live | false | null |
+| ./diagnostics | historyLimit | number | 1000 | live | false | null |
 | ./tasks | concurrency | number | 4 | recreate | false | null |
 | ./tasks | maxPending | number | 1024 | recreate | false | null |
 | ./tasks | maxBytes | number | 67108864 | recreate | false | null |
@@ -61,6 +63,7 @@
 | ./proposal-events | maxBytes | number | 1048576 | new-run | true | null |
 | ./proposal-events | leaseTimeoutMs | number | 60000 | boundary | false | null |
 | ./checkpoint-policy | every | number | 1 | new-run | true | null |
+| ./termination | onIncomplete | union | "pause" | boundary | true | null |
 | ./generation-binding | generation | string | null | new-run | true | null |
 | ./generation-binding | controlSequence | string | "0" | new-run | true | null |
 | ./run-controller | maxTransactionMs | number | 15000 | new-run | false | null |
@@ -102,8 +105,10 @@
 | ./prompts | sections | array | [] | recreate | true | false |
 | ./prompts | contexts | array | [] | recreate | true | false |
 | ./prompts | tools | array | [] | recreate | true | false |
-| ./prompts | maxAssemblyBytes | number | 1048576 | recreate | true | false |
+| ./prompts | sectionOrder | array | [] | recreate | true | false |
+| ./prompts | maxContextBytes | number | 1048576 | recreate | true | false |
 | ./driver-llm | name | string | "llm/v1" | recreate | true | false |
+| ./driver-llm | maxTurns | number | 20 | recreate | true | false |
 | ./driver-llm | provider | string | null | recreate | true | false |
 | ./driver-llm | model | string | null | recreate | true | false |
 | ./driver-llm | reasoning | union | "off" | recreate | true | false |
@@ -147,6 +152,7 @@
 | ./model-pi | timeoutMs | number | 30000 | recreate | true | false |
 | ./mount-context | maxBytes | number | 1048576 | recreate | true | false |
 | ./mount-context | maxFiles | number | 128 | recreate | true | false |
+| ./exploration-shell | maxCommandCount | number | 10000 | recreate | true | false |
 | ./exploration-shell | maxCommandBytes | number | 65536 | recreate | true | false |
 | ./exploration-shell | maxOutputBytes | number | 65536 | recreate | true | false |
 | ./exploration-shell | maxFileBytes | number | 1048576 | recreate | true | false |
@@ -183,6 +189,7 @@
 | ./datasets | maxReadBytes | number | 1048576 | new-run | true | null |
 | ./dataset-jsonl | maxRecordBytes | number | 1048576 | new-run | true | null |
 | ./dataset-jsonl | chunkBytes | number | 65536 | new-run | true | null |
+| ./shell | timeoutMs | number | 30000 | new-run | true | null |
 | ./shell | maxOutputBytes | number | 16777216 | new-run | true | null |
 | ./shell | chunkBytes | number | 4096 | new-run | true | null |
 | ./shell | killAfterMs | number | 1000 | new-run | true | null |
@@ -199,6 +206,7 @@
 | ./memory-write-experience | maxMessages | number | 512 | new-run | true | null |
 | ./memory-write-experience | maxMessageBytes | number | 65536 | new-run | true | null |
 | ./memory-write-experience | maxOutputBytes | number | 65536 | new-run | true | null |
+| ./vector-index | maxLag | number | 0 | new-run | true | null |
 | ./vector-index | provider | string | "memory-exact" | new-run | true | null |
 | ./vector-index | batchRows | number | 32 | new-run | true | null |
 | ./vector-index | batchBytes | number | 262144 | new-run | true | null |

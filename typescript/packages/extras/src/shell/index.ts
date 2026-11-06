@@ -9,8 +9,8 @@ import '@society0/core/artifacts-local';
 import '@society0/core/attempts';
 import '@society0/core/sqlite';
 import { runProcess, type NativeProcessReceipt } from '../workspace/native.js';
-import { Receipt, parseReceipt, ShellExecutionError, type ShellReceipt } from './receipt.js';
-export { Receipt, ShellExecutionError, type ShellReceipt };
+import { Receipt, parseReceipt, ShellExecutionError, ShellTimeoutError, type ShellReceipt } from './receipt.js';
+export { Receipt, ShellExecutionError, ShellTimeoutError, type ShellReceipt };
 export interface CommandRequest {
     readonly argv: readonly string[];
     readonly cwd: string;
@@ -18,8 +18,8 @@ export interface CommandRequest {
     readonly attempt?: number;
     readonly maxOutputBytes?: number;
 }
-export const Config = Schema.object({ maxOutputBytes: Schema.natural().min(1).default(16777216), chunkBytes: Schema.natural().min(1).default(4096), killAfterMs: Schema.natural().min(1).default(1000) });
-export const metadata: PluginMetadata = { title: 'shell', summary: 'Explicit-cwd research process with immutable outputs and physical attempt settlement', configVersion: 1, configPolicy: [{ path: '/maxOutputBytes', mode: 'new-run', affectsResults: true }, { path: '/chunkBytes', mode: 'new-run', affectsResults: true }, { path: '/killAfterMs', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
+export const Config = Schema.object({ timeoutMs: Schema.natural().min(1).default(30000), maxOutputBytes: Schema.natural().min(1).default(16777216), chunkBytes: Schema.natural().min(1).default(4096), killAfterMs: Schema.natural().min(1).default(1000) });
+export const metadata: PluginMetadata = { title: 'shell', summary: 'Explicit-cwd research process with immutable outputs and physical attempt settlement', configVersion: 1, configPolicy: [{ path: '/timeoutMs', mode: 'new-run', affectsResults: true }, { path: '/maxOutputBytes', mode: 'new-run', affectsResults: true }, { path: '/chunkBytes', mode: 'new-run', affectsResults: true }, { path: '/killAfterMs', mode: 'new-run', affectsResults: true }], scope: 'generation', allowedScopes: ['generation'], hostAbi: 'society0/host/1' };
 export const api: ApiEntry = { exportPath: './shell', provides: [{ key: 'shell', protocol: 'shell', major: 1, capabilities: [] }], requires: ['database', 'artifacts', 'attempts', 'tasks'].map(key => ({ service: { key, protocol: key, major: 1, capabilities: [] }, optional: false, phase: 'module' })) };
 function status(native: NativeProcessReceipt): ShellReceipt['status'] { if (native.spawnError)
     return 'spawn-error'; if (native.outputError)
@@ -48,15 +48,19 @@ export class Shell extends Service {
             throw Error('SHELL_RUN_MISMATCH');
         invocation.signal.throwIfAborted();
         const maxOutputBytes = this.outputBudget(request);
+        const timeout = AbortSignal.timeout(this.options.timeoutMs);
+        const rejected = (receipt: ShellReceipt) => timeout.aborted && !invocation.signal.aborted ? new ShellTimeoutError(receipt) : new ShellExecutionError(receipt);
         let receipt: ShellReceipt | undefined;
-        const task = this.tasks.run('shell:' + invocation.operationId, async (signal) => { receipt = await this.perform(request, invocation, maxOutputBytes, signal); return receipt; }, { signal: invocation.signal, bytes: this.options.chunkBytes * 2 });
+        const task = this.tasks.run('shell:' + invocation.operationId, async (signal) => { receipt = await this.perform(request, invocation, maxOutputBytes, AbortSignal.any([signal, timeout])); return receipt; }, { signal: invocation.signal, bytes: this.options.chunkBytes * 2 });
         try {
             await task;
         }
         catch (error) {
             await task.settled;
             if (receipt)
-                throw new ShellExecutionError(receipt);
+                throw rejected(receipt);
+            if (timeout.aborted && !invocation.signal.aborted)
+                throw Object.assign(Error('SHELL_TIMEOUT'), { code: 'SHELL_TIMEOUT', cause: error });
             throw error;
         }
         finally {
@@ -65,7 +69,7 @@ export class Shell extends Service {
         if (!receipt)
             throw Error('SHELL_RECEIPT_MISSING');
         if (receipt.status !== 'completed')
-            throw new ShellExecutionError(receipt);
+            throw rejected(receipt);
         return receipt;
     }
     private async perform(request: CommandRequest, invocation: Invocation, maxOutputBytes: number, signal: AbortSignal): Promise<ShellReceipt> {

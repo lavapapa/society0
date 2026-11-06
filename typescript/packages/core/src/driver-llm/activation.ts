@@ -144,8 +144,9 @@ export class LlmActivation {
   });
  }
  private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.context.momentId,view)))}
+ private async prompts(){try{return await this.ctx.prompts.acquire(this.context)}catch(error){if(codeOf(error)==='INFERENCE_CONTEXT_LIMIT')throw new LlmActivationError('context_limit','INFERENCE_CONTEXT_LIMIT','prompts',{cause:error});throw classified('setup_error','prompts',error)}}
  private async prepareContext():Promise<PreparedContext>{
-  const prompts=await this.step('setup_error','prompts',()=>this.ctx.prompts.acquire(this.context));
+  const prompts=await this.prompts();
   this.held.push(prompts);
   const texts=[...prompts.value.contexts,JSON.stringify({kind:'activation',actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,input:this.intent.input})];
   const frozen=await this.step('setup_error','context.freeze',()=>this.ctx.contextMount.freeze(texts,this.context));
@@ -173,7 +174,7 @@ export class LlmActivation {
  private async infer(prepared:PreparedContext):Promise<ActivationResult>{
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
-  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:selected.value,budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls},requiredActions:this.config.requiredActions},sink,extensions);
+  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:selected.value,budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions},sink,extensions);
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
   return {status:outcome.status,value:{reason:outcome.reason},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }
@@ -183,7 +184,9 @@ export class LlmActivation {
  }
  private failureEvidence(failure:LlmActivationError):Json{
   const code=codeOf(failure.cause);
-  return {error:String(failure.cause??failure),code:failure.code,stage:failure.stage,committed:code==='SQLITE_SEGMENT_FAILED'?true:code==='SQLITE_COMMIT_UNKNOWN'?null:false,receipt:(failure.cause as {receipt?:Json})?.receipt??null};
+  const cause=failure.cause as {bytes?:number;maxBytes?:number}|undefined;
+  const limit=typeof cause?.bytes==='number'&&typeof cause?.maxBytes==='number'?{bytes:cause.bytes,maxBytes:cause.maxBytes}:null;
+  return {error:String(failure.cause??failure),code:failure.code,stage:failure.stage,committed:code==='SQLITE_SEGMENT_FAILED'?true:code==='SQLITE_COMMIT_UNKNOWN'?null:false,receipt:(failure.cause as {receipt?:Json})?.receipt??null,...(limit?{limit}:{})};
  }
  private async activate():Promise<ActivationResult>{
   try{await this.open();return await this.infer(await this.prepareContext())}

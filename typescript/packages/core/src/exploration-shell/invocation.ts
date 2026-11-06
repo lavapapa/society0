@@ -1,6 +1,6 @@
 import {Worker} from 'node:worker_threads';
 import type {ExplorationFiles,FileLimits} from './filesystem.js';
-export interface ShellOptions extends FileLimits{maxCommandBytes:number;maxPendingRpc:number;timeoutMs:number;maxWorkerMb:number}
+export interface ShellOptions extends FileLimits{maxCommandCount:number;maxCommandBytes:number;maxPendingRpc:number;timeoutMs:number;maxWorkerMb:number}
 interface ShellResult{exitCode:number;stdout:string;stderr:string}
 export class ShellInvocation {
  private worker:Worker;private exit=Promise.withResolvers<void>();private accepted=new Set<Promise<void>>();private result?:ShellResult;private failure:unknown;private accepting=true;
