@@ -16,6 +16,8 @@ export interface ActivationIntent {
     readonly source: string;
     readonly driver: string;
     readonly input: Json;
+    /** 可选的准入 token 估算；KV 准入模式下由发起方填写。 */
+    readonly estimatedTokens?: number;
     /** 行动回执转交的唤醒意图；普通调度意图省略。 */
     readonly cause?: 'notify';
     /** notify 通知的原因；由 D8 在转交时填入，普通调度意图省略。 */

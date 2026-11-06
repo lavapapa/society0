@@ -609,6 +609,14 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "admission",
+              "type": "object",
+              "default": {},
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },
@@ -1332,6 +1340,14 @@
               "secret": false
             },
             {
+              "name": "systemSections",
+              "type": "boolean",
+              "default": true,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "maxContextBytes",
               "type": "number",
               "default": 1048576,
@@ -1477,6 +1493,54 @@
               "name": "maxPendingBytes",
               "type": "number",
               "default": 4194304,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "threadLifetime",
+              "type": "union",
+              "default": "moment",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "budget",
+              "type": "object",
+              "default": {},
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "toolChoice",
+              "type": "union",
+              "default": "auto",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "textualToolCallRetries",
+              "type": "number",
+              "default": 1,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "persistDeltas",
+              "type": "union",
+              "default": "none",
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "deltaSampleEvery",
+              "type": "number",
+              "default": 32,
               "mode": "recreate",
               "affectsResults": true,
               "secret": false

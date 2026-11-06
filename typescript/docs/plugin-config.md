@@ -67,6 +67,7 @@
 | ./activation | capacity | number | 4 | new-run | true | null |
 | ./activation | maxActivations | number | 1024 | new-run | true | null |
 | ./activation | maxQueuedBytes | number | 1048576 | new-run | true | null |
+| ./activation | admission | object | {} | new-run | true | null |
 | ./activation-policy-default | maxWakesPerTick | number | 3 | new-run | true | false |
 | ./activation-policy-default | maxTurnsPerPair | number | 4 | new-run | true | false |
 | ./activation-policy-default | decisionEvery | number | 1 | new-run | true | false |
@@ -131,6 +132,7 @@
 | ./prompts | contexts | array | [] | recreate | true | false |
 | ./prompts | tools | array | [] | recreate | true | false |
 | ./prompts | sectionOrder | array | [] | recreate | true | false |
+| ./prompts | systemSections | boolean | true | recreate | true | false |
 | ./prompts | maxContextBytes | number | 1048576 | recreate | true | false |
 | ./driver-llm | name | string | "llm/v1" | recreate | true | false |
 | ./driver-llm | maxTurns | number | 20 | recreate | true | false |
@@ -149,6 +151,12 @@
 | ./driver-llm | maxPageItems | number | 64 | recreate | true | false |
 | ./driver-llm | maxPendingEvents | number | 128 | recreate | true | false |
 | ./driver-llm | maxPendingBytes | number | 4194304 | recreate | true | false |
+| ./driver-llm | threadLifetime | union | "moment" | recreate | true | false |
+| ./driver-llm | budget | object | {} | recreate | true | false |
+| ./driver-llm | toolChoice | union | "auto" | recreate | true | false |
+| ./driver-llm | textualToolCallRetries | number | 1 | recreate | true | false |
+| ./driver-llm | persistDeltas | union | "none" | recreate | true | false |
+| ./driver-llm | deltaSampleEvery | number | 32 | recreate | true | false |
 | ./driver-llm | maxTransactionMs | number | 15000 | recreate | true | false |
 | ./driver-llm | maxInputBytes | number | 1048576 | recreate | true | false |
 | ./driver-llm | maxStatements | number | 2048 | recreate | true | false |

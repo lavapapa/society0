@@ -153,6 +153,8 @@ export interface PromptSection {
     readonly id: string;
     readonly order: number;
     readonly text: (context: ActivationContext) => Promise<string>;
+    /** header 进入线程首条 SystemMessage；baseline 在线程首条输入发送一次。默认 header。 */
+    readonly scope?: 'header' | 'baseline';
 }
 export interface PromptToolContribution {
     readonly id: string;

@@ -14,7 +14,7 @@ export interface ResolvedModelSelection {
   readonly registrationId: string;
   readonly contextWindow: number;
   /** 凭据由绑定的streamFn解析，配置与业务证据不携带凭据正文。 */
-  readonly options: Readonly<Pick<SimpleStreamOptions, 'reasoning' | 'maxTokens' | 'temperature' | 'transport' | 'maxRetries'>>;
+  readonly options: Readonly<Pick<SimpleStreamOptions, 'reasoning' | 'maxTokens' | 'temperature' | 'transport' | 'maxRetries' | 'sessionId' | 'metadata'>>;
   /** 直接连接Models.streamSimple；保持原生事件及签名，避免经过ModelEvent往返转换。 */
   readonly streamFn: StreamFn;
   readonly attemptIds?: readonly string[];
@@ -33,6 +33,10 @@ export interface ModelSelectionRequest {
   readonly provider: string;
   readonly model: string;
   readonly reasoning?: SimpleStreamOptions['reasoning'];
+  /** 线程策略给出的稳定标识；同一线程复用同一值。 */
+  readonly sessionId?: string;
+  /** 请求体 metadata；LiteLLM 用 session_id 做粘性路由。 */
+  readonly metadata?: Readonly<Record<string, string>>;
 }
 export interface InferenceModels {
   prepare(request: ModelSelectionRequest, context: Invocation): Promise<Lease<ResolvedModelSelection>>;
@@ -73,6 +77,8 @@ export type InferenceStopReason =
   | 'transport_unknown' | 'persistence_unknown' | 'persistence_error';
 export interface InferenceOutcome {
   readonly status: 'completed' | 'incomplete';
+  /** 正文被识别为工具调用的次数；只作诊断，不执行正文。 */
+  readonly textualToolCall?: number;
   readonly reason: InferenceStopReason;
   readonly requests: number;
   readonly actionReceipts: readonly InferenceActionReceipt[];
@@ -107,6 +113,10 @@ export interface InferenceRequest {
   readonly selection: ResolvedModelSelection;
   readonly budget: InferenceBudget;
   readonly requiredActions: readonly RequiredAction[];
+  /** required-first 只用于线程第一次请求；默认 auto。 */
+  readonly toolChoice?: 'auto' | 'required-first';
+  /** 正文工具调用纠正重试次数；默认 1。 */
+  readonly textualToolCallRetries?: number;
 }
 /** 每次activation创建独立AgentContext；selection/extensions的lease由调用者持有至run结算。 */
 export interface AgentRuntime {

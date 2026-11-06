@@ -138,13 +138,17 @@ export class MetricsAggregator implements MetricsCounters {
             },
             llm: {
                 requests: this.counter('llm.requests'),
+                failedRequests: this.counter('llm.failedRequests'),
                 promptTokens: inputTokens,
                 promptTokP50: round(prompt.p50),
                 promptTokP95: round(prompt.p95),
                 outTok: this.counter('llm.outputTokens'),
                 cacheReadTokens: cacheRead,
                 cacheWriteTokens: this.counter('llm.cacheWriteTokens'),
-                cacheReadRatio: inputTokens ? round(cacheRead / inputTokens, 4) : 0
+                cacheReadRatio: inputTokens ? round(cacheRead / inputTokens, 4) : 0,
+                latencyP50Ms: round(this.observed('llm.requestLatencyMs').p50),
+                latencyP95Ms: round(this.observed('llm.requestLatencyMs').p95),
+                queueWaitP95Ms: round(this.observed('llm.queueWaitMs').p95)
             },
             tools: {
                 calls: this.counter('tools.calls'),

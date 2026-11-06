@@ -144,6 +144,34 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:167"
     },
+    "@society0/core/driver-llm/persistDeltas": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:131"
+    },
+    "@society0/core/driver-llm/deltaSampleEvery": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:134"
+    },
+    "@society0/core/driver-llm/toolChoice": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:242"
+    },
+    "@society0/core/driver-llm/textualToolCallRetries": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:242"
+    },
+    "@society0/core/driver-llm/threadLifetime": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:176"
+    },
+    "@society0/core/driver-llm/budget": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/driver-llm/activation.ts:49"
+    },
+    "@society0/core/prompts/systemSections": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/prompts/index.ts:20"
+    },
     "@society0/core/driver-llm/maxPerceptionPages": {
       "state": "added",
       "consumer": "typescript/packages/core/src/driver-llm/activation.ts:102"
@@ -858,6 +886,10 @@
     "@society0/core/activation/maxQueuedBytes": {
       "state": "added",
       "consumer": "typescript/packages/core/src/activation/index.ts:97"
+    },
+    "@society0/core/activation/admission": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/activation/index.ts:223"
     },
     "@society0/core/actor-tools/maxPageItems": {
       "state": "added",

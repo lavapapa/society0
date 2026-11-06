@@ -11,6 +11,12 @@ import type {SqliteSnapshot,SqliteTransaction} from '../sqlite/contracts.js';
 import {OrderedInferenceSink} from '../agent-runtime-pi/sink.js';
 import {acquireExtensions} from '../agent-runtime-pi/index.js';
 import {prepareValue} from '../results/payload.js';
+import {diffDelivery,foldDelivery} from '../contracts/delivery.js';
+import {actionsDeliveryChannel, canonicalJson, emptyOfferFold, type OfferFoldState, type OfferLimits} from '../contracts/affordance.js';
+import {STATE_SOURCE, contextBudget, stateDeliveryChannel, type StateSource} from '../contracts/context.js';
+import {deliveredKeys, offerDelivery} from './offers.js';
+import {metricsOf} from '../contracts/metrics.js';
+import {performance} from 'node:perf_hooks';
 import type {LlmOptions} from './index.js';
 
 /** driver对外原因：推理原因之上增加调用阶段失败。 */
@@ -40,7 +46,10 @@ interface PreparedContext {
 
 export class LlmActivation {
  private operations=new Set<string>();private held:{release():Promise<void>}[]=[];private thread!:ThreadView;private controller=new AbortController();private context:ActivationContext;
- constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])}}
+ private pendingFrames:{frame:SequencedInferenceEvent;role:string;content:Json;attemptIds:readonly string[]}[]=[];private pendingEventBytes=0;private flushSequence=0;private deltaCount=0;private deliveryRecords:Json[]=[];
+ private requestStarted?:number;
+ private readonly offerLimits:OfferLimits;
+ constructor(private ctx:Context,private config:LlmOptions,private intent:ActivationIntent,context:ActivationContext){this.context={...context,signal:AbortSignal.any([context.signal,this.controller.signal])};this.offerLimits={maxOffers:64,maxOfferBytes:contextBudget(this.config.budget).bytes('actions'),maxSchemaBytes:4096}}
  private scope(){return {actorId:this.context.actorId,momentId:this.context.momentId,logicalTime:this.context.logicalTime,query:null}}
  private async step<T>(reason:LlmActivationReason,stage:string,body:()=>T|Promise<T>):Promise<T>{try{return await body()}catch(error){throw classified(reason,stage,error)}}
  private async withView<T>(body:(view:SqliteSnapshot)=>Promise<T>):Promise<T>{
@@ -66,7 +75,7 @@ export class LlmActivation {
   for await(const chunk of this.ctx.threads.readPayload(value.ref,{offset:'0',length:size,maxBytes:this.config.maxHistoryBytes},this.context.signal))chunks.push(chunk);
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
  }
- private async decodeMessage(payload:StoredValue){const message=await this.readValue(payload) as Message,content=message.content as any;const native:AgentMessage=content&&typeof content==='object'&&['user','assistant','toolResult'].includes(content.role)?content:{role:'user',content:JSON.stringify(message),timestamp:0};return {native,bytes:Buffer.byteLength(JSON.stringify(native)),origin:(message.originalProviderFields as {activationId?:string}|undefined)?.activationId}}
+ private async decodeMessage(payload:StoredValue){const message=await this.readValue(payload) as Message,content=message.content as any;const native:AgentMessage=content&&typeof content==='object'&&['user','system','assistant','toolResult'].includes(content.role)?content:{role:'user',content:JSON.stringify(message),timestamp:0};const record={...native,originalProviderFields:(message.originalProviderFields??null) as Json} as unknown as Json;return {native,record,bytes:Buffer.byteLength(JSON.stringify(native)),origin:(message.originalProviderFields as {activationId?:string}|undefined)?.activationId}}
  private historyBudget(bytes:number,count:number){if(bytes>this.config.maxHistoryBytes||count>=this.config.maxHistoryMessages)throw contextLimit()}
  private returnedAfter(messages:AgentMessage[],index:number){const returned=new Set<string>();for(let next=index+1;next<messages.length&&messages[next]!.role!=='assistant';next++){const message=messages[next]!;if(message.role==='toolResult')returned.add(message.toolCallId)}return returned}
  private async recoverCall(message:AssistantMessage,call:ToolCall,origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage>{
@@ -77,21 +86,27 @@ export class LlmActivation {
   return {role:'toolResult',toolCallId:call.id,toolName:call.name,content:[{type:'text',text:JSON.stringify({status:'not_dispatched',reason:'cancelled'})}],details:{status:'not_dispatched'},isError:true,timestamp:0};
  }
  private async reconcile(messages:AgentMessage[],origins:ReadonlyMap<AgentMessage,string>):Promise<AgentMessage[]>{const recovered:AgentMessage[]=[];for(let index=0;index<messages.length;index++){const message=messages[index]!;recovered.push(message);if(message.role!=='assistant')continue;const returned=this.returnedAfter(messages,index);for(const call of message.content){if(call.type!=='toolCall'||returned.has(call.id))continue;recovered.push(await this.recoverCall(message,call,origins))}}return recovered}
- private async history():Promise<AgentMessage[]>{
+ private async history():Promise<{messages:AgentMessage[];delivery:Awaited<ReturnType<typeof offerDelivery>>}>{
+  this.deliveryRecords=[];
   return this.withView(view=>this.step('thread_error','thread.history',async()=>{
    const messages:AgentMessage[]=[],origins=new Map<AgentMessage,string>();let cursor:string|undefined,bytes=0;
+   // open() 的 messageCount 早于本激活内追加的感知消息，必须实际分页读取。
    do{
-    const page=await this.ctx.threads.page(this.thread.id,this.scope(),view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
+    const page=await this.ctx.threads.page(this.thread.id,{...this.scope(),momentId:this.thread.momentId},view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
     for(const row of page.items){
      if(row.role==='inference_event')continue;
      const decoded=await this.decodeMessage(row.payload);
      bytes+=decoded.bytes;this.historyBudget(bytes,messages.length);
-     messages.push(decoded.native);
-     if(decoded.origin)origins.set(decoded.native,decoded.origin);
+     let native=decoded.native;
+     if(native.role==='toolResult'&&decoded.bytes>contextBudget(this.config.budget).bytes('toolResultMax'))native={...native,content:[{type:'text',text:`工具结果过大，已折叠 ${decoded.bytes} 字节；完整内容见 /thread/${this.thread.id}/${row.id}`}]} as AgentMessage;
+     messages.push(native);this.deliveryRecords.push(decoded.record);
+     if(decoded.origin)origins.set(native,decoded.origin);
     }
     cursor=page.next;
    }while(cursor);
-   return this.reconcile(messages,origins);
+   const folded=foldDelivery(this.deliveryRecords,[actionsDeliveryChannel]).channels.get('actions') as OfferFoldState|undefined;
+   const delivery=await this.step('setup_error','offers',()=>offerDelivery(this.ctx.actions,this.scope(),view,folded??emptyOfferFold(),this.offerLimits));
+   return {messages:await this.reconcile(messages,origins),delivery};
   }));
  }
  private async percepts(contexts:readonly StoredValue[],paths:string[]){
@@ -118,21 +133,51 @@ export class LlmActivation {
   }
   throw new LlmActivationError('perception_error','PERCEPTION_PAGE_BUDGET','perception.collect');
  }
- private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[]){
+ private async input(sections:readonly string[],paths:readonly string[],contexts:readonly StoredValue[],deliveryText:string,originalExtras:Json):Promise<{appended:boolean;native?:AgentMessage}>{
   const consumerId='driver:'+this.config.name;
   const previous=await this.withView(view=>this.step('thread_error','thread.consumer',()=>this.ctx.threads.consumer(this.thread.id,consumerId,view)));
-  if((previous?.cursor as {operationId?:string})?.operationId===this.context.operationId)return;
-  const native={role:'user',content:[...sections,'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input)].join('\n'),timestamp:Date.now()};
-  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native));
+  if((previous?.cursor as {operationId?:string})?.operationId===this.context.operationId)return {appended:false};
+  const parts=[...sections.filter(text=>text.length),'冻结上下文：'+paths.join(', '),'本次输入：'+JSON.stringify(this.intent.input),...(deliveryText?[deliveryText]:[])];
+  const native:AgentMessage={role:'user',content:parts.join('\n'),timestamp:Date.now()};
+  const original:Json={activationId:this.context.operationId,...(originalExtras as Readonly<Record<string,Json>>)};
+  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/input','user',native as unknown as Json,original));
   await this.transaction('input',tx=>this.step('thread_error','thread.appendInput',()=>this.ctx.threads.appendInput(tx,{threadId:this.thread.id,expectedConsumer:previous??null,nextConsumer:{consumerId,cursor:{operationId:this.context.operationId}},message,contexts})));
+  return {appended:true,native};
+ }
+ private retainsDelta(event:{type:string}):boolean{
+  if(this.config.persistDeltas==='none')return false;
+  if(this.config.persistDeltas==='all')return true;
+  this.deltaCount++;
+  return this.deltaCount%this.config.deltaSampleEvery===0;
+ }
+ private async flushEvents(){
+  if(!this.pendingFrames.length)return;
+  const frames=this.pendingFrames;
+  this.pendingFrames=[];this.pendingEventBytes=0;
+  const first=frames[0]!.frame.sequence,last=frames.at(-1)!.frame.sequence;
+  const prepared=await Promise.all(frames.map(item=>this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/event/'+item.frame.sequence,item.role,item.content,{activationId:this.context.operationId,sequence:item.frame.sequence,attemptIds:[...item.attemptIds]}))));
+  await this.transaction('events/'+(++this.flushSequence)+'/'+first+'-'+last,tx=>this.step('thread_error','thread.append',async()=>{for(const message of prepared)await this.ctx.threads.append(tx,this.thread.id,message)}));
+ }
+ private boundary(event:{type:string}){return event.type==='turn_end'||event.type==='tool_execution_start'}
+ private measured<T extends {streamFn:(...args:any[])=>any}>(selection:T):T{
+  const metrics=metricsOf(this.ctx);if(!metrics)return selection;
+  return {...selection,streamFn:(...args:any[])=>{const started=performance.now();this.requestStarted=started;try{const result=selection.streamFn(...args);if(result&&typeof result.then==='function')return result.then((value:unknown)=>value,(error:unknown)=>{this.requestStarted=undefined;metrics.count('llm.requests');metrics.count('llm.failedRequests');metrics.observe('llm.requestLatencyMs',performance.now()-started);throw error});return result}catch(error){this.requestStarted=undefined;metrics.count('llm.requests');metrics.count('llm.failedRequests');metrics.observe('llm.requestLatencyMs',performance.now()-started);throw error}}};
+ }
+ private observeFrame(event:{type:string;message?:{role?:string;stopReason?:string}}){
+  if(event.type!=='message_end'||event.message?.role!=='assistant')return;
+  const metrics=metricsOf(this.ctx),started=this.requestStarted;this.requestStarted=undefined;
+  if(!metrics)return;
+  if(started!==undefined)metrics.observe('llm.requestLatencyMs',performance.now()-started);
+  if(event.message.stopReason==='error'||event.message.stopReason==='aborted')metrics.count('llm.failedRequests');
  }
  private async event(frame:SequencedInferenceEvent,attemptIds:readonly string[]){
-  const event=frame.event;let role='inference_event',content:unknown=event;
-  if(event.type==='message_end'){role=event.message.role;content=event.message}
-  else if(event.type==='message_update')content={type:event.type,nativeEventType:event.assistantMessageEvent.type,attemptIds};
-  const id=this.context.operationId+'/event/'+frame.sequence;
-  const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(id,role,content as Json,{activationId:this.context.operationId,sequence:frame.sequence,attemptIds:[...attemptIds]}));
-  await this.transaction('event/'+frame.sequence,tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+  const event=frame.event;this.observeFrame(event as {type:string;message?:{role?:string;stopReason?:string}});let role='inference_event',content:Json=event as unknown as Json;
+  if(event.type==='message_update'&&!this.retainsDelta(event))return;
+  if(event.type==='message_end'){role=event.message.role;content=event.message as unknown as Json}
+  else if(event.type==='message_update')content={type:event.type,nativeEventType:event.assistantMessageEvent.type,attemptIds} as Json;
+  this.pendingFrames.push({frame,role,content,attemptIds});
+  this.pendingEventBytes+=Buffer.byteLength(JSON.stringify(content));
+  if(this.pendingFrames.length>=this.config.maxPendingEvents||this.pendingEventBytes>=this.config.maxPendingBytes||this.boundary(event))await this.flushEvents();
  }
  private async undispatched(receipt:UndispatchedToolReceipt){
   await this.step('persistence_error','attempts.undispatched',async()=>{
@@ -143,8 +188,26 @@ export class LlmActivation {
    if(claim.record.status!=='settled')throw Object.assign(Error('ATTEMPT_LEDGER_INCOMPLETE '+claim.record.status),{code:'ATTEMPT_LEDGER_INCOMPLETE',reason:claim.record.reason??claim.record.status});
   });
  }
- private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.context.momentId,view)))}
+ private threadMoment(){return this.config.threadLifetime==='actor'?'thread/actor/'+this.context.actorId:this.context.momentId}
+ private async open(){this.thread=await this.withView(view=>this.step('thread_error','thread.open',()=>this.ctx.threads.open(this.context.actorId,this.threadMoment(),view)))}
  private async prompts(){try{return await this.ctx.prompts.acquire(this.context)}catch(error){if(codeOf(error)==='INFERENCE_CONTEXT_LIMIT')throw new LlmActivationError('context_limit','INFERENCE_CONTEXT_LIMIT','prompts',{cause:error});throw classified('setup_error','prompts',error)}}
+ private async state():Promise<{text:string;record:Json|undefined}>{
+  const lease=await this.ctx.slots.acquire(STATE_SOURCE,this.context);
+  this.held.push(lease);
+  if(!lease.items.length)return {text:'',record:undefined};
+  const budget=contextBudget(this.config.budget),limit=Math.floor(budget.bytes('stateDelta')/Math.max(1,lease.items.length));
+  const aggregate:Record<string,Json>={};
+  for(const item of lease.items){
+   const value=await item.value.snapshot(this.context.actorId,this.context.momentId),size=Buffer.byteLength(canonicalJson(value));
+   const folded=size>limit?{omittedBytes:size,path:'/self/state/'+item.value.id}:value;
+   if(folded!==null&&typeof folded==='object'&&!Array.isArray(folded)){
+    for(const [key,entry] of Object.entries(folded as Readonly<Record<string,Json>>))aggregate[key]=entry;
+   }else aggregate[item.id]=folded;
+  }
+  const folded=foldDelivery(this.deliveryRecords,[stateDeliveryChannel]);
+  const segment=diffDelivery(folded,[stateDeliveryChannel],new Map([['state',{valid:[aggregate as unknown as Json],deliver:[aggregate as unknown as Json]}]]))[0];
+  return {text:segment?.text??'',record:segment&&segment.text?segment.delta as Json:undefined};
+ }
  private async prepareContext():Promise<PreparedContext>{
   const prompts=await this.prompts();
   this.held.push(prompts);
@@ -154,18 +217,35 @@ export class LlmActivation {
   const contexts=await this.step('persistence_error','artifact.stage',()=>Promise.all(texts.map(text=>prepareValue(text,16384,this.ctx.artifacts,this.context.signal))));
   const paths=[...frozen.value];
   await this.percepts(contexts,paths);
-  await this.input(prompts.value.sections,paths,contexts);
-  const history=await this.history();
-  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind(this.context,prompts.value.tools));
+  const sections=prompts.value.systemSections?(prompts.value.baseline as string[]):([...prompts.value.header,...prompts.value.baseline] as string[]);
+  let historyResult;
+  try{historyResult=await this.history()}catch(error){await this.input(sections,paths,contexts,'',{}).catch(()=>{});throw error}
+  const {messages:readHistory,delivery}=historyResult;
+  const history=[...readHistory];
+  const fresh=history.length===0;
+  if(fresh&&prompts.value.systemSections&&prompts.value.header.length){
+   const native:AgentMessage={role:'system',content:prompts.value.header.join('\n\n'),timestamp:Date.now()};
+   const message=await this.step('persistence_error','thread.prepare',()=>this.prepareMessage(this.context.operationId+'/system','system',native as unknown as Json,{activationId:this.context.operationId}));
+   await this.transaction('system',tx=>this.step('thread_error','thread.append',()=>this.ctx.threads.append(tx,this.thread.id,message)));
+   history.push(native);
+  }
+  const state=await this.state();
+  const extras:Record<string,Json>={};
+  if(state.record)extras.state=state.record;
+  if(delivery.record)extras.offers=delivery.record;
+  const deliveryText=[state.text,delivery.text].filter(text=>text.length>0).join('\n');
+  const appended=await this.input(!prompts.value.systemSections||fresh?sections:[],paths,contexts,deliveryText,extras);
+  const runtimeHistory=appended.native?[...history,appended.native]:history;
+  const binding=await this.step('setup_error','actor-tools',()=>this.ctx.actorTools.bind({...this.context,deliveredOffers:deliveredKeys(delivery.fold)},delivery.fold,this.offerLimits));
   this.held.push(binding);
-  const selected=await this.step('provider_error','model.prepare',()=>this.ctx.modelProviders.prepare(this.config,this.context));
+  const selected=await this.step('provider_error','model.prepare',async()=>{const started=performance.now();try{return await this.ctx.modelProviders.prepare({...this.config,sessionId:this.thread.id,metadata:{session_id:this.thread.id}},this.context)}finally{metricsOf(this.ctx)?.observe('llm.queueWaitMs',performance.now()-started)}});
   this.held.push(selected);
   const runtime=await this.step('setup_error','runtime.acquire',()=>this.ctx.agentRuntimes.acquire(this.config.runtime));
   this.held.push(runtime);
   const extensions=await this.step('setup_error','runtime.acquire',()=>acquireExtensions(this.ctx,this.context));
   this.held.push(extensions);
   const sink=new OrderedInferenceSink({maxPendingEvents:this.config.maxPendingEvents,maxPendingBytes:this.config.maxPendingBytes},frame=>this.event(frame,selected.value.attemptIds??[]),receipt=>this.undispatched(receipt),error=>this.controller.abort(error));
-  return {binding,selected,runtime,extensions,sink,history};
+  return {binding,selected,runtime,extensions,sink,history:runtimeHistory};
  }
  private async runRuntime(runtime:Lease<AgentRuntime>,request:InferenceRequest,sink:InferenceEventSink,extensions:InferenceExtensions):Promise<InferenceOutcome>{
   try{return await runtime.value.run(request,this.context,sink,extensions)}
@@ -174,7 +254,9 @@ export class LlmActivation {
  private async infer(prepared:PreparedContext):Promise<ActivationResult>{
   const {binding,selected,runtime,extensions,sink,history}=prepared;
   const actionReceipts={read:()=>this.step('persistence_error','actions.receipts',()=>binding.value.actionReceipts.read())};
-  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:selected.value,budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions},sink,extensions);
+  const outcome=await this.runRuntime(runtime,{threadId:this.thread.id,interactionId:this.thread.interactionId,history,prompts:[],tools:binding.value.tools,actionReceipts,selection:this.measured(selected.value),budget:{maxRequests:this.config.maxRequests,maxToolCalls:this.config.maxToolCalls,maxTurns:this.config.maxTurns},requiredActions:this.config.requiredActions,toolChoice:this.config.toolChoice,textualToolCallRetries:this.config.textualToolCallRetries},sink,extensions);
+  const incompleteStream=outcome.status==='incomplete'&&(outcome.reason==='provider_error'||outcome.reason==='cancelled'||outcome.reason==='transport_unknown');
+  if(!incompleteStream)await this.flushEvents();
   for(const item of outcome.actionReceipts)for(const operationId of item.receipt.requiredOperations??[])this.operations.add(operationId);
   return {status:outcome.status,value:{reason:outcome.reason},evidence:outcome as unknown as Json,requiredOperations:[...this.operations]};
  }
