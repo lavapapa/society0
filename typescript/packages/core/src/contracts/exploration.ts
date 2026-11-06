@@ -3,6 +3,8 @@ import type { Disposer, Invocation, Json, Lease } from './common.js';
 import type { DiscoveryScope, DomainVersion, Page, PageRequest, PayloadRange, StoredValue } from './data.js';
 import type { SqliteReadView } from '../sqlite/contracts.js';
 import type { ActionExecutionContext } from './domain.js';
+/** 同一个可写后端（按服务 id）的多个挂载（/workspace、/results）共享该标记，跨挂载 rename 由后端裁决。 */
+export const explorationBackend = Symbol('exploration.backend');
 export interface ExplorationNode {
     readonly path: string;
     readonly objectId: string;
