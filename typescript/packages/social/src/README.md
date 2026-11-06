@@ -35,7 +35,7 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 
 `syncIndex` 将有界 SQL 变更流应用到后端，再写入独立的投影进度。SQL 数据足以重建空后端；索引写入后、进度提交前的中断可重放。准备阶段核对完整投影前缀、向量身份和文本版本，过期状态显式返回 `stale`。
 
-[Social 感知](social-perception/index.ts) 把个人资料、投递动态、通知和推荐注册为普通 Core 感知来源。`previewChars` 默认 `-1`；非负时按 Unicode 码点截短 post 感知的展示正文，超限附 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原文经 public `social/posts` 的 `{id}` 输入按原字节读取；`id` 为可选字符串，合法空串按精确 id 过滤，未提供时按 authorId/scope。排名、测量和存储正文保留完整内容。Core 负责原文材料、Thread 关联与游标的共同提交。通知消费和业务呈现使用各自明确的行动入口。 `driver-rule` 通过 `sources` 选择这些来源，`driver-llm` 通过 `perceptions` 选择；两者把当前逻辑时钟传入感知。LLM 使用原生 ActorTools 的 `actions_execute` 调用社会行动，可用 `requiredActions` 声明完成条件，运行器按真实行动回执决定完整点。
+[Social 感知](social-perception/index.ts) 把个人资料、投递动态、通知和推荐注册为普通 Core 感知来源。`previewChars` 默认 `-1`；非负时按 Unicode 码点截短 post 感知的展示正文，超限附 `truncated:true` 与 `fullRef:{information:'social/posts',input:{id}}`，原文经 public `social/posts` 的 `{id}` 输入按原字节读取；`id` 为可选字符串，合法空串按精确 id 过滤，未提供时按 authorId/scope。排名、测量和存储正文保留完整内容。Core 负责原文材料、Thread 关联与游标的共同提交。通知消费和业务呈现使用各自明确的行动入口。 `driver-rule` 通过 `sources` 选择这些来源，`driver-llm` 通过 `perceptions` 选择；两者把当前逻辑时钟传入感知。LLM 使用原生 ActorTools 的 `act` 调用社会行动，可用 `requiredActions` 声明完成条件，运行器按真实行动回执决定完整点。
 
 ## 四、测量
 

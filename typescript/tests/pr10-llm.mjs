@@ -58,7 +58,7 @@ test('PR10-T20 actual event and DriverLLM consume Social percepts and commit nat
                 ctx.modelProviders.register('replay/v1', new ObservedReplay({
                     social: [
                         assistant([{
-                                type: 'toolCall', id: 'publish-social', name: 'actions_execute', arguments: {
+                                type: 'toolCall', id: 'publish-social', name: 'act', arguments: {
                                     action: 'social.publish', input: {
                                         id: 'llm-social-post', content: '实际pi行动保存的完整回复', tags: ['native-llm'], metadata: {
                                             original: true

@@ -30,7 +30,7 @@ test('PR08-T24 public actions_execute preserves durable completion through prese
   c.slots.contribute(INFERENCE_TOOL_POLICY,{id:'display-error',value:{after:async()=>({isError:true,content:[{type:'text',text:'presentation override'}],details:{status:'rejected'}})}});
   c.slots.contribute(INFERENCE_REQUEST,{id:'observe-display',value:{prepare:async(input,next)=>{for(const message of input.context.messages)if(message.role==='toolResult')shown.push(structuredClone(message));return next(input)}}});
  }});
- await run.host.ctx.plugin(ModelReplay,{name:'replay/public-display',fixtures:{display:[assistant([{type:'toolCall',id:'sum',name:'actions_execute',arguments:{action:'record_sum',input:{a:20,b:22}}}],'toolUse'),assistant([{type:'text',text:'42'}])]}});
+ await run.host.ctx.plugin(ModelReplay,{name:'replay/public-display',fixtures:{display:[assistant([{type:'toolCall',id:'sum',name:'act',arguments:{action:'record_sum',input:{a:20,b:22}}}],'toolUse'),assistant([{type:'text',text:'42'}])]}});
  await run.host.ctx.plugin(DriverLlm,{name:'llm/public-display',provider:'replay/public-display',model:'display',requiredActions:[{name:'record_sum',minimumCompleted:1}],maxRequests:3,maxToolCalls:1});
  const context=run.context('public-display'),driver=await ctx.drivers.acquire('llm/public-display',context);let outcome;
  try{outcome=await driver.value.activate({id:'display',actorId:context.actorId,momentId:context.momentId,source:'test',driver:'llm/public-display',input:'20+22'},context)}finally{await driver.release()}

@@ -20,7 +20,7 @@ import {INFERENCE_TOOL_POLICY} from '../.build/core/dist/contracts/inference.js'
 
 const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};
 const assistant=(content,stopReason='stop')=>({role:'assistant',content,api:'openai-completions',provider:'replay',model:'driver',usage,stopReason,timestamp:1});
-const toolTurn=(id,action,input)=>assistant([{type:'toolCall',id,name:'actions_execute',arguments:{action,input}}],'toolUse');
+const toolTurn=(id,action,input)=>assistant([{type:'toolCall',id,name:'act',arguments:{action,input}}],'toolUse');
 const finalTurn=assistant([{type:'text',text:'driver finished'}]);
 const defaultScript=[toolTurn('sum','record_sum',{a:20,b:22}),finalTurn];
 
@@ -359,7 +359,7 @@ row('RV3-05-T01 12d undispatched existing settled stays durable without rewrite'
     const lineage=env.ctx.attempts.authority().lineage;
     const identity={lineage,operationId:'rv305/12d/undispatched/sum',attempt:0};
     assert.equal((await env.ctx.attempts.claim(identity,{kind:'not_dispatched',threadId:'seed'})).status,'send-permitted');
-    await env.ctx.attempts.settle(identity,{status:'not_dispatched',receipt:{toolCallId:'sum',toolName:'actions_execute',status:'not_dispatched',reason:'cancelled'}});
+    await env.ctx.attempts.settle(identity,{status:'not_dispatched',receipt:{toolCallId:'sum',toolName:'act',status:'not_dispatched',reason:'cancelled'}});
     const before=await env.ctx.attempts.probe(identity);
     await env.run.host.ctx.plugin({inject:['slots'],apply(c){c.slots.contribute(INFERENCE_TOOL_POLICY,{id:'rv305/cancel-settled',value:{before:async()=>{controller.abort(reason);return {block:true,terminate:true,reason:'rv305-cancel-settled'}}}})}});
     const result=await activate(env,'rv305/12d',{signal:controller.signal});

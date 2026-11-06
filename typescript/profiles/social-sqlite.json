@@ -368,13 +368,6 @@
                         "id": "social-publish",
                         "text": "Publish exactly one short social post using publish. Do not call any other tool. After the action succeeds, reply briefly."
                       }
-                    ],
-                    "tools": [
-                      {
-                        "id": "publish",
-                        "name": "publish",
-                        "action": "social.publish"
-                      }
                     ]
                   }
                 },
