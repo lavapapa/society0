@@ -260,6 +260,8 @@
 | ./social | propagation | string | "neighbor-broadcast/v1" | new-run | true | null |
 | ./social | mediaEnabled | boolean | true | new-run | true | null |
 | ./social | contentLengthLimit | union | 250 | new-run | true | null |
+| ./social | pairingGroups | array | [] | new-run | true | null |
+| ./social | pairingSessionMinutes | number | 10 | new-run | true | null |
 | ./measurement-repository | inlineBytes | number | 16384 | new-run | true | null |
 | ./measurements | sampling | string | "every-advance/v1" | new-run | true | null |
 | ./measurements | maxResultBytes | number | 49152 | new-run | true | null |
@@ -268,6 +270,10 @@
 | ./round-robin | driver | string | "rule" | new-run | true | null |
 | ./social-recommendations | sources | array | ["social/posts/v1"] | new-run | true | null |
 | ./social-recommendations | cacheBytes | number | 4194304 | new-run | true | null |
+| ./social-recommendations | fullScanUntil | number | 5000 | new-run | true | null |
+| ./social-recommendations | recentKeepCount | number | 1000 | new-run | true | null |
+| ./social-recommendations | topEngagementKeepCount | number | 500 | new-run | true | null |
+| ./social-recommendations | minLifetimeTicks | number | 50 | new-run | true | null |
 | ./social-ranking | chronologicalWeight | number | 0.3 | new-run | true | null |
 | ./social-ranking | engagementWeight | number | 0.3 | new-run | true | null |
 | ./social-ranking | similarityWeight | number | 0.2 | new-run | true | null |

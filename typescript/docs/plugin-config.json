@@ -2439,6 +2439,22 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "pairingGroups",
+              "type": "array",
+              "default": [],
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "pairingSessionMinutes",
+              "type": "number",
+              "default": 10,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
             }
           ]
         },
@@ -2536,6 +2552,38 @@
               "name": "cacheBytes",
               "type": "number",
               "default": 4194304,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "fullScanUntil",
+              "type": "number",
+              "default": 5000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "recentKeepCount",
+              "type": "number",
+              "default": 1000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "topEngagementKeepCount",
+              "type": "number",
+              "default": 500,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "minLifetimeTicks",
+              "type": "number",
+              "default": 50,
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
