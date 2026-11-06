@@ -5,7 +5,7 @@ import type {Invocation,Lease} from '../contracts/common.js';
 import type {ModelProvider,ModelSelectionRequest,ResolvedModelSelection} from '../contracts/inference.js';
 import {PreparedPiSelection} from './selection.js';
 export type Ledger=Pick<AttemptLedger,'claim'|'settle'|'stageEvidence'|'authority'|'evidenceChunkBytes'>&{markUnknown(identity:AttemptIdentity,reason:string,artifacts?:readonly ArtifactRef[],result?:unknown):Promise<void>};
-export interface PiProviderOptions {runId:string;providerId:string;registrationId?:string;maxEventBytes:number;maxRawBytes:number;maxRequestBytes:number;maxPendingEvents?:number;maxPendingBytes?:number;options:ResolvedModelSelection['options'];fetch?:typeof fetch;timeoutMs?:number;runPhysical?:(body:(signal:AbortSignal)=>Promise<void>,bytes:number)=>Promise<void>}
+export interface PiProviderOptions {runId:string;providerId:string;registrationId?:string;maxEventBytes:number;maxRawBytes:number;maxRequestBytes:number;maxPendingEvents?:number;maxPendingBytes?:number;options:ResolvedModelSelection['options'];fetch?:typeof fetch;timeoutMs?:number;jsonTimeoutMs?:number;transport?:'sse'|'json';runPhysical?:(body:(signal:AbortSignal)=>Promise<void>,bytes:number)=>Promise<void>}
 export class PiModelProvider implements ModelProvider {
  private active=new Set<Promise<unknown>>();private closing=false;private peak={events:0,bytes:0};
  constructor(private models:Models,private ledger:Ledger,private options:PiProviderOptions){}

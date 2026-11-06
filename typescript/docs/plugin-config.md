@@ -161,6 +161,8 @@
 | ./model-pi | maxRawBytes | number | 16777216 | recreate | true | false |
 | ./model-pi | maxRequestBytes | number | 16777216 | recreate | true | false |
 | ./model-pi | timeoutMs | number | 30000 | recreate | true | false |
+| ./model-pi | transport | dict | {} | recreate | true | false |
+| ./model-pi | jsonTimeoutMs | number | 180000 | recreate | true | false |
 | ./mount-context | maxBytes | number | 1048576 | recreate | true | false |
 | ./mount-context | maxFiles | number | 128 | recreate | true | false |
 | ./exploration-shell | maxCommandCount | number | 10000 | recreate | true | false |

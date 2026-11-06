@@ -1258,6 +1258,16 @@
     "@society0/social/social/pairingSessionMinutes": {
       "state": "added",
       "consumer": "typescript/packages/social/src/social/index.ts:210"
+    },
+    "@society0/core/model-pi/transport": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/index.ts:17",
+      "reason": "按模型选择 sse/json；未配置的模型默认 json，由 model-pi/json-transport.ts 的 resolveTransport 决定。"
+    },
+    "@society0/core/model-pi/jsonTimeoutMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
+      "reason": "json 模式覆盖整次请求的截止时间；默认 180000，sse 继续使用 timeoutMs。"
     }
   },
   "plugins": {},
