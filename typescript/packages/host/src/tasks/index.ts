@@ -1,14 +1,14 @@
 import Schema from '@society0/schemastery';
 import type {PluginMetadata,ApiEntry} from '../module-resolver/index.js';
-export const Config=Schema.object({concurrency:Schema.number().min(1).max(Number.MAX_SAFE_INTEGER).step(1).default(4),maxPending:Schema.number().min(0).max(Number.MAX_SAFE_INTEGER).step(1).default(1024),maxBytes:Schema.number().min(0).max(Number.MAX_SAFE_INTEGER).step(1).default(64*1024*1024)});
-export const metadata:PluginMetadata={"title": "tasks", "summary": "监督调用者任务、准入容量和物理排空", "configVersion": 1, "configPolicy": [{"path": "/concurrency", "mode": "recreate", "affectsResults": false}, {"path": "/maxPending", "mode": "recreate", "affectsResults": false}, {"path": "/maxBytes", "mode": "recreate", "affectsResults": false}], "scope": "host", "hostAbi": "society0/host/1"};
+export const Config=Schema.object({concurrency:Schema.number().min(1).max(Number.MAX_SAFE_INTEGER).step(1).default(4),maxPending:Schema.number().min(0).max(Number.MAX_SAFE_INTEGER).step(1).default(1024),maxBytes:Schema.number().min(0).max(Number.MAX_SAFE_INTEGER).step(1).default(64*1024*1024),shutdownTimeoutMs:Schema.number().min(1).max(Number.MAX_SAFE_INTEGER).step(1).default(30000)});
+export const metadata:PluginMetadata={"title": "tasks", "summary": "监督调用者任务、准入容量和物理排空", "configVersion": 1, "configPolicy": [{"path": "/concurrency", "mode": "recreate", "affectsResults": false}, {"path": "/maxPending", "mode": "recreate", "affectsResults": false}, {"path": "/maxBytes", "mode": "recreate", "affectsResults": false}, {"path": "/shutdownTimeoutMs", "mode": "recreate", "affectsResults": false}], "scope": "host", "hostAbi": "society0/host/1"};
 export const api:ApiEntry={"exportPath": "./tasks", "provides": [{"key": "tasks", "protocol": "tasks", "major": 1, "capabilities": []}], "requires": [{"service": {"key": "resources", "protocol": "resources", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}, {"service": {"key": "diagnostics", "protocol": "diagnostics", "major": 1, "capabilities": []}, "optional": false, "phase": "module"}]};
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Context, Service, FiberState, type Fiber } from '@society0/cordis';
 import pLimit, { type LimitFunction } from 'p-limit';
 import { errorMessage, type DiagnosticSink, type OwnerIdentity } from '../diagnostics/index.js';
 
-export interface TaskConfig { readonly concurrency: number; readonly maxPending: number; readonly maxBytes: number }
+export interface TaskConfig { readonly concurrency: number; readonly maxPending: number; readonly maxBytes: number; readonly shutdownTimeoutMs: number }
 /** Resolves after actual completion or removal before dispatch, regardless of outcome. */
 export type TaskPromise<T> = Promise<T> & { readonly settled: Promise<void> };
 export interface TaskOptions { readonly signal?: AbortSignal; readonly bytes?: number }
@@ -34,9 +34,10 @@ interface OwnerTasks {
 declare module '@society0/cordis' { interface Context { tasks: TaskSupervisor } }
 function aborted(reason: string): Error { return new DOMException(reason, 'AbortError'); }
 function configOf(input: Partial<TaskConfig>): TaskConfig {
-  const config = {concurrency:4,maxPending:1024,maxBytes:64*1024*1024,...input};
+  const config = {concurrency:4,maxPending:1024,maxBytes:64*1024*1024,shutdownTimeoutMs:30000,...input};
   for (const [name,value] of Object.entries(config)) {
-    if (!Number.isSafeInteger(value) || value < (name === 'concurrency' ? 1 : 0)) throw new TypeError(`TASK_CONFIG: ${name} must be a ${name === 'concurrency' ? 'positive' : 'nonnegative'} integer`);
+    const positive = name === 'concurrency' || name === 'shutdownTimeoutMs';
+    if (!Number.isSafeInteger(value) || value < (positive ? 1 : 0)) throw new TypeError(`TASK_CONFIG: ${name} must be a ${positive ? 'positive' : 'nonnegative'} integer`);
   }
   return config;
 }
@@ -138,7 +139,22 @@ export class TaskSupervisor extends Service {
   }
   private drainOwner(owner: OwnerTasks, reason: string): Promise<void> {
     this.stop(owner,reason);
-    return owner.drain ??= Promise.allSettled([...owner.jobs].map(job=>job.physical)).then(()=>{});
+    owner.drain ??= Promise.allSettled([...owner.jobs].map(job=>job.physical)).then(()=>{});
+    return this.awaitDrain(owner,reason);
+  }
+  /** 物理任务忽略abort时，关闭等待只到故障上限；未结束任务继续由snapshot跟踪。 */
+  private async awaitDrain(owner: OwnerTasks, reason: string): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_,reject)=>{
+      timer = setTimeout(()=>{
+        const tasks=this.snapshot();
+        this.diagnostics.report({code:'TASK_DRAIN_TIMEOUT',message:`task drain remains unfinished after ${this.config.shutdownTimeoutMs}ms (${reason})`,phase:'cleanup',affectsClose:true},owner.identity);
+        reject(Object.assign(Error(`TASK_DRAIN_TIMEOUT: still active after ${this.config.shutdownTimeoutMs}ms`),{tasks}));
+      },this.config.shutdownTimeoutMs);
+      timer.unref();
+    });
+    try { await Promise.race([owner.drain,deadline]); }
+    finally { if (timer) clearTimeout(timer); }
   }
   private drainBound(owner: OwnerTasks, reason: string): Promise<void> {
     if (this.execution.getStore()===owner.fiber) throw new Error('TASK_SELF_JOIN: use requestClose() inside a running task');

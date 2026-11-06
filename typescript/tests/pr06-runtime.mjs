@@ -4,13 +4,14 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createHost, OwnedResources, TaskSupervisor } from '../.build/host/dist/index.js';
 import CompositionStrategies from '../.build/host/dist/composition-strategies/index.js';
 import SlotStrategies from '../.build/host/dist/slot-strategies/index.js';
 import Slots from '../.build/host/dist/slots/index.js';
 const base = '../.build/core/dist/';
-const modules = await Promise.all(['execution-fence', 'sqlite', 'sqlite-bootstrap', 'sqlite-history', 'artifacts-local', 'initializers', 'actors', 'actor-eligibility', 'drivers', 'activation-mailbox', 'activation', 'clock-ticks', 'proposal-sequence', 'runtime-staged', 'completion-strict', 'checkpoint-policy', 'termination', 'generation-views', 'generation-binding', 'run-controller'].map(n => import(base + n + '/index.js')));
-const [Fence, Database, Bootstrap, History, Artifacts, Initializers, Actors, Eligibility, Drivers, Mailbox, Activation, Ticks, Sequence, Runtime, Completion, Checkpoint, Termination, Views, Binding, Runs] = modules;
+const modules = await Promise.all(['execution-fence', 'sqlite', 'sqlite-bootstrap', 'sqlite-history', 'artifacts-local', 'initializers', 'actors', 'actor-eligibility', 'drivers', 'activation-mailbox', 'activation', 'clock-ticks', 'proposal-sequence', 'runtime-staged', 'completion-strict', 'checkpoint-policy', 'termination', 'generation-views', 'generation-binding', 'run-controller', 'proposal-events'].map(n => import(base + n + '/index.js')));
+const [Fence, Database, Bootstrap, History, Artifacts, Initializers, Actors, Eligibility, Drivers, Mailbox, Activation, Ticks, Sequence, Runtime, Completion, Checkpoint, Termination, Views, Binding, Runs, ProposalEvents] = modules;
 const req = operationId => ({ operationId, maxDurationMs: 15000, maxStatements: 100, maxInputBytes: 1048576, maxChangedRows: 1000, maxCapturedBytes: 4194304 });
 export async function fixture(options = {}) {
     const host = await createHost({ boot: [] });
@@ -40,7 +41,7 @@ export async function fixture(options = {}) {
         await c.plugin(Termination.default);
         await c.plugin(Views.default);
         const binding = await c.plugin(Binding.default, { generation: 'g' });
-        await c.plugin(Runs.default);
+        await c.plugin(Runs.default, options.runsConfig ?? {});
         return { host, ctx: c, root, directory, binding, clock };
     }
     catch (error) {
@@ -273,5 +274,56 @@ test('PR06-T02 persisted event offset resumes from real independent history fork
     finally {
         await branch?.host.close();
         await f.host.close();
+    }
+});
+
+
+test('PR06 pauseTimeoutMs bounds a stuck execution before a safe boundary is claimed', {timeout:30000}, async()=>{
+    const entered = Promise.withResolvers(), release = Promise.withResolvers();
+    const stuck = { apply(ctx) { ctx.provide('runtimeDriver', { planKinds: ['staged/1'], async execute() { entered.resolve(); await release.promise; return { status: 'settled', frontier: { codec: 'staged/1', value: '1' }, requiredOperations: [], evidence: {} }; }, async drain() {} }); } };
+    const f = await fixture({ sourceConfig: { proposals: [proposals[0]] }, runtime: stuck, runsConfig: { pauseTimeoutMs: 50 } });
+    let running;
+    try {
+        running = f.ctx.runs.run(new AbortController().signal);
+        await entered.promise;
+        const started = Date.now();
+        await assert.rejects(f.ctx.runs.pauseAtBoundary(), error => {
+            assert.match(error.message, /RUN_PAUSE_TIMEOUT/);
+            assert.equal(error.timeoutMs, 50);
+            return true;
+        });
+        assert.ok(Date.now() - started < 2000, 'pause must not wait for a stuck execution forever');
+        assert.equal(f.ctx.executionFence.snapshot().state, 'halted');
+        assert.match(f.ctx.executionFence.snapshot().reason, /RUN_PAUSE_TIMEOUT/);
+        release.resolve();
+        const result = await running;
+        assert.equal(result.status, 'failed');
+    }
+    finally {
+        release.resolve();
+        await running?.catch(() => {});
+        await f.host.close();
+    }
+});
+
+test('PR06 proposal lease timeout reclaims a stuck reservation instead of hanging waiters', {timeout:5000}, async()=>{
+    const host = await createHost({ boot: [] });
+    try {
+        await host.ctx.plugin(OwnedResources);
+        await host.ctx.plugin(ProposalEvents.default, { leaseTimeoutMs: 100 });
+        const source = host.ctx.proposalSource;
+        await source.push({ id: 'leased', offset: '1', time: '1', payload: {} });
+        const first = await source.waitProposal('0', new AbortController().signal);
+        assert.equal(first.kind, 'proposal');
+        const started = Date.now();
+        const second = await Promise.race([source.waitProposal('0', new AbortController().signal), delay(2000).then(() => { throw Error('LEASE_HUNG'); })]);
+        assert.equal(second.kind, 'proposal');
+        assert.equal(second.proposal.id, 'leased');
+        assert.ok(Date.now() - started >= 50, 'lease was handed out before its timeout');
+        assert.equal(source.diagnostics().expired, 1);
+        await source.release(second.proposal);
+    }
+    finally {
+        await host.close();
     }
 });

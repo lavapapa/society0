@@ -166,9 +166,9 @@ Core 使用原生 `String.isWellFormed()` 检查即将参与持久化标识的�
 
 | 计划字段 | 处理 | 当前行为与限制 | 后续 |
 |---|---|---|---|
-| `host/tasks/shutdownTimeoutMs` | `deferred` | 物理任务不响应abort时关闭等待无上限 | 会无限等待，下一轮必做 |
-| `core/run-controller/pauseTimeoutMs` | `deferred` | 安全暂停等待当前推进无超时 | 会无限等待，下一轮必做 |
-| `core/proposal-events/leaseTimeoutMs` | `deferred` | reservation无租约回收，仅显式release/ack | 会无限等待，下一轮必做 |
+| `host/tasks/shutdownTimeoutMs` | `implemented` | 默认30000ms；物理任务不响应abort时按上限报告未结束任务，关闭保持halted，之后继续跟踪真实结束 | 已实现 |
+| `core/run-controller/pauseTimeoutMs` | `implemented` | 默认30000ms；超时halt执行栅栏并报RUN_PAUSE_TIMEOUT，不返回安全边界 | 已实现 |
+| `core/proposal-events/leaseTimeoutMs` | `implemented` | 默认60000ms；reservation到期自动回收并唤醒等待者，显式release/ack仍可用 | 已实现 |
 | `core/termination/maxAdvances` | `deferred` | 无推进次数上限 | 后续排期另定 |
 | `host/slots/maxDepth` | `deferred` | 嵌套slot无深度上限 | 后续排期另定 |
 | `extras/shell/timeoutMs` | `dropped` | shell自身无超时，依赖invocation.signal；是否所有调用均有期限仍未核实 | 后续排期另定 |

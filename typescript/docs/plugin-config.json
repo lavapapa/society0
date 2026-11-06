@@ -50,6 +50,14 @@
               "mode": "recreate",
               "affectsResults": false,
               "secret": null
+            },
+            {
+              "name": "shutdownTimeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": null
             }
           ]
         },
@@ -563,6 +571,14 @@
               "mode": "new-run",
               "affectsResults": true,
               "secret": null
+            },
+            {
+              "name": "leaseTimeoutMs",
+              "type": "number",
+              "default": 60000,
+              "mode": "boundary",
+              "affectsResults": false,
+              "secret": null
             }
           ]
         },
@@ -645,6 +661,14 @@
               "default": 1024,
               "mode": "new-run",
               "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "pauseTimeoutMs",
+              "type": "number",
+              "default": 30000,
+              "mode": "boundary",
+              "affectsResults": false,
               "secret": null
             }
           ]
