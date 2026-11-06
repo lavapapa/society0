@@ -4,11 +4,11 @@ import {createServer} from 'node:http';
 import {createModels,createProvider,InMemoryCredentialStore,envApiKeyAuth} from '@earendil-works/pi-ai';
 import * as completions from '@earendil-works/pi-ai/api/openai-completions';
 import {PiModelProvider} from '../.build/core/dist/model-pi/provider.js';
-import {resolveTransport} from '../.build/core/dist/model-pi/json-transport.js';
+import {resolveTransport,jsonTransport} from '../.build/core/dist/model-pi/json-transport.js';
 import {fixture} from './pr08-support.mjs';
 
 const model={id:'offline',name:'offline',api:'openai-completions',provider:'offline',baseUrl:'',reasoning:false,input:['text'],cost:{input:0,output:0,cacheRead:0,cacheWrite:0},contextWindow:8192,maxTokens:256};
-async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler}){
+async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler,ledger}={}){
   const received=[],sockets=new Set();
   const server=createServer(async(request,response)=>{const chunks=[];for await(const chunk of request)chunks.push(chunk);const body=Buffer.concat(chunks).toString();received.push(body);await handler(body,response)});
   server.on('connection',socket=>{sockets.add(socket);socket.on('close',()=>sockets.delete(socket))});
@@ -17,7 +17,7 @@ async function gateway(run,{transport='json',jsonTimeoutMs=180000,handler}){
   const selectedModel={...model,baseUrl:'http://127.0.0.1:'+server.address().port+'/v1'};
   const models=createModels({credentials,authContext:{env:async()=>undefined,fileExists:async()=>false}});
   models.setProvider(createProvider({id:'offline',models:[selectedModel],auth:{apiKey:envApiKeyAuth('explicit',[])},api:completions}));
-  const provider=new PiModelProvider(models,run.ctx.attempts,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,maxRequestBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,jsonTimeoutMs,transport});
+  const provider=new PiModelProvider(models,ledger??run.ctx.attempts,{runId:'pr07',providerId:'offline',maxEventBytes:65536,maxRawBytes:1048576,maxRequestBytes:1048576,options:{maxTokens:256,maxRetries:0,transport:'sse'},timeoutMs:5000,jsonTimeoutMs,transport});
   return {server,provider,received,close:async()=>{await provider.close();server.closeAllConnections();for(const socket of sockets)socket.destroy();await new Promise(resolve=>server.close(resolve))}};
 }
 async function call(run,provider,context,options={}){
@@ -111,6 +111,49 @@ test('D1 abort while waiting for the json response terminates the request',async
   const {error,message}=await pending;
   assert.ok(error||message?.stopReason==='aborted');
   await Promise.race([closed.promise,new Promise((_,reject)=>setTimeout(()=>reject(Error('response not closed')),5000))]);
+});
+
+test('D1 json transport composes request and init abort signals',async()=>{
+  const request=new AbortController(),init=new AbortController();
+  let seen;
+  const inner=(_input,options)=>{seen=options.signal;return new Promise((_,reject)=>{const abort=()=>reject(seen.reason);seen.addEventListener('abort',abort,{once:true});if(seen.aborted)abort()})};
+  const transport=jsonTransport(inner,{timeoutMs:60000,onWireBody:async()=>{},onResponse:async()=>{}});
+  const body=JSON.stringify({stream:true,messages:[]});
+  const pending=transport(new Request('http://127.0.0.1/v1/chat/completions',{method:'POST',body,signal:request.signal}),{method:'POST',body,headers:{'content-type':'application/json'},signal:init.signal});
+  await new Promise(resolve=>setTimeout(resolve,50));
+  request.abort(Error('request signal abort'));
+  await assert.rejects(Promise.race([pending,new Promise((_,reject)=>setTimeout(()=>reject(Error('init-only signal composition lost the request signal')),1000))]),/request signal abort/);
+  assert.ok(seen.aborted);
+});
+
+test('D1 abort interrupts slow evidence staging before the json request is dispatched',async t=>{
+  const run=await fixture();t.after(()=>run.close());
+  const attempts=run.ctx.attempts,entered=Promise.withResolvers();
+  let sent=false,delayed=false;
+  const stageEvidence=(source,mediaType,options)=>{
+    if(delayed||mediaType!=='application/json')return attempts.stageEvidence(source,mediaType,options);
+    delayed=true;
+    return new Promise((resolve,reject)=>{
+      let timer;
+      const cleanup=()=>{if(timer)clearTimeout(timer);options?.signal?.removeEventListener('abort',onAbort)};
+      const onAbort=()=>{cleanup();reject(options?.signal?.reason??Object.assign(Error('aborted'),{name:'AbortError'}))};
+      timer=setTimeout(async()=>{cleanup();try{resolve(await attempts.stageEvidence(source,mediaType,options))}catch(error){reject(error)}},5000);
+      if(options?.signal){if(options.signal.aborted)onAbort();else options.signal.addEventListener('abort',onAbort,{once:true})}
+      entered.resolve();
+    });
+  };
+  const ledger={claim:(...args)=>attempts.claim(...args),settle:(...args)=>attempts.settle(...args),markUnknown:(...args)=>attempts.markUnknown(...args),authority:()=>attempts.authority(),evidenceChunkBytes:attempts.evidenceChunkBytes,stageEvidence};
+  const gate=await gateway(run,{ledger,handler:async(_body,response)=>{sent=true;response.end()}});
+  t.after(()=>gate.close());
+  const controller=new AbortController(),started=Date.now();
+  const pending=call(run,gate.provider,run.context('json-slow-stage'),{signal:controller.signal});
+  pending.catch(()=>{});
+  await entered.promise;
+  controller.abort(Error('client abort'));
+  const outcome=await Promise.race([pending.then(()=>({settled:true}),()=>({settled:true})),new Promise(resolve=>setTimeout(()=>resolve({settled:false}),1500))]);
+  assert.equal(outcome.settled,true,'abort must settle without waiting for slow evidence staging');
+  assert.ok(Date.now()-started<1500);
+  assert.equal(sent,false,'cancelled request must not be dispatched');
 });
 
 test('D1 jsonTimeoutMs bounds the whole request',async t=>{
