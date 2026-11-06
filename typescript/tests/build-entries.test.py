@@ -15,7 +15,6 @@ with tempfile.TemporaryDirectory(dir=os.environ['TMPDIR']) as directory:
     root=base/'source'
     for name in ['tests','examples','profiles']:(root/name).mkdir(parents=True)
     (root/'tests/fixtures').mkdir()
-    (root/'scripts').mkdir();(root/'scripts/release_compare.py').write_text('# frozen support')
     (root/'tests/gate.mjs').write_text('frozen gate');(root/'tests/fixtures/input.ts').write_text('frozen fixture')
     capture_acceptance(root,base/'snapshot')
     (root/'tests/gate.mjs').write_text('next phase gate')

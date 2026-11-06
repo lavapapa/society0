@@ -1,4 +1,4 @@
-"""对已冻结的包源进行严格分区编译；仅Core cognitive使用已批准的1500MiB堆。"""
+"""对已冻结的包源进行严格分区编译。"""
 from pathlib import Path
 import json, subprocess, os, argparse
 from build_entries import source_patterns, compile_groups
@@ -8,7 +8,6 @@ def compile_phase(root, dest, folder, label, group, options):
     if config.exists(): config.read_text()
     config.write_text(json.dumps({'compilerOptions':options,'include':group},indent=2)+'\n')
     command=['node']
-    if folder=='core' and label=='cognitive':command.append('--max-old-space-size=1500')
     command.extend([str(root/'node_modules/typescript/bin/tsc'),'-p',str(config)])
     print(json.dumps({'package':folder,'compilerPhase':label,'include':group,'command':command,'strict':True,'skipLibCheck':False}),flush=True)
     process=subprocess.Popen(command)

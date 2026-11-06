@@ -1,4 +1,4 @@
-"""安装态、性能与真实端点清单；acceptance.py、test-build.py、acceptance_ledger.py 共用，无副作用。"""
+"""安装态、性能与真实端点清单；acceptance.py、test-build.py 共用，无副作用。"""
 INSTALLED_ONLY = {'consumer.test.mjs', 'peer-contract.test.mjs', 'preflight-session.test.mjs', 'cli.test.mjs', 'module-sidecars.test.mjs'}
 INSTALLED_SCRIPTS_PREFIX = 'pr12-'
 INSTALLED_PY = {'host-quality-consumer.py', 'artifacts.test.py'}
@@ -39,4 +39,5 @@ INSTALLED_SUPPORT = {'pr07-support.mjs': 'regex-public',
  'public-fault-support.mjs': {},
  'platform-worker-fault.mjs': {},
  'pr05-support.mjs': 'regex-public',
- 'pr05-crash-child.mjs': 'regex-public'}
+ 'pr05-crash-child.mjs': 'regex-public',
+ 'history-phase-support.mjs': {}}

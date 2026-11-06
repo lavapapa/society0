@@ -31,8 +31,6 @@ def capture_acceptance(root,output):
     output.mkdir()
     for name in ['tests','examples','profiles']:
         shutil.copytree(root/name,output/name)
-    (output/'scripts').mkdir()
-    shutil.copyfile(root/'scripts/release_compare.py',output/'scripts/release_compare.py')
 
 
 def compile_groups(folder, patterns):

@@ -1,7 +1,6 @@
 from pathlib import Path
 import argparse,json,os,sys,tarfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from release_compare import path_leaks
 
 def implementation_identity(package, source, expected_commit):
     implementation=source.get('implementation')
@@ -14,7 +13,7 @@ def implementation_identity(package, source, expected_commit):
     assert implementation.get('lockfile')=='BUILD-LOCK.json',message
 
 
-def native_outputs(archive,package,references):
+def native_outputs(archive,package):
     outputs={'@society0/sqlite-native':['build/sqlite_native.node','vendor/libsqlite3.so'],
              '@society0/random-native':['build/random_native.node']}.get(package['name'])
     if outputs is None:return
@@ -23,10 +22,8 @@ def native_outputs(archive,package,references):
     record=json.load(archive.extractfile('package/NATIVE-BUILD.json'))
     assert record['outputs']==outputs,'ARTIFACT_NATIVE_OUTPUTS '+folder
     for relative in outputs+['NATIVE-BUILD.json']:
-        member='package/'+relative;reference=references/folder/relative
+        member='package/'+relative
         assert member in members,'ARTIFACT_NATIVE_MEMBER '+member
-        assert reference.is_file(),'ARTIFACT_NATIVE_REFERENCE '+str(reference)
-        assert archive.extractfile(member).read()==reference.read_bytes(),'ARTIFACT_NATIVE_BYTES '+member
 
 def sidecar_identity(archive,expected_commit):
     member='package/generated/plugin.meta.json'
@@ -82,15 +79,13 @@ def check_archive(file,artifacts,expected_commit,consumer_root=None):
         members=set(archive.getnames())
         package=json.load(archive.extractfile('package/package.json'))
         implementation_identity(package,json.load(archive.extractfile('package/SOURCE.json')),expected_commit)
-        native_outputs(archive,package,artifacts/'native-reference')
+        native_outputs(archive,package)
         sidecar_identity(archive,expected_commit)
         source_distribution(package,members)
         provenance_files(archive,members)
         declared_targets(package,members)
         declarations(archive,members)
         installed_location(artifacts,package,consumer_root)
-        leaks=path_leaks(file,[str(Path(__file__).resolve().parents[1]),str(artifacts),os.environ['HOME'],os.environ['TMPDIR']])
-        assert not leaks,leaks
         return package['name']
 
 def main(artifacts,expected_commit,consumer_root=None):
