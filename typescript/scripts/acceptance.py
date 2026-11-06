@@ -49,7 +49,7 @@ if selected is not None: run(artifact_command(selected, out / 'inputs'))
 packages = list(selected['packages']) if selected is not None else [pack(root, root / '.build' / folder, tar) for folder in release['packages']]
 packages += dependencies(root, tar)
 write(consumer / 'package.json', {'name': 'society0-outside-consumer', 'version': '1.0.0', 'private': True, 'type': 'module'})
-run(['npm', 'install', '--offline', '--ignore-scripts', *packages])
+run(['npm', 'install', '--ignore-scripts', *packages])
 for name in ['provider', 'consumer', 'jsdoc']:
     folder = consumer / 'fixture-build' / name
     shutil.copytree(fixture_root / name, folder / 'src')
@@ -59,7 +59,7 @@ for name in ['provider', 'consumer', 'jsdoc']:
     write(folder / 'package.json', manifest)
     write(folder / 'tsconfig.json', {'compilerOptions': {'target': 'ES2024', 'module': 'NodeNext', 'strict': True, 'isolatedModules': True, 'skipLibCheck': False, 'declaration': True, 'allowJs': True, 'checkJs': True, 'rootDir': 'src', 'outDir': 'dist', 'types': ['node']}, 'include': ['src/**/*']})
     run(['node', root / 'node_modules/typescript/bin/tsc', '-p', folder / 'tsconfig.json'])
-    run(['npm', 'install', '--offline', '--ignore-scripts', pack(root, folder, tar)])
+    run(['npm', 'install', '--ignore-scripts', pack(root, folder, tar)])
 run(['npm', 'ls', '--all'])
 run(profile_lock_command(consumer, mode))
 if selected is not None: run(artifact_command(selected, out / 'inputs', consumer))

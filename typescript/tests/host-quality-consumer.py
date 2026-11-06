@@ -17,7 +17,7 @@ consumer = out / 'consumer'; consumer.mkdir()
 archives = sorted((candidate / 'tarballs').glob('*.tgz'))
 assert archives, 'candidate tarballs missing'
 packages = [*archives, *dependencies(root, tar)]
-subprocess.run(['npm', 'install', '--offline', '--ignore-scripts', *map(str, packages)], cwd=consumer, check=True)
+subprocess.run(['npm', 'install', '--ignore-scripts', *map(str, packages)], cwd=consumer, check=True)
 for name in ['consumer.test.mjs', 'exports.test.mjs', 'peer-contract.test.mjs', 'pr02.test.mjs', 'cli.test.mjs']:
     text = (root / 'tests' / name).read_text().replace('../.build/host/dist/index.js', '@society0/host')
     assert '../.build/' not in text, name
