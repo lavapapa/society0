@@ -337,7 +337,7 @@
                     "sections": [
                       {
                         "id": "social-publish",
-                        "text": "Publish exactly one short social post using publish. Do not call any other tool. After the action succeeds, reply briefly."
+                        "text": "Publish exactly one short social post by calling act with action social.publish. Do not call any other tool. After the action succeeds, reply briefly."
                       }
                     ]
                   }
