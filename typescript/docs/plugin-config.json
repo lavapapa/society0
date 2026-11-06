@@ -224,6 +224,30 @@
               "secret": false
             },
             {
+              "name": "synchronous",
+              "type": "union",
+              "default": "full",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "cacheSize",
+              "type": "number",
+              "default": -65536,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "readerWorkers",
+              "type": "number",
+              "default": 0,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "busyTimeoutMs",
               "type": "number",
               "default": 5000,
@@ -481,6 +505,62 @@
               "name": "maxDependencies",
               "type": "number",
               "default": 10000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "applyBatchSegments",
+              "type": "number",
+              "default": 32,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "applyBatchBytes",
+              "type": "number",
+              "default": 268435456,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "compactEvery",
+              "type": "number",
+              "default": 64,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mirrorDirectory",
+              "type": "string",
+              "default": null,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mirrorPolicy",
+              "type": "union",
+              "default": "every-point",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mirrorIntervalMs",
+              "type": "number",
+              "default": 60000,
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": null
+            },
+            {
+              "name": "mirrorMaxLagPoints",
+              "type": "number",
+              "default": 3,
               "mode": "new-run",
               "affectsResults": true,
               "secret": null

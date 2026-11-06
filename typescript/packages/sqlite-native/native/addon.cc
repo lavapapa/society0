@@ -184,6 +184,13 @@ static void operationBudget(napi_env e,DB*d,napi_value options) {
  p_sqlite3_progress_handler(d->db,1000,progress,d);
  if(stopped(d))check(d,SQLITE_INTERRUPT);
 }
+static napi_value setControlOperation(napi_env e,DB*d,napi_value*a) {
+ napi_typedarray_type type;size_t count,offset;void*data;napi_value buffer;
+ js(napi_get_typedarray_info(e,a[3],&type,&count,&data,&buffer,&offset));
+ need(type==napi_int32_array&&count>=1,"control must be Int32Array");
+ if(d->controlRef)napi_delete_reference(e,d->controlRef);
+ d->control=(int32_t*)data;js(napi_create_reference(e,a[3],1,&d->controlRef));return boolean(e,true);
+}
 static napi_value beginOperation(napi_env e,DB*d,napi_value*) {
  controlSql(d,"BEGIN IMMEDIATE");return boolean(e,true);
 }
@@ -296,6 +303,24 @@ static napi_value applyOperation(napi_env e,DB*d,napi_value*a) {
  }
  return streamResult(e,s);
 }
+static napi_value applyManyOperation(napi_env e,DB*d,napi_value*a) {
+ need(!d->session,"Cannot apply with active capture");uint32_t count=length(e,a[3]);need(count>0,"applyMany requires at least one changeset");
+ int chunk=(int)integer(e,a[4]);int64_t maxBytes=integer(e,a[5]);int triggers;
+ check(d,p_sqlite3_db_config(d->db,SQLITE_DBCONFIG_ENABLE_TRIGGER,-1,&triggers));
+ controlSql(d,"BEGIN IMMEDIATE");
+ try {
+  check(d,p_sqlite3_db_config(d->db,SQLITE_DBCONFIG_ENABLE_TRIGGER,0,nullptr));
+  controlSql(d,"PRAGMA defer_foreign_keys=ON");
+  for(uint32_t i=0;i<count;i++){int fd=(int)integer(e,element(e,a[3],i));Stream s{d,fd,chunk,maxBytes};check(d,p_sqlite3changeset_apply_v2_strm(d->db,input,&s,nullptr,conflict,nullptr,nullptr,nullptr,SQLITE_CHANGESETAPPLY_FKNOACTION));}
+  foreignKeys(d);controlSql(d,"COMMIT");
+  check(d,p_sqlite3_db_config(d->db,SQLITE_DBCONFIG_ENABLE_TRIGGER,triggers,nullptr));
+ }catch(...) {
+  p_sqlite3_progress_handler(d->db,0,nullptr,nullptr);
+  p_sqlite3_exec(d->db,"ROLLBACK",nullptr,nullptr,nullptr);
+  p_sqlite3_db_config(d->db,SQLITE_DBCONFIG_ENABLE_TRIGGER,triggers,nullptr);throw;
+ }
+ return boolean(e,true);
+}
 static napi_value blobOperation(napi_env e,DB*d,napi_value*a) {
  auto request=a[3];auto table=text(e,property(e,request,"table")),column=text(e,property(e,request,"column"));
  int64_t rowid;bool exact;js(napi_get_value_bigint_int64(e,property(e,request,"rowid"),&rowid,&exact));
@@ -339,11 +364,11 @@ static napi_value backupOperation(napi_env e,DB*d,napi_value*a) {
 static napi_value runOperation(napi_env e,DB*d,napi_value*a,const std::string&op) {
  struct Operation {const char* name;napi_value (*run)(napi_env,DB*,napi_value*);};
  static const Operation operations[]={
-  {"begin",beginOperation},{"commit",commitOperation},{"beginSnapshot",snapshotOperation},
+  {"setControl",setControlOperation},{"begin",beginOperation},{"commit",commitOperation},{"beginSnapshot",snapshotOperation},
   {"checkForeignKeys",foreignKeysOperation},{"schema",schemaOperation},
   {"query",queryOperation},{"execute",executeOperation},{"executeMany",executeManyOperation},
   {"validateTable",validateTableOperation},{"startSession",startSessionOperation},
-  {"export",exportOperation},{"apply",applyOperation},{"blob",blobOperation},{"backup",backupOperation}
+  {"export",exportOperation},{"apply",applyOperation},{"applyMany",applyManyOperation},{"blob",blobOperation},{"backup",backupOperation}
  };
  for(const auto& operation:operations)if(op==operation.name)return operation.run(e,d,a);
  throw Failure("SQLITE_ARGUMENT","Unknown native operation");
@@ -383,11 +408,12 @@ static napi_value dispatch(napi_env e,napi_callback_info info) {
   if(op=="state")return state(e,d);
   if(op=="retireSession"){retire(d);return boolean(e,true);}
   if(op=="rollback"||op=="endSnapshot")return rollbackOperation(e,d);
+  if(op=="setControl")return setControlOperation(e,d,a);
   operationBudget(e,d,a[2]);return runOperation(e,d,a,op);
  }catch(const Failure&x) {return reportFailure(e,x);
  }catch(const std::exception&x){napi_throw_error(e,"SQLITE_NATIVE",x.what());return nullptr;}
 }
-static napi_value open(napi_env e,napi_callback_info info){DB*d=nullptr;try{size_t argc=4;napi_value a[4];js(napi_get_cb_info(e,info,&argc,a,nullptr,nullptr));need(argc==4,"open requires path, readonly, inline limit and control");d=new DB;auto path=text(e,a[0]);need(path.find('\0')==std::string::npos,"Path contains NUL");bool readonly;js(napi_get_value_bool(e,a[1],&readonly));int flags=readonly?SQLITE_OPEN_READONLY:SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE;check(d,p_sqlite3_open_v2(path.c_str(),&d->db,flags|SQLITE_OPEN_NOMUTEX,nullptr));check(d,p_sqlite3_extended_result_codes(d->db,1));p_sqlite3_limit(d->db,SQLITE_LIMIT_LENGTH,integer(e,a[2]));napi_typedarray_type type;size_t count,offset;void*data;napi_value buffer;js(napi_get_typedarray_info(e,a[3],&type,&count,&data,&buffer,&offset));need(type==napi_int32_array&&count>=1,"control must be Int32Array");d->control=(int32_t*)data;js(napi_create_reference(e,a[3],1,&d->controlRef));controlSql(d,"PRAGMA foreign_keys=ON");if(!readonly)controlSql(d,"PRAGMA journal_mode=WAL;PRAGMA synchronous=FULL;PRAGMA cache_size=-1024;");napi_value out;js(napi_create_external(e,d,finalize,nullptr,&out));return out;
+static napi_value open(napi_env e,napi_callback_info info){DB*d=nullptr;try{size_t argc=8;napi_value a[8];js(napi_get_cb_info(e,info,&argc,a,nullptr,nullptr));need(argc==4||argc==5,"open requires path, readonly, inline limit, control and optional pragmas");d=new DB;auto path=text(e,a[0]);need(path.find('\0')==std::string::npos,"Path contains NUL");bool readonly;js(napi_get_value_bool(e,a[1],&readonly));int flags=readonly?SQLITE_OPEN_READONLY:SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE;check(d,p_sqlite3_open_v2(path.c_str(),&d->db,flags|SQLITE_OPEN_NOMUTEX,nullptr));check(d,p_sqlite3_extended_result_codes(d->db,1));p_sqlite3_limit(d->db,SQLITE_LIMIT_LENGTH,integer(e,a[2]));napi_typedarray_type type;size_t count,offset;void*data;napi_value buffer;js(napi_get_typedarray_info(e,a[3],&type,&count,&data,&buffer,&offset));need(type==napi_int32_array&&count>=1,"control must be Int32Array");d->control=(int32_t*)data;js(napi_create_reference(e,a[3],1,&d->controlRef));controlSql(d,"PRAGMA foreign_keys=ON");if(!readonly){bool normal=false;int64_t cacheSize=-65536;if(argc==5){auto options=a[4];auto mode=text(e,property(e,options,"synchronous"));need(mode=="full"||mode=="normal","synchronous must be full or normal");normal=mode=="normal";double cacheNumber;js(napi_get_value_double(e,property(e,options,"cacheSize"),&cacheNumber));need(cacheNumber==(double)(int64_t)cacheNumber&&cacheNumber>=-2147483648.0&&cacheNumber<=2147483647.0&&cacheNumber!=0,"cacheSize must be a non-zero int32");cacheSize=(int64_t)cacheNumber;}controlSql(d,("PRAGMA journal_mode=WAL;PRAGMA synchronous="+std::string(normal?"NORMAL":"FULL")+";PRAGMA cache_size="+std::to_string(cacheSize)+";").c_str());}napi_value out;js(napi_create_external(e,d,finalize,nullptr,&out));return out;
  }catch(const Failure&x){if(d)finalize(e,d,nullptr);napi_throw_error(e,x.code.c_str(),x.message.c_str());return nullptr;}catch(const std::exception&x){if(d)finalize(e,d,nullptr);napi_throw_error(e,"SQLITE_NATIVE",x.what());return nullptr;}}
 static napi_value memory(napi_env e,napi_callback_info){try{auto r=object(e);put(e,r,"used",number(e,p_sqlite3_memory_used()));put(e,r,"peak",number(e,p_sqlite3_memory_highwater(0)));put(e,r,"heapLimit",number(e,p_sqlite3_hard_heap_limit64(-1)));put(e,r,"sqliteVersion",string(e,p_sqlite3_libversion()));put(e,r,"sourceIdentity",string(e,p_sqlite3_sourceid()));return r;}catch(...){napi_throw_error(e,"SQLITE_NAPI","Memory diagnostics failed");return nullptr;}}
 static napi_value heap(napi_env e,napi_callback_info info){try{size_t argc=1;napi_value a[1];js(napi_get_cb_info(e,info,&argc,a,nullptr,nullptr));return number(e,p_sqlite3_hard_heap_limit64(integer(e,a[0])));}catch(const Failure&x){napi_throw_error(e,x.code.c_str(),x.message.c_str());return nullptr;}}

@@ -28,9 +28,9 @@ export async function fixture(options={}) {
   await ctx.plugin(hostApi.TaskSupervisor,{concurrency:8,maxPending:128,maxBytes:16777216});
   await ctx.plugin(CompositionStrategies);await ctx.plugin(SlotStrategies);await ctx.plugin(Slots);
   await ctx.plugin(ExecutionFence);await ctx.plugin(ArtifactsLocal,{directory:join(directory,'artifacts')});
-  await ctx.plugin(SqliteDatabase,{directory,runId,generation,maxTransactionMs:30000});
+  await ctx.plugin(SqliteDatabase,{directory,runId,generation,maxTransactionMs:30000,...options.database});
   await ctx.plugin(Initializers);await ctx.plugin(SqliteBootstrap,{maxTransactionMs:20000});
-  await ctx.plugin(SqliteHistory,{directory,runId,generation,controlSequence:options.controlSequence??'0'});
+  await ctx.plugin(SqliteHistory,{directory,runId,generation,controlSequence:options.controlSequence??'0',...options.history});
   if(options.attempts)await ctx.plugin(Attempts,{directory:authorityDirectory,lineage,...(options.attemptChunkBytes===undefined?{}:{chunkBytes:options.attemptChunkBytes})});
   Object.assign(f,{database:ctx.database,fence:ctx.executionFence,history:ctx.history,artifacts:ctx.artifacts});
   if(options.onPhase)ctx.history.bindIOObserver(options.onPhase);

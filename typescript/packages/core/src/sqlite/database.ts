@@ -3,9 +3,11 @@ import {assertLiteral} from '@society0/host/config-resolvers';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {isDeepStrictEqual} from 'node:util';
 import {randomUUID} from 'node:crypto';
+import {availableParallelism} from 'node:os';
 import pLimit from 'p-limit';
 import type {ExecutionGate,WriteLease,PublicationLease,CommitPermit} from '../execution-fence/state.js';
 import {SqlRpc} from './rpc.js';
+import {ReaderPool} from './readers.js';
 import {fault,inputBytes,rpcBytes,rpcData,positive,type DatabaseOptions,type TransactionRequest,type SqliteTransaction,type SqliteSnapshot,type CommitReceipt,type CommitProbe,type CommitPhase,type CommitFailure,type SqliteRuntimeMetadata,type SqliteMigration,type SqliteSchemaVersion} from './contracts.js';
 export interface PhysicalTasks {run<T>(label:string,task:(signal:AbortSignal)=>Promise<T>,options?:{signal?:AbortSignal;bytes?:number}):Promise<T>&{settled:Promise<void>}}
 const inTransaction=new AsyncLocalStorage<Database>();
@@ -29,18 +31,18 @@ export class Database {
  readonly options:Required<DatabaseOptions>;
  private rpc:SqlRpc;private control=new Int32Array(new SharedArrayBuffer(4));
  private writer=pLimit({concurrency:1,rejectOnClear:true});private pendingBytes=0;private closing?:Promise<void>;private halted=false;private diagnostic=false;private lastCommitFailure?:CommitFailure;
- private transactions=new Set<Promise<unknown>>();private snapshots=new Set<SqliteSnapshot>();private transactionIds=new WeakMap<SqliteTransaction,string>();
- private probes=new Set<Promise<void>>();private openingSnapshots=0;private inflight=new Set<string>();private txCalls=new WeakMap<SqliteTransaction,(op:string,args:unknown)=>Promise<any>>();
+ private transactions=new Set<Promise<unknown>>();private snapshots=new Set<SqliteSnapshot>();private counters={commits:0,fsyncs:0};private transactionIds=new WeakMap<SqliteTransaction,string>();
+ private probes=new Set<Promise<void>>();private openingSnapshots=0;private readers?:ReaderPool;private snapshotWaiters:{resolve:()=>void;reject:(error:Error)=>void;signal?:AbortSignal}[]=[];private inflight=new Set<string>();private txCalls=new WeakMap<SqliteTransaction,(op:string,args:unknown)=>Promise<any>>();
  private constructor(options:DatabaseOptions,private fence:Pick<ExecutionGate,'enter'|'halt'|'assertPublication'>,private tasks?:PhysicalTasks){
-  this.options={busyTimeoutMs:5000,maxQueuedBytes:32*1024*1024,maxPending:128,maxTransactionMs:30000,maxQueryBytes:1048576,maxQueryRows:10000,maxSnapshots:16,maxSnapshotAgeMs:30000,maxInputBytes:1048576,maxInlineBytes:1048576,...options};
-  for(const [key,value] of Object.entries(this.options))if(typeof value==='number')positive(value,key);
+  this.options={synchronous:'full',cacheSize:-65536,readerWorkers:0,busyTimeoutMs:5000,maxQueuedBytes:32*1024*1024,maxPending:128,maxTransactionMs:30000,maxQueryBytes:1048576,maxQueryRows:10000,maxSnapshots:16,maxSnapshotAgeMs:30000,maxInputBytes:1048576,maxInlineBytes:1048576,...options};
+  for(const [key,value] of Object.entries(this.options))if(typeof value==='number'&&key!=='cacheSize'&&key!=='readerWorkers')positive(value,key);if(!Number.isSafeInteger(this.options.cacheSize)||!this.options.cacheSize)throw fault('SQLITE_BUDGET','cacheSize');if(!this.options.readerWorkers)this.options.readerWorkers=Math.min(4,Math.max(1,Math.floor(availableParallelism()/4)));positive(this.options.readerWorkers,'readerWorkers');
   this.runId=options.runId;this.rpc=new SqlRpc({options:this.options,control:this.control},this.options.maxQueuedBytes,this.options.maxPending);
   this.metadata=Object.freeze({
    read:async(snapshot:SqliteSnapshot)=>{if(snapshot.runId!==this.runId)throw fault('SQLITE_RUN_ID');const rows=await snapshot.query({sql:'SELECT value FROM s0_frontier WHERE id=1'},{maxRows:1,maxBytes:this.options.maxQueryBytes});if(!rows[0])throw fault('SQLITE_FRONTIER_MISSING');return JSON.parse(String(rows[0].value))},
    complete:async(tx:SqliteTransaction,frontier:any,requiredOperations:readonly string[])=>{const call=this.txCalls.get(tx);if(!call)throw fault('SQLITE_TX_EXPIRED');await call('metadata',{frontier,requiredOperations})},
   });
  }
- static async open(options:DatabaseOptions,fence:Pick<ExecutionGate,'enter'|'halt'|'assertPublication'>,tasks?:PhysicalTasks):Promise<Database>{const db=new Database(options,fence,tasks);try{const ready=await db.rpc.call('ready');db.diagnostic=ready.reopened;return db}catch(error){await db.rpc.worker.terminate();await db.rpc.exited;throw error}}
+ static async open(options:DatabaseOptions,fence:Pick<ExecutionGate,'enter'|'halt'|'assertPublication'>,tasks?:PhysicalTasks):Promise<Database>{const db=new Database(options,fence,tasks);try{const ready=await db.rpc.call('ready');db.diagnostic=ready.reopened;db.readers=new ReaderPool(db.options,db.options.readerWorkers);await db.readers.ready();return db}catch(error){await db.readers?.close().catch(()=>{});await db.rpc.worker.terminate();await db.rpc.exited;throw error}}
  private available(){if(this.closing)throw fault('SQLITE_CLOSED');if(this.halted)throw fault('SQLITE_HALTED');if(this.diagnostic)throw fault('SQLITE_DIAGNOSTIC')}
   private completeAdmission(lease:PublicationLease,point:Parameters<Database['activateFromCompletePoint']>[1]):void{
   if(this.closing||this.halted)throw fault('SQLITE_HALTED');if(!this.diagnostic)throw fault('SQLITE_ALREADY_ACTIVE');
@@ -140,22 +142,29 @@ export class Database {
    await Promise.allSettled([...work]);if(failure)throw failure;check();active=false;this.transactionIds.delete(tx);this.txCalls.delete(tx);
    if(rpcBytes(value)>this.options.maxQueryBytes)throw fault('SQLITE_RETURN_BUDGET');
    commitStarted=true;signal.removeEventListener('abort',cancel);signal.removeEventListener('abort',abort);clearTimeout(timer);
-   const receipt=await this.rpc.call<CommitReceipt>('commit',{tx:id});return {value,receipt};
+   const receipt=await this.rpc.call<CommitReceipt>('commit',{tx:id});if(receipt.counters)this.counters={...receipt.counters};return {value,receipt};
   }catch(error){
    active=false;this.forgetTransaction(tx);
    return await this.failedTransaction(error,commitStarted,begun,id,request.operationId);
   }finally{clearTimeout(timer);signal.removeEventListener('abort',cancel);signal.removeEventListener('abort',abort);await callback?.catch(()=>{});Atomics.store(this.control,0,0)}
  }
- async snapshot({maxAgeMs}:{maxAgeMs:number}):Promise<SqliteSnapshot>{
-  if(this.closing)throw fault('SQLITE_CLOSED');if(inTransaction.getStore()===this)throw fault('SQLITE_NESTED_SNAPSHOT');positive(maxAgeMs,'maxAgeMs');if(maxAgeMs>this.options.maxSnapshotAgeMs||this.snapshots.size+this.openingSnapshots>=this.options.maxSnapshots)throw fault('SQLITE_SNAPSHOT_BUDGET');
-  const id=randomUUID(),control=new Int32Array(new SharedArrayBuffer(4));const cancelNative=()=>Atomics.store(control,0,1);this.openingSnapshots++;let start:any;try{start=await this.readCall('snapshot',{id,maxAgeMs,control:control.buffer},cancelNative)}finally{this.openingSnapshots--}if(this.closing){await this.rpc.call('snapshotClose',{id}).catch(()=>{});throw fault('SQLITE_CLOSED')}let closed=false;let closing:Promise<void>|undefined;
+ async snapshot({maxAgeMs,signal}:{maxAgeMs:number;signal?:AbortSignal}):Promise<SqliteSnapshot>{
+  if(this.closing)throw fault('SQLITE_CLOSED');if(inTransaction.getStore()===this)throw fault('SQLITE_NESTED_SNAPSHOT');positive(maxAgeMs,'maxAgeMs');if(maxAgeMs>this.options.maxSnapshotAgeMs)throw fault('SQLITE_SNAPSHOT_BUDGET');
+  await this.reserveSnapshot(signal);
+  const reader=this.readers!.pick();const id=randomUUID(),control=new Int32Array(new SharedArrayBuffer(4));const cancelNative=()=>Atomics.store(control,0,1);
+  let start:any;try{start=await reader.call('snapshot',{id,maxAgeMs,control:control.buffer},signal)}catch(error){this.openingSnapshots--;this.wakeSnapshot();throw error}
+  this.openingSnapshots--;if(this.closing){await reader.call('snapshotClose',{id}).catch(()=>{});throw fault('SQLITE_CLOSED')}let closed=false;let closing:Promise<void>|undefined;
   const check=()=>{if(closed||this.closing)throw fault('SQLITE_SNAPSHOT_EXPIRED')};
   const snapshot:SqliteSnapshot=Object.freeze({id,runId:this.runId,...start,
-   query:async(statement:any,bounds:any)=>{check();return this.readCall('snapshotQuery',{id,statement,bounds},cancelNative)},
-   readBlobRange:async(request:any)=>{check();return this.readCall('blob',{id,request},cancelNative)},
-   close:()=>closing??=(async()=>{closed=true;cancelNative();clearTimeout(timer);this.snapshots.delete(snapshot);await this.rpc.call('snapshotClose',{id})})(),
+   query:async(statement:any,bounds:any)=>{check();return reader.call('snapshotQuery',{id,statement,bounds},signal)},
+   readBlobRange:async(request:any)=>{check();return reader.call('blob',{id,request},signal)},
+   close:()=>closing??=(async()=>{closed=true;cancelNative();clearTimeout(timer);this.snapshots.delete(snapshot);this.wakeSnapshot();await reader.call('snapshotClose',{id})})(),
   });const timer=setTimeout(()=>{void snapshot.close().catch(()=>{})},maxAgeMs);this.snapshots.add(snapshot);return snapshot;
  }
+ private async reserveSnapshot(signal?:AbortSignal):Promise<void>{while(this.snapshots.size+this.openingSnapshots>=this.options.maxSnapshots)await this.waitSnapshot(signal);this.openingSnapshots++}
+ private waitSnapshot(signal?:AbortSignal):Promise<void>{return new Promise((resolve,reject)=>{const abort=()=>{const index=this.snapshotWaiters.indexOf(entry);if(index>=0)this.snapshotWaiters.splice(index,1);reject(signal!.reason)};const entry={resolve:()=>{signal?.removeEventListener('abort',abort);resolve()},reject:(error:Error)=>{signal?.removeEventListener('abort',abort);reject(error)},signal};if(signal?.aborted){reject(signal.reason);return}signal?.addEventListener('abort',abort,{once:true});this.snapshotWaiters.push(entry)})}
+ private wakeSnapshot(){const entry=this.snapshotWaiters.shift();if(entry)entry.resolve()}
+
  probe(operationId:string):Promise<CommitProbe>{
   if(this.closing)return Promise.resolve({status:'unknown',reason:'database closed'});
   let work:Promise<CommitProbe>,settled:Promise<void>;
@@ -171,6 +180,6 @@ export class Database {
   }catch(error){return {status:'unknown',reason:String(error)}}
  }
  nativeDiagnostics():Promise<ConnectionState & {schemaEnumerations:number}>{return this.readCall('state')}
- diagnostics(){return {...this.rpc.snapshot(),pendingTransactionBytes:this.pendingBytes,inflightOperations:this.inflight.size,snapshots:this.snapshots.size,halted:this.halted,diagnostic:this.diagnostic,lastCommitFailure:this.lastCommitFailure}}
- close():Promise<void>{return this.closing??=(async()=>{await Promise.allSettled([...this.transactions,...this.probes]);await Promise.allSettled([...this.snapshots].map(s=>s.close()));await this.rpc.close()})()}
+ diagnostics(){const writer=this.rpc.snapshot(),reader=this.readers?.diagnostics();return {...writer,...this.counters,synchronous:this.options.synchronous??'full',active:writer.active+(reader?.active??0),pending:writer.pending+(reader?.pending??0),queuedBytes:writer.queuedBytes+(reader?.queuedBytes??0),pendingTransactionBytes:this.pendingBytes,inflightOperations:this.inflight.size,snapshots:this.snapshots.size,snapshotQueue:this.snapshotWaiters.length,openingSnapshots:this.openingSnapshots,readers:this.options.readerWorkers,readerPool:reader,halted:this.halted,diagnostic:this.diagnostic,lastCommitFailure:this.lastCommitFailure}}
+ close():Promise<void>{return this.closing??=(async()=>{for(const waiter of this.snapshotWaiters.splice(0))waiter.reject(fault('SQLITE_CLOSED'));await Promise.allSettled([...this.transactions,...this.probes]);await Promise.allSettled([...this.snapshots].map(s=>s.close()));await this.readers?.close();await this.rpc.close()})()}
 }
