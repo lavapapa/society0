@@ -40,7 +40,7 @@ test('D4 /results 身份：版本 owner 按根、禁跨根 rename、写入带 pr
         const saved = await session.value.saveResult('query.jsonl', rows(), context, { query: { prefix: 'a' }, revision: '3', seed: 7 });
         assert.ok(saved.provenance, JSON.stringify(saved));
         assert.equal(saved.provenance.kind, 'save-result');
-        assert.deepEqual(saved.provenance.details, { query: { prefix: 'a' }, revision: '3', seed: 7 });
+        assert.deepEqual(saved.provenance.source, { query: { prefix: 'a' }, revision: '3', seed: 7 });
 
         const result = await ctx.explorationShell.execute('printf manual >/results/manual.txt', session.value, context);
         assert.equal(result.exitCode, 0, result.stderr);

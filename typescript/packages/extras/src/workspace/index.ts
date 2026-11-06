@@ -183,7 +183,7 @@ export class Workspace extends Service {
         return {
             kind: typeof declared === 'string' ? declared : this.rootTag(path) === 'results' ? 'manual' : 'write',
             operationId: context.operationId, runId: context.runId, actorId: scope.actorId,
-            momentId: scope.momentId, scopeQuery: scope.query, details: value ? details : null
+            momentId: scope.momentId, scopeQuery: scope.query, source: value ? details : null
         };
     }
     private async renameNode(mutation: Extract<ExplorationMutation, {
