@@ -50,8 +50,9 @@ class NativeHost implements Host {
   }
   private report(drained: boolean): HostCloseReport {
     const diagnostics = this.diagnostics.snapshot();
-    return {status:diagnostics.closeFailures ? 'halted' : 'closed', drained, diagnostics,
-      resources:this.resources?.closeReport(), tasks:this.tasks?.snapshot()};
+    const tasks=this.tasks?.snapshot();
+    return {status:diagnostics.closeFailures ? 'halted' : 'closed', drained:drained && !tasks?.activeCount && !tasks?.pendingCount, diagnostics,
+      resources:this.resources?.closeReport(), tasks};
   }
   private async finishClose(): Promise<HostCloseReport> {
     this.status = 'closing';

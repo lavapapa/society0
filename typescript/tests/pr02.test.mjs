@@ -301,3 +301,29 @@ test('PR02-T04 repeated resource disposer joins once and cannot release successo
     await successor();assert.equal(closes,2);assert.equal(host.ctx.resources.closeReport().open,0);
   }finally{release.resolve();await first;await second;await host.close()}
 });
+
+
+test('tasks shutdownTimeoutMs bounds a task that ignores abort and keeps tracking it', {timeout:5000}, async()=>{
+  const host=await taskHost({concurrency:1,maxPending:1,maxBytes:10,shutdownTimeoutMs:20});
+  const tasks=host.ctx.tasks;
+  let owner;
+  await host.ctx.plugin({inject:['tasks'],apply(ctx){owner=ctx}});
+  const entered=Promise.withResolvers(),release=Promise.withResolvers();
+  const task=owner.tasks.run('stuck-without-abort',async()=>{entered.resolve();await release.promise});
+  const observed=task.catch(()=>{});
+  try{
+    await entered.promise;
+    const started=Date.now();
+    const failure=await host.close().then(()=>undefined,error=>error);
+    assert.ok(failure instanceof hostApi.HostCloseError, String(failure));
+    assert.ok(Date.now()-started<2000,'close must not wait for a task that ignores abort');
+    assert.equal(failure.report.drained,false);
+    assert.equal(failure.report.tasks.activeCount,1);
+    assert.equal(failure.report.tasks.tasks[0].cancelRequested,true);
+    assert.ok(failure.report.diagnostics.errors.some(record=>record.code==='TASK_DRAIN_TIMEOUT'),JSON.stringify(failure.report.diagnostics));
+    release.resolve();
+    await observed;
+    await task.settled;
+    assert.equal(tasks.snapshot().activeCount,0);
+  }finally{release.resolve();await observed;await host.close().catch(()=>{})}
+});

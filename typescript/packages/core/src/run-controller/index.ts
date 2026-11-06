@@ -7,13 +7,15 @@ import type { RuntimeFrontier } from '../sqlite/contracts.js';
 import '../generation-views/index.js';
 import '../sqlite-history/index.js';
 export const Config = Schema.object({
-    maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024)
+    maxTransactionMs: Schema.natural().min(1).default(15000), maxPendingAcknowledgements: Schema.natural().min(1).default(1024), pauseTimeoutMs: Schema.natural().min(1).default(30000)
 });
 export const metadata: PluginMetadata = {
     title: 'run-controller', summary: '固定代视图、真实排空与SQL完整点推进', configVersion: 1, configPolicy: [{
             path: '/maxTransactionMs', mode: 'new-run', affectsResults: false
         }, {
             path: '/maxPendingAcknowledgements', mode: 'new-run', affectsResults: true
+        }, {
+            path: '/pauseTimeoutMs', mode: 'boundary', affectsResults: false
         }], scope: 'run', hostAbi: 'society0/host/1'
 };
 export const api: ApiEntry = {
@@ -366,10 +368,31 @@ export class RunController extends Service {
         await session?.held?.release();
         this.view = undefined;
     }
+    private async awaitPause(): Promise<RunResult | undefined> {
+        const running = this.running;
+        if (!running)
+            return undefined;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+                const reason = `RUN_PAUSE_TIMEOUT: no safe boundary after ${this.config.pauseTimeoutMs}ms`;
+                this.ctx.executionFence.halt(reason);
+                reject(Object.assign(Error(reason), { timeoutMs: this.config.pauseTimeoutMs, progress: this.diagnostics() }));
+            }, this.config.pauseTimeoutMs);
+            timer.unref();
+        });
+        try {
+            return await Promise.race([running, deadline]);
+        }
+        finally {
+            if (timer)
+                clearTimeout(timer);
+        }
+    }
     async pauseAtBoundary(): Promise<BoundaryLease> {
         this.stop = true;
         this.wait?.abort(Error('boundary requested'));
-        const result = await this.running;
+        const result = await this.awaitPause();
         if (result?.status === 'failed' || !this.complete)
             throw Error('RUN_NO_BOUNDARY');
         const cut = await this.ctx.history.current();

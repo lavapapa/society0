@@ -8,6 +8,7 @@
 | ./tasks | concurrency | number | 4 | recreate | false | null |
 | ./tasks | maxPending | number | 1024 | recreate | false | null |
 | ./tasks | maxBytes | number | 67108864 | recreate | false | null |
+| ./tasks | shutdownTimeoutMs | number | 30000 | recreate | false | null |
 | ./module-resolver | baseURL | string | null | recreate | false | null |
 | ./run-directory | maxOpenRuns | number | 16 | recreate | true | false |
 | ./observation-gateway | maxPageSize | number | 100 | live | false | null |
@@ -58,11 +59,13 @@
 | ./proposal-events | source | string | "events" | new-run | true | null |
 | ./proposal-events | maxPending | number | 1024 | new-run | true | null |
 | ./proposal-events | maxBytes | number | 1048576 | new-run | true | null |
+| ./proposal-events | leaseTimeoutMs | number | 60000 | boundary | false | null |
 | ./checkpoint-policy | every | number | 1 | new-run | true | null |
 | ./generation-binding | generation | string | null | new-run | true | null |
 | ./generation-binding | controlSequence | string | "0" | new-run | true | null |
 | ./run-controller | maxTransactionMs | number | 15000 | new-run | false | null |
 | ./run-controller | maxPendingAcknowledgements | number | 1024 | new-run | true | null |
+| ./run-controller | pauseTimeoutMs | number | 30000 | boundary | false | null |
 | ./random | algorithm | const | "philox4x32-10/v1" | new-run | true | null |
 | ./random | seed | string | "study-1" | new-run | true | null |
 | ./attempts | directory | string | null | new-run | true | null |

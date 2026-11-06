@@ -1,8 +1,8 @@
 import { Context, Service } from '@society0/host';
 import Schema from '@society0/schemastery';
 import type { PluginMetadata, ApiEntry } from '@society0/host/module-resolver';
-export const Config = Schema.object({ source: Schema.string().default('events'), maxPending: Schema.natural().min(1).default(1024), maxBytes: Schema.natural().min(1).default(1048576) });
-export const metadata: PluginMetadata = { "title": "proposal-events", "summary": "proposal-events", "configVersion": 1, "configPolicy": [{ "path": "/source", "mode": "new-run", "affectsResults": true }, { "path": "/maxPending", "mode": "new-run", "affectsResults": true }, { "path": "/maxBytes", "mode": "new-run", "affectsResults": true }], "scope": "generation", "hostAbi": "society0/host/1" };
+export const Config = Schema.object({ source: Schema.string().default('events'), maxPending: Schema.natural().min(1).default(1024), maxBytes: Schema.natural().min(1).default(1048576), leaseTimeoutMs: Schema.natural().min(1).default(60000) });
+export const metadata: PluginMetadata = { "title": "proposal-events", "summary": "proposal-events", "configVersion": 1, "configPolicy": [{ "path": "/source", "mode": "new-run", "affectsResults": true }, { "path": "/maxPending", "mode": "new-run", "affectsResults": true }, { "path": "/maxBytes", "mode": "new-run", "affectsResults": true }, { "path": "/leaseTimeoutMs", "mode": "boundary", "affectsResults": false }], "scope": "generation", "hostAbi": "society0/host/1" };
 export const api: ApiEntry = { "exportPath": "./proposal-events", "provides": [{ "key": "proposalSource", "protocol": "proposalSource", "major": 1, "capabilities": [] }], "requires": [{ "service": { "key": "resources", "protocol": "resources", "major": 1, "capabilities": [] }, "optional": false, "phase": "module" }] };
 import type { Json, Proposal, ProposalResult, ProposalSource as Source, CompletePoint } from '../contracts/runtime.js';
 import { integer } from '../clock-ticks/index.js';
@@ -24,9 +24,44 @@ export class ProposalSource extends Service implements Source {
     private acknowledgedThrough = 0n;
     private reservedThrough = 0n;
     private waiters = new Set<() => void>();
+    private leases = new Map<string, ReturnType<typeof setTimeout>>();
+    private expired = 0;
     private ended = false;
     private config: ReturnType<typeof Config>;
-    constructor(ctx: Context, config = {}) { super(ctx, 'proposalSource'); this.config = Config(config); ctx.resources.use('proposal-events', () => { this.ended = true; this.wake(); }); }
+    constructor(ctx: Context, config = {}) {
+        super(ctx, 'proposalSource');
+        this.config = Config(config);
+        ctx.resources.use('proposal-events', () => {
+            this.ended = true;
+            for (const timer of this.leases.values())
+                clearTimeout(timer);
+            this.leases.clear();
+            this.wake();
+        });
+    }
+    private armLease(id: string) {
+        this.clearLease(id);
+        const timer = setTimeout(() => this.expireLease(id), this.config.leaseTimeoutMs);
+        timer.unref();
+        this.leases.set(id, timer);
+    }
+    private clearLease(id: string) {
+        const timer = this.leases.get(id);
+        if (timer) {
+            clearTimeout(timer);
+            this.leases.delete(id);
+        }
+    }
+    /** reservation到期自动归还，等待者不会因持有者失联而永久挂起。 */
+    private expireLease(id: string) {
+        this.leases.delete(id);
+        const held = this.events.get(id);
+        if (!held || !held.reserved)
+            return;
+        held.reserved = false;
+        this.expired++;
+        this.wake();
+    }
     private wake() {
         for (const wake of this.waiters)
             wake();
@@ -65,6 +100,7 @@ export class ProposalSource extends Service implements Source {
             if (next) {
                 next.reserved = true;
                 this.reservedThrough = integer(next.event.offset);
+                this.armLease(next.event.id);
                 const e = next.event;
                 return { kind: 'proposal', proposal: { id: e.id, cursor, planKind: 'events/1', payload: { events: [{ ...e }], nextCursor: e.offset, trigger: { time: e.time, offset: e.offset } }, reservation: { source: this.config.source, id: e.id, operationId: e.id } } };
             }
@@ -90,12 +126,14 @@ export class ProposalSource extends Service implements Source {
             this.acknowledgedThrough = through;
         for (const [id, held] of this.events)
             if (integer(held.event.offset) <= this.acknowledgedThrough) {
+                this.clearLease(id);
                 this.events.delete(id);
                 this.bytes -= held.bytes;
             }
     }
-    diagnostics() { return { pending: this.events.size, bytes: this.bytes, waiting: this.waiters.size, acknowledgedThrough: String(this.acknowledgedThrough) }; }
+    diagnostics() { return { pending: this.events.size, bytes: this.bytes, waiting: this.waiters.size, expired: this.expired, acknowledgedThrough: String(this.acknowledgedThrough) }; }
     async release(proposal: Proposal) {
+        this.clearLease(proposal.id);
         const held = this.events.get(proposal.id);
         if (held)
             held.reserved = false;
