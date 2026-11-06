@@ -27,5 +27,7 @@ export function intersects(file: readonly Audience[], agent: readonly Audience[]
     return file.some(audience => agent.includes(audience));
 }
 export function effective(file: readonly Audience[], agent: readonly Audience[]): readonly Audience[] {
+    if (file.length === 1 && file[0] === 'all' && agent.includes('all'))
+        return file;
     return file.filter(audience => agent.includes(audience));
 }

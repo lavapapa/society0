@@ -30,6 +30,7 @@ export function etagOf(path: string, revision: string, audiences: readonly Audie
     return path + '\u0000' + revision + '\u0000' + audiences.join('\u0000');
 }
 function text(bytes: Uint8Array) { return Buffer.from(bytes).toString('utf8'); }
+const ALL_AUDIENCES: readonly Audience[] = ['all'];
 function audienceOk(audience: Audience, agent: readonly Audience[]) { return audience === 'all' || agent.includes(audience); }
 
 export class PublicMount implements ExplorationMount {
@@ -226,17 +227,21 @@ export class PublicMount implements ExplorationMount {
             const fileMatchParameters = suffix === undefined ? [pattern] : [suffix];
             const fileFilter = `file>=? AND file<? AND ${AS_OF} AND (${audience.map(() => 'audiences LIKE ?').join(' OR ')}) AND ${fileMatch}`;
             const nodeFilter = `path>=? AND path<? AND ${AS_OF} AND (${agent.map(() => 'audience=?').join(' OR ')}) AND kind<>'dir' AND path LIKE ? ESCAPE '\\'`;
-            const [fileTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE ${fileFilter}`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
             const [nodeTotal] = await view.query({ sql: `SELECT count(*) AS n FROM public_nodes WHERE ${nodeFilter}`, parameters: [lower, upper, at, at, ...agent, pattern] }, { maxRows: 1, maxBytes: 65536 });
             const bound = last === undefined ? '' : ' AND file>?';
             const nodeBound = last === undefined ? '' : ' AND path>?';
             const [aggregate] = await view.query({ sql: `SELECT json_group_array(json_array(file,rev_from,audiences)) AS data FROM (SELECT file,rev_from,audiences FROM public_files WHERE ${fileFilter}${bound} ORDER BY file LIMIT ?)`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: 1, maxBytes: 4 * 1024 * 1024 });
-            const total = Number(fileTotal?.n ?? 0) + Number(nodeTotal?.n ?? 0);
             const files = aggregate?.data === null || aggregate?.data === undefined ? [] : JSON.parse(String(aggregate.data)) as [string, number, string][];
+            let fileTotal = files.length;
+            if (last !== undefined || files.length > request.maxItems) {
+                const [counted] = await view.query({ sql: `SELECT count(*) AS n FROM public_files WHERE ${fileFilter}`, parameters: [lower, upper, at, at, ...agent.map(a => `%"${a}"%`), ...fileMatchParameters] }, { maxRows: 1, maxBytes: 65536 });
+                fileTotal = Number(counted?.n ?? 0);
+            }
+            const total = fileTotal + Number(nodeTotal?.n ?? 0);
             const nodes = await view.query({ sql: `SELECT path,kind,audience,rev_from FROM public_nodes WHERE ${nodeFilter}${nodeBound} ORDER BY path LIMIT ?`, parameters: [lower, upper, at, at, ...agent, pattern, ...(last === undefined ? [] : [String(last)]), request.maxItems + 1] }, { maxRows: request.maxItems + 1, maxBytes: 4 * 1024 * 1024 });
             const matchedFiles: ExplorationNode[] = [], matchedNodes: ExplorationNode[] = [];
             for (const row of files) {
-                const path = String(row[0]), audiences = JSON.parse(String(row[2])) as Audience[];
+                const path = String(row[0]), rawAudiences = String(row[2]), audiences = rawAudiences === '["all"]' ? ALL_AUDIENCES : JSON.parse(rawAudiences) as Audience[];
                 if (!intersects(audiences, agent))
                     continue;
                 matchedFiles.push(this.foundFile(path, String(row[1]), revision, effective(audiences, agent)));
@@ -276,6 +281,10 @@ export class PublicMount implements ExplorationMount {
         return page(remaining, String(matched.length), view.revision, request, id, node => node.path);
     }
     private mergeByPath(left: readonly ExplorationNode[], right: readonly ExplorationNode[]): ExplorationNode[] {
+        if (!right.length)
+            return left as ExplorationNode[];
+        if (!left.length)
+            return right as ExplorationNode[];
         const merged: ExplorationNode[] = [];
         let a = 0, b = 0;
         while (a < left.length && b < right.length) {
