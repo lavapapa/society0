@@ -864,6 +864,52 @@
           ]
         },
         {
+          "exportPath": "./public",
+          "title": "public",
+          "fields": [
+            {
+              "name": "mount",
+              "type": "string",
+              "default": "/public",
+              "mode": "new-run",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
+              "name": "renderCacheBytes",
+              "type": "number",
+              "default": 268435456,
+              "mode": "boundary",
+              "affectsResults": false,
+              "secret": false
+            },
+            {
+              "name": "cacheDir",
+              "type": "string",
+              "default": "",
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": false
+            },
+            {
+              "name": "searchIndex",
+              "type": "union",
+              "default": "trigram",
+              "mode": "recreate",
+              "affectsResults": false,
+              "secret": false
+            },
+            {
+              "name": "changesPerception",
+              "type": "union",
+              "default": "digest",
+              "mode": "boundary",
+              "affectsResults": true,
+              "secret": false
+            }
+          ]
+        },
+        {
           "exportPath": "./exploration",
           "title": "exploration",
           "fields": [
