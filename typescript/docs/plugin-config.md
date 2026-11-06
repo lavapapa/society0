@@ -90,6 +90,12 @@
 | ./information | pageSize | number | 100 | boundary | true | false |
 | ./results | batchRows | number | 64 | boundary | true | false |
 | ./results | batchBytes | number | 1048576 | boundary | true | false |
+| ./public | mount | string | "/public" | new-run | true | false |
+| ./public | renderCacheBytes | number | 268435456 | boundary | false | false |
+| ./public | cacheDir | string | "" | recreate | false | false |
+| ./public | searchIndex | union | "trigram" | recreate | false | false |
+| ./public | changesPerception | union | "digest" | boundary | true | false |
+| ./moment-views | freeze | union | "clock" | new-run | true | false |
 | ./exploration | maxInlineFileBytes | number | 1048576 | boundary | true | false |
 | ./exploration | maxSearchBytes | number | 67108864 | boundary | true | false |
 | ./exploration | maxSearchOutputBytes | number | 4194304 | boundary | true | false |

@@ -1,0 +1,33 @@
+import type { SqliteMigration } from '../sqlite/contracts.js';
+
+/** 版本化公开仓库：节点、行、文件聚合与trigram候选索引。 */
+export function publicMigration(source: Readonly<Record<string, unknown>>): SqliteMigration {
+    return {
+        owner: 'public', from: 0, to: 1, after: ['artifacts-local'], source,
+        statements: [{
+            sql: `CREATE TABLE public_nodes(
+  path TEXT NOT NULL,parent TEXT NOT NULL,rev_from INTEGER NOT NULL,rev_to INTEGER,
+  kind TEXT NOT NULL CHECK(kind IN('dir','doc','table','derived')),
+  provider TEXT NOT NULL,node_id TEXT NOT NULL,
+  media TEXT NOT NULL,meta TEXT NOT NULL,
+  audience TEXT NOT NULL DEFAULT 'all',
+  body BLOB,artifact TEXT,bytes INTEGER,
+  PRIMARY KEY(path,rev_from));
+CREATE INDEX public_nodes_live ON public_nodes(rev_to,path);
+CREATE INDEX public_nodes_parent ON public_nodes(parent,path,rev_from);
+CREATE TABLE public_rows(
+  file TEXT NOT NULL,row_key TEXT NOT NULL,sort_key TEXT NOT NULL,
+  rev_from INTEGER NOT NULL,rev_to INTEGER,
+  audience TEXT NOT NULL DEFAULT 'all',
+  line BLOB NOT NULL,
+  PRIMARY KEY(file,row_key,rev_from));
+CREATE INDEX public_rows_read ON public_rows(file,sort_key,row_key) WHERE rev_to IS NULL;
+CREATE INDEX public_rows_hist ON public_rows(file,rev_to);
+CREATE TABLE public_files(
+  file TEXT NOT NULL,parent TEXT NOT NULL,rev_from INTEGER NOT NULL,rev_to INTEGER,
+  table_path TEXT NOT NULL,rows INTEGER NOT NULL,bytes INTEGER NOT NULL,
+  audiences TEXT NOT NULL,
+  PRIMARY KEY(file,rev_from));`
+        }]
+    };
+}
