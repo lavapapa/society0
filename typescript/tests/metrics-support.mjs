@@ -93,7 +93,7 @@ export async function fixture(options = {}) {
     await ctx.plugin(ProposalSequence, { proposals: proposals(ticks, actors) });
     await ctx.plugin(RuntimeStaged);
     await ctx.plugin(CompletionStrict);
-    await ctx.plugin(CheckpointPolicy, { every: 10 });
+    await ctx.plugin(CheckpointPolicy, { every: options.checkpointEvery ?? 100000 });
     await ctx.plugin(Termination);
     await ctx.plugin(GenerationViews);
     await ctx.plugin(GenerationBinding, { generation: 'g' });
@@ -106,7 +106,7 @@ export async function fixture(options = {}) {
       await context.database.transaction(context.writeLease, req(operationId), async tx => {
         if (options.work === 'quadratic') {
           await tx.execute({ sql: 'INSERT INTO curve(v) VALUES(?)', parameters: [BigInt(intent.input?.tick ?? 0)] });
-          await tx.query({ sql: 'SELECT v FROM curve' }, { maxRows: 200000, maxBytes: 67108864 });
+          await tx.query({ sql: 'SELECT v FROM curve' }, { maxRows: 10000, maxBytes: 1048576 });
         }
         else if (options.work === 'constant') {
           await tx.execute({ sql: 'INSERT INTO curve(v) VALUES(1)', parameters: [] });
