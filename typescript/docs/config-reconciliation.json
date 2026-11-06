@@ -1293,6 +1293,10 @@
     "@society0/social/social/wakeDriver": {
       "state": "added",
       "consumer": "typescript/packages/social/src/social/index.ts:9"
+    },
+    "@society0/core/exploration-shell/workers": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/exploration-shell/pool.ts:53"
     }
   },
   "plugins": {},

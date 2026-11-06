@@ -22,21 +22,30 @@ async function* jsonLines(rows: AsyncIterable<Json>, maxRowBytes: number) {
             yield raw.subarray(offset, offset + 65536);
     }
 }
+const MATCH_LINE_BYTES = 512;
+function clipLine(text: string, max = MATCH_LINE_BYTES) {
+    const bytes = Buffer.from(text);
+    if (bytes.length <= max) return text;
+    let end = max;
+    while (end > 0 && (bytes[end]! & 0xc0) === 0x80) end--;
+    return bytes.subarray(0, end).toString('utf8') + '…';
+}
 class MatchPage {
     total = 0;
     private items: ExplorationMatch[] = [];
     private positions = new WeakMap<ExplorationMatch, number>();
     constructor(private request: GrepRequest, private last: unknown, private id: unknown, private revision: string) { }
-    append(node: ExplorationNode, offset: number, text: string, line: number, column: number) {
-        this.admit({ path: node.path, objectId: node.objectId, versions: node.versions, rawOffset: String(offset), text, line, column });
+    append(node: ExplorationNode, offset: number, text: string, line: number, column: number, lineText: string) {
+        this.admit({ path: node.path, objectId: node.objectId, versions: node.versions, rawOffset: String(offset), text, lineText, line, column });
     }
     appendMatch(match: ExplorationMatch) { this.admit(match); }
-    private admit(value: ExplorationMatch) {
+    private admit(match: ExplorationMatch) {
         this.total++;
         if (this.last !== undefined && this.total <= Number(this.last))
             return;
         if (this.items.length > this.request.page.maxItems)
             return;
+        const value = { ...match, lineText: clipLine(match.lineText) };
         this.positions.set(value, this.total);
         this.items.push(value);
     }
@@ -211,8 +220,8 @@ export class ExplorationView implements ExplorationSession {
             scanned += size;
             const handle = this.pin(await this.mount(node.path).open(node, this.scope, view));
             try {
-                const search = new NativeSearch(request.pattern, request.mode, this.options);
-                await search.run(handle.value.read({ offset: '0', length: size, maxBytes: this.options.maxSearchBytes }, signal), signal, (offset, text, line, column) => found.append(node, offset, text, line, column));
+                const search = new NativeSearch(request.pattern, request.mode, this.options, request.ignoreCase);
+                await search.run(handle.value.read({ offset: '0', length: size, maxBytes: this.options.maxSearchBytes }, signal), signal, (offset, text, line, column, lineText) => found.append(node, offset, text, line, column, lineText));
             }
             finally {
                 await handle.release();

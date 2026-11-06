@@ -44,7 +44,7 @@ export interface ActionDefinition {
     readonly description?: string;
     readonly inputSchema: Json;
     readonly outputSchema: Json;
-    readonly effect: 'world' | 'external' | 'read';
+    readonly effect: 'world' | 'workspace' | 'external' | 'read';
     /** offer：参与可供性（默认）；tool：固定工具的执行后端，不进入 offer；internal：只供插件或规则调用。 */
     readonly exposure?: ActionExposure;
     /** 缺省为 none：无目标。无目标行动 ambient 默认 true；有目标行动默认 false。 */

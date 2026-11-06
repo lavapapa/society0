@@ -1672,6 +1672,14 @@
           "title": "exploration-shell",
           "fields": [
             {
+              "name": "workers",
+              "type": "number",
+              "default": 8,
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
+            },
+            {
               "name": "maxCommandCount",
               "type": "number",
               "default": 10000,

@@ -1,9 +1,86 @@
-import {parentPort,workerData} from 'node:worker_threads';import {posix} from 'node:path';import {Bash,type IFileSystem} from 'just-bash';
-const port=parentPort!,pending=new Map<number,ReturnType<typeof Promise.withResolvers<any>>>();let sequence=0;
-port.on('message',message=>{const call=pending.get(message.id);if(!call)return;pending.delete(message.id);if(message.error)call.reject(Object.assign(Error(message.error.message),{code:message.error.code}));else call.resolve(message.value)});
-function rpc(op:string,args:unknown[]){if(pending.size>=workerData.maxPendingRpc)throw Error('SHELL_RPC_PENDING');const id=++sequence,call=Promise.withResolvers<any>();pending.set(id,call);port.postMessage({id,op,args});return call.promise}
-const unsupported=async()=>{throw Error('SHELL_FILESYSTEM_OPERATION_UNSUPPORTED')};const encoding=(options:any)=>typeof options==='string'?options:options?.encoding??'utf8';
-const fs:IFileSystem={readFile:async(path,options)=>Buffer.from(await rpc('read',[path])).toString(encoding(options)),readFileBuffer:path=>rpc('read',[path]),writeFile:async(path,value,options)=>{await rpc('write',[path,Buffer.from(value as string,typeof value==='string'?encoding(options):undefined).toString('base64'),false])},appendFile:async(path,value,options)=>{await rpc('write',[path,Buffer.from(value as string,typeof value==='string'?encoding(options):undefined).toString('base64'),true])},exists:path=>rpc('exists',[path]),stat:async path=>{const node=await rpc('stat',[path]);return {isFile:node.kind==='file',isDirectory:node.kind==='directory',isSymbolicLink:false,mode:node.kind==='directory'?0o755:0o644,size:Number(node.rawBytes??0),mtime:new Date(0),identity:node.objectId}},mkdir:async(path,options)=>{await rpc('mkdir',[path,Boolean(options?.recursive)])},readdir:path=>rpc('list',[path]),rm:async(path,options)=>{await rpc('remove',[path,options??{}])},cp:async(from,to,options)=>{if(options?.recursive)throw Error('SHELL_RECURSIVE_COPY_UNSUPPORTED');await rpc('copy',[from,to])},mv:async(from,to)=>{await rpc('rename',[from,to])},resolvePath:(base,path)=>posix.resolve(base,path),getAllPaths:()=>{throw Error('SHELL_GLOBAL_ENUMERATION_UNSUPPORTED')},chmod:unsupported,symlink:unsupported,link:unsupported,readlink:unsupported,lstat:path=>fs.stat(path),realpath:async path=>{await fs.stat(path);return posix.resolve('/',path)},utimes:unsupported};
-const bash=new Bash({fs,cwd:'/workspace',env:{},javascript:false,python:false,executionLimits:{maxSourceBytes:workerData.maxCommandBytes,maxOutputSize:workerData.maxOutputBytes,maxInputBytes:workerData.maxFileBytes,maxFileSystemBytes:workerData.maxFileBytes,maxStringLength:workerData.maxFileBytes,maxArrayElements:workerData.maxDirectoryEntries,maxWorkerMessageBytes:workerData.maxRpcBytes,maxExecutionTimeMs:workerData.timeoutMs,maxCommandCount:workerData.maxCommandCount,maxLoopIterations:1000,maxWorkUnits:1000000}});
-for(const name of ['read','grep','find'])bash.registerCommand({name,execute:async(args,context)=>{const result=await rpc('command',[name,args,context.cwd]);return {exitCode:0,stdout:JSON.stringify(result)+'\n',stderr:''}}});
-try{const result=await bash.exec(workerData.command);port.postMessage({kind:'done',result:{exitCode:result.exitCode,stdout:result.stdout,stderr:result.stderr}})}catch(error){port.postMessage({kind:'failure',error:{message:String(error),code:(error as {code?:string})?.code}})}finally{port.close()}
+import { parentPort, workerData } from 'node:worker_threads';
+import { posix } from 'node:path';
+import { Bash, type IFileSystem } from 'just-bash';
+
+const port = parentPort!;
+const pending = new Map<number, ReturnType<typeof Promise.withResolvers<any>>>();
+let sequence = 0;
+
+port.on('message', async message => {
+    if (message.kind === 'run') {
+        try {
+            const result = await execute(message.command);
+            port.postMessage({ kind: 'done', result: { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr } });
+        }
+        catch (error) {
+            port.postMessage({ kind: 'failure', error: { message: String(error), code: (error as { code?: string })?.code } });
+        }
+        return;
+    }
+    const call = pending.get(message.id);
+    if (!call) return;
+    pending.delete(message.id);
+    if (message.error) call.reject(Object.assign(Error(message.error.message), { code: message.error.code }));
+    else call.resolve(message.value);
+});
+
+function rpc(op: string, args: unknown[]) {
+    if (pending.size >= workerData.maxPendingRpc) throw Error('SHELL_RPC_PENDING');
+    const id = ++sequence, call = Promise.withResolvers<any>();
+    pending.set(id, call);
+    port.postMessage({ id, op, args });
+    return call.promise;
+}
+const unsupported = async () => { throw Error('SHELL_FILESYSTEM_OPERATION_UNSUPPORTED'); };
+const encoding = (options: any) => typeof options === 'string' ? options : options?.encoding ?? 'utf8';
+const fs: IFileSystem = {
+    readFile: async (path, options) => Buffer.from(await rpc('read', [path])).toString(encoding(options)),
+    readFileBuffer: path => rpc('read', [path]),
+    writeFile: async (path, value, options) => { await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), false]); },
+    appendFile: async (path, value, options) => { await rpc('write', [path, Buffer.from(value as string, typeof value === 'string' ? encoding(options) : undefined).toString('base64'), true]); },
+    exists: path => rpc('exists', [path]),
+    stat: async path => {
+        const node = await rpc('stat', [path]);
+        return { isFile: node.kind === 'file', isDirectory: node.kind === 'directory', isSymbolicLink: false, mode: node.kind === 'directory' ? 0o755 : 0o644, size: Number(node.rawBytes ?? 0), mtime: new Date(0), identity: node.objectId };
+    },
+    mkdir: async (path, options) => { await rpc('mkdir', [path, Boolean(options?.recursive)]); },
+    readdir: path => rpc('list', [path]),
+    rm: async (path, options) => { await rpc('remove', [path, options ?? {}]); },
+    cp: async (from, to, options) => { if (options?.recursive) throw Error('SHELL_RECURSIVE_COPY_UNSUPPORTED'); await rpc('copy', [from, to]); },
+    mv: async (from, to) => { await rpc('rename', [from, to]); },
+    resolvePath: (base, path) => posix.resolve(base, path),
+    // just-bash 的 glob 走异步 readdir；这里不提供全量枚举（DESIGN §7.4）。
+    getAllPaths: () => [],
+    chmod: unsupported, symlink: unsupported, link: unsupported, readlink: unsupported,
+    lstat: path => fs.stat(path),
+    realpath: async path => { await fs.stat(path); return posix.resolve('/', path); },
+    utimes: unsupported
+};
+
+async function execute(command: string) {
+    const bash = new Bash({
+        fs, cwd: '/workspace', env: {}, javascript: false, python: false,
+        executionLimits: {
+            maxSourceBytes: workerData.maxCommandBytes, maxOutputSize: workerData.maxOutputBytes,
+            maxInputBytes: workerData.maxFileBytes, maxFileSystemBytes: workerData.maxFileBytes,
+            maxStringLength: workerData.maxFileBytes, maxArrayElements: workerData.maxDirectoryEntries,
+            maxWorkerMessageBytes: workerData.maxRpcBytes, maxExecutionTimeMs: workerData.timeoutMs,
+            maxCommandCount: workerData.maxCommandCount, maxLoopIterations: 1000, maxWorkUnits: 1000000
+        }
+    });
+    for (const name of ['grep', 'rg', 'find']) {
+        bash.registerCommand({
+            name, trusted: true,
+            execute: async (args, context) => {
+                const value = await rpc('command', [name, args, context.cwd]) as any;
+                if (value?.fallback) {
+                    if (context.origCommand) return context.origCommand(args);
+                    return { exitCode: 127, stdout: '', stderr: `${name}: 不支持的选项\n` };
+                }
+                return { exitCode: value.exitCode, stdout: value.stdout, stderr: value.stderr ?? '' };
+            }
+        });
+    }
+    const result = await bash.exec(command);
+    return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+}

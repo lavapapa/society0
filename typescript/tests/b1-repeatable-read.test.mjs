@@ -41,7 +41,7 @@ test('B1 单个 bash 命令内两次 find 看到同一 revision', async () => {
             collect: async () => { throw Error('UNUSED'); }
         });
         session = await ctx.exploration.acquire(scope, context);
-        const result = await ctx.explorationShell.execute("find /probe '*'; find /probe '*'", session.value, context);
+        const result = await ctx.explorationShell.execute("find /probe -name '*'; find /probe -name '*'", session.value, context);
         assert.equal(result.exitCode, 0, result.stderr);
         assert.ok(written);
         assert.equal(revisions.length >= 4, true, JSON.stringify(revisions));
