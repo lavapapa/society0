@@ -6,6 +6,7 @@ const port = parentPort!;
 const pending = new Map<number, ReturnType<typeof Promise.withResolvers<any>>>();
 let sequence = 0;
 
+// 模块（含 just-bash）加载完成后才报告就绪；池在此之前不计命令预算。
 port.on('message', async message => {
     if (message.kind === 'run') {
         try {
@@ -84,3 +85,7 @@ async function execute(command: string) {
     const result = await bash.exec(command);
     return { exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
 }
+
+// 预热：just-bash 的首次 exec 会加载命令实现。先跑一条无副作用命令，
+// 让“就绪”覆盖真实执行路径，而不是只等模块 import 完成。
+void execute('true').catch(() => { }).finally(() => port.postMessage({ kind: 'ready' }));
