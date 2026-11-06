@@ -10,7 +10,8 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 - [Social 初始化](social-init/index.ts) 选择拓扑贡献，校验全部主体引用，再分批创建成员和关系。恢复已有 run 使用 Core 历史激活路径。
 - [拓扑配置](topology-edges/index.ts) 与[生成算法](topology-edges/algorithms.ts) 提供显式边、随机、小世界、无标度、完全图和目标变异系数网络。随机算法使用 Core 的具名随机地址；显式边与完全图可独立装配。
 - [Social](social/index.ts) 登记行动和信息查询；[邻居传播](propagation-neighbors/index.ts) 是独立具名策略。第三方策略通过 `SocialReadPort` 选择收件人，领域仓库执行跨表写入。
-- [轮流来源](round-robin/index.ts) 使用持久 ProposalSource 游标决定下一主体；推进、完整点和分支由 Core 运行器负责。仅单主体轮转；不含旧版配对计划、伙伴消息、组广播与消息保留/FoV（B02 部分承接）。
+- [轮流来源](round-robin/index.ts) 使用持久 ProposalSource 游标决定下一主体；推进、完整点和分支由 Core 运行器负责。配对、伙伴消息、组广播与消息保留/FoV 由 `social` 入口的配对配置承担（B02）。
+- 配对（B02）：`social` 的 `pairingGroups` 按圆桌轮转生成每轮两两配对，`startRound/advanceRound/resetRoundMessages` 提供机制调用；`sendPartnerMessage` 与 `broadcastToGroup` 是主体行动，收件箱按当前轮和接收者可见性读取，历史消息保留。
 
 业务组件注入 `eventHandlers`，通过 `ctx.eventHandlers.register(handler)` 注册事件贡献；注册按原生调用方作用域退役。[事件运行时](../../core/src/runtime-events/index.ts) 在事件 SQL 提交后调用处理器的 `activations(event)`，通过 Core Activation 执行主体并等待物理完成。每个主体的副作用地址由提案、主体、Moment、driver 和 intent 身份共同确定，分支重演沿用相同逻辑地址。Social 行动从事件时钟的 `time` 读取精确十进制时间。 推荐感知要求 `PerceptionScope.logicalTime`，并转换为推荐输入的 `query.time`；直接调用 weighted 策略时显式提供 `query.time`。Social支持非负整数tick及事件 `time`，数字要求安全整数，超大整数使用十进制字符串，其它时标返回明确诊断。衰减先计算BigInt时间差，再按配置计算浮点分数。
 
@@ -47,4 +48,9 @@ Social 将网络、内容互动、传播、推荐、感知和研究测量接入 
 
 ## 五、旧 B02–B05 范围
 
-当前 v3 Social 的准确边界见 `evidence/acceptance-pending/D/legacyScope-B02..B05.json`：B02 部分承接（单主体轮转/持久 cursor）；B03 部分承接（基础行动，无内置规则干预）；B04 未承接（active pool/after_tick 批量）；B05 承接（previewChars/fullRef）。
+B02、B03、B04 已按 2026-11-01 裁决补齐，B05 承接：
+
+- B02：圆桌配对、伙伴消息、组广播、按接收者与当前轮的可见范围、跨轮消息保留。
+- B03：在既有发帖/回复/转发/反应/关注/通知之外，新增 `Social.intervene` 规则干预；调用者传入事务，抽样使用 Core 的具名研究随机流。
+- B04：`SocialRepository.activePool` 与推荐来源 `social/active-pool/v1` 提供有界活跃池；`Social.afterTick` 等待本代登记的批处理，`social-semantic` 把在途向量任务登记为 tick 边界批处理。
+- B05：`previewChars` 按 Unicode 码点截短展示正文，原文经 `social/posts` 的 `{id}` 输入按原字节读取。

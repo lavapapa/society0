@@ -68,6 +68,7 @@ export class SocialSemantic extends Service {
     private config: ReturnType<typeof Config>;
     private tasks: TaskScope;
     private syncing = false;
+    private pending = new Set<Promise<unknown>>();
     constructor(ctx: Context, input: {
         embeddingProvider: string;
         vectorProvider: string;
@@ -87,6 +88,10 @@ export class SocialSemantic extends Service {
                 items: [], total: '0', revision: view.revision, responseBytes: 0
             }), prepare: (input, context) => this.prepare(input, context)
         });
+        ctx.socialRepository.onAfterTick(async () => {
+            while (this.pending.size)
+                await Promise.allSettled([...this.pending]);
+        });
         ctx.effect(() => () => this.tasks.drain('social semantic closing'));
     }
     private get embeddings(): Embeddings {
@@ -102,6 +107,9 @@ export class SocialSemantic extends Service {
             ...context, signal
         }), {
             signal: context.signal, bytes: 1048576
+        });
+        this.pending.add(task);
+        void task.finally(() => this.pending.delete(task)).catch(() => {
         });
         try {
             return await task;
@@ -163,6 +171,9 @@ export class SocialSemantic extends Service {
             ...context, signal
         }), {
             signal: context.signal, bytes: 1048576
+        });
+        this.pending.add(task);
+        void task.finally(() => this.pending.delete(task)).catch(() => {
         });
         try {
             return await task;

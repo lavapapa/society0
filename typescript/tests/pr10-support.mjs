@@ -58,7 +58,7 @@ export async function fixture(options = {}) {
         await c.plugin(Repo.default);
         await c.plugin(Init.default);
         await c.plugin(Topology.default, {
-            actors: [{
+            actors: options.actors ?? [{
                     id: 'a', attributes: {
                         name: '甲', interests: ['science']
                     }
@@ -89,7 +89,7 @@ export async function fixture(options = {}) {
         await c.plugin(Information.default);
         if (options.social !== false) {
             await c.plugin(Social.default, {
-                propagation: options.propagation ?? 'neighbor-broadcast/v1', contentLengthLimit: -1
+                propagation: options.propagation ?? 'neighbor-broadcast/v1', contentLengthLimit: -1, ...(options.social ?? {})
             });
             await c.plugin(Neighbors.default);
         }

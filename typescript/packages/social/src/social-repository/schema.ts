@@ -19,6 +19,14 @@ CREATE TABLE social_presentations(id TEXT PRIMARY KEY NOT NULL,actor TEXT NOT NU
 CREATE TABLE social_exposures(presentation_id TEXT NOT NULL REFERENCES social_presentations(id),post TEXT NOT NULL REFERENCES social_posts(id),actor TEXT NOT NULL REFERENCES social_members(id),PRIMARY KEY(presentation_id,post));
 CREATE TABLE social_recommended(actor TEXT PRIMARY KEY NOT NULL REFERENCES social_members(id),input_id TEXT NOT NULL,ids TEXT NOT NULL);
 CREATE TABLE social_tags(post TEXT NOT NULL REFERENCES social_posts(id),tag TEXT NOT NULL,PRIMARY KEY(post,tag));
+CREATE TABLE social_pair_head(id INTEGER PRIMARY KEY CHECK(id=1),current_round INTEGER NOT NULL,total_rounds INTEGER NOT NULL,session_minutes INTEGER NOT NULL,inbox_after INTEGER NOT NULL);
+CREATE TABLE social_pair_members(actor TEXT PRIMARY KEY NOT NULL REFERENCES social_members(id),group_no INTEGER NOT NULL,ordinal INTEGER NOT NULL UNIQUE,round_no INTEGER NOT NULL,partner TEXT REFERENCES social_members(id),active INTEGER NOT NULL);
+CREATE TABLE social_pair_schedule(ordinal INTEGER PRIMARY KEY,group_no INTEGER NOT NULL,round_no INTEGER NOT NULL,first TEXT NOT NULL REFERENCES social_members(id),second TEXT NOT NULL REFERENCES social_members(id));
+CREATE INDEX social_pair_schedule_round ON social_pair_schedule(round_no,ordinal);
+CREATE TABLE social_pair_started(first TEXT NOT NULL,second TEXT NOT NULL,round_no INTEGER NOT NULL,PRIMARY KEY(first,second));
+CREATE TABLE social_pair_history(ordinal INTEGER PRIMARY KEY,actor TEXT NOT NULL REFERENCES social_members(id),partner TEXT NOT NULL REFERENCES social_members(id),round_no INTEGER NOT NULL,UNIQUE(actor,round_no));
+CREATE TABLE social_messages(ordinal INTEGER PRIMARY KEY,id TEXT NOT NULL UNIQUE,sender TEXT NOT NULL REFERENCES social_members(id),receiver TEXT NOT NULL REFERENCES social_members(id),round_no INTEGER NOT NULL,created_time TEXT NOT NULL,content TEXT NOT NULL);
+CREATE INDEX social_messages_inbox ON social_messages(receiver,round_no,ordinal);
 `
         }]
 };
