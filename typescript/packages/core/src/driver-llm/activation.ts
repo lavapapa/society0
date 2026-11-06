@@ -90,8 +90,9 @@ export class LlmActivation {
   this.deliveryRecords=[];
   return this.withView(view=>this.step('thread_error','thread.history',async()=>{
    const messages:AgentMessage[]=[],origins=new Map<AgentMessage,string>();let cursor:string|undefined,bytes=0;
-   if(this.thread.messageCount!=='0')do{
-    const page=await this.ctx.threads.page(this.thread.id,this.scope(),view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
+   // open() 的 messageCount 早于本激活内追加的感知消息，必须实际分页读取。
+   do{
+    const page=await this.ctx.threads.page(this.thread.id,{...this.scope(),momentId:this.thread.momentId},view,{cursor,maxItems:this.config.maxPageItems,maxResponseBytes:this.config.maxPageBytes});
     for(const row of page.items){
      if(row.role==='inference_event')continue;
      const decoded=await this.decodeMessage(row.payload);

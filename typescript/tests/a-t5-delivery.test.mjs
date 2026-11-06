@@ -112,9 +112,9 @@ test('A-T5 act on an expired offer returns ACTION_EXPIRED and appends the change
     const tool = rows.find(row => row.role === 'toolResult');
     assert.ok(tool, JSON.stringify(rows));
     const text = tool.value.content[0].text;
-    assert.match(text, /"code":"ACTION_EXPIRED"/);
-    assert.match(text, /"alternatives":\[/);
-    assert.match(text, /"target":"demo\/post:t2"/);
+    assert.match(text, /错误 ACTION_EXPIRED：demo\.reply/);
+    assert.match(text, /可改为：demo\.reply demo\/post:t2/);
     assert.match(text, /可用行动（变更）\n- demo\.reply demo\/post:t1/);
+    assert.equal(text.includes('+ demo.reply demo/post:t2'), false, text);
     assert.equal(text.includes('schema demo.reply'), false, text);
 });
