@@ -1,5 +1,6 @@
 import type { Json, Disposer } from './common.js';
 import type { SqliteReadView } from '../sqlite/contracts.js';
+import type { TargetRef } from './affordance.js';
 export type SqliteReader = Pick<SqliteReadView, 'query'>;
 export type EligibilityRequest = {
     readonly actorId: string;
@@ -12,10 +13,12 @@ export type EligibilityRequest = {
 } | {
     readonly kind: 'action-discovery';
     readonly action: string;
+    readonly target?: TargetRef;
 } | {
     readonly kind: 'action';
     readonly action: string;
     readonly input: Json;
+    readonly target?: TargetRef;
 });
 export interface EligibilityFinding {
     readonly allowed: boolean;
@@ -28,6 +31,8 @@ export interface EligibilityFinding {
 }
 export interface EligibilityRule {
     readonly id: string;
+    /** 为 true 时按目标逐条评估；否则同一次 offers() 内沿用按行动名的结果。 */
+    readonly targetAware?: boolean;
     evaluate(request: EligibilityRequest, reader: SqliteReader): Promise<EligibilityFinding>;
 }
 export interface EligibilityDecision {
