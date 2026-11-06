@@ -20,7 +20,7 @@ async function harness(t,register){
   const binding=await ctx.actorTools.bind(context);
   return {run,ctx,context,binding};
 }
-const invokeTool=binding=>binding.value.tools.find(tool=>tool.name==='actions_execute');
+const invokeTool=binding=>binding.value.tools.find(tool=>tool.name==='act');
 async function runModel(t,{context,binding,tools,fixture,requiredActions=[],maxRequests=3}){
   const runtime=new PiRuntime();
   t.after(()=>runtime.drain('a-t1 fixture'));
@@ -38,7 +38,7 @@ test('A-T1 bash non-zero exit stays a completed tool result',async t=>{
     assert.equal(outcome.status,'completed',JSON.stringify(outcome));
     assert.equal(outcome.reason,'success');
     const receipt=outcome.actionReceipts[0].receipt;
-    assert.equal(receipt.status,'completed');
+    assert.equal(receipt.status,'completed',JSON.stringify(receipt));
     assert.equal(receipt.value.exitCode,1);
   }finally{await h.binding.release()}
 });
@@ -48,7 +48,7 @@ test('A-T1 recoverable rejected action does not fail activation and later act su
     c.actions.register({name:'good.action',effect:'read',inputSchema:{type:'object'},outputSchema:{},available:async()=>true,execute:async(input,context)=>({operationId:context.operationId,status:'completed',value:{ok:true},original:null,artifacts:[]})});
   });
   try{
-    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],requiredActions:[{name:'good.action',minimumCompleted:1}],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'actions_execute',arguments:{action:'blocked.action',input:{}}}],'toolUse'),assistant([{type:'toolCall',id:'invoke-2',name:'actions_execute',arguments:{action:'good.action',input:{}}}],'toolUse'),assistant([{type:'text',text:'done'}])]});
+    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],requiredActions:[{name:'good.action',minimumCompleted:1}],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'act',arguments:{action:'blocked.action',input:{}}}],'toolUse'),assistant([{type:'toolCall',id:'invoke-2',name:'act',arguments:{action:'good.action',input:{}}}],'toolUse'),assistant([{type:'text',text:'done'}])]});
     assert.equal(outcome.status,'completed',JSON.stringify(outcome));
     assert.equal(outcome.reason,'success');
     const [blocked,good]=outcome.actionReceipts;
@@ -60,7 +60,7 @@ test('A-T1 recoverable rejected action does not fail activation and later act su
 test('A-T1 unknown attempt still reports transport_unknown',async t=>{
   const h=await harness(t,c=>{c.actions.register({name:'external.unknown',effect:'external',inputSchema:{type:'object'},outputSchema:{},available:async()=>true,execute:async()=>{throw Object.assign(Error('physical unknown'),{code:'ACTION_ATTEMPT_UNKNOWN'})}})});
   try{
-    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'actions_execute',arguments:{action:'external.unknown',input:{}}}],'toolUse'),assistant([{type:'text',text:'must not run'}])]});
+    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'act',arguments:{action:'external.unknown',input:{}}}],'toolUse'),assistant([{type:'text',text:'must not run'}])]});
     assert.equal(outcome.status,'incomplete');
     assert.equal(outcome.reason,'transport_unknown');
   }finally{await h.binding.release()}
@@ -68,7 +68,7 @@ test('A-T1 unknown attempt still reports transport_unknown',async t=>{
 test('A-T1 storage unknown still reports persistence_unknown',async t=>{
   const h=await harness(t,c=>{c.actions.register({name:'world.storage',effect:'world',inputSchema:{type:'object'},outputSchema:{},available:async()=>true,execute:async()=>{throw Object.assign(Error('storage unknown'),{code:'SQLITE_COMMIT_UNKNOWN',storage:true})}})});
   try{
-    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'actions_execute',arguments:{action:'world.storage',input:{}}}],'toolUse'),assistant([{type:'text',text:'must not run'}])]});
+    const outcome=await runModel(t,{...h,tools:[invokeTool(h.binding)],fixture:[assistant([{type:'toolCall',id:'invoke-1',name:'act',arguments:{action:'world.storage',input:{}}}],'toolUse'),assistant([{type:'text',text:'must not run'}])]});
     assert.equal(outcome.status,'incomplete');
     assert.equal(outcome.reason,'persistence_unknown');
   }finally{await h.binding.release()}

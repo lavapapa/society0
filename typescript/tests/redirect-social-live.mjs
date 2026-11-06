@@ -49,8 +49,7 @@ async function boot(task) {
     await c.plugin(Workspace);
     for (const name of ['perception', 'exploration', 'mount-workspace', 'mount-results', 'mount-world', 'plain', 'prompts', 'mount-context', 'exploration-shell', 'actor-tools', 'model-providers', 'model-credentials', 'model-pi', 'agent-runtimes', 'agent-runtime-pi', 'inference-defaults'])
         await c.plugin(await core(name), name === 'prompts' ? {
-            sections: [{ id: 'social-live', text: 'You are a social actor. You must invoke the named tool with a JSON object argument. Never satisfy the instruction by printing JSON text.' }],
-            tools: task === 'publish' ? [{ id: 'publish', name: 'publish', action: 'social.publish' }] : [{ id: 'message', name: 'message', action: 'social.sendPartnerMessage' }]
+            sections: [{ id: 'social-live', text: 'You are a social actor. You must invoke the act tool with an action name and a JSON object input. Never satisfy the instruction by printing JSON text.' }]
         } : name === 'model-credentials' ? {
             stores: [{ reference: 'authorized-local', path: credentials }]
         } : name === 'model-pi' ? {
@@ -71,10 +70,10 @@ async function boot(task) {
                 },
                 activations: () => [task === 'publish' ? {
                     id: 'live-publish', actorId: 'a', momentId: 'live-publish', driver: 'llm/v1', source: 'redirect-social-live',
-                    input: 'Invoke the publish tool exactly once with the JSON object {"content":"真实模型发布 #topic 原文"}. The action must be executed; printing the object is not enough.'
+                    input: 'Invoke the act tool exactly once with action social.publish and input {"content":"真实模型发布 #topic 原文"}. The action must be executed; printing the object is not enough.'
                 } : {
                     id: 'live-message', actorId: 'a', momentId: 'live-message', driver: 'llm/v1', source: 'redirect-social-live',
-                    input: 'Invoke the message tool exactly once with the JSON object {"content":"真实模型伙伴消息 #live"}. The action must be executed; printing the object is not enough.'
+                    input: 'Invoke the act tool exactly once with action social.sendPartnerMessage and input {"content":"真实模型伙伴消息 #live"}. The action must be executed; printing the object is not enough.'
                 }]
             });
         }

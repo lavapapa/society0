@@ -982,8 +982,9 @@
       "consumer": "typescript/packages/core/src/prompts/index.ts:12"
     },
     "@society0/core/prompts/tools": {
-      "state": "added",
-      "consumer": "typescript/packages/core/src/prompts/index.ts:12"
+      "state": "dropped",
+      "reason": "A-T2 删除 prompts.tools 别名；配置非空时插件报 PROMPT_TOOLS_REMOVED。",
+      "design": "A-actions DESIGN §4.1；INTEGRATION §4 #15"
     },
     "@society0/core/proposal-events/maxBytes": {
       "state": "added",

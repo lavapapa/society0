@@ -155,6 +155,9 @@ export class Actions extends Service {
             return 'ineligible';
         if (!await entry.definition.available(scope, view))
             return 'ineligible';
+        // exposure:'tool' 是固定工具的执行后端，不参与 offer 目录；门槛和 available 已在上方判定。
+        if ((entry.definition.exposure ?? 'offer') !== 'offer')
+            return 'valid';
         const set = await this.compute(selection, providers, scope, view, this.limits(1), { action: name, ...(target ? { targets: [target] } : {}) });
         return set.offers.some((offer) => offerKey(offer) === offerKey({ action: name, target })) ? 'valid' : 'absent';
     }

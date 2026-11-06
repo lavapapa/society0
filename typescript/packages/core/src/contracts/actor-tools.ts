@@ -8,7 +8,7 @@ export interface ActorToolBinding {
   /**
    * 绑定到本次激活的持久回执reader，独立于模型可见content/details。
    * 工具须await Actions.execute及回执保存，再登记toolCallId/action/operationId/status关联；
-   * actions_execute等元工具记录真实action名称。afterToolCall仅改展示，不改此事实。
+   * act 记录真实 action 名称。afterToolCall仅改展示，不改此事实。
    */
   readonly actionReceipts: ActionReceiptReader;
 }
