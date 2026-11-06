@@ -60,8 +60,8 @@ export class ShellInvocation implements ShellInvocationSink {
     workerFailed = (error: unknown) => this.stop(error);
     async run(): Promise<ShellResult> {
         this.signal.throwIfAborted();
-        const timer = setTimeout(() => this.stop(Error('SHELL_TIMEOUT')), this.config.timeoutMs);
         this.signal.addEventListener('abort', this.abort, { once: true });
+        let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             const slot = await this.pool.acquire(this.signal);
             this.slot = slot;
@@ -70,6 +70,8 @@ export class ShellInvocation implements ShellInvocationSink {
                 throw this.failure ?? Error('SHELL_ABORTED');
             }
             slot.attach(this);
+            // 命令预算只约束命令本身：Worker 已加载就绪后才开始计时。
+            timer = setTimeout(() => this.stop(Error('SHELL_TIMEOUT')), this.config.timeoutMs);
             slot.post({ kind: 'run', command: this.command });
             await Promise.race([
                 this.settled.promise,
@@ -90,7 +92,7 @@ export class ShellInvocation implements ShellInvocationSink {
             return this.result;
         }
         finally {
-            clearTimeout(timer);
+            if (timer) clearTimeout(timer);
             this.signal.removeEventListener('abort', this.abort);
             if (this.slot) {
                 this.slot.detach(this);
