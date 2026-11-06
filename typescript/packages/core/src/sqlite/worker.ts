@@ -20,6 +20,7 @@ if(!probeOnly&&!reopened){
 if(!probeOnly&&String(db.query('SELECT run_id FROM s0_identity WHERE id=1',[],{maxRows:1,maxBytes:4096})[0]?.run_id)!==options.runId)throw fault('SQLITE_RUN_ID');
 const revision=()=>String(db.query('SELECT revision FROM s0_identity WHERE id=1',[],{maxRows:1,maxBytes:256})[0]!.revision);
 const schema=()=>readSchemaVersions(db);
+const counters={commits:0,fsyncs:0};
 let active:{id:string;request:TransactionRequest;statements:number;input:number;changed:bigint;baseline:bigint;failed:boolean;timer:ReturnType<typeof setTimeout>}|undefined;
 const snapshots=new Map<string,{db:SqliteConnection;timer:ReturnType<typeof setTimeout>}>();
 let tables:string[]|undefined;let schemaEnumerations=0;
@@ -61,7 +62,8 @@ function commit(args:any){
  let prepared;try{prepared=prepareCommit(args)}catch(error){phase(error,'prepare')}
  const {state,next}=prepared!;try{db.commit()}catch(error){phase(error,stillOpen()?'prepare':'commit')}
  clearTimeout(state.timer);active=undefined;
- const receipt={operationId:state.request.operationId,revision:next};
+ counters.commits++;if(options.synchronous!=='normal')counters.fsyncs++;
+ const receipt={operationId:state.request.operationId,revision:next,counters:{...counters}};
  try{mkdirSync(join(options.directory,'segments'),{recursive:true});db.exportSegment(join(options.directory,'segments',next+'.changeset'),{maxBytes:state.request.maxCapturedBytes*2+65536})}catch(error){phase(error,'segment',receipt)}
  return receipt;
 }
@@ -76,7 +78,7 @@ function snapshot(args:any){
 function snapshotQuery(args:any){return reader(args.id).query(args.statement.sql,args.statement.parameters,bounds(args.bounds))}
 function blob(args:any){if(args.request.maxBytes>options.maxQueryBytes)throw fault('SQLITE_QUERY_BUDGET');return reader(args.id).readBlobRange(args.request)}
 function snapshotClose(args:any){closeSnapshot(args.id)}
-function state(){return {...db.state(),schemaEnumerations}}
+function state(){return {...db.state(),schemaEnumerations,...counters}}
 function close(){rollback();for(const id of snapshots.keys())closeSnapshot(id);db.close()}
 const operations=new Map<string,(args:any)=>unknown>([
  ['ready',ready],['revision',revision],['migrate',migrate],['begin',begin],

@@ -4,7 +4,8 @@ import {randomUUID} from 'node:crypto';
 export function fault(code:string,message=code):Error{return Object.assign(new Error(message),{code})}
 export function bounded(value:number,name:string,max=Number.MAX_SAFE_INTEGER){if(!Number.isSafeInteger(value)||value<0||value>max)throw fault('STORAGE_BUDGET',name);return value}
 export function id(value:string){if(!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(value))throw fault('STORAGE_ID');return value}
-export async function syncDirectory(path:string){const file=await open(path,'r');try{await file.sync()}finally{await file.close()}}
+export const syncStats={calls:0};
+export async function syncDirectory(path:string){syncStats.calls++;const file=await open(path,'r');try{await file.sync()}finally{await file.close()}}
 export {syncDirectory as syncFile};
 export async function exists(path:string){try{await stat(path);return true}catch(error){if((error as NodeJS.ErrnoException).code==='ENOENT')return false;throw error}}
 export async function jsonFile<T>(path:string,maxBytes=1048576):Promise<T>{const file=await open(path,'r');try{const info=await file.stat();if(info.size>maxBytes)throw fault('STORAGE_METADATA_BUDGET');const data=Buffer.alloc(info.size);let offset=0;while(offset<data.length){const result=await file.read(data,offset,data.length-offset,offset);if(!result.bytesRead)throw fault('STORAGE_TRUNCATED');offset+=result.bytesRead}return JSON.parse(data.toString('utf8')) as T}finally{await file.close()}}

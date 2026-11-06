@@ -1269,6 +1269,46 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
       "reason": "json 模式覆盖整次请求的截止时间；默认 180000，sse 继续使用 timeoutMs。"
+    },
+    "@society0/core/sqlite/synchronous": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
+    },
+    "@society0/core/sqlite/cacheSize": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
+    },
+    "@society0/core/sqlite/readerWorkers": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite/database.ts:37"
+    },
+    "@society0/core/sqlite-history/applyBatchSegments": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:83"
+    },
+    "@society0/core/sqlite-history/applyBatchBytes": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:83"
+    },
+    "@society0/core/sqlite-history/compactEvery": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:90"
+    },
+    "@society0/core/sqlite-history/mirrorDirectory": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:28"
+    },
+    "@society0/core/sqlite-history/mirrorPolicy": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:28"
+    },
+    "@society0/core/sqlite-history/mirrorIntervalMs": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:28"
+    },
+    "@society0/core/sqlite-history/mirrorMaxLagPoints": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/sqlite-history/history.ts:28"
     }
   },
   "plugins": {},

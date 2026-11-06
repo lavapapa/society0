@@ -3,7 +3,7 @@ export type SqliteRow=Record<string,SqliteValue>;
 export interface QueryBounds {maxRows?:number;maxBytes?:number}
 export interface StreamBounds {chunkBytes?:number;maxBytes?:number}
 export interface StreamResult {bytes:number;calls:number;maxNativeChunk:number;maxIoChunk:number}
-export interface ConnectionOptions {path:string;readOnly?:boolean;maxInlineBytes?:number;timeoutMs?:number;maxCapturedBytes?:number;maxInputBytes?:number;control?:Int32Array<SharedArrayBuffer>}
+export interface ConnectionOptions {path:string;readOnly?:boolean;synchronous?:'full'|'normal';cacheSize?:number;maxInlineBytes?:number;timeoutMs?:number;maxCapturedBytes?:number;maxInputBytes?:number;control?:Int32Array<SharedArrayBuffer>}
 export interface ConnectionState {closed:boolean;dirty:boolean;session:'none'|'active'|'retired';autocommit?:boolean;transaction?:boolean;failed?:boolean;pendingSegment?:boolean;sessionBytes?:number;retiredSessionBytes?:number;capturePeak?:number;stopReason?:string;authorizationDenied?:string;tableValidationCount?:number;schemaValidationSqlCount?:number;sessionAttachCount?:number;sessionMetadataPrepareCount?:number;lastError?:{code:string;sqliteCode?:number;message:string;operation:string}}
 export declare function createInterruptControl():Int32Array<SharedArrayBuffer>;
 /** 全进程同SQLite库实例共享；返回原限额，0表示解除。 */
@@ -14,6 +14,7 @@ export declare function openConnection(options:ConnectionOptions):SqliteConnecti
 export declare class SqliteConnection {
  constructor(options:ConnectionOptions);
  readonly control:Int32Array<SharedArrayBuffer>;
+ setControl(control:Int32Array<SharedArrayBuffer>):void;
  state():ConnectionState;
  execSchema(sql:string):void;
  begin(bounds?:{maxDurationMs?:number;maxCapturedBytes?:number}):void;
@@ -34,6 +35,7 @@ export declare class SqliteConnection {
  retireSession():void;
  exportSegment(path:string,bounds?:StreamBounds):StreamResult;
  applySegment(path:string,bounds?:StreamBounds):StreamResult;
+ applyMany(paths:readonly string[],bounds?:StreamBounds):void;
  backupTo(path:string,bounds?:{pagesPerStep?:number;maxBytes?:number}):{bytes:number;steps:number};
  close():void;
 }

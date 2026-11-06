@@ -5,7 +5,8 @@ export interface QueryBounds {readonly maxRows:number;readonly maxBytes:number}
 export interface SqliteSchemaVersion {readonly owner:string;readonly version:number}
 export interface SqliteMigration {readonly owner:string;readonly from:number;readonly to:number;readonly after:readonly string[];readonly source:Readonly<Record<string,unknown>>;readonly statements:readonly SqliteStatement[]}
 export interface TransactionRequest {readonly operationId:string;readonly expectedRevision?:string;readonly maxDurationMs:number;readonly maxStatements:number;readonly maxInputBytes:number;readonly maxChangedRows:number;readonly maxCapturedBytes:number}
-export interface CommitReceipt {readonly operationId:string;readonly revision:string}
+export interface CommitCounters {readonly commits:number;readonly fsyncs:number}
+export interface CommitReceipt {readonly operationId:string;readonly revision:string;readonly counters?:CommitCounters}
 export type CommitProbe={status:'committed';receipt:CommitReceipt}|{status:'not-committed'}|{status:'unknown';reason:string};
 export type CommitPhase='prepare'|'commit'|'segment';
 export interface CommitFailure {readonly operationId:string;readonly tx:string;readonly phase:CommitPhase|'transport';readonly message:string;readonly sqliteCode?:number;readonly stopReason?:string}
@@ -15,7 +16,7 @@ export interface SqliteReadView {readonly id:string;readonly runId:string;readon
 export interface SqliteSnapshot extends SqliteReadView {close():Promise<void>}
 export interface RuntimeFrontier {readonly codec:string;readonly value:unknown;readonly logicalTime:unknown;readonly completedCount:string;readonly pendingAcknowledgements:readonly {source:string;reservationId:string;proposalId:string}[]}
 export interface SqliteRuntimeMetadata {read(snapshot:SqliteSnapshot):Promise<RuntimeFrontier>;complete(tx:SqliteTransaction,frontier:RuntimeFrontier,requiredOperations:readonly string[]):Promise<void>}
-export interface DatabaseOptions {directory:string;runId:string;busyTimeoutMs?:number;maxQueuedBytes?:number;maxPending?:number;maxTransactionMs?:number;maxQueryBytes?:number;maxQueryRows?:number;maxSnapshots?:number;maxSnapshotAgeMs?:number;maxInputBytes?:number;maxInlineBytes?:number}
+export interface DatabaseOptions {directory:string;runId:string;synchronous?:'full'|'normal';cacheSize?:number;readerWorkers?:number;busyTimeoutMs?:number;maxQueuedBytes?:number;maxPending?:number;maxTransactionMs?:number;maxQueryBytes?:number;maxQueryRows?:number;maxSnapshots?:number;maxSnapshotAgeMs?:number;maxInputBytes?:number;maxInlineBytes?:number}
 export function fault(code:string,message=code):Error {return Object.assign(new Error(`${code}: ${message}`),{code})}
 export function positive(value:number,name:string):number {if(!Number.isSafeInteger(value)||value<=0)throw fault('SQLITE_BUDGET',name+' must be a positive safe integer');return value}
 function scalar(value:unknown):value is null|undefined|number|bigint|boolean {
