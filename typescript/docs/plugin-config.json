@@ -1750,6 +1750,14 @@
               "mode": "recreate",
               "affectsResults": true,
               "secret": false
+            },
+            {
+              "name": "legacyTools",
+              "type": "array",
+              "default": [],
+              "mode": "recreate",
+              "affectsResults": true,
+              "secret": false
             }
           ]
         },

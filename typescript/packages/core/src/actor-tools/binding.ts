@@ -8,6 +8,7 @@ import {ToolReceipts,type ReceiptLimits} from './receipts.js';
 import { assertWellFormed } from '../contracts/text.js';
 import { recoverableActionCodes } from './outcome.js';
 import { parseTarget } from '../contracts/affordance.js';
+import { formatToolResult } from './format.js';
 export const boundActions=Symbol('actor-tools.actions');export const boundSession=Symbol('actor-tools.session');
 export type SelectedActions=Awaited<ReturnType<Context['actions']['acquire']>>['value'];
 export type BoundContext=ActionExecutionContext&{[boundSession]?:ExplorationSession;[boundActions]?:SelectedActions};
@@ -19,7 +20,7 @@ export class BoundToolExecution {
  private invocation(toolCallId:string,signal?:AbortSignal){assertWellFormed(toolCallId,'toolCall.id','INFERENCE_MODEL_TEXT_NOT_WELL_FORMED');if(++this.count>this.config.maxToolCalls)throw Error('TOOL_CALL_BUDGET');return {...this.context,operationId:this.context.operationId+'/tool/'+toolCallId,signal:AbortSignal.any([this.context.signal,...(signal?[signal]:[])]),[boundSession]:this.session,[boundActions]:this.actions}}
  async act(toolCallId:string,name:string,input:Json,target:string|undefined,signal?:AbortSignal){return this.invoke(toolCallId,name,input,signal,target)}
  async invoke(toolCallId:string,name:string,input:Json,signal?:AbortSignal,target?:string){const invocation=this.invocation(toolCallId,signal);let receipt:ActionReceipt;try{const ref=target===undefined?undefined:parseTarget(target);receipt=await this.actions.execute(name,input,invocation,ref)}catch(error){const failure=error as Failure;if(failure.code&&recoverableActionCodes.has(failure.code))return this.result(name,await this.save(toolCallId,name,this.rejectionReceipt(invocation.operationId,error,failure)));return this.failed(toolCallId,name,invocation.operationId,error)}const durable=await this.save(toolCallId,name,receipt);return this.result(name,durable)}
- private result(name:string,durable:ActionReceipt){return {content:[{type:'text' as const,text:JSON.stringify(durable.value)}],details:{action:name,operationId:durable.operationId,status:durable.status}}}
+ private result(name:string,durable:ActionReceipt){return {content:[{type:'text' as const,text:formatToolResult(name,durable)}],details:{action:name,operationId:durable.operationId,status:durable.status}}}
  private rejectionReceipt(operationId:string,error:unknown,failure:Failure):ActionReceipt{return {operationId,status:'rejected',value:{code:failure.code??'ACTION_ERROR',message:String(error)},original:null,artifacts:failure.artifacts??[],requiredOperations:failure.requiredOperations??[]}}
  private async save(id:string,name:string,receipt:ActionReceipt){try{return await this.receipts.save(id,name,receipt)}catch(error){if(this.storageUnknown(error as Failure))throw Object.assign(Error('INFERENCE_PERSISTENCE_UNKNOWN'),{code:'INFERENCE_PERSISTENCE_UNKNOWN',cause:error});throw Object.assign(Error('INFERENCE_PERSISTENCE_ERROR'),{code:'INFERENCE_PERSISTENCE_ERROR',cause:error})}}
  private unknown(failure:Failure){return failure.code==='ACTION_ATTEMPT_UNKNOWN'&&!this.storageUnknown(failure)}

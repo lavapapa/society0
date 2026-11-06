@@ -1269,6 +1269,12 @@
       "state": "added",
       "consumer": "typescript/packages/core/src/model-pi/request.ts:25",
       "reason": "json 模式覆盖整次请求的截止时间；默认 180000，sse 继续使用 timeoutMs。"
+    },
+    "@society0/core/actor-tools/legacyTools": {
+      "state": "added",
+      "consumer": "typescript/packages/core/src/actor-tools/index.ts:32",
+      "reason": "试用与对照用的旧工具面开关；默认空，打开 information/exploration 会改变工具表。",
+      "design": "D-tools DESIGN §2.2、§8"
     }
   },
   "plugins": {},

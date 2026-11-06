@@ -179,6 +179,7 @@
 | ./actor-tools | maxReceiptBytes | number | 1048576 | recreate | true | false |
 | ./actor-tools | maxToolCalls | number | 128 | recreate | true | false |
 | ./actor-tools | maxTransactionMs | number | 15000 | recreate | true | false |
+| ./actor-tools | legacyTools | array | [] | recreate | true | false |
 | ./model-credentials | stores | array | [] | recreate | false | false |
 | ./model-codex-subscription | name | string | "codex/subscription/v1" | recreate | true | false |
 | ./model-codex-subscription | credential | string | null | recreate | true | false |
